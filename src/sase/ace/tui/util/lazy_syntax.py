@@ -4,14 +4,15 @@ Building a Rich ``Syntax`` for very large content is expensive — the lexer
 walks every byte and the highlighted output is held in memory. For TUI hot
 paths (prompt panel, file panel, axe dashboard) we cap the size at which
 syntax highlighting is applied and fall back to a plain ``Text`` block with
-a small notice when content exceeds the cap. Diff trimming is preserved by
-counting only the visible/trimmed range against the cap.
+a small notice when content exceeds the cap. File panels additionally apply a
+large line-count safety valve so pathological outputs cannot monopolize the UI
+thread during plain-text layout.
 """
 
 from __future__ import annotations
 
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from hashlib import blake2b
 
@@ -25,6 +26,9 @@ SYNTAX_HIGHLIGHT_MAX_BYTES = 64_000
 SYNTAX_HIGHLIGHT_MAX_LINES = 1_500
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES = 24_000
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES = 600
+# Rich plain-text wrapping measured ~77 ms median at this size on the target
+# host; 10,000 lines measured ~164 ms. Keep the pathological path sub-100 ms.
+FILE_PANEL_MAX_RENDER_LINES = 5_000
 
 
 @dataclass(frozen=True)
@@ -36,6 +40,8 @@ class _SyntaxRenderableKey:
     word_wrap: bool
     line_range: tuple[int, int] | None
     line_numbers: bool
+    render_kind: str = "syntax"
+    max_render_lines: int | None = None
 
 
 def _content_digest(content: str) -> str:
@@ -55,22 +61,26 @@ def _render_options_key(options: object) -> tuple[object, ...]:
     )
 
 
-class _CachedSyntaxRenderable:
-    """Rich Syntax wrapper that reuses highlighted segments per render width."""
+class _CachedRenderable:
+    """Rich wrapper that reuses rendered segments per render width."""
 
-    def __init__(self, syntax: Syntax) -> None:
-        self._syntax = syntax
+    def __init__(self, renderable: RenderableType, content: str) -> None:
+        self._renderable = renderable
+        self._content = content
         self._segments_by_options: OrderedDict[tuple[object, ...], tuple[Segment, ...]]
         self._segments_by_options = OrderedDict()
+        self._measurements_by_options: OrderedDict[tuple[object, ...], Measurement] = (
+            OrderedDict()
+        )
         self._max_width_entries = 8
 
     @property
     def code(self) -> str:
-        """Expose underlying code for tests and plain-text flattening helpers."""
-        return self._syntax.code
+        """Expose source content for tests and plain-text flattening helpers."""
+        return self._content
 
     def __str__(self) -> str:
-        return self._syntax.code
+        return self._content
 
     def __rich_console__(
         self,
@@ -80,7 +90,7 @@ class _CachedSyntaxRenderable:
         key = _render_options_key(options)
         cached = self._segments_by_options.get(key)
         if cached is None:
-            cached = tuple(console.render(self._syntax, options=options))
+            cached = tuple(console.render(self._renderable, options=options))
             self._segments_by_options[key] = cached
             if len(self._segments_by_options) > self._max_width_entries:
                 self._segments_by_options.popitem(last=False)
@@ -91,7 +101,16 @@ class _CachedSyntaxRenderable:
     def __rich_measure__(
         self, console: Console, options: ConsoleOptions
     ) -> Measurement:
-        return self._syntax.__rich_measure__(console, options)
+        key = _render_options_key(options)
+        cached = self._measurements_by_options.get(key)
+        if cached is None:
+            cached = Measurement.get(console, options, self._renderable)
+            self._measurements_by_options[key] = cached
+            if len(self._measurements_by_options) > self._max_width_entries:
+                self._measurements_by_options.popitem(last=False)
+        else:
+            self._measurements_by_options.move_to_end(key)
+        return cached
 
 
 class LazySyntaxRenderCache:
@@ -99,11 +118,15 @@ class LazySyntaxRenderCache:
 
     def __init__(self, max_entries: int = 16) -> None:
         self._max_entries = max_entries
-        self._entries: OrderedDict[_SyntaxRenderableKey, _CachedSyntaxRenderable]
+        self._entries: OrderedDict[_SyntaxRenderableKey, _CachedRenderable]
         self._entries = OrderedDict()
+        self.hits = 0
+        self.misses = 0
 
     def clear(self) -> None:
         self._entries.clear()
+        self.hits = 0
+        self.misses = 0
 
     def get(
         self,
@@ -114,7 +137,7 @@ class LazySyntaxRenderCache:
         word_wrap: bool,
         line_range: tuple[int, int] | None,
         line_numbers: bool,
-    ) -> _CachedSyntaxRenderable:
+    ) -> _CachedRenderable:
         key = _SyntaxRenderableKey(
             content_digest=_content_digest(content),
             content_length=len(content),
@@ -126,10 +149,12 @@ class LazySyntaxRenderCache:
         )
         cached = self._entries.get(key)
         if cached is not None:
+            self.hits += 1
             self._entries.move_to_end(key)
             return cached
 
-        renderable = _CachedSyntaxRenderable(
+        self.misses += 1
+        renderable = _CachedRenderable(
             Syntax(
                 content,
                 lexer,
@@ -137,12 +162,50 @@ class LazySyntaxRenderCache:
                 word_wrap=word_wrap,
                 line_numbers=line_numbers,
                 line_range=line_range,
-            )
+            ),
+            content,
         )
         self._entries[key] = renderable
         if len(self._entries) > self._max_entries:
             self._entries.popitem(last=False)
         return renderable
+
+    def get_plain(
+        self,
+        content: str,
+        lexer: str,
+        *,
+        theme: str,
+        word_wrap: bool,
+        line_range: tuple[int, int] | None,
+        line_numbers: bool,
+        max_render_lines: int | None,
+        renderable_factory: Callable[[], RenderableType],
+    ) -> _CachedRenderable:
+        """Return a cached over-highlight-cap plain-text renderable."""
+        key = _SyntaxRenderableKey(
+            content_digest=_content_digest(content),
+            content_length=len(content),
+            lexer=lexer,
+            theme=theme,
+            word_wrap=word_wrap,
+            line_range=line_range,
+            line_numbers=line_numbers,
+            render_kind="plain",
+            max_render_lines=max_render_lines,
+        )
+        cached = self._entries.get(key)
+        if cached is not None:
+            self.hits += 1
+            self._entries.move_to_end(key)
+            return cached
+
+        self.misses += 1
+        cached = _CachedRenderable(renderable_factory(), content)
+        self._entries[key] = cached
+        if len(self._entries) > self._max_entries:
+            self._entries.popitem(last=False)
+        return cached
 
 
 def _measure(content: str, line_range: tuple[int, int] | None) -> tuple[int, int]:
@@ -193,13 +256,13 @@ def lazy_renderable(
     word_wrap: bool = True,
     theme: str = "monokai",
     render_cache: LazySyntaxRenderCache | None = None,
+    max_render_lines: int | None = None,
 ) -> RenderableType:
     """Return a Rich ``Syntax`` when small enough, else a capped plain block.
 
-    When ``content`` exceeds either cap, render a ``Text`` of the (visible)
-    portion preceded by a one-line dim-italic notice. ``line_range`` lets
-    diff/file panels measure only the trimmed range so partial views stay on
-    the highlighted path even when the underlying file is huge.
+    When ``content`` exceeds either highlight cap, render a ``Text`` of the
+    visible portion preceded by a one-line dim-italic notice. Callers may set
+    ``max_render_lines`` to add a separate plain-text layout safety valve.
     """
     if not _exceeds_lexer_cap(content, lexer, line_range):
         if render_cache is not None:
@@ -234,7 +297,47 @@ def lazy_renderable(
         visible = "\n".join(lines[start - 1 : end])
     else:
         visible = content
-    return Group(notice, Text(visible, no_wrap=False))
+
+    def build_plain() -> RenderableType:
+        rendered_content = visible
+        total_lines = rendered_content.count("\n") + (
+            1 if not rendered_content.endswith("\n") else 0
+        )
+        remaining = 0
+        if max_render_lines is not None and total_lines > max_render_lines:
+            visible_lines = rendered_content.splitlines(keepends=True)
+            rendered_content = (
+                "".join(visible_lines[:max_render_lines])
+                .removesuffix("\n")
+                .removesuffix("\r")
+            )
+            remaining = total_lines - max_render_lines
+
+        renderables: list[RenderableType] = [
+            notice,
+            Text(rendered_content, no_wrap=False),
+        ]
+        if remaining:
+            renderables.append(
+                Text(
+                    f"\n… {remaining} more lines — press E to open in editor",
+                    style="dim italic #87D7FF",
+                )
+            )
+        return Group(*renderables)
+
+    if render_cache is not None:
+        return render_cache.get_plain(
+            content,
+            lexer,
+            theme=theme,
+            word_wrap=word_wrap,
+            line_range=line_range,
+            line_numbers=line_numbers,
+            max_render_lines=max_render_lines,
+            renderable_factory=build_plain,
+        )
+    return build_plain()
 
 
 def cap_ansi_output(output: str) -> str:

@@ -89,8 +89,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
                     "Next / prev commit/link/file",
                 ),
-                (d(a.reset_file_trim), "Reset file trim to default"),
-                (d(a.show_all_file_lines), "Show all file lines"),
                 (d(a.start_tmux_mode), "Tmux workspace chooser"),
                 (d(a.add_agent_tag), "Tag/untag agent (or marked set)"),
                 (d(a.open_tmux), "Tmux in primary workspace"),

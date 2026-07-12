@@ -148,12 +148,6 @@ def refresh_file(modal: Any, agent: Agent, *, force: bool) -> None:
     else:
         panel.update_display(agent, stale_threshold_seconds=modal._refresh_interval)
     panel.freeze_current_list()
-    # Initial renders can happen before the modal is laid out (hidden container
-    # -> trim size 0), so retry the default trim until the panel has a measured
-    # viewport. Once a trim size is established, leave it alone: re-trimming
-    # every tick would revert the user's show-all (=) / reset (-) adjustments.
-    if panel._base_trim_size <= 0:
-        modal.call_after_refresh(panel.reset_trim)
 
 
 def refresh_tools(modal: Any, agent: Agent, *, force: bool) -> None:

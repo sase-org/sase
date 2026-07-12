@@ -9,6 +9,7 @@ from rich.syntax import Syntax
 from sase.ace.tui.util.lazy_syntax import (
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
+    FILE_PANEL_MAX_RENDER_LINES,
     LazySyntaxRenderCache,
     SYNTAX_HIGHLIGHT_MAX_BYTES,
     SYNTAX_HIGHLIGHT_MAX_LINES,
@@ -158,6 +159,35 @@ def test_cached_lazy_renderable_reuses_renderable_for_same_content() -> None:
     second = lazy_renderable("# hello\n", "markdown", render_cache=cache)
 
     assert first is second
+
+
+def test_file_panel_plain_render_cap_adds_editor_notice() -> None:
+    content = "\n".join(
+        f"line {index}" for index in range(FILE_PANEL_MAX_RENDER_LINES + 3)
+    )
+
+    out = lazy_renderable(
+        content,
+        "diff",
+        max_render_lines=FILE_PANEL_MAX_RENDER_LINES,
+    )
+
+    assert isinstance(out, Group)
+    body = out.renderables[1]
+    assert str(body).count("\n") + 1 == FILE_PANEL_MAX_RENDER_LINES
+    assert str(out.renderables[2]) == ("\n… 3 more lines — press E to open in editor")
+
+
+def test_cached_plain_renderable_reuses_same_body() -> None:
+    cache = LazySyntaxRenderCache(max_entries=2)
+    content = "\n".join(["line"] * (SYNTAX_HIGHLIGHT_MAX_LINES + 1))
+
+    first = lazy_renderable(content, "diff", render_cache=cache)
+    second = lazy_renderable(content, "diff", render_cache=cache)
+
+    assert first is second
+    assert cache.misses == 1
+    assert cache.hits == 1
 
 
 def test_5mb_response_renders_as_plain_group() -> None:

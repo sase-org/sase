@@ -147,9 +147,6 @@ ace:
       # Grouping mode cycle (agents tab)
       cycle_grouping_mode: "o"
       cycle_grouping_mode_reverse: "O"
-      # File trim
-      reset_file_trim: "minus"
-      show_all_file_lines: "equals_sign"
       # Queries
       edit_query: "slash"
       prev_query: "circumflex_accent"

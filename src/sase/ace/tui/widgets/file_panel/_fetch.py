@@ -31,7 +31,7 @@ class FilePanelFetchMixin:
     _last_file_content: str | None
     _is_background_refreshing: bool
     _full_content: str | None
-    _is_trimmed: bool
+    _content_fetched_at: datetime | None
     _inflight_diff_tasks: dict[InflightDiffKey, Worker[str | None]]
     _static_worker: Worker[StaticReadResult] | None
 
@@ -55,15 +55,10 @@ class FilePanelFetchMixin:
         cache_entry = file_cache.get(cache_key)
 
         if cache_entry is not None and self._full_content is not None:
-            # Existing content displayed -- update timestamp in-place
+            # Existing content displayed -- update only the separate header.
             self._is_background_refreshing = True
-            self._update_timestamp_header(  # type: ignore[attr-defined]
-                cache_entry.fetch_time, refreshing=True
-            )
-            if self._is_trimmed:
-                self._render_trimmed_content()  # type: ignore[attr-defined]
-            else:
-                self._render_full_content()  # type: ignore[attr-defined]
+            self._content_fetched_at = cache_entry.fetch_time  # type: ignore[attr-defined]
+            self._render_full_content(refreshing=True)  # type: ignore[attr-defined]
         elif cache_entry is not None:
             # Cache exists but not yet displayed -- full display
             self._is_background_refreshing = True
@@ -201,16 +196,11 @@ class FilePanelFetchMixin:
                         and self._full_content is not None
                         and cache_entry.diff_output == self._last_file_content
                     ):
-                        # Content unchanged - just update timestamp header
-                        # and re-render with current trim state preserved
+                        # Content unchanged: rebuild the small timestamp/header
+                        # group while reusing the cached body renderable.
                         scroll_pos = self._save_scroll_position()  # type: ignore[attr-defined]
-                        self._update_timestamp_header(  # type: ignore[attr-defined]
-                            cache_entry.fetch_time
-                        )
-                        if self._is_trimmed:
-                            self._render_trimmed_content()  # type: ignore[attr-defined]
-                        else:
-                            self._render_full_content()  # type: ignore[attr-defined]
+                        self._content_fetched_at = cache_entry.fetch_time  # type: ignore[attr-defined]
+                        self._render_full_content()  # type: ignore[attr-defined]
                         self._restore_scroll_position(scroll_pos)  # type: ignore[attr-defined]
                     else:
                         # Content changed - save scroll, update, restore scroll

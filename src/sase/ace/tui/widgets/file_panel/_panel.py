@@ -8,6 +8,7 @@ from textual.worker import Worker
 
 from ...models.agent import Agent
 from ...util.trace import tui_trace
+from ._content import FilePanelContentMixin, new_file_panel_render_cache
 from ._display import FilePanelDisplayMixin, StaticReadResult
 from ._fetch import FilePanelFetchMixin, InflightDiffKey
 from ._file_list import FilePanelFileListMixin
@@ -18,13 +19,12 @@ from ._messages import (
     get_cache_key,
 )
 from ._state import FilePanelStateMixin
-from ._trim import FilePanelTrimMixin
 
 
 class AgentFilePanel(
     FilePanelFetchMixin,
     FilePanelFileListMixin,
-    FilePanelTrimMixin,
+    FilePanelContentMixin,
     FilePanelDisplayMixin,
     FilePanelStateMixin,
     Static,
@@ -41,14 +41,14 @@ class AgentFilePanel(
         self._is_background_refreshing: bool = False
         self._file_list: list[str] = []
         self._current_file_index: int = 0
-        # Trim state
         self._total_line_count: int = 0
         self._visible_line_count: int = 0
-        self._base_trim_size: int = 0
-        self._is_trimmed: bool = False
+        self._is_content_capped: bool = False
         self._full_content: str | None = None
         self._full_content_lexer: str = "text"
         self._content_mode: str = "none"
+        self._content_fetched_at: datetime | None = None
+        self._content_render_cache = new_file_panel_render_cache()
         self._static_header_path: str | None = None
         self._linked_repo_name: str | None = None
         self._linked_workspace_dir: str | None = None
@@ -88,7 +88,7 @@ class AgentFilePanel(
             if age_seconds < stale_threshold_seconds:
                 self._current_agent = agent
                 self._reconcile_file_list(agent, allow_initial_display=True)
-                return  # Fresh cache, same agent -- preserve trim state
+                return  # Fresh cache, same agent -- preserve rendered content
             # Stale cache, same agent -- start background worker only
             self._current_agent = agent
             self._reconcile_file_list(agent, allow_initial_display=True)
@@ -125,7 +125,7 @@ class AgentFilePanel(
 
         self._current_agent = agent
         desired, default_value = self._desired_file_list(agent)
-        self._reset_trim_state()
+        self._reset_content_state()
         self._file_list = list(desired)
         self._current_file_index = self._select_file_index(
             self._file_list,

@@ -331,30 +331,6 @@ class AgentPanelDetailMixin:
         else:
             self.notify("No content to edit", severity="warning")  # type: ignore[attr-defined]
 
-    def action_reset_file_trim(self) -> None:
-        """Reset file trim to default page size."""
-        if self.current_tab != "agents":
-            return
-
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        if not agent_detail.is_file_visible():
-            return
-        agent_detail.reset_file_trim()
-
-    def action_show_all_file_lines(self) -> None:
-        """Show all file lines (remove trimming)."""
-        if self.current_tab != "agents":
-            return
-
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        if not agent_detail.is_file_visible():
-            return
-        agent_detail.show_all_file_lines()
-
     def action_toggle_attempt_view(self) -> None:
         """Toggle the attempt history view between merged and current-only."""
         if self.current_tab != "agents":

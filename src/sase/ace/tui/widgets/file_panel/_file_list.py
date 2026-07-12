@@ -77,7 +77,7 @@ class FilePanelFileListMixin:
         if self._file_list and 0 <= self._current_file_index < len(self._file_list):
             old_path = self._file_list[self._current_file_index]
 
-        self._reset_trim_state()  # type: ignore[attr-defined]
+        self._reset_content_state()  # type: ignore[attr-defined]
         self._file_list = list(files)
         if old_path is not None and old_path in self._file_list:
             self._current_file_index = self._file_list.index(old_path)
@@ -255,11 +255,12 @@ class FilePanelFileListMixin:
         return info.diff_path if info is not None else None
 
     def _display_commit_diff_unavailable(self) -> None:
+        self._reset_content_state()  # type: ignore[attr-defined]
         text = Text("Commit diff is unavailable.\n", style="dim italic")
         self.update(text)  # type: ignore[attr-defined]
         self._has_displayed_content = True
         self._post_file_visibility(has_file=False)
-        self._post_trim_changed()  # type: ignore[attr-defined]
+        self._post_line_count_changed()  # type: ignore[attr-defined]
 
     def _current_linked_diff_changed(self) -> bool:
         current = self._current_file_value()

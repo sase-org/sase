@@ -182,7 +182,7 @@ async def test_zoom_search_commit_repeat_and_wrap_feedback() -> None:
         )
 
 
-async def test_zoom_search_uses_full_static_file_content_below_trim(
+async def test_zoom_search_uses_full_static_file_content(
     tmp_path: Any,
 ) -> None:
     content = "\n".join(f"line {index}" for index in range(160))
@@ -199,13 +199,8 @@ async def test_zoom_search_uses_full_static_file_content_below_trim(
 
         panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
         await _wait_for_file_content(pilot, panel, "line 0")
-        panel._base_trim_size = 20
-        panel._visible_line_count = 20
-        panel._total_line_count = 161
-        panel._render_trimmed_content()
-        await pilot.pause()
-        assert panel.is_trimmed
-        assert "needle below trim" not in (_renderable_to_text(panel.content) or "")
+        assert panel._visible_line_count == panel._total_line_count
+        assert "needle below trim" in (_renderable_to_text(panel.content) or "")
 
         await pilot.press("slash", "n", "e", "e", "d", "l", "e")
         await pilot.pause()

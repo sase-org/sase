@@ -253,9 +253,6 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         (),
     ),
-    # File trim
-    ("reset_file_trim", "Reset file trim", "Display", AGENTS_ONLY, ()),
-    ("show_all_file_lines", "Show all file lines", "Display", AGENTS_ONLY, ()),
     # Queries
     ("edit_query", "Edit query", "Queries", ALL_TABS, ("/",)),
     ("prev_query", "Previous saved query", "Queries", ALL_TABS, ()),

@@ -7,7 +7,11 @@ from typing import Any
 from rich.text import Text
 from textual.containers import VerticalScroll
 
-from ..widgets.file_panel import FileListChanged, FileTrimChanged, FileVisibilityChanged
+from ..widgets.file_panel import (
+    FileLineCountChanged,
+    FileListChanged,
+    FileVisibilityChanged,
+)
 from ..widgets.tools_panel import ToolsVisibilityChanged
 from .zoom_panel_types import ZoomPanelTarget
 
@@ -29,14 +33,14 @@ def on_file_list_changed(modal: Any, message: FileListChanged) -> None:
     message.stop()
 
 
-def on_file_trim_changed(modal: Any, message: FileTrimChanged) -> None:
-    """Mirror file trim state in the modal border subtitle."""
+def on_file_line_count_changed(modal: Any, message: FileLineCountChanged) -> None:
+    """Mirror file line-count state in the modal border subtitle."""
     scroll = modal.query_one("#zoom-file-scroll", VerticalScroll)
     if message.total_lines == 0:
         scroll.border_subtitle = ""
-    elif message.is_trimmed:
+    elif message.capped:
         scroll.border_subtitle = Text(
-            f"Lines 1-{message.visible_lines} of {message.total_lines}",
+            f"1-{message.visible_lines} of {message.total_lines} lines (E: editor)",
             style="dim #87D7FF",
         )
     else:

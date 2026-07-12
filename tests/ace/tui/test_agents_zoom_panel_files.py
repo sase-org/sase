@@ -540,7 +540,7 @@ async def test_zoom_next_file_warns_when_metadata_agent_has_no_files() -> None:
         assert modal.notifications == [("No files for this agent", "warning")]
 
 
-async def test_zoom_file_show_all_survives_periodic_refresh(tmp_path: Any) -> None:
+async def test_zoom_file_full_content_survives_periodic_refresh(tmp_path: Any) -> None:
     content = "\n".join(f"line {i}" for i in range(200)) + "\n"
     file_path = tmp_path / "notes.md"
     file_path.write_text(content, encoding="utf-8")
@@ -562,14 +562,13 @@ async def test_zoom_file_show_all_survives_periodic_refresh(tmp_path: Any) -> No
         from sase.ace.tui.modals.zoom_panel_modal import _ZoomFilePanel
 
         panel = modal.query_one("#zoom-file-panel", _ZoomFilePanel)
-        assert panel.is_trimmed  # default page trim applied after layout
+        assert panel._total_line_count == 200
+        assert panel._visible_line_count == 200
+        assert not panel._is_content_capped
 
-        await pilot.press("equals_sign")  # show all lines
-        await pilot.pause()
-        assert not panel.is_trimmed
-
-        # A periodic refresh tick must not revert the user's show-all.
+        # A periodic refresh tick keeps the complete body rendered.
         modal._refresh_active_panel(force=False)
         await pilot.pause()
         await pilot.pause()
-        assert not panel.is_trimmed
+        assert panel._visible_line_count == 200
+        assert not panel._is_content_capped

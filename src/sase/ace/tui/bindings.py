@@ -119,8 +119,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
     Binding("E", "edit_panel", "Edit Panel", show=False),
-    Binding("minus", "reset_file_trim", "Reset Trim", show=False),
-    Binding("equals_sign", "show_all_file_lines", "Show All", show=False),
     # Jump to PR from agent (agents tab)
     Binding("enter", "jump_to_agent_changespec", "Go to PR", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),

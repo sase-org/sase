@@ -63,8 +63,7 @@ def _make_panel() -> MagicMock:
     panel._current_file_index = 0
     panel._total_line_count = 0
     panel._visible_line_count = 0
-    panel._base_trim_size = 0
-    panel._is_trimmed = False
+    panel._is_content_capped = False
     panel._full_content = None
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
@@ -123,7 +122,7 @@ def _make_panel() -> MagicMock:
 
     # Stub out side-effecting internals that would touch the filesystem,
     # spawn workers, or render UI.
-    panel._reset_trim_state = MagicMock()
+    panel._reset_content_state = MagicMock()
     panel._start_background_fetch = MagicMock()
     panel._display_file_at_current_index = MagicMock()
     panel._display_file_with_timestamp = MagicMock()

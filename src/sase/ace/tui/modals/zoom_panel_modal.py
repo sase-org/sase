@@ -14,7 +14,11 @@ from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Label, Static
 
-from ..widgets.file_panel import FileListChanged, FileTrimChanged, FileVisibilityChanged
+from ..widgets.file_panel import (
+    FileLineCountChanged,
+    FileListChanged,
+    FileVisibilityChanged,
+)
 from ..widgets.prompt_panel import AgentPromptPanel
 from ..widgets.tools_panel import ToolsVisibilityChanged
 from .zoom_panel_content import (
@@ -32,7 +36,7 @@ from .zoom_panel_content import (
 )
 from .zoom_panel_events import (
     on_file_list_changed,
-    on_file_trim_changed,
+    on_file_line_count_changed,
     on_file_visibility_changed,
     on_tools_visibility_changed,
 )
@@ -45,14 +49,12 @@ from .zoom_panel_navigation import (
     action_next_panel,
     action_prev_file,
     action_prev_panel,
-    action_reset_file_trim,
     action_scroll_bottom,
     action_scroll_down,
     action_scroll_half_down,
     action_scroll_half_up,
     action_scroll_top,
     action_scroll_up,
-    action_show_all_file_lines,
     active_scroll,
     agent_has_files,
     available_targets,
@@ -104,8 +106,6 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         Binding("H", "compact_tools_detail", "Compact Detail"),
         Binding("ctrl+n", "next_file", "Next File"),
         Binding("ctrl+p", "prev_file", "Prev File"),
-        Binding("equals_sign", "show_all_file_lines", "Show All"),
-        Binding("minus", "reset_file_trim", "Reset Trim"),
         Binding("E", "edit_zoom_content", "Edit"),
         Binding("y", "copy_zoom_content", "Copy"),
         Binding("r", "refresh_zoom_content", "Refresh"),
@@ -291,8 +291,8 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     def on_file_list_changed(self, message: FileListChanged) -> None:
         on_file_list_changed(self, message)
 
-    def on_file_trim_changed(self, message: FileTrimChanged) -> None:
-        on_file_trim_changed(self, message)
+    def on_file_line_count_changed(self, message: FileLineCountChanged) -> None:
+        on_file_line_count_changed(self, message)
 
     def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
         on_tools_visibility_changed(self, message)
@@ -336,12 +336,6 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
 
     def action_prev_file(self) -> None:
         action_prev_file(self)
-
-    def action_show_all_file_lines(self) -> None:
-        action_show_all_file_lines(self)
-
-    def action_reset_file_trim(self) -> None:
-        action_reset_file_trim(self)
 
     def action_expand_tools_detail(self) -> None:
         action_expand_tools_detail(self)

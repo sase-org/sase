@@ -49,9 +49,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._has_tools_content: bool = False
         self._file_count: int = 0
         self._file_index: int = 0
-        self._trim_visible_lines: int = 0
-        self._trim_total_lines: int = 0
-        self._trim_is_trimmed: bool = False
+        self._file_visible_lines: int = 0
+        self._file_total_lines: int = 0
+        self._file_content_capped: bool = False
         self._attempt_view_mode: str = "merged"
         self._current_attempt_number: int | None = None
         # Two-phase update guard. ``update_display_immediate`` and
@@ -307,9 +307,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._has_tools_content = False
         self._file_count = 0
         self._file_index = 0
-        self._trim_visible_lines = 0
-        self._trim_total_lines = 0
-        self._trim_is_trimmed = False
+        self._file_visible_lines = 0
+        self._file_total_lines = 0
+        self._file_content_capped = False
         prompt_scroll.border_subtitle = ""
         file_scroll.border_title = ""
         file_scroll.border_subtitle = ""
@@ -368,11 +368,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         else:
             prompt_scroll.remove_class("layout-priority")
             secondary_scroll.remove_class("layout-secondary")
-
-        # Recalculate file panel trim after layout change takes effect
-        if self.is_file_visible():
-            file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-            self.call_after_refresh(file_panel.reset_trim)
 
     def is_tools_visible(self) -> bool:
         """Check if the tools panel is currently visible.
@@ -447,30 +442,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             return None
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         return file_panel.get_current_image_path()
-
-    def expand_file_trim(self) -> None:
-        """Expand file content by one page."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.expand_by_page()
-
-    def reset_file_trim(self) -> None:
-        """Reset file trim to default page size."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.reset_trim()
-
-    def show_all_file_lines(self) -> None:
-        """Show all file lines (remove trimming)."""
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        file_panel.show_all_lines()
-
-    def is_file_trimmed(self) -> bool:
-        """Check if file content is currently trimmed.
-
-        Returns:
-            True if the file content is trimmed, False otherwise.
-        """
-        file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        return file_panel.is_trimmed
 
     def is_layout_swapped(self) -> bool:
         """Check if the layout is currently swapped.

@@ -20,7 +20,7 @@ class FilePanelStateMixin:
 
     def show_empty(self) -> None:
         """Show empty state."""
-        self._reset_trim_state()  # type: ignore[attr-defined]
+        self._reset_content_state()  # type: ignore[attr-defined]
         self._has_displayed_content = False
         # Drop any pending static read so its result can't paint over us.
         self._cancel_static_worker()  # type: ignore[attr-defined]

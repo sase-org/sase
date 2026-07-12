@@ -45,21 +45,21 @@ class FileListChanged(Message):
         self.file_index = file_index
 
 
-class FileTrimChanged(Message):
-    """Message posted when file content trimming state changes."""
+class FileLineCountChanged(Message):
+    """Message posted when file content line-count state changes."""
 
-    def __init__(self, visible_lines: int, total_lines: int, is_trimmed: bool) -> None:
+    def __init__(self, visible_lines: int, total_lines: int, capped: bool) -> None:
         """Initialize the message.
 
         Args:
             visible_lines: Number of lines currently visible.
             total_lines: Total number of lines in the content.
-            is_trimmed: Whether the content is currently trimmed.
+            capped: Whether the pathological-size render cap is active.
         """
         super().__init__()
         self.visible_lines = visible_lines
         self.total_lines = total_lines
-        self.is_trimmed = is_trimmed
+        self.capped = capped
 
 
 class LinkedDeltasRefreshed(Message):

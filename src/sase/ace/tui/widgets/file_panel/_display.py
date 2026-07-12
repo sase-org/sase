@@ -16,7 +16,6 @@ from sase.ace.tui.graphics import (
     is_supported_video_path,
 )
 
-from ...util.lazy_syntax import lazy_renderable
 from ..prompt_panel._agent_context_common import (
     COLOR_WORKSPACE_GLYPH,
     COLOR_WORKSPACE_NAME,
@@ -43,6 +42,7 @@ class FilePanelDisplayMixin:
     _linked_repo_name: str | None
     _linked_workspace_dir: str | None
     _linked_fetched_at: datetime | None
+    _content_fetched_at: datetime | None
     _static_request_id: int
     _static_worker: "Worker[StaticReadResult] | None"
 
@@ -69,7 +69,7 @@ class FilePanelDisplayMixin:
         # Post visibility message to parent (only for fresh fetches to avoid flicker)
         if post_visibility_message:
             self._post_file_visibility(has_file=diff_output is not None)  # type: ignore[attr-defined]
-        cleanup = self._consume_image_cleanup_segments()
+        self._consume_image_cleanup_segments()
 
         # Build refresh indicator if stale and background refreshing
         refresh_indicator = ""
@@ -77,60 +77,15 @@ class FilePanelDisplayMixin:
             refresh_indicator = " (refreshing...)"
 
         if diff_output:
-            # For simplicity, prepend timestamp to the diff output
-            diff_with_header = (
-                f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}"
-                f"{refresh_indicator}\n\n{diff_output}"
-            )
-
-            # Store content for future re-render
-            self._full_content = diff_with_header
+            # Keep the timestamp separate so unchanged refreshes reuse the
+            # cached body renderable instead of re-lexing the diff.
+            self._full_content = diff_output
             self._full_content_lexer = "diff"
             self._content_mode = "diff"
-
-            # Compute trimming
-            total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
-            trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-            self._total_line_count = total
-            self._base_trim_size = trim_size
-
-            if trim_size > 0 and total > trim_size:
-                self._visible_line_count = trim_size
-                self._is_trimmed = True
-                syntax = lazy_renderable(
-                    diff_with_header,
-                    "diff",
-                    line_numbers=True,
-                    line_range=(1, trim_size),
-                )
-                remaining = total - trim_size
-                indicator = Text(
-                    f"\n  ▾ {remaining} more lines below",
-                    style="dim italic #87D7FF",
-                )
-                group = (
-                    Group(*cleanup, syntax, indicator)
-                    if cleanup
-                    else Group(syntax, indicator)
-                )
-                self.update(group)  # type: ignore[attr-defined]
-                # Word-wrapped lines may overflow — schedule post-layout fix
-                self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
-            else:
-                self._visible_line_count = total
-                self._is_trimmed = False
-                syntax = lazy_renderable(
-                    diff_with_header,
-                    "diff",
-                    line_numbers=True,
-                )
-                self.update(Group(*cleanup, syntax) if cleanup else syntax)  # type: ignore[attr-defined]
-                # Container was hidden/not laid out — trim after layout
-                if trim_size == 0:
-                    self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
-
-            self._post_trim_changed()  # type: ignore[attr-defined]
+            self._content_fetched_at = fetch_time
+            self._render_full_content(refreshing=bool(refresh_indicator))  # type: ignore[attr-defined]
         else:
+            self._reset_content_state()  # type: ignore[attr-defined]
             text = Text()
             text.append("Last fetched: ", style="dim")
             text.append(fetch_time.strftime("%H:%M:%S"), style="#87D7FF")
@@ -138,8 +93,8 @@ class FilePanelDisplayMixin:
                 text.append(refresh_indicator, style="dim italic")
             text.append("\n\n")
             text.append("No changes detected.\n", style="dim italic")
-            self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
-            self._post_trim_changed()  # type: ignore[attr-defined]
+            self.update(text)  # type: ignore[attr-defined]
+            self._post_line_count_changed()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
 
@@ -186,57 +141,18 @@ class FilePanelDisplayMixin:
         self._linked_fetched_at = fetch_time
         self._static_header_path = None
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        cleanup = self._consume_image_cleanup_segments()
-
-        diff_with_header = (
-            f"# Last fetched: {fetch_time.strftime('%H:%M:%S')}\n\n{diff_text}"
-        )
-
-        self._full_content = diff_with_header
+        self._consume_image_cleanup_segments()
+        self._full_content = diff_text
         self._full_content_lexer = "diff"
         self._content_mode = "linked_diff"
-
-        total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
-        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-        self._total_line_count = total
-        self._base_trim_size = trim_size
-
-        banner = self._build_linked_banner()
-        if trim_size > 0 and total > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            syntax = lazy_renderable(
-                diff_with_header,
-                "diff",
-                line_numbers=True,
-                line_range=(1, trim_size),
-            )
-            remaining = total - trim_size
-            indicator = Text(
-                f"\n  ▾ {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
-            self.update(Group(*cleanup, banner, Text(""), syntax, indicator))  # type: ignore[attr-defined]
-            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
-        else:
-            self._visible_line_count = total
-            self._is_trimmed = False
-            syntax = lazy_renderable(
-                diff_with_header,
-                "diff",
-                line_numbers=True,
-            )
-            self.update(Group(*cleanup, banner, Text(""), syntax))  # type: ignore[attr-defined]
-            if trim_size == 0:
-                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
-
+        self._content_fetched_at = fetch_time
+        self._render_full_content()  # type: ignore[attr-defined]
         self._has_displayed_content = True
-        self._post_trim_changed()  # type: ignore[attr-defined]
 
     def display_linked_diff_unavailable(self, repo_name: str) -> None:
         """Display a temporary placeholder for a linked page whose cache vanished."""
         cleanup = self._consume_image_cleanup_segments()
-        self._reset_trim_state()  # type: ignore[attr-defined]
+        self._reset_content_state()  # type: ignore[attr-defined]
         self._last_file_content = None
         self._linked_repo_name = repo_name
         banner = self._build_linked_banner(repo_name=repo_name)
@@ -246,7 +162,7 @@ class FilePanelDisplayMixin:
         self.update(Group(*cleanup, banner, Text(""), body))  # type: ignore[attr-defined]
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
+        self._post_line_count_changed()  # type: ignore[attr-defined]
 
     def display_static_diff(self, diff_path: str) -> None:
         """Schedule an off-thread read of a static diff file.
@@ -341,14 +257,18 @@ class FilePanelDisplayMixin:
         """UI-thread render for a non-image static-file read result."""
         cleanup = self._consume_image_cleanup_segments()
         if result.status == "missing":
+            self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Could not read file.\n", style="dim italic")
             self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
+            self._post_line_count_changed()  # type: ignore[attr-defined]
             return
         if result.status == "empty":
+            self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("File is empty.\n", style="dim italic")
             self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
+            self._post_line_count_changed()  # type: ignore[attr-defined]
             return
 
         content = result.content or ""
@@ -360,57 +280,27 @@ class FilePanelDisplayMixin:
         self._content_mode = "static"
         self._static_header_path = expanded_path
 
-        total = self._count_lines(content)  # type: ignore[attr-defined]
-        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-        self._total_line_count = total
-        self._base_trim_size = trim_size
-
-        header = Text(expanded_path, style="bold #D7AF5F underline")
-
-        if trim_size > 0 and total > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            syntax = lazy_renderable(
-                content,
-                lexer,
-                line_numbers=True,
-                line_range=(1, trim_size),
-            )
-            remaining = total - trim_size
-            indicator = Text(
-                f"\n  ▾ {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
-            self.update(Group(*cleanup, header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
-            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
-        else:
-            self._visible_line_count = total
-            self._is_trimmed = False
-            syntax = lazy_renderable(
-                content,
-                lexer,
-                line_numbers=True,
-            )
-            self.update(Group(*cleanup, header, Text(""), syntax))  # type: ignore[attr-defined]
-            if trim_size == 0:
-                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
+        self._render_full_content()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
 
     def _render_static_diff_result(self, result: StaticReadResult) -> None:
         """UI-thread render for a static-diff read result."""
         cleanup = self._consume_image_cleanup_segments()
         if result.status == "missing":
+            self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Could not read diff file.\n", style="dim italic")
             self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
+            self._post_line_count_changed()  # type: ignore[attr-defined]
             return
         if result.status == "empty":
+            self._reset_content_state()  # type: ignore[attr-defined]
             text = Text("Diff file is empty.\n", style="dim italic")
             self.update(Group(*cleanup, text) if cleanup else text)  # type: ignore[attr-defined]
             self._post_file_visibility(has_file=False)  # type: ignore[attr-defined]
+            self._post_line_count_changed()  # type: ignore[attr-defined]
             return
 
         diff_content = result.content or ""
@@ -423,44 +313,10 @@ class FilePanelDisplayMixin:
         self._content_mode = "static_diff"
         self._static_header_path = expanded_path
 
-        total = self._count_lines(diff_with_header)  # type: ignore[attr-defined]
-        trim_size = self._compute_trim_size()  # type: ignore[attr-defined]
-        self._total_line_count = total
-        self._base_trim_size = trim_size
-
-        header = Text(expanded_path, style="bold #D7AF5F underline")
-
-        if trim_size > 0 and total > trim_size:
-            self._visible_line_count = trim_size
-            self._is_trimmed = True
-            syntax = lazy_renderable(
-                diff_with_header,
-                "diff",
-                line_numbers=True,
-                line_range=(1, trim_size),
-            )
-            remaining = total - trim_size
-            indicator = Text(
-                f"\n  ▾ {remaining} more lines below",
-                style="dim italic #87D7FF",
-            )
-            self.update(Group(*cleanup, header, Text(""), syntax, indicator))  # type: ignore[attr-defined]
-            self.call_after_refresh(self._check_trim_overflow)  # type: ignore[attr-defined]
-        else:
-            self._visible_line_count = total
-            self._is_trimmed = False
-            syntax = lazy_renderable(
-                diff_with_header,
-                "diff",
-                line_numbers=True,
-            )
-            self.update(Group(*cleanup, header, Text(""), syntax))  # type: ignore[attr-defined]
-            if trim_size == 0:
-                self.call_after_refresh(self._apply_deferred_trim)  # type: ignore[attr-defined]
+        self._render_full_content()  # type: ignore[attr-defined]
 
         self._has_displayed_content = True
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
 
     def _display_static_image(self, expanded_path: str) -> None:
         """Display a static raster image through the preview layer."""
@@ -480,14 +336,13 @@ class FilePanelDisplayMixin:
         self._static_header_path = expanded_path
         self._total_line_count = rows + 2  # type: ignore[attr-defined]
         self._visible_line_count = rows + 2  # type: ignore[attr-defined]
-        self._base_trim_size = 0  # type: ignore[attr-defined]
-        self._is_trimmed = False  # type: ignore[attr-defined]
+        self._is_content_capped = False  # type: ignore[attr-defined]
 
         header = Text(expanded_path, style="bold #D7AF5F underline")
         self.update(Group(*cleanup, header, Text(""), renderable))  # type: ignore[attr-defined]
         self._has_displayed_content = True  # type: ignore[attr-defined]
         self._post_file_visibility(has_file=os.path.exists(expanded_path))  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
+        self._post_line_count_changed()  # type: ignore[attr-defined]
 
     def _display_static_video(self, expanded_path: str) -> None:
         """Display a static video placeholder instead of reading binary text."""
@@ -499,15 +354,14 @@ class FilePanelDisplayMixin:
         self._static_header_path = expanded_path
         self._total_line_count = 6  # type: ignore[attr-defined]
         self._visible_line_count = 6  # type: ignore[attr-defined]
-        self._base_trim_size = 0  # type: ignore[attr-defined]
-        self._is_trimmed = False  # type: ignore[attr-defined]
+        self._is_content_capped = False  # type: ignore[attr-defined]
 
         header = Text(expanded_path, style="bold #D7AF5F underline")
         placeholder = _video_file_placeholder(expanded_path)
         self.update(Group(*cleanup, header, Text(""), placeholder))  # type: ignore[attr-defined]
         self._has_displayed_content = True  # type: ignore[attr-defined]
         self._post_file_visibility(has_file=True)  # type: ignore[attr-defined]
-        self._post_trim_changed()  # type: ignore[attr-defined]
+        self._post_line_count_changed()  # type: ignore[attr-defined]
 
     def _image_render_context(self) -> ImageRenderContext:
         """Return the image preview rendering context."""

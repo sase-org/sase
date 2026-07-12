@@ -212,34 +212,13 @@ class BasicNavigationMixin(NavigationMixinBase):
         return "#agent-prompt-scroll"
 
     def action_scroll_detail_down(self) -> None:
-        """Scroll the detail panel down by half a page (vim Ctrl+D style).
-
-        On the agents tab, if scrolled to the bottom and content is trimmed,
-        auto-expands by one page instead of scrolling.
-        """
+        """Scroll the detail panel down by half a page (vim Ctrl+D style)."""
         if self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
 
-            # Auto-expand when at bottom and content is trimmed
-            if scroll_id == "#agent-file-scroll":
-                from ...widgets import AgentDetail
-
-                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-                at_bottom = (
-                    scroll_container.scroll_y >= scroll_container.max_scroll_y - 1
-                )
-                if at_bottom and agent_detail.is_file_trimmed():
-                    agent_detail.expand_file_trim()
-                    height = scroll_container.scrollable_content_region.height
-                    self.call_after_refresh(  # type: ignore[attr-defined]
-                        lambda: scroll_container.scroll_relative(
-                            y=height // 2, animate=False
-                        )
-                    )
-                    return
         else:  # axe
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -310,16 +289,6 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
-            if scroll_id == "#agent-file-scroll":
-                from ...widgets import AgentDetail
-
-                agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-                if agent_detail.is_file_trimmed():
-                    agent_detail.show_all_file_lines()
-                    self.call_after_refresh(  # type: ignore[attr-defined]
-                        lambda: scroll_container.scroll_end(animate=False)
-                    )
-                    return
             scroll_container.scroll_end(animate=False)
         elif self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]

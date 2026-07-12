@@ -180,11 +180,11 @@ def _make_render_panel() -> MagicMock:
     panel._current_file_index = 0
     panel._total_line_count = 0
     panel._visible_line_count = 0
-    panel._base_trim_size = 0
-    panel._is_trimmed = False
+    panel._is_content_capped = False
     panel._full_content = None
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
+    panel._content_fetched_at = None
     panel._static_header_path = None
     panel._linked_repo_name = None
     panel._linked_workspace_dir = None
@@ -203,9 +203,17 @@ def _make_render_panel() -> MagicMock:
     panel._consume_image_cleanup_segments = types.MethodType(
         AgentFilePanel._consume_image_cleanup_segments, panel
     )
-    panel._compute_trim_size = MagicMock(return_value=0)
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
-    panel._post_trim_changed = MagicMock()
+    panel._timestamp_header = types.MethodType(AgentFilePanel._timestamp_header, panel)
+    panel._render_full_content = types.MethodType(
+        AgentFilePanel._render_full_content, panel
+    )
+    panel._post_line_count_changed = types.MethodType(
+        AgentFilePanel._post_line_count_changed, panel
+    )
+    from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
+
+    panel._content_render_cache = LazySyntaxRenderCache(max_entries=2)
     return panel
 
 
@@ -234,7 +242,6 @@ def test_render_static_file_result_renders_content(tmp_path: Any) -> None:
 
     assert panel.update.called
     from rich.console import Group
-    from rich.syntax import Syntax
     from rich.text import Text
 
     group = panel.update.call_args[0][0]
@@ -245,7 +252,7 @@ def test_render_static_file_result_renders_content(tmp_path: Any) -> None:
     assert str(renderables[0]) == str(diff_file)
     assert isinstance(renderables[1], Text)
     assert str(renderables[1]) == ""
-    assert isinstance(renderables[2], Syntax)
+    assert getattr(renderables[2], "code", None) == diff_file.read_text()
     panel.post_message.assert_called()
     assert panel.post_message.call_args[0][0].has_file is True
 
@@ -268,7 +275,12 @@ def test_render_static_file_result_handles_missing(tmp_path: Any) -> None:
     AgentFilePanel._render_static_file_result(panel, result)
 
     panel.post_message.assert_called()
-    assert panel.post_message.call_args[0][0].has_file is False
+    visibility = next(
+        call.args[0]
+        for call in panel.post_message.call_args_list
+        if hasattr(call.args[0], "has_file")
+    )
+    assert visibility.has_file is False
 
 
 def test_render_static_file_result_handles_empty(tmp_path: Any) -> None:
@@ -289,7 +301,12 @@ def test_render_static_file_result_handles_empty(tmp_path: Any) -> None:
 
     AgentFilePanel._render_static_file_result(panel, result)
 
-    assert panel.post_message.call_args[0][0].has_file is False
+    visibility = next(
+        call.args[0]
+        for call in panel.post_message.call_args_list
+        if hasattr(call.args[0], "has_file")
+    )
+    assert visibility.has_file is False
 
 
 def test_extension_to_lexer_mapping() -> None:
@@ -323,9 +340,14 @@ def test_display_linked_diff_renders_banner_and_raw_content() -> None:
 
     assert panel._content_mode == "linked_diff"
     assert panel._full_content_lexer == "diff"
-    assert panel._full_content.startswith("# Last fetched: 12:30:00\n\n")
+    assert panel._full_content == diff_text
     assert panel._last_file_content == diff_text
-    assert panel.post_message.call_args[0][0].has_file is True
+    visibility = next(
+        call.args[0]
+        for call in panel.post_message.call_args_list
+        if hasattr(call.args[0], "has_file")
+    )
+    assert visibility.has_file is True
 
     group = panel.update.call_args[0][0]
     assert isinstance(group, Group)
@@ -335,8 +357,94 @@ def test_display_linked_diff_renders_banner_and_raw_content() -> None:
     assert "/tmp/sase-core · fetched 12:30:00" in str(renderables[0])
 
 
-def test_linked_diff_trim_rerender_keeps_banner() -> None:
-    """Trim expand/reset re-renders linked diffs with their banner intact."""
+def test_live_diff_renders_all_lines_and_posts_line_count() -> None:
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel, FileLineCountChanged
+
+    panel = _make_render_panel()
+    diff_text = "+one\n+two\n+three\n"
+
+    AgentFilePanel._display_file_with_timestamp(
+        panel,
+        diff_text,
+        datetime(2024, 1, 1, 12, 30, 0),
+    )
+
+    assert panel._full_content == diff_text
+    assert panel._visible_line_count == panel._total_line_count == 3
+    assert "more lines below" not in str(panel.update.call_args[0][0])
+    messages = [call.args[0] for call in panel.post_message.call_args_list]
+    line_count = next(m for m in messages if isinstance(m, FileLineCountChanged))
+    assert line_count.visible_lines == line_count.total_lines == 3
+    assert line_count.capped is False
+
+
+def test_live_diff_timestamp_refresh_reuses_cached_body() -> None:
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel
+
+    panel = _make_render_panel()
+    diff_text = "+one\n+two\n"
+    AgentFilePanel._display_file_with_timestamp(
+        panel,
+        diff_text,
+        datetime(2024, 1, 1, 12, 30, 0),
+    )
+    first_group = panel.update.call_args[0][0]
+    first_body = list(first_group._renderables)[2]
+
+    panel._content_fetched_at = datetime(2024, 1, 1, 12, 31, 0)
+    AgentFilePanel._render_full_content(panel)
+    second_group = panel.update.call_args[0][0]
+    second_body = list(second_group._renderables)[2]
+
+    assert second_body is first_body
+    assert panel._content_render_cache.hits == 1
+
+
+def test_file_panel_pathological_cap_posts_explicit_range() -> None:
+    from sase.ace.tui.util.lazy_syntax import FILE_PANEL_MAX_RENDER_LINES
+    from sase.ace.tui.widgets.file_panel import AgentFilePanel, FileLineCountChanged
+
+    panel = _make_render_panel()
+    total = FILE_PANEL_MAX_RENDER_LINES + 2
+    diff_text = "\n".join(f"+line {index}" for index in range(total))
+    AgentFilePanel._display_file_with_timestamp(
+        panel,
+        diff_text,
+        datetime(2024, 1, 1, 12, 30, 0),
+    )
+
+    assert panel._visible_line_count == FILE_PANEL_MAX_RENDER_LINES
+    assert panel._total_line_count == total
+    assert panel._is_content_capped
+    messages = [call.args[0] for call in panel.post_message.call_args_list]
+    line_count = next(m for m in messages if isinstance(m, FileLineCountChanged))
+    assert line_count.capped is True
+    body = list(panel.update.call_args[0][0]._renderables)[2]
+    assert "… 2 more lines — press E to open in editor" in str(
+        body._renderable.renderables[2]
+    )
+
+
+def test_zoom_file_cap_subtitle_points_to_editor() -> None:
+    from sase.ace.tui.modals.zoom_panel_events import on_file_line_count_changed
+    from sase.ace.tui.widgets.file_panel import FileLineCountChanged
+
+    modal = MagicMock()
+    scroll = MagicMock()
+    modal.query_one.return_value = scroll
+    message = FileLineCountChanged(
+        visible_lines=5_000,
+        total_lines=6_000,
+        capped=True,
+    )
+
+    on_file_line_count_changed(modal, message)
+
+    assert str(scroll.border_subtitle) == "1-5000 of 6000 lines (E: editor)"
+
+
+def test_linked_diff_full_rerender_keeps_banner() -> None:
+    """Full re-renders keep linked diffs with their banner intact."""
     from rich.console import Group
     from rich.text import Text
 
@@ -344,21 +452,11 @@ def test_linked_diff_trim_rerender_keeps_banner() -> None:
 
     panel = _make_render_panel()
     panel._content_mode = "linked_diff"
-    panel._full_content = "# Last fetched: 12:30:00\n\n+one\n+two\n+three\n"
+    panel._full_content = "+one\n+two\n+three\n"
     panel._full_content_lexer = "diff"
     panel._linked_repo_name = "sase-core"
     panel._linked_workspace_dir = "/tmp/sase-core"
     panel._linked_fetched_at = datetime(2024, 1, 1, 12, 30, 0)
-    panel._total_line_count = 5
-    panel._visible_line_count = 3
-
-    AgentFilePanel._render_trimmed_content(panel)
-
-    group = panel.update.call_args[0][0]
-    assert isinstance(group, Group)
-    renderables = list(group._renderables)
-    assert isinstance(renderables[0], Text)
-    assert "▣ sase-core · linked repo" in str(renderables[0])
 
     AgentFilePanel._render_full_content(panel)
 
@@ -367,3 +465,4 @@ def test_linked_diff_trim_rerender_keeps_banner() -> None:
     renderables = list(group._renderables)
     assert isinstance(renderables[0], Text)
     assert "▣ sase-core · linked repo" in str(renderables[0])
+    assert "more lines below" not in str(group)

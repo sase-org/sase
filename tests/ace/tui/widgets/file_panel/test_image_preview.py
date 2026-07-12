@@ -20,8 +20,7 @@ def _make_file_panel() -> MagicMock:
     panel._current_file_index = 0
     panel._total_line_count = 0
     panel._visible_line_count = 0
-    panel._base_trim_size = 0
-    panel._is_trimmed = False
+    panel._is_content_capped = False
     panel._full_content = "old"
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
@@ -30,7 +29,7 @@ def _make_file_panel() -> MagicMock:
     panel._post_file_visibility = types.MethodType(
         AgentFilePanel._post_file_visibility, panel
     )
-    panel._post_trim_changed = MagicMock()
+    panel._post_line_count_changed = MagicMock()
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
     panel._consume_image_cleanup_segments = types.MethodType(
         AgentFilePanel._consume_image_cleanup_segments, panel

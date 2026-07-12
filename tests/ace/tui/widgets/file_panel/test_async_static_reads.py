@@ -36,11 +36,11 @@ def _make_render_panel() -> MagicMock:
     panel._current_file_index = 0
     panel._total_line_count = 0
     panel._visible_line_count = 0
-    panel._base_trim_size = 0
-    panel._is_trimmed = False
+    panel._is_content_capped = False
     panel._full_content = None
     panel._full_content_lexer = "text"
     panel._content_mode = "none"
+    panel._content_fetched_at = None
     panel._static_header_path = None
     panel._static_request_id = 0
     panel._static_worker = None
@@ -51,9 +51,15 @@ def _make_render_panel() -> MagicMock:
     panel._consume_image_cleanup_segments = types.MethodType(
         AgentFilePanel._consume_image_cleanup_segments, panel
     )
-    panel._compute_trim_size = MagicMock(return_value=0)
     panel._count_lines = types.MethodType(AgentFilePanel._count_lines, panel)
-    panel._post_trim_changed = MagicMock()
+    panel._timestamp_header = types.MethodType(AgentFilePanel._timestamp_header, panel)
+    panel._render_full_content = types.MethodType(
+        AgentFilePanel._render_full_content, panel
+    )
+    panel._post_line_count_changed = MagicMock()
+    from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
+
+    panel._content_render_cache = LazySyntaxRenderCache(max_entries=2)
     panel._cancel_static_worker = types.MethodType(
         AgentFilePanel._cancel_static_worker, panel
     )

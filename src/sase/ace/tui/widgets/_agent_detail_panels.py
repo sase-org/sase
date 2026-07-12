@@ -13,7 +13,7 @@ from ..models.agent import Agent
 from .file_panel import (
     AgentFilePanel,
     FileListChanged,
-    FileTrimChanged,
+    FileLineCountChanged,
     FileVisibilityChanged,
 )
 from .tools_panel import AgentToolsPanel, ToolsVisibilityChanged
@@ -55,9 +55,9 @@ class AgentDetailPanelMixin(Static):
     _layout_swapped: bool
     _file_count: int
     _file_index: int
-    _trim_visible_lines: int
-    _trim_total_lines: int
-    _trim_is_trimmed: bool
+    _file_visible_lines: int
+    _file_total_lines: int
+    _file_content_capped: bool
 
     def update_display(
         self, agent: Agent, stale_threshold_seconds: int = 10
@@ -196,9 +196,6 @@ class AgentDetailPanelMixin(Static):
             # leaving an empty "No changes detected" panel visible.
             if not self._has_file_content:
                 self._expand_prompt_only()
-            else:
-                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-                self.call_after_refresh(file_panel.reset_trim)
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -215,15 +212,15 @@ class AgentDetailPanelMixin(Static):
         self._update_panel_indicators()
         self._update_file_scroll_title()
 
-    def on_file_trim_changed(self, message: FileTrimChanged) -> None:
-        """Handle file trim state changes from the file panel.
+    def on_file_line_count_changed(self, message: FileLineCountChanged) -> None:
+        """Handle file line-count changes from the file panel.
 
         Args:
-            message: The trim change message.
+            message: The line-count change message.
         """
-        self._trim_visible_lines = message.visible_lines
-        self._trim_total_lines = message.total_lines
-        self._trim_is_trimmed = message.is_trimmed
+        self._file_visible_lines = message.visible_lines
+        self._file_total_lines = message.total_lines
+        self._file_content_capped = message.capped
         self._update_file_scroll_subtitle()
 
     def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
@@ -267,7 +264,6 @@ class AgentDetailPanelMixin(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
 
         if message.has_file:
-            was_hidden = file_scroll.has_class("hidden")
             # Show file panel
             file_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
@@ -275,9 +271,6 @@ class AgentDetailPanelMixin(Static):
             if self._layout_swapped:
                 prompt_scroll.add_class("layout-priority")
                 file_scroll.add_class("layout-secondary")
-            if was_hidden:
-                file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-                self.call_after_refresh(file_panel.reset_trim)
         else:
             self._expand_prompt_only()
 
@@ -292,16 +285,16 @@ class AgentDetailPanelMixin(Static):
         except Exception:
             return
 
-        if self._trim_total_lines == 0:
+        if self._file_total_lines == 0:
             file_scroll.border_subtitle = ""
-        elif self._trim_is_trimmed:
+        elif self._file_content_capped:
             file_scroll.border_subtitle = Text(
-                f"Lines 1-{self._trim_visible_lines} of {self._trim_total_lines}",
+                f"1-{self._file_visible_lines} of {self._file_total_lines} lines (E: editor)",
                 style="dim #87D7FF",
             )
         else:
             file_scroll.border_subtitle = Text(
-                f"{self._trim_total_lines} lines",
+                f"{self._file_total_lines} lines",
                 style="dim #5FAFAF",
             )
 

@@ -338,8 +338,6 @@ descendants.
 | `p`                 | Toggle file / prompt layout                                                                                   |
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
-| `-`                 | Reset file trim to default                                                                                    |
-| `=`                 | Show all file lines                                                                                           |
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
@@ -1253,15 +1251,11 @@ Press `,R` (leader + `R`) to open the runners modal. It shows concurrency inform
 runners, and a **Background Tasks** section listing active and recently completed background tasks (sync, rebase,
 accept, mail, add-tag). Each task entry shows its type, PR name, status, and timestamps.
 
-## File Panel Trimming
+## File Panel Rendering
 
-When viewing agent files on the Agents tab, large files are automatically trimmed to fit the visible viewport. A blue
-indicator shows "N more lines below" when content is trimmed. Trim controls (`-`, `=`) are listed in the
-[Agent Actions](#agent-actions) keybindings above. Trim state is preserved when switching between agents or refreshing
-data.
-
-Pressing `G` on a trimmed file auto-expands it first, then scrolls to the bottom — so jumping to the end of a large file
-never leaves you staring at a trimmed page.
+Agent files render in full and scroll natively in the file panel. Syntax highlighting falls back to plain text for large
+content. Pathological outputs above the file-panel safety limit show the first 5,000 lines and an explicit editor
+notice; press `E` to open the complete content.
 
 ## Agents Zoom Panel
 
@@ -1278,8 +1272,9 @@ Inside the zoom modal, `/` starts forward search, `?` starts backward search, an
 as you type. Press `Enter` to keep the highlighted matches, then use `n` / `N` to move to the next / previous match with
 wrap-around feedback.
 
-Search covers the full text behind the zoomed panel, including file content below the current trim. `Esc` or `Ctrl+C`
-cancels an in-progress search; after a search is committed, `Esc` leaves search and returns to the normal zoomed panel.
+Search covers the complete text behind the zoomed panel, including content beyond the pathological render cap. `Esc` or
+`Ctrl+C` cancels an in-progress search; after a search is committed, `Esc` leaves search and returns to the normal
+zoomed panel.
 
 ## Image Preview Foundation
 

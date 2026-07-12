@@ -191,16 +191,6 @@ def action_prev_file(modal: Any) -> None:
     modal._update_header()
 
 
-def action_show_all_file_lines(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.FILE:
-        modal.query_one("#zoom-file-panel", ZoomFilePanel).show_all_lines()
-
-
-def action_reset_file_trim(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.FILE:
-        modal.query_one("#zoom-file-panel", ZoomFilePanel).reset_trim()
-
-
 def action_expand_tools_detail(modal: Any) -> None:
     if modal._target == ZoomPanelTarget.TOOLS:
         modal.query_one("#zoom-tools-panel", ZoomToolsPanel).expand_detail()

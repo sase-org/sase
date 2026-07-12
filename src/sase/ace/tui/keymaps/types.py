@@ -104,8 +104,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("next_agent_file", "Next File", False),
     ("prev_agent_file", "Prev File", False),
     ("edit_panel", "Edit Panel", False),
-    ("reset_file_trim", "Reset Trim", False),
-    ("show_all_file_lines", "Show All", False),
     ("jump_to_agent_changespec", "Go to PR", False),
     ("open_agent_artifacts", "Artifacts", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
@@ -323,9 +321,6 @@ class AppKeymaps:
     # Tools panel
     toggle_thinking: str
     toggle_thinking_reverse: str
-    # File trim
-    reset_file_trim: str
-    show_all_file_lines: str
     # Queries
     edit_query: str
     prev_query: str
