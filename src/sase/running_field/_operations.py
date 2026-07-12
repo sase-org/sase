@@ -265,6 +265,97 @@ def release_workspace(
         return ClaimResult(success=False, error=repr(exc))
 
 
+def hold_workspace_claim(
+    project_file: str,
+    workspace_num: int,
+    workflow: str,
+    cl_name: str,
+    artifacts_timestamp: str,
+) -> ClaimResult:
+    """Atomically pin the existing workspace claim for a failed agent run.
+
+    The claim is removed and re-added in memory under one ProjectSpec lock so
+    readers can never observe the workspace as available.  Existing claim
+    ownership metadata, including the PID, is preserved.
+    """
+    if not os.path.exists(project_file):
+        return ClaimResult(
+            success=False,
+            error=f"project file does not exist: {project_file}",
+        )
+
+    try:
+        with changespec_lock(project_file):
+            with open(project_file, encoding="utf-8") as f:
+                content = f.read()
+
+            claim = next(
+                (
+                    item
+                    for item in list_workspace_claims_from_content(content)
+                    if item.workspace_num == workspace_num
+                    and item.workflow == workflow
+                    and item.cl_name == cl_name
+                    and item.artifacts_timestamp == artifacts_timestamp
+                ),
+                None,
+            )
+            if claim is None:
+                return ClaimResult(
+                    success=False,
+                    error=(
+                        f"workspace #{workspace_num} claim for {workflow}/{cl_name} "
+                        f"at {artifacts_timestamp} was not found"
+                    ),
+                )
+            if claim.pinned:
+                return ClaimResult(success=True)
+
+            from sase.core.agent_cleanup_execution import (
+                try_release_workspace_from_content,
+            )
+
+            released = try_release_workspace_from_content(
+                content,
+                workspace_num,
+                workflow,
+                cl_name,
+            )
+            if released is None or not bool(released.get("removed")):
+                return ClaimResult(
+                    success=False,
+                    error=f"workspace #{workspace_num} claim could not be held",
+                )
+
+            plan = plan_claim_workspace_from_content(
+                str(released["content"]),
+                WorkspaceClaimRequestWire(
+                    project_file=project_file,
+                    workspace_num=workspace_num,
+                    workflow_name=claim.workflow,
+                    pid=claim.pid,
+                    cl_name=claim.cl_name or "",
+                    artifacts_timestamp=claim.artifacts_timestamp or "",
+                    pinned=True,
+                ),
+            )
+            outcome = dict(plan["outcome"])
+            if not bool(outcome["success"]):
+                reason = outcome.get("error") or (
+                    f"workspace #{workspace_num} hold rejected by core"
+                )
+                return ClaimResult(success=False, error=str(reason))
+
+            write_changespec_atomic(
+                project_file,
+                str(plan["content"]),
+                f"Hold workspace #{workspace_num} for failed agent run",
+            )
+            return ClaimResult(success=True)
+    except (OSError, BlockingIOError) as exc:
+        return ClaimResult(success=False, error=repr(exc))
+
+
 def transfer_workspace_claim(
     project_file: str,
     workspace_num: int,

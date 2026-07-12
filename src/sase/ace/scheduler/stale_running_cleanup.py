@@ -9,6 +9,24 @@ from sase.running_field import get_claimed_workspaces, release_workspace
 from ..hooks.processes import is_process_running
 
 
+def _held_agent_artifacts_exist(project_file: str, artifacts_timestamp: str) -> bool:
+    """Conservatively check whether a held agent still has artifacts."""
+    try:
+        from sase.core.agent_artifact_paths import (
+            ACE_RUN_WORKFLOW_DIR,
+            resolve_agent_artifact_timestamp_path,
+        )
+
+        project_name = Path(project_file).parent.name
+        return resolve_agent_artifact_timestamp_path(
+            project_name,
+            ACE_RUN_WORKFLOW_DIR,
+            artifacts_timestamp,
+        ).is_dir()
+    except Exception:
+        return True
+
+
 def cleanup_stale_running_entries(
     log_fn: Callable[[str, str | None], None] | None = None,
 ) -> int:
@@ -32,8 +50,13 @@ def cleanup_stale_running_entries(
 
         for claim in claims:
             if claim.pinned:
-                continue
-            if is_process_running(claim.pid):
+                if not claim.artifacts_timestamp:
+                    continue
+                if is_process_running(claim.pid):
+                    continue
+                if _held_agent_artifacts_exist(project_file, claim.artifacts_timestamp):
+                    continue
+            elif is_process_running(claim.pid):
                 continue
 
             release_workspace(
@@ -44,7 +67,8 @@ def cleanup_stale_running_entries(
             if log_fn:
                 cl_info = f" for PR {claim.cl_name}" if claim.cl_name else ""
                 log_fn(
-                    f"Released stale workspace #{claim.workspace_num} "
+                    f"Released stale{' held' if claim.pinned else ''} "
+                    f"workspace #{claim.workspace_num} "
                     f"({claim.workflow}){cl_info} - PID {claim.pid} not running",
                     "cyan",
                 )

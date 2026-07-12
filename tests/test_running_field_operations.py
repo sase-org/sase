@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.changespec import write_changespec_atomic
 from sase.running_field import (
     WorkspaceClaim,
     WorkspaceClaimError,
@@ -15,6 +16,7 @@ from sase.running_field import (
     get_first_available_axe_workspace,
     get_first_available_workspace,
     get_workspace_directory_for_num,
+    hold_workspace_claim,
     release_workspace,
     transfer_workspace_claim,
 )
@@ -124,6 +126,48 @@ def test_release_workspace_with_workflow_filter() -> None:
         claims = get_claimed_workspaces(project_file)
         assert len(claims) == 1
         assert claims[0].workflow == "run"
+    finally:
+        Path(project_file).unlink()
+
+
+def test_hold_workspace_claim_preserves_identity_and_pins_atomically() -> None:
+    project_file = _create_project_file_with_running(
+        running_claims=[
+            WorkspaceClaim(
+                17,
+                "ace(run)-260712_120000",
+                "feature",
+                pid=12345,
+                artifacts_timestamp="20260712120000",
+            )
+        ]
+    )
+    try:
+        with patch(
+            "sase.running_field._operations.write_changespec_atomic",
+            wraps=write_changespec_atomic,
+        ) as write_atomic:
+            result = hold_workspace_claim(
+                project_file,
+                17,
+                "ace(run)-260712_120000",
+                "feature",
+                "20260712120000",
+            )
+
+        assert result.success is True
+        claims = get_claimed_workspaces(project_file)
+        assert claims == [
+            WorkspaceClaim(
+                17,
+                "ace(run)-260712_120000",
+                "feature",
+                pid=12345,
+                artifacts_timestamp="20260712120000",
+                pinned=True,
+            )
+        ]
+        write_atomic.assert_called_once()
     finally:
         Path(project_file).unlink()
 

@@ -168,6 +168,8 @@ class AgentCleanupWorkspaceReleaseIntentWire:
     workflow: str | None = None
     cl_name: str | None = None
     lookup_workflow: bool = False
+    lookup_timestamp: bool = False
+    artifacts_timestamp: str | None = None
 
 
 @dataclass(frozen=True)
@@ -389,6 +391,12 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
                         None if item.get("cl_name") is None else str(item["cl_name"])
                     ),
                     lookup_workflow=bool(item.get("lookup_workflow", False)),
+                    lookup_timestamp=bool(item.get("lookup_timestamp", False)),
+                    artifacts_timestamp=(
+                        None
+                        if item.get("artifacts_timestamp") is None
+                        else str(item["artifacts_timestamp"])
+                    ),
                 )
                 for item in side_effect_data.get("workspace_release_requests") or ()
             ),

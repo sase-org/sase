@@ -11,6 +11,13 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
 
+_NON_HOLD_FAILURE_OUTCOMES = {
+    "killed",
+    "failed_retried",
+    "plan_rejected",
+    "plan_committed",
+}
+
 
 @dataclass(frozen=True)
 class RunnerShutdownContext:
@@ -83,6 +90,21 @@ def auto_dismiss_completed_agent(cl_name: str, artifacts_timestamp: str) -> None
         pass  # Best effort
 
 
+def _should_hold_workspace(
+    state: RunnerShutdownState,
+    *,
+    was_killed: bool,
+    auto_dismiss: bool,
+) -> bool:
+    """Return whether this terminal run has a dismissable failed-agent row."""
+    return (
+        not state.success
+        and state.exec_outcome not in _NON_HOLD_FAILURE_OUTCOMES
+        and not was_killed
+        and not auto_dismiss
+    )
+
+
 def finalize_runner_shutdown(
     *,
     context: RunnerShutdownContext,
@@ -97,19 +119,49 @@ def finalize_runner_shutdown(
         except OSError:
             pass
 
+    auto_dismiss = bool(os.environ.get("SASE_AGENT_AUTO_DISMISS"))
+    workspace_held = False
+    killed = deps.was_killed()
     if not context.is_home_mode:
         try:
-            from sase.running_field import release_workspace
+            if _should_hold_workspace(
+                state,
+                was_killed=killed,
+                auto_dismiss=auto_dismiss,
+            ):
+                from sase.running_field import hold_workspace_claim
 
-            release_workspace(
-                context.project_file,
-                state.workspace_num,
-                context.workflow_name,
-                context.cl_name,
-            )
-            print("Workspace released")
+                result = hold_workspace_claim(
+                    context.project_file,
+                    state.workspace_num,
+                    context.workflow_name,
+                    context.cl_name,
+                    context.artifacts_timestamp,
+                )
+                workspace_held = result.success
+                if workspace_held:
+                    print(
+                        f"Workspace #{state.workspace_num} held (failed run) — "
+                        "dismiss the agent in ace to release it"
+                    )
+                else:
+                    print(
+                        f"Error holding workspace #{state.workspace_num}: "
+                        f"{result.error or 'unknown error'}",
+                        file=sys.stderr,
+                    )
+            else:
+                from sase.running_field import release_workspace
+
+                release_workspace(
+                    context.project_file,
+                    state.workspace_num,
+                    context.workflow_name,
+                    context.cl_name,
+                )
+                print("Workspace released")
         except Exception as e:
-            print(f"Error releasing workspace: {e}", file=sys.stderr)
+            print(f"Error updating workspace claim: {e}", file=sys.stderr)
 
     try:
         with open(context.output_path, "a") as f:
@@ -119,7 +171,7 @@ def finalize_runner_shutdown(
     except Exception as e:
         print(f"Error writing completion marker: {e}", file=sys.stderr)
 
-    if os.environ.get("SASE_AGENT_AUTO_DISMISS"):
+    if auto_dismiss:
         deps.auto_dismiss_completed_agent(context.cl_name, context.artifacts_timestamp)
 
     error_report_path: str | None = None
@@ -135,13 +187,14 @@ def finalize_runner_shutdown(
             error_traceback=state.error_traceback_str,
             submitted_xprompt=context.submitted_xprompt,
             workspace_dir=state.workspace_dir,
+            held_workspace_num=state.workspace_num if workspace_held else None,
             output_path=context.output_path,
             agent_name=state.agent_name,
         )
 
     if (
         not state.suppress_completion_notification
-        and not deps.was_killed()
+        and not killed
         and not deps.all_steps_hidden(state.current_artifacts_dir)
     ):
         deps.send_completion_notification(
@@ -167,4 +220,6 @@ def finalize_runner_shutdown(
             prompt=context.prompt,
             outcome=state.exec_outcome,
             runtime=state.runtime,
+            held_workspace_num=state.workspace_num if workspace_held else None,
+            held_workspace_dir=state.workspace_dir if workspace_held else None,
         )

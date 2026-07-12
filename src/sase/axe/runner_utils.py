@@ -557,6 +557,7 @@ def write_error_report(
     submitted_xprompt: str | None = None,
     submitted_xprompt_path: str | None = None,
     workspace_dir: str | None = None,
+    held_workspace_num: int | None = None,
     output_path: str | None = None,
     agent_name: str | None = None,
 ) -> str | None:
@@ -578,6 +579,10 @@ def write_error_report(
             ("Agent name", agent_name),
             ("Artifact directory", artifacts_dir),
             ("Workspace directory", workspace_dir),
+            (
+                "Held workspace",
+                f"#{held_workspace_num}" if held_workspace_num is not None else None,
+            ),
             ("Output log path", output_path),
         ]
         lines = [
@@ -624,6 +629,18 @@ def write_error_report(
                     "## Traceback",
                     "",
                     format_markdown_fenced_block(error_traceback.rstrip()),
+                ]
+            )
+
+        if held_workspace_num is not None:
+            lines.extend(
+                [
+                    "",
+                    "## Workspace recovery",
+                    "",
+                    f"Workspace #{held_workspace_num} is held for this failed run. "
+                    "Inspect or commit its changes, then dismiss the failed agent "
+                    "in `sase ace` to release it.",
                 ]
             )
 

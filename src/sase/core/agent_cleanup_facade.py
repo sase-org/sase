@@ -316,6 +316,7 @@ def _build_cleanup_side_effects(
     seen_bundle: set[AgentCleanupIdentityWire] = set()
     seen_artifact: set[tuple[AgentCleanupIdentityWire, str]] = set()
     seen_workspace: set[AgentCleanupIdentityWire] = set()
+    seen_held_workspace: set[AgentCleanupIdentityWire] = set()
     seen_notifications: set[AgentCleanupIdentityWire] = set()
 
     def add_bundle(target: AgentCleanupTargetWire) -> None:
@@ -362,6 +363,8 @@ def _build_cleanup_side_effects(
                     workflow=target.workflow,
                     cl_name=target.identity.cl_name,
                     lookup_workflow=False,
+                    lookup_timestamp=False,
+                    artifacts_timestamp=None,
                 )
             )
         elif kind == KILL_KIND_WORKFLOW:
@@ -383,8 +386,29 @@ def _build_cleanup_side_effects(
                     workflow=workflow_name,
                     cl_name=lookup_cl_name,
                     lookup_workflow=target.workspace is None,
+                    lookup_timestamp=False,
+                    artifacts_timestamp=None,
                 )
             )
+
+    def add_held_workspace(target: AgentCleanupTargetWire) -> None:
+        if (
+            _is_workflow_child(target)
+            or target.identity in seen_held_workspace
+            or target.raw_suffix is None
+        ):
+            return
+        seen_held_workspace.add(target.identity)
+        workspace_releases.append(
+            AgentCleanupWorkspaceReleaseIntentWire(
+                identity=target.identity,
+                project_file=target.project_file or "",
+                workflow=target.workflow,
+                cl_name=target.identity.cl_name,
+                lookup_timestamp=True,
+                artifacts_timestamp=target.raw_suffix,
+            )
+        )
 
     for dismiss in dismiss_items:
         target = by_id.get(dismiss.identity)
@@ -396,6 +420,8 @@ def _build_cleanup_side_effects(
             add_bundle(item)
             add_artifact(item)
             add_notification(item)
+            if item.agent_type in {"run", "workflow"}:
+                add_held_workspace(item)
             if item.agent_type == "workflow":
                 add_workspace(item, KILL_KIND_WORKFLOW)
 
@@ -633,6 +659,23 @@ def plan_agent_cleanup(
         agent_cleanup_wire_to_json_dict(wire_request),
     )
     plan = cleanup_plan_from_dict(payload)
+    dismiss_by_identity = {
+        item.identity: item for item in wire_targets if item.raw_suffix is not None
+    }
+    expected_timestamp_releases = {
+        dismiss.identity
+        for dismiss in plan.dismiss_items
+        if (target := dismiss_by_identity.get(dismiss.identity)) is not None
+        and target.agent_type in {"run", "workflow"}
+        and not _is_workflow_child(target)
+    }
+    actual_timestamp_releases = {
+        intent.identity
+        for intent in plan.side_effects.workspace_release_requests
+        if intent.lookup_timestamp
+    }
+    if not expected_timestamp_releases.issubset(actual_timestamp_releases):
+        return _plan_agent_cleanup_python(wire_targets, wire_request)
     if (plan.kill_items or plan.dismiss_items) and not any(
         getattr(plan.side_effects, attr)
         for attr in (

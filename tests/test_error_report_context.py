@@ -72,3 +72,15 @@ def test_write_error_report_adds_adjacent_context(tmp_path: Path) -> None:
     assert "| Artifact directory |" in text
     assert "| Workspace directory | /tmp/ws |" in text
     assert "| Output log path | /tmp/output.log |" in text
+
+
+def test_write_error_report_includes_held_workspace_recovery(tmp_path: Path) -> None:
+    text = _write_report(
+        tmp_path,
+        workspace_dir="/tmp/ws",
+        held_workspace_num=17,
+    )
+
+    assert "| Held workspace | #17 |" in text
+    assert "## Workspace recovery" in text
+    assert "dismiss the failed agent" in text

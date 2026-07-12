@@ -19,6 +19,38 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
+def _release_held_workspace_claims(
+    project_file: str,
+    artifacts_timestamp: str | None,
+    cl_name: str | None,
+) -> int:
+    """Release dead workspace claims belonging to one dismissed agent run."""
+    if not project_file or not artifacts_timestamp:
+        return 0
+
+    from sase.ace.hooks.processes import is_process_running
+    from sase.running_field import get_claimed_workspaces, release_workspace
+
+    expected_cl_name = cl_name if cl_name and cl_name != "unknown" else None
+    released = 0
+    for claim in get_claimed_workspaces(project_file):
+        if claim.artifacts_timestamp != artifacts_timestamp:
+            continue
+        if expected_cl_name is not None and claim.cl_name != expected_cl_name:
+            continue
+        if is_process_running(claim.pid):
+            continue
+        result = release_workspace(
+            project_file,
+            claim.workspace_num,
+            claim.workflow,
+            claim.cl_name,
+        )
+        if result.success:
+            released += 1
+    return released
+
+
 def persist_cleanup_side_effect_intents(
     cleanup_plan: object | None,
     agents_with_children_snapshot: list[Agent],
@@ -57,6 +89,13 @@ def persist_cleanup_side_effect_intents(
     for intent in getattr(side_effects, "workspace_release_requests", ()):
         workspace = intent.workspace
         workflow = intent.workflow
+        if getattr(intent, "lookup_timestamp", False):
+            _release_held_workspace_claims(
+                intent.project_file,
+                getattr(intent, "artifacts_timestamp", None),
+                intent.cl_name,
+            )
+            continue
         if intent.lookup_workflow and workflow is not None:
             workspace = find_workflow_workspace_from_running_field(
                 intent.project_file,
@@ -131,6 +170,16 @@ def _save_dismissed_bundles_for(
 
 def _release_workspace_for(agent: Agent) -> None:
     from ...models.agent import AgentType
+
+    if (
+        agent.agent_type in {AgentType.RUNNING, AgentType.WORKFLOW}
+        and not agent.is_workflow_child
+    ):
+        _release_held_workspace_claims(
+            agent.project_file,
+            agent.raw_suffix,
+            agent.cl_name,
+        )
 
     if agent.agent_type != AgentType.WORKFLOW:
         return

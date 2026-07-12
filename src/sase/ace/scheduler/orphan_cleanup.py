@@ -41,6 +41,8 @@ def cleanup_orphaned_workspace_claims(
     released_count = 0
 
     for claim in claims:
+        if claim.pinned:
+            continue
         # Skip claims without cl_name or not for reverted ChangeSpecs
         if not claim.cl_name or claim.cl_name not in reverted_cls:
             continue

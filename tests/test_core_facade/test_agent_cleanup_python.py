@@ -145,6 +145,11 @@ def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> 
         ("workflow", "20260428100000"),
         ("child", "20260428100000_c0"),
     ]
+    releases = plan.side_effects.workspace_release_requests
+    assert len(releases) == 2
+    assert releases[0].lookup_timestamp is True
+    assert releases[0].artifacts_timestamp == "20260428100000"
+    assert releases[1].lookup_timestamp is False
 
 
 def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
@@ -174,7 +179,10 @@ def test_python_cleanup_planner_side_effect_intents_for_bulk_kill() -> None:
     ]
     assert [
         item.workspace for item in plan.side_effects.workspace_release_requests
-    ] == [9]
+    ] == [None, 9]
+    held = plan.side_effects.workspace_release_requests[0]
+    assert held.lookup_timestamp is True
+    assert held.artifacts_timestamp == "20260428110000"
 
 
 def test_python_cleanup_planner_direct_child_side_effects_exclude_siblings() -> None:

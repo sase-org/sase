@@ -216,3 +216,68 @@ def test_cleanup_skips_pinned_entries() -> None:
         )
         # is_process_running should only be called for the unpinned entry
         mock_is_running.assert_called_once_with(22222)
+
+
+def test_cleanup_keeps_held_workspace_while_artifacts_exist() -> None:
+    claim = WorkspaceClaim(
+        workspace_num=17,
+        workflow="run",
+        cl_name="feature",
+        pid=11111,
+        artifacts_timestamp="20260712120000",
+        pinned=True,
+    )
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=["/tmp/projects/proj/proj.sase"],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._held_agent_artifacts_exist",
+            return_value=True,
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 0
+    release.assert_not_called()
+
+
+def test_cleanup_releases_held_workspace_after_artifacts_are_deleted() -> None:
+    claim = WorkspaceClaim(
+        workspace_num=17,
+        workflow="run",
+        cl_name="feature",
+        pid=11111,
+        artifacts_timestamp="20260712120000",
+        pinned=True,
+    )
+    project_file = "/tmp/projects/proj/proj.sase"
+    with (
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._get_all_project_files",
+            return_value=[project_file],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.get_claimed_workspaces",
+            return_value=[claim],
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup.is_process_running",
+            return_value=False,
+        ),
+        patch(
+            "sase.ace.scheduler.stale_running_cleanup._held_agent_artifacts_exist",
+            return_value=False,
+        ),
+        patch("sase.ace.scheduler.stale_running_cleanup.release_workspace") as release,
+    ):
+        assert cleanup_stale_running_entries() == 1
+    release.assert_called_once_with(project_file, 17, "run", "feature")

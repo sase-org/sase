@@ -213,6 +213,8 @@ def send_completion_notification(
     prompt: str,
     outcome: str | None = None,
     runtime: str | None = None,
+    held_workspace_num: int | None = None,
+    held_workspace_dir: str | None = None,
 ) -> None:
     from sase.attachments.markdown_pdf import MAX_MARKDOWN_PDF_ATTACHMENTS
     from sase.agent.bead_display import format_agent_bead_display_for_name
@@ -248,6 +250,12 @@ def send_completion_notification(
     ]
     if not success and error_summary:
         notes.append(error_summary)
+    if held_workspace_num is not None:
+        location = held_workspace_dir or f"workspace #{held_workspace_num}"
+        notes.append(
+            f"Workspace #{held_workspace_num} is held at {location}. Inspect or "
+            "commit its changes, then dismiss this agent to release it."
+        )
     if (
         markdown_source_count is not None
         and markdown_source_count > MAX_MARKDOWN_PDF_ATTACHMENTS

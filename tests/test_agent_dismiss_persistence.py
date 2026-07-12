@@ -3,13 +3,161 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from sase.ace.tui.models.agent import AgentType
+from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
+from sase.running_field import ClaimResult, WorkspaceClaim
 
 from tests._agent_cleanup_task_helpers import run_tracked_task
 from tests._agent_dismiss_helpers import FakeDismissApp, make_agent
+
+
+def test_release_held_workspace_claims_matches_timestamp_cl_and_dead_pid() -> None:
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        _release_held_workspace_claims,
+    )
+
+    project_file = "/tmp/projects/proj/proj.sase"
+    claims = [
+        WorkspaceClaim(
+            17,
+            "run",
+            "feature",
+            1001,
+            artifacts_timestamp="20260712120000",
+            pinned=True,
+        ),
+        WorkspaceClaim(
+            18,
+            "run",
+            "feature",
+            1002,
+            artifacts_timestamp="20260712120000",
+            pinned=True,
+        ),
+        WorkspaceClaim(
+            19,
+            "run",
+            "other",
+            1003,
+            artifacts_timestamp="20260712120000",
+            pinned=True,
+        ),
+        WorkspaceClaim(
+            20,
+            "run",
+            "feature",
+            1004,
+            artifacts_timestamp="20260712120100",
+            pinned=False,
+        ),
+    ]
+    with (
+        patch(
+            "sase.running_field.get_claimed_workspaces",
+            return_value=claims,
+        ),
+        patch(
+            "sase.ace.hooks.processes.is_process_running",
+            side_effect=lambda pid: pid == 1002,
+        ),
+        patch(
+            "sase.running_field.release_workspace",
+            return_value=ClaimResult(success=True),
+        ) as release,
+    ):
+        released = _release_held_workspace_claims(
+            project_file,
+            "20260712120000",
+            "feature",
+        )
+
+    assert released == 1
+    assert release.call_args_list == [call(project_file, 17, "run", "feature")]
+
+
+def test_dismiss_fallback_releases_hold_before_deleting_artifacts(tmp_path) -> None:
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        persist_dismiss_side_effects,
+    )
+
+    artifacts_dir = str(tmp_path / "artifacts")
+    agent = make_agent(
+        cl_name="feature",
+        raw_suffix="20260712120000",
+        artifacts_dir=artifacts_dir,
+    )
+    events: list[str] = []
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_bundle"),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence."
+            "_release_held_workspace_claims",
+            side_effect=lambda *_args: events.append("release") or 1,
+        ) as release_hold,
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence."
+            "delete_agent_artifact_index_artifacts"
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_persistence.delete_agent_artifacts",
+            side_effect=lambda *_args, **_kwargs: events.append("delete"),
+        ),
+    ):
+        persist_dismiss_side_effects(agent, [agent])
+
+    release_hold.assert_called_once_with(
+        agent.project_file,
+        "20260712120000",
+        "feature",
+    )
+    assert events == ["release", "delete"]
+
+
+def test_cleanup_timestamp_intent_releases_hold() -> None:
+    from sase.ace.tui.actions.agents._dismiss_persistence import (
+        persist_cleanup_side_effect_intents,
+    )
+
+    agent = make_agent(cl_name="feature", raw_suffix="20260712120000")
+    identity = AgentCleanupIdentityWire(
+        agent_type="run",
+        cl_name="feature",
+        raw_suffix="20260712120000",
+    )
+    intent = SimpleNamespace(
+        identity=identity,
+        project_file=agent.project_file,
+        workspace=None,
+        workflow=agent.workflow,
+        cl_name=agent.cl_name,
+        lookup_workflow=False,
+        lookup_timestamp=True,
+        artifacts_timestamp="20260712120000",
+    )
+    side_effects = SimpleNamespace(
+        bundle_save_candidates=(),
+        artifact_delete_paths=(),
+        workspace_release_requests=(intent,),
+        notification_dismiss_candidates=(),
+    )
+    cleanup_plan = SimpleNamespace(side_effects=side_effects)
+
+    with patch(
+        "sase.ace.tui.actions.agents._dismiss_persistence."
+        "_release_held_workspace_claims",
+        return_value=1,
+    ) as release_hold:
+        assert persist_cleanup_side_effect_intents(cleanup_plan, [agent]) is True
+
+    release_hold.assert_called_once_with(
+        agent.project_file,
+        "20260712120000",
+        "feature",
+    )
 
 
 def test_dismiss_persistence_callback_runs_deferred_work(tmp_path) -> None:  # type: ignore[no-untyped-def]

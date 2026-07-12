@@ -70,6 +70,20 @@ def test_visible_agent_forwards_silent_false(base_kwargs):
     assert mock_notify.call_args.kwargs["silent"] is False
 
 
+def test_failed_notification_includes_held_workspace_recovery(base_kwargs):
+    base_kwargs.update(
+        success=False,
+        held_workspace_num=17,
+        held_workspace_dir="/tmp/workspace-17",
+    )
+    with patch("sase.notifications.senders.notify_workflow_complete") as mock_notify:
+        send_completion_notification(**base_kwargs)
+
+    notes = mock_notify.call_args.kwargs["notes"]
+    assert any("Workspace #17 is held at /tmp/workspace-17" in note for note in notes)
+    assert any("dismiss this agent to release it" in note for note in notes)
+
+
 def test_success_completion_notification_includes_runtime(base_kwargs):
     base_kwargs["runtime"] = "4m32s"
 
