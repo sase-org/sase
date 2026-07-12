@@ -156,21 +156,15 @@ def resolve_agent_diff_source(agent: Agent) -> Agent:
 
 
 def diff_badge_uses_live_hint(agent: Agent) -> bool:
-    """Return ``True`` when *agent*'s row badge must come from the live hint.
+    """Return whether the row's primary badge uses active-workspace precedence.
 
-    A root Plan workflow row redirects its diff to the most recent active coder
-    child (see :func:`_resolve_agent_diff_source`). While that child has not
-    persisted its own ``diff_path`` yet, the plan row's ``diff_path`` /
-    ``diff_has_real_edits`` are bookkeeping-only, so the deferred live hint —
-    which mirrors the detail panel's ``Deltas:`` — must drive the badge.
-
-    Once the child persists a diff (the status-override pass propagates it onto
-    the plan row), that propagated classification is authoritative again and
-    normal badge precedence applies, so this returns ``False``. Non-redirected
-    rows always return ``False``.
+    Active workspaces are fresh and win when dirty, even when a persisted
+    primary fallback exists. Terminal rows remain persistence-only because a
+    released workspace may already belong to another agent. Root Plan/Tale
+    rows follow the status of their resolved active coder source.
     """
     source = _resolve_agent_diff_source(agent)
-    return source is not agent and not source.diff_path
+    return _status_allows_live_hint(source.status)
 
 
 def _git_index_signature(workspace_dir: str) -> tuple[int, int] | None:
@@ -287,16 +281,13 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
     pencil badge as soon as its primary workspace or linked workspaces have
     real edits, even before a ``diff_path`` is persisted at finalization.
 
-    Returns ``None`` when the live signal does not apply: the resolved diff
-    source already has a persisted ``diff_path`` (the persisted classification
-    is authoritative), the agent is terminal, or no workspace/VCS provider
-    resolves. Otherwise returns whether the live primary or linked diff touches
-    non-bookkeeping paths, using the same exclusion as
+    Returns ``None`` when the live signal does not apply because the agent is
+    terminal, or when a live probe fails and no persisted fallback exists.
+    Otherwise returns whether the live-primary-first diff or linked diff
+    touches non-bookkeeping paths, using the same exclusion as
     :func:`diff_has_real_edits`.
     """
     diff_source = _resolve_agent_diff_source(agent)
-    if diff_source.diff_path:
-        return None
     if not _status_allows_live_hint(diff_source.status):
         return None
 
@@ -328,9 +319,10 @@ def live_agent_file_change_hint(agent: Agent) -> bool | None:
 def get_agent_diff(agent: Agent) -> str | None:
     """Get diff output for an agent.
 
-    For completed agents with a diff_path, read the pre-computed diff file.
-    For active agents, resolve an existing workspace from agent/project
-    metadata and run live diff, caching by ``_compute_diff_cache_key``.
+    Terminal agents only read their persisted primary diff. Active agents
+    resolve and probe the existing primary workspace first, caching by
+    ``_compute_diff_cache_key``; a dirty live workspace wins, while a clean or
+    unresolvable workspace falls back to the persisted primary diff.
 
     Args:
         agent: The agent to get diff for.
@@ -352,52 +344,48 @@ def _get_agent_diff(
     """Internal diff fetcher with an optional live-probe failure sentinel."""
     diff_source = _resolve_agent_diff_source(agent)
 
-    # Prefer the pre-computed diff file (e.g. from the gh workflow's diff
-    # step).  This is authoritative — the workspace may have been released
-    # and reused by the time we display the diff.
+    persisted_diff: str | None = None
     if diff_source.diff_path:
         try:
             text = Path(diff_source.diff_path).read_text(encoding="utf-8")
-            return text if text.strip() else None
+            persisted_diff = text if text.strip() else None
         except (OSError, UnicodeDecodeError):
             # Unreadable or non-UTF-8 (e.g. malformed historical metadata that
             # promoted a binary PNG path into diff_path): treat as no persisted
             # diff rather than crashing the TUI.
             pass
 
-    # For completed agents, the diff_path is the only reliable source.
-    # The workspace may have been released and reused by another agent,
-    # so falling back to `git diff HEAD~1..HEAD` would show an unrelated
-    # commit's diff.
-    if diff_source.status in ("DONE", "FAILED"):
-        return None
+    # Finalized primary diffs are authoritative for terminal agents. Their
+    # workspace may have been released and reused, so never probe it.
+    if not _status_allows_live_hint(diff_source.status):
+        return persisted_diff
 
     key = _compute_diff_cache_key(diff_source)
     if key is None:
-        return None
+        return persisted_diff
 
     with _diff_cache_lock:
         if key in _diff_cache:
-            return _diff_cache[key]
+            return _diff_cache[key] or persisted_diff
 
     workspace_dir = key[1]
     try:
         provider = _resolve_vcs_provider_cached(workspace_dir)
     except VCSProviderNotFoundError:
-        return None
+        return persisted_diff
 
     try:
         ok, diff_text = provider.diff_with_untracked(workspace_dir, timeout=10)
     except Exception:
         if unknown_on_probe_failure:
             return _DIFF_PROBE_UNKNOWN
-        return None
+        return persisted_diff
     if not ok:
         if unknown_on_probe_failure:
             return _DIFF_PROBE_UNKNOWN
-        return None
+        return persisted_diff
     result = diff_text if diff_text else None
 
     with _diff_cache_lock:
         _diff_cache[key] = result
-    return result
+    return result or persisted_diff

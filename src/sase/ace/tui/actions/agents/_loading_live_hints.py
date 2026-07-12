@@ -2,17 +2,18 @@
 
 The loader's status-override pass classifies only the cheap *persisted* diff
 badge (``diff_has_real_edits`` from a finalized ``diff_path``). The live
-workspace edit hint for an active row that has not persisted a ``diff_path``
-yet requires a per-agent VCS probe (``get_vcs_provider`` +
+workspace edit hint for an active row requires a per-agent VCS probe
+(``get_vcs_provider`` +
 ``diff_with_untracked``). Running that inline on the first agents load
 dominated startup (hundreds of live diffs → ~18 s).
 
 This mixin moves that work off the startup-critical loader path. After the
 first agents load has applied, a coalesced background worker computes live
-hints for the small set of active, non-terminal rows that lack a persisted
-``diff_path``, runs the VCS probes off the event loop, and patches the
-affected rows in place by identity. Startup is no longer gated on live VCS
-work; the pencil badge fills in shortly after the TUI is already interactive.
+hints for active, non-terminal rows, runs the VCS probes off the event loop,
+and patches the affected rows in place by identity. A persisted primary diff
+remains the fallback for clean or unresolvable workspaces. Startup is no
+longer gated on live VCS work; the pencil badge fills in shortly after the TUI
+is already interactive.
 """
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ def _agent_allows_live_hint(agent: Agent) -> bool:
     from sase.ace.tui.widgets.file_panel._diff import resolve_agent_diff_source
 
     source = resolve_agent_diff_source(agent)
-    return not source.diff_path and _status_allows_live_hint(source.status)
+    return _status_allows_live_hint(source.status)
 
 
 def carry_over_live_hints(
@@ -151,13 +152,11 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         Scope is keyed on the *resolved diff source* so it stays consistent
         with both the detail panel and ``live_agent_file_change_hint``:
 
-        - An ordinary row resolves to itself, so the filter reduces to the
-          historical rule (skip rows with a persisted ``diff_path`` or a
-          terminal status).
+        - An ordinary row resolves to itself. Every active row qualifies even
+          when it has a persisted primary fallback, because dirty live state
+          has higher precedence.
         - A redirected root Plan row resolves to its active coder child, so it
-          is included even when the plan row carries its own bookkeeping-only
-          ``diff_path`` — as long as the child has no persisted ``diff_path``
-          and is not terminal.
+          is included even when either row carries a persisted ``diff_path``.
 
         Source resolution is a cheap in-memory walk of plan/follow-up
         relationships; the actual VCS probe is offloaded to the background
@@ -168,8 +167,6 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         candidates: list[Agent] = []
         for agent in self._agents:
             source = resolve_agent_diff_source(agent)
-            if source.diff_path:
-                continue
             if not _status_allows_live_hint(source.status):
                 continue
             candidates.append(agent)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.changespec.review_field import REVIEW_URL_PREFIXES
@@ -238,7 +239,46 @@ def append_commits_entry(
     return entry_id if ok else None
 
 
-def _persist_commit_diff_path(artifacts_dir: str, diff_path: str | None) -> None:
+def _repository_root(path: object) -> str | None:
+    """Return the nearest repository root containing *path*, when recognizable.
+
+    Commit tracking only needs repository identity, not provider behavior.  The
+    nearest marker matters because companion repositories may be nested inside
+    the primary workspace.  Unknown VCS layouts deliberately return ``None``
+    so callers can preserve the legacy compatibility behavior.
+    """
+    if not isinstance(path, (str, os.PathLike)):
+        return None
+    try:
+        candidate = Path(path).expanduser().resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None
+    if not candidate.is_dir():
+        candidate = candidate.parent
+    for directory in (candidate, *candidate.parents):
+        if (directory / ".git").exists() or (directory / ".hg").exists():
+            return os.path.normcase(os.path.normpath(os.fspath(directory)))
+    return None
+
+
+def _persist_commit_diff_path(
+    artifacts_dir: str,
+    diff_path: str | None,
+    *,
+    commit_cwd: str | None = None,
+) -> None:
+    """Persist the generic primary-repository commit diff fallback.
+
+    ``commit_results.json`` records every commit with its repository-aware
+    metadata.  ``agent_meta.json["commit_diff_path"]`` has a narrower
+    contract: it is the fallback diff for the agent's primary workspace.  Do
+    not let a linked, companion, or temporary repository replace that value.
+
+    Historical agents may lack ``workspace_dir`` or use an unrecognized VCS
+    layout.  In those cases repository identity cannot be proven, so retain
+    the previous conservative behavior and publish the diff rather than
+    silently dropping the only persisted artifact.
+    """
     if not diff_path:
         return
 
@@ -247,6 +287,14 @@ def _persist_commit_diff_path(artifacts_dir: str, diff_path: str | None) -> None
         with open(meta_path, encoding="utf-8") as f:
             meta = json.load(f)
         if not isinstance(meta, dict):
+            return
+        primary_root = _repository_root(meta.get("workspace_dir"))
+        commit_root = _repository_root(commit_cwd)
+        if (
+            primary_root is not None
+            and commit_root is not None
+            and primary_root != commit_root
+        ):
             return
         if meta.get("commit_diff_path") == diff_path:
             return
@@ -348,11 +396,12 @@ def write_result_marker(
     run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
+    commit_cwd = os.getcwd()
 
     marker = {
         "method": method,
         "run_id": run_id,
-        "cwd": os.getcwd(),
+        "cwd": commit_cwd,
         "result": result,
         "commit_result": result,
         "message": payload.get("message", ""),
@@ -369,7 +418,7 @@ def write_result_marker(
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)
     _upsert_commit_results_marker(artifacts_dir, marker)
-    _persist_commit_diff_path(artifacts_dir, diff_path)
+    _persist_commit_diff_path(artifacts_dir, diff_path, commit_cwd=commit_cwd)
 
 
 def create_changespec(

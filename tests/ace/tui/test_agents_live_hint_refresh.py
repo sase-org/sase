@@ -2,8 +2,8 @@
 
 The expensive per-agent live VCS probe is computed off the startup-critical
 loader path by ``AgentLiveHintMixin``: a coalesced background worker scans the
-active, non-terminal rows that lack a persisted ``diff_path`` after the first
-agents load applies, then patches changed rows in place by identity.
+active, non-terminal rows after the first agents load applies, then patches
+changed rows in place by identity.
 """
 
 from __future__ import annotations
@@ -187,7 +187,7 @@ def test_live_hint_candidates_scope() -> None:
 
     candidates = app._live_hint_candidates()
 
-    assert candidates == [running, starting]
+    assert candidates == [running, starting, with_diff]
 
 
 def test_live_hint_candidates_includes_redirected_plan_with_own_diff_path() -> None:
@@ -204,18 +204,18 @@ def test_live_hint_candidates_includes_redirected_plan_with_own_diff_path() -> N
     assert app._live_hint_candidates() == [plan]
 
 
-def test_live_hint_candidates_excludes_redirected_plan_with_terminal_child() -> None:
+def test_live_hint_candidates_uses_active_plan_when_coder_child_is_terminal() -> None:
     app = _FakeApp()
     plan = _root_plan(raw_suffix="200", diff_path="/tmp/plan.diff")
     plan.followup_agents.append(_coder_child(parent_suffix="200", status="DONE"))
     app._agents = [plan]
 
-    # The coder child is terminal, so resolution falls back to the plan row,
-    # whose own (bookkeeping) diff_path now suppresses the live probe.
-    assert app._live_hint_candidates() == []
+    # The coder child is terminal, so resolution falls back to the still-active
+    # plan row. Its persisted diff is only a fallback under active precedence.
+    assert app._live_hint_candidates() == [plan]
 
 
-def test_live_hint_candidates_excludes_redirected_plan_when_child_has_diff() -> None:
+def test_live_hint_candidates_includes_redirected_plan_when_child_has_diff() -> None:
     app = _FakeApp()
     plan = _root_plan(raw_suffix="300", diff_path="/tmp/plan.diff")
     plan.followup_agents.append(
@@ -223,15 +223,15 @@ def test_live_hint_candidates_excludes_redirected_plan_when_child_has_diff() -> 
     )
     app._agents = [plan]
 
-    assert app._live_hint_candidates() == []
+    assert app._live_hint_candidates() == [plan]
 
 
-def test_live_hint_candidates_excludes_ordinary_persisted_diff_row() -> None:
+def test_live_hint_candidates_includes_ordinary_persisted_diff_row() -> None:
     app = _FakeApp()
     with_diff = _agent(cl_name="withdiff", raw_suffix="9", diff_path="/tmp/x.diff")
     app._agents = [with_diff]
 
-    assert app._live_hint_candidates() == []
+    assert app._live_hint_candidates() == [with_diff]
 
 
 # --- carry-over across reloads ----------------------------------------------
@@ -288,7 +288,7 @@ def test_carry_over_live_hints_skips_non_candidates_and_existing_values() -> Non
         [fresh_with_diff, fresh_done, fresh_unknown, fresh_loader_value],
     )
 
-    assert fresh_with_diff.live_file_change_hint is None
+    assert fresh_with_diff.live_file_change_hint is True
     assert fresh_done.live_file_change_hint is None
     assert fresh_unknown.live_file_change_hint is None
     assert fresh_loader_value.live_file_change_hint is False
@@ -307,7 +307,7 @@ def test_carry_over_live_hints_includes_redirected_root_plan() -> None:
     assert agent_file_change_hint(fresh_plan) is True
 
 
-def test_carry_over_live_hints_skips_redirected_plan_when_child_has_diff() -> None:
+def test_carry_over_live_hints_includes_redirected_plan_when_child_has_diff() -> None:
     previous_plan = _root_plan(raw_suffix="500", diff_path="/tmp/plan.diff")
     previous_plan.followup_agents.append(_coder_child(parent_suffix="500"))
     previous_plan.live_file_change_hint = True
@@ -318,7 +318,7 @@ def test_carry_over_live_hints_skips_redirected_plan_when_child_has_diff() -> No
 
     carry_over_live_hints([previous_plan], [fresh_plan])
 
-    assert fresh_plan.live_file_change_hint is None
+    assert fresh_plan.live_file_change_hint is True
 
 
 # --- compute (off-thread body) -----------------------------------------------

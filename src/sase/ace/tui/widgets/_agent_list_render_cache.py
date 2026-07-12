@@ -59,17 +59,18 @@ def _quantize_now(now: datetime | None) -> tuple[int, int, int, int, int, int] |
 def agent_file_change_hint(agent: Agent) -> bool:
     from .file_panel._diff import diff_badge_uses_live_hint
 
-    if diff_badge_uses_live_hint(agent):
-        # Redirected to an active coder child that has not persisted a diff yet,
-        # so the plan row's own diff_has_real_edits / diff_path are
-        # bookkeeping-only. Render from the redirected live hint; ``None`` means
-        # "no badge yet" until the deferred scan fills the value in. Once the
-        # child's diff is propagated onto the row, normal precedence resumes.
-        return bool(agent.live_file_change_hint)
     classified = agent.diff_has_real_edits
+    linked = agent.linked_file_change_hint
+    if diff_badge_uses_live_hint(agent) and agent.live_file_change_hint is not None:
+        # Active primary workspaces are fresh and win over their persisted
+        # fallback. Persisted linked-repository commits remain an independent
+        # pencil source, matching the separate linked DELTAS groups.
+        if agent.live_file_change_hint is True or linked is True:
+            return True
+        if agent.live_file_change_hint is False or linked is False:
+            return False
     if classified is True:
         return True
-    linked = agent.linked_file_change_hint
     if linked is True:
         return True
     if classified is False or linked is False:

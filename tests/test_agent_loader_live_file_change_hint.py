@@ -3,7 +3,7 @@
 The loader's status-override pass (``_apply_status_overrides``) classifies
 only the *cheap* persisted diff badge (``diff_has_real_edits`` from a finalized
 ``diff_path``). The *expensive* live workspace pencil hint — a per-agent VCS
-diff for active rows without a ``diff_path`` — must NOT run on the loader path
+diff for active rows — must NOT run on the loader path
 (it dominated startup). It is computed separately by
 ``classify_live_file_change_hint`` as deferred background work and left as
 ``None`` during the loader pass.
@@ -448,14 +448,18 @@ def test_deferred_helper_skips_terminal_linked_workspace_probe(
     mock_get_provider.assert_not_called()
 
 
-def test_deferred_helper_returns_none_for_persisted_diff_path() -> None:
+def test_deferred_helper_uses_persisted_diff_when_workspace_unresolvable(
+    tmp_path: Path,
+) -> None:
+    persisted = tmp_path / "demo.diff"
+    _write_git_diff(persisted, "src/app.py")
     agent = _running_agent("/does/not/matter")
-    agent.diff_path = "/tmp/sase/demo.diff"
+    agent.diff_path = str(persisted)
 
     with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
         hint = classify_live_file_change_hint(agent)
 
-    assert hint is None
+    assert hint is True
     mock_get_provider.assert_not_called()
 
 
@@ -596,32 +600,34 @@ def test_redirected_plan_row_false_for_bookkeeping_only_child_edits(
     assert agent_file_change_hint(root) is False
 
 
-def test_redirected_plan_row_skips_live_path_when_child_has_diff_path(
+def test_redirected_plan_row_live_edits_win_when_child_has_diff_path(
     tmp_path: Path,
 ) -> None:
-    """A child with its own persisted diff stays authoritative — no VCS probe."""
+    """An active child's persisted diff is a fallback, not authoritative."""
     diff_mod._diff_cache.clear()
     diff_mod._vcs_provider_cache.clear()
+    child_workspace = _setup_workspace(tmp_path)
     child_diff = tmp_path / "child.diff"
-    _write_git_diff(child_diff, "src/app.py")
+    _write_git_diff(child_diff, "sdd/plans/202606/change.md")
     bookkeeping = tmp_path / "plan.diff"
     _write_git_diff(bookkeeping, "sdd/plans/202606/change.md")
     root = _root_plan_agent(diff_path=str(bookkeeping))
     root.followup_agents.append(
-        _active_coder_child("/does/not/matter", diff_path=str(child_diff))
+        _active_coder_child(str(child_workspace), diff_path=str(child_diff))
     )
+    provider = _DiffTextProvider(_git_diff("src/live.py"))
 
-    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
-        hint = classify_live_file_change_hint(root)
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = classify_live_file_change_hint(root)
 
-    assert hint is None
-    mock_get_provider.assert_not_called()
+    assert hint is True
 
 
-def test_non_redirected_plan_row_with_diff_path_skips_live_path(
+def test_non_redirected_plan_row_with_diff_path_uses_unresolvable_fallback(
     tmp_path: Path,
 ) -> None:
-    """A plan row with no active coder child is not redirected — diff_path wins."""
+    """An active row can classify its persisted fallback without a workspace."""
     diff_mod._diff_cache.clear()
     diff_mod._vcs_provider_cache.clear()
     bookkeeping = tmp_path / "plan.diff"
@@ -631,5 +637,5 @@ def test_non_redirected_plan_row_with_diff_path_skips_live_path(
     with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
         hint = classify_live_file_change_hint(root)
 
-    assert hint is None
+    assert hint is True
     mock_get_provider.assert_not_called()

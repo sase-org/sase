@@ -15,7 +15,7 @@ from sase.ace.deltas.compute import semantic_line_stats
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
 from ..deltas_builder import build_delta_entries_section
-from ..file_panel._diff import get_agent_diff
+from ..file_panel._diff import diff_badge_uses_live_hint, get_agent_diff
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ..hint_tracker import HintTracker
 from ._agent_commits import CommitDiffInfo, agent_commit_diffs
@@ -258,6 +258,14 @@ def _commit_diff_delta_entries(
 
 def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
     """Return the selected agent's own DELTAS entries when available."""
+    if diff_badge_uses_live_hint(agent):
+        # Active primary workspaces are fresh: show a dirty live diff before
+        # persisted per-commit metadata. ``get_agent_diff`` falls back to the
+        # persisted primary diff when the workspace is clean or unresolvable.
+        diff_text = get_agent_diff(agent)
+        if diff_text:
+            return visible_agent_delta_entries(parse_unified_diff_deltas(diff_text))
+
     commit_diffs = agent_commit_diffs(agent)
     if commit_diffs:
         entries, _diff_text = _commit_diff_delta_entries(

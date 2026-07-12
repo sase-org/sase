@@ -21,7 +21,7 @@ def _classify_linked_commit_diffs(agent: Agent) -> bool | None:
 
 
 def classify_live_file_change_hint(agent: Agent) -> bool | None:
-    """Compute the active-workspace pencil hint for a row without a diff_path.
+    """Compute the active-workspace-first pencil hint for a row.
 
     This is the *expensive* classification path: it runs a live VCS diff
     (``get_vcs_provider`` + ``diff_with_untracked``) for the agent's
@@ -29,24 +29,16 @@ def classify_live_file_change_hint(agent: Agent) -> bool | None:
     Agents TUI schedules it as deferred, coalesced background work after the
     first load applies (see ``AgentLiveHintMixin``).
 
-    The probe is suppressed when the *resolved diff source* already has a
-    persisted ``diff_path`` — its classification is authoritative. For an
-    ordinary row the source is the row itself, so this reduces to the historic
-    "row has a diff_path" rule. For a redirected root Plan row the source is
-    its active coder child, so the plan row's own bookkeeping-only ``diff_path``
-    no longer suppresses the probe; the live signal comes from the child's
-    workspace instead (``live_agent_file_change_hint`` resolves it internally).
+    A persisted primary diff is only a fallback while the resolved source is
+    active: a dirty workspace must win, while a clean, unresolvable, or failed
+    probe may reuse that persisted classification. Terminal sources never
+    reach this helper. Redirected root Plan/Tale rows resolve to their active
+    coder child inside ``live_agent_file_change_hint``.
 
     Fails closed (returns ``None``) on any error so live VCS access can never
     destabilize row rendering.
     """
-    from sase.ace.tui.widgets.file_panel._diff import (
-        live_agent_file_change_hint,
-        resolve_agent_diff_source,
-    )
-
-    if resolve_agent_diff_source(agent).diff_path:
-        return None
+    from sase.ace.tui.widgets.file_panel._diff import live_agent_file_change_hint
 
     try:
         return live_agent_file_change_hint(agent)

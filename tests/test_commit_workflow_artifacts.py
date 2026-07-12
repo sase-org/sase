@@ -211,6 +211,80 @@ class TestWriteResultMarker:
             assert "commit_changespec_name" not in meta
             update_index.assert_called_once_with(tmpdir)
 
+    @pytest.mark.parametrize("existing_diff", [None, "/tmp/primary.diff"])
+    def test_external_commit_neither_seeds_nor_overwrites_primary_diff(
+        self,
+        tmp_path: Path,
+        existing_diff: str | None,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        companion = primary / ".sase" / "sdd"
+        artifacts_dir.mkdir()
+        (primary / ".git").mkdir(parents=True)
+        (companion / ".git").mkdir(parents=True)
+        meta = {"name": "agent-alpha", "workspace_dir": str(primary)}
+        if existing_diff is not None:
+            meta["commit_diff_path"] = existing_diff
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(companion)),
+            patch(
+                "sase.workflows.commit.commit_tracking."
+                "update_agent_artifact_index_for_marker_mutation"
+            ) as update_index,
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "docs: companion"},
+                "/tmp/companion.diff",
+                "def456",
+                None,
+            )
+
+        persisted = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert persisted.get("commit_diff_path") == existing_diff
+        results = json.loads(
+            (artifacts_dir / "commit_results.json").read_text(encoding="utf-8")
+        )
+        assert results[0]["cwd"] == str(companion)
+        assert results[0]["diff_path"] == "/tmp/companion.diff"
+        update_index.assert_not_called()
+
+    def test_primary_subdirectory_commit_updates_primary_diff(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        source_dir = primary / "src"
+        artifacts_dir.mkdir()
+        (primary / ".git").mkdir(parents=True)
+        source_dir.mkdir()
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(
+            json.dumps({"workspace_dir": str(primary)}),
+            encoding="utf-8",
+        )
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(source_dir)),
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "fix: primary"},
+                "/tmp/primary.diff",
+                "abc123",
+                None,
+            )
+
+        persisted = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert persisted["commit_diff_path"] == "/tmp/primary.diff"
+
     def test_does_not_update_agent_meta_without_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"

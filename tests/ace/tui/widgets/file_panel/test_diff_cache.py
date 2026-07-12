@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.file_panel import _diff as diff_mod
 
@@ -207,6 +209,33 @@ def test_get_agent_diff_resolves_root_plan_to_newest_active_coder_workspace(
     assert provider.cwd_calls == [str(newest_workspace)]
 
 
+def test_root_plan_active_coder_live_diff_wins_over_coder_fallback(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    coder_workspace = _setup_workspace(tmp_path, "myproj_2")
+    fallback = tmp_path / "coder.diff"
+    fallback.write_text(_git_diff("src/committed.py"), encoding="utf-8")
+    root = _make_root_plan_agent()
+    coder = _make_active_coder_followup(
+        workspace_num=2,
+        workspace_dir=str(coder_workspace),
+        start_time=datetime(2024, 1, 1, 16, 0),
+        raw_suffix="202604010000-code",
+    )
+    coder.diff_path = str(fallback)
+    root.followup_agents.append(coder)
+    provider = _DiffTextProvider(_git_diff("src/live.py"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            result = diff_mod.get_agent_diff(root)
+
+    assert result == _git_diff("src/live.py")
+    assert provider.calls == 1
+
+
 def test_get_agent_diff_handles_binary_diff_path(tmp_path: Path) -> None:
     """A diff_path pointing at binary bytes must not crash the TUI.
 
@@ -223,6 +252,103 @@ def test_get_agent_diff_handles_binary_diff_path(tmp_path: Path) -> None:
 
     # Must not raise; a completed agent with an unreadable diff yields None.
     assert diff_mod.get_agent_diff(agent) is None
+
+
+def test_active_dirty_workspace_wins_over_persisted_fallback(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    persisted = tmp_path / "persisted.diff"
+    persisted.write_text(_git_diff("companion.md"), encoding="utf-8")
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.diff_path = str(persisted)
+    provider = _DiffTextProvider(_git_diff("src/live.py"))
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            result = diff_mod.get_agent_diff(agent)
+
+    assert result == _git_diff("src/live.py")
+    assert provider.calls == 1
+
+
+def test_active_clean_workspace_uses_persisted_fallback(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    persisted = tmp_path / "persisted.diff"
+    persisted_text = _git_diff("src/committed.py")
+    persisted.write_text(persisted_text, encoding="utf-8")
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.diff_path = str(persisted)
+    provider = _DiffTextProvider("")
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            first = diff_mod.get_agent_diff(agent)
+            second = diff_mod.get_agent_diff(agent)
+
+    assert first == persisted_text
+    assert second == persisted_text
+    assert provider.calls == 1
+
+
+def test_active_unresolvable_workspace_uses_persisted_fallback(
+    tmp_path: Path,
+) -> None:
+    persisted = tmp_path / "persisted.diff"
+    persisted_text = _git_diff("src/committed.py")
+    persisted.write_text(persisted_text, encoding="utf-8")
+    agent = _make_running_agent(workspace_dir=str(tmp_path / "missing"))
+    agent.diff_path = str(persisted)
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        result = diff_mod.get_agent_diff(agent)
+
+    assert result == persisted_text
+    mock_get_provider.assert_not_called()
+
+
+def test_active_failed_probe_uses_persisted_fallback_for_detail(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    persisted = tmp_path / "persisted.diff"
+    persisted_text = _git_diff("src/committed.py")
+    persisted.write_text(persisted_text, encoding="utf-8")
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.diff_path = str(persisted)
+    provider = _FailedDiffProvider(raises=True)
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            result = diff_mod.get_agent_diff(agent)
+
+    assert result == persisted_text
+    assert provider.calls == 1
+    assert diff_mod._diff_cache == {}
+
+
+@pytest.mark.parametrize("status", ["DONE", "FAILED"])
+def test_terminal_agent_uses_persisted_diff_without_workspace_probe(
+    tmp_path: Path,
+    status: str,
+) -> None:
+    persisted = tmp_path / "persisted.diff"
+    persisted_text = _git_diff("src/final.py")
+    persisted.write_text(persisted_text, encoding="utf-8")
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    agent.status = status
+    agent.diff_path = str(persisted)
+
+    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
+        result = diff_mod.get_agent_diff(agent)
+
+    assert result == persisted_text
+    mock_get_provider.assert_not_called()
 
 
 def test_compute_diff_cache_key_includes_provider_name(tmp_path: Path) -> None:
@@ -612,17 +738,44 @@ def test_live_hint_none_and_does_not_cache_failed_diff_probe(
         assert diff_mod._diff_cache == {}
 
 
-def test_live_hint_none_for_persisted_diff_path(tmp_path: Path) -> None:
+def test_live_hint_prefers_live_edits_over_persisted_diff_path(tmp_path: Path) -> None:
     diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     agent = _make_running_agent(workspace_dir=str(workspace))
-    agent.diff_path = "/tmp/sase/demo.diff"
+    persisted = tmp_path / "demo.diff"
+    persisted.write_text(_git_diff("sdd/plans/change.md"), encoding="utf-8")
+    agent.diff_path = str(persisted)
+    provider = _DiffTextProvider(_git_diff("src/live.py"))
 
-    with patch.object(diff_mod, "get_vcs_provider") as mock_get_provider:
-        hint = diff_mod.live_agent_file_change_hint(agent)
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = diff_mod.live_agent_file_change_hint(agent)
 
+    assert hint is True
+    assert provider.calls == 1
+
+
+def test_live_hint_probe_failure_preserves_existing_signal(tmp_path: Path) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    workspace = _setup_workspace(tmp_path)
+    agent = _make_running_agent(workspace_dir=str(workspace))
+    persisted = tmp_path / "demo.diff"
+    persisted.write_text(_git_diff("src/committed.py"), encoding="utf-8")
+    agent.diff_path = str(persisted)
+    provider = _FailedDiffProvider(raises=True)
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            hint = diff_mod.live_agent_file_change_hint(agent)
+
+    # The deferred badge worker treats a transient probe failure as unknown so
+    # its apply step retains any stale-while-revalidate hint. The detail panel
+    # still uses the persisted fallback (covered above).
     assert hint is None
-    mock_get_provider.assert_not_called()
+    assert provider.calls == 1
+    assert diff_mod._diff_cache == {}
 
 
 def test_live_hint_none_for_completed_agent(tmp_path: Path) -> None:

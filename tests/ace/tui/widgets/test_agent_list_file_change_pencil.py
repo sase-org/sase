@@ -102,9 +102,9 @@ class TestAgentListFileChangePencil:
         assert "✏️" not in left.plain
         assert suffix.plain == "✏️"
 
-    def test_persisted_classification_wins_over_live_hint(self) -> None:
-        # A persisted bookkeeping-only classification stays authoritative even
-        # if a stale live hint says otherwise.
+    def test_active_live_hint_wins_over_persisted_classification(self) -> None:
+        # A persisted bookkeeping-only classification is only a fallback while
+        # the row is active; fresh live workspace edits drive the pencil.
         agent = make_agent(
             diff_path="/tmp/sase/demo.diff",
             diff_has_real_edits=False,
@@ -115,7 +115,7 @@ class TestAgentListFileChangePencil:
         left, suffix, _ = format_agent_option(agent, 0, is_selected=False)
 
         assert "✏️" not in left.plain
-        assert "✏️" not in suffix.plain
+        assert suffix.plain == "✏️"
 
     def test_pencil_renders_in_suffix_not_display_name_flow(
         self, monkeypatch: pytest.MonkeyPatch

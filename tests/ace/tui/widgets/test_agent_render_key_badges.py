@@ -331,6 +331,14 @@ def test_non_redirected_row_badge_prefers_persisted_over_stale_live_hint() -> No
     assert agent_file_change_hint(a) is True
 
 
+def test_active_row_badge_prefers_live_hint_over_persisted_fallback() -> None:
+    agent = _agent(status="RUNNING")
+    agent.diff_has_real_edits = True
+    agent.live_file_change_hint = False
+
+    assert agent_file_change_hint(agent) is False
+
+
 def test_plan_row_without_active_child_uses_own_classification() -> None:
     plan = _root_plan(diff_has_real_edits=True)
 

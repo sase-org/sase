@@ -551,6 +551,65 @@ def test_agent_deltas_render_cached_linked_groups(tmp_path: Path) -> None:
     assert "    + crates/core/src/lib.rs  +3\n" in header.plain
 
 
+def test_active_primary_deltas_win_over_latest_companion_commit(
+    tmp_path: Path,
+) -> None:
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    primary = tmp_path / "sase_7"
+    linked = tmp_path / "sase-core_7"
+    (primary / ".git").mkdir(parents=True)
+    (primary / ".git" / "index").write_bytes(b"\x00" * 16)
+    linked.mkdir()
+    companion_diff = tmp_path / "companion.diff"
+    companion_diff.write_text(
+        """diff --git a/crates/core/src/lib.rs b/crates/core/src/lib.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/core/src/lib.rs
+@@ -0,0 +1 @@
++pub fn live() {}
+""",
+        encoding="utf-8",
+    )
+    live_diff = """diff --git a/src/live.py b/src/live.py
+--- a/src/live.py
++++ b/src/live.py
+@@ -1 +1 @@
+-old
++new
+"""
+    agent = _make_agent(
+        status="RUNNING",
+        workspace_dir=str(primary),
+        diff_path=str(companion_diff),
+        linked_repos=(LinkedRepoMetadata(name="sase-core", workspace_dir=str(linked)),),
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "docs: companion plan",
+                    "sha": "222222222222bbbb",
+                    "cwd": str(linked),
+                    "diff_path": str(companion_diff),
+                },
+            ],
+        },
+    )
+    provider = _WorkspaceDiffProvider({primary.name: live_diff})
+
+    with patch.object(diff_mod.time, "time", return_value=1_700_000_000.0):
+        with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+            header, _ = build_header_text(
+                agent,
+                summary=build_detail_header_summary(agent),
+            )
+
+    assert "  ~ src/live.py  ~1\n" in header.plain
+    assert "  ▣ sase-core\n" in header.plain
+    assert "    + crates/core/src/lib.rs  +1\n" in header.plain
+    assert "\n  + crates/core/src/lib.rs" not in header.plain
+
+
 def test_agent_deltas_render_path_uses_linked_cache_only(
     tmp_path: Path,
     monkeypatch,
