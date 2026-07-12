@@ -38,6 +38,7 @@ jobs:
           persist-credentials: false
       - name: Record split SDD companion store
         run: |
+          mkdir -p .sase
           cat > .sase/sdd-store.json <<'JSON'
           {
             "schema_version": 2,

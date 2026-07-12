@@ -69,6 +69,7 @@ def test_ci_lint_job_validates_split_sdd_companions() -> None:
     assert "repository: sase-org/sase--research" in workflow
     assert "path: sase/repos/sase--research" in workflow
     assert '"storage": "companion_repos"' in workflow
+    assert "          mkdir -p .sase\n" in workflow
     assert "sase-org/sase--sdd" not in workflow
 
 
