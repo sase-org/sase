@@ -11,6 +11,7 @@ steps:
     hidden: true
     python: |
       import subprocess
+      import sys
       from pathlib import Path
 
       from sase.agent.launcher import launch_agent_from_cwd
@@ -27,9 +28,10 @@ steps:
           return "\n---\n".join(segments)
 
       files: list[str] = []
+      toolong = Path(sys.executable).parent / "toolong"
       for tree in ("src", "tests"):
           result = subprocess.run(
-              ["tools/pylimit_files-260227", tree, *limits],
+              [str(toolong), "--files-only", tree, *limits],
               capture_output=True,
               text=True,
               check=False,
