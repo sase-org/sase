@@ -65,6 +65,15 @@ def test_set_prompt_wait_clears_wait_directives() -> None:
     assert set_prompt_wait("%wait(dep, time=5m)\nDo work", None) == "Do work"
 
 
+def test_set_prompt_wait_formats_runner_threshold() -> None:
+    rewritten = set_prompt_wait(
+        "Do work",
+        PromptWaitDirective(agents=("dep",), time_token="5m", runners=0),
+    )
+
+    assert rewritten == "%wait(dep, time=5m, runners=0)\nDo work"
+
+
 def test_insert_after_frontmatter() -> None:
     prompt = "---\ntitle: demo\n---\nDo work"
     assert set_prompt_name(prompt, "agent") == (

@@ -62,6 +62,11 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.artifacts_dir = source.artifacts_dir
     if not target.waiting_for and source.waiting_for:
         target.waiting_for = source.waiting_for
+    if target.wait_runners is None and source.wait_runners is not None:
+        target.wait_runners = source.wait_runners
+        target.wait_runners_explicit = source.wait_runners_explicit
+    if target.slot_requested_at is None and source.slot_requested_at is not None:
+        target.slot_requested_at = source.slot_requested_at
     if target.approve is False and source.approve is True:
         target.approve = source.approve
     if target.start_time is None and source.start_time is not None:

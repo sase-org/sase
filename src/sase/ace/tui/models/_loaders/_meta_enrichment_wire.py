@@ -162,6 +162,9 @@ def enrich_agent_from_meta_wire(
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:
             agent.wait_until = waiting.wait_until
+        agent.wait_runners = waiting.wait_runners
+        agent.wait_runners_explicit = waiting.wait_runners_explicit
+        agent.slot_requested_at = waiting.slot_requested_at
 
     if agent.wait_duration is None and meta.wait_duration is not None:
         agent.wait_duration = meta.wait_duration

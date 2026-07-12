@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -56,6 +56,12 @@ class _AgentWaitInfo:
     wait_duration_seconds: float | None = None
     wait_until: str | None = None
     remaining_seconds: int | None = None
+    wait_runners: int | None = None
+    wait_runners_explicit: bool = False
+    slot_requested_at: str | None = None
+    runner_slots_in_use: int | None = None
+    runner_slot_queue_position: int | None = None
+    runner_slot_queue_size: int | None = None
 
     @property
     def has_wait(self) -> bool:
@@ -64,6 +70,7 @@ class _AgentWaitInfo:
             or self.wait_duration_seconds is not None
             or self.wait_until
             or self.remaining_seconds is not None
+            or self.slot_requested_at
         )
 
 
@@ -178,6 +185,7 @@ def agent_list_entries(
 ) -> list[AgentListEntry]:
     """Return rich agent list entries for active and optionally recent agents."""
     agents = list_all_agents() if include_recent else list_running_agents()
+    runner_slots_in_use = sum(1 for agent in agents if agent.status == "RUNNING")
     now = datetime.now(get_timezone())
     child_summaries = _children_by_parent_timestamp(project=project) if agents else {}
     entries: list[AgentListEntry] = []
@@ -189,9 +197,41 @@ def agent_list_entries(
             else None
         )
         entries.append(_build_agent_list_entry(agent, now=now, children=children))
+    entries = _attach_runner_slot_context(entries, runner_slots_in_use)
     if project:
         entries = [entry for entry in entries if entry.project == project]
     return entries
+
+
+def _attach_runner_slot_context(
+    entries: list[AgentListEntry],
+    runner_slots_in_use: int,
+) -> list[AgentListEntry]:
+    waiters = sorted(
+        (entry for entry in entries if entry.wait.slot_requested_at),
+        key=lambda entry: (
+            _parse_iso_datetime(entry.wait.slot_requested_at)
+            or datetime.max.replace(tzinfo=get_timezone()),
+            entry.timestamp or "",
+            entry.artifacts_dir or "",
+        ),
+    )
+    positions = {id(entry): index for index, entry in enumerate(waiters, 1)}
+    queue_size = len(waiters)
+    return [
+        replace(
+            entry,
+            wait=replace(
+                entry.wait,
+                runner_slots_in_use=runner_slots_in_use,
+                runner_slot_queue_position=positions.get(id(entry)),
+                runner_slot_queue_size=queue_size,
+            ),
+        )
+        if entry.wait.slot_requested_at
+        else entry
+        for entry in entries
+    ]
 
 
 def _children_by_parent_timestamp(
@@ -431,6 +471,11 @@ def _wait_info(
         remaining_seconds=_remaining_wait_seconds(
             agent, wait_duration, wait_until, now
         ),
+        wait_runners=waiting.wait_runners if waiting is not None else None,
+        wait_runners_explicit=(
+            waiting.wait_runners_explicit if waiting is not None else False
+        ),
+        slot_requested_at=(waiting.slot_requested_at if waiting is not None else None),
     )
 
 

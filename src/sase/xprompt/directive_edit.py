@@ -26,9 +26,10 @@ class PromptWaitDirective:
 
     agents: tuple[str, ...] = ()
     time_token: str | None = None
+    runners: int | None = None
 
     def __bool__(self) -> bool:
-        return bool(self.agents or self.time_token)
+        return bool(self.agents or self.time_token or self.runners is not None)
 
 
 _TIME_XPROMPT_RE = re.compile(
@@ -79,6 +80,8 @@ def _format_wait_directive(wait_spec: PromptWaitDirective | None) -> str | None:
     parts = [_format_wait_arg(agent) for agent in wait_spec.agents]
     if wait_spec.time_token:
         parts.append(f"time={wait_spec.time_token}")
+    if wait_spec.runners is not None:
+        parts.append(f"runners={wait_spec.runners}")
     return f"%wait({', '.join(parts)})"
 
 

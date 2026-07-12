@@ -353,6 +353,37 @@ def test_render_key_changes_when_wait_deps_satisfied_flips() -> None:
     assert pending_key != satisfied_key
 
 
+def test_render_key_changes_when_runner_slot_count_changes() -> None:
+    agent = _agent(status="WAITING")
+    agent.wait_runners = 9
+    agent.slot_requested_at = "2026-07-12T12:00:00Z"
+    agent.runner_slots_in_use = 10
+
+    first = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    agent.runner_slots_in_use = 9
+    second = agent_render_key(
+        agent,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert first != second
+
+
 def test_render_key_uses_wait_display_source_timer_fields() -> None:
     root = _agent(status="WAITING")
     child = _agent(

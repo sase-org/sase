@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sase.agent.running import RunningAgentInfo
+from sase.agents.cli_list import _agent_to_json
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
@@ -15,6 +16,7 @@ from sase.core.agent_scan_wire import (
 from sase.core.time import get_timezone
 from sase.integrations.agent_list_entries import (
     _AgentChildrenSummary,
+    _attach_runner_slot_context,
     _build_agent_list_entry,
 )
 
@@ -107,6 +109,43 @@ def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> No
     assert entry.wait.remaining_seconds == 300
 
 
+def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
+    first = _build_agent_list_entry(
+        _agent(name="first", status="WAITING"),
+        record=_record(
+            timestamp="20260709120001",
+            artifact_dir="/tmp/sase/artifacts/ace-run/20260709120001",
+            agent_meta=AgentMetaWire(),
+            waiting=WaitingMarkerWire(
+                wait_runners=9,
+                slot_requested_at="2026-07-12T12:00:01Z",
+            ),
+        ),
+    )
+    second = _build_agent_list_entry(
+        _agent(name="second", status="WAITING"),
+        record=_record(
+            timestamp="20260709120002",
+            artifact_dir="/tmp/sase/artifacts/ace-run/20260709120002",
+            agent_meta=AgentMetaWire(),
+            waiting=WaitingMarkerWire(
+                wait_runners=0,
+                wait_runners_explicit=True,
+                slot_requested_at="2026-07-12T12:00:02Z",
+            ),
+        ),
+    )
+
+    first, second = _attach_runner_slot_context([first, second], 7)
+
+    assert first.wait.wait_runners == 9
+    assert first.wait.runner_slots_in_use == 7
+    assert first.wait.runner_slot_queue_position == 1
+    assert first.wait.runner_slot_queue_size == 2
+    assert second.wait.wait_runners_explicit is True
+    assert second.wait.runner_slot_queue_position == 2
+
+
 def test_plan_marker_becomes_actionable_plan_ready() -> None:
     entry = _build_agent_list_entry(
         _agent(),
@@ -149,3 +188,27 @@ def test_missing_artifact_markers_are_safe() -> None:
     assert entry.model is None
     assert entry.provider_badge is None
     assert entry.status == "RUNNING"
+
+
+def test_agent_list_json_exposes_runner_slot_fields() -> None:
+    entry = _build_agent_list_entry(
+        _agent(status="WAITING"),
+        record=_record(
+            agent_meta=AgentMetaWire(),
+            waiting=WaitingMarkerWire(
+                wait_runners=0,
+                wait_runners_explicit=True,
+                slot_requested_at="2026-07-12T12:00:00Z",
+            ),
+        ),
+    )
+    (entry,) = _attach_runner_slot_context([entry], 3)
+
+    payload = _agent_to_json(entry)
+
+    assert payload["wait_runners"] == 0
+    assert payload["wait_runners_explicit"] is True
+    assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
+    assert payload["runner_slots_in_use"] == 3
+    assert payload["runner_slot_queue_position"] == 1
+    assert payload["runner_slot_queue_size"] == 1

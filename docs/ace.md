@@ -385,9 +385,11 @@ the primary project workspace.
 
 Press `w` on the Agents tab to open the WaitModal. Behavior depends on the agent's status:
 
-- **WAITING agent**: Enter another agent's name to wait for, or leave empty and press Enter to run immediately (unwait).
-- **RUNNING agent**: Enter an agent name to kill the current agent and restart it with a `%w` (wait) directive. This is
-  useful for redirecting an agent to wait on a different dependency.
+- **WAITING agent**: Edit dependency names, a time floor, or the `runners` threshold. A runner-slot-parked agent applies
+  a runners-only edit live on its next poll; changing earlier wait stages restarts the agent. Clearing an explicit
+  runner threshold returns it to the global `max_running_agents` cap rather than bypassing that cap.
+- **RUNNING agent**: Enter a dependency, time floor, or runners threshold to kill and restart the current agent with a
+  canonical `%wait(...)` directive.
 
 The modal supports readline-style keybindings (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
@@ -570,8 +572,10 @@ counts terminal rows that still need acknowledgement; and `done` is completed vi
 acknowledged. During startup the metric strip renders `Agents: …` until the first agent scan has loaded, avoiding a
 misleading zero-agent count. Each TUI launch starts in by-project grouping; cycling only changes the current session.
 **Waiting** holds agents that are blocked but progressing on their own — `WAITING` with a time wait (`%wait(time=5m)`,
-`%wait(time=1430)`) or a non-empty `waiting_for` dependency. **Stopped** keeps the strict "you need to act" semantics: a
-`WAITING` agent with neither a timer nor a dependency stays there because it's parked waiting on the user.
+`%wait(time=1430)`), a non-empty `waiting_for` dependency, or a runner-slot gate. Runner-slot rows add a dim Running
+glyph suffix: config-gated waits use live-count/cap form (`WAITING ▶10/10`), while an explicit threshold uses an arrow
+(`WAITING ▶7→0`) so a drain barrier cannot be mistaken for a fraction. **Stopped** keeps the strict "you need to act"
+semantics for plan approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -1494,7 +1498,8 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
-  waits add compact duration, target time, and countdown text when available.
+  waits add compact duration, target time, and countdown text when available. The final runner-slot stage shows the live
+  running count and cap or explicit threshold, plus FIFO queue position; `runners=0` is labeled as a drain barrier.
 - **COMMITS**: Commits persisted by the selected agent's post-run steps, grouped by repository. Primary workspace,
   linked-repo, and SDD companion commits are attributed separately when the run metadata records enough path or repo
   information.

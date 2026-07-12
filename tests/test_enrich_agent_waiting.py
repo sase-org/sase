@@ -26,6 +26,27 @@ def test_wait_duration_from_waiting_json(tmp_path: Path) -> None:
     assert agent.wait_duration == 600.0
 
 
+def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        )
+    )
+
+    agent = make_agent(status="STARTING")
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.wait_runners == 0
+    assert agent.wait_runners_explicit is True
+    assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
+
+
 def test_linked_repos_from_agent_meta(tmp_path: Path) -> None:
     """linked_repos are parsed from agent_meta.json during enrichment."""
     (tmp_path / "agent_meta.json").write_text(
@@ -293,6 +314,24 @@ def test_waiting_marker_wire_flips_starting_to_waiting() -> None:
     assert agent.status == "WAITING"
     assert agent.waiting_for == ["dep_agent"]
     assert agent.wait_start_time == agent.start_time
+
+
+def test_runner_slot_fields_from_waiting_marker_wire() -> None:
+    agent = make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(
+            wait_runners=9,
+            wait_runners_explicit=False,
+            slot_requested_at="2026-07-12T12:00:00Z",
+        ),
+        None,
+    )
+
+    assert agent.wait_runners == 9
+    assert agent.wait_runners_explicit is False
+    assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 
 def test_run_started_at_wire_promotes_starting_to_running() -> None:

@@ -233,6 +233,56 @@ def test_apply_wait_empty_submission_keeps_run_now_behavior(tmp_path: Path) -> N
     update_index.assert_not_called()
 
 
+def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:
+    (tmp_path / "raw_xprompt.md").write_text("Do work", encoding="utf-8")
+    (tmp_path / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "cl_name": "test_cl",
+                "timestamp": "20240101120000",
+                "wait_runners": 9,
+                "wait_runners_explicit": False,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    agent = _make_waiting_agent(
+        artifacts_dir=str(tmp_path),
+        waiting_for=[],
+        wait_duration=None,
+        wait_until=None,
+        wait_runners=9,
+        wait_runners_explicit=False,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    app = _FakeWaitResumeApp()
+
+    with patch(
+        "sase.ace.tui.actions.agents._directive_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        app._apply_wait(
+            str(tmp_path),
+            agent,
+            WaitModalResult(agents=[], time_token=None, runners=0),
+        )
+
+    waiting = json.loads((tmp_path / "waiting.json").read_text(encoding="utf-8"))
+    assert waiting["wait_runners"] == 0
+    assert waiting["wait_runners_explicit"] is True
+    assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
+    assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%wait(runners=0)\nDo work"
+    )
+    assert json.loads((tmp_path / "agent_meta.json").read_text())["wait_runners"] == 0
+    assert agent.wait_runners == 0
+    assert agent.wait_runners_explicit is True
+    assert app.killed_agents == []
+
+
 def test_prompt_wait_spec_builds_canonical_forms() -> None:
     assert _prompt_wait_spec(
         WaitModalResult(agents=["alice", "bob"], time_token="5m")

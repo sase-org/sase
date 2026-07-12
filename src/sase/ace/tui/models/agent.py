@@ -220,6 +220,20 @@ class Agent:
     # Absolute time wait target as ISO 8601 string (from %wait(time=1430) directive)
     wait_until: str | None = None
 
+    # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
+    # is the existing-runner threshold; config-gated waits render the total
+    # cap as threshold + 1, while explicit %wait(runners=N) waits render N.
+    wait_runners: int | None = None
+    wait_runners_explicit: bool = False
+    slot_requested_at: str | None = None
+
+    # Snapshot-derived display context. These values are recomputed from the
+    # already-loaded Agents refresh payload after full and artifact-delta
+    # merges; rendering them never triggers another filesystem scan.
+    runner_slots_in_use: int | None = None
+    runner_slot_queue_position: int | None = None
+    runner_slot_queue_size: int | None = None
+
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 

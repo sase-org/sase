@@ -231,11 +231,19 @@ def build_header_text(
         header_text.append("BUG: ", style="bold #87D7FF")
         header_text.append(f"{agent.bug}\n", style="bold underline #569CD6")
 
-    # Waiting info (when agent is waiting for dependencies, a duration, or absolute time)
+    # Waiting info (dependencies, time floor, and final runner-slot stage).
     from sase.ace.tui.models.agent import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
-    if wait_agent.waiting_for or wait_agent.wait_duration or wait_agent.wait_until:
+    has_slot_wait = bool(
+        wait_agent.slot_requested_at and wait_agent.wait_runners is not None
+    )
+    if (
+        wait_agent.waiting_for
+        or wait_agent.wait_duration
+        or wait_agent.wait_until
+        or has_slot_wait
+    ):
         from sase.ace.tui.models.agent import (
             format_compact_duration,
             format_wait_until,
@@ -274,12 +282,46 @@ def build_header_text(
             if appended_dependency_names:
                 header_text.append(" + ", style=_WAITING_VALUE_STYLE)
             header_text.append(time_part, style=_WAITING_VALUE_STYLE)
+            appended_dependency_names = True
         remaining = wait_remaining_seconds(agent)
         if remaining is not None and remaining > 0:
             header_text.append(
                 f" ({format_compact_duration(remaining)} left)",
                 style="dim #AF87FF",
             )
+        if has_slot_wait:
+            if appended_dependency_names:
+                header_text.append(" + ", style=_WAITING_VALUE_STYLE)
+            in_use = wait_agent.runner_slots_in_use
+            threshold = wait_agent.wait_runners
+            assert threshold is not None
+            if wait_agent.wait_runners_explicit:
+                header_text.append(f"runners ≤ {threshold}", style=_WAITING_VALUE_STYLE)
+                if threshold == 0:
+                    header_text.append(" (drain barrier)", style="bold #AF87FF")
+                if in_use is not None:
+                    noun = "runner" if in_use == 1 else "runners"
+                    header_text.append(
+                        f" · {in_use} {noun} still running",
+                        style="dim #AF87FF",
+                    )
+            elif in_use is not None:
+                header_text.append(
+                    f"runners: {in_use}/{threshold + 1} in use",
+                    style=_WAITING_VALUE_STYLE,
+                )
+            else:
+                header_text.append(
+                    f"runners: cap {threshold + 1}",
+                    style=_WAITING_VALUE_STYLE,
+                )
+            position = wait_agent.runner_slot_queue_position
+            queue_size = wait_agent.runner_slot_queue_size
+            if position is not None and queue_size is not None:
+                header_text.append(
+                    f" · queue #{position} of {queue_size}",
+                    style="dim #AF87FF",
+                )
         header_text.append("\n")
 
     # Retry info (for agents that have retried or are using fallback)

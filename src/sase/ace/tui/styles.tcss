@@ -3009,7 +3009,7 @@ WaitModal {
 WaitModal > Container {
     width: 76;
     height: auto;
-    max-height: 80%;
+    max-height: 94%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
@@ -3017,18 +3017,15 @@ WaitModal > Container {
 
 WaitModal #modal-title {
     text-style: bold;
-    margin-bottom: 1;
 }
 
 WaitModal #wait-modal-summary {
     color: $text-muted;
-    margin-bottom: 1;
 }
 
 WaitModal .wait-field-label {
     color: $secondary;
     text-style: bold;
-    margin-top: 1;
 }
 
 WaitModal Input {
@@ -3037,9 +3034,8 @@ WaitModal Input {
 
 WaitModal #agent-completion {
     height: auto;
-    max-height: 8;
+    max-height: 6;
     border: solid $secondary;
-    margin-top: 1;
     scrollbar-gutter: stable;
 }
 
@@ -3054,25 +3050,28 @@ WaitModal #agent-completion > .option-list--option-highlighted {
     padding: 0 1 0 0;
 }
 
-WaitModal #time-preview {
-    margin-top: 1;
+WaitModal #time-preview,
+WaitModal #runners-preview {
+    height: 1;
 }
 
-WaitModal #time-preview.wait-time-neutral {
+WaitModal #time-preview.wait-time-neutral,
+WaitModal #runners-preview.wait-time-neutral {
     color: $text-muted;
 }
 
-WaitModal #time-preview.wait-time-valid {
+WaitModal #time-preview.wait-time-valid,
+WaitModal #runners-preview.wait-time-valid {
     color: $success;
 }
 
-WaitModal #time-preview.wait-time-error {
+WaitModal #time-preview.wait-time-error,
+WaitModal #runners-preview.wait-time-error {
     color: $error;
 }
 
 WaitModal #wait-footer {
     color: $text-muted;
-    margin-top: 1;
     text-align: center;
 }
 

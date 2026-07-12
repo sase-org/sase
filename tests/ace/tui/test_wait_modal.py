@@ -12,6 +12,7 @@ from sase.ace.tui.modals.wait_modal import (
     _active_fragment,
     _prefill_time_token,
     _replace_active_fragment,
+    _validate_runners_token,
     _validate_time_token,
 )
 
@@ -72,6 +73,20 @@ def test_time_prefill_round_trips_duration_and_absolute() -> None:
     assert _prefill_time_token(300.0, None) == "5m"
     assert _prefill_time_token(90.0, None) == "1m30s"
     assert _prefill_time_token(None, "2030-04-15T09:00:00") == "300415/0900"
+
+
+def test_runners_validation_accepts_zero_and_rejects_non_integers() -> None:
+    default = _validate_runners_token("")
+    assert default.valid is True
+    assert default.value is None
+
+    barrier = _validate_runners_token("0")
+    assert barrier.valid is True
+    assert barrier.value == 0
+    assert "drain barrier" in barrier.message
+
+    assert _validate_runners_token("-1").valid is False
+    assert _validate_runners_token("1.5").valid is False
 
 
 async def test_modal_filters_and_accepts_candidate_with_tab() -> None:
@@ -153,3 +168,25 @@ async def test_modal_invalid_time_does_not_dismiss() -> None:
         assert time_input.has_focus
 
     assert dismiss_count == 0
+
+
+async def test_modal_returns_explicit_runner_threshold() -> None:
+    result: WaitModalResult | None = None
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: WaitModalResult | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = WaitModal(current_wait_runners=0)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        runners_input = modal.query_one("#runners-input", Input)
+        assert runners_input.value == "0"
+        runners_input.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == WaitModalResult(agents=[], time_token=None, runners=0)

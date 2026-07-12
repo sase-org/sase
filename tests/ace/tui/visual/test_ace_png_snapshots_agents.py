@@ -188,6 +188,49 @@ def _waiting_family_child_agents() -> list[Agent]:
     return [parent, child]
 
 
+def _runner_slot_wait_agents() -> list[Agent]:
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-drain-barrier",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 12, 12, 1, 0),
+            raw_suffix="20260712120100",
+            artifacts_dir="/workspace/sase/artifacts/ace-run/20260712120100",
+            agent_name="drain-barrier",
+            pid=4102,
+            wait_runners=0,
+            wait_runners_explicit=True,
+            slot_requested_at="2026-07-12T12:01:00Z",
+            runner_slots_in_use=0,
+            runner_slot_queue_position=2,
+            runner_slot_queue_size=2,
+            llm_provider="codex",
+            model="gpt-5",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-global-cap",
+            project_file="/workspace/sase/visual_project.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 12, 12, 0, 0),
+            raw_suffix="20260712120000",
+            artifacts_dir="/workspace/sase/artifacts/ace-run/20260712120000",
+            agent_name="global-cap",
+            pid=4101,
+            wait_runners=9,
+            wait_runners_explicit=False,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=0,
+            runner_slot_queue_position=1,
+            runner_slot_queue_size=2,
+            llm_provider="claude",
+            model="sonnet",
+        ),
+    ]
+
+
 def _custom_role_label_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,
@@ -356,6 +399,33 @@ async def test_waiting_family_child_row_png_snapshot(
             page,
             "agents_waiting_family_child_120x40",
             title="ACE agents waiting family child",
+        )
+
+
+async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_runner_slot_wait_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 2)
+        await wait_for_visual_idle(page)
+
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.runner_slot_queue_position == 2
+        assert selected.runner_slot_queue_size == 2
+        assert_page_svg_contains(page, "drain-barrier")
+        assert_page_svg_contains(page, "global-cap")
+        assert_page_svg_contains(page, "drain barrier")
+        assert_page_svg_contains(page, "queue #2 of 2")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_runner_slot_waits_120x40",
+            title="ACE agents runner slot waits",
         )
 
 

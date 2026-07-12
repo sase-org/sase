@@ -226,6 +226,15 @@ def enrich_agent_from_meta(
                 raw_until = waiting_data.get("wait_until")
                 if isinstance(raw_until, str) and raw_until:
                     agent.wait_until = raw_until
+                raw_runners = waiting_data.get("wait_runners")
+                if type(raw_runners) is int and raw_runners >= 0:
+                    agent.wait_runners = raw_runners
+                agent.wait_runners_explicit = (
+                    waiting_data.get("wait_runners_explicit") is True
+                )
+                raw_requested_at = waiting_data.get("slot_requested_at")
+                if isinstance(raw_requested_at, str) and raw_requested_at:
+                    agent.slot_requested_at = raw_requested_at
         except (json.JSONDecodeError, OSError):
             pass
 

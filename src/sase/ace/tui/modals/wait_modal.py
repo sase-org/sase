@@ -47,6 +47,7 @@ class WaitModalResult:
 
     agents: list[str]
     time_token: str | None
+    runners: int | None = None
     run_now: bool = False
 
 
@@ -54,6 +55,14 @@ class WaitModalResult:
 class _TimeValidation:
     valid: bool
     token: str | None
+    message: str
+    css_class: str
+
+
+@dataclass(frozen=True)
+class _RunnersValidation:
+    valid: bool
+    value: int | None
     message: str
     css_class: str
 
@@ -176,6 +185,35 @@ def _validate_time_token(token: str) -> _TimeValidation:
     )
 
 
+def _validate_runners_token(token: str) -> _RunnersValidation:
+    """Validate an existing-runner threshold for live preview."""
+    token = token.strip()
+    if not token:
+        return _RunnersValidation(
+            valid=True,
+            value=None,
+            message="uses the global max_running_agents cap",
+            css_class="wait-time-neutral",
+        )
+    if not token.isdigit():
+        return _RunnersValidation(
+            valid=False,
+            value=None,
+            message="runners must be a non-negative integer",
+            css_class="wait-time-error",
+        )
+    value = int(token)
+    message = f"starts when at most {value} other agents are running"
+    if value == 0:
+        message = "drain barrier: starts when no other agents are running"
+    return _RunnersValidation(
+        valid=True,
+        value=value,
+        message=message,
+        css_class="wait-time-valid",
+    )
+
+
 def _truncate(value: str, width: int) -> str:
     """Truncate *value* to a fixed display width."""
     if len(value) <= width:
@@ -234,6 +272,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         current_waiting_for: list[str] | None = None,
         current_wait_duration: float | None = None,
         current_wait_until: str | None = None,
+        current_wait_runners: int | None = None,
         candidates: list[WaitAgentCandidate] | None = None,
         is_running: bool = False,
     ) -> None:
@@ -243,6 +282,9 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         self._time_prefill = _prefill_time_token(
             current_wait_duration,
             current_wait_until,
+        )
+        self._runners_prefill = (
+            str(current_wait_runners) if current_wait_runners is not None else ""
         )
         self._candidates = candidates or []
         self._filtered_candidates: list[WaitAgentCandidate] = []
@@ -255,7 +297,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         with Container():
             yield Label("Wait", id="modal-title")
             yield Static(
-                "Wait for agents to finish and/or hold until a time floor.",
+                "Wait for agents, a time floor, and/or a runner threshold.",
                 id="wait-modal-summary",
             )
             yield Label("Agents", classes="wait-field-label")
@@ -272,6 +314,13 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
                 id="time-input",
             )
             yield Static("", id="time-preview")
+            yield Label("Runners", classes="wait-field-label")
+            yield _WaitInput(
+                value=self._runners_prefill,
+                placeholder="global cap",
+                id="runners-input",
+            )
+            yield Static("", id="runners-preview")
             footer = "enter apply | tab complete | ^r run now | esc cancel"
             if self._is_running:
                 footer = f"{footer} | active agents restart"
@@ -281,6 +330,7 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         """Focus the agents field and initialize live state."""
         self._refresh_completion()
         self._update_time_preview()
+        self._update_runners_preview()
         agents_input = self.query_one("#agents-input", _WaitInput)
         agents_input.focus()
         agents_input.cursor_position = len(agents_input.value)
@@ -299,6 +349,9 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
             return
         if event.input.id == "time-input":
             self._update_time_preview()
+            return
+        if event.input.id == "runners-input":
+            self._update_runners_preview()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter in either input."""
@@ -385,6 +438,17 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         preview.add_class(validation.css_class)
         return validation
 
+    def _update_runners_preview(self) -> _RunnersValidation:
+        """Update runner-threshold preview and return validation state."""
+        runners_input = self.query_one("#runners-input", _WaitInput)
+        preview = self.query_one("#runners-preview", Static)
+        validation = _validate_runners_token(runners_input.value)
+        preview.update(validation.message)
+        for css_class in self._TIME_CLASSES:
+            preview.remove_class(css_class)
+        preview.add_class(validation.css_class)
+        return validation
+
     def _accept_highlighted_candidate(self) -> bool:
         """Accept the currently highlighted candidate."""
         option_list = self.query_one("#agent-completion", _AgentCompletionList)
@@ -414,12 +478,19 @@ class WaitModal(ModalScreen[WaitModalResult | None]):
         if not validation.valid:
             self.query_one("#time-input", _WaitInput).focus()
             return
+        runners_validation = self._update_runners_preview()
+        if not runners_validation.valid:
+            self.query_one("#runners-input", _WaitInput).focus()
+            return
         agents = _parse_agents_value(self.query_one("#agents-input", _WaitInput).value)
-        run_now = not agents and validation.token is None
+        run_now = (
+            not agents and validation.token is None and runners_validation.value is None
+        )
         self.dismiss(
             WaitModalResult(
                 agents=agents,
                 time_token=validation.token,
+                runners=runners_validation.value,
                 run_now=run_now,
             )
         )

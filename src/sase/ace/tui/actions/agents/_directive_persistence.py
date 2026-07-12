@@ -15,6 +15,7 @@ from typing import Any
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.paths import sase_home
 from sase.history.prompt_store import PromptHistoryLoadError, rewrite_prompt_text_exact
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 
@@ -42,6 +43,8 @@ class _WaitingMarkerPatch:
     waiting_for: tuple[str, ...] = ()
     wait_duration: float | None = None
     wait_until: str | None = None
+    update_wait_runners: bool = False
+    wait_runners: int | None = None
 
 
 @dataclass(frozen=True)
@@ -123,6 +126,8 @@ def wait_meta_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
     time_token: str | None = None,
+    update_wait_runners: bool = False,
+    wait_runners: int | None = None,
 ) -> AgentMetaPatch:
     """Build an ``agent_meta.json`` patch for a wait directive payload."""
     set_values: dict[str, object] = {}
@@ -137,6 +142,10 @@ def wait_meta_patch_for_token(
             wait_until = parse_absolute_time(time_token)
             if wait_until is not None:
                 set_values["wait_until"] = wait_until
+    if update_wait_runners:
+        remove_keys.append("wait_runners")
+        if wait_runners is not None:
+            set_values["wait_runners"] = wait_runners
     return AgentMetaPatch(set_values=set_values, remove_keys=tuple(remove_keys))
 
 
@@ -144,6 +153,8 @@ def waiting_marker_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
     time_token: str | None = None,
+    update_wait_runners: bool = False,
+    wait_runners: int | None = None,
 ) -> _WaitingMarkerPatch:
     """Build a ``waiting.json`` replacement for a wait directive payload."""
     wait_duration: float | None = None
@@ -156,6 +167,8 @@ def waiting_marker_patch_for_token(
         waiting_for=wait_names,
         wait_duration=wait_duration,
         wait_until=wait_until,
+        update_wait_runners=update_wait_runners,
+        wait_runners=wait_runners,
     )
 
 
@@ -224,16 +237,25 @@ def _patch_agent_tag_store(patch: AgentTagStorePatch) -> bool:
 
 
 def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> None:
-    waiting_path = artifacts_path / "waiting.json"
-    existing = _read_json_object(waiting_path)
-    for condition_key in ("waiting_for", "wait_duration", "wait_until"):
-        existing.pop(condition_key, None)
-    existing["waiting_for"] = list(patch.waiting_for)
-    if patch.wait_duration is not None:
-        existing["wait_duration"] = patch.wait_duration
-    if patch.wait_until is not None:
-        existing["wait_until"] = patch.wait_until
-    _write_json_file(waiting_path, existing)
+    # Serialize with the admission poller's check/refresh critical section so
+    # a parked agent cannot overwrite a just-saved threshold with the value it
+    # read immediately before the TUI edit.
+    with _runner_slot_marker_lock():
+        waiting_path = artifacts_path / "waiting.json"
+        existing = _read_json_object(waiting_path)
+        for condition_key in ("waiting_for", "wait_duration", "wait_until"):
+            existing.pop(condition_key, None)
+        existing["waiting_for"] = list(patch.waiting_for)
+        if patch.wait_duration is not None:
+            existing["wait_duration"] = patch.wait_duration
+        if patch.wait_until is not None:
+            existing["wait_until"] = patch.wait_until
+        if patch.update_wait_runners:
+            existing.pop("wait_runners", None)
+            existing["wait_runners_explicit"] = patch.wait_runners is not None
+            if patch.wait_runners is not None:
+                existing["wait_runners"] = patch.wait_runners
+        _write_json_file(waiting_path, existing)
     update_agent_artifact_index_for_marker_mutation(str(artifacts_path))
 
 
@@ -330,6 +352,18 @@ def _rewrite_prompt_stash_exact(old_prompt: str, new_prompt: str) -> int:
 def _agent_directive_lock(artifacts_path: Path) -> Iterator[None]:
     artifacts_path.mkdir(parents=True, exist_ok=True)
     lock_path = artifacts_path / ".agent_directive_persistence.lock"
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def _runner_slot_marker_lock() -> Iterator[None]:
+    lock_path = sase_home() / "runner_slots.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:

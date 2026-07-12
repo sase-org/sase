@@ -354,6 +354,41 @@ class TestRelativeWaitDurationRendering:
         assert "Wait: parent + 2m" in header.plain
 
 
+class TestRunnerSlotWaitRendering:
+    def test_config_gated_row_renders_running_count_over_cap(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=9,
+            wait_runners_explicit=False,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "test_cl (WAITING ▶10/10)" in left.plain
+
+    def test_explicit_barrier_row_and_queue_detail_are_unambiguous(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            wait_runners=0,
+            wait_runners_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=3,
+            runner_slot_queue_position=2,
+            runner_slot_queue_size=3,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "test_cl (WAITING ▶3→0)" in left.plain
+        assert (
+            "Wait: runners ≤ 0 (drain barrier) · 3 runners still running"
+            " · queue #2 of 3"
+        ) in header.plain
+
+
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
         agent = make_agent(status="STARTING")

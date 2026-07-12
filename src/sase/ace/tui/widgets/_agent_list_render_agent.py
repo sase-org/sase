@@ -229,6 +229,20 @@ def format_agent_option(
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)
+        if (
+            wait_agent.slot_requested_at
+            and wait_agent.wait_runners is not None
+            and wait_agent.runner_slots_in_use is not None
+        ):
+            if wait_agent.wait_runners_explicit:
+                slot_label = (
+                    f" ▶{wait_agent.runner_slots_in_use}→{wait_agent.wait_runners}"
+                )
+            else:
+                slot_label = (
+                    f" ▶{wait_agent.runner_slots_in_use}/{wait_agent.wait_runners + 1}"
+                )
+            text.append(slot_label, style="dim #AF87FF")
         deps_satisfied = (
             not wait_agent.waiting_for
             if wait_deps_satisfied is None

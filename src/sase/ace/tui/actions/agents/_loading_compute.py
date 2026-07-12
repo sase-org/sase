@@ -158,6 +158,13 @@ def prepare_loaded_agents_apply_boundary(
         ):
             prep = merge_incomplete_load_after_complete_history(prep, snapshot)
 
+    # Derive slot counts/queue positions from the already-loaded, post-merge
+    # refresh payload. This stays off the Textual event loop on async loads and
+    # avoids a second artifact scan for display-only data.
+    from ...models.agent_runner_slots import refresh_runner_slot_context
+
+    refresh_runner_slot_context(prep.filtered_agents)
+
     unfiltered_agents = list(prep.filtered_agents)
     if snapshot.fold_levels is None:
         visible_agents = list(unfiltered_agents)

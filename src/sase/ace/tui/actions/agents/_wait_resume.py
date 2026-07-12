@@ -59,17 +59,23 @@ def _agent_prompt_name(agent: Agent) -> str | None:
 def _wait_spec_label(result: WaitModalResult) -> str:
     """Build a user-facing label for a wait spec."""
     if result.agents and result.time_token:
-        return f"waiting for {', '.join(result.agents)}, then {result.time_token}"
-    if result.agents:
-        return f"waiting for {', '.join(result.agents)}"
-    if result.time_token:
-        return f"waiting until {result.time_token}"
-    return "running now"
+        label = f"waiting for {', '.join(result.agents)}, then {result.time_token}"
+    elif result.agents:
+        label = f"waiting for {', '.join(result.agents)}"
+    elif result.time_token:
+        label = f"waiting until {result.time_token}"
+    elif result.runners is not None:
+        label = f"waiting for runners ≤ {result.runners}"
+    else:
+        return "running now"
+    if result.runners is not None and (result.agents or result.time_token):
+        label = f"{label}, with runners ≤ {result.runners}"
+    return label
 
 
 def _result_has_wait_spec(result: WaitModalResult) -> bool:
     """Return whether the result contains a wait dependency or time floor."""
-    return bool(result.agents or result.time_token)
+    return bool(result.agents or result.time_token or result.runners is not None)
 
 
 def _prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
@@ -79,6 +85,7 @@ def _prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
     return PromptWaitDirective(
         agents=tuple(result.agents),
         time_token=result.time_token,
+        runners=result.runners,
     )
 
 
@@ -220,6 +227,9 @@ class AgentWaitResumeMixin:
                 current_waiting_for=agent.waiting_for,
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
+                current_wait_runners=(
+                    agent.wait_runners if agent.wait_runners_explicit else None
+                ),
                 candidates=candidates,
                 is_running=is_running,
             ),
@@ -252,7 +262,10 @@ class AgentWaitResumeMixin:
         result: WaitModalResult,
     ) -> None:
         """Apply a WAITING-agent wait result."""
-        if result.time_token:
+        if agent.slot_requested_at and not result.agents and not result.time_token:
+            self._apply_live_runner_wait(artifacts_dir, agent, result)
+            return
+        if result.time_token or result.runners is not None or agent.slot_requested_at:
             self._apply_wait_relaunch(agent, result)
             return
 
@@ -366,6 +379,77 @@ class AgentWaitResumeMixin:
             agent.wait_until = None
             self.notify(f"Wait: {agent.display_name or agent.cl_name}")  # type: ignore[attr-defined]
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
+
+    def _apply_live_runner_wait(
+        self,
+        artifacts_dir: str,
+        agent: Agent,
+        result: WaitModalResult,
+    ) -> None:
+        """Update a parked slot wait in place for the next runner poll."""
+        wait_spec = _prompt_wait_spec(result)
+        spec = AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts_dir,
+            prompt_mutator=lambda prompt: set_prompt_wait(prompt, wait_spec),
+            meta_patch=wait_meta_patch_for_token(
+                update_wait_runners=True,
+                wait_runners=result.runners,
+            ),
+            waiting_marker=waiting_marker_patch_for_token(
+                update_wait_runners=True,
+                wait_runners=result.runners,
+            ),
+        )
+        prior_runners = agent.wait_runners
+        prior_explicit = agent.wait_runners_explicit
+
+        def _task() -> TrackedTaskResult[AgentDirectivePersistenceResult]:
+            payload = persist_agent_directive_update(spec)
+            return TrackedTaskResult(
+                success=True,
+                message="Runner wait persisted",
+                payload=payload,
+            )
+
+        def _on_complete(
+            completion: TrackedTaskCompletion[AgentDirectivePersistenceResult],
+        ) -> None:
+            if completion.success:
+                return
+            agent.wait_runners = prior_runners
+            agent.wait_runners_explicit = prior_explicit
+            self.notify(  # type: ignore[attr-defined]
+                f"Runner wait persist failed: {completion.message}",
+                severity="error",
+            )
+            refresh = getattr(self, "_schedule_agents_async_refresh", None)
+            if callable(refresh):
+                refresh(source="agent-runner-wait-persist-failed")
+
+        task_info = self._submit_tracked_task(  # type: ignore[attr-defined]
+            "agent-directive",
+            agent.cl_name or agent.display_name or "agent",
+            artifacts_dir,
+            _task,
+            display_name=f"Persist runner wait: {agent.display_name}",
+            dedup_key=f"agent-directive-persist:{artifacts_dir}",
+            duplicate_message="A directive update is already running for this agent",
+            on_complete=_on_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+        if task_info is None:
+            return
+        if result.runners is not None:
+            agent.wait_runners = result.runners
+        agent.wait_runners_explicit = result.runners is not None
+        label = (
+            f"runners ≤ {result.runners}"
+            if result.runners is not None
+            else "global runner cap"
+        )
+        self.notify(f"Runner wait: {label}")  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def _apply_wait_running(self, agent: Agent, result: WaitModalResult) -> None:
         """Kill an active agent and restart with a canonical wait directive."""
