@@ -81,6 +81,8 @@ jobs:
         run: just fmt-py-check
       - name: Lint
         run: just lint
+      - name: SASE validation
+        run: just validate
 
   fmt-md-check:
     runs-on: ubuntu-latest

@@ -34,7 +34,9 @@ _venv:
 # Rust extension first when a source checkout and Rust toolchain are
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
 _setup: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
+        printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
+    elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
         {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || exit 1; \
         if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
             printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \

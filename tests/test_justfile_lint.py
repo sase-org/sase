@@ -49,6 +49,18 @@ def test_lint_does_not_run_sase_validation() -> None:
     assert "just validate" not in output
 
 
+def test_check_retains_sase_validation_stage() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "SASE validation"     just validate' in output
+
+
+def test_ci_lint_job_retains_sase_validation_stage() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "      - name: SASE validation\n        run: just validate\n" in workflow
+
+
 def test_public_pylimit_target_uses_private_lint_stage() -> None:
     output = _dry_run("pylimit", "900", "800", "700")
 
