@@ -172,6 +172,33 @@ def test_old_negative_record_is_ignored_but_github_policy_stays_separate(
     assert store.sdd_dir == workspace / ".sase" / "sdd"
 
 
+def test_resolution_rejects_foreign_record_without_local_fallback(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    record_path = primary / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 3,
+                "storage": "companion_repos",
+                "discovery": "found",
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider_patch("bare_git")
+
+    with pytest.raises(SddMaterializationError, match="refusing to touch it"):
+        resolve_sdd_store(workspace, 2)
+
+    assert record_path.exists()
+
+
 def test_positive_record_round_trips_atomically(tmp_path: Path) -> None:
     primary = tmp_path / "repo"
     written = write_sdd_store_record(

@@ -167,7 +167,7 @@ def _validation_passed_summary(file_count: int, warning_count: int) -> str:
 
 def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     from sase.sdd._paths import get_primary_workspace_dir
-    from sase.sdd.store import read_sdd_store_record
+    from sase.sdd.store import SddMaterializationError, read_sdd_store_record
 
     cwd = context.cwd.expanduser().resolve(strict=False)
     primary = Path(get_primary_workspace_dir(str(cwd), 1)).resolve(strict=False)
@@ -185,13 +185,42 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
             )
 
     policy = _provider_sdd_policy(primary)
-    record = read_sdd_store_record(primary)
+    try:
+        record = read_sdd_store_record(primary)
+    except SddMaterializationError as exc:
+        issues.append(
+            _StorageIssue(
+                "error",
+                "incompatible-sdd-store-record",
+                str(exc),
+            )
+        )
+        return issues
     materialized_record = (
         record is not None
         and record.storage in {"separate_repo", "companion_repos"}
         and record.discovery != "not_found"
     )
     clone = primary / ".sase" / "sdd"
+
+    if (
+        record is None
+        or record.discovery == "not_found"
+        or record.storage == "separate_repo"
+    ):
+        regressed = _regressed_split_companion_paths(primary)
+        if regressed is not None:
+            plans, research = regressed
+            issues.append(
+                _StorageIssue(
+                    "error",
+                    "sdd-record-regressed",
+                    "the SDD store record is missing or legacy while split companion "
+                    f"clones exist ({plans}, {research}); the record may have been "
+                    "clobbered by an older sase process. Run `sase sdd init` to "
+                    "restore companion routing",
+                )
+            )
 
     if policy == "separate_repo" and not materialized_record:
         issues.append(
@@ -267,6 +296,19 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
         issues.extend(_duplicate_remote_issues(context, primary, record.remote_url))
 
     return issues
+
+
+def _regressed_split_companion_paths(primary: Path) -> tuple[Path, Path] | None:
+    """Return split clone paths when they contradict the effective record."""
+
+    from sase.linked_repos import resolve_linked_repo_clone_dir
+
+    repo_name = primary.name
+    plans = Path(resolve_linked_repo_clone_dir(primary, f"{repo_name}--plans"))
+    research = Path(resolve_linked_repo_clone_dir(primary, f"{repo_name}--research"))
+    if (plans / "beads").is_dir() and research.is_dir():
+        return plans, research
+    return None
 
 
 def _provider_sdd_policy(project_root: Path) -> str | None:

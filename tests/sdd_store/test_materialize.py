@@ -348,6 +348,50 @@ def test_old_negative_record_is_retried_and_replaced(
     assert record.discovery == "found"
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": "future_companions",
+                "discovery": "found",
+            }
+        ),
+        json.dumps(
+            {
+                "schema_version": 3,
+                "storage": "companion_repos",
+                "discovery": "found",
+            }
+        ),
+        "{not-json",
+    ],
+    ids=("unknown-storage", "newer-schema", "junk-json"),
+)
+def test_foreign_record_is_preserved_and_fails_loudly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    content: str,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    record_path = primary / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(content, encoding="utf-8")
+    remote = tmp_path / "companion.git"
+    init_bare_repo(remote)
+    provider = _FakeSeparateRepoProvider(remote)
+    _install_provider(monkeypatch, provider)
+
+    with pytest.raises(SddMaterializationError, match="newer or unknown sase version"):
+        materialize_sdd_store(primary, 1)
+
+    assert record_path.read_text(encoding="utf-8") == content
+    assert provider.calls == 0
+    assert not (primary / ".sase" / "sdd").exists()
+
+
 @pytest.mark.parametrize("provider_error", [None, "authentication failed"])
 def test_first_materialization_fails_closed_without_positive_provider_result(
     tmp_path: Path,

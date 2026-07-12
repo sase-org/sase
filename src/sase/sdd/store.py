@@ -298,8 +298,9 @@ def _materialize_sdd_store(
         if usable_record and not _legacy_adoption_needed(primary, workspace, record):
             return _finalize_existing_store(primary, workspace, workspace_num), False
 
-        # Old negative and malformed records are stale cache entries. Positive
-        # records remain authoritative until a replacement transaction succeeds.
+        # Only recognized negative records are stale cache entries. Foreign or
+        # malformed records fail while loading, before this replacement path.
+        # Positive records remain authoritative until a transaction succeeds.
         if (
             not _is_materialized_record(record)
             and sdd_store_record_path(primary).exists()

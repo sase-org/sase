@@ -153,6 +153,60 @@ def test_config_sdd_warns_when_legacy_clone_lingers_after_split(
     )
 
 
+@pytest.mark.parametrize("record_kind", ["missing", "separate_repo"])
+def test_config_sdd_errors_when_record_regresses_with_split_clones(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    record_kind: str,
+) -> None:
+    if record_kind == "separate_repo":
+        _write_materialized_sdd_record(tmp_path)
+    _write_regressed_split_clones(tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "sdd-record-regressed" and "sase sdd init" in issue["message"]
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_record_regression_check_ignores_legacy_only_layout(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".sase" / "sdd" / "beads").mkdir(parents=True)
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert not any(
+        issue["code"] == "sdd-record-regressed"
+        for issue in check.data.get("storage_issues", ())
+    )
+
+
+def test_config_sdd_record_regression_check_ignores_healthy_companions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans, research = _write_companion_sdd_record(tmp_path)
+    (plans / ".git").mkdir(parents=True)
+    (research / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert not any(
+        issue["code"] == "sdd-record-regressed"
+        for issue in check.data.get("storage_issues", ())
+    )
+
+
 def _write_materialized_sdd_record(
     primary: Path,
     *,
@@ -200,6 +254,16 @@ def _write_companion_sdd_record(primary: Path) -> tuple[Path, Path]:
     plans = repos / "widget--plans"
     (plans / "beads").mkdir(parents=True)
     return plans, repos / "widget--research"
+
+
+def _write_regressed_split_clones(primary: Path) -> tuple[Path, Path]:
+    repos = primary / "sase" / "repos"
+    plans = repos / f"{primary.name}--plans"
+    research = repos / f"{primary.name}--research"
+    (plans / ".git").mkdir(parents=True)
+    (plans / "beads").mkdir()
+    (research / ".git").mkdir(parents=True)
+    return plans, research
 
 
 def _write_sdd_pair(root: Path) -> None:

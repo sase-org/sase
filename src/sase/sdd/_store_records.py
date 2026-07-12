@@ -15,9 +15,12 @@ from sase.sdd._store_types import (
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORE_RECORD_FILENAME,
     SddCompanion,
+    SddMaterializationError,
     SddStorage,
     SddStoreRecord,
 )
+
+_MAX_SUPPORTED_SCHEMA_VERSION = 2
 
 _RecordCacheToken = tuple[int, int]
 _RecordCacheEntry = tuple[_RecordCacheToken, SddStoreRecord | None]
@@ -106,26 +109,45 @@ def _sdd_store_record_path(primary_workspace_dir: str | Path) -> Path:
 def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     try:
         raw = json.loads(record_path.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+    except Exception as exc:
+        raise _foreign_record_error(record_path) from exc
     if not isinstance(raw, dict):
-        return None
+        raise _foreign_record_error(record_path)
 
     storage = raw.get("storage")
     if storage not in _STORAGE_VALUES:
-        return None
+        raise _foreign_record_error(record_path)
 
     schema_version = raw.get("schema_version", 1)
     try:
         schema_version_int = int(schema_version)
-    except (TypeError, ValueError):
-        schema_version_int = 1
+    except (TypeError, ValueError) as exc:
+        raise _foreign_record_error(record_path) from exc
+    if not 1 <= schema_version_int <= _MAX_SUPPORTED_SCHEMA_VERSION:
+        raise _foreign_record_error(record_path)
+
+    discovery = raw.get("discovery")
+    if discovery is not None and discovery not in _DISCOVERY_VALUES:
+        raise _foreign_record_error(record_path)
 
     plans, research = _companions_from_raw(raw)
+    if discovery == "not_found":
+        return SddStoreRecord(
+            schema_version=schema_version_int,
+            storage=cast(SddStorage, storage),
+            provider=_optional_str(raw.get("provider")),
+            host=_optional_str(raw.get("host")),
+            repo=_optional_str(raw.get("repo")),
+            remote_url=_optional_str(raw.get("remote_url")),
+            discovery="not_found",
+            probed_at=_optional_str(raw.get("probed_at")),
+            plans=plans,
+            research=research,
+        )
     if storage == SDD_STORAGE_COMPANION_REPOS and (
         schema_version_int < 2 or plans is None or research is None
     ):
-        return None
+        raise _foreign_record_error(record_path)
     return SddStoreRecord(
         schema_version=schema_version_int,
         storage=cast(SddStorage, storage),
@@ -137,6 +159,13 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
         probed_at=_optional_str(raw.get("probed_at")),
         plans=plans,
         research=research,
+    )
+
+
+def _foreign_record_error(record_path: Path) -> SddMaterializationError:
+    return SddMaterializationError(
+        f"SDD store record {record_path} was written by a newer or unknown sase "
+        "version. Upgrade and restart sase; refusing to touch it."
     )
 
 
@@ -177,6 +206,10 @@ def _coerce_sdd_store_record(
         schema_version_int = int(schema_version)
     except (TypeError, ValueError) as exc:
         raise ValueError("SDD store record schema_version must be an integer") from exc
+    if not 1 <= schema_version_int <= _MAX_SUPPORTED_SCHEMA_VERSION:
+        raise ValueError(
+            "SDD store record schema_version is newer than this sase build supports"
+        )
 
     plans, research = _companions_from_raw(raw)
     if storage == SDD_STORAGE_COMPANION_REPOS:
