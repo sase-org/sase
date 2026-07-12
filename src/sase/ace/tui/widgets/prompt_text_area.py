@@ -24,6 +24,9 @@ from sase.ace.tui.widgets._vcs_mru_cycling import (
     VcsMruCyclingMixin,
 )
 from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
+from sase.ace.tui.widgets._xprompt_syntax_highlight import (
+    XPromptSyntaxHighlightMixin,
+)
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -60,6 +63,7 @@ class PromptTextArea(
     JinjaDiagnosticsMixin,
     AltSyntaxHighlightMixin,
     SearchHighlightMixin,
+    XPromptSyntaxHighlightMixin,
     PromptSearchMixin,
     PromptPreviewMixin,
     PromptJumpMixin,

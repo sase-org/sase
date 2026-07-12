@@ -55,6 +55,23 @@ def test_tokenize_skips_fenced_blocks() -> None:
     assert any(span.kind == "keyword" and span.value == "if" for span in spans)
 
 
+def test_alt_with_adjacent_directive_is_not_a_jinja_statement() -> None:
+    text = "%{%m:opus | %m:sonnet} and {{ root }}"
+
+    spans = jinja_inspect.tokenize(text)
+    diagnostics = jinja_inspect.inspect_template(text, known={"root"})
+
+    assert [(span.kind, span.value) for span in spans] == [
+        ("delimiter", "{{"),
+        ("variable", "root"),
+        ("delimiter", "}}"),
+    ]
+    assert diagnostics.has_jinja is True
+    assert diagnostics.ok is True
+    assert diagnostics.unknown_variables == ()
+    assert jinja_inspect.has_jinja("%{%m:opus | %m:sonnet}") is False
+
+
 def test_diagnose_reports_line_and_span_for_invalid_template() -> None:
     text = "first line\nHello {{ name }"
 

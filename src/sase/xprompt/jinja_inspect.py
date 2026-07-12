@@ -8,6 +8,7 @@ from typing import Literal
 
 from jinja2 import TemplateSyntaxError, meta
 
+from ._directive_alt import _ALT_DIRECTIVE_RE
 from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
 from ._jinja import BUILTIN_RUNTIME_NAMES, RESERVED_GLOBAL_NAMES, get_jinja_env
@@ -108,13 +109,13 @@ class JinjaCompletionContext:
 
 def has_jinja(text: str) -> bool:
     """Return True when *text* contains Jinja2 markers outside fenced blocks."""
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_jinja_regions(text)
     return bool(_JINJA_MARKER_RE.search(masked))
 
 
 def tokenize(text: str) -> list[JinjaSpan]:
     """Return Jinja2 token spans outside fenced code blocks."""
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_jinja_regions(text)
     if not _JINJA_MARKER_RE.search(masked):
         return []
 
@@ -302,13 +303,30 @@ def matching_delimiter_spans(
     return tuple(spans)
 
 
-def _mask_fenced_blocks(text: str) -> str:
-    return _mask_ranges(text, fenced_block_ranges(text))
+def _mask_jinja_regions(text: str) -> str:
+    ranges = fenced_block_ranges(text) + _alt_jinja_overlap_ranges(text)
+    return _mask_ranges(text, ranges)
 
 
 def _mask_inert_regions(text: str) -> str:
-    ranges = fenced_block_ranges(text) + disabled_region_ranges(text)
+    ranges = (
+        fenced_block_ranges(text)
+        + disabled_region_ranges(text)
+        + _alt_jinja_overlap_ranges(text)
+    )
     return _mask_ranges(text, ranges)
+
+
+def _alt_jinja_overlap_ranges(text: str) -> list[tuple[int, int]]:
+    """Mask false ``{%`` markers formed by adjacent ``%{`` and ``%name``."""
+    ranges: list[tuple[int, int]] = []
+    if "%{%" not in text:
+        return ranges
+    for match in _ALT_DIRECTIVE_RE.finditer(text):
+        open_pos = match.end() - 1
+        if text[open_pos] == "{" and text[open_pos + 1 : open_pos + 2] == "%":
+            ranges.append((open_pos, open_pos + 2))
+    return ranges
 
 
 def _mask_ranges(text: str, ranges: list[tuple[int, int]]) -> str:
@@ -370,7 +388,7 @@ def _tag_at_cursor(
     text: str,
     cursor_offset: int,
 ) -> tuple[str, int, int, int | None, int | None] | None:
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_jinja_regions(text)
     cursor_offset = min(max(cursor_offset, 0), len(masked))
     best: tuple[str, int, int, int | None, int | None] | None = None
     for tag_kind, opener, closer in (

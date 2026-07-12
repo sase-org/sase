@@ -73,6 +73,17 @@ def test_highlights_alt_structure_and_segment_separator() -> None:
     assert XPROMPT_TOKEN_STYLES["separator"] in _styles_at(highlighted, "---")
 
 
+def test_highlights_all_alt_forms_branch_names_and_errors() -> None:
+    source = "%alt(fast=a, slow=b) %(left, right) %{one=x | two=y} %{oops"
+    highlighted = highlight_prompt_text(source)
+
+    for token in ("%alt(", "%(", "%{"):
+        assert XPROMPT_TOKEN_STYLES["alt_delimiter"] in _styles_at(highlighted, token)
+    for token in ("fast", "slow", "one", "two"):
+        assert XPROMPT_TOKEN_STYLES["branch_name"] in _styles_at(highlighted, token)
+    assert XPROMPT_TOKEN_STYLES["error"] in _styles_at(highlighted, "%{oops")
+
+
 def test_protected_regions_keep_xprompt_tokens_literal() -> None:
     source = (
         "```text\n#fenced %wait:fenced\n---\n```\n"

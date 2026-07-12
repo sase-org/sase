@@ -1,4 +1,4 @@
-"""Tests for the ``%{...}`` alt-shorthand span scanner."""
+"""Tests for the alt fan-out span scanner."""
 
 from __future__ import annotations
 
@@ -63,6 +63,15 @@ def test_tokenize_ignores_nested_and_quoted_pipes() -> None:
     assert all(text[s.start : s.end] == "|" for s in separators)
 
 
+def test_tokenize_ignores_closing_brace_inside_backticks() -> None:
+    text = "%{a | `literal } brace` | b}"
+    spans = alt_inspect.tokenize(text)
+
+    delimiters = [span for span in spans if span.kind == "delimiter"]
+    assert text[delimiters[-1].start : delimiters[-1].end] == "}"
+    assert delimiters[-1].start == len(text) - 1
+
+
 def test_tokenize_unmatched_opener_is_error() -> None:
     text = "before %{a | b after"
     spans = alt_inspect.tokenize(text)
@@ -118,3 +127,48 @@ def test_tokenize_multibyte_offsets_are_character_based() -> None:
     spans = alt_inspect.tokenize(text)
     opener = next(s for s in spans if s.kind == "delimiter")
     assert text[opener.start : opener.end] == "%{"
+
+
+def test_tokenize_marks_named_paren_forms_and_commas() -> None:
+    text = "%alt(fast=a, slow=call(x, y)) %(left, right)"
+    spans = alt_inspect.tokenize(text)
+
+    assert [text[s.start : s.end] for s in spans if s.kind == "delimiter"] == [
+        "%alt(",
+        ")",
+        "%(",
+        ")",
+    ]
+    assert [text[s.start : s.end] for s in spans if s.kind == "separator"] == [
+        ",",
+        ",",
+    ]
+    assert [text[s.start : s.end] for s in spans if s.kind == "branch_name"] == [
+        "fast",
+        "slow",
+    ]
+
+
+def test_tokenize_paren_forms_ignore_quoted_and_text_block_commas() -> None:
+    text = '%alt("a,b", block=[[c,d]], last)'
+
+    separators = _of_kind(text, "separator")
+    assert [text[s.start : s.end] for s in separators] == [",", ","]
+    assert [text[s.start : s.end] for s in _of_kind(text, "branch_name")] == ["block"]
+
+
+def test_tokenize_marks_unmatched_paren_opener_as_error() -> None:
+    for text in ("%alt(a, b", "%(a, b"):
+        spans = alt_inspect.tokenize(text)
+        assert [span.kind for span in spans] == ["error"]
+        assert text[spans[0].start : spans[0].end].endswith("(")
+
+
+def test_tokenize_skips_disabled_regions() -> None:
+    text = "%xprompts_enabled:false\n%alt(a, b)\n%xprompts_enabled:true\n%(c, d)"
+
+    assert [
+        text[span.start : span.end]
+        for span in alt_inspect.tokenize(text)
+        if span.kind == "delimiter"
+    ] == ["%(", ")"]

@@ -73,6 +73,15 @@ _SEARCH_PROMPT = (
     "Ship the final alpha search behavior with clear wrap feedback"
 )
 _CURSOR_PROMPT = "Readable cursor colors make vim modes obvious"
+_XPROMPT_HIGHLIGHT_SOLO = (
+    "#gh:sase %auto #pr:my_change %m:opus fix the bug\n"
+    "```text\n#literal %wait:no\n---\n```"
+)
+_XPROMPT_HIGHLIGHT_STACK = (
+    "#gh:sase %auto #pr:my_change inspect the failure\n"
+    "---\n"
+    "%{%m:opus | %m:sonnet} #git:home summarize the fix"
+)
 
 
 async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
@@ -249,6 +258,43 @@ async def test_prompt_search_highlight_png_snapshot(
             page,
             "prompt_search_highlight_120x40",
             title="ACE prompt input - active search highlight",
+        )
+
+
+async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _XPROMPT_HIGHLIGHT_SOLO)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_xprompt_highlight_solo_light_120x40",
+            title="ACE prompt input — xprompt highlighting, light theme",
+        )
+
+
+async def test_prompt_xprompt_highlight_stack_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _XPROMPT_HIGHLIGHT_STACK)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_xprompt_highlight_stack_120x40",
+            title="ACE prompt stack — xprompt highlighting",
         )
 
 

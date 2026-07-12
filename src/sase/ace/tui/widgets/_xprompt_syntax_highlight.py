@@ -1,11 +1,4 @@
-"""Alt fan-out syntax highlighting overlay for ``PromptTextArea``.
-
-Extends the existing overlay approach (rather than adding a separate
-highlighter that fights TextArea themes): alt styles are layered onto the
-same ``sase-jinja-prompt`` theme used by the Jinja and search overlays, and
-alt spans are appended to ``self._highlights`` after the base markdown,
-Jinja, and search spans.
-"""
+"""Xprompt syntax highlighting overlay for ``PromptTextArea``."""
 
 from __future__ import annotations
 
@@ -20,16 +13,18 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt import alt_inspect
+from sase.xprompt import xprompt_inspect
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
+
+    from sase.xprompt.xprompt_inspect import XPromptSpan
 else:
     _MixinBase = object
 
 
-class AltSyntaxHighlightMixin(_MixinBase):
-    """Overlay alt fan-out spans on top of TextArea highlighting."""
+class XPromptSyntaxHighlightMixin(_MixinBase):
+    """Overlay recognized xprompt syntax on TextArea markdown highlighting."""
 
     if TYPE_CHECKING:
 
@@ -41,57 +36,72 @@ class AltSyntaxHighlightMixin(_MixinBase):
         ) -> None: ...
 
     def on_mount(self) -> None:
-        """Register alt styles after the Jinja/search overlay themes exist."""
+        """Register xprompt styles after the base Jinja theme exists."""
         super_on_mount = getattr(super(), "on_mount", None)
         if callable(super_on_mount):
             super_on_mount()
-        self._register_alt_text_area_theme()
+        self._register_xprompt_text_area_theme()
 
     def _app_theme_changed(self) -> None:
         super_changed = getattr(super(), "_app_theme_changed", None)
         if callable(super_changed):
             super_changed()
-        self._register_alt_text_area_theme()
+        self._register_xprompt_text_area_theme()
 
     def _register_jinja_text_area_theme(self) -> None:
         register_jinja = getattr(super(), "_register_jinja_text_area_theme", None)
         if callable(register_jinja):
             register_jinja()
-        self._register_alt_text_area_theme(_JINJA_THEME_NAME, apply=False)
+        self._register_xprompt_text_area_theme(_JINJA_THEME_NAME, apply=False)
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
         text = self.text
-        if "%" not in text:
+        if "#" not in text and "%" not in text and "---" not in text:
             return
         if len(text.encode("utf-8")) > _MAX_OVERLAY_BYTES:
             return
         if text.count("\n") > _MAX_OVERLAY_LINES:
             return
 
-        for span in alt_inspect.tokenize(text):
+        try:
+            spans: list[XPromptSpan] = xprompt_inspect.tokenize(text)
+        except Exception:
+            return
+        for span in spans:
             self._append_highlight_span(
                 span.start,
                 span.end,
-                f"alt.{span.kind}",
+                f"xprompt.{span.kind}",
             )
 
-    def _register_alt_text_area_theme(
+    def _register_xprompt_text_area_theme(
         self,
         theme_name: str | None = None,
         *,
         apply: bool = True,
     ) -> None:
         active_name = theme_name or str(getattr(self, "theme", "css") or "css")
-        base = self._resolve_alt_base_theme(active_name)
+        base = self._resolve_xprompt_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         syntax_styles.update(
             {
-                "alt.delimiter": Style(color=app_theme.accent, bold=True),
-                "alt.separator": Style(color=app_theme.accent, dim=True),
-                "alt.branch_name": Style(color=app_theme.success, bold=True),
-                "alt.error": Style(color=app_theme.error, underline=True),
+                "xprompt.invocation": Style(
+                    color=app_theme.success,
+                    bold=True,
+                ),
+                "xprompt.invocation_arg": Style(color=app_theme.success),
+                "xprompt.directive": Style(
+                    color=app_theme.warning,
+                    bold=True,
+                ),
+                "xprompt.directive_arg": Style(color=app_theme.warning),
+                "xprompt.separator": Style(
+                    color=app_theme.secondary,
+                    dim=True,
+                    bold=True,
+                ),
             }
         )
         theme = dataclasses.replace(
@@ -103,7 +113,7 @@ class AltSyntaxHighlightMixin(_MixinBase):
         if apply:
             self._set_theme(theme.name)
 
-    def _resolve_alt_base_theme(self, theme_name: str) -> TextAreaTheme:
+    def _resolve_xprompt_base_theme(self, theme_name: str) -> TextAreaTheme:
         try:
             theme: TextAreaTheme | None = self._themes[theme_name]
         except KeyError:

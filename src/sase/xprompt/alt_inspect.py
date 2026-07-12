@@ -1,40 +1,36 @@
-"""Frontend-agnostic inspection helpers for ``%{...}`` alt-shorthand prompts.
+"""Frontend-agnostic inspection helpers for alt fan-out prompts.
 
-These helpers compute span information used to *highlight* the ``%{A | B}``
-fan-out shorthand in prompt editors. They are presentation-layer only: the
-canonical fan-out grammar lives in the Rust core
+These helpers compute span information used to highlight ``%{A | B}``,
+``%alt(A, B)``, and ``%(A, B)`` fan-out forms in prompt editors. They are
+presentation-layer only: the canonical fan-out grammar lives in the Rust core
 (``sase_core::agent_launch``). The scanning rules here intentionally mirror
 that grammar so the visual treatment matches launch behavior:
 
-- ``%{`` is only recognized at a directive-valid position (start of line, or
+- an opener is only recognized at a directive-valid position (start of line, or
   after whitespace / an opening bracket / a quote / a directive-value colon);
-- the matching ``}`` is found by counting only ``{``/``}`` pairs and ignoring
-  backtick-quoted spans;
-- top-level ``|`` separators split branches, where "top-level" means outside
+- matching delimiters respect nested delimiters and quoted/text-block spans;
+- top-level ``|`` (brace form) or ``,`` (paren forms) separators split branches,
+  where "top-level" means outside
   ``()``/``[]``/``{}`` nesting and backtick spans;
 - an optional ``name=`` prefix on a branch names that branch.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Literal
 
+from ._directive_alt import _ALT_DIRECTIVE_RE
+from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
+from ._parsing import find_matching_paren_for_args
 
 AltSpanKind = Literal["delimiter", "separator", "branch_name", "error"]
-
-# ``%{`` at a directive-valid position. Mirrors the brace arm of the Rust
-# ``alt_directive_re`` so detection matches launch fan-out exactly. Group 2 is
-# the ``%{`` marker; the preceding character is consumed (not a lookbehind) to
-# match the non-overlapping behavior of the Rust scanner.
-_ALT_OPEN_RE = re.compile(r"(?m)(^|[\s(\[{\"':])(%\{)")
 
 
 @dataclass(frozen=True, slots=True)
 class AltSpan:
-    """A single highlightable span of ``%{...}`` syntax.
+    """A single highlightable span of alt fan-out syntax.
 
     Offsets are character offsets into the original (unmasked) text.
     """
@@ -45,84 +41,76 @@ class AltSpan:
 
 
 def tokenize(text: str) -> list[AltSpan]:
-    """Return ``%{...}`` alt-shorthand spans, sorted by start offset.
+    """Return alt fan-out spans, sorted by start offset.
 
-    Spans inside fenced code blocks are ignored, matching the Jinja overlay.
-    An unmatched ``%{`` opener yields a single ``error`` span over ``%{``.
+    Spans inside fenced code blocks or disabled xprompt regions are ignored.
+    An unmatched opener yields a single ``error`` span over the opener.
     """
-    if "%{" not in text:
+    if "%" not in text:
         return []
 
-    masked = _mask_fenced_blocks(text)
+    masked = _mask_protected_regions(text)
     spans: list[AltSpan] = []
-    for match in _ALT_OPEN_RE.finditer(masked):
-        marker = match.start(2)
-        open_brace = match.end(2) - 1
-        close = _find_matching_brace(masked, open_brace)
+    for match in _ALT_DIRECTIVE_RE.finditer(masked):
+        marker = match.start(1)
+        open_delimiter = match.end(1) - 1
+        brace_form = masked[open_delimiter] == "{"
+        close = (
+            _find_matching_brace(masked, open_delimiter)
+            if brace_form
+            else find_matching_paren_for_args(masked, open_delimiter)
+        )
         if close is None:
-            spans.append(AltSpan(marker, open_brace + 1, "error"))
+            spans.append(AltSpan(marker, open_delimiter + 1, "error"))
             continue
-        spans.append(AltSpan(marker, open_brace + 1, "delimiter"))
+        spans.append(AltSpan(marker, open_delimiter + 1, "delimiter"))
         spans.append(AltSpan(close, close + 1, "delimiter"))
-        inner_start = open_brace + 1
-        spans.extend(_branch_spans(masked[inner_start:close], inner_start))
+        inner_start = open_delimiter + 1
+        spans.extend(
+            _branch_spans(
+                masked[inner_start:close],
+                inner_start,
+                separator="|" if brace_form else ",",
+            )
+        )
 
     spans.sort(key=lambda span: span.start)
     return spans
 
 
 def _find_matching_brace(text: str, open_start: int) -> int | None:
-    """Return the index of the ``}`` closing the ``{`` at ``open_start``.
-
-    Counts only ``{``/``}`` pairs and ignores backtick-quoted spans, matching
-    the Rust ``find_matching_delimiter`` for the brace delimiter.
-    """
+    """Return the matching brace while ignoring backtick-quoted spans."""
     depth = 0
     in_backticks = False
     for idx in range(open_start, len(text)):
-        ch = text[idx]
-        if ch == "`":
+        char = text[idx]
+        if char == "`":
             in_backticks = not in_backticks
             continue
         if in_backticks:
             continue
-        if ch == "{":
+        if char == "{":
             depth += 1
-        elif ch == "}":
+        elif char == "}":
             depth -= 1
             if depth == 0:
                 return idx
     return None
 
 
-def _branch_spans(inner: str, base: int) -> list[AltSpan]:
+def _branch_spans(inner: str, base: int, *, separator: str) -> list[AltSpan]:
     """Spans for top-level ``|`` separators and ``name=`` branch prefixes.
 
     ``inner`` is the text between ``%{`` and ``}``; ``base`` is its offset in
     the original text. Separator/depth handling mirrors the Rust
-    ``parse_directive_args_with_names`` for the ``|`` separator.
+    ``parse_directive_args_with_names`` for the selected separator.
     """
     spans: list[AltSpan] = []
     branch_start = 0
-    depth = 0
-    in_backticks = False
-    for idx, ch in enumerate(inner):
-        if ch == "`":
-            in_backticks = not in_backticks
-            continue
-        if in_backticks:
-            continue
-        if ch in "([{":
-            depth += 1
-        elif ch in ")]}":
-            if depth > 0:
-                depth -= 1
-        elif ch == "|" and depth == 0:
-            spans.append(AltSpan(base + idx, base + idx + 1, "separator"))
-            spans.extend(
-                _branch_name_span(inner[branch_start:idx], base + branch_start)
-            )
-            branch_start = idx + 1
+    for idx in _top_level_offsets(inner, separator):
+        spans.append(AltSpan(base + idx, base + idx + 1, "separator"))
+        spans.extend(_branch_name_span(inner[branch_start:idx], base + branch_start))
+        branch_start = idx + 1
     spans.extend(_branch_name_span(inner[branch_start:], base + branch_start))
     return spans
 
@@ -133,33 +121,63 @@ def _branch_name_span(branch: str, base: int) -> list[AltSpan]:
     The name is the text before the first top-level ``=``; it must be
     non-empty after trimming. Mirrors the Rust ``split_named_directive_arg``.
     """
-    depth = 0
-    in_backticks = False
-    for idx, ch in enumerate(branch):
-        if ch == "`":
-            in_backticks = not in_backticks
-            continue
-        if in_backticks:
-            continue
-        if ch in "([{":
-            depth += 1
-        elif ch in ")]}":
-            if depth > 0:
-                depth -= 1
-        elif ch == "=" and depth == 0:
-            name = branch[:idx]
-            stripped = name.strip()
-            if not stripped:
-                return []
-            lead = len(name) - len(name.lstrip())
-            name_start = base + lead
-            return [AltSpan(name_start, name_start + len(stripped), "branch_name")]
+    offsets = _top_level_offsets(branch, "=")
+    if offsets:
+        name = branch[: offsets[0]]
+        stripped = name.strip()
+        if not stripped:
+            return []
+        lead = len(name) - len(name.lstrip())
+        name_start = base + lead
+        return [AltSpan(name_start, name_start + len(stripped), "branch_name")]
     return []
 
 
-def _mask_fenced_blocks(text: str) -> str:
-    """Blank out fenced code blocks while preserving offsets and newlines."""
-    ranges = fenced_block_ranges(text)
+def _top_level_offsets(text: str, target: str) -> list[int]:
+    """Return target offsets outside nesting, quotes, and text blocks."""
+    offsets: list[int] = []
+    depth = 0
+    quote: str | None = None
+    escaped = False
+    in_text_block = False
+    idx = 0
+    while idx < len(text):
+        if in_text_block:
+            if text[idx : idx + 2] == "]]":
+                in_text_block = False
+                idx += 2
+            else:
+                idx += 1
+            continue
+        if quote is None and text[idx : idx + 2] == "[[":
+            in_text_block = True
+            idx += 2
+            continue
+
+        char = text[idx]
+        if escaped:
+            escaped = False
+        elif quote is not None:
+            if char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+        elif char in {"'", '"', "`"}:
+            quote = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            if depth > 0:
+                depth -= 1
+        elif char == target and depth == 0:
+            offsets.append(idx)
+        idx += 1
+    return offsets
+
+
+def _mask_protected_regions(text: str) -> str:
+    """Blank protected regions while preserving offsets and newlines."""
+    ranges = sorted([*fenced_block_ranges(text), *disabled_region_ranges(text)])
     if not ranges:
         return text
     chars = list(text)

@@ -36,6 +36,7 @@ import json
 import os
 import statistics
 import sys
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -44,6 +45,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.app import AceApp
+from sase.xprompt import xprompt_inspect
 
 from .fixtures import (
     AGENT_SIZES,
@@ -303,6 +305,30 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
         f"missing changespec_list spans; saw {sorted(summary)}"
     )
     print(json.dumps(result, indent=2), file=sys.stderr)
+
+
+def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
+    """Print tokenizer p50/p95 at the prompt overlay's 80 KB guard limit."""
+    composite = "#gh:sase %auto #pr:my_change %m:opus\n---\n"
+    prose = "Explain the implementation details and preserve behavior. " * 70
+    chunk = prose + composite
+    tail = "\n---"
+    text = (chunk * (80_000 // len(chunk) + 1))[: 80_000 - len(tail)] + tail
+    samples_ms: list[float] = []
+
+    for _ in range(100):
+        started = time.perf_counter()
+        xprompt_inspect.tokenize(text)
+        samples_ms.append((time.perf_counter() - started) * 1_000)
+
+    ordered = sorted(samples_ms)
+    p95_index = max(0, int(round(0.95 * (len(ordered) - 1))))
+    print("\nxprompt tokenizer (80 KB, 100 iterations)")
+    print("p50_ms  p95_ms  max_ms")
+    print(
+        f"{statistics.median(ordered):>6.2f}  "
+        f"{ordered[p95_index]:>6.2f}  {ordered[-1]:>6.2f}"
+    )
 
 
 async def test_full_baseline(
