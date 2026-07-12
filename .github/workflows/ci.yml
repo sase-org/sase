@@ -22,24 +22,39 @@ jobs:
         with:
           repository: sase-org/sase-core
           path: sase-core
-      - name: Check out SDD companion
+      - name: Check out plans companion
         uses: actions/checkout@v4
         with:
-          repository: sase-org/sase--sdd
-          path: .sase/sdd
+          repository: sase-org/sase--plans
+          path: sase/repos/sase--plans
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
-      - name: Record SDD companion store
+      - name: Check out research companion
+        uses: actions/checkout@v4
+        with:
+          repository: sase-org/sase--research
+          path: sase/repos/sase--research
+          token: ${{ secrets.SASE_RELEASE_TOKEN }}
+          persist-credentials: false
+      - name: Record split SDD companion store
         run: |
           cat > .sase/sdd-store.json <<'JSON'
           {
-            "schema_version": 1,
-            "storage": "separate_repo",
-            "provider": "github",
+            "schema_version": 2,
+            "storage": "companion_repos",
             "host": "github.com",
-            "repo": "sase-org/sase--sdd",
-            "remote_url": "git@github.com:sase-org/sase--sdd.git",
-            "discovery": "found"
+            "provider": "github",
+            "discovery": "found",
+            "companions": {
+              "plans": {
+                "repo": "sase-org/sase--plans",
+                "remote_url": "git@github.com:sase-org/sase--plans.git"
+              },
+              "research": {
+                "repo": "sase-org/sase--research",
+                "remote_url": "git@github.com:sase-org/sase--research.git"
+              }
+            }
           }
           JSON
       - uses: astral-sh/setup-uv@v4

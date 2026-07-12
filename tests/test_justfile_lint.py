@@ -61,6 +61,17 @@ def test_ci_lint_job_retains_sase_validation_stage() -> None:
     assert "      - name: SASE validation\n        run: just validate\n" in workflow
 
 
+def test_ci_lint_job_validates_split_sdd_companions() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "repository: sase-org/sase--plans" in workflow
+    assert "path: sase/repos/sase--plans" in workflow
+    assert "repository: sase-org/sase--research" in workflow
+    assert "path: sase/repos/sase--research" in workflow
+    assert '"storage": "companion_repos"' in workflow
+    assert "sase-org/sase--sdd" not in workflow
+
+
 def test_public_pylimit_target_uses_private_lint_stage() -> None:
     output = _dry_run("pylimit", "900", "800", "700")
 
