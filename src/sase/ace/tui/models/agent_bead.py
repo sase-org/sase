@@ -22,6 +22,7 @@ from time import monotonic
 from typing import Final
 
 from sase.agent.bead_display import (
+    BeadIssueLookupSession,
     derive_agent_bead_id_from_name,
     format_agent_bead_display_for_name,
 )
@@ -30,6 +31,7 @@ from .agent import Agent, AgentType
 
 BEAD_DISPLAY_CACHE_MISS: Final = object()
 _CACHE_TTL_SECONDS = 60.0
+_CACHE_MISS_TTL_SECONDS = 300.0
 _CACHE_MAX_ENTRIES = 256
 BeadDisplayCacheKey = tuple[str, str | None, str | None]
 
@@ -38,9 +40,14 @@ class _BeadDisplayCache:
     """Small TTL-bounded cache for enriched bead display strings."""
 
     def __init__(
-        self, *, ttl_seconds: float = _CACHE_TTL_SECONDS, max_entries: int
+        self,
+        *,
+        ttl_seconds: float = _CACHE_TTL_SECONDS,
+        miss_ttl_seconds: float = _CACHE_MISS_TTL_SECONDS,
+        max_entries: int,
     ) -> None:
         self._ttl_seconds = ttl_seconds
+        self._miss_ttl_seconds = miss_ttl_seconds
         self._max_entries = max_entries
         self._entries: OrderedDict[BeadDisplayCacheKey, tuple[float, str | None]] = (
             OrderedDict()
@@ -70,7 +77,8 @@ class _BeadDisplayCache:
             return expires_at <= now
 
     def set(self, key: BeadDisplayCacheKey, value: str | None) -> None:
-        expires_at = monotonic() + self._ttl_seconds
+        ttl_seconds = self._miss_ttl_seconds if value is None else self._ttl_seconds
+        expires_at = monotonic() + ttl_seconds
         with self._lock:
             self._entries[key] = (expires_at, value)
             self._entries.move_to_end(key)
@@ -121,7 +129,11 @@ def should_resolve_bead_display(agent: Agent) -> bool:
     return _BEAD_DISPLAY_CACHE.should_resolve(key)
 
 
-def resolve_bead_display(agent: Agent) -> str | None:
+def resolve_bead_display(
+    agent: Agent,
+    *,
+    lookup_session: BeadIssueLookupSession | None = None,
+) -> str | None:
     """Resolve and cache the confirmed bead display for *agent*.
 
     Caches ``None`` when no concrete issue exists (so the TUI renders no bead
@@ -138,6 +150,8 @@ def resolve_bead_display(agent: Agent) -> str | None:
         require_existing=True,
         project_name=_agent_project_name(agent),
         workspace_dir=agent.workspace_dir,
+        local_only=True,
+        lookup_session=lookup_session,
     )
     _BEAD_DISPLAY_CACHE.set(key, display)
     return display
@@ -159,17 +173,21 @@ def warm_confirmed_bead_displays(
     previous_by_key: dict[BeadDisplayCacheKey, str | None | object] = {}
     resolved_by_key: dict[BeadDisplayCacheKey, str | None] = {}
     results: dict[tuple[AgentType, str, str | None], bool] = {}
-    for agent in candidates:
-        key = _bead_display_cache_key(agent)
-        if key is None:
-            continue
-        if key not in resolved_by_key:
-            previous_by_key[key] = _BEAD_DISPLAY_CACHE.get(key)
-            resolved_by_key[key] = resolve_bead_display(agent)
-        previous_confirmed = isinstance(previous_by_key[key], str)
-        current_confirmed = resolved_by_key[key] is not None
-        if previous_confirmed != current_confirmed:
-            results[agent.identity] = current_confirmed
+    with BeadIssueLookupSession() as lookup_session:
+        for agent in candidates:
+            key = _bead_display_cache_key(agent)
+            if key is None:
+                continue
+            if key not in resolved_by_key:
+                previous_by_key[key] = _BEAD_DISPLAY_CACHE.get(key)
+                resolved_by_key[key] = resolve_bead_display(
+                    agent,
+                    lookup_session=lookup_session,
+                )
+            previous_confirmed = isinstance(previous_by_key[key], str)
+            current_confirmed = resolved_by_key[key] is not None
+            if previous_confirmed != current_confirmed:
+                results[agent.identity] = current_confirmed
     return results
 
 

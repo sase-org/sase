@@ -9,11 +9,17 @@ then patches rows whose confirmed state changed in place by identity.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from datetime import datetime
+import json
+from pathlib import Path
+import threading
 from typing import Any
 
 import pytest
+from textual.app import App
+from textual.message import Message
 
 from sase.ace.tui.actions.agents._loading_bead_warmup import AgentBeadWarmupMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -41,6 +47,7 @@ class _FakeApp(AgentBeadWarmupMixin):
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
         self._nav_gate = NavigationGate(window_s=0.25)
@@ -96,23 +103,29 @@ def test_schedule_noop_before_first_load() -> None:
     assert app._bead_warmup_scan_scheduled is False
 
 
-def test_schedule_queues_worker_after_first_load() -> None:
+@pytest.mark.asyncio
+async def test_schedule_spawns_worker_after_first_load() -> None:
     app = _FakeApp()
 
     app._schedule_bead_confirmation_warmup(source="apply")
 
     assert app._bead_warmup_scan_scheduled is True
     assert app._bead_warmup_scan_source == "apply"
-    assert app._scheduled == [app._run_bead_confirmation_warmup]
+    assert len(app._bead_warmup_async_tasks) == 1
+    task = next(iter(app._bead_warmup_async_tasks))
+    assert task.get_name() == "sase-agents-bead-warmup"
+    await task
 
 
-def test_schedule_collapses_to_one_queued_worker() -> None:
+@pytest.mark.asyncio
+async def test_schedule_collapses_to_one_detached_worker() -> None:
     app = _FakeApp()
 
     app._schedule_bead_confirmation_warmup(source="apply")
     app._schedule_bead_confirmation_warmup(source="auto_refresh")
 
-    assert len(app._scheduled) == 1
+    assert len(app._bead_warmup_async_tasks) == 1
+    await next(iter(app._bead_warmup_async_tasks))
 
 
 def test_schedule_marks_pending_while_running() -> None:
@@ -247,6 +260,56 @@ def test_warm_confirmed_bead_displays_omits_unchanged_expired_confirmation(
     assert agent_has_confirmed_bead(agent) is True
 
 
+def test_warm_confirmed_bead_displays_reuses_store_for_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    beads_dir = workspace / "sdd" / "beads"
+    beads_dir.mkdir(parents=True)
+    issues = [
+        _issue_payload("batch-x.3", "First"),
+        _issue_payload("batch-y.4", "Second"),
+    ]
+    (beads_dir / "issues.jsonl").write_text(
+        "".join(json.dumps(issue) + "\n" for issue in issues),
+        encoding="utf-8",
+    )
+
+    from sase.bead import project as project_module
+
+    real_bead_project = project_module.BeadProject
+    constructions: list[Path] = []
+
+    def counting_bead_project(
+        root_dir: str | Path,
+        beads_dirname: str = "sdd/beads",
+    ) -> Any:
+        constructions.append(Path(root_dir) / beads_dirname)
+        return real_bead_project(root_dir, beads_dirname=beads_dirname)
+
+    monkeypatch.setattr(project_module, "BeadProject", counting_bead_project)
+    first = _agent(
+        agent_name="batch-x.3",
+        cl_name="first",
+        raw_suffix="1",
+        project_file="",
+        workspace_dir=str(workspace),
+    )
+    second = _agent(
+        agent_name="batch-y.4",
+        cl_name="second",
+        raw_suffix="2",
+        project_file="",
+        workspace_dir=str(workspace),
+    )
+
+    results = warm_confirmed_bead_displays([first, second])
+
+    assert results == {first.identity: True, second.identity: True}
+    assert constructions == [beads_dir]
+
+
 # --- apply by identity -------------------------------------------------------
 
 
@@ -308,6 +371,7 @@ async def test_run_defers_behind_navigation_gate() -> None:
     await app._run_bead_confirmation_warmup()
 
     assert len(app._timer_calls) == 1
+    assert app._timer_calls[0][1] == app._spawn_bead_confirmation_warmup_task
     assert app._patched == []
     assert app._bead_warmup_scan_scheduled is False
 
@@ -365,7 +429,8 @@ async def test_run_rearms_when_pending(monkeypatch: pytest.MonkeyPatch) -> None:
     await app._run_bead_confirmation_warmup()
 
     assert app._bead_warmup_scan_pending is False
-    assert app._scheduled == [app._run_bead_confirmation_warmup]
+    assert len(app._bead_warmup_async_tasks) == 1
+    await next(iter(app._bead_warmup_async_tasks))
 
 
 @pytest.mark.asyncio
@@ -378,3 +443,86 @@ async def test_run_noop_without_candidates() -> None:
 
     assert app._bead_warmup_scan_running is False
     assert app._patched == []
+
+
+class WarmupProbe(Message):
+    """Message used to prove the Textual pump remains responsive."""
+
+
+class _PumpResponsiveApp(AgentBeadWarmupMixin, App[None]):
+    def __init__(self, agent: Agent) -> None:
+        super().__init__()
+        self._agents_first_load_done = True
+        self._bead_warmup_scan_scheduled = False
+        self._bead_warmup_scan_running = False
+        self._bead_warmup_scan_pending = False
+        self._bead_warmup_scan_source = "unknown"
+        self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
+        self._agents = [agent]
+        self._agents_with_children = [agent]
+        self._nav_gate = NavigationGate(window_s=0.25)
+        self.probe_processed = asyncio.Event()
+
+    def _try_patch_agent_row(self, agent: Agent) -> bool:
+        del agent
+        return True
+
+    def on_warmup_probe(self, _: WarmupProbe) -> None:
+        self.probe_processed.set()
+
+
+@pytest.mark.asyncio
+async def test_warmup_does_not_block_textual_message_pump(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    worker_started = threading.Event()
+    release_worker = threading.Event()
+
+    def blocked_warmup(_: object) -> dict[object, bool]:
+        worker_started.set()
+        release_worker.wait(timeout=2.0)
+        return {}
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_bead_warmup.warm_confirmed_bead_displays",
+        blocked_warmup,
+    )
+    app = _PumpResponsiveApp(_agent())
+    try:
+        async with app.run_test():
+            app._schedule_bead_confirmation_warmup(source="test")
+            started = await asyncio.to_thread(worker_started.wait, 1.0)
+            assert started is True
+
+            app.post_message(WarmupProbe())
+            await asyncio.wait_for(app.probe_processed.wait(), timeout=0.5)
+            assert all(not task.done() for task in app._bead_warmup_async_tasks)
+    finally:
+        release_worker.set()
+        if app._bead_warmup_async_tasks:
+            await asyncio.gather(*app._bead_warmup_async_tasks)
+
+
+def _issue_payload(issue_id: str, title: str) -> dict[str, object]:
+    timestamp = "2026-07-12T00:00:00Z"
+    return {
+        "id": issue_id,
+        "title": title,
+        "status": "open",
+        "issue_type": "plan",
+        "parent_id": None,
+        "owner": "",
+        "assignee": "",
+        "created_at": timestamp,
+        "created_by": "",
+        "updated_at": timestamp,
+        "closed_at": None,
+        "close_reason": None,
+        "description": "",
+        "notes": "",
+        "design": "",
+        "is_ready_to_work": False,
+        "changespec_name": "",
+        "changespec_bug_id": "",
+        "dependencies": [],
+    }

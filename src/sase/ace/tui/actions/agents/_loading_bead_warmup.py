@@ -39,7 +39,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
     """Schedule and apply deferred bead-confirmation warmups off startup."""
 
     # Coalescing state (initialized by ``_init_app_state``):
-    #   ``_bead_warmup_scan_scheduled`` — a ``call_later`` worker is queued.
+    #   ``_bead_warmup_scan_scheduled`` — a detached async worker is queued.
     #   ``_bead_warmup_scan_running``  — a worker is mid-flight (off-thread).
     #   ``_bead_warmup_scan_pending``  — a request arrived while one ran, so the
     #                                    in-flight worker re-arms itself on exit.
@@ -48,6 +48,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
     _bead_warmup_scan_running: bool
     _bead_warmup_scan_pending: bool
     _bead_warmup_scan_source: str
+    _bead_warmup_async_tasks: set[asyncio.Task[None]]
 
     def _schedule_bead_confirmation_warmup(self, *, source: str = "unknown") -> None:
         """Queue a coalesced bead-confirmation warmup once a load has applied.
@@ -67,7 +68,34 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             return
         self._bead_warmup_scan_scheduled = True
         self._bead_warmup_scan_source = source
-        self.call_later(self._run_bead_confirmation_warmup)  # type: ignore[attr-defined]
+        self._spawn_bead_confirmation_warmup_task()
+
+    def _spawn_bead_confirmation_warmup_task(self) -> None:
+        """Run a bead warmup outside Textual's serial app message pump."""
+        coro = self._run_bead_confirmation_warmup()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            coro.close()
+            log.debug("bead confirmation warmup skipped without a running loop")
+            return
+        task = loop.create_task(coro, name="sase-agents-bead-warmup")
+        tasks = getattr(self, "_bead_warmup_async_tasks", None)
+        if tasks is None:
+            tasks = set()
+            self._bead_warmup_async_tasks = tasks
+        tasks.add(task)
+
+        def _done(completed: asyncio.Task[None]) -> None:
+            tasks.discard(completed)
+            if completed.cancelled():
+                return
+            try:
+                completed.result()
+            except Exception:
+                log.exception("Bead confirmation warmup task failed")
+
+        task.add_done_callback(_done)
 
     async def _run_bead_confirmation_warmup(self) -> None:
         """Confirm bead candidates off-thread, then patch confirmed rows.
@@ -79,7 +107,10 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._run_bead_confirmation_warmup)  # type: ignore[attr-defined]
+            self.set_timer(  # type: ignore[attr-defined]
+                delay,
+                self._spawn_bead_confirmation_warmup_task,
+            )
             return
         self._bead_warmup_scan_scheduled = False
         candidates = self._bead_warmup_candidates()

@@ -33,6 +33,29 @@ def _install_expired_cache(
     monkeypatch.setattr(agent_bead_model, "_BEAD_DISPLAY_CACHE", cache)
 
 
+def test_missing_cache_entries_back_off_longer_than_confirmed_hits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 100.0
+    monkeypatch.setattr(agent_bead_model, "monotonic", lambda: now)
+    cache = _BeadDisplayCache(
+        ttl_seconds=60.0,
+        miss_ttl_seconds=300.0,
+        max_entries=16,
+    )
+    hit_key = ("sase-hit", None, None)
+    miss_key = ("sase-miss", None, None)
+    cache.set(hit_key, "sase-hit")
+    cache.set(miss_key, None)
+
+    now = 161.0
+    assert cache.should_resolve(hit_key) is True
+    assert cache.should_resolve(miss_key) is False
+
+    now = 401.0
+    assert cache.should_resolve(miss_key) is True
+
+
 class TestAgentListBeadBadge:
     def test_confirmed_phase_agent_row_renders_bead_badge(
         self, monkeypatch: pytest.MonkeyPatch

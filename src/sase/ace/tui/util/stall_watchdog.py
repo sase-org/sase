@@ -27,6 +27,8 @@ ENV_PUMP_POLL_INTERVAL = "SASE_TUI_PUMP_STALL_POLL_INTERVAL"
 
 DEFAULT_THRESHOLD_SECONDS = 5.0
 DEFAULT_POLL_INTERVAL_SECONDS = 0.5
+MAX_WORKER_THREAD_STACKS = 16
+MAX_WORKER_THREAD_STACK_DEPTH = 64
 _TRUTHY = {"1", "true", "yes", "on"}
 
 ContextProvider = Callable[[], Mapping[str, Any]]
@@ -399,6 +401,11 @@ class _EventLoopStallWatchdog:
         *,
         capture_tasks: bool,
     ) -> dict[str, Any]:
+        watchdog_thread_ident = (
+            self._thread.ident
+            if self._thread is not None and self._thread.ident is not None
+            else threading.get_ident()
+        )
         record: dict[str, Any] = {
             "ts": time.time(),
             "event": "tui_pump_stall",
@@ -407,10 +414,16 @@ class _EventLoopStallWatchdog:
             "threshold_seconds": self._pump_threshold_seconds,
             "poll_interval_seconds": self._pump_poll_interval_seconds,
             "loop_thread_ident": self._loop_thread_ident,
-            "watchdog_thread_ident": threading.get_ident(),
+            "watchdog_thread_ident": watchdog_thread_ident,
             "main_thread_stack": _format_thread_stack(self._loop_thread_ident),
             "asyncio_task_stacks": (
                 _format_asyncio_task_stacks(self._loop) if capture_tasks else []
+            ),
+            "worker_thread_stacks": _format_worker_thread_stacks(
+                excluded_idents={
+                    self._loop_thread_ident,
+                    watchdog_thread_ident,
+                }
             ),
             "pause_depth": self._current_pause_depth(),
             "sase_version": _sase_version(),
@@ -471,6 +484,53 @@ def _format_thread_stack(thread_ident: int) -> list[str]:
     if frame is None:
         return []
     return traceback.format_stack(frame)
+
+
+def _format_worker_thread_stacks(
+    *,
+    excluded_idents: set[int],
+    max_threads: int = MAX_WORKER_THREAD_STACKS,
+    max_depth: int = MAX_WORKER_THREAD_STACK_DEPTH,
+) -> list[dict[str, Any]]:
+    """Return bounded stacks for live threads other than loop/watchdog."""
+    stacks: list[dict[str, Any]] = []
+    try:
+        frames = sys._current_frames()
+        threads_by_ident = {
+            thread.ident: thread
+            for thread in threading.enumerate()
+            if thread.ident is not None
+        }
+
+        def _thread_sort_key(ident: int) -> tuple[str, int]:
+            thread = threads_by_ident.get(ident)
+            return (thread.name if thread is not None else "", ident)
+
+        worker_idents = sorted(
+            (ident for ident in frames if ident not in excluded_idents),
+            key=_thread_sort_key,
+        )[:max_threads]
+    except Exception:
+        log.debug("Failed to enumerate worker threads for pump stall", exc_info=True)
+        return stacks
+
+    for ident in worker_idents:
+        try:
+            thread = threads_by_ident.get(ident)
+            stacks.append(
+                {
+                    "name": thread.name if thread is not None else "unknown",
+                    "ident": ident,
+                    "daemon": thread.daemon if thread is not None else None,
+                    "stack": traceback.format_stack(
+                        frames[ident],
+                        limit=max_depth,
+                    ),
+                }
+            )
+        except Exception:
+            log.debug("Failed to format worker thread stack", exc_info=True)
+    return stacks
 
 
 def _format_asyncio_task_stacks(

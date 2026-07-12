@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -11,6 +12,8 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.util.stall_watchdog import (
+    MAX_WORKER_THREAD_STACK_DEPTH,
+    MAX_WORKER_THREAD_STACKS,
     _EventLoopStallWatchdog,
     subscribe_watchdog_to_suspend_signals,
 )
@@ -176,6 +179,49 @@ async def test_watchdog_records_pump_stall_stack_and_recovery(
         for line in awaited["stack"]
     )
     assert recovery["duration_seconds"] >= 0.05
+
+
+@pytest.mark.asyncio
+async def test_pump_stall_record_includes_bounded_worker_thread_stacks() -> None:
+    worker_ready = threading.Event()
+    release_worker = threading.Event()
+
+    def blocked_worker() -> None:
+        worker_ready.set()
+        release_worker.wait(timeout=2.0)
+
+    worker = threading.Thread(
+        target=blocked_worker,
+        name="aaa-test-blocked-worker",
+        daemon=True,
+    )
+    worker.start()
+    try:
+        assert await asyncio.to_thread(worker_ready.wait, 1.0) is True
+        watchdog = _EventLoopStallWatchdog(asyncio.get_running_loop())
+
+        record = watchdog._pump_stall_record(1.0, capture_tasks=False)
+
+        worker_stacks = record["worker_thread_stacks"]
+        assert len(worker_stacks) <= MAX_WORKER_THREAD_STACKS
+        blocked = next(
+            stack
+            for stack in worker_stacks
+            if stack["name"] == "aaa-test-blocked-worker"
+        )
+        assert len(blocked["stack"]) <= MAX_WORKER_THREAD_STACK_DEPTH
+        assert any("blocked_worker" in line for line in blocked["stack"])
+        assert all(
+            stack["ident"]
+            not in {
+                record["loop_thread_ident"],
+                record["watchdog_thread_ident"],
+            }
+            for stack in worker_stacks
+        )
+    finally:
+        release_worker.set()
+        worker.join(timeout=1.0)
 
 
 @pytest.mark.asyncio

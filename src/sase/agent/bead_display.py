@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,10 +12,53 @@ from sase.bead.model import BeadTier, IssueType
 
 if TYPE_CHECKING:
     from sase.bead.model import Issue
+    from sase.bead.project import BeadProject
 
 _DISMISSED_AGENT_PREFIX_RE = re.compile(r"^\d{6}\.")
 _TOP_LEVEL_BEAD_AGENT_NAME_RE = re.compile(r"^[^\s.]+-[0-9a-z]+$")
 _BEAD_AGENT_NAME_RE = re.compile(r"^[^\s.]+-[0-9a-z]+(?:\.\d+)*$")
+
+
+class BeadIssueLookupSession:
+    """Reuse locally opened bead stores across a batch of issue lookups."""
+
+    def __init__(self) -> None:
+        self._stack = ExitStack()
+        self._projects: dict[Path, BeadProject | None] = {}
+
+    def __enter__(self) -> BeadIssueLookupSession:
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        del exc_info
+        self._stack.close()
+
+    def lookup(self, bead_id: str, beads_dirs: Iterable[Path]) -> Issue | None:
+        """Return the first matching issue, opening each store at most once."""
+        from sase.bead.project import BeadProject
+
+        for beads_dir in beads_dirs:
+            key = beads_dir.expanduser().resolve()
+            if key not in self._projects:
+                root, beads_dirname = _bead_project_location(beads_dir)
+                try:
+                    project = self._stack.enter_context(
+                        BeadProject(root, beads_dirname=beads_dirname)
+                    )
+                except Exception:
+                    project = None
+                self._projects[key] = project
+
+            project = self._projects[key]
+            if project is None:
+                continue
+            try:
+                return project.show(bead_id)
+            except KeyError:
+                continue
+            except Exception:
+                continue
+        return None
 
 
 def _normalized_agent_name(agent_name: str | None) -> str | None:
@@ -68,11 +112,17 @@ def _lookup_bead_issue(
     *,
     project_name: str | None = None,
     workspace_dir: str | None = None,
+    local_only: bool = False,
+    lookup_session: BeadIssueLookupSession | None = None,
 ) -> Issue | None:
     """Return the persisted issue for *bead_id*, if available."""
     if workspace_dir:
         try:
-            issue = _lookup_bead_issue_from_workspace(bead_id, workspace_dir)
+            issue = _lookup_bead_issue_from_workspace(
+                bead_id,
+                workspace_dir,
+                lookup_session=lookup_session,
+            )
             if issue is not None:
                 return issue
         except Exception:
@@ -83,25 +133,52 @@ def _lookup_bead_issue(
             from sase.bead.workspace import get_project_beads_dirs_for_project
 
             beads_dirs = get_project_beads_dirs_for_project(project_name)
-            issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs or [])
+            issue = _lookup_bead_issue_in_dirs(
+                bead_id,
+                beads_dirs or [],
+                lookup_session=lookup_session,
+            )
             if issue is not None:
                 return issue
         except Exception:
             pass
 
-    try:
-        from sase.bead.cli_common import get_read_view
+    if local_only:
+        try:
+            from sase.bead.cli_common import (
+                resolve_beads_location,
+                resolved_beads_location_is_usable,
+            )
 
-        with get_read_view() as view:
-            return view.show(bead_id)
-    except Exception:
-        pass
+            location = resolve_beads_location(require_existing=True)
+            if location is not None and resolved_beads_location_is_usable(location):
+                issue = _lookup_bead_issue_in_dirs(
+                    bead_id,
+                    [location.beads_dir],
+                    lookup_session=lookup_session,
+                )
+                if issue is not None:
+                    return issue
+        except Exception:
+            pass
+    else:
+        try:
+            from sase.bead.cli_common import get_read_view
+
+            with get_read_view() as view:
+                return view.show(bead_id)
+        except Exception:
+            pass
 
     try:
         from sase.bead.workspace import get_project_beads_dirs
 
         beads_dirs = get_project_beads_dirs()
-        issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs or [])
+        issue = _lookup_bead_issue_in_dirs(
+            bead_id,
+            beads_dirs or [],
+            lookup_session=lookup_session,
+        )
         if issue is not None:
             return issue
     except Exception:
@@ -111,7 +188,11 @@ def _lookup_bead_issue(
         from sase.bead.workspace import get_all_project_beads_dirs
 
         beads_dirs = get_all_project_beads_dirs()
-        issue = _lookup_bead_issue_in_dirs(bead_id, beads_dirs)
+        issue = _lookup_bead_issue_in_dirs(
+            bead_id,
+            beads_dirs,
+            lookup_session=lookup_session,
+        )
         if issue is not None:
             return issue
     except Exception:
@@ -120,14 +201,27 @@ def _lookup_bead_issue(
     return None
 
 
-def _lookup_bead_issue_from_workspace(bead_id: str, workspace_dir: str) -> Issue | None:
+def _lookup_bead_issue_from_workspace(
+    bead_id: str,
+    workspace_dir: str,
+    *,
+    lookup_session: BeadIssueLookupSession | None = None,
+) -> Issue | None:
     local_dirs, primary_dirs = _workspace_beads_dir_candidates(workspace_dir)
 
-    issue = _lookup_bead_issue_in_dirs(bead_id, local_dirs)
+    issue = _lookup_bead_issue_in_dirs(
+        bead_id,
+        local_dirs,
+        lookup_session=lookup_session,
+    )
     if issue is not None:
         return issue
 
-    return _lookup_bead_issue_in_dirs(bead_id, primary_dirs)
+    return _lookup_bead_issue_in_dirs(
+        bead_id,
+        primary_dirs,
+        lookup_session=lookup_session,
+    )
 
 
 def _workspace_beads_dir_candidates(
@@ -182,22 +276,19 @@ def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
 
 
 def _lookup_bead_issue_in_dirs(
-    bead_id: str, beads_dirs: Iterable[Path]
+    bead_id: str,
+    beads_dirs: Iterable[Path],
+    *,
+    lookup_session: BeadIssueLookupSession | None = None,
 ) -> Issue | None:
     """Return the first matching issue from single-store bead paths."""
-    from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BeadProject
+    from sase.bead.project import BeadProject
+
+    if lookup_session is not None:
+        return lookup_session.lookup(bead_id, beads_dirs)
 
     for beads_dir in beads_dirs:
-        parts = beads_dir.parts
-        if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
-            root = beads_dir.parents[1]
-            beads_dirname = BEADS_DIRNAME
-        elif len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
-            root = beads_dir.parent
-            beads_dirname = BEADS_DIRNAME_NON_VC
-        else:
-            root = beads_dir.parent
-            beads_dirname = beads_dir.name
+        root, beads_dirname = _bead_project_location(beads_dir)
         try:
             with BeadProject(root, beads_dirname=beads_dirname) as project:
                 return project.show(bead_id)
@@ -206,6 +297,18 @@ def _lookup_bead_issue_in_dirs(
         except Exception:
             continue
     return None
+
+
+def _bead_project_location(beads_dir: Path) -> tuple[Path, str]:
+    """Return the ``BeadProject`` root and dirname for a bead-store path."""
+    from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
+
+    parts = beads_dir.parts
+    if len(parts) >= 2 and parts[-2:] == ("sdd", "beads"):
+        return beads_dir.parents[1], BEADS_DIRNAME
+    if len(parts) >= 3 and parts[-3:] == (".sase", "sdd", "beads"):
+        return beads_dir.parent, BEADS_DIRNAME_NON_VC
+    return beads_dir.parent, beads_dir.name
 
 
 def _normalize_bead_text(text: str | None) -> str | None:
@@ -223,6 +326,8 @@ def format_agent_bead_display_for_name(
     require_existing: bool = False,
     project_name: str | None = None,
     workspace_dir: str | None = None,
+    local_only: bool = False,
+    lookup_session: BeadIssueLookupSession | None = None,
 ) -> str | None:
     """Format the bead metadata value for an agent name.
 
@@ -232,7 +337,9 @@ def format_agent_bead_display_for_name(
     which must not render bead metadata for names that merely look like bead
     ids. The default (``require_existing=False``) preserves the legacy
     fallback-to-id behavior that non-TUI callers (e.g. completion
-    notifications) depend on.
+    notifications) depend on. ``local_only=True`` prevents the fallback lookup
+    from materializing or syncing an SDD store and is intended for passive TUI
+    metadata reads.
     """
     bead_id = derive_agent_bead_id_from_name(agent_name)
     if not bead_id:
@@ -244,6 +351,8 @@ def format_agent_bead_display_for_name(
             bead_id,
             project_name=project_name,
             workspace_dir=workspace_dir,
+            local_only=local_only,
+            lookup_session=lookup_session,
         )
 
     if require_existing and issue is None:

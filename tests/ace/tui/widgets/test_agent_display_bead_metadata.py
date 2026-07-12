@@ -269,6 +269,7 @@ class TestConfirmedBeadMetadata:
             *,
             project_name: str | None = None,
             workspace_dir: str | None = None,
+            **_: object,
         ) -> Issue | None:
             del workspace_dir
             seen_project_names.append(project_name)
@@ -468,6 +469,7 @@ class TestUnconfirmedBeadMetadata:
             *,
             project_name: str | None = None,
             workspace_dir: str | None = None,
+            **_: object,
         ) -> Issue | None:
             del workspace_dir
             seen_project_names.append(project_name)

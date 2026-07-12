@@ -117,6 +117,7 @@ class StateInitMixin:
         self._bead_warmup_scan_running = False
         self._bead_warmup_scan_pending = False
         self._bead_warmup_scan_source = "unknown"
+        self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
         self.query_string = query
         self.parsed_query = parse_query(query)
         self.refresh_interval = refresh_interval

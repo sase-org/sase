@@ -347,7 +347,7 @@ def get_project() -> BeadProject:
 
     if (
         location is None
-        or not _resolved_location_is_usable(location)
+        or not resolved_beads_location_is_usable(location)
         or bead_refresh_mode() == "blocking"
     ):
         location = resolve_beads_location(materialize=True)
@@ -367,7 +367,7 @@ def get_read_view() -> BeadProject:
     return get_project()
 
 
-def _resolved_location_is_usable(location: _BeadsLocation) -> bool:
+def resolved_beads_location_is_usable(location: _BeadsLocation) -> bool:
     """Return whether a resolved warm store can be opened without materializing."""
     if not location.beads_dir.is_dir():
         return False

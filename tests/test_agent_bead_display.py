@@ -66,6 +66,62 @@ def test_require_existing_confirms_via_lookup_even_without_description(
     )
 
 
+def test_local_only_lookup_never_materializes_or_syncs_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    beads_dir = workspace / "sdd" / "beads"
+    beads_dir.mkdir(parents=True)
+    _write_issues(
+        beads_dir,
+        [_issue("sase-x.3", "Local bead", "2026-07-12T00:00:00Z")],
+    )
+    monkeypatch.chdir(workspace)
+
+    def fail_sync(*_: object, **__: object) -> object:
+        raise AssertionError("local-only bead lookup must never sync a store")
+
+    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fail_sync)
+    monkeypatch.setattr("sase.sdd.store.ensure_workspace_sdd_clone", fail_sync)
+    monkeypatch.setattr("sase.sdd._store_link.ensure_workspace_sdd_clone", fail_sync)
+    monkeypatch.setattr("sase.bead.cli_common.get_read_view", fail_sync)
+
+    assert (
+        format_agent_bead_display_for_name(
+            "sase-x.3",
+            require_existing=True,
+            local_only=True,
+        )
+        == "sase-x.3 - Local bead"
+    )
+
+
+def test_default_lookup_keeps_materializing_read_view_behavior(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.model import Issue
+
+    calls: list[str] = []
+
+    class _ReadView:
+        def __enter__(self) -> _ReadView:
+            calls.append("enter")
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            calls.append("exit")
+
+        def show(self, bead_id: str) -> Issue:
+            calls.append(bead_id)
+            return Issue(id=bead_id, title="Default path", description="")
+
+    monkeypatch.setattr("sase.bead.cli_common.get_read_view", _ReadView)
+
+    assert format_agent_bead_display_for_name("sase-x.3") == "sase-x.3 - Default path"
+    assert calls == ["enter", "sase-x.3", "exit"]
+
+
 def test_agent_bead_display_ignores_legacy_sibling_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
