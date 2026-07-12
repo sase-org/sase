@@ -245,16 +245,15 @@ sase memory log --id <read-id>
 ## SDD Initialization
 
 `sase init sdd` is the compatibility alias for `sase sdd init`. It materializes the provider-selected SDD store, then
-creates or refreshes generated SDD guides and the directory-map asset. GitHub setup finds or creates the required
-`<owner>/<repo>--sdd` companion, applies the `sase--sdd` label, and transactionally imports legacy in-tree and local
-artifacts. New companions are public by default; existing private companions remain private. Bare-git projects keep
+creates or refreshes generated SDD guides and directory-map assets. For a managed GitHub project it finds or creates the
+public `<owner>/<repo>--plans` and `<owner>/<repo>--research` companions, initializes and pushes both, then writes the
+split store record. Existing legacy `--sdd` stores remain available until explicitly migrated. Bare-git projects keep
 their provider-owned in-tree layout.
 
-GitHub discovery runs before materialization. If the companion is definitively absent, the command asks
-`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`; only `y` or `yes` proceeds.
-Declines, blank answers, EOF, interruption, and non-interactive stdin leave initialization incomplete and return nonzero
-without creating, labeling, cloning, importing, or writing generated files. `--check` does not probe GitHub or read
-stdin.
+GitHub discovery runs before materialization. If either companion is definitively absent, the command asks a separate
+default-no question naming that `--plans` or `--research` repository; only `y` or `yes` proceeds. Declines, blank
+answers, EOF, interruption, and non-interactive stdin leave initialization incomplete and return nonzero without
+creating, labeling, cloning, importing, or writing generated files. `--check` does not probe GitHub or read stdin.
 
 Both the apply command and `--check` first read the target repository's own `sase.yml`. A missing or false
 `is_sase_managed` marker makes the command an informative, successful no-op before provider or storage work; malformed
@@ -265,6 +264,8 @@ caller's configuration.
 sase init sdd
 sase init sdd --check
 sase init sdd --path /path/to/project
+sase sdd migrate --check --diff
+sase sdd migrate
 ```
 
 Keep conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in

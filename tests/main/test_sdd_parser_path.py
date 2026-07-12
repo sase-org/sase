@@ -56,10 +56,13 @@ def test_parser_registers_sdd_subcommands() -> None:
     args = parser.parse_args(["sdd", "repair-links", "-p", "sdd", "-w"])
     assert args.write is True
 
+    args = parser.parse_args(["sdd", "migrate", "-p", ".", "-c", "-d"])
+    assert args.sdd_subcommand == "migrate"
+    assert args.check is True
+    assert args.diff is True
+
     with pytest.raises(SystemExit):
         parser.parse_args(["sdd", "init", "--storage", "local"])
-    with pytest.raises(SystemExit):
-        parser.parse_args(["sdd", "migrate"])
 
 
 @pytest.mark.parametrize(

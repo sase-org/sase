@@ -13,6 +13,11 @@ from sase.sdd._types import (
 
 SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
 SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
+SDD_COMPANION_KINDS = ("plans", "research")
+SDD_COMPANION_DIRECTORY_MAP_FILENAMES = {
+    "plans": "plans-directory-map.png",
+    "research": "research-directory-map.png",
+}
 
 SDD_README_CONTENT = """# Structured Development Docs
 
@@ -68,6 +73,58 @@ later tales, epics, or implementation work.
 """,
 }
 
+SDD_COMPANION_README_CONTENT = {
+    "plans": """# SASE Plans
+
+This public companion repository stores the durable planning state for its SASE-managed source repository. SASE
+automatically clones it into each workspace and keeps plan files, their original prompt snapshots, and bead state
+available to humans and agents.
+
+![Plans directory map](assets/plans-directory-map.png)
+
+## Directory Layout
+
+- `<YYYYMM>/*.md` stores plan files. Every plan declares `tier: tale` or `tier: epic` in YAML frontmatter.
+- `<YYYYMM>/prompts/*.md` stores the original prompts or expanded snapshots that produced that month's plans.
+- `beads/` stores SASE bead events and compatibility projections. SQLite `beads.db*` files are local-only.
+- `assets/` stores generated explanatory media used by this README.
+
+Plan and prompt links are relative to this repository root. For example, `202607/example.md` links back to
+`202607/prompts/example.md`.
+
+## Commands
+
+- `sase plan list` and `sase plan search` inspect plans.
+- `sase sdd path plans` prints this clone's root.
+- `sase sdd validate` checks prompt and plan frontmatter links.
+- `sase bead` manages bead work stored under `beads/`.
+""",
+    "research": """# SASE Research
+
+This public companion repository stores durable research for its SASE-managed source repository. It is cloned lazily
+when research is requested, keeping exploratory findings and generated media separate from implementation plans.
+
+![Research directory map](assets/research-directory-map.png)
+
+## Directory Layout
+
+- `<YYYYMM>/*.md` stores research notes organized by month.
+- `<YYYYMM>/*_infographic.png` stores generated infographics beside the reports they explain.
+- `<YYYYMM>/<topic>/` may store research-swarm drafts such as `<topic>__a.md`, `<topic>__b.md`, and the consolidated
+  `<topic>.md` report.
+- `assets/` stores generated explanatory media used by this README.
+
+Research should record the question, evidence, alternatives, and a clear recommendation. Follow-up work from
+`#research/more` extends the existing report and preserves its established organization and source conventions.
+
+## Commands
+
+- `sase sdd path research --ensure` materializes this clone and prints its root.
+- `sase sdd list` lists durable SDD artifacts.
+- `#research`, `#research/more`, and `#research_swarm` create or extend research under the current month.
+""",
+}
+
 
 def expected_sdd_readme(
     path: str | None = None, *, cwd: Path | None = None
@@ -108,6 +165,64 @@ def expected_sdd_directory_map(
         path=resolve_sdd_asset_path(path, cwd=cwd),
         content=read_sdd_directory_map_bytes(),
     )
+
+
+def expected_sdd_companion_files(
+    kind: str, root: str | Path
+) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
+    """Return deterministic generated files for one split companion root."""
+
+    _validate_companion_kind(kind)
+    companion_root = Path(root)
+    filename = SDD_COMPANION_DIRECTORY_MAP_FILENAMES[kind]
+    return (
+        SddExpectedTextFile(
+            path=companion_root / "README.md",
+            content=SDD_COMPANION_README_CONTENT[kind],
+        ),
+        SddExpectedBytesFile(
+            path=companion_root / "assets" / filename,
+            content=_read_sdd_companion_directory_map_bytes(kind),
+        ),
+    )
+
+
+def plan_sdd_companion_init_actions(
+    kind: str, root: str | Path
+) -> tuple[SddInitAction, ...]:
+    """Plan generated README and asset drift for one split companion."""
+
+    actions: list[SddInitAction] = []
+    for expected in expected_sdd_companion_files(kind, root):
+        operation = (
+            planned_text_operation(expected.path, expected.content)
+            if isinstance(expected, SddExpectedTextFile)
+            else planned_bytes_operation(expected.path, expected.content)
+        )
+        if operation is not None:
+            actions.append(
+                SddInitAction(
+                    path=expected.path,
+                    operation=operation,
+                    detail=f"{kind} companion {expected.path.name}",
+                    new_content=expected.content,
+                )
+            )
+    return tuple(actions)
+
+
+def ensure_sdd_companion_initialized(kind: str, root: str | Path) -> tuple[Path, ...]:
+    """Refresh deterministic generated files for one split companion."""
+
+    actions = plan_sdd_companion_init_actions(kind, root)
+    for action in actions:
+        action.path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(action.new_content, bytes):
+            action.path.write_bytes(action.new_content)
+        else:
+            assert isinstance(action.new_content, str)
+            action.path.write_text(action.new_content, encoding="utf-8")
+    return tuple(action.path for action in actions)
 
 
 def expected_sdd_generated_paths(
@@ -186,6 +301,22 @@ def read_sdd_directory_map_bytes() -> bytes:
     source = resources.files("sase.sdd").joinpath("assets", SDD_DIRECTORY_MAP_FILENAME)
     with resources.as_file(source) as source_path:
         return source_path.read_bytes()
+
+
+def _read_sdd_companion_directory_map_bytes(kind: str) -> bytes:
+    """Read the packaged directory-map placeholder for one companion."""
+
+    _validate_companion_kind(kind)
+    source = resources.files("sase.sdd").joinpath(
+        "assets", SDD_COMPANION_DIRECTORY_MAP_FILENAMES[kind]
+    )
+    with resources.as_file(source) as source_path:
+        return source_path.read_bytes()
+
+
+def _validate_companion_kind(kind: str) -> None:
+    if kind not in SDD_COMPANION_KINDS:
+        raise ValueError(f"unknown SDD companion kind: {kind}")
 
 
 def planned_text_operation(

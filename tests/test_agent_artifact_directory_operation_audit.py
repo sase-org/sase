@@ -95,6 +95,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "workspace-local SDD companion clone, not an agent artifact directory."
         ),
     ),
+    "src/sase/sdd/migrate.py:apply_split_sdd_migration": DirOpReview(
+        exemption=(
+            "Retires only the legacy .sase/sdd clone after both split SDD "
+            "companions are pushed and recorded, not an agent artifact directory."
+        ),
+    ),
     "src/sase/main/project_handler.py:delete_project_locked": DirOpReview(
         exemption=(
             "Deletes the entire SASE project state directory only after blocking "

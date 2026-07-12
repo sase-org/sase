@@ -49,10 +49,9 @@ loadable without allowing project or user config to override provider policy.
 
 ## GitHub Companion Repositories
 
-GitHub projects require a companion repository. By default sase-github finds or creates `<owner>/<repo>--sdd`, labels it
-`sase--sdd`, and clones it beneath each active workspace at `.sase/sdd`. New companions are public by default; existing
-private companions are left private. Set `sdd.repo.name` to `name` or `owner/name` only when an explicit companion
-repository override is needed.
+Managed GitHub projects initialize two public companions: `<owner>/<repo>--plans` and `<owner>/<repo>--research`. The
+plans clone is automatic and owns bead state; research materializes lazily. The provider still supports
+`<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy stores.
 
 Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase sdd init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
@@ -66,16 +65,16 @@ repository, and public visibility; the default is no. Non-interactive input and 
 resource-specific authorization. Existing companions and non-explicit materialization consumers retain their normal
 provider-owned behavior.
 
-The first successful materialization is a single adoption transaction:
+Split initialization is a single record-last transaction:
 
-1. SASE serializes setup with a primary-workspace lock and asks the provider to find or create the companion.
-2. The provider clones into a unique staging directory.
-3. SASE preflights and copies durable artifacts from legacy primary/current-workspace `sdd/` and `.sase/sdd/` stores.
-4. Conflicting paths abort with an explicit path list before any source is replaced.
-5. SASE initializes guides and beads, commits imported content, and requires the initial push to succeed when a commit
-   was created.
-6. Only then does it atomically adopt the primary clone, write the positive store record, and create the active
-   workspace clone.
+1. SASE serializes setup and preflights both public repository names.
+2. The provider creates or adopts each repository and SASE clones it at the linked-repository location.
+3. SASE writes deterministic per-repository README and infographic assets, then commits and pushes generated drift.
+4. Only after both repositories succeed does SASE write the schema-version 2 split store record.
+
+Legacy artifacts move separately through `sase sdd migrate`, whose `--check` and `--diff` modes are read-only. The apply
+path uses the same materialization lock, detects destination conflicts, pushes both repositories, and retires the local
+legacy clone only after success.
 
 In-tree legacy sources are retained. Bead SQLite runtime files and git internals are not imported. A failed transaction
 leaves no positive record, so the next write retries materialization instead of silently using another store.

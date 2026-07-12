@@ -232,6 +232,8 @@ class WorkspaceHookSpec:
 
         This explicit-init hook may perform authoritative network reads. It
         must not create or label repositories, clone, or write local state.
+        ``options["sdd_companion_suffix"]`` may select an arbitrary companion
+        suffix such as ``plans`` or ``research``; absent means legacy ``sdd``.
         Return ``None`` only when the provider does not own the workspace.
         """
         ...
@@ -251,6 +253,7 @@ class WorkspaceHookSpec:
         be passed back through ``options["sdd_repo"]``,
         ``options["sdd_host"]``, and ``options["sdd_remote_url"]`` so providers
         can verify the exact recorded remote.
+        ``options["sdd_companion_suffix"]`` follows the preflight contract.
         """
         ...
 

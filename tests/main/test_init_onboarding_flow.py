@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -308,8 +309,8 @@ def test_sdd_prompt_mentions_companion_repo_creation() -> None:
 @pytest.mark.parametrize(
     ("yes", "responses", "expected_prompt_count"),
     [
-        (False, ["yes", "yes"], 2),
-        (True, ["yes"], 1),
+        (False, ["yes", "yes", "yes"], 3),
+        (True, ["yes", "yes"], 2),
     ],
 )
 def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
@@ -324,41 +325,45 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     monkeypatch.chdir(tmp_path)
     prompts: list[str] = []
     answers = iter(responses)
-    authorizations: list[bool | None] = []
+    authorizations: list[dict[str, bool] | None] = []
     monkeypatch.setattr(
         "sase.main.sdd_handler._project_provider_sdd_policy",
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.main.sdd_handler._plan_sdd_companion_repo_action",
-        lambda _root: InitAction(
-            tmp_path / ".sase" / "sdd",
-            "create",
-            "create or connect the provider companion SDD repository",
-        ),
-    )
-    monkeypatch.setattr(
-        "sase.sdd.store.preflight_sdd_companion",
-        lambda _root, _workspace: SddCompanionPreflight(
-            status="not_found",
-            provider="GitHub",
-            host="github.com",
-            repo="acme/widget--sdd",
-            visibility="public",
-        ),
+        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        lambda _root, _workspace: {
+            kind: SddCompanionPreflight(
+                status="not_found",
+                provider="GitHub",
+                host="github.com",
+                repo=f"acme/widget--{kind}",
+                visibility="public",
+            )
+            for kind in ("plans", "research")
+        },
     )
 
-    def materialize(
+    def initialize(
         _root: Path,
         _workspace: int,
         *,
-        sdd_creation_authorized: bool | None = None,
-    ) -> SddStore:
-        authorizations.append(sdd_creation_authorized)
-        sdd_dir = tmp_path / ".sase" / "sdd"
-        return SddStore("local", sdd_dir, sdd_dir)
+        creation_authorized: dict[str, bool] | None = None,
+    ) -> SimpleNamespace:
+        authorizations.append(creation_authorized)
+        plans = tmp_path / "sase" / "repos" / "widget--plans"
+        research = tmp_path / "sase" / "repos" / "widget--research"
+        store = SddStore(
+            "companion_repos",
+            plans,
+            plans,
+            research_dir=research,
+        )
+        return SimpleNamespace(store=store)
 
-    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", materialize)
+    monkeypatch.setattr(
+        "sase.sdd._companion_init.initialize_split_sdd_companions", initialize
+    )
     plan = _plan(
         "sdd",
         actions=(
@@ -386,9 +391,9 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     assert len(prompts) == expected_prompt_count
     assert prompts[-1] == (
         "Create public GitHub SDD companion repository "
-        "acme/widget--sdd on github.com? [y/N] "
+        "acme/widget--research on github.com? [y/N] "
     )
-    assert authorizations == [True]
+    assert authorizations == [{"plans": True, "research": True}]
 
 
 def test_non_tty_drift_without_yes_prints_summary_and_exits_1(

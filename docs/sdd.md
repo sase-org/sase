@@ -154,6 +154,7 @@ when passing list flags such as `--kind` or `--json`.
 | `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `tales`/`epics` are tier filters over `plans/`                                 |
+| `sase sdd migrate`      | Preview or apply migration from a legacy clone into initialized split companions                        |
 | `sase sdd path`         | Print the effective root or kind root; `-e/--ensure` materializes its backing companion                 |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
@@ -170,19 +171,22 @@ on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict
 filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase sdd init` command materializes the
-provider-selected store, then refreshes the top-level README, directory map, and generated `README.md` files in `plans/`
-and `research/`. On GitHub it finds or creates the required public-by-default `<owner>/<repo>--sdd` companion, applies
-the `sase--sdd` label, and imports durable artifacts from legacy in-tree and local stores before recording success.
-Existing private companions remain private. Provider errors fail setup instead of falling back to local storage. Missing
-or false markers make the command and `--check` successful no-ops before provider work; invalid local configuration
-fails safely. `sase init sdd` exposes the same flow and check/path flags, and `--path` checks the target repository's
-marker.
+provider-selected store. On GitHub it finds or creates public `<owner>/<repo>--plans` and `<owner>/<repo>--research`
+companions, writes each repository's deterministic README and infographic asset, pushes both, and only then records the
+split store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the
+command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init sdd`
+exposes the same flow and check/path flags, and `--path` checks the target repository's marker.
 
-Before explicit initialization creates a missing GitHub companion, it asks
-`Create public GitHub SDD companion repository <owner>/<repo>--sdd on <host>? [y/N]`. Only `y` or `yes` approves. Blank
-input, any other answer, EOF, interruption, and non-interactive stdin cancel with a nonzero exit before repository or
-local-state mutations. An existing remote companion connects without this creation prompt. `--check` remains offline and
-non-interactive, and neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
+Before explicit initialization creates a missing GitHub companion, it asks a default-no question naming the public
+`--plans` or `--research` repository and host. Only `y` or `yes` approves. Blank input, any other answer, EOF,
+interruption, and non-interactive stdin cancel with a nonzero exit before repository or local-state mutations. An
+existing remote companion connects without this creation prompt. `--check` remains offline and non-interactive, and
+neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
+
+After initialization, `sase sdd migrate --check --diff` previews the legacy split. Applying `sase sdd migrate` copies
+monthly plan and research directories, copies durable bead files but excludes `beads.db*`, rewrites legacy plan-link
+prefixes, pushes both companions, records the split store, and retires the local legacy clone. Legacy tier stragglers,
+README files, and assets remain untouched in the archived legacy remote.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.

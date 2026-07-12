@@ -29,6 +29,8 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "sdd_subcommand", None)
     if subcommand == "init":
         _handle_init(args)
+    elif subcommand == "migrate":
+        _handle_migrate(args)
     elif subcommand == "validate":
         _handle_validate(args)
     elif subcommand == "links":
@@ -40,12 +42,55 @@ def handle_sdd_command(args: argparse.Namespace) -> None:
     elif subcommand == "repair-links":
         _handle_repair_links(args)
     else:
-        print("Usage: sase sdd {init,links,list,path,repair-links,validate}")
+        print("Usage: sase sdd {init,links,list,migrate,path,repair-links,validate}")
         sys.exit(1)
 
 
 def _handle_init(args: argparse.Namespace) -> None:
     sys.exit(run_sdd_init(args))
+
+
+def _handle_migrate(args: argparse.Namespace) -> None:
+    from sase.sdd.migrate import (
+        apply_split_sdd_migration,
+        plan_split_sdd_migration,
+        render_split_sdd_migration_diff,
+    )
+    from sase.sdd.store import SddMaterializationError
+
+    project_root, management = _sdd_project_management(getattr(args, "path", None))
+    if management.error is not None:
+        print(f"error: {management.error}", file=sys.stderr)
+        sys.exit(1)
+    if not management.is_sase_managed:
+        print(_UNMANAGED_SDD_MESSAGE, file=sys.stderr)
+        sys.exit(1)
+    try:
+        plan = plan_split_sdd_migration(project_root, 1)
+        if getattr(args, "diff", False):
+            rendered = render_split_sdd_migration_diff(plan)
+            if rendered:
+                print(rendered)
+        if getattr(args, "check", False):
+            if plan.has_changes:
+                print(
+                    f"SDD split migration required: {len(plan.actions)} files; "
+                    f"legacy clone {plan.legacy_root}"
+                )
+                sys.exit(1)
+            print("SDD split migration is current")
+            sys.exit(0)
+        applied = apply_split_sdd_migration(project_root, 1)
+    except SddMaterializationError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if applied.legacy_root is None:
+        print("SDD split migration is current")
+    else:
+        print(
+            f"Migrated {len(applied.actions)} files and retired {applied.legacy_root}"
+        )
+    sys.exit(0)
 
 
 def run_sdd_init(args: argparse.Namespace) -> int:
@@ -87,7 +132,6 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     from sase.sdd.store import (
         SddMaterializationError,
         materialize_sdd_store,
-        preflight_sdd_companion,
     )
 
     # Every explicit init starts guarded. This also fails closed if provider
@@ -96,28 +140,42 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     creation_authorized = False
     try:
         if _project_provider_sdd_policy(project_root) == "separate_repo":
-            # Guard every explicit separate-repo materialization, including the
-            # fast existing-record path. If that local record disappears in a
-            # race, the provider must not silently recreate the remote.
-            creation_authorized = False
-            if _plan_sdd_companion_repo_action(project_root) is not None:
-                preflight = preflight_sdd_companion(project_root, 1)
-                if preflight.status == "unavailable":
-                    detail = preflight.message or (
-                        f"could not verify {preflight.provider} SDD companion "
-                        f"repository {preflight.repo}"
-                    )
-                    raise SddMaterializationError(detail)
-                if preflight.status == "not_found":
-                    if not _confirm_sdd_companion_creation(args, preflight):
-                        return 1
-                    creation_authorized = True
-                elif preflight.status != "found":
-                    raise SddMaterializationError(
-                        "The workspace provider returned an invalid SDD companion "
-                        "preflight result. Update the provider plugin and rerun "
-                        "`sase sdd init`."
-                    )
+            from sase.sdd._companion_init import (
+                initialize_split_sdd_companions,
+                preflight_split_sdd_companions,
+            )
+
+            authorizations: dict[str, bool] = {}
+            if _split_companion_provider_setup_needed(project_root):
+                for kind, preflight in preflight_split_sdd_companions(
+                    project_root, 1
+                ).items():
+                    if preflight.status == "unavailable":
+                        detail = preflight.message or (
+                            f"could not verify {preflight.provider} SDD companion "
+                            f"repository {preflight.repo}"
+                        )
+                        raise SddMaterializationError(detail)
+                    if preflight.status == "not_found":
+                        if not _confirm_sdd_companion_creation(args, preflight):
+                            return 1
+                        authorizations[kind] = True
+                    elif preflight.status != "found":
+                        raise SddMaterializationError(
+                            "The workspace provider returned an invalid SDD companion "
+                            "preflight result. Update the provider plugin and rerun "
+                            "`sase sdd init`."
+                        )
+
+            outcome = initialize_split_sdd_companions(
+                project_root,
+                1,
+                creation_authorized=authorizations,
+            )
+            print(outcome.store.sdd_dir / "README.md")
+            assert outcome.store.research_dir is not None
+            print(outcome.store.research_dir / "README.md")
+            return 0
 
         store = materialize_sdd_store(
             project_root,
@@ -219,18 +277,32 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             blockers=(),
         )
 
-    from sase.sdd.files import plan_sdd_init_actions
+    from sase.sdd.files import plan_sdd_companion_init_actions, plan_sdd_init_actions
     from sase.sdd.store import resolve_sdd_dir
 
     policy = _project_provider_sdd_policy(project_root)
     actions: list[InitAction] = []
     if policy == "separate_repo":
-        companion_action = _plan_sdd_companion_repo_action(project_root)
-        if companion_action is not None:
-            actions.append(companion_action)
-        import_action = _plan_legacy_sdd_import_action(project_root)
-        if import_action is not None:
-            actions.append(import_action)
+        roots = _split_companion_roots(project_root)
+        actions.extend(_plan_split_companion_repo_actions(project_root, roots))
+        for kind, root in roots.items():
+            actions.extend(
+                InitAction(
+                    path=action.path,
+                    operation=action.operation,
+                    detail=action.detail,
+                    new_content=action.new_content,
+                )
+                for action in plan_sdd_companion_init_actions(kind, root)
+            )
+        return InitPlan(
+            command="sdd",
+            label="SDD",
+            summary=_summarize_sdd_actions(actions),
+            actions=tuple(actions),
+            warnings=(),
+            blockers=(),
+        )
     generated_path = str(resolve_sdd_dir(project_root, 1))
     from sase.sdd._prompt_migration import plan_legacy_prompt_migration
 
@@ -280,20 +352,12 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     companion_actions = [
         action for action in actions if _is_companion_repo_action(action)
     ]
-    import_actions = [
-        action for action in actions if _is_legacy_sdd_import_action(action)
-    ]
     generated_actions = [
-        action
-        for action in actions
-        if not _is_companion_repo_action(action)
-        and not _is_legacy_sdd_import_action(action)
+        action for action in actions if not _is_companion_repo_action(action)
     ]
     summaries: list[str] = []
     if companion_actions:
-        summaries.append("create or connect provider companion SDD repository")
-    if import_actions:
-        summaries.append("import legacy SDD artifacts into the companion")
+        summaries.append("create or connect provider companion SDD repositories")
     if generated_actions:
         summaries.append(_summarize_generated_sdd_actions(generated_actions))
     if not summaries:
@@ -326,59 +390,57 @@ def _project_provider_sdd_policy(project_root: Path) -> str | None:
     return policy if policy in {"in_tree", "local", "separate_repo"} else None
 
 
-def _plan_sdd_companion_repo_action(project_root: Path) -> InitAction | None:
+def _split_companion_provider_setup_needed(project_root: Path) -> bool:
     from sase.sdd._paths import get_primary_workspace_dir
-    from sase.sdd._store_adoption import clone_matches_record
     from sase.sdd.store import read_sdd_store_record
 
     primary = Path(get_primary_workspace_dir(str(project_root), 1))
     record = read_sdd_store_record(primary)
-    clone = primary / ".sase" / "sdd"
-    if record is not None and clone_matches_record(clone, record):
-        return None
-    return InitAction(
-        path=project_root / ".sase" / "sdd",
-        operation="create",
-        detail="create or connect the provider companion SDD repository",
-    )
+    return record is None or not record.is_companion_storage
 
 
-def _plan_legacy_sdd_import_action(project_root: Path) -> InitAction | None:
+def _split_companion_roots(project_root: Path) -> dict[str, Path]:
+    from sase.linked_repos import resolve_linked_repo_clone_dir
     from sase.sdd._paths import get_primary_workspace_dir
-    from sase.sdd._store_adoption import (
-        has_durable_artifacts,
-        legacy_adoption_needed,
-    )
     from sase.sdd.store import read_sdd_store_record
 
     primary = Path(get_primary_workspace_dir(str(project_root), 1))
     record = read_sdd_store_record(primary)
-    if record is None or record.discovery == "not_found":
-        candidates = {
-            primary / "sdd",
-            primary / ".sase" / "sdd",
-            project_root / "sdd",
-            project_root / ".sase" / "sdd",
-        }
-        needed = any(has_durable_artifacts(path) for path in candidates)
-    else:
-        needed = legacy_adoption_needed(primary, project_root, record)
-    if not needed:
-        return None
-    return InitAction(
-        path=project_root / ".sase" / "sdd",
-        operation="update",
-        detail="import legacy SDD artifacts into the companion repository",
-    )
+    project_name = primary.name
+    roots: dict[str, Path] = {}
+    for kind in ("plans", "research"):
+        companion = (
+            record.companion_for_kind(kind)
+            if record is not None and record.is_companion_storage
+            else None
+        )
+        repo_name = (
+            companion.repo.rsplit("/", 1)[-1]
+            if companion is not None
+            else f"{project_name}--{kind}"
+        )
+        roots[kind] = Path(resolve_linked_repo_clone_dir(project_root, repo_name))
+    return roots
+
+
+def _plan_split_companion_repo_actions(
+    project_root: Path, roots: dict[str, Path]
+) -> list[InitAction]:
+    if not _split_companion_provider_setup_needed(project_root):
+        return []
+    return [
+        InitAction(
+            path=root,
+            operation="create",
+            detail=f"create or connect the provider {kind} companion repository",
+        )
+        for kind, root in roots.items()
+    ]
 
 
 def _is_companion_repo_action(action: InitAction) -> bool:
     detail = action.detail.casefold()
     return detail.startswith("create or connect") and "companion" in detail
-
-
-def _is_legacy_sdd_import_action(action: InitAction) -> bool:
-    return "import legacy sdd artifacts" in action.detail.casefold()
 
 
 def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:

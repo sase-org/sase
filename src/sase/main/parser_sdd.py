@@ -19,6 +19,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "examples:\n"
+            "  sase sdd migrate --check --diff\n"
             "  sase sdd path\n"
             "  sase sdd path research\n"
             "  sase sdd list --kind epics  # tier filter over plans/\n"
@@ -75,6 +76,29 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
     )
 
+    migrate_parser = sdd_sub.add_parser(
+        "migrate",
+        help="Migrate a legacy SDD clone into split companion repositories",
+        description=(
+            "Copy monthly plans, research, and durable bead state into the "
+            "initialized split companions, rewrite frontmatter links, push both "
+            "repositories, and retire the legacy clone. Run `sase sdd init` first."
+        ),
+    )
+    migrate_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Report whether migration work remains without writing files",
+    )
+    migrate_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Preview rewritten links and copied files before applying",
+    )
+    add_sdd_path_arg(migrate_parser)
+
     path_parser = sdd_sub.add_parser(
         "path",
         help="Print the effective SDD root or one canonical child directory",
@@ -118,6 +142,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "-q", "--quiet", action="store_true", help="Only print validation failures"
     )
     validate_parser.add_argument(
+        "-s",
         "--strict",
         action="store_true",
         help="Treat unpaired historical files as validation errors",

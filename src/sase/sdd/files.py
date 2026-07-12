@@ -22,15 +22,21 @@ from sase.sdd._commit import (
 )
 from sase.sdd._expand import dry_expand_embedded_workflows, expand_prompt_for_spec
 from sase.sdd._init_files import (
+    SDD_COMPANION_DIRECTORY_MAP_FILENAMES,
+    SDD_COMPANION_KINDS,
+    SDD_COMPANION_README_CONTENT,
     SDD_DIRECTORY_MAP_FILENAME,
     SDD_DIRECTORY_MAP_RELATIVE_PATH,
     SDD_DIRECTORY_README_CONTENT,
     SDD_README_CONTENT,
+    ensure_sdd_companion_initialized,
+    expected_sdd_companion_files,
     expected_sdd_directory_map,
     expected_sdd_directory_readmes,
     expected_sdd_generated_paths,
     expected_sdd_readme,
     expected_sdd_text_files as _expected_sdd_text_files,
+    plan_sdd_companion_init_actions,
     plan_sdd_init_actions,
     planned_bytes_operation as _planned_bytes_operation,
     planned_text_operation as _planned_text_operation,
@@ -146,6 +152,9 @@ def write_sdd_files(
 
 
 __all__ = [
+    "SDD_COMPANION_DIRECTORY_MAP_FILENAMES",
+    "SDD_COMPANION_KINDS",
+    "SDD_COMPANION_README_CONTENT",
     "SDD_DIRECTORY_MAP_FILENAME",
     "SDD_DIRECTORY_MAP_RELATIVE_PATH",
     "SDD_DIRECTORY_README_CONTENT",
@@ -159,8 +168,10 @@ __all__ = [
     "commit_sdd_store_files",
     "dry_expand_embedded_workflows",
     "ensure_bare_git_sdd_initialized",
+    "ensure_sdd_companion_initialized",
     "ensure_sdd_initialized",
     "expected_sdd_directory_map",
+    "expected_sdd_companion_files",
     "expected_sdd_directory_readmes",
     "expected_sdd_generated_paths",
     "expected_sdd_readme",
@@ -169,6 +180,7 @@ __all__ = [
     "get_primary_workspace_dir",
     "get_yyyymm",
     "plan_sdd_init_actions",
+    "plan_sdd_companion_init_actions",
     "set_prompt_qa",
     "update_prompt_with_qa",
     "update_spec_with_qa",
