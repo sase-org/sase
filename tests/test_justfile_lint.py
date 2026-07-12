@@ -42,6 +42,37 @@ def test_check_mirrors_lint_pylimit_stage() -> None:
     assert 'tools/run_silent "lint (pylimit)"     just _lint-pylimit' in output
 
 
+def test_lint_does_not_run_sase_validation() -> None:
+    output = _dry_run("lint")
+
+    assert "Running SASE validation" not in output
+    assert "just validate" not in output
+
+
+def test_check_retains_sase_validation_stage() -> None:
+    output = _dry_run("check")
+
+    assert 'tools/run_silent "SASE validation"     just validate' in output
+
+
+def test_ci_lint_job_retains_sase_validation_stage() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "      - name: SASE validation\n        run: just validate\n" in workflow
+
+
+def test_ci_lint_job_validates_split_sdd_companions() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+
+    assert "repository: sase-org/sase--plans" in workflow
+    assert "path: sase/repos/sase--plans" in workflow
+    assert "repository: sase-org/sase--research" in workflow
+    assert "path: sase/repos/sase--research" in workflow
+    assert '"storage": "companion_repos"' in workflow
+    assert "          mkdir -p .sase\n" in workflow
+    assert "sase-org/sase--sdd" not in workflow
+
+
 def test_public_pylimit_target_uses_private_lint_stage() -> None:
     output = _dry_run("pylimit", "900", "800", "700")
 

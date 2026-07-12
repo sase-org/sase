@@ -27,7 +27,7 @@ resolving Python dependencies.
 ```bash
 just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
-just lint          # Run ruff, mypy, pyscripts, pyvision, pylimit, keep-sorted, and SASE validation
+just lint          # Run ruff, mypy, pyscripts, pyvision, pylimit, and keep-sorted
 just test          # Fast parallel test run, including PNG visual snapshots
 just test-slow     # Slow pytest subset only
 just test-visual   # ACE PNG visual regression snapshots only
@@ -246,8 +246,8 @@ Run the strict site build after changing docs navigation, links, images, or Mark
 just docs-check
 ```
 
-Run SASE validation when a change can affect generated initialization files or SDD frontmatter links. This is the same
-validation lane used by `just lint`, so it can report user/home initialization drift as well as repository-local issues:
+Run SASE validation when a change can affect generated initialization files or SDD frontmatter links. It is deliberately
+separate from source linting because it can report user/home initialization drift and independently managed SDD state:
 
 ```bash
 sase validate

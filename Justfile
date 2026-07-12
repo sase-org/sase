@@ -34,7 +34,9 @@ _venv:
 # Rust extension first when a source checkout and Rust toolchain are
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
 _setup: _venv
-    @if [ -d "{{ sase_core_dir }}" ] && command -v cargo > /dev/null 2>&1; then \
+    @if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
+        printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
+    elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
         {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || exit 1; \
         if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
             printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
@@ -121,7 +123,7 @@ _setup-terminal-smoke: _setup
         uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
     fi
 
-# Run linters (ruff + mypy + pyscripts + pyvision + pylimit + keep-sorted + SASE validation)
+# Run linters (ruff + mypy + pyscripts + pyvision + pylimit + keep-sorted)
 lint: _setup (_header "lint") lint-keep-sorted
     @printf "\n---------- Running ruff linter on Python files... ----------\n"
     @just _lint-ruff
@@ -133,8 +135,6 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-pyvision
     @printf "\n---------- Checking Python file line counts... ----------\n"
     @just _lint-pylimit
-    @printf "\n---------- Running SASE validation... ----------\n"
-    @just validate
 
 # Run ruff linter on Python files (private, extracted for per-stage wrapping)
 _lint-ruff: _setup
@@ -241,7 +241,7 @@ test-tox: _setup
 test-py VER: _setup
     {{ venv_bin }}/tox -e py{{ VER }}
 
-# Run all checks (format check + lint + test) with context-efficient output for agents
+# Run all checks (format check + lint + SASE validation + test) with context-efficient output for agents
 check: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
