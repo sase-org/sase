@@ -29,6 +29,7 @@ from .models import InputArg, XPrompt
 from .tags import parse_tags
 
 log = logging.getLogger(__name__)
+_SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
 
 
 def namespace_xprompt(project: str, xp: XPrompt) -> XPrompt:
@@ -270,7 +271,11 @@ def load_xprompts_from_internal() -> dict[str, XPrompt]:
     skill_dir = internal_dir / "skills"
     md_files = [*sorted(internal_dir.glob("*.md"))]
     if skill_dir.is_dir():
-        md_files.extend(sorted(skill_dir.glob("*.md")))
+        md_files.extend(
+            path
+            for path in sorted(skill_dir.glob("*.md"))
+            if path.name != _SKILL_FRAME_TEMPLATE_FILENAME
+        )
 
     xprompts: dict[str, XPrompt] = {}
     for md_file in md_files:

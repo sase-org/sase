@@ -24,8 +24,8 @@ from .models import (
     MemoryRootPlan,
 )
 from .root_rendering import (
-    generated_sase_memory_body,
     generated_short_notes,
+    render_generated_sase_memory_body,
     render_expected_memory_files,
 )
 
@@ -36,6 +36,7 @@ class _MemoryRootContext:
     expected_files: tuple[MemoryExpectedFile, ...]
     shim_plan: ProviderShimPlan
     additional_shim_plans: tuple[ProviderShimPlan, ...]
+    blockers: tuple[str, ...] = ()
 
 
 def _amd_sync_plan(
@@ -256,22 +257,38 @@ def memory_root_context(
             ),
         )
 
-    generated_sase_body = generated_sase_memory_body(
-        linked_entries, project_name=project_name
+    generated_sase_body, sase_render_error = render_generated_sase_memory_body(
+        root, linked_entries, project_name=project_name
     )
+    if sase_render_error is not None or generated_sase_body is None:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            blockers=(sase_render_error or "failed to render memory/sase.md template",),
+        )
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
     )
-    expected_files = render_expected_memory_files(
+    expected_files, expected_error = render_expected_memory_files(
         root,
         linked_entries,
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
     )
+    if expected_error is not None:
+        return _MemoryRootContext(
+            amd_sync=amd_sync,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            blockers=(expected_error,),
+        )
     shim_plan = provider_shim_plan(
         root,
         agents_content=_final_agents_content(root, expected_files),
@@ -323,7 +340,8 @@ def plan_memory_root(
             unreferenced_memory_files(root, overlay=overlay) if manage_memory else ()
         ),
         blockers=(
-            (() if context.amd_sync is None else context.amd_sync.blockers)
+            context.blockers
+            + (() if context.amd_sync is None else context.amd_sync.blockers)
             + context.shim_plan.blockers
             + _provider_shim_plan_blockers(context.additional_shim_plans)
         ),

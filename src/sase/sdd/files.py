@@ -24,11 +24,8 @@ from sase.sdd._expand import dry_expand_embedded_workflows, expand_prompt_for_sp
 from sase.sdd._init_files import (
     SDD_COMPANION_DIRECTORY_MAP_FILENAMES,
     SDD_COMPANION_KINDS,
-    SDD_COMPANION_README_CONTENT,
     SDD_DIRECTORY_MAP_FILENAME,
     SDD_DIRECTORY_MAP_RELATIVE_PATH,
-    SDD_DIRECTORY_README_CONTENT,
-    SDD_README_CONTENT,
     ensure_sdd_companion_initialized,
     expected_sdd_companion_files,
     expected_sdd_directory_map,
@@ -155,11 +152,8 @@ def write_sdd_files(
 __all__ = [
     "SDD_COMPANION_DIRECTORY_MAP_FILENAMES",
     "SDD_COMPANION_KINDS",
-    "SDD_COMPANION_README_CONTENT",
     "SDD_DIRECTORY_MAP_FILENAME",
     "SDD_DIRECTORY_MAP_RELATIVE_PATH",
-    "SDD_DIRECTORY_README_CONTENT",
-    "SDD_README_CONTENT",
     "SddExpectedBytesFile",
     "SddExpectedTextFile",
     "SddGitCommandTimeout",

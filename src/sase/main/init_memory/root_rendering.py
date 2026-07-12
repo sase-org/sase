@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
+from sase.amd._config import resolve_markdown_template_override
+from sase.amd.inline_memory import validate_short_memory_structure
 from sase.amd.init import AmdMemorySyncPlan
+from sase.mdtemplates import render_markdown_template
 from sase.memory.inventory import MemoryStats, stats_for_text
 from sase.memory.notes import (
     AGENTS_PARENT,
@@ -24,6 +27,20 @@ MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
 MEMORY_DIRECTORY_MAP_RELATIVE_PATH = (
     Path("memory") / "assets" / MEMORY_DIRECTORY_MAP_FILENAME
 )
+MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
+MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
+_MEMORY_TEMPLATE_PACKAGE = "sase.main.init_memory"
+_MEMORY_SASE_TEMPLATE_VARS = frozenset({"project_name", "linked_repo_entries"})
+_MEMORY_README_TEMPLATE_VARS = frozenset(
+    {
+        "memory_notes",
+        "total_notes",
+        "short_notes",
+        "long_notes",
+        "total_lines",
+        "total_tokens",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -32,91 +49,61 @@ class _MemoryReadmeNote:
     stats: MemoryStats
 
 
-def _extend_workspace_section(lines: list[str], project_name: str) -> None:
-    lines.extend(
-        [
-            f"## Ephemeral `{project_name}_<N>` Workspace Directories",
-            "",
-            "SASE runs agents (like you) from ephemeral workspace directories, which are full clones of the "
-            f"{project_name} repo. These",
-            f"directories are named `{project_name}_<N>` where `<N>` is some integer. You need to be mindful not to run commands",
-            "outside of these workspace directories, since they have their own isolated virtual environments.",
-            "",
-            "IMPORTANT: Do NOT mention your workspace directory (or any sibling workspace directory) in any plan files "
-            "that you generate using your `/sase_plan` skill. The agent(s) that implement the plan might not run in the "
-            "same workspace directory as you!",
-            "",
-        ]
-    )
-
-
 def _linked_repo_list_item(entry: LinkedRepoMemoryEntry) -> str:
     return f"- `{entry.name}`: {entry.description}"
 
 
-def _extend_linked_repository_section(
-    lines: list[str], entries: Iterable[LinkedRepoMemoryEntry]
-) -> None:
-    lines.extend(
-        [
-            "## Linked Repositories",
-            "",
-        ]
-    )
-    entries = tuple(entries)
-    if entries:
-        lines.append("Configured linked repositories for this context:")
-        lines.append("")
-        for entry in entries:
-            lines.append(_linked_repo_list_item(entry))
-    else:
-        lines.append("No linked repositories are configured for this context.")
-        lines.append("")
-        return
-
-    lines.extend(
-        [
-            "",
-            "When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked repo code, agents MUST run:",
-            "",
-            "```bash",
-            'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>',
-            "```",
-            "",
-            "`<workspace_num>` must be the workspace number assigned to the primary repo "
-            "(check what directory you were started in to figure this out). Use the path printed by",
-            "`sase workspace open` as the only linked repo path for numbered-workspace linked reads/writes.",
-            "",
-            "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase workspace open`!",
-            "",
-        ]
-    )
-
-
 def _render_sase_memory(
-    entries: Iterable[LinkedRepoMemoryEntry], *, project_name: str | None = None
-) -> str:
-    lines = ["# SASE = Structured Agentic Software Engineering", ""]
-    if project_name is not None:
-        _extend_workspace_section(lines, project_name)
-
-    _extend_linked_repository_section(lines, entries)
-    return "\n".join(lines)
+    root: Path,
+    entries: Iterable[LinkedRepoMemoryEntry],
+    *,
+    project_name: str | None = None,
+) -> tuple[str | None, str | None]:
+    override, resolve_error = resolve_markdown_template_override(
+        root,
+        key="memory_sase_template",
+        user_filename=MEMORY_SASE_TEMPLATE_FILENAME,
+    )
+    if resolve_error is not None:
+        return None, resolve_error
+    rendered, render_error = render_markdown_template(
+        package=_MEMORY_TEMPLATE_PACKAGE,
+        filename=f"templates/{MEMORY_SASE_TEMPLATE_FILENAME}",
+        required_variables=_MEMORY_SASE_TEMPLATE_VARS,
+        context={
+            "project_name": project_name or "",
+            "linked_repo_entries": "\n".join(
+                _linked_repo_list_item(entry) for entry in entries
+            ),
+        },
+        override_path=override,
+    )
+    if render_error is not None or rendered is None:
+        return None, render_error or "failed to render memory/sase.md template"
+    formatted = format_generated_memory_markdown(rendered)
+    structure_error = validate_short_memory_structure(formatted)
+    if structure_error is not None:
+        label = (
+            str(override)
+            if override is not None
+            else f"packaged {MEMORY_SASE_TEMPLATE_FILENAME}"
+        )
+        return None, f"{label}: {structure_error}"
+    return formatted, None
 
 
 def _generated_sase_memory_relative_path() -> Path:
     return Path("memory") / "sase.md"
 
 
-def generated_sase_memory_body(
+def render_generated_sase_memory_body(
+    root: Path,
     entries: Iterable[LinkedRepoMemoryEntry],
     *,
     project_name: str | None = None,
-) -> str:
-    """Return the prettier-stable ``memory/sase.md`` body (no frontmatter)."""
-    return format_generated_memory_markdown(
-        _render_sase_memory(entries, project_name=project_name)
-    )
+) -> tuple[str | None, str | None]:
+    """Render the stable ``memory/sase.md`` body or return a blocker."""
+    return _render_sase_memory(root, entries, project_name=project_name)
 
 
 def _generated_sase_memory_content(generated_sase_body: str) -> str:
@@ -194,20 +181,13 @@ def _note_type(note: MemoryNote) -> str:
     return note.type or "missing"
 
 
-def _extend_memory_notes_section(
-    lines: list[str],
+def _render_memory_notes(
     note_rows: tuple[_MemoryReadmeNote, ...],
-) -> None:
-    lines.extend(["## Memory Notes", ""])
+) -> str:
     if not note_rows:
-        lines.extend(
-            [
-                "No memory notes exist yet. Run `sase memory init` to create the generated `memory/sase.md` note.",
-                "",
-            ]
-        )
-        return
+        return ""
 
+    lines: list[str] = []
     for index, row in enumerate(note_rows):
         if index:
             lines.append("")
@@ -223,84 +203,39 @@ def _extend_memory_notes_section(
                 f"- Approx. tokens: {row.stats.approx_token_count}",
             ]
         )
-    lines.append("")
-
-
-def _extend_memory_statistics_section(
-    lines: list[str],
-    note_rows: tuple[_MemoryReadmeNote, ...],
-) -> None:
-    short_count = sum(1 for row in note_rows if row.note.type == "short")
-    long_count = sum(1 for row in note_rows if row.note.type == "long")
-    total_lines = sum(row.stats.line_count for row in note_rows)
-    total_tokens = sum(row.stats.approx_token_count for row in note_rows)
-    lines.extend(
-        [
-            "## Statistics",
-            "",
-            f"- Total notes: {len(note_rows)}",
-            f"- Short notes: {short_count}",
-            f"- Long notes: {long_count}",
-            f"- Total lines: {total_lines}",
-            f"- Total approx. tokens: {total_tokens}",
-            "",
-        ]
-    )
+    return "\n".join(lines)
 
 
 def _render_memory_readme(
     root: Path,
     *,
     overlay: dict[Path, str] | None = None,
-) -> str:
+) -> tuple[str | None, str | None]:
     note_rows = _discover_memory_readme_notes(root, overlay=overlay or {})
-    lines = [
-        "# SASE Memory",
-        "",
-        "The `memory/` directory holds agent-facing project context. It separates compact, always-loaded notes from detailed reference notes that agents read only when relevant.",
-        "",
-        "![How SASE memory files are used](assets/memory-directory-map.png)",
-        "",
-        "## How Memory Files Are Used",
-        "",
-        "- Non-README Markdown files live directly under `memory/` and use YAML frontmatter for `type`, `parent`, and `description`.",
-        "- `type: short` notes are Tier 1 context. `sase memory init` inlines them into `AGENTS.md`, then copies that exact content to each provider instruction shim.",
-        "- `type: long` notes are detailed reference material for Tier 2. They require a `description` and are fetched explicitly with audited `sase memory read` calls.",
-        "- `memory/sase.md` is generated from SASE configuration and captures linked repositories plus workspace rules.",
-        "- `memory/README.md` is generated from the notes themselves, including the statistics below.",
-        "",
-        "### Frontmatter Schema",
-        "",
-        "- `type`: `short` for always-loaded notes or `long` for read-on-demand reference notes.",
-        "- `parent`: `AGENTS.md` for top-level notes, or `memory/<note>.md` when a long note belongs under another long note.",
-        "- `description`: required for long notes and used in generated agent instructions and this README.",
-        "- `keywords`: optional extra metadata preserved by memory tooling when present.",
-        "",
-        "### Linking",
-        "",
-        "- `@memory/<note>.md` loads a note into agent context when the root instruction file is read.",
-        "- Plain `memory/<note>.md` mentions keep a note discoverable without loading it automatically.",
-        "- Long notes parented under another long note are reachable through that parent for validation.",
-        "",
-    ]
-    _extend_memory_notes_section(lines, note_rows)
-    _extend_memory_statistics_section(lines, note_rows)
-    lines.extend(
-        [
-            "## Commands",
-            "",
-            "- `sase memory list` shows loaded, referenced, available, and missing memory files.",
-            "- `sase memory init` creates or refreshes generated memory files, renders `AGENTS.md` and provider shims from `AGENTS.template.md`, and refreshes this asset-backed README.",
-            "- Set `amd_agents_template` (or `amd_agents_minimal_template`) to a root-relative project template in `sase.yml`; home roots can instead use `AGENTS.template.md` (or `AGENTS.minimal.template.md`) in the SASE user config directory.",
-            "- `sase memory init --check` reports drift without writing files.",
-            "- `sase memory read <note>.md --reason <reason>` reads a long note and records an audited access event.",
-            "- `sase memory write` proposes a new long-term memory note for review.",
-            "- `sase memory review` reviews pending memory proposals.",
-            "- `sase memory log` summarizes audited long-memory reads.",
-            "",
-        ]
+    override, resolve_error = resolve_markdown_template_override(
+        root,
+        key="memory_readme_template",
+        user_filename=MEMORY_README_TEMPLATE_FILENAME,
     )
-    return "\n".join(lines)
+    if resolve_error is not None:
+        return None, resolve_error
+    rendered, render_error = render_markdown_template(
+        package=_MEMORY_TEMPLATE_PACKAGE,
+        filename=f"templates/{MEMORY_README_TEMPLATE_FILENAME}",
+        required_variables=_MEMORY_README_TEMPLATE_VARS,
+        context={
+            "memory_notes": _render_memory_notes(note_rows),
+            "total_notes": len(note_rows),
+            "short_notes": sum(1 for row in note_rows if row.note.type == "short"),
+            "long_notes": sum(1 for row in note_rows if row.note.type == "long"),
+            "total_lines": sum(row.stats.line_count for row in note_rows),
+            "total_tokens": sum(row.stats.approx_token_count for row in note_rows),
+        },
+        override_path=override,
+    )
+    if render_error is not None or rendered is None:
+        return None, render_error or "failed to render memory/README.md template"
+    return format_generated_memory_markdown(rendered), None
 
 
 def render_expected_memory_files(
@@ -310,11 +245,13 @@ def render_expected_memory_files(
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
-) -> tuple[MemoryExpectedFile, ...]:
+) -> tuple[tuple[MemoryExpectedFile, ...], str | None]:
     if generated_sase_body is None:
-        generated_sase_body = generated_sase_memory_body(
-            linked_entries, project_name=project_name
+        generated_sase_body, render_error = render_generated_sase_memory_body(
+            root, linked_entries, project_name=project_name
         )
+        if render_error is not None or generated_sase_body is None:
+            return (), render_error or "failed to render memory/sase.md template"
     generated_sase_path = root / _generated_sase_memory_relative_path()
     generated_sase_content = _generated_sase_memory_content(generated_sase_body)
     note_overlay = {generated_sase_path: generated_sase_content}
@@ -322,6 +259,9 @@ def render_expected_memory_files(
         note_overlay.update(
             {update.path: update.content for update in amd_sync.description_updates}
         )
+    rendered_readme, readme_error = _render_memory_readme(root, overlay=note_overlay)
+    if readme_error is not None or rendered_readme is None:
+        return (), readme_error or "failed to render memory/README.md template"
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
             path=generated_sase_path,
@@ -330,9 +270,7 @@ def render_expected_memory_files(
         ),
         MemoryExpectedFile(
             path=root / "memory" / "README.md",
-            content=format_generated_memory_markdown(
-                _render_memory_readme(root, overlay=note_overlay)
-            ),
+            content=rendered_readme,
             detail="memory README",
         ),
         MemoryExpectedFile(
@@ -370,7 +308,7 @@ def render_expected_memory_files(
                 write_policy="create_if_missing",
             )
         )
-    return tuple(expected)
+    return tuple(expected), None
 
 
 def generated_short_notes(generated_sase_body: str) -> dict[str, str]:

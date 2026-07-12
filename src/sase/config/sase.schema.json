@@ -112,6 +112,16 @@
       "description": "Optional root-relative path to the Jinja2 template used for create-if-missing minimal AGENTS.md files.",
       "default": null
     },
+    "memory_sase_template": {
+      "type": ["string", "null"],
+      "description": "Optional root-relative path to the Jinja2 template used for generated memory/sase.md files.",
+      "default": null
+    },
+    "memory_readme_template": {
+      "type": ["string", "null"],
+      "description": "Optional root-relative path to the Jinja2 template used for generated memory/README.md files.",
+      "default": null
+    },
     "is_sase_managed": {
       "type": "boolean",
       "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase.yml is consulted.",

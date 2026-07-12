@@ -9,8 +9,10 @@ import textwrap
 from pathlib import Path
 
 import jinja2
+import yaml  # type: ignore[import-untyped]
 
 from sase.main.init_plan import InitOperation
+from sase.mdtemplates import render_markdown_template
 from sase.xprompt.models import XPrompt
 
 _PRETTIER_FORMAT_ARGS = [
@@ -23,6 +25,14 @@ _PRETTIER_FORMAT_ARGS = [
 # bounded checks. A hung prettier shim must degrade to unformatted output.
 _PRETTIER_TIMEOUT_SECONDS = 10.0
 _PRETTIER_COMMENT_RE = re.compile(r"^<!-- prettier-ignore[^\n]*-->\n?", re.MULTILINE)
+_SKILL_FRAME_TEMPLATE_FILENAME = "SKILL.frame.template.md"
+_SKILL_FRAME_TEMPLATE_VARS = frozenset(
+    {"frontmatter", "log_skill_use", "skill_name", "body"}
+)
+
+
+class SkillFrameTemplateError(ValueError):
+    """Raised when the packaged generated-skill frame cannot be rendered."""
 
 
 @dataclass(frozen=True)
@@ -60,15 +70,24 @@ def _render_skill(
     return rendered_body, rendered_desc
 
 
-def _skill_use_audit_directive(name: str) -> str:
-    """Return the generated first-step audit directive for a skill."""
-    return (
-        "Before doing anything else, run this command to record that you are "
-        "using this skill:\n\n"
-        "```bash\n"
-        f'sase skill use {name} --reason "<one-line reason for using this skill>"\n'
-        "```\n\n"
-    )
+def _validate_skill_frame(content: str) -> str | None:
+    lines = content.splitlines()
+    if not lines or lines[0] != "---":
+        return "rendered skill frame must begin with YAML frontmatter"
+    try:
+        close_index = lines[1:].index("---") + 1
+    except ValueError:
+        return "rendered skill frame must contain a closing frontmatter delimiter"
+    try:
+        frontmatter = yaml.safe_load("\n".join(lines[1:close_index]))
+    except yaml.YAMLError as exc:
+        return f"rendered skill frame has invalid YAML frontmatter: {exc}"
+    if not isinstance(frontmatter, dict):
+        return "rendered skill frame frontmatter must be a YAML mapping"
+    missing = [key for key in ("name", "description") if key not in frontmatter]
+    if missing:
+        return "rendered skill frame frontmatter must contain " + ", ".join(missing)
+    return None
 
 
 def _build_output(
@@ -86,10 +105,28 @@ def _build_output(
         header = f"---\nname: {name}\ndescription:\n{indented}\n---"
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
-    directive = _skill_use_audit_directive(name) if log_skill_use else ""
-    content = header + "\n\n" + directive + body
+    content, render_error = render_markdown_template(
+        package="sase.xprompts",
+        filename=f"skills/{_SKILL_FRAME_TEMPLATE_FILENAME}",
+        required_variables=_SKILL_FRAME_TEMPLATE_VARS,
+        context={
+            "frontmatter": header,
+            "log_skill_use": log_skill_use,
+            "skill_name": name,
+            "body": body,
+        },
+    )
+    if render_error is not None or content is None:
+        raise SkillFrameTemplateError(
+            render_error or "failed to render generated skill frame"
+        )
     if not content.endswith("\n"):
         content += "\n"
+    validation_error = _validate_skill_frame(content)
+    if validation_error is not None:
+        raise SkillFrameTemplateError(
+            f"packaged {_SKILL_FRAME_TEMPLATE_FILENAME}: {validation_error}"
+        )
     return content
 
 

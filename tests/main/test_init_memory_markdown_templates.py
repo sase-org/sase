@@ -1,0 +1,254 @@
+"""Tests for generated ``memory/*.md`` Markdown templates."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from pathlib import Path
+
+import pytest
+
+import sase.config.core as config_core
+from sase.amd._agents_doc import parse_amd_agents_document
+from sase.main import init_memory_handler
+from tests.main.init_memory_handler_helpers import (
+    patch_standard_paths,
+    plan_memory,
+    run_handler,
+    write,
+)
+
+
+def _sase_template(marker: str = "Custom SASE frame.") -> str:
+    return f"""# Custom SASE
+
+{marker}
+
+{{% if project_name %}}
+## Project `{{{{ project_name }}}}`
+{{% endif %}}
+
+## Repositories
+
+{{{{ linked_repo_entries }}}}
+"""
+
+
+def _readme_template(marker: str = "Custom README frame.") -> str:
+    return f"""# Custom Memory README
+
+{marker}
+
+{{% if memory_notes %}}
+{{{{ memory_notes }}}}
+{{% endif %}}
+
+## Counts
+
+- Total: {{{{ total_notes }}}}
+- Short: {{{{ short_notes }}}}
+- Long: {{{{ long_notes }}}}
+- Lines: {{{{ total_lines }}}}
+- Tokens: {{{{ total_tokens }}}}
+"""
+
+
+def _patch_roots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    use_chezmoi: bool = False,
+) -> tuple[Path, Path, Path]:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+        use_chezmoi=use_chezmoi,
+    )
+    monkeypatch.setattr(config_core, "CONFIG_DIR", config_dir)
+    return project_root, home_root, config_dir
+
+
+def test_root_memory_templates_beat_user_templates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _project_root, home_root, config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(config_dir / "memory-sase.template.md", _sase_template("User SASE."))
+    write(
+        config_dir / "memory-README.template.md",
+        _readme_template("User README."),
+    )
+    write(
+        home_root / "sase.yml",
+        "memory_sase_template: templates/sase.md\n"
+        "memory_readme_template: templates/readme.md\n",
+    )
+    write(home_root / "templates" / "sase.md", _sase_template("Root SASE."))
+    write(
+        home_root / "templates" / "readme.md",
+        _readme_template("Root README."),
+    )
+
+    assert run_handler() == 0
+
+    sase_memory = (home_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    readme = (home_root / "memory" / "README.md").read_text(encoding="utf-8")
+    assert "Root SASE." in sase_memory
+    assert "User SASE." not in sase_memory
+    assert "Root README." in readme
+    assert "User README." not in readme
+
+
+def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _project_root, _home_root, _config_dir = _patch_roots(
+        tmp_path, monkeypatch, use_chezmoi=True
+    )
+    chezmoi_home = tmp_path / "chezmoi" / "home"
+    chezmoi_home.mkdir(parents=True)
+    monkeypatch.setattr(init_memory_handler, "CHEZMOI_HOME", chezmoi_home)
+    monkeypatch.setattr(config_core, "CHEZMOI_HOME", chezmoi_home)
+    source_config_dir = chezmoi_home / "dot_config" / "sase"
+    write(
+        source_config_dir / "memory-sase.template.md",
+        _sase_template("Chezmoi SASE."),
+    )
+    write(
+        source_config_dir / "memory-README.template.md",
+        _readme_template("Chezmoi README."),
+    )
+
+    deployed: list[Path] = []
+
+    def fake_deploy(paths: Iterable[Path]) -> int:
+        deployed.extend(paths)
+        return 0
+
+    monkeypatch.setattr(init_memory_handler, "_deploy_to_chezmoi", fake_deploy)
+
+    assert run_handler() == 0
+
+    assert "Chezmoi SASE." in (chezmoi_home / "memory" / "sase.md").read_text()
+    assert "Chezmoi README." in (chezmoi_home / "memory" / "README.md").read_text()
+    assert chezmoi_home / "memory" / "sase.md" in deployed
+
+
+@pytest.mark.parametrize(
+    ("key", "filename", "template", "expected_error"),
+    [
+        (
+            "memory_sase_template",
+            "sase.md",
+            "# SASE\n\n{{ project_name }}\n",
+            "template must contain {{ linked_repo_entries }}",
+        ),
+        (
+            "memory_sase_template",
+            "sase.md",
+            "{% if %}\n",
+            "template error",
+        ),
+        (
+            "memory_sase_template",
+            "sase.md",
+            _sase_template("{{ unknown_value }}"),
+            "unknown template placeholder {{ unknown_value }}",
+        ),
+        (
+            "memory_readme_template",
+            "readme.md",
+            _readme_template().replace("{{ total_tokens }}", "missing"),
+            "template must contain {{ total_tokens }}",
+        ),
+        (
+            "memory_readme_template",
+            "readme.md",
+            "{% if %}\n",
+            "template error",
+        ),
+        (
+            "memory_readme_template",
+            "readme.md",
+            _readme_template("{{ unknown_value }}"),
+            "unknown template placeholder {{ unknown_value }}",
+        ),
+    ],
+)
+def test_invalid_memory_template_blocks_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    filename: str,
+    template: str,
+    expected_error: str,
+) -> None:
+    project_root, home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        f"is_sase_managed: true\n{key}: templates/{filename}\n",
+    )
+    write(project_root / "templates" / filename, template)
+
+    plan = plan_memory()
+
+    assert any(expected_error in blocker for blocker in plan.blockers)
+    assert run_handler() == 1
+    assert not (project_root / "memory").exists()
+    assert not (home_root / "memory").exists()
+
+
+@pytest.mark.parametrize(
+    "invalid_heading",
+    ["# A second title", "#### Too Deep"],
+)
+def test_invalid_sase_template_structure_blocks_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_heading: str,
+) -> None:
+    project_root, home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        "is_sase_managed: true\nmemory_sase_template: templates/sase.md\n",
+    )
+    write(
+        project_root / "templates" / "sase.md",
+        _sase_template(invalid_heading),
+    )
+
+    plan = plan_memory()
+
+    assert any("short memory note" in blocker for blocker in plan.blockers)
+    assert run_handler() == 1
+    assert not (project_root / "memory").exists()
+    assert not (home_root / "memory").exists()
+
+
+def test_custom_sase_template_round_trips_into_agents(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        "is_sase_managed: true\n"
+        'amd_h1_title: "Project Instructions"\n'
+        "memory_sase_template: templates/sase.md\n",
+    )
+    write(project_root / "templates" / "sase.md", _sase_template())
+
+    assert run_handler() == 0
+
+    agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
+    parsed = parse_amd_agents_document(agents)
+    assert parsed.short_memory_paths == ("memory/sase.md",)
+    assert "Custom SASE frame." in agents
+    assert plan_memory().actions == ()

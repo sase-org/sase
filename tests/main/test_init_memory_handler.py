@@ -100,6 +100,8 @@ sibling_repos:
         readme = (root / "memory" / "README.md").read_text()
         assert "`sase memory list`" in readme
         assert "`sase memory init`" in readme
+        assert "`memory_sase_template`" in readme
+        assert "`memory_readme_template`" in readme
         assert "Non-README Markdown files live directly under `memory/`" in readme
         assert "`type: long` notes are detailed reference material" in readme
         agents = (root / "AGENTS.md").read_text()

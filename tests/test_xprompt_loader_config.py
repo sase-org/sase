@@ -323,6 +323,7 @@ def testload_xprompts_from_internal_includes_packaged_skills() -> None:
 
     assert "sase_plan" in result
     assert "sase_questions" in result
+    assert "SKILL.frame.template" not in result
 
     plan = result["sase_plan"]
     assert plan.name == "sase_plan"

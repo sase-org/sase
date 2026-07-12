@@ -3,6 +3,7 @@
 from importlib import resources
 from pathlib import Path
 
+from sase.mdtemplates import packaged_markdown_text
 from sase.sdd._paths import resolve_sdd_asset_path, resolve_sdd_readme_path
 from sase.sdd._types import (
     SddExpectedBytesFile,
@@ -19,111 +20,9 @@ SDD_COMPANION_DIRECTORY_MAP_FILENAMES = {
     "research": "research-directory-map.png",
 }
 
-SDD_README_CONTENT = """# Structured Development Docs
 
-This SDD root keeps durable planning context close to the code it describes. It stores prompts, approved plans, roadmap
-material, and bead state in predictable paths so humans and agents can reference the same artifacts over time. The root
-may be the checkout's `sdd/` directory or a separate `.sase/sdd/` store; run `sase sdd path` or read `SASE_SDD_DIR` from
-agent environments to locate it.
-
-![SDD directory map](assets/sdd-directory-map.png)
-
-## Directory Layout
-
-- `plans/` stores implementation plans. Each `plans/<YYYYMM>/prompts/` subdirectory stores the original user prompts or
-  expanded prompt snapshots that led to that month's plans. Plan files require `tier: tale` for focused task plans or
-  `tier: epic` for larger multi-phase plans.
-- `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
-- `beads/` stores bead issue data for SDD-backed work tracking.
-
-Prompt, plan, and research files are normally organized under a `YYYYMM/` month directory relative to this root. For
-example, a prompt at `plans/202605/prompts/example.md` pairs with `plans/202605/example.md`, while research lives at
-`research/202605/example.md`. Prompt files should link to their generated plan-like artifact with frontmatter such as
-`plan: plans/202605/example.md`; the plan-like artifact should link back with
-`prompt: plans/202605/prompts/example.md`.
-
-## Commands
-
-- `sase sdd list` lists SDD markdown artifacts.
-- `sase sdd path` prints the effective SDD root; pass a kind such as `research` to print that child directory.
-- `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
-- `sase sdd repair-links` infers and repairs missing bidirectional links.
-- `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.
-- `sase bead` manages SDD bead issues and epic work.
-
-## Compatibility
-
-The canonical top-level directories are `plans/`, `research/`, and `beads/`. Prompt snapshots live under
-`plans/<YYYYMM>/prompts/`. Historical top-level `prompts/` and `specs/` aliases remain readable during migration, but
-new snapshots are written only to the nested layout.
-"""
-
-SDD_DIRECTORY_README_CONTENT = {
-    "plans": """# Plans
-
-The `plans/` directory stores implementation plans. Every plan must declare a plan-file `tier` in YAML frontmatter:
-`tale` for focused task plans or `epic` for larger work that may span multiple phases or beads. This plan-file tier is
-separate from bead tier metadata. Each month directory may contain a `prompts/` subdirectory holding the prompt
-snapshots paired with that month's plans.
-""",
-    "research": """# Research
-
-The `research/` directory stores exploratory findings, prior art, options, critiques, and recommendations that inform
-later tales, epics, or implementation work.
-""",
-}
-
-SDD_COMPANION_README_CONTENT = {
-    "plans": """# SASE Plans
-
-This public companion repository stores the durable planning state for its SASE-managed source repository. SASE
-automatically clones it into each workspace and keeps plan files, their original prompt snapshots, and bead state
-available to humans and agents.
-
-![Plans directory map](assets/plans-directory-map.png)
-
-## Directory Layout
-
-- `<YYYYMM>/*.md` stores plan files. Every plan declares `tier: tale` or `tier: epic` in YAML frontmatter.
-- `<YYYYMM>/prompts/*.md` stores the original prompts or expanded snapshots that produced that month's plans.
-- `beads/` stores SASE bead events and compatibility projections. SQLite `beads.db*` files are local-only.
-- `assets/` stores generated explanatory media used by this README.
-
-Plan and prompt links are relative to this repository root. For example, `202607/example.md` links back to
-`202607/prompts/example.md`.
-
-## Commands
-
-- `sase plan list` and `sase plan search` inspect plans.
-- `sase sdd path plans` prints this clone's root.
-- `sase sdd validate` checks prompt and plan frontmatter links.
-- `sase bead` manages bead work stored under `beads/`.
-""",
-    "research": """# SASE Research
-
-This public companion repository stores durable research for its SASE-managed source repository. It is cloned lazily
-when research is requested, keeping exploratory findings and generated media separate from implementation plans.
-
-![Research directory map](assets/research-directory-map.png)
-
-## Directory Layout
-
-- `<YYYYMM>/*.md` stores research notes organized by month.
-- `<YYYYMM>/*_infographic.png` stores generated infographics beside the reports they explain.
-- `<YYYYMM>/<topic>/` may store research-swarm drafts such as `<topic>__a.md`, `<topic>__b.md`, and the consolidated
-  `<topic>.md` report.
-- `assets/` stores generated explanatory media used by this README.
-
-Research should record the question, evidence, alternatives, and a clear recommendation. Follow-up work from
-`#research/more` extends the existing report and preserves its established organization and source conventions.
-
-## Commands
-
-- `sase sdd path research --ensure` materializes this clone and prints its root.
-- `sase sdd list` lists durable SDD artifacts.
-- `#research`, `#research/more`, and `#research_swarm` create or extend research under the current month.
-""",
-}
+def _read_sdd_markdown(filename: str) -> str:
+    return packaged_markdown_text("sase.sdd", f"templates/{filename}")
 
 
 def expected_sdd_readme(
@@ -132,7 +31,7 @@ def expected_sdd_readme(
     """Return the canonical top-level SDD README target and content."""
     return SddExpectedTextFile(
         path=resolve_sdd_readme_path(path, cwd=cwd),
-        content=SDD_README_CONTENT,
+        content=_read_sdd_markdown("README.md"),
     )
 
 
@@ -142,8 +41,11 @@ def expected_sdd_directory_readmes(
     """Return canonical SDD directory README targets and contents."""
     sdd_root = resolve_sdd_readme_path(path, cwd=cwd).parent
     return tuple(
-        SddExpectedTextFile(path=sdd_root / dirname / "README.md", content=content)
-        for dirname, content in SDD_DIRECTORY_README_CONTENT.items()
+        SddExpectedTextFile(
+            path=sdd_root / dirname / "README.md",
+            content=_read_sdd_markdown(f"{dirname}-README.md"),
+        )
+        for dirname in SDD_COMPANION_KINDS
     )
 
 
@@ -178,7 +80,7 @@ def expected_sdd_companion_files(
     return (
         SddExpectedTextFile(
             path=companion_root / "README.md",
-            content=SDD_COMPANION_README_CONTENT[kind],
+            content=_read_sdd_markdown(f"companion-{kind}-README.md"),
         ),
         SddExpectedBytesFile(
             path=companion_root / "assets" / filename,

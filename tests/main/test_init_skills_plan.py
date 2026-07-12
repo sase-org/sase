@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.main import init_skills_handler
+from sase.main import _init_skills_rendering as skills_rendering
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 from sase.main.init_skills_handler import (
@@ -91,6 +92,81 @@ def test_plan_missing_target_reports_create_without_writing(
     assert plan.warnings == (init_skills_handler._PRETTIER_WARNING,)
     assert not target.exists()
     assert not target.parent.exists()
+
+
+@pytest.mark.parametrize(
+    "render_result",
+    [
+        (None, "packaged SKILL.frame.template.md: template error: broken"),
+        ("not frontmatter\n", None),
+    ],
+)
+def test_broken_skill_frame_blocks_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    render_result: tuple[str | None, str | None],
+) -> None:
+    target = _stub_claude_skill_target(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        skills_rendering,
+        "render_markdown_template",
+        lambda **_kwargs: render_result,
+    )
+
+    plan = plan_init_skills(make_args(provider="claude"))
+
+    assert plan.actions == ()
+    assert any("SKILL.frame.template.md" in blocker for blocker in plan.blockers)
+    assert run_init_skills(make_args(provider="claude")) == 1
+    assert "SKILL.frame.template.md" in capsys.readouterr().err
+    assert not target.exists()
+
+
+def test_skill_frame_default_render_is_stable() -> None:
+    expected = """---
+name: demo
+description: A demo skill.
+---
+
+Before doing anything else, run this command to record that you are using this skill:
+
+```bash
+sase skill use demo --reason "<one-line reason for using this skill>"
+```
+
+Body.
+"""
+
+    assert (
+        skills_rendering._build_output("demo", "A demo skill.", "Body.\n") == expected
+    )
+    assert (
+        skills_rendering._build_output(
+            "demo", "A demo skill.", "Body.\n", log_skill_use=False
+        )
+        == "---\nname: demo\ndescription: A demo skill.\n---\n\nBody.\n"
+    )
+    long_description = (
+        "This is a deliberately long generated skill description that exceeds one "
+        "hundred and twenty columns so the existing wrapped YAML serialization path "
+        "is exercised without changing its output."
+    )
+    assert skills_rendering._build_output(
+        "long", long_description, "Body.\n", log_skill_use=False
+    ) == (
+        "---\nname: long\ndescription:\n"
+        "  This is a deliberately long generated skill description that exceeds one "
+        "hundred and twenty columns so the existing\n"
+        "  wrapped YAML serialization path is exercised without changing its output.\n"
+        "---\n\nBody.\n"
+    )
+    assert skills_rendering._build_output(
+        "multi", "First line.\nSecond line.", "Body.\n", log_skill_use=False
+    ) == (
+        "---\nname: multi\ndescription: |\n  First line.\n  Second line.\n"
+        "---\n\nBody.\n"
+    )
 
 
 def test_plan_identical_rendered_target_reports_no_action(

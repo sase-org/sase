@@ -9,6 +9,7 @@ from pathlib import Path
 from sase.config.core import CHEZMOI_HOME, get_use_chezmoi
 from sase.main._init_skills_rendering import (
     RenderedSkillTarget,
+    SkillFrameTemplateError,
     format_skill_output as _format_skill_output_impl,
     format_skill_outputs as _format_skill_outputs_impl,
     format_unique_skill_outputs_batch as _format_unique_skill_outputs_batch_impl,
@@ -317,12 +318,21 @@ def plan_init_skills(args: argparse.Namespace) -> InitPlan:
 
     skill_xprompts = _load_skill_xprompts()
     use_prettier = _prettier_available()
-    targets = _render_skill_targets(
-        skill_xprompts,
-        provider_filter=provider_filter,
-        use_chezmoi=use_chezmoi,
-        use_prettier=use_prettier,
-    )
+    try:
+        targets = _render_skill_targets(
+            skill_xprompts,
+            provider_filter=provider_filter,
+            use_chezmoi=use_chezmoi,
+            use_prettier=use_prettier,
+        )
+    except SkillFrameTemplateError as exc:
+        return InitPlan(
+            command="skills",
+            label="Skills",
+            summary="cannot plan generated skill files until the frame template is fixed",
+            actions=(),
+            blockers=(str(exc),),
+        )
 
     actions: list[InitAction] = []
     for target in targets:
@@ -384,12 +394,16 @@ def run_init_skills(args: argparse.Namespace) -> int:
         return 0
 
     use_prettier = _prettier_available()
-    targets = _render_skill_targets(
-        skill_xprompts,
-        provider_filter=provider_filter,
-        use_chezmoi=use_chezmoi,
-        use_prettier=use_prettier,
-    )
+    try:
+        targets = _render_skill_targets(
+            skill_xprompts,
+            provider_filter=provider_filter,
+            use_chezmoi=use_chezmoi,
+            use_prettier=use_prettier,
+        )
+    except SkillFrameTemplateError as exc:
+        print(f"{_COMMAND_LABEL}: {exc}", file=sys.stderr)
+        return 1
     if targets and not use_prettier:
         print(_PRETTIER_WARNING, file=sys.stderr)
 

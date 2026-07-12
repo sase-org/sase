@@ -42,7 +42,7 @@ def _same_resolved_path(left: Path, right: Path) -> bool:
     return left.resolve(strict=False) == right.resolve(strict=False)
 
 
-def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:
+def _user_config_dir_for_home_root(root: Path) -> Path | None:
     if _same_resolved_path(root, Path.home()):
         return config_core.CONFIG_DIR
     if _same_resolved_path(root, config_core.CHEZMOI_HOME):
@@ -50,7 +50,7 @@ def _user_config_dir_for_home_amd_root(root: Path) -> Path | None:
     return None
 
 
-def _validate_amd_template_path(
+def _validate_template_path(
     raw: object,
     *,
     root: Path,
@@ -77,6 +77,37 @@ def _validate_amd_template_path(
     return resolved_path, None
 
 
+def resolve_markdown_template_override(
+    root: Path,
+    *,
+    key: str,
+    user_filename: str,
+) -> tuple[Path | None, str | None]:
+    """Resolve a project or user override for a Markdown template."""
+    project_config = root / "sase.yml"
+    if project_config.exists():
+        data, load_error = load_yaml_mapping(project_config)
+        if load_error is not None:
+            return None, load_error
+        if data is not None and key in data:
+            path, path_error = _validate_template_path(
+                data[key],
+                root=root,
+                config_path=project_config,
+                key=key,
+            )
+            if path is not None or path_error is not None:
+                return path, path_error
+
+    config_dir = _user_config_dir_for_home_root(root)
+    if config_dir is None:
+        return None, None
+    user_template = config_dir / user_filename
+    if user_template.exists():
+        return user_template, None
+    return None, None
+
+
 def resolve_amd_template_override(
     root: Path,
     *,
@@ -86,28 +117,11 @@ def resolve_amd_template_override(
     key = _MINIMAL_TEMPLATE_KEY if minimal else _MANAGED_TEMPLATE_KEY
     user_filename = "AGENTS.minimal.template.md" if minimal else "AGENTS.template.md"
 
-    project_config = root / "sase.yml"
-    if project_config.exists():
-        data, load_error = load_yaml_mapping(project_config)
-        if load_error is not None:
-            return None, load_error
-        if data is not None and key in data:
-            path, path_error = _validate_amd_template_path(
-                data[key],
-                root=root,
-                config_path=project_config,
-                key=key,
-            )
-            if path is not None or path_error is not None:
-                return path, path_error
-
-    config_dir = _user_config_dir_for_home_amd_root(root)
-    if config_dir is None:
-        return None, None
-    user_template = config_dir / user_filename
-    if user_template.exists():
-        return user_template, None
-    return None, None
+    return resolve_markdown_template_override(
+        root,
+        key=key,
+        user_filename=user_filename,
+    )
 
 
 def _user_config_paths(config_dir: Path) -> tuple[Path, ...]:
@@ -139,7 +153,7 @@ def _load_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
     if title is not None or title_error is not None:
         return title, title_error
 
-    config_dir = _user_config_dir_for_home_amd_root(root)
+    config_dir = _user_config_dir_for_home_root(root)
     if config_dir is None:
         return None, None
     return _load_user_amd_h1_title(config_dir)

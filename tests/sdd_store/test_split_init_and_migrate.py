@@ -9,8 +9,8 @@ import pytest
 
 from sase.sdd._companion_init import initialize_split_sdd_companions
 from sase.sdd._init_files import (
-    SDD_COMPANION_README_CONTENT,
     ensure_sdd_companion_initialized,
+    expected_sdd_companion_files,
     plan_sdd_companion_init_actions,
 )
 from sase.sdd._store_records import read_sdd_store_record, write_sdd_store_record
@@ -56,7 +56,8 @@ def test_companion_generated_files_are_deterministic_and_drift_tracked(
 
         written = ensure_sdd_companion_initialized(kind, root)
         assert len(written) == 2
-        assert (root / "README.md").read_text() == SDD_COMPANION_README_CONTENT[kind]
+        expected_readme = expected_sdd_companion_files(kind, root)[0]
+        assert (root / "README.md").read_text() == expected_readme.content
         assert (
             (root / "assets" / f"{kind}-directory-map.png")
             .read_bytes()

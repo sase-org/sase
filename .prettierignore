@@ -11,3 +11,7 @@ sase_plan_*.md
 
 # Prompt source syntax: bare xprompt references like #_helper are not Markdown headings.
 xprompts/*.md
+
+# Generated Markdown sources preserve output-sensitive prose and Jinja whitespace.
+src/sase/main/init_memory/templates/
+src/sase/sdd/templates/
