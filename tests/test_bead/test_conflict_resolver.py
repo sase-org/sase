@@ -52,3 +52,26 @@ def test_resolve_bead_conflicts_rejects_nonmergeable_bead_file(tmp_path: Path) -
 
     assert result.ok is False
     assert result.message == "unsupported bead conflicts: sdd/beads/config.json"
+
+
+def test_resolve_bead_conflicts_rejects_only_non_bead_conflicts(
+    tmp_path: Path,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "sdd/beads").mkdir(parents=True)
+    notes = tmp_path / "notes.txt"
+    notes.write_text("base\n", encoding="utf-8")
+    _git(tmp_path, "add", "notes.txt")
+    _git(tmp_path, "commit", "-m", "base")
+    _git(tmp_path, "checkout", "-b", "other")
+    notes.write_text("other\n", encoding="utf-8")
+    _git(tmp_path, "commit", "-am", "other")
+    _git(tmp_path, "checkout", "master")
+    notes.write_text("local\n", encoding="utf-8")
+    _git(tmp_path, "commit", "-am", "local")
+    _git(tmp_path, "merge", "other", check=False)
+
+    result = resolve_bead_conflicts(tmp_path)
+
+    assert result.ok is False
+    assert result.message == "non-bead conflicts remain: notes.txt"

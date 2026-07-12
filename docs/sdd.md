@@ -232,15 +232,20 @@ workspaces can resolve. Agents can also build paths from the kind-specific root,
 
 ```yaml
 sdd:
+  bead_refresh:
+    mode: background
+    ttl_seconds: 120
   repo:
     name: "" # optional companion repo override for providers that support it
   push_after_commit: async
 ```
 
-| Option                  | Type        | Default | Description                                                                                                                                                                                                                             |
-| ----------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.repo.name`         | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit` | bool/string | `async` | Companion-repository push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                      |
+| Option                         | Type        | Default      | Description                                                                                                                                                                                                                             |
+| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Companion bead-store freshness: `background`, `blocking`, or `off`.                                                                                                                                                                     |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum seconds between successful command-triggered background integrations.                                                                                                                                                           |
+| `sdd.repo.name`                | string      | `""`         | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit`        | bool/string | `async`      | Companion-repository push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                      |
 
 Storage selection is not configurable. The workspace provider owns it. Retired `sdd.storage` and
 `sdd.version_controlled` keys are ignored and reported by `sase doctor` for cleanup.

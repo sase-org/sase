@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.bead.project import BEADS_DIRNAME
-from sase.bead.sync import rebuild_from_jsonl
+from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC
 from sase.core.bead_conflict_facade import (
     event_store_manifest,
     merge_event_streams,
@@ -25,33 +24,54 @@ class _BeadConflictResolution:
     resolved_files: tuple[str, ...] = ()
 
 
-def resolve_bead_conflicts(cwd: str | Path = ".") -> _BeadConflictResolution:
+def resolve_bead_conflicts(
+    cwd: str | Path = ".",
+    *,
+    beads_dir: str | Path | None = None,
+) -> _BeadConflictResolution:
     repo_root = _repo_root(Path(cwd))
     if repo_root is None:
         return _BeadConflictResolution(False, "not inside a git repository")
 
     conflicted = _conflicted_files(repo_root)
-    bead_conflicts = [path for path in conflicted if _is_bead_path(path)]
-    if not bead_conflicts:
+    if not conflicted:
         return _BeadConflictResolution(True, "no conflicted bead files")
-    non_bead = [path for path in conflicted if not _is_bead_path(path)]
+    resolved_beads_dir = _resolve_beads_dir(repo_root, beads_dir)
+    if resolved_beads_dir is None:
+        return _BeadConflictResolution(False, "bead store not found")
+    bead_prefix = resolved_beads_dir.relative_to(repo_root).as_posix()
+
+    bead_conflicts = [path for path in conflicted if _is_bead_path(path, bead_prefix)]
+    if not bead_conflicts:
+        return _BeadConflictResolution(
+            False,
+            "non-bead conflicts remain: " + ", ".join(conflicted),
+        )
+    non_bead = [path for path in conflicted if not _is_bead_path(path, bead_prefix)]
     if non_bead:
         return _BeadConflictResolution(
             False,
             "non-bead conflicts remain: " + ", ".join(non_bead),
         )
 
-    unsupported = [path for path in bead_conflicts if not _is_mergeable_bead_path(path)]
+    unsupported = [
+        path
+        for path in bead_conflicts
+        if not _is_mergeable_bead_path(path, bead_prefix)
+    ]
     if unsupported:
         return _BeadConflictResolution(
             False,
             "unsupported bead conflicts: " + ", ".join(unsupported),
         )
 
-    beads_dir = repo_root / BEADS_DIRNAME
-    streams = _load_worktree_streams(beads_dir, set(bead_conflicts))
+    streams = _load_worktree_streams(
+        resolved_beads_dir,
+        repo_root,
+        set(bead_conflicts),
+    )
     for path in bead_conflicts:
-        if not _is_event_stream_path(path):
+        if not _is_event_stream_path(path, bead_prefix):
             continue
         stream_id = Path(path).stem
         base = _read_stage_stream(repo_root, path, 1, stream_id)
@@ -65,11 +85,16 @@ def resolve_bead_conflicts(cwd: str | Path = ".") -> _BeadConflictResolution:
     issues = reduce_event_streams(ordered_streams)
     manifest = event_store_manifest(ordered_streams)
 
-    resolved_paths = _write_resolved_store(beads_dir, ordered_streams, issues, manifest)
+    resolved_paths = _write_resolved_store(
+        resolved_beads_dir,
+        repo_root,
+        ordered_streams,
+        issues,
+        manifest,
+    )
     resolved_paths.extend(path for path in bead_conflicts if path not in resolved_paths)
     resolved_paths = sorted(dict.fromkeys(resolved_paths))
     _git_add(repo_root, resolved_paths)
-    rebuild_from_jsonl(beads_dir)
 
     return _BeadConflictResolution(
         True,
@@ -104,31 +129,48 @@ def _conflicted_files(repo_root: Path) -> list[str]:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
-def _is_bead_path(path: str) -> bool:
-    return path == BEADS_DIRNAME or path.startswith(f"{BEADS_DIRNAME}/")
+def _resolve_beads_dir(repo_root: Path, beads_dir: str | Path | None) -> Path | None:
+    if beads_dir is not None:
+        resolved = Path(beads_dir).expanduser().resolve()
+        try:
+            resolved.relative_to(repo_root.resolve())
+        except ValueError:
+            return None
+        return resolved
+    for dirname in (BEADS_DIRNAME, BEADS_DIRNAME_NON_VC):
+        candidate = repo_root / dirname
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
-def _is_event_stream_path(path: str) -> bool:
-    prefix = f"{BEADS_DIRNAME}/events/streams/"
+def _is_bead_path(path: str, bead_prefix: str) -> bool:
+    return path == bead_prefix or path.startswith(f"{bead_prefix}/")
+
+
+def _is_event_stream_path(path: str, bead_prefix: str) -> bool:
+    prefix = f"{bead_prefix}/events/streams/"
     return path.startswith(prefix) and path.endswith(".jsonl")
 
 
-def _is_mergeable_bead_path(path: str) -> bool:
+def _is_mergeable_bead_path(path: str, bead_prefix: str) -> bool:
     return path in {
-        f"{BEADS_DIRNAME}/issues.jsonl",
-        f"{BEADS_DIRNAME}/events/manifest.json",
-    } or _is_event_stream_path(path)
+        f"{bead_prefix}/issues.jsonl",
+        f"{bead_prefix}/events/manifest.json",
+    } or _is_event_stream_path(path, bead_prefix)
 
 
 def _load_worktree_streams(
-    beads_dir: Path, conflicted_paths: set[str]
+    beads_dir: Path,
+    repo_root: Path,
+    conflicted_paths: set[str],
 ) -> dict[str, dict[str, Any]]:
     streams_dir = beads_dir / "events" / "streams"
     streams: dict[str, dict[str, Any]] = {}
     if not streams_dir.is_dir():
         return streams
     for path in sorted(streams_dir.glob("*.jsonl")):
-        rel = path.relative_to(beads_dir.parents[1]).as_posix()
+        rel = path.relative_to(repo_root).as_posix()
         if rel in conflicted_paths:
             continue
         streams[path.stem] = _parse_stream_text(
@@ -188,11 +230,11 @@ def _git_dir(repo_root: Path) -> Path | None:
 
 def _write_resolved_store(
     beads_dir: Path,
+    repo_root: Path,
     streams: list[dict[str, Any]],
     issues: list[dict[str, Any]],
     manifest: dict[str, Any],
 ) -> list[str]:
-    repo_root = beads_dir.parents[1]
     streams_dir = beads_dir / "events" / "streams"
     streams_dir.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
@@ -225,7 +267,18 @@ def _git_add(repo_root: Path, paths: list[str]) -> None:
 
 
 def handle_resolve_conflicts_command() -> int:
-    result = resolve_bead_conflicts(Path.cwd())
+    beads_dir: Path | None = None
+    cwd = Path.cwd()
+    try:
+        from sase.bead.cli_common import resolve_beads_location
+
+        location = resolve_beads_location(require_existing=True)
+        if location is not None:
+            cwd = location.root
+            beads_dir = location.beads_dir
+    except Exception:
+        pass
+    result = resolve_bead_conflicts(cwd, beads_dir=beads_dir)
     stream = sys.stdout if result.ok else sys.stderr
     print(result.message, file=stream)
     return 0 if result.ok else 1

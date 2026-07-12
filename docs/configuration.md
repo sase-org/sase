@@ -1096,15 +1096,20 @@ Configuration for spec-driven development features, including prompt, tale, epic
 
 ```yaml
 sdd:
+  bead_refresh:
+    mode: background
+    ttl_seconds: 120
   repo:
     name: "" # provider-specific companion repo override
   push_after_commit: async
 ```
 
-| Field                   | Type        | Default | Description                                                                                                                                                                                                                             |
-| ----------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.repo.name`         | string      | `""`    | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit` | bool or str | `async` | Controls `git push` after SDD commits in companion repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                             |
+| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Companion bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh.                                                          |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                     |
+| `sdd.repo.name`                | string      | `""`         | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in companion repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Newly initialized
 managed GitHub projects use `--plans` and `--research` companion repositories cloned at `sase/repos/plans` and

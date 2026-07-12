@@ -202,6 +202,95 @@ def _bench_shell(
     return results
 
 
+def _bench_companion_mutation_shell(
+    root: Path,
+    *,
+    runs: int,
+    sase_bin: str | None,
+) -> dict[str, dict[str, float]]:
+    """Measure warm companion-store updates, including their local git commit."""
+    from sase.sdd.store import write_sdd_store_record
+
+    plans = root / "sase" / "repos" / "plans"
+    plans.mkdir(parents=True)
+    subprocess.run(["git", "init"], cwd=plans, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.name", "SASE Benchmark"], cwd=plans, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "bench@example.invalid"],
+        cwd=plans,
+        check=True,
+    )
+    with BeadProject.init(plans, beads_dirname="beads") as project:
+        issue = project.create("Mutation benchmark", IssueType.PLAN)
+    (plans / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=plans, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed benchmark"],
+        cwd=plans,
+        check=True,
+        capture_output=True,
+    )
+    marker_dir = root / ".sase"
+    marker_dir.mkdir(parents=True)
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(
+            {
+                "project_name": "benchmark",
+                "project_key": "benchmark",
+                "workspace_num": 1,
+                "primary_workspace_dir": str(root),
+                "registry_path": str(root / ".sase/registry.json"),
+                "schema_version": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_sdd_store_record(
+        root,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "bench/plans",
+                    "remote_url": str(root / "plans.git"),
+                },
+                "research": {
+                    "repo": "bench/research",
+                    "remote_url": str(root / "research.git"),
+                },
+            },
+        },
+    )
+
+    command = [
+        *_sase_command(sase_bin),
+        "bead",
+        "update",
+        issue.id,
+        "--status",
+        "in_progress",
+    ]
+    timings = []
+    for _ in range(runs):
+        timings.append(
+            _time_call(
+                lambda: subprocess.run(
+                    command,
+                    cwd=root,
+                    env=_fixed_env(),
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                )
+            )
+        )
+    return {"update_status": _summarize(timings)}
+
+
 def _bench_project(root: Path, *, runs: int) -> dict[str, dict[str, float]]:
     scenarios: dict[str, Callable[[BeadProject], object]] = {
         "list_issues": lambda project: project.list_issues(),
@@ -501,6 +590,8 @@ def run_benchmark(
             work_root,
             phase_count=max(1, min(issue_count, 2_000)),
         )
+        companion_root = Path(td) / "companion"
+        companion_root.mkdir()
 
         return {
             "runs": runs,
@@ -508,6 +599,11 @@ def run_benchmark(
             "dependency_count": dependency_count,
             "registry_sizes": registry_sizes,
             "shell": _bench_shell(root, runs=runs, sase_bin=sase_bin),
+            "companion_mutation_shell": _bench_companion_mutation_shell(
+                companion_root,
+                runs=runs,
+                sase_bin=sase_bin,
+            ),
             "project": _bench_project(root, runs=runs),
             "work_plan": _bench_work_plan(work_root, runs=runs),
             "preclaim_epic_work": _bench_preclaim_epic_work(runs=runs),

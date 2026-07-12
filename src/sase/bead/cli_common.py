@@ -342,7 +342,20 @@ def init_beads(root: Path, beads_dirname: str) -> None:
 
 def get_project() -> BeadProject:
     """Open the BeadProject for write operations, auto-initializing if needed."""
-    root, beads_dirname = find_beads_location(materialize=True)
+    location = resolve_beads_location(require_existing=True)
+    from sase.bead.sync import bead_refresh_mode
+
+    if (
+        location is None
+        or not _resolved_location_is_usable(location)
+        or bead_refresh_mode() == "blocking"
+    ):
+        location = resolve_beads_location(materialize=True)
+
+    if location is None:
+        root, beads_dirname = find_beads_location(materialize=True)
+    else:
+        root, beads_dirname = location.root, location.beads_dirname
     beads_path = root / beads_dirname
     if not beads_path.exists():
         init_beads(root, beads_dirname)
@@ -352,6 +365,21 @@ def get_project() -> BeadProject:
 def get_read_view() -> BeadProject:
     """Open the same single bead store used by write commands."""
     return get_project()
+
+
+def _resolved_location_is_usable(location: _BeadsLocation) -> bool:
+    """Return whether a resolved warm store can be opened without materializing."""
+    if not location.beads_dir.is_dir():
+        return False
+    store = location.store
+    if store is None or location.is_in_tree or not store.remote_url:
+        return True
+    try:
+        from sase.sdd._store_link import is_matching_store_clone
+
+        return is_matching_store_clone(location.root, store)
+    except Exception:
+        return False
 
 
 def auto_commit_bead_store(message: str) -> None:

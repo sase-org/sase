@@ -7,6 +7,8 @@ from unittest.mock import patch
 from tests.sdd_policy_helpers import patched_sdd_policy, set_sdd_policy
 
 from sase.bead.cli import _find_beads_location
+from sase.bead.cli_common import get_project
+from sase.bead.project import BeadProject
 
 
 def test_find_beads_location_separate_repo_prefers_workspace_local_clone(
@@ -139,6 +141,28 @@ def test_find_beads_location_non_vc_variant_workspace_maps_to_primary(
 
     assert root == primary / ".sase" / "sdd"
     assert beads_dirname == "beads"
+
+
+def test_get_project_opens_warm_store_without_materialization(
+    tmp_path: Path, monkeypatch
+) -> None:
+    primary = tmp_path / "project"
+    sdd_dir = primary / ".sase" / "sdd"
+    primary.mkdir()
+    with BeadProject.init(sdd_dir, beads_dirname="beads"):
+        pass
+    _write_checkout_marker(primary, primary, workspace_num=1)
+    _set_sdd_config(monkeypatch, storage="local")
+    monkeypatch.chdir(primary)
+    monkeypatch.setattr("sase.bead.sync.bead_refresh_mode", lambda: "background")
+
+    def fail_materialize(*_args, **_kwargs):
+        raise AssertionError("warm store should not materialize or pull")
+
+    monkeypatch.setattr("sase.sdd.store.materialize_sdd_store", fail_materialize)
+
+    with get_project() as project:
+        assert project.beads_dir == sdd_dir / "beads"
 
 
 def _set_sdd_config(monkeypatch, *, storage: str) -> None:

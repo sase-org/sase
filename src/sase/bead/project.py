@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -353,6 +351,7 @@ class BeadProject:
     def doctor(self) -> list[str]:
         """Run diagnostics and return messages."""
         from sase.core import bead_read_facade as rust_beads
+        from sase.bead.sync import bead_sync_diagnostics
 
         messages = rust_beads.doctor(self.beads_dir)
         if not self.sync_is_clean():
@@ -360,6 +359,10 @@ class BeadProject:
             if messages == [ok_message]:
                 messages = []
             messages.append("WARNING: bead state has uncommitted changes")
+        sync_messages = bead_sync_diagnostics(self.beads_dir)
+        if sync_messages and messages == ["OK: no issues found"]:
+            messages = []
+        messages.extend(sync_messages)
         return messages
 
     def get_epic_children(self, epic_id: str) -> list[Issue]:
@@ -426,16 +429,11 @@ class BeadProject:
         save_config(self.beads_dir, self._config)
 
     def _refresh_db_from_jsonl(self) -> None:
-        """Refresh the compatibility SQLite mirror from Rust-owned JSONL."""
-        with contextlib.suppress(sqlite3.Error):
-            self._conn.close()
-        db_path = self.beads_dir / "beads.db"
-        for suffix in ("", "-shm", "-wal"):
-            path = db_path.parent / (db_path.name + suffix)
-            with contextlib.suppress(FileNotFoundError):
-                path.unlink()
-        rebuild_from_jsonl(self.beads_dir)
-        self._conn = db_mod.init_db(db_path)
+        """Refresh lightweight config state after a Rust-owned mutation.
+
+        The SQLite compatibility mirror is rebuilt lazily when the next
+        :class:`BeadProject` is opened, using ``issues.jsonl`` mtimes.
+        """
         self._config = load_config(self.beads_dir)
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))

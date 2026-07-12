@@ -9,7 +9,6 @@ from typing import Any
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
-_FAST_WRITE_COMMANDS = {"create", "open", "update", "close", "dep"}
 
 
 def try_handle_bead_fast_path(argv: list[str]) -> int | None:
@@ -46,6 +45,10 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     if not bool(outcome.get("handled")):
         return None
 
+    mutation_summary = outcome.get("mutation_summary")
+    if isinstance(mutation_summary, dict):
+        _apply_mutation_side_effects(context.write_beads_dir, mutation_summary)
+
     stdout = str(outcome.get("stdout") or "")
     stderr = str(outcome.get("stderr") or "")
     if stdout:
@@ -53,9 +56,12 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     if stderr:
         sys.stderr.write(stderr)
 
-    mutation_summary = outcome.get("mutation_summary")
-    if isinstance(mutation_summary, dict):
-        _apply_mutation_side_effects(context.write_beads_dir, mutation_summary)
+    try:
+        from sase.bead.sync import schedule_current_bead_refresh
+
+        schedule_current_bead_refresh()
+    except Exception:
+        pass
 
     return int(outcome.get("exit_code") or 0)
 
@@ -74,13 +80,10 @@ class _FastPathContext:
 
 
 def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
-    subcommand = argv[0]
     resolved = _resolve_lightweight_beads_context(Path.cwd().resolve())
     if resolved is None:
         return None
     read_beads_dirs, write_beads_dir, beads_dirname = resolved
-    if subcommand in _FAST_WRITE_COMMANDS and beads_dirname == _BEADS_DIRNAME_NON_VC:
-        return None
 
     return _FastPathContext(
         read_beads_dirs=read_beads_dirs,
@@ -105,8 +108,13 @@ def _resolve_lightweight_beads_context(
     cwd: Path,
 ) -> tuple[list[Path], Path, str] | None:
     from sase.bead.cli_common import resolve_beads_location
+    from sase.bead.sync import bead_refresh_mode
 
-    location = resolve_beads_location(cwd, require_existing=True)
+    location = (
+        resolve_beads_location(cwd, materialize=True)
+        if bead_refresh_mode() == "blocking"
+        else resolve_beads_location(cwd, require_existing=True)
+    )
     if location is not None:
         return [location.beads_dir], location.beads_dir, location.beads_dirname
     return None
@@ -115,20 +123,32 @@ def _resolve_lightweight_beads_context(
 def _apply_mutation_side_effects(
     write_beads_dir: Path, mutation_summary: dict[str, Any]
 ) -> None:
+    del write_beads_dir
+    operation = str(mutation_summary.get("operation") or "")
+    issue_ids = [str(value) for value in mutation_summary.get("issue_ids") or []]
     try:
-        from sase.bead.sync import rebuild_from_jsonl
+        from sase.bead.cli_common import auto_commit_bead_store
 
-        rebuild_from_jsonl(write_beads_dir)
+        message = _mutation_commit_message(operation, issue_ids)
+        if message:
+            auto_commit_bead_store(message)
     except Exception:
         pass
 
     try:
         from sase.telemetry.metrics import BEAD_OPERATIONS, BEAD_STATUS_TRANSITIONS
 
-        operation = str(mutation_summary.get("operation") or "")
-        if operation:
-            BEAD_OPERATIONS.labels(operation=operation).inc()
-        for transition in mutation_summary.get("status_transitions") or []:
+        metric_operation = {
+            "create": "create",
+            "update": "update",
+            "open": "update",
+            "close": "close",
+        }.get(operation)
+        transitions = mutation_summary.get("status_transitions") or []
+        count = len(transitions) if operation == "close" else 1
+        if metric_operation:
+            BEAD_OPERATIONS.labels(operation=metric_operation).inc(count)
+        for transition in transitions:
             if not isinstance(transition, dict):
                 continue
             from_status = str(transition.get("from_status") or "")
@@ -140,3 +160,19 @@ def _apply_mutation_side_effects(
                 ).inc()
     except Exception:
         pass
+
+
+def _mutation_commit_message(operation: str, issue_ids: list[str]) -> str | None:
+    if operation == "create" and issue_ids:
+        return f"chore(beads): create {issue_ids[0]}"
+    if operation == "update" and issue_ids:
+        return f"chore(beads): update {issue_ids[0]}"
+    if operation == "open" and issue_ids:
+        return f"chore(beads): reopen {issue_ids[0]}"
+    if operation == "close" and issue_ids:
+        return f"chore(beads): close {' '.join(issue_ids)}"
+    if operation == "rm" and issue_ids:
+        return f"chore(beads): remove {issue_ids[0]}"
+    if operation == "dep_add" and len(issue_ids) >= 2:
+        return f"chore(beads): link {issue_ids[0]} -> {issue_ids[1]}"
+    return None

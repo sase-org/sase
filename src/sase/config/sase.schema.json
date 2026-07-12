@@ -1003,6 +1003,28 @@
       "description": "Configuration for Structured Design Documents",
       "additionalProperties": false,
       "properties": {
+        "bead_refresh": {
+          "type": "object",
+          "description": "Remote freshness policy for bead commands using companion stores",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "background",
+                "blocking",
+                "off"
+              ],
+              "default": "background"
+            },
+            "ttl_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "default": 120
+            }
+          },
+          "default": {}
+        },
         "push_after_commit": {
           "description": "Controls git push after SDD commits in separate_repo storage. true pushes synchronously, false skips push, and async starts a detached background push.",
           "oneOf": [

@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 
 class BeadWorkLaunchCommitError(RuntimeError):
@@ -26,6 +29,11 @@ class _AsyncPushHandle:
 
     pid: int
     log_path: Path
+
+
+BeadRefreshMode = Literal["background", "blocking", "off"]
+_DEFAULT_REFRESH_TTL_SECONDS = 120.0
+_INTEGRATION_MARKER = "sase-bead-sync.integration"
 
 
 def git_sync(beads_dir: Path) -> None:
@@ -245,7 +253,7 @@ def _format_git_failure(
 
 
 def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
-    """Push the just-committed JSONL state to the configured git remote.
+    """Synchronize and push the just-committed bead state.
 
     Returns a :class:`_PushOutcome` describing whether the push happened, was
     skipped because no remote is configured, or failed (with the error text).
@@ -255,43 +263,22 @@ def push_bead_work_launch(beads_dir: Path) -> _PushOutcome:
     if repo_root is None:
         return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
 
-    remotes = subprocess.run(
-        ["git", "remote"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if remotes.returncode != 0 or not remotes.stdout.strip():
+    if not _has_push_remote(repo_root):
         return _PushOutcome(pushed=False, skipped_no_remote=True, error=None)
 
-    # Inherit stdin/stdout/stderr so credential prompts work for the user.
-    push = subprocess.run(["git", "push"], cwd=repo_root, check=False)
-    if push.returncode == 0:
+    from sase.bead.sync_worker import run_managed_sync_worker
+
+    result = run_managed_sync_worker(
+        repo_root,
+        beads_dir.resolve(),
+        log_path=_new_sync_log_path(),
+    )
+    if result.pushed:
         return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
-
-    rebase = subprocess.run(["git", "pull", "--rebase"], cwd=repo_root, check=False)
-    if rebase.returncode != 0:
-        return _PushOutcome(
-            pushed=False,
-            skipped_no_remote=False,
-            error=(
-                f"git push failed with exit code {push.returncode}; "
-                f"git pull --rebase failed with exit code {rebase.returncode}"
-            ),
-        )
-
-    retry = subprocess.run(["git", "push"], cwd=repo_root, check=False)
-    if retry.returncode == 0:
-        return _PushOutcome(pushed=True, skipped_no_remote=False, error=None)
-
     return _PushOutcome(
         pushed=False,
         skipped_no_remote=False,
-        error=(
-            f"git push failed with exit code {push.returncode}; "
-            f"retry failed with exit code {retry.returncode}"
-        ),
+        error=result.error or "managed bead sync did not push",
     )
 
 
@@ -307,7 +294,7 @@ def _has_push_remote(repo_root: Path) -> bool:
 
 
 def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
-    """Start a detached ``git push`` and return where its output is logged.
+    """Start a detached managed sync worker and return its log location.
 
     Returns ``None`` when there is no git repo or no configured remote (nothing
     to push). Unlike :func:`push_bead_work_launch`, this never blocks the caller
@@ -321,14 +308,17 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
     if repo_root is None or not _has_push_remote(repo_root):
         return None
 
-    from sase.core.paths import ensure_sase_directory
-    from sase.core.time import generate_timestamp
-
-    log_dir = Path(ensure_sase_directory("bead_push_logs"))
-    log_path = log_dir / f"push-{generate_timestamp()}.log"
+    log_path = _new_sync_log_path()
     with open(log_path, "w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
-            ["sh", "-c", "git push || (git pull --rebase && git push)"],
+            [
+                sys.executable,
+                "-m",
+                "sase.bead.sync_worker",
+                str(repo_root),
+                str(beads_dir.resolve()),
+                str(log_path),
+            ],
             cwd=repo_root,
             stdin=subprocess.DEVNULL,
             stdout=log_file,
@@ -336,3 +326,144 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
             start_new_session=True,
         )
     return _AsyncPushHandle(pid=process.pid, log_path=log_path)
+
+
+def bead_refresh_mode() -> BeadRefreshMode:
+    """Return the configured remote-freshness policy for bead commands."""
+    try:
+        from sase.config import load_merged_config
+
+        raw = (
+            load_merged_config()
+            .get("sdd", {})
+            .get("bead_refresh", {})
+            .get("mode", "background")
+        )
+    except Exception:
+        return "background"
+    return raw if raw in {"background", "blocking", "off"} else "background"
+
+
+def _bead_refresh_ttl_seconds() -> float:
+    """Return the minimum age before another background sync is launched."""
+    try:
+        from sase.config import load_merged_config
+
+        raw = (
+            load_merged_config()
+            .get("sdd", {})
+            .get("bead_refresh", {})
+            .get("ttl_seconds", _DEFAULT_REFRESH_TTL_SECONDS)
+        )
+        value = float(raw)
+    except Exception:
+        return _DEFAULT_REFRESH_TTL_SECONDS
+    return max(0.0, value)
+
+
+def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
+    """Launch a TTL-gated background integration for a warm companion store."""
+    if bead_refresh_mode() != "background":
+        return None
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None or _integration_is_fresh(repo_root):
+        return None
+    return push_bead_work_launch_async(beads_dir)
+
+
+def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
+    """Best-effort post-command refresh for the currently resolved store."""
+    try:
+        from sase.bead.cli_common import resolve_beads_location
+
+        location = resolve_beads_location(require_existing=True)
+        if location is None or location.is_in_tree:
+            return None
+        return _maybe_schedule_bead_refresh(location.beads_dir)
+    except Exception:
+        return None
+
+
+def mark_bead_integration(repo_root: Path) -> None:
+    """Record a successful fetch/rebase integration for TTL gating."""
+    marker = _git_state_path(repo_root, _INTEGRATION_MARKER)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+
+
+def bead_sync_diagnostics(beads_dir: Path) -> list[str]:
+    """Report convergence problems visible from the local clone."""
+    repo_root = _find_git_root(beads_dir)
+    if repo_root is None:
+        return []
+    messages: list[str] = []
+    git_dir = _git_state_path(repo_root, "")
+    if (git_dir / "rebase-merge").is_dir() or (git_dir / "rebase-apply").is_dir():
+        messages.append("WARNING: bead store is mid-rebase")
+
+    counts = subprocess.run(
+        ["git", "rev-list", "--left-right", "--count", "@{upstream}...HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if counts.returncode == 0:
+        try:
+            behind, ahead = (int(value) for value in counts.stdout.split())
+        except (TypeError, ValueError):
+            behind = ahead = 0
+        if behind and ahead:
+            messages.append(
+                f"WARNING: bead store has diverged ({ahead} local, {behind} remote commits)"
+            )
+        elif ahead:
+            messages.append(f"WARNING: bead store has {ahead} unpushed commit(s)")
+        elif behind:
+            messages.append(f"WARNING: bead store is {behind} commit(s) behind")
+
+    if messages:
+        latest = _latest_bead_sync_log()
+        if latest is not None:
+            messages.append(f"INFO: latest bead sync log: {latest}")
+    return messages
+
+
+def _latest_bead_sync_log() -> Path | None:
+    """Return the newest managed-sync log, when one exists."""
+    from sase.core.paths import ensure_sase_directory
+
+    log_dir = Path(ensure_sase_directory("bead_push_logs"))
+    logs = list(log_dir.glob("sync-*.log"))
+    return max(logs, key=lambda path: path.stat().st_mtime, default=None)
+
+
+def _new_sync_log_path() -> Path:
+    from sase.core.paths import ensure_sase_directory
+    from sase.core.time import generate_timestamp
+
+    log_dir = Path(ensure_sase_directory("bead_push_logs"))
+    return log_dir / f"sync-{generate_timestamp()}.log"
+
+
+def _integration_is_fresh(repo_root: Path) -> bool:
+    marker = _git_state_path(repo_root, _INTEGRATION_MARKER)
+    try:
+        age = time.time() - marker.stat().st_mtime
+    except OSError:
+        return False
+    return age < _bead_refresh_ttl_seconds()
+
+
+def _git_state_path(repo_root: Path, name: str) -> Path:
+    result = subprocess.run(
+        ["git", "rev-parse", "--git-dir"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    git_dir = Path(result.stdout.strip()) if result.returncode == 0 else Path(".git")
+    if not git_dir.is_absolute():
+        git_dir = repo_root / git_dir
+    return git_dir / name if name else git_dir

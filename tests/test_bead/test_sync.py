@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from sase.bead.sync import (
     push_bead_work_launch,
     rebuild_from_jsonl,
 )
+from sase.bead.sync_worker import run_managed_sync_worker
 
 
 def _sync_status(beads_dir: Path) -> bool:
@@ -665,4 +667,104 @@ def test_push_bead_work_launch_returns_error_on_failure(tmp_path):
     assert outcome.pushed is False
     assert outcome.skipped_no_remote is False
     assert outcome.error is not None
-    assert "git push failed" in outcome.error
+    assert "git fetch failed" in outcome.error
+
+
+def test_managed_sync_worker_converges_companion_store_mutations(tmp_path):
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    bare = tmp_path / "remote.git"
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(bare)],
+        check=True,
+        capture_output=True,
+    )
+    seed = tmp_path / "seed"
+    seed.mkdir()
+    _init_git_repo(seed)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=seed, check=True)
+    (seed / ".gitignore").write_text("beads/beads.db*\n", encoding="utf-8")
+    with BeadProject.init(seed, beads_dirname="beads") as project:
+        first = project.create("First", IssueType.PLAN)
+        second = project.create("Second", IssueType.PLAN)
+    subprocess.run(["git", "add", "."], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "seed beads"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "remote", "add", "origin", str(bare)], cwd=seed, check=True)
+    subprocess.run(
+        ["git", "push", "-u", "origin", "main"],
+        cwd=seed,
+        check=True,
+        capture_output=True,
+    )
+
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    subprocess.run(
+        ["git", "clone", str(bare), str(left)], check=True, capture_output=True
+    )
+    subprocess.run(
+        ["git", "clone", str(bare), str(right)], check=True, capture_output=True
+    )
+    _configure_git_identity(left)
+    _configure_git_identity(right)
+
+    with BeadProject(left, beads_dirname="beads") as project:
+        project.update(first.id, title="First from left")
+    subprocess.run(["git", "add", "beads"], cwd=left, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "left mutation"],
+        cwd=left,
+        check=True,
+        capture_output=True,
+    )
+
+    with BeadProject(right, beads_dirname="beads") as project:
+        project.update(second.id, title="Second from right")
+    subprocess.run(["git", "add", "beads"], cwd=right, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "right mutation"],
+        cwd=right,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "push"], cwd=right, check=True, capture_output=True)
+
+    log_path = tmp_path / "managed-sync.log"
+    outcome = run_managed_sync_worker(
+        left,
+        left / "beads",
+        log_path=log_path,
+    )
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    assert not (left / ".git/rebase-merge").exists()
+    assert not (left / ".git/rebase-apply").exists()
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=left,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == ""
+    )
+    verify = tmp_path / "verify-convergence"
+    subprocess.run(
+        ["git", "clone", str(bare), str(verify)], check=True, capture_output=True
+    )
+    with BeadProject(verify, beads_dirname="beads") as project:
+        assert project.show(first.id).title == "First from left"
+        assert project.show(second.id).title == "Second from right"
+    log_events = [
+        json.loads(line)["event"]
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert log_events[-1] == "completed"

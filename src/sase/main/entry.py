@@ -112,7 +112,12 @@ def main() -> NoReturn:
                 " {blocked,close,create,dep,doctor,init,list,onboard,open,ready,resolve-conflicts,rm,search,show,stats,sync,update,work}"
             )
             sys.exit(1)
-        handler(args)
+        try:
+            handler(args)
+        finally:
+            from sase.bead.sync import schedule_current_bead_refresh
+
+            schedule_current_bead_refresh()
         sys.exit(0)
 
     # --- changespec ---
