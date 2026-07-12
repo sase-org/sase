@@ -112,8 +112,9 @@ sase vcs log --sdd       # include the current project's separate SDD history
 sase vcs log --all --sdd # include repos and separate SDD histories from every project
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
-sase sdd path            # print the effective SDD root for this workspace
-sase sdd migrate -c -d   # preview migration from a legacy SDD clone into split companions
+sase sdd path             # print the effective SDD root for this workspace
+sase sdd init             # initialize managed GitHub plans/research companions
+sase sdd migrate -c -d    # after init, preview importing a legacy SDD store
 sase plugin list         # browse built-in/community plugins and update indicators
 sase update -n           # preview a SASE core + installed-plugin update
 sase workspace list       # inspect numbered workspaces for the current project
@@ -193,14 +194,16 @@ SASE keeps durable state outside any one chat session:
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
   in the producer's `OUTPUT VARIABLES` metadata panel.
-- **Per-launch model routing** - `%model(opus, coder=codex/gpt-5.6-sol)` can select the current agent's model and
-  override one or more model aliases for only that launch family. The alias map follows plan/coder and explicit family
-  follow-ups, is recorded in agent metadata, and does not change `sase.yml` or the machine-wide temporary overrides.
+- **Per-launch model routing** - `%model(opus, coder=codex/gpt-5.6-sol)` selects the current agent's model and gives its
+  SASE-created plan/coder lineage a temporary `coder` alias. SASE records the map in agent metadata and passes it to
+  plan/coder follow-ups and explicit `%name(parent, suffix)` attachments; an ordinary nested launch starts without it.
+  The directive does not change `sase.yml` or machine-wide temporary overrides.
 - **SDD storage** - Workspace providers own where prompt snapshots, tales, epics, research notes, and beads live.
   Built-in bare-git projects use in-tree `sdd/`. Newly initialized managed GitHub projects use an auto-cloned
-  `<repo>--plans` companion for plans and beads plus a lazy `<repo>--research` companion; unmigrated projects keep their
-  legacy `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved layout usable offline. The
-  retired `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
+  `<repo>--plans` companion for plans and beads plus a separate `<repo>--research` companion. Initialization prepares
+  both in the current workspace; later workspaces clone research on demand. Unmigrated projects keep their legacy
+  `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved layout usable offline. The retired
+  `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without

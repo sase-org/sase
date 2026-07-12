@@ -1112,8 +1112,9 @@ retain their provider-backed `.sase/sdd/` clone. Both layouts record materializa
 for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
 Newly initialized managed GitHub projects and migrated projects have a schema-version 2 `companion_repos` record. Their
-plans and beads resolve into the auto-cloned `--plans` repository, while research resolves into the lazy `--research`
-repository. The legacy single-companion shape continues to resolve byte-for-byte as before.
+plans and beads resolve into the auto-cloned `--plans` repository, while research resolves into the separate
+`--research` repository. Initialization prepares both in its current workspace; later workspaces clone research on
+demand. The legacy single-companion shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1123,8 +1124,9 @@ needed.
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase sdd init` or its `sase init sdd`
 compatibility alias materializes the provider-selected store, then refreshes generated SDD guides and the directory map.
 On GitHub it finds or creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` companions, initializes
-and pushes both, then writes the split store record. Existing legacy `--sdd` stores remain available until
-`sase sdd migrate` is applied. `--check` previews provider and generated-file work without writing. Missing or false
+and pushes both, then writes the split store record. Existing legacy `--sdd` files remain untouched locally and in their
+remote, but normal SDD routing switches to the split companions; `sase sdd migrate` imports the supported content and
+retires the local source. `--check` previews provider and generated-file work without writing. Missing or false
 management markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or
 writes.
 
@@ -1887,7 +1889,7 @@ workspace instead and accepts an optional kind such as `research`. With no subco
 | `init`         | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Materialize provider-owned storage, refresh SDD guide files, and preview planned work                             |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                   |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `plans`, `tales`, `epics`, or `all`                                   |
-| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Move a legacy SDD clone into initialized split companions; check/diff modes are read-only                         |
+| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | After `init`, import supported legacy SDD content into split companions; check/diff modes are read-only           |
 | `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing companion             |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs; `--write` first materializes provider storage and then writes link fixes |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |

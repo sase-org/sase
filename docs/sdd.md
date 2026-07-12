@@ -22,14 +22,16 @@ depend on.
 
 ## Provider-Owned Storage
 
-The workspace provider selects a storage layout, and a migrated store record may select the split companion layout:
+The workspace provider selects an initial policy; a materialized store record supplies the concrete layout:
 
 - `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized companion
   repo.
-- `companion_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a lazy `--research` repo.
-  Monthly directories live directly at each companion root; legacy single-root projects are unchanged.
+- `companion_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a separate `--research`
+  repo. Initialization prepares both in its current workspace; later workspaces clone research on demand. Monthly
+  directories live directly at each companion root; legacy single-root projects are unchanged until initialization and
+  migration are run.
 
 Use `sase sdd path` to print the effective root, or `sase sdd path research --ensure` to materialize and print the
 research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
@@ -188,10 +190,12 @@ interruption, and non-interactive stdin cancel with a nonzero exit before reposi
 existing remote companion connects without this creation prompt. `--check` remains offline and non-interactive, and
 neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
 
-After initialization, `sase sdd migrate --check --diff` previews the legacy split. Applying `sase sdd migrate` copies
-monthly plan and research directories, copies durable bead files but excludes `beads.db*`, rewrites legacy plan-link
-prefixes, pushes both companions, records the split store, and retires the local legacy clone. Legacy tier stragglers,
-README files, and assets remain untouched in the archived legacy remote.
+For an existing legacy store, run initialization before migration: `sase sdd init` creates or adopts both companions and
+records the split layout; it does not import legacy content. Then `sase sdd migrate --check --diff` previews the import.
+Applying `sase sdd migrate` copies monthly plan and research directories and durable bead files, excludes `beads.db*`,
+rewrites legacy plan-link prefixes, pushes both companions, and retires the selected local legacy source tree. README
+files, assets, non-month directories, and other files are not copied; after local retirement they are recoverable only
+from an existing Git remote/history or a backup.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.
@@ -249,6 +253,7 @@ mode behavior.
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
 store. With `separate_repo`, commands first require a usable provider companion and then use the active workspace's
 `.sase/sdd/` clone. With `companion_repos`, each workspace auto-clones `--plans` under `sase/repos/` for plans and
-beads; the `--research` clone remains lazy until explicitly ensured. Providerless local storage uses the primary
-workspace. Numbered sibling stores are not merged; coordinate shared state through the normal VCS sync path. Prefer
-`sase sdd path <kind>` or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.
+beads. Initialization also prepares `--research` in its current workspace; other workspaces clone it when explicitly
+ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not merged; coordinate
+shared state through the normal VCS sync path. Prefer `sase sdd path <kind>` or the `SASE_SDD_*_DIR` variables over
+hard-coded relative paths.

@@ -61,9 +61,9 @@ stores at once** and ranks repo-relevant snapshots first, so it answers "I remem
 I snapshotted it into this repo or just ran it once last month."
 
 - **Repo SDD snapshots** — canonical `plans/*/prompts/*.md` snapshots below an SDD root (plus legacy top-level
-  `prompts/` and `specs/` layouts). `sase prompt search` scans the current directory's in-tree and `.sase/sdd` roots;
-  for a split store, run it from `$(sase sdd path plans)` to search the `--plans` companion. These curated snapshots
-  always **rank first**.
+  `prompts/` and `specs/` layouts). Search currently discovers SDD files relative to the current directory; it does not
+  resolve a split store automatically. For a split store, change to the plans root first with
+  `cd "$(sase sdd path plans)"`, then run `sase prompt search ...`. These curated snapshots always **rank first**.
 - **Local prompt history** — the machine-wide `~/.sase/prompt_history/` shard store: every prompt ever submitted on this
   machine, across all repos.
 

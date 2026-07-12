@@ -1068,22 +1068,29 @@ value is a canonical model name or configured alias; provider short aliases are 
 
 ### Launch-Scoped Model Alias Overrides
 
-The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch family:
+The parenthesized `%model` form accepts keyword arguments that temporarily replace model aliases for one launch lineage:
 
 ```text
 %model(opus, coder=codex/gpt-5.6-sol, phase_worker=claude/sonnet)
 %model(coder=@phase_worker)
 ```
 
-The optional positional value still selects the current agent's model. Each `alias=value` entry instead changes how that
-bare alias resolves for delegated launches in the same family. Keys must be known builtin or custom alias names without
-`@`; values may be concrete models, `provider/model` targets, quoted targets, xprompt references, or another alias with
-`@`. Per-alias reasoning-effort suffixes are not supported.
+The optional positional value selects the current agent's model. Each `alias=value` entry changes how that bare alias
+resolves. Without a positional value, the current agent still starts from the normal default, but that resolution uses
+the map: `default=...` changes it directly, while `phase_worker=...` normally affects only a later phase-worker launch
+(unless the configured default itself points to `@phase_worker`). Keys must be known builtin or custom alias names
+without `@`; values may be concrete models, `provider/model` targets, quoted targets, xprompt references, or another
+alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
-These overrides are launch-scoped, not configuration edits. SASE records them in the agent metadata and carries them
-through plan/coder follow-ups and explicit `%name(parent, suffix)` family attachments. Unrelated nested launches do not
-inherit them. At each alias hop a launch-scoped value wins over a machine-wide temporary override and the configured or
-implicit alias value. The `default` key also wins over the machine-wide default override for that launch family.
+"Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
+carries it through its plan/coder follow-up path. An explicit `%name(parent, suffix)` attachment inherits the parent's
+map when its prompt supplies no alias keywords; a prompt with its own keywords uses that new map. Ordinary nested
+launches do not inherit the map. This lineage often overlaps an [Agent Family](agent_families.md), but the terms are not
+interchangeable.
+
+At each alias hop a launch-scoped value wins over a machine-wide temporary override and the configured or implicit alias
+value. A generic `coder` entry also controls a provider-specific alias such as `claude_coder` unless the map contains
+that provider-specific key. The `default` key wins over the machine-wide default override for this lineage.
 
 The launch preview shows the resulting map before approval. Invalid alias names, missing values, duplicate keys,
 self-references, and ambiguous bare alias values fail with a directive error. Use `@phase_worker`, not `phase_worker`,

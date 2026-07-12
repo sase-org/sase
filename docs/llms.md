@@ -668,17 +668,20 @@ llm_provider:
 
 #### Launch-scoped alias overrides
 
-A prompt can override these aliases for only its launch family with keyword arguments on `%model(...)`:
+A prompt can override these aliases for its SASE-created launch lineage with keyword arguments on `%model(...)`:
 
 ```text
 %model(opus, coder=codex/gpt-5.6-sol)
 %model(phase_worker=claude/sonnet)
 ```
 
-The positional value, when present, selects the current agent's model. Keyword keys are bare known alias names; values
-may be concrete model targets or `@other_alias` references. The map is stored in agent metadata and inherited by
-plan/coder follow-ups and explicit family attachments, but not by unrelated nested launches. It does not write
-`sase.yml` or `~/.sase/llm_override.json`.
+The positional value, when present, selects the current agent's model. Without one, the current agent starts from the
+normal default and resolves that alias chain through the map. Thus `default=...` changes it directly, while an unrelated
+role keyword normally affects only a later delegated launch. Keyword keys are bare known alias names, and values may be
+concrete model targets or `@other_alias` references. The map is stored in agent metadata and inherited by SASE-created
+plan/coder follow-ups. An explicit `%name(parent, suffix)` attachment inherits it only when the attached prompt supplies
+no alias keywords. Ordinary nested launches do not inherit it. This is a propagation rule, not a change to `sase.yml` or
+`~/.sase/llm_override.json`.
 
 Launch-scoped values have the highest alias-resolution precedence. They beat machine-wide per-alias temporary overrides
 and configured/implicit aliases at every hop; a launch-scoped `default` also beats the machine-wide temporary default.
@@ -876,7 +879,7 @@ for new agent launches; an override on any other alias takes effect wherever tha
   higher-precedence launch-scoped override.
 - An explicit `provider_name=` argument to `invoke_agent()` — it still wins.
 - An explicit `@default` reference — it ignores the machine-wide `default` override. A launch-scoped `default` still
-  applies within that launch family.
+  applies within the propagated launch lineage.
 
 `SASE_MODEL_TIER_OVERRIDE` / `SASE_MODEL_SIZE_OVERRIDE` still force the tier for tier-based launches. A concrete
 temporary override supplies a provider and model directly, so it is used only when no explicit model/provider was

@@ -12,14 +12,19 @@ sase sdd path research --ensure
 that backs the selected kind. Launched agents receive `SASE_SDD_DIR` plus `SASE_SDD_PLANS_DIR`, `SASE_SDD_RESEARCH_DIR`,
 and `SASE_SDD_BEADS_DIR`.
 
-## Provider Policy
+## Resolved Layouts
 
-| Provider policy   | Root                                   | Repository                                                                                      |
-| ----------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `in_tree`         | `{workspace}/sdd`                      | The code repository. Built-in bare-git projects use this policy.                                |
-| `separate_repo`   | `{workspace}/.sase/sdd`                | A required single companion. GitHub providers declare this policy; legacy stores retain it.     |
-| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | The two-repository store created for newly managed or migrated GitHub projects.                 |
-| no policy         | `{primary}/.sase/sdd`                  | A primary-workspace local store for providerless projects or providers with no SDD declaration. |
+| Resolved layout   | Plans root                             | Meaning                                                                                  |
+| ----------------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `in_tree`         | `{workspace}/sdd`                      | The code repository. Built-in bare-git projects use this provider policy.                |
+| `separate_repo`   | `{workspace}/.sase/sdd`                | One provider companion. This is GitHub's declared policy and the recorded legacy layout. |
+| `companion_repos` | `{workspace}/sase/repos/<repo>--plans` | A recorded two-repository layout created by managed GitHub initialization.               |
+| `local`           | `{primary}/.sase/sdd`                  | A primary-workspace fallback for providerless projects or providers with no SDD policy.  |
+
+Provider policy and resolved layout are related but different. A GitHub provider declares `separate_repo`; explicit
+initialization resolves that requirement into two companions and records `companion_repos`. The latter is a materialized
+store-record value, not another provider policy. Before initialization, or for an unmigrated legacy record, GitHub still
+resolves as `separate_repo`.
 
 A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
 negative records are not policy and are retried at the next materialization attempt.
@@ -40,9 +45,10 @@ beside them. The research companion likewise keeps `<YYYYMM>/` directories at it
 | `beads`    | `<workspace>/sase/repos/<repo>--plans/beads` |
 | `research` | `<workspace>/sase/repos/<repo>--research`    |
 
-The plans clone is synchronized during normal workspace preparation. Research remains lazy until a consumer runs
-`sase sdd path research --ensure` (or another operation explicitly ensures that kind). Each clone's `origin` is the real
-companion remote, and refresh uses pull-with-rebase semantics.
+Initialization clones, initializes, and pushes both repositories in the workspace where it runs. After that, normal
+workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone research
+until a consumer runs `sase sdd path research --ensure` (or another operation explicitly ensures that kind). Each
+clone's `origin` is the real companion remote, and refresh uses pull-with-rebase semantics.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
 strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files
@@ -50,9 +56,10 @@ loadable without allowing project or user config to override provider policy.
 
 ## GitHub Companion Repositories
 
-Managed GitHub projects initialize two public companions: `<owner>/<repo>--plans` and `<owner>/<repo>--research`. The
-plans clone is automatic and owns bead state; research materializes lazily. The provider still supports
-`<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy stores.
+Managed GitHub projects initialize two public companions: `<owner>/<repo>--plans` and `<owner>/<repo>--research`. Both
+are prepared by initialization in the current workspace. In later workspaces, the plans clone is automatic and owns bead
+state, while research materializes on demand. The provider still supports `<owner>/<repo>--sdd` discovery and
+`sdd.repo.name` overrides for unmigrated legacy stores.
 
 Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase sdd init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
@@ -73,12 +80,20 @@ Split initialization is a single record-last transaction:
 3. SASE writes deterministic per-repository README and infographic assets, then commits and pushes generated drift.
 4. Only after both repositories succeed does SASE write the schema-version 2 split store record.
 
-Legacy artifacts move separately through `sase sdd migrate`, whose `--check` and `--diff` modes are read-only. The apply
-path uses the same materialization lock, detects destination conflicts, pushes both repositories, and retires the local
-legacy clone only after success.
+Initialization does not import legacy artifacts. Use this order for a project with an existing `.sase/sdd/` or `sdd/`
+tree:
 
-In-tree legacy sources are retained. Bead SQLite runtime files and git internals are not imported. A failed transaction
-leaves no positive record, so the next write retries materialization instead of silently using another store.
+```bash
+sase sdd init                  # create/adopt and record the split companions
+sase sdd migrate --check --diff # preview; exit 1 means migration work remains
+sase sdd migrate               # copy, push, then retire the selected local source
+```
+
+Migration copies only monthly `plans/<YYYYMM>/` and `research/<YYYYMM>/` content plus durable `beads/` files. It
+rewrites legacy plan-link prefixes and excludes `beads.db*`. README files, assets, non-month directories, and other
+legacy files are not copied. After both companion pushes succeed, the command removes the selected local legacy source
+tree; its Git history remains in any existing remote. Inspect the preview and confirm that remote or make a backup
+before applying. A failed transaction leaves the source tree in place.
 
 ## Reads, Writes, and Offline Use
 
