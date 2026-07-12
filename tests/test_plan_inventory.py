@@ -291,7 +291,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
     for index in range(12):
         _archived_plan(f"rejected-{index:02d}.md", minutes_ago=20 + index)
 
-    inventory = build_plan_inventory(approved_limit=10, rejected_limit=10)
+    inventory = build_plan_inventory(limit=10)
     payload = plan_inventory_to_json(inventory)
 
     approved_paths = [row["plan_path"] for row in payload["approved"]]
@@ -320,6 +320,38 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
         not str(row["plan_path"]).endswith("/rejected-11.md")
         for row in payload["rejected"]
     )
+
+    unlimited_payload = plan_inventory_to_json(build_plan_inventory(limit=0))
+    assert len(unlimited_payload["approved"]) == 13
+    assert len(unlimited_payload["rejected"]) == 12
+    assert unlimited_payload["summary"]["limit"] == 0
+
+
+def test_inventory_limit_never_hides_proposed_rows(tmp_path: Path) -> None:
+    plans = [
+        _archived_plan(f"proposed-{index}.md", minutes_ago=index + 1)
+        for index in range(2)
+    ]
+    for index, plan in enumerate(plans):
+        _append_plan_notification(
+            f"{index:08d}-plan-notification",
+            plan,
+            _response_dir(tmp_path, f"proposed-{index}"),
+            minutes_ago=index + 1,
+            agent_timestamp=f"2026061312{index:02d}00",
+        )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+        return_value=(
+            _live_agent(raw_suffix="20260613120000"),
+            _live_agent(raw_suffix="20260613120100"),
+        ),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory(limit=1))
+
+    assert len(payload["proposed"]) == 2
+    assert payload["summary"]["proposed"] == 2
 
 
 def test_inventory_includes_day_sharded_approved_plan() -> None:
@@ -386,6 +418,68 @@ def test_inventory_tier_filter_and_json_breakdown() -> None:
     assert payload["summary"]["by_tier"] == {"tale": 0, "epic": 1}
 
 
+def test_inventory_status_filter_is_a_json_view_not_collection_change() -> None:
+    approved = _archived_plan("approved.md", minutes_ago=3)
+    _archived_plan("rejected.md", minutes_ago=2)
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613150000",
+        {
+            "plan_approved": True,
+            "plan_action": "approve",
+            "plan_path": str(approved),
+        },
+        minutes_ago=1,
+    )
+
+    payload = plan_inventory_to_json(
+        build_plan_inventory(statuses=("rejected", "rejected"))
+    )
+
+    assert "proposed" not in payload
+    assert "approved" not in payload
+    assert len(payload["rejected"]) == 1
+    assert str(payload["rejected"][0]["plan_path"]).endswith("/rejected.md")
+    assert payload["summary"] == {
+        "proposed": 0,
+        "approved_shown": 1,
+        "rejected_shown": 1,
+        "total_archived_proposals": 2,
+        "status_filter": ["rejected"],
+    }
+
+
+def test_inventory_status_and_tier_filters_compose() -> None:
+    epic = _archived_plan("approved-epic.md", minutes_ago=2)
+    _set_plan_tier(epic, "epic")
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613150000",
+        {
+            "plan_approved": True,
+            "plan_action": "epic",
+            "plan_path": str(epic),
+        },
+        minutes_ago=1,
+    )
+
+    payload = plan_inventory_to_json(
+        build_plan_inventory(
+            limit=25,
+            statuses=("approved",),
+            tiers=("epic",),
+        )
+    )
+
+    assert set(payload) == {"summary", "approved"}
+    assert [row["tier"] for row in payload["approved"]] == ["epic"]
+    assert payload["summary"]["status_filter"] == ["approved"]
+    assert payload["summary"]["tier_filter"] == ["epic"]
+    assert payload["summary"]["limit"] == 25
+
+
 def test_approved_plan_scan_stops_after_limit() -> None:
     for index in range(10):
         plan = _archived_plan(f"approved-fast-{index:02d}.md", minutes_ago=index + 1)
@@ -419,10 +513,75 @@ def test_approved_plan_scan_stops_after_limit() -> None:
             wraps=plan_inventory_module.read_json_object,
         ) as read_json,
     ):
-        payload = plan_inventory_to_json(build_plan_inventory(approved_limit=10))
+        payload = plan_inventory_to_json(build_plan_inventory(limit=10))
 
     assert len(payload["approved"]) == 10
     assert read_json.call_count == 10
+
+
+def test_approved_scan_cap_scales_with_limit() -> None:
+    assert plan_inventory_module._approved_candidate_limit(10) == 2_000
+    assert plan_inventory_module._approved_candidate_limit(50) == 5_000
+    assert plan_inventory_module._approved_candidate_limit(200) == 20_000
+    assert plan_inventory_module._approved_candidate_limit(0) is None
+
+
+def test_finite_approved_scan_discloses_candidate_cap() -> None:
+    meta_paths = tuple(
+        Path(f"/artifacts/{index}/agent_meta.json") for index in range(3)
+    )
+    with (
+        patch(
+            "sase.main.plan_inventory._agent_meta_paths_newest_first",
+            return_value=meta_paths,
+        ),
+        patch(
+            "sase.main.plan_inventory._approved_candidate_limit",
+            return_value=2,
+        ),
+        patch(
+            "sase.main.plan_inventory.read_json_object",
+            return_value={"plan_approved": False},
+        ) as read_json,
+    ):
+        inventory = build_plan_inventory(limit=3)
+        payload = plan_inventory_to_json(inventory)
+        buffer = io.StringIO()
+        render_plan_inventory(
+            inventory,
+            console=Console(
+                file=buffer,
+                force_terminal=False,
+                color_system=None,
+                width=100,
+            ),
+        )
+
+    assert read_json.call_count == 2
+    assert payload["summary"]["approved_scan_truncated"] is True
+    assert "Scanned the newest 2 agent artifacts" in buffer.getvalue()
+    assert "older approvals may exist" in buffer.getvalue()
+
+
+def test_unlimited_approved_scan_reads_past_default_candidate_cap() -> None:
+    meta_paths = tuple(
+        Path(f"/artifacts/{index}/agent_meta.json") for index in range(2_001)
+    )
+    with (
+        patch(
+            "sase.main.plan_inventory._agent_meta_paths_newest_first",
+            return_value=meta_paths,
+        ),
+        patch(
+            "sase.main.plan_inventory.read_json_object",
+            return_value={"plan_approved": False},
+        ) as read_json,
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory(limit=0))
+
+    assert read_json.call_count == 2_001
+    assert payload["summary"]["limit"] == 0
+    assert "approved_scan_truncated" not in payload["summary"]
 
 
 def test_visible_plan_notifications_loads_pending_store_once(
@@ -614,6 +773,27 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
     assert "Plan path" in output
     assert "12345678" in output
     assert "planner / demo-project" in output
+
+
+def test_render_plan_inventory_filters_panels_and_consolidates_filters() -> None:
+    inventory = build_plan_inventory(
+        limit=25,
+        statuses=("approved",),
+        tiers=("epic",),
+    )
+    buffer = io.StringIO()
+    console = Console(file=buffer, force_terminal=False, color_system=None, width=100)
+
+    render_plan_inventory(inventory, console=console)
+
+    output = buffer.getvalue()
+    assert "Approved (0)" in output
+    assert "Proposed (0)" not in output
+    assert "Rejected (0)" not in output
+    assert "No pending plan proposals." not in output
+    assert "No inferred rejected plans." not in output
+    assert "Filters: status=approved · tier=epic: 0 · limit=25" in output
+    assert "Tier filter:" not in output
 
 
 def test_plan_inventory_excludes_proposal_without_matching_live_agent(

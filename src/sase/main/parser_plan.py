@@ -106,12 +106,16 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List plan proposals and approval history",
         description=(
-            "Show pending plan proposals plus recent approved and inferred "
-            "rejected archived plans. This is also the default for bare "
-            "`sase plan`."
+            "Show pending plan proposals plus approved and inferred rejected "
+            "archived plans. Filter the displayed sections by status and "
+            "control the amount of approval history shown. This is also the "
+            "default for bare `sase plan`."
         ),
         epilog=(
             "examples:\n  sase plan\n  sase plan list\n  sase plan list --json\n"
+            "  sase plan list --status approved --limit 25\n"
+            "  sase plan list -s proposed\n"
+            "  sase plan list -s rejected -n 0\n"
             "  sase plan list --tier epic"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -121,6 +125,24 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Print plan inventory as JSON",
+    )
+    list_parser.add_argument(
+        "-n",
+        "--limit",
+        type=nonnegative_int,
+        default=10,
+        help=(
+            "Maximum approved and rejected rows shown per section; 0 = "
+            "unlimited; pending proposals are always shown in full "
+            "(default: 10)"
+        ),
+    )
+    list_parser.add_argument(
+        "-s",
+        "--status",
+        action="append",
+        choices=("approved", "proposed", "rejected"),
+        help="Show only these pipeline sections (repeatable; default: all)",
     )
     list_parser.add_argument(
         "-t",

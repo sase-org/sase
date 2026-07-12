@@ -54,6 +54,45 @@ def test_plan_reject_parses_with_optional_selector() -> None:
     assert bare_reject_args.selector is None
 
 
+def test_plan_list_parses_status_and_limit_options() -> None:
+    """``sase plan list`` accepts repeatable statuses and history limits."""
+    parser = create_parser()
+
+    default_args = parser.parse_args(["plan", "list"])
+    filtered_args = parser.parse_args(
+        [
+            "plan",
+            "list",
+            "-s",
+            "approved",
+            "--status",
+            "rejected",
+            "--limit",
+            "0",
+        ]
+    )
+
+    assert default_args.limit == 10
+    assert default_args.status is None
+    assert filtered_args.status == ["approved", "rejected"]
+    assert filtered_args.limit == 0
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        ["plan", "list", "--status", "wip"],
+        ["plan", "list", "--limit", "-1"],
+    ),
+)
+def test_plan_list_rejects_invalid_status_and_limit(arguments: list[str]) -> None:
+    """Plan-list filters use strict statuses and a nonnegative limit."""
+    with pytest.raises(SystemExit) as exc_info:
+        create_parser().parse_args(arguments)
+
+    assert exc_info.value.code == 2
+
+
 def test_plan_command_rejects_old_root_plan_file(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -107,7 +146,14 @@ def test_plan_subcommand_help_is_complete() -> None:
     )
     assert "-j" in list_help
     assert "--json" in list_help
+    assert "-n LIMIT" in list_help
+    assert "--limit LIMIT" in list_help
+    assert "-s {approved,proposed,rejected}" in list_help
+    assert "--status {approved,proposed,rejected}" in list_help
     assert "sase plan list --json" in list_help
+    assert "sase plan list --status approved --limit 25" in list_help
+    assert "sase plan list -s proposed" in list_help
+    assert "sase plan list -s rejected -n 0" in list_help
     assert "PLAN_FILE" in propose_help
     assert "sase plan propose sase_plan_feature.md" in propose_help
 
