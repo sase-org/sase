@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from sase.ace.tui.widgets.directive_completion import (
+    build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
+    extract_directive_arg_token_around_cursor,
     extract_directive_token_around_cursor,
     is_directive_like_token,
 )
@@ -68,8 +70,9 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     auto, _ = single_directive_candidate("%au")
 
     assert directive_metadata(model).description == (
-        "choose one or more provider/model targets"
+        "choose a model and optional launch-family alias overrides"
     )
+    assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(name).description == (
         "assign an agent name or attach a member to an existing family"
     )
@@ -173,4 +176,38 @@ def test_directive_token_extraction_accepts_parser_contexts() -> None:
         1,
         6,
         "%wait",
+    )
+
+
+def test_model_paren_completion_offers_alias_keys_and_model_values() -> None:
+    line = "%m(co"
+    token = extract_directive_arg_token_around_cursor(line, len(line))
+    assert token is not None
+    _, _, directive_name, partial = token
+
+    candidates, _ = build_directive_arg_completion_candidates(
+        directive_name,
+        partial,
+    )
+
+    assert "coder=" in {candidate.insertion for candidate in candidates}
+
+
+def test_model_paren_completion_replaces_kwarg_value_only() -> None:
+    line = "%m(opus, coder=son"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        len("%m(opus, coder="),
+        len(line),
+        "model",
+        "son",
+    )
+
+
+def test_model_paren_positional_effort_completion_is_preserved() -> None:
+    line = "%m(opus@h"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        len("%m(opus@"),
+        len(line),
+        "effort",
+        "h",
     )

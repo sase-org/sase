@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class _ModelPresetScan:
     tokens: tuple[str, ...] = ()
+    override_tokens: tuple[tuple[str, str], ...] = ()
     errors: tuple[str, ...] = ()
 
 
@@ -81,6 +82,20 @@ def check_config_model_xprompts(context: DoctorContext) -> DiagnosticCheck:
                     "message": (
                         f"{name} -> {token} does not resolve to a provider; "
                         "it will fall back to the default provider"
+                    ),
+                }
+            )
+        for alias, token in scan.override_tokens:
+            if _model_token_routes(token, aliases):
+                continue
+            problems.append(
+                {
+                    "xprompt": name,
+                    "token": token,
+                    "message": (
+                        f"{name} -> %model({alias}={token}) does not resolve "
+                        "to a provider; the family override will fall back to "
+                        "the default provider"
                     ),
                 }
             )
@@ -198,15 +213,20 @@ def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
         branches = split_prompt_for_models(expanded)
         sources = branches if branches else [expanded]
         tokens: list[str] = []
+        override_tokens: list[tuple[str, str]] = []
         for source in sources:
             _, directives = extract_prompt_directives(source)
             if directives.model:
                 tokens.append(directives.model)
+            override_tokens.extend(directives.model_alias_overrides.items())
     except DirectiveError as exc:
         return _ModelPresetScan(errors=(str(exc),))
     except Exception:  # noqa: BLE001 - a malformed preset must not break doctor.
         return None
-    return _ModelPresetScan(tokens=tuple(tokens))
+    return _ModelPresetScan(
+        tokens=tuple(tokens),
+        override_tokens=tuple(override_tokens),
+    )
 
 
 def _model_token_routes(token: str, aliases: set[str]) -> bool:
@@ -222,6 +242,6 @@ def _model_token_routes(token: str, aliases: set[str]) -> bool:
     provider, _ = resolve_model_provider(token)
     if provider is not None:
         return True
-    if token in aliases:
+    if token.removeprefix("@") in aliases:
         return True
     return "/" in token

@@ -17,6 +17,7 @@ import importlib.metadata
 import os
 import re
 import shutil
+from collections.abc import Mapping
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -233,7 +234,10 @@ def get_provider(name: str | None = None) -> LLMProvider:
     return _create_provider_for(name)
 
 
-def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
+def resolve_model_provider(
+    model_override: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+) -> tuple[str | None, str]:
     """Resolve a model override string to (provider_name, model_name).
 
     Supports three resolution strategies:
@@ -251,7 +255,7 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
     Returns:
         Tuple of (provider_name_or_none, clean_model_name).
     """
-    model_override = resolve_model_alias(model_override)
+    model_override = resolve_model_alias(model_override, model_alias_overrides)
 
     # 1. Check for explicit provider/model syntax
     if "/" in model_override:
@@ -270,6 +274,7 @@ def resolve_model_provider(model_override: str) -> tuple[str | None, str]:
 
 def resolve_default_alias_provider_model(
     model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
 ) -> tuple[str, str]:
     """Resolve the implicit ``@default`` alias to ``(provider, model)``.
 
@@ -285,7 +290,7 @@ def resolve_default_alias_provider_model(
 
     configured = get_model_aliases().get(default_model_alias_name())
     if configured:
-        provider, model = resolve_model_provider(configured)
+        provider, model = resolve_model_provider(configured, model_alias_overrides)
         if provider is not None:
             return provider, model
         # Configured default is a bare/unknown model: run it on the configured

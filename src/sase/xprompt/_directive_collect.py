@@ -30,6 +30,7 @@ class _CollectedDirectives:
     seen_source: dict[str, str] = field(default_factory=dict)
     seen_multi: dict[str, list[str]] = field(default_factory=dict)
     wait_time_args: list[str] = field(default_factory=list)
+    model_alias_overrides: dict[str, str] = field(default_factory=dict)
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
@@ -58,7 +59,13 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             paren_end = find_matching_paren_for_args(prompt, paren_start)
             if paren_end is not None:
                 paren_content = prompt[paren_start + 1 : paren_end]
-                positional_args, named_args = parse_args(paren_content)
+                try:
+                    positional_args, named_args = parse_args(
+                        paren_content,
+                        reject_duplicate_named_args=name == "model",
+                    )
+                except ValueError as exc:
+                    raise DirectiveError(str(exc)) from exc
                 if name == "name":
                     (
                         raw_args,
@@ -84,6 +91,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         )
                     if "time" in named_args:
                         collected.wait_time_args.append(named_args["time"])
+                if name == "model":
+                    collected.model_alias_overrides = dict(named_args)
                 if is_multi:
                     raw_args = list(positional_args)
                 elif (
@@ -107,6 +116,11 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 raw_args = [seg for seg in colon_arg.split(",") if seg]
             else:
                 raw_args = [colon_arg]
+            if name == "model" and "=" in raw_args[0]:
+                raise DirectiveError(
+                    "Model alias overrides require the parenthesized form — "
+                    "use %model(alias=model), not %model:alias=model."
+                )
         elif plus_suffix is not None:
             raw_args = ["true"]
         else:

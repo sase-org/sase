@@ -51,6 +51,19 @@ def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
     env.pop(MULTI_AGENT_PROMPT_FILE_ENV, None)
 
 
+def _remove_inherited_model_alias_overrides(
+    env: dict[str, str],
+    extra_env: dict[str, str] | None,
+) -> None:
+    """Keep family overrides off unrelated nested subprocess launches."""
+    from sase.llm_provider.launch_alias_overrides import (
+        SASE_MODEL_ALIAS_OVERRIDES_ENV,
+    )
+
+    if not extra_env or SASE_MODEL_ALIAS_OVERRIDES_ENV not in extra_env:
+        env.pop(SASE_MODEL_ALIAS_OVERRIDES_ENV, None)
+
+
 def _remove_inherited_linked_repo_env(env: dict[str, str]) -> None:
     """Drop stale linked-repo mappings inherited from parent agents."""
     from sase.linked_repos import scrub_linked_repo_env
@@ -240,6 +253,7 @@ def spawn_agent_subprocess(
         _remove_inherited_deferred_workspace_env(subprocess_env)
         _remove_inherited_agent_var_context_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
+        _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         subprocess_env.update(prepared.env_delta)
         from sase.linked_repos import apply_linked_repo_env

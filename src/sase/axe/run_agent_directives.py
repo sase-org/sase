@@ -92,6 +92,18 @@ def extract_directives_and_write_meta(
     from sase.agent.family_attach import load_family_attach_plan_from_env
 
     family_attach_plan = load_family_attach_plan_from_env()
+    from sase.llm_provider.launch_alias_overrides import (
+        active_launch_alias_overrides,
+        export_launch_alias_overrides,
+    )
+
+    explicit_alias_overrides = dict(directives.model_alias_overrides)
+    if not explicit_alias_overrides and family_attach_plan is not None:
+        explicit_alias_overrides = dict(family_attach_plan.model_alias_overrides)
+    model_alias_overrides = dict(
+        active_launch_alias_overrides(explicit_alias_overrides or None)
+    )
+    export_launch_alias_overrides(model_alias_overrides)
 
     # A top-level `#fork:<name>` implies `%wait:<name>`: the forked agent must
     # not start until its fork target finishes. We add the implied dependency as
@@ -159,10 +171,15 @@ def extract_directives_and_write_meta(
 
     agent_model = directives.model
     if agent_model:
-        resolved_provider, agent_model = resolve_model_provider(agent_model)
+        resolved_provider, agent_model = resolve_model_provider(
+            agent_model,
+            model_alias_overrides,
+        )
         agent_llm_provider = resolved_provider or get_default_provider_name()
     else:
-        agent_llm_provider, agent_model = resolve_effective_default_provider_model()
+        agent_llm_provider, agent_model = resolve_effective_default_provider_model(
+            model_alias_overrides=model_alias_overrides,
+        )
 
     # Resolve the effective reasoning effort (explicit %effort/@effort directive
     # beats llm_provider.default_effort) so the Agents tab can render a uniform
@@ -254,6 +271,8 @@ def extract_directives_and_write_meta(
             agent_meta["llm_provider"] = agent_llm_provider
         if agent_reasoning_effort:
             agent_meta["reasoning_effort"] = agent_reasoning_effort
+        if model_alias_overrides:
+            agent_meta["model_alias_overrides"] = model_alias_overrides
         if agent_vcs_provider:
             agent_meta["vcs_provider"] = agent_vcs_provider
         auto_mode = directives.auto_mode

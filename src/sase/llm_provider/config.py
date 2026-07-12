@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.config import load_merged_config
@@ -465,7 +466,10 @@ def _resolve_default_alias_target() -> str:
         return DEFAULT_MODEL_ALIAS_NAME
 
 
-def resolve_model_alias(model: str) -> str:
+def resolve_model_alias(
+    model: str,
+    model_alias_overrides: Mapping[str, str] | None = None,
+) -> str:
     """Resolve a model alias to its final target.
 
     Resolution follows configured ``llm_provider.model_aliases.builtin`` /
@@ -479,21 +483,23 @@ def resolve_model_alias(model: str) -> str:
     Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
     back to the original input so a bad config cannot crash launches.
 
-    An active *temporary override* (see
-    :mod:`sase.llm_provider.temporary_override`) on any non-``default`` alias
-    wins over the configured/implicit lookup for that alias: the override target
-    is returned as soon as the alias is encountered in a chain. The ``default``
-    name is deliberately *not* short-circuited here — its override applies only
-    on the no-``%model`` launch lane, and an explicit ``@default`` keeps
-    resolving to the configured default (see
+    A launch-family override wins at every alias hop, including ``default``.
+    The generic ``coder`` launch override also shadows a provider-specific
+    ``<provider>_coder`` hop unless the launch supplies that more-specific key.
+    Machine-global temporary overrides are consulted next for non-``default``
+    aliases. Their ``default`` override remains limited to the no-``%model``
+    launch lane (see
     :func:`sase.llm_provider.temporary_override.resolve_effective_default_provider_model`).
 
     The literal aliases ``"worker"`` and ``"other"`` are no longer special: the
     worker lane was retired in epic sase-5d phase 4, so they resolve only when a
     user defines them as ordinary configured aliases.
     """
+    from .launch_alias_overrides import active_launch_alias_overrides
+
     cleaned_model = model.strip()
     aliases = _get_model_aliases()
+    launch_overrides = active_launch_alias_overrides(model_alias_overrides)
     original = model
     current = cleaned_model
     seen: set[str] = set()
@@ -506,6 +512,16 @@ def resolve_model_alias(model: str) -> str:
         bare = current[1:].strip() if current.startswith("@") else current
         if not bare:
             return original
+
+        launch_target = launch_overrides.get(bare)
+        if launch_target is None and _is_provider_coder_alias(bare):
+            launch_target = launch_overrides.get(CODER_MODEL_ALIAS_NAME)
+        if launch_target is not None:
+            if bare in seen:
+                return original
+            seen.add(bare)
+            current = launch_target
+            continue
 
         # A temporary override on a non-``default`` alias beats the configured
         # and implicit lookups for that alias.

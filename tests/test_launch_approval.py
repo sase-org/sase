@@ -310,6 +310,31 @@ def test_launch_preview_models_come_from_prompt_directives(tmp_path: Path) -> No
     assert "model `gemini-2.5-pro`" in preview
 
 
+def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout(
+            "agent",
+            ["%m(opus, coder=sonnet, phase_worker=@coder)\nImplement"],
+        ),
+        context=_context(tmp_path),
+        source_surface="ace",
+        request_id="launch-overrides",
+        created_at_unix=10.0,
+    )
+
+    assert request["slots"][0]["model_alias_overrides"] == {
+        "coder": "sonnet",
+        "phase_worker": "@coder",
+    }
+    preview = write_launch_preview_files(
+        request,
+        response_dir=tmp_path / "launch-overrides",
+    )["preview"].read_text(encoding="utf-8")
+    assert (
+        "model `opus` · alias overrides: coder → sonnet, phase_worker → @coder"
+    ) in preview
+
+
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     response_dir = tmp_path / "launch"
     response_dir.mkdir()

@@ -87,6 +87,25 @@ def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> Non
     assert meta["source_plan_agent_name"] == "root--plan"
 
 
+def test_create_followup_artifacts_inherits_model_alias_overrides(tmp_path) -> None:
+    followup = tmp_path / "followup-overrides"
+    followup.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        create_followup_artifacts(
+            "test_proj",
+            {"model_alias_overrides": {"coder": "sonnet"}},
+            "--code",
+            "20260711120000",
+        )
+
+    meta = json.loads((followup / "agent_meta.json").read_text())
+    assert meta["model_alias_overrides"] == {"coder": "sonnet"}
+
+
 def test_store_followup_prompt_artifact_registers_explicit_artifact(
     tmp_path, monkeypatch
 ) -> None:

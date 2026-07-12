@@ -477,3 +477,90 @@ def test_unconfigured_worker_and_other_resolve_to_bare_input(
 
     assert resolve_model_alias("worker") == "worker"
     assert resolve_model_alias("other") == "other"
+
+
+def test_launch_alias_override_wins_and_follows_alias_chains(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "coder": "claude/opus",
+                    "phase_worker": "codex/o3",
+                }
+            },
+        },
+    )
+
+    overrides = {"coder": "@phase_worker", "phase_worker": "claude/sonnet"}
+    assert resolve_model_alias("@coder", overrides) == "claude/sonnet"
+    assert resolve_model_provider("@coder", overrides) == ("claude", "sonnet")
+
+
+def test_launch_coder_override_shadows_configured_provider_coder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "coder": "claude/opus",
+                    "claude_coder": "codex/o3",
+                }
+            },
+        },
+    )
+
+    assert (
+        resolve_model_alias("@claude_coder", {"coder": "claude/sonnet"})
+        == "claude/sonnet"
+    )
+    assert (
+        resolve_model_alias(
+            "@claude_coder",
+            {"coder": "claude/sonnet", "claude_coder": "codex/o4-mini"},
+        )
+        == "codex/o4-mini"
+    )
+
+
+def test_launch_alias_override_beats_machine_temporary_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    temporary = MagicMock(provider="codex", model="o3")
+    monkeypatch.setattr(
+        "sase.llm_provider.config._active_alias_overrides",
+        lambda: {"coder": temporary},
+    )
+
+    assert resolve_model_alias("@coder", {"coder": "claude/sonnet"}) == (
+        "claude/sonnet"
+    )
+
+
+def test_launch_default_override_applies_to_explicit_default_hop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert resolve_model_alias("@default", {"default": "codex/o3"}) == "codex/o3"
+
+
+def test_launch_alias_override_cycle_falls_back_to_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+
+    assert (
+        resolve_model_alias(
+            "@coder",
+            {"coder": "@phase_worker", "phase_worker": "@coder"},
+        )
+        == "@coder"
+    )

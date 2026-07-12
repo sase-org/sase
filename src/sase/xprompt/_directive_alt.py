@@ -202,6 +202,13 @@ def _plan_prompt_fanout(
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> LaunchFanoutPlanWire | None:
     if extra_xprompts is None and "#" not in prompt:
+        # The Rust fan-out grammar intentionally remains single-positional for
+        # ``%model(...)``. Keyword arguments are launch metadata, not a model
+        # fan-out axis, so keep a scalar kwarg-bearing directive on the normal
+        # extraction path instead of presenting its ``key=value`` tokens to the
+        # Rust multi-model migration check.
+        if not has_alt_directive(prompt) and _has_model_keyword_args(prompt):
+            return None
         return _plan_model_fanout(prompt)
 
     if "%" not in prompt:
@@ -302,3 +309,25 @@ def _plan_model_fanout(prompt: str) -> LaunchFanoutPlanWire | None:
     if not plan.slots:
         return None
     return plan
+
+
+def _has_model_keyword_args(prompt: str) -> bool:
+    """Return whether an active parenthesized ``%model`` has named args."""
+    fenced_blocks: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced_blocks)
+    disabled_regions: list[str] = []
+    protected = protect_disabled_regions(protected, disabled_regions)
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        raw_name = match.group(1)
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "model":
+            continue
+        if match.group(2) is None:
+            continue
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(protected, paren_start)
+        if paren_end is None:
+            continue
+        _, named_args = parse_args(protected[paren_start + 1 : paren_end])
+        if named_args:
+            return True
+    return False

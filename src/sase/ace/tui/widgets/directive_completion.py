@@ -51,7 +51,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "auto": ":plan|tale|epic",
     "effort": ":level",
     "hide": "flag",
-    "model": ":model or (models)",
+    "model": ":model or (model, alias=model)",
     "name": ":agent or (parent, suffix)",
     "repeat": ":count",
     "group": ":tag",
@@ -64,7 +64,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "auto": "auto-approve the submitted plan as plan (default), tale, or epic",
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
-    "model": "choose one or more provider/model targets",
+    "model": "choose a model and optional launch-family alias overrides",
     "name": "assign an agent name or attach a member to an existing family",
     "repeat": "run the prompt multiple serial iterations",
     "group": "assign a user-managed agent tag",
@@ -167,9 +167,11 @@ def extract_directive_arg_token_around_cursor(
         return None
 
     if marker == "(":
-        if directive_name != "wait":
-            return None
-        return _extract_wait_paren_arg_token(line, col, name_end)
+        if directive_name == "wait":
+            return _extract_wait_paren_arg_token(line, col, name_end)
+        if directive_name == "model":
+            return _extract_model_paren_arg_token(line, col, name_end)
+        return None
 
     colon_index = name_end
     if col <= colon_index:
@@ -245,6 +247,12 @@ def build_directive_arg_completion_candidates(
     agent_candidates: Sequence[AgentCompletionCandidate] | None = None,
 ) -> tuple[list[CompletionCandidate], str]:
     """Build fixed-value candidates for a directive argument token."""
+    if directive_name == "model_alias_key":
+        return _build_model_alias_key_completion_candidates(partial)
+    if directive_name == "model_or_alias_key":
+        models, _ = _build_model_arg_completion_candidates(partial)
+        aliases, _ = _build_model_alias_key_completion_candidates(partial)
+        return [*models, *aliases], ""
     canonical = _canonical_directive_name(directive_name)
     if canonical is None:
         return [], ""
@@ -358,6 +366,37 @@ def _build_model_arg_completion_candidates(
     return candidates, shared_extension
 
 
+def _build_model_alias_key_completion_candidates(
+    partial: str,
+) -> tuple[list[CompletionCandidate], str]:
+    """Build ``alias=`` candidates for parenthesized ``%model`` kwargs."""
+    from sase.llm_provider.config import model_alias_description, model_alias_names
+
+    partial_lower = partial.lower()
+    candidates = [
+        CompletionCandidate(
+            display=f"{alias}=",
+            insertion=f"{alias}=",
+            is_dir=False,
+            name=alias,
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name="model",
+                description=model_alias_description(alias) or "model alias override",
+            ),
+        )
+        for alias in sorted(model_alias_names())
+        if alias.lower().startswith(partial_lower)
+    ]
+    shared_extension = ""
+    if len(candidates) > 1:
+        shared_prefix = os.path.commonprefix(
+            [candidate.insertion for candidate in candidates]
+        )
+        if len(shared_prefix) > len(partial):
+            shared_extension = shared_prefix[len(partial) :]
+    return candidates, shared_extension
+
+
 def _matches_directive(
     directive: str,
     aliases_by_directive: dict[str, tuple[str, ...]],
@@ -429,6 +468,60 @@ def _extract_wait_paren_arg_token(
         fragment_end += 1
 
     return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
+
+
+def _extract_model_paren_arg_token(
+    line: str,
+    col: int,
+    open_index: int,
+) -> tuple[int, int, str, str] | None:
+    value_start = open_index + 1
+    prefix = line[value_start:col]
+    if ")" in prefix:
+        return None
+
+    fragment_start = line.rfind(",", value_start, col) + 1
+    if fragment_start <= 0:
+        fragment_start = value_start
+    while fragment_start < col and line[fragment_start].isspace():
+        fragment_start += 1
+    fragment = line[fragment_start:col]
+
+    equals_index = fragment.find("=")
+    if equals_index >= 0:
+        arg_start = fragment_start + equals_index + 1
+        if any(
+            not _is_model_directive_argument_identifier(char)
+            for char in line[arg_start:col]
+        ):
+            return None
+        arg_end = col
+        while arg_end < len(line) and _is_model_directive_argument_identifier(
+            line[arg_end]
+        ):
+            arg_end += 1
+        return arg_start, arg_end, "model", line[arg_start:arg_end]
+
+    if any(not _is_model_directive_argument_identifier(char) for char in fragment):
+        return None
+    arg_end = col
+    while arg_end < len(line) and _is_model_directive_argument_identifier(
+        line[arg_end]
+    ):
+        arg_end += 1
+
+    if fragment_start == value_start:
+        at_index = fragment.rfind("@")
+        if at_index > 0:
+            effort_start = fragment_start + at_index + 1
+            return effort_start, arg_end, "effort", line[effort_start:arg_end]
+        return (
+            fragment_start,
+            arg_end,
+            "model_or_alias_key",
+            line[fragment_start:arg_end],
+        )
+    return fragment_start, arg_end, "model_alias_key", line[fragment_start:arg_end]
 
 
 def _aliases_by_directive() -> dict[str, tuple[str, ...]]:

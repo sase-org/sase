@@ -37,7 +37,10 @@ async def test_ctrl_t_at_percent_opens_directive_panel() -> None:
         assert ta._file_completion_active is True
         assert ta._completion_kind == "directive"
         assert panel.border_title == "directives"
-        assert "choose one or more provider/model targets" in panel.render().plain
+        assert (
+            "choose a model and optional launch-family alias overrides"
+            in panel.render().plain
+        )
 
 
 async def test_ctrl_t_at_partial_directive_inserts_single_candidate() -> None:

@@ -202,3 +202,47 @@ def test_model_xprompts_flags_retired_worker_alias(
         and "not a known model alias" in row["message"]
         for row in check.data["problems"]
     )
+
+
+def test_model_xprompts_validate_alias_override_kwargs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompts = {
+        "m_bad_override": XPrompt(
+            name="m_bad_override",
+            content="%model(opus, unknown=sonnet)",
+        ),
+    }
+    _patch_model_xprompt_env(
+        monkeypatch,
+        xprompts,
+        {"provider": "codex", "model_aliases": {}},
+    )
+
+    check = check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "Unknown model alias 'unknown'" in check.details[0]
+
+
+def test_model_xprompts_warn_for_unroutable_alias_override_value(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    xprompts = {
+        "m_bad_target": XPrompt(
+            name="m_bad_target",
+            content="%model(opus, coder=not-a-model)",
+        ),
+    }
+    _patch_model_xprompt_env(
+        monkeypatch,
+        xprompts,
+        {"provider": "codex", "model_aliases": {}},
+    )
+
+    check = check_config_model_xprompts(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert "%model(coder=not-a-model)" in check.details[0]

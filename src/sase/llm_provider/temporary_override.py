@@ -29,7 +29,7 @@ import os
 import re
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import fcntl
@@ -529,13 +529,15 @@ def clear_temporary_override() -> bool:
 
 def resolve_effective_default_provider_model(
     model_tier: ModelTier = "large",
+    model_alias_overrides: Mapping[str, str] | None = None,
 ) -> tuple[str, str]:
     """Return the ``(provider_name, model_name)`` to use for new launches.
 
     Precedence for a launch with no explicit ``%model`` directive:
 
-    1. an active primary temporary override (the user's recent explicit choice);
-    2. otherwise the ``@default`` alias — a configured
+    1. a launch-family ``default`` alias override;
+    2. an active primary temporary override (the user's recent explicit choice);
+    3. otherwise the ``@default`` alias — a configured
        ``llm_provider.model_aliases.builtin.default`` target, or the configured/
        autodetected provider's ``resolve_model_name(model_tier)`` default.
 
@@ -543,10 +545,22 @@ def resolve_effective_default_provider_model(
     while routing every no-directive launch through the ``@default`` alias so a
     configured default model is never silently bypassed.
     """
+    from .launch_alias_overrides import active_launch_alias_overrides
+
+    launch_overrides = active_launch_alias_overrides(model_alias_overrides)
+    if DEFAULT_MODEL_ALIAS_NAME in launch_overrides:
+        from .registry import (
+            get_configured_default_provider_name,
+            resolve_model_provider,
+        )
+
+        provider, model = resolve_model_provider("@default", launch_overrides)
+        return provider or get_configured_default_provider_name(), model
+
     override = get_active_temporary_override()
     if override is not None:
         return override.provider, override.model
 
     from .registry import resolve_default_alias_provider_model
 
-    return resolve_default_alias_provider_model(model_tier)
+    return resolve_default_alias_provider_model(model_tier, launch_overrides)

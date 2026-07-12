@@ -1,6 +1,7 @@
 """Tests for extract_prompt_directives() core behavior, edge cases, and protection."""
 
 import re
+from types import MappingProxyType
 from unittest.mock import patch
 
 import pytest
@@ -37,6 +38,76 @@ def test_model_directive_paren_arg() -> None:
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Review this code"
     assert directives.model == "opus"
+
+
+@pytest.mark.parametrize(
+    ("source", "model", "overrides"),
+    [
+        ("%m(opus, coder=sonnet)", "opus", {"coder": "sonnet"}),
+        ("%m(coder=sonnet)", None, {"coder": "sonnet"}),
+        (
+            "%m(opus@high, coder=@phase_worker)",
+            "opus",
+            {"coder": "@phase_worker"},
+        ),
+        (
+            '%model(claude/models/opus, coder="provider/model with spaces")',
+            "claude/models/opus",
+            {"coder": "provider/model with spaces"},
+        ),
+    ],
+)
+def test_model_directive_alias_overrides_are_parsed(
+    source: str,
+    model: str | None,
+    overrides: dict[str, str],
+) -> None:
+    cleaned, directives = extract_prompt_directives(f"{source}\nReview")
+
+    assert cleaned == "Review"
+    assert directives.model == model
+    assert dict(directives.model_alias_overrides) == overrides
+    assert isinstance(directives.model_alias_overrides, MappingProxyType)
+    if "@high" in source:
+        assert directives.reasoning_effort == "high"
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("%m(opus, foo=sonnet)", "Unknown model alias 'foo'"),
+        ("%m(opus, @coder=sonnet)", "keys are bare"),
+        ("%m(opus, coder=phase_worker)", "did you mean @phase_worker"),
+        ("%m(opus, coder=@missing)", "is not a known model alias"),
+        ("%m(opus, coder=sonnet@high)", "cannot set reasoning effort"),
+        ("%m(opus, coder=)", "requires a model value"),
+        ("%m(opus, coder=a, coder=b)", "Duplicate keyword argument 'coder'"),
+        ("%m:coder=sonnet", "require the parenthesized form"),
+        ("%m(opus, coder=@coder)", "cannot reference itself"),
+    ],
+)
+def test_model_directive_alias_override_validation(
+    source: str,
+    message: str,
+) -> None:
+    with pytest.raises(DirectiveError, match=re.escape(message)):
+        extract_prompt_directives(f"{source}\nReview")
+
+
+def test_model_directive_alias_kwargs_do_not_count_as_positional_models() -> None:
+    with pytest.raises(DirectiveError, match=r"%m\(opus, sonnet, coder=haiku\)"):
+        extract_prompt_directives("%m(opus, sonnet, coder=haiku)\nReview")
+
+
+def test_model_directive_alias_override_expands_xprompt_reference() -> None:
+    with patch(
+        "sase.xprompt.directives.process_xprompt_references",
+        return_value="sonnet",
+    ) as process:
+        _, directives = extract_prompt_directives("%m(opus, coder=#fast)\nReview")
+
+    assert dict(directives.model_alias_overrides) == {"coder": "sonnet"}
+    process.assert_called_once_with("#fast")
 
 
 @pytest.mark.parametrize("directive", ["%model", "%m"])

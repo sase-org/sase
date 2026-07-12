@@ -100,3 +100,35 @@ def test_agent_meta_until_cleared_override_records_provider(tmp_path) -> None:
     )
     assert meta["llm_provider"] == "codex"
     assert meta["model"] == "o3"
+
+
+def test_launch_alias_overrides_persist_to_meta_and_process_env(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import patch
+
+    from sase.axe.run_agent_phases import extract_directives_and_write_meta
+    from sase.llm_provider.launch_alias_overrides import (
+        SASE_MODEL_ALIAS_OVERRIDES_ENV,
+    )
+
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    monkeypatch.delenv(SASE_MODEL_ALIAS_OVERRIDES_ENV, raising=False)
+
+    with (
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        extract_directives_and_write_meta(
+            prompt="%m(opus, coder=sonnet)\nDo work",
+            workspace_dir=str(workspace_dir),
+            artifacts_dir=str(artifacts_dir),
+        )
+
+    meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
+    assert meta["model_alias_overrides"] == {"coder": "sonnet"}
+    assert json.loads(os.environ[SASE_MODEL_ALIAS_OVERRIDES_ENV]) == {"coder": "sonnet"}

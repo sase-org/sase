@@ -60,7 +60,8 @@ def build_launch_preview_request(
             slot_planned_names.get(slot.slot_index) if slot_planned_names else None
         )
         kinds[slot.launch_kind] += 1
-        model = slot.model or _model_directive_for_preview(slot.prompt)
+        parsed_model, alias_overrides = _model_directives_for_preview(slot.prompt)
+        model = slot.model or parsed_model
         if model:
             models[model] += 1
         slots.append(
@@ -74,6 +75,7 @@ def build_launch_preview_request(
                 "timestamp": slot.timestamp,
                 "workflow_name": slot.workflow_name,
                 "model": model,
+                "model_alias_overrides": alias_overrides,
                 "repeat_name": slot.repeat_name,
                 "wait_for_previous": slot.wait_for_previous,
                 "name_generated": slot.name_generated,
@@ -168,6 +170,8 @@ def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         )
         name = str(slot.get("planned_name") or "assigned at spawn")
         model = str(slot.get("model") or "default")
+        alias_overrides = slot.get("model_alias_overrides")
+        override_suffix = _format_alias_overrides(alias_overrides)
         kind = str(slot.get("launch_kind") or "agent")
         prompt = str(slot.get("prompt") or "")
         prompt_sha256 = str(slot.get("prompt_sha256") or "")
@@ -177,7 +181,7 @@ def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
             [
                 f"## Agent {ordinal} of {slot_count} · {project or 'unknown project'}",
                 "",
-                f"model `{model}` · kind `{kind}` · name `{name}`",
+                f"model `{model}`{override_suffix} · kind `{kind}` · name `{name}`",
                 "",
                 opening_fence,
             ]
@@ -232,15 +236,26 @@ def _model_summary_for_preview(request: Mapping[str, Any]) -> str | None:
     )
 
 
-def _model_directive_for_preview(prompt: str) -> str | None:
-    """Return the parsed ``%model`` value for read-only launch previews."""
+def _model_directives_for_preview(prompt: str) -> tuple[str | None, dict[str, str]]:
+    """Return parsed ``%model`` fields for read-only launch previews."""
     try:
         from sase.xprompt.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:
-        return None
-    return directives.model
+        return None, {}
+    return directives.model, dict(directives.model_alias_overrides)
+
+
+def _format_alias_overrides(value: object) -> str:
+    if not isinstance(value, Mapping) or not value:
+        return ""
+    rendered = ", ".join(
+        f"{key} → {item}"
+        for key, item in sorted(value.items())
+        if isinstance(key, str) and isinstance(item, str)
+    )
+    return f" · alias overrides: {rendered}" if rendered else ""
 
 
 def _context_preview(context: LaunchExecutionContext) -> dict[str, Any]:

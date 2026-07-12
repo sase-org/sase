@@ -47,6 +47,15 @@ def prepare_family_attach_launch(
     env[_types.FAMILY_ATTACH_ENV] = json.dumps(asdict(plan), sort_keys=True)
     if plan.sase_plan:
         env["SASE_PLAN"] = plan.sase_plan
+    if plan.model_alias_overrides:
+        from sase.llm_provider.launch_alias_overrides import (
+            SASE_MODEL_ALIAS_OVERRIDES_ENV,
+            encode_launch_alias_overrides,
+        )
+
+        env[SASE_MODEL_ALIAS_OVERRIDES_ENV] = encode_launch_alias_overrides(
+            plan.model_alias_overrides
+        )
 
     context_updates: dict[str, Any] = {}
     if plan.parent_cl_name:
@@ -110,6 +119,7 @@ def load_family_attach_plan_from_env(
         parent_workspace_dir=_str_or_none(data.get("parent_workspace_dir")),
         parent_workspace_num=_int_or_none(data.get("parent_workspace_num")),
         sase_plan=_str_or_none(data.get("sase_plan")),
+        model_alias_overrides=_string_mapping(data.get("model_alias_overrides")),
     )
 
 
@@ -132,6 +142,9 @@ def build_family_attach_sibling_from_spawn(
         request.timestamp
     )
     base = family_base or agent_family_base(name) or name
+    from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
+
+    raw_overrides = (request.extra_env or {}).get(SASE_MODEL_ALIAS_OVERRIDES_ENV, "")
     return _types.FamilyAttachSibling(
         name=name,
         family_base=base,
@@ -148,7 +161,39 @@ def build_family_attach_sibling_from_spawn(
         workspace_dir=request.workspace_dir,
         workspace_num=request.workspace_num,
         can_attach_parent=can_attach_parent,
+        model_alias_overrides=(
+            _decode_model_alias_overrides(raw_overrides)
+            if raw_overrides
+            else _prompt_model_alias_overrides(request.prompt)
+        ),
     )
+
+
+def _decode_model_alias_overrides(raw: str) -> dict[str, str]:
+    try:
+        return _string_mapping(json.loads(raw))
+    except json.JSONDecodeError:
+        return {}
+
+
+def _prompt_model_alias_overrides(prompt: str) -> dict[str, str]:
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:
+        return {}
+    return dict(directives.model_alias_overrides)
+
+
+def _string_mapping(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: item
+        for key, item in value.items()
+        if isinstance(key, str) and isinstance(item, str) and key and item
+    }
 
 
 def _str_or_none(value: object) -> str | None:

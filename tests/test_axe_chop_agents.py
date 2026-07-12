@@ -175,6 +175,37 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_scopes_model_alias_override_env(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = "SASE_MODEL_ALIAS_OVERRIDES"
+    monkeypatch.setenv(key, '{"coder": "sonnet"}')
+    inherited_case = tmp_path / "inherited"
+    inherited_case.mkdir()
+
+    _spawn_agent_for_env_test(
+        tmp_path=inherited_case,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+    assert key not in mock_spawn.call_args.kwargs["env"]
+
+    explicit_case = tmp_path / "explicit"
+    explicit_case.mkdir()
+    _spawn_agent_for_env_test(
+        tmp_path=explicit_case,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={key: '{"coder": "opus"}'},
+    )
+    assert mock_spawn.call_args.kwargs["env"][key] == '{"coder": "opus"}'
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     mock_spawn: MagicMock,
     mock_claim: MagicMock,

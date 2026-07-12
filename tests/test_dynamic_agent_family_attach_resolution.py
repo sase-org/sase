@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import pytest
 
 from sase.agent.family_attach import (
@@ -118,6 +119,39 @@ def test_family_attach_resolution_uses_newest_match_with_project_scope(
     assert plan.parent_project_name == "sase"
     assert plan.parent_timestamp == "20260701010202"
     assert plan.parent_artifacts_dir != "/tmp/other/foo"
+
+
+def test_family_attach_inherits_parent_model_alias_overrides(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps({"model_alias_overrides": {"coder": "sonnet"}}),
+        encoding="utf-8",
+    )
+    _patch_attach_snapshot(
+        monkeypatch,
+        [_artifact_record(name="foo", artifact_dir=parent_dir)],
+    )
+
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+        project_name="sase",
+    )
+    _, env = prepare_family_attach_launch(
+        "%n(foo, reviewer)\nReview",
+        LaunchExecutionContext(
+            cl_name="feature",
+            project_file="/tmp/sase.sase",
+            project_name="sase",
+        ),
+        {},
+    )
+
+    assert plan.model_alias_overrides == {"coder": "sonnet"}
+    assert json.loads((env or {})["SASE_MODEL_ALIAS_OVERRIDES"]) == {"coder": "sonnet"}
 
 
 def test_family_attach_running_parent_builds_queued_plan(

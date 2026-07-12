@@ -150,3 +150,14 @@ def test_override_clears_back_to_configured(
 
     clear_alias_override("coder")
     assert resolve_model_alias("coder") == "claude/sonnet"
+
+
+def test_launch_default_override_beats_machine_default_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    set_alias_override("default", "codex/o3", None, source="panel")
+
+    assert resolve_effective_default_provider_model(
+        model_alias_overrides={"default": "claude/sonnet"}
+    ) == ("claude", "sonnet")

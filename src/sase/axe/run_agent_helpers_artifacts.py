@@ -119,6 +119,7 @@ def create_followup_artifacts(
         "model",
         "llm_provider",
         "reasoning_effort",
+        "model_alias_overrides",
         "vcs_provider",
         # Inherit the workspace the parent ran in: follow-up agents run in the
         # same workspace, and persisting it lets the TUI resolve the live diff

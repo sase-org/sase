@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
@@ -92,6 +94,7 @@ def resolve_family_attach_plan(
         parent_cl_name = parent_sibling.cl_name
         parent_workspace_dir = parent_sibling.workspace_dir
         parent_workspace_num = parent_sibling.workspace_num
+        model_alias_overrides = dict(parent_sibling.model_alias_overrides)
     else:
         if parent_record is None or parent_record.agent_meta is None:
             raise _types.FamilyAttachError(
@@ -101,6 +104,9 @@ def resolve_family_attach_plan(
         parent_cl_name = _candidates.record_cl_name(parent_record)
         parent_workspace_dir = parent_record.agent_meta.workspace_dir
         parent_workspace_num = parent_record.agent_meta.workspace_num
+        model_alias_overrides = _read_parent_model_alias_overrides(
+            str(parent["artifact_dir"])
+        )
 
     return _types.FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
@@ -120,7 +126,26 @@ def resolve_family_attach_plan(
         sase_plan=_candidates.family_sase_plan(snapshot.records, parent_base)
         if role == "code"
         else None,
+        model_alias_overrides=model_alias_overrides,
     )
+
+
+def _read_parent_model_alias_overrides(artifacts_dir: str) -> dict[str, str]:
+    """Read the additive launch-scoped override field from parent metadata."""
+    try:
+        data = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {}
+    value = data.get("model_alias_overrides") if isinstance(data, dict) else None
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: item
+        for key, item in value.items()
+        if isinstance(key, str) and isinstance(item, str) and key and item
+    }
 
 
 def _resolve_role_suffix(

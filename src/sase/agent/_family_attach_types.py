@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
@@ -37,6 +37,7 @@ class FamilyAttachLaunchPlan:
     parent_workspace_dir: str | None = None
     parent_workspace_num: int | None = None
     sase_plan: str | None = None
+    model_alias_overrides: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class FamilyAttachSibling:
     workspace_dir: str | None = None
     workspace_num: int | None = None
     can_attach_parent: bool = True
+    model_alias_overrides: dict[str, str] = field(default_factory=dict)
 
 
 class FamilyAttachError(RuntimeError):

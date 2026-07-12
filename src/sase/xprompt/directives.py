@@ -9,7 +9,9 @@ Example::
     %model:agy/flash35l
     Review this code...
 
-The ``%model`` directive overrides the LLM model used for that prompt.
+The ``%model`` directive overrides the LLM model used for that prompt. Its
+parenthesized form also accepts launch-family alias overrides, for example
+``%model(opus, coder=sonnet)``.
 
 The implementation is split across a few private sibling modules:
 
@@ -85,7 +87,9 @@ def extract_prompt_directives(
         DirectiveError: If a known single-value directive appears more than
             once. Top-level ``%model`` is single-value; repeated model
             directives and multi-argument ``%model(...)`` forms raise with a
-            migration hint. Directives inside raw ``%alt(...)`` / ``%(...)`` /
+            migration hint. Parenthesized ``%model`` accepts one positional
+            model plus alias keyword overrides, or keyword overrides alone.
+            Directives inside raw ``%alt(...)`` / ``%(...)`` /
             ``%{...}`` bodies are ignored until the fan-out planner splits
             those branches.
     """

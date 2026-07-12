@@ -5,7 +5,9 @@ splitter and the main extractor can share regex patterns and alias
 tables without a circular import.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 # Pattern to match directive references: %name, %name(, %name:arg, %name:`arg`, %name+
 # Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
@@ -13,7 +15,7 @@ from dataclasses import dataclass, field
 _DIRECTIVE_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"%([a-zA-Z_][a-zA-Z0-9_]*)"  # Group 1: directive name
-    r"(?:(\()|:(`[^`]*`|[!a-zA-Z0-9_#/.,()@-]*[a-zA-Z0-9_#/,()@-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|[!a-zA-Z0-9_#/.,()@=-]*[a-zA-Z0-9_#/,()@=-])|(\+))?"  # Group 2: paren OR Group 3: colon arg OR Group 4: plus
 )
 
 # Known directive names
@@ -78,6 +80,8 @@ class PromptDirectives:
 
     Attributes:
         model: Model override string, or None to use the default.
+        model_alias_overrides: Launch-family-scoped model alias targets from
+            keyword arguments on the ``%model`` directive.
         reasoning_effort: Reasoning-effort level requested via the ``%effort``
             directive or a ``%model:<model>@<effort>`` suffix, or None when
             none was given. The public directive/suffix spell it ``effort``;
@@ -94,6 +98,9 @@ class PromptDirectives:
     auto_mode: str | None = None
     hide: bool = False
     model: str | None = None
+    model_alias_overrides: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     reasoning_effort: str | None = None
     name: str | None = None
     name_explicit: bool = False
@@ -112,3 +119,6 @@ class PromptDirectives:
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+
+    def __post_init__(self) -> None:
+        self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))

@@ -139,6 +139,18 @@ def invoke_agent(
         query = result.prompt
         result_directives = result.directives
     model_override = result_directives.model
+    model_alias_overrides = dict(result_directives.model_alias_overrides)
+    if model_alias_overrides and artifacts_dir:
+        from .launch_alias_overrides import export_launch_alias_overrides
+
+        export_launch_alias_overrides(model_alias_overrides)
+        from sase.axe.run_agent_helpers import update_meta_field
+
+        update_meta_field(
+            artifacts_dir,
+            "model_alias_overrides",
+            model_alias_overrides,
+        )
 
     # Resolve the effective reasoning effort (explicit %effort/@effort beats
     # the llm_provider.default_effort config) into per-invocation options that
@@ -152,7 +164,13 @@ def invoke_agent(
     # Resolve provider from model override (e.g. "o3" → codex, "codex/o3" → codex)
     if model_override and not provider_name:
         original_model_override = model_override
-        resolved_provider, model_override = resolve_model_provider(model_override)
+        if model_alias_overrides:
+            resolved_provider, model_override = resolve_model_provider(
+                model_override,
+                model_alias_overrides,
+            )
+        else:
+            resolved_provider, model_override = resolve_model_provider(model_override)
         if resolved_provider:
             provider_name = resolved_provider
         else:
@@ -175,7 +193,12 @@ def invoke_agent(
         )
 
         active = get_active_temporary_override()
-        if active is not None:
+        if default_model_alias_name() in model_alias_overrides:
+            provider_name, model_override = resolve_effective_default_provider_model(
+                model_tier,
+                model_alias_overrides,
+            )
+        elif active is not None:
             # An active primary temporary override wins the new-launch-default
             # slot (it is the user's recent explicit choice).
             provider_name = active.provider
@@ -186,7 +209,8 @@ def invoke_agent(
             # bypassed. With no configured default, @default is just the provider
             # tier default, so the plain-tier resolution below is left untouched.
             provider_name, model_override = resolve_effective_default_provider_model(
-                model_tier
+                model_tier,
+                model_alias_overrides or None,
             )
 
     # 2. Build display label

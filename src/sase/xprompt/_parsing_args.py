@@ -333,7 +333,11 @@ def parse_workflow_reference(
     return workflow_ref, [], {}
 
 
-def parse_args(args_str: str) -> tuple[list[str], dict[str, str]]:
+def parse_args(
+    args_str: str,
+    *,
+    reject_duplicate_named_args: bool = False,
+) -> tuple[list[str], dict[str, str]]:
     """Parse argument string into positional and named arguments.
 
     Handles quoted strings and text blocks [[...]] that may contain commas or equals.
@@ -344,6 +348,10 @@ def parse_args(args_str: str) -> tuple[list[str], dict[str, str]]:
 
     Returns:
         Tuple of (positional_args, named_args).
+
+    Raises:
+        ValueError: If ``reject_duplicate_named_args`` is true and a keyword
+            occurs more than once.
     """
     if not args_str.strip():
         return [], {}
@@ -397,6 +405,8 @@ def parse_args(args_str: str) -> tuple[list[str], dict[str, str]]:
     for token in tokens:
         name, value = _parse_named_arg(token)
         if name is not None:
+            if reject_duplicate_named_args and name in named:
+                raise ValueError(f"Duplicate keyword argument '{name}'")
             named[name] = value
         else:
             # Strip quotes from positional args too

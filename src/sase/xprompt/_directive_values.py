@@ -138,6 +138,60 @@ def expand_multi_directive_args(
     return expanded_multi
 
 
+def resolve_model_alias_overrides(
+    raw_overrides: dict[str, str],
+    *,
+    process_references: ProcessReferences,
+) -> dict[str, str]:
+    """Expand and validate launch-family model alias overrides."""
+    if not raw_overrides:
+        return {}
+
+    from sase.llm_provider.config import model_alias_names
+
+    aliases = model_alias_names()
+    valid_aliases = ", ".join(f"@{name}" for name in sorted(aliases))
+    resolved: dict[str, str] = {}
+    for raw_key, raw_value in raw_overrides.items():
+        key = raw_key.strip()
+        if key.startswith("@"):
+            raise DirectiveError(
+                f"Model alias override keys are bare — use '{key[1:]}=', not '{key}='."
+            )
+        if key not in aliases:
+            raise DirectiveError(
+                f"Unknown model alias '{key}' on %model — valid aliases: "
+                f"{valid_aliases}."
+            )
+
+        value = raw_value
+        if value and "#" in value:
+            value = process_references(value).strip()
+        if not value:
+            raise DirectiveError(
+                f"Model alias override '{key}=' requires a model value."
+            )
+
+        clean_value, effort = split_model_effort(value)
+        if effort is not None:
+            raise DirectiveError(
+                f"Model alias override '{key}={value}' cannot set reasoning "
+                "effort; per-alias effort overrides are not supported."
+            )
+        had_alias_prefix = clean_value.startswith("@")
+        alias_value = clean_value[1:] if had_alias_prefix else clean_value
+        _validate_model_alias_prefix(
+            alias_value,
+            had_alias_prefix=had_alias_prefix,
+        )
+        if had_alias_prefix and alias_value == key:
+            raise DirectiveError(
+                f"Model alias override '{key}=@{key}' cannot reference itself."
+            )
+        resolved[key] = clean_value
+    return resolved
+
+
 def resolve_name_template(
     raw_name: str | None, *, force_reuse: bool
 ) -> _NameTemplateInfo:

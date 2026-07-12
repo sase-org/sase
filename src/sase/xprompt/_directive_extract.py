@@ -15,6 +15,7 @@ from ._directive_values import (
     parse_repeat_count,
     resolve_auto_mode,
     resolve_name_template,
+    resolve_model_alias_overrides,
     resolve_reasoning_effort,
     resolve_wait_agent_args,
     resolve_wait_templates,
@@ -102,11 +103,16 @@ def extract_prompt_directives(
         model_effort=model_effort,
     )
     auto_mode = resolve_auto_mode(expanded_args)
+    model_alias_overrides = resolve_model_alias_overrides(
+        collected.model_alias_overrides,
+        process_references=process_references,
+    )
 
     directives = PromptDirectives(
         auto_mode=auto_mode,
         hide="hide" in expanded_args,
         model=expanded_args.get("model") or None,
+        model_alias_overrides=model_alias_overrides,
         reasoning_effort=reasoning_effort,
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
