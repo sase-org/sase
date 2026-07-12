@@ -17,7 +17,7 @@ import pytest
 
 import sase.ace.tui.modals.prompt_stash_row as prompt_stash_row
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals import StashedPromptsModal
+from sase.ace.tui.modals import StashedPromptsModal, UpdatePinnedStashModal
 from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -59,7 +59,13 @@ def _stash_entries() -> list[PromptStashEntryWire]:
         PromptStashEntryWire(
             id="recent",
             created_at="2026-06-16T12:00:00",
-            text="Investigate the flaky workspace loader test",
+            text=(
+                "%m:opus %wait:planner\n\n"
+                "# Review Checklist\n\n"
+                "Run #review(scope=diff) and then %{ship | hold}.\n\n"
+                "```python\n#literal %wait:no\n```"
+            ),
+            frontmatter="---\nxprompts:\n  helper: Use local rules\n---",
             project="sase",
             source="current",
         ),
@@ -151,4 +157,99 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
             page,
             "stashed_prompts_restore_modal_120x40",
             title="ACE stashed-prompts panel",
+        )
+
+
+async def test_stashed_prompts_bundle_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
+    bundle = PromptStashEntryWire(
+        id="bundle",
+        created_at="2026-06-16T12:00:00",
+        text=(
+            "# First prompt\n\nRun #review:diff.\n"
+            "---\n"
+            "# Second prompt\n\nChoose %{ship | hold}."
+        ),
+        project="sase",
+        source="all",
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(
+            StashedPromptsModal(
+                [
+                    bundle,
+                    PromptStashEntryWire(
+                        id="single",
+                        created_at="2026-06-16T11:30:00",
+                        text="A single prompt below the selected bundle",
+                        project="sase-core",
+                        source="current",
+                    ),
+                ]
+            )
+        )
+        await page.expect_modal("StashedPromptsModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "stashed_prompts_bundle_preview_120x40",
+            title="ACE stashed-prompts bundle preview",
+        )
+
+
+async def test_stashed_prompts_narrow_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(100, 40)
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(StashedPromptsModal(_stash_entries()))
+        await page.expect_modal("StashedPromptsModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "stashed_prompts_narrow_modal_100x40",
+            title="ACE stashed-prompts narrow panel",
+        )
+
+
+async def test_update_pinned_stash_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(prompt_stash_row, "format_relative_time", _frozen_age)
+    pinned_entries = [
+        PromptStashEntryWire(
+            **{
+                **entry.__dict__,
+                "pinned": True,
+            }
+        )
+        for entry in _stash_entries()[:3]
+    ]
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(UpdatePinnedStashModal(pinned_entries))
+        await page.expect_modal("UpdatePinnedStashModal")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "update_pinned_stash_preview_120x40",
+            title="ACE update-pinned prompt preview",
         )

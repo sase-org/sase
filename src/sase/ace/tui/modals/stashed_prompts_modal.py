@@ -15,25 +15,33 @@ from __future__ import annotations
 from dataclasses import dataclass, field, replace
 
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Container, Horizontal, Vertical
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
 from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 
+from ._prompt_stash_preview import PromptStashPreviewPane
 from .base import OptionListNavigationMixin
 from .prompt_stash_row import (
+    DEFAULT_STASH_PREVIEW_WIDTH,
     INDEX_KEYS,
     PIN_GLYPH,
     append_shortcut,
+    prompt_stash_preview_width_for_list_content,
     stash_row_age,
     stash_row_label,
 )
+
+_SPLIT_PANE_MIN_TERMINAL_WIDTH = 110
 
 
 @dataclass
@@ -72,6 +80,8 @@ class StashedPromptsModal(
         ("space", "toggle_pin", "Pin"),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
+        Binding("ctrl+d", "scroll_preview_down", "Preview Down", priority=True),
+        Binding("ctrl+u", "scroll_preview_up", "Preview Up", priority=True),
         *[
             Binding(key, f"restore_index({idx})", f"Restore #{idx + 1}", show=False)
             for idx, key in enumerate(INDEX_KEYS)
@@ -93,21 +103,45 @@ class StashedPromptsModal(
         self._pop: set[str] = set()
         self._pinned: set[str] = {entry.id for entry in self._entries if entry.pinned}
         self._deleted: set[str] = set()
+        self._highlight_cache: dict[str, Text] = {}
+        self._preview_debouncer: DetailPanelDebouncer | None = None
+        self._refreshing_options = False
+        self._narrow = True
+        self._last_preview_width_budget = DEFAULT_STASH_PREVIEW_WIDTH
 
     # -- layout --------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
         with Container(id="stashed-prompts-container"):
-            yield Label(self._title_text(), id="stashed-prompts-title")
-            yield OptionList(*self._build_options(), id="stashed-prompts-list")
-            yield Static(self._hint_text(), id="stashed-prompts-hints")
+            with Horizontal(id="stashed-prompts-panels"):
+                with Vertical(id="stashed-prompts-list-panel"):
+                    yield Label(self._title_text(), id="stashed-prompts-title")
+                    yield OptionList(*self._build_options(), id="stashed-prompts-list")
+                    yield Static(self._hint_text(), id="stashed-prompts-hints")
+                yield PromptStashPreviewPane(id="stashed-prompts-preview-pane")
 
     def on_mount(self) -> None:
         # Keep the list focused so j/k/space/tab/a/d and enter all land on it.
+        self._preview_debouncer = DetailPanelDebouncer(self.app)
+        self._set_narrow_mode(self.app.size.width < _SPLIT_PANE_MIN_TERMINAL_WIDTH)
         try:
             self.query_one("#stashed-prompts-list", OptionList).focus()
         except Exception:
             pass
+        if self._entries:
+            self._paint_preview(self._entries[0].id)
+        else:
+            self.query_one(PromptStashPreviewPane).show_placeholder()
+        self.call_after_refresh(self._refresh_rows_for_current_width)
+
+    def on_unmount(self) -> None:
+        if self._preview_debouncer is not None:
+            self._preview_debouncer.cancel()
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Collapse the preview on narrow terminals and resize row snippets."""
+        self._set_narrow_mode(event.size.width < _SPLIT_PANE_MIN_TERMINAL_WIDTH)
+        self.call_after_refresh(self._refresh_rows_for_current_width)
 
     def _title_text(self) -> str:
         count = len(self._entries)
@@ -115,12 +149,14 @@ class StashedPromptsModal(
 
     def _hint_text(self) -> str:
         return (
-            "1-9 0  restore row    j/k ↑/↓ navigate    enter confirm    "
-            f"esc/q cancel\nspace {PIN_GLYPH} pin    tab ✓ restore    "
-            "d ✗ delete    a all"
+            "1-9 0 restore row · j/k navigate · enter confirm · esc/q cancel\n"
+            f"space {PIN_GLYPH} pin · tab ✓ restore · d ✗ delete · a all · ^d/^u preview"
         )
 
-    def _build_options(self) -> list[Option]:
+    def _build_options(self, *, preview_width: int | None = None) -> list[Option]:
+        if preview_width is None:
+            preview_width = self._last_preview_width_budget
+        self._last_preview_width_budget = preview_width
         options: list[Option] = []
         for idx, entry in enumerate(self._entries):
             label = Text(no_wrap=True, overflow="ellipsis")
@@ -134,6 +170,7 @@ class StashedPromptsModal(
                     pinned=entry.id in self._pinned,
                     age=stash_row_age(entry),
                     prompt_count=self._prompt_counts[entry.id],
+                    preview_width=preview_width,
                 )
             )
             options.append(Option(label, id=str(idx)))
@@ -165,10 +202,90 @@ class StashedPromptsModal(
         except Exception:
             return
         highlighted = option_list.highlighted
-        option_list.clear_options()
-        option_list.add_options(self._build_options())
-        if self._entries and highlighted is not None:
-            option_list.highlighted = min(highlighted, len(self._entries) - 1)
+        self._refreshing_options = True
+        try:
+            option_list.clear_options()
+            option_list.add_options(self._build_options())
+            if self._entries and highlighted is not None:
+                option_list.highlighted = min(highlighted, len(self._entries) - 1)
+        finally:
+            self._refreshing_options = False
+
+    def _resolve_preview_width_budget(self) -> int:
+        if self._narrow:
+            return DEFAULT_STASH_PREVIEW_WIDTH
+        try:
+            option_list = self.query_one("#stashed-prompts-list", OptionList)
+        except Exception:
+            return DEFAULT_STASH_PREVIEW_WIDTH
+        width = option_list.scrollable_content_region.width
+        if width <= 0:
+            width = option_list.content_size.width
+        if width <= 0:
+            width = option_list.size.width
+        return prompt_stash_preview_width_for_list_content(width)
+
+    def _refresh_rows_for_current_width(self) -> None:
+        preview_width = self._resolve_preview_width_budget()
+        if preview_width == self._last_preview_width_budget:
+            return
+        self._last_preview_width_budget = preview_width
+        self._refresh_rows()
+
+    def _set_narrow_mode(self, narrow: bool) -> None:
+        self._narrow = narrow
+        try:
+            container = self.query_one("#stashed-prompts-container", Container)
+        except Exception:
+            return
+        container.set_class(narrow, "-narrow")
+
+    def _schedule_preview(self, entry_id: str) -> None:
+        if self._preview_debouncer is None:
+            self._paint_preview(entry_id)
+            return
+        self._preview_debouncer.schedule(
+            lambda: self._paint_preview_if_current(entry_id)
+        )
+
+    def _paint_preview_if_current(self, entry_id: str) -> None:
+        entry = self._highlighted_entry()
+        if entry is not None and entry.id == entry_id:
+            self._paint_preview(entry_id)
+
+    def _paint_preview(self, entry_id: str) -> None:
+        entry = next((item for item in self._entries if item.id == entry_id), None)
+        if entry is None:
+            self.query_one(PromptStashPreviewPane).show_placeholder()
+            return
+        highlighted = self._highlight_cache.get(entry.id)
+        if highlighted is None:
+            highlighted = highlight_prompt_text(entry.text)
+            self._highlight_cache[entry.id] = highlighted
+        self.query_one(PromptStashPreviewPane).show_entry(
+            entry,
+            prompt_count=self._prompt_counts[entry.id],
+            highlighted_body=highlighted,
+        )
+
+    def on_option_list_option_highlighted(
+        self, event: OptionList.OptionHighlighted
+    ) -> None:
+        """Debounce the expensive preview paint while navigation stays instant."""
+        if self._refreshing_options or event.option is None or event.option.id is None:
+            return
+        try:
+            index = int(event.option.id)
+        except ValueError:
+            return
+        if 0 <= index < len(self._entries):
+            self._schedule_preview(self._entries[index].id)
+
+    def action_scroll_preview_down(self) -> None:
+        self.query_one(PromptStashPreviewPane).scroll_half_page(1)
+
+    def action_scroll_preview_up(self) -> None:
+        self.query_one(PromptStashPreviewPane).scroll_half_page(-1)
 
     def action_toggle_pop(self) -> None:
         entry = self._highlighted_entry()
@@ -194,6 +311,7 @@ class StashedPromptsModal(
         updated = replace(entry, pinned=pinned)
         self._entries[index] = updated
         self._refresh_rows()
+        self._schedule_preview(updated.id)
         self.post_message(self.PinToggled(updated, pinned))
 
     def action_toggle_all(self) -> None:

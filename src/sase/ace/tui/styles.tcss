@@ -385,13 +385,29 @@ AgentCleanupCustomModal #agent-cleanup-search {
 
 /* Prompt-stash restore picker */
 StashedPromptsModal > #stashed-prompts-container {
-    width: 96;
-    max-width: 96%;
+    width: 96%;
+    max-width: 156;
     height: auto;
     max-height: 90%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
+}
+
+StashedPromptsModal > #stashed-prompts-container.-narrow {
+    width: 96;
+    max-width: 96%;
+}
+
+StashedPromptsModal #stashed-prompts-panels {
+    width: 100%;
+    height: 23;
+}
+
+StashedPromptsModal #stashed-prompts-list-panel {
+    width: 6fr;
+    min-width: 54;
+    height: 100%;
 }
 
 StashedPromptsModal #stashed-prompts-title {
@@ -406,6 +422,18 @@ StashedPromptsModal #stashed-prompts-list {
     border: solid $secondary;
 }
 
+StashedPromptsModal #stashed-prompts-list,
+UpdatePinnedStashModal #update-pinned-stash-list {
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+StashedPromptsModal OptionList > .option-list--option,
+UpdatePinnedStashModal OptionList > .option-list--option {
+    height: 1;
+    padding: 0 1;
+}
+
 StashedPromptsModal #stashed-prompts-hints {
     height: auto;
     margin-top: 1;
@@ -413,13 +441,29 @@ StashedPromptsModal #stashed-prompts-hints {
 }
 
 UpdatePinnedStashModal > #update-pinned-stash-container {
-    width: 96;
-    max-width: 96%;
+    width: 96%;
+    max-width: 156;
     height: auto;
     max-height: 90%;
     border: thick $primary;
     background: $surface;
     padding: 1 2;
+}
+
+UpdatePinnedStashModal > #update-pinned-stash-container.-narrow {
+    width: 96;
+    max-width: 96%;
+}
+
+UpdatePinnedStashModal #update-pinned-stash-panels {
+    width: 100%;
+    height: 23;
+}
+
+UpdatePinnedStashModal #update-pinned-stash-list-panel {
+    width: 6fr;
+    min-width: 54;
+    height: 100%;
 }
 
 UpdatePinnedStashModal #update-pinned-stash-title {
@@ -438,6 +482,64 @@ UpdatePinnedStashModal #update-pinned-stash-hints {
     height: auto;
     margin-top: 1;
     color: $text-muted;
+}
+
+StashedPromptsModal PromptStashPreviewPane,
+UpdatePinnedStashModal PromptStashPreviewPane {
+    width: 5fr;
+    min-width: 46;
+    height: 100%;
+    margin-left: 1;
+}
+
+StashedPromptsModal .prompt-stash-preview-label,
+UpdatePinnedStashModal .prompt-stash-preview-label {
+    color: $text-muted;
+    text-style: bold;
+    height: 2;
+    padding: 0 1;
+}
+
+StashedPromptsModal .prompt-stash-preview-scroll,
+UpdatePinnedStashModal .prompt-stash-preview-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+StashedPromptsModal .prompt-stash-preview-placeholder,
+StashedPromptsModal .prompt-stash-preview-frontmatter,
+StashedPromptsModal .prompt-stash-preview-body,
+StashedPromptsModal .prompt-stash-preview-metadata,
+UpdatePinnedStashModal .prompt-stash-preview-placeholder,
+UpdatePinnedStashModal .prompt-stash-preview-frontmatter,
+UpdatePinnedStashModal .prompt-stash-preview-body,
+UpdatePinnedStashModal .prompt-stash-preview-metadata {
+    height: auto;
+}
+
+StashedPromptsModal .prompt-stash-preview-placeholder,
+UpdatePinnedStashModal .prompt-stash-preview-placeholder,
+StashedPromptsModal .prompt-stash-preview-metadata,
+UpdatePinnedStashModal .prompt-stash-preview-metadata {
+    color: $text-muted;
+}
+
+StashedPromptsModal .prompt-stash-preview-frontmatter,
+UpdatePinnedStashModal .prompt-stash-preview-frontmatter {
+    border-bottom: solid $secondary;
+    margin-bottom: 1;
+    padding-bottom: 1;
+}
+
+StashedPromptsModal #stashed-prompts-container.-narrow PromptStashPreviewPane,
+UpdatePinnedStashModal #update-pinned-stash-container.-narrow PromptStashPreviewPane {
+    display: none;
+}
+
+StashedPromptsModal #stashed-prompts-container.-narrow #stashed-prompts-list-panel,
+UpdatePinnedStashModal #update-pinned-stash-container.-narrow #update-pinned-stash-list-panel {
+    width: 100%;
 }
 
 /* Quit confirmation with running background-task details */

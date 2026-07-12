@@ -8,15 +8,17 @@ from sase.ace.tui.prompt_stash_entries import entry_prompt_segments
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.notifications.models import format_relative_time
 
-# Sized so a full row (shortcut + marker + pin + age + project chip + bundle
-# chip + preview) fits on one line inside the fixed 96-column modal -- its
-# option area is ~86 cols and the fixed columns ahead of the preview spend ~47.
+# The fallback preserves the fixed 96-column modal's historical row layout.
+# Split-pane callers derive a smaller/larger budget from the laid-out list.
 INDEX_KEYS = "1234567890"
 PIN_GLYPH = "📌"
 
 _SHORTCUT_WIDTH = 4
 _SHORTCUT_STYLE = "bold black on #AF87FF"
-_PREVIEW_WIDTH = 36
+DEFAULT_STASH_PREVIEW_WIDTH = 36
+_MIN_PREVIEW_WIDTH = 8
+_OPTION_HORIZONTAL_PADDING_WIDTH = 2
+_ROW_FIXED_WIDTH = 47
 _PROJECT_WIDTH = 14
 _AGE_WIDTH = 9
 _BUNDLE_WIDTH = 10
@@ -37,6 +39,16 @@ def first_line_preview(text: str, width: int) -> str:
     if width <= 1:
         return preview[:width]
     return f"{preview[: width - 1]}…"
+
+
+def prompt_stash_preview_width_for_list_content(list_content_width: int) -> int:
+    """Return the row-preview budget for a laid-out option-list width."""
+    if list_content_width <= 0:
+        return DEFAULT_STASH_PREVIEW_WIDTH
+    return max(
+        _MIN_PREVIEW_WIDTH,
+        list_content_width - _OPTION_HORIZONTAL_PADDING_WIDTH - _ROW_FIXED_WIDTH,
+    )
 
 
 def _project_chip(project: str | None) -> str:
@@ -72,7 +84,7 @@ def stash_row_label(
     pinned: bool,
     age: str,
     prompt_count: int = 1,
-    preview_width: int = _PREVIEW_WIDTH,
+    preview_width: int = DEFAULT_STASH_PREVIEW_WIDTH,
 ) -> Text:
     """Build the styled single-line label for one stash row.
 
@@ -126,8 +138,10 @@ def stash_row_age(entry: PromptStashEntryWire) -> str:
 __all__ = [
     "INDEX_KEYS",
     "PIN_GLYPH",
+    "DEFAULT_STASH_PREVIEW_WIDTH",
     "append_shortcut",
     "first_line_preview",
+    "prompt_stash_preview_width_for_list_content",
     "stash_row_age",
     "stash_row_label",
     "stash_row_prompt_count",

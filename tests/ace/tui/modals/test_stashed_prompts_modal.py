@@ -13,8 +13,10 @@ from __future__ import annotations
 
 from rich.text import Text
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.containers import Container
+from textual.widgets import OptionList, Static
 
+from sase.ace.tui.modals._prompt_stash_preview import PromptStashPreviewPane
 from sase.ace.tui.modals.prompt_stash_row import (
     append_shortcut,
     first_line_preview,
@@ -220,6 +222,50 @@ async def test_newest_first_ordering() -> None:
         modal = app.screen
         assert isinstance(modal, StashedPromptsModal)
         assert [e.id for e in modal._entries] == ["new", "mid", "old"]
+
+
+async def test_preview_follows_debounced_highlight_and_caches_body() -> None:
+    app = _ModalHost(
+        [
+            _entry("first", "# First", created_at="2026-06-16T12:00:00"),
+            _entry(
+                "second",
+                "%wait:planner\n\nSecond full prompt",
+                created_at="2026-06-16T11:00:00",
+            ),
+        ]
+    )
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+        body = modal.query_one(".prompt-stash-preview-body", Static)
+        assert body.render().plain == "# First"
+
+        await pilot.press("j")
+        await pilot.pause(0.2)
+        assert body.render().plain == "%wait:planner\n\nSecond full prompt"
+        assert set(modal._highlight_cache) == {"first", "second"}
+
+        await pilot.press("space")
+        await pilot.pause(0.2)
+        assert body.render().plain == "%wait:planner\n\nSecond full prompt"
+        assert modal.query_one(PromptStashPreviewPane).is_mounted
+
+
+async def test_narrow_mode_preserves_legacy_row_budget() -> None:
+    app = _ModalHost([_entry("a", "x" * 100)])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+        container = modal.query_one("#stashed-prompts-container", Container)
+        option_list = modal.query_one("#stashed-prompts-list", OptionList)
+        assert container.has_class("-narrow")
+        assert modal._last_preview_width_budget == 36
+        option = option_list.get_option_at_index(0)
+        assert isinstance(option.prompt, Text)
+        assert option.prompt.plain.endswith("x" * 35 + "…")
 
 
 async def test_enter_with_no_toggle_restores_highlighted() -> None:

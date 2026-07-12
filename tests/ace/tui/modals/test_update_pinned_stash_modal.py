@@ -94,6 +94,29 @@ async def test_enter_confirms_highlighted_after_navigation() -> None:
     assert app.result == "target"
 
 
+async def test_preview_follows_highlight() -> None:
+    app = _ModalHost(
+        [
+            _entry("first", "First", created_at="2026-06-16T12:00:00"),
+            _entry(
+                "target",
+                "#review\n\nTarget full prompt",
+                created_at="2026-06-16T11:00:00",
+            ),
+        ]
+    )
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UpdatePinnedStashModal)
+        body = modal.query_one(".prompt-stash-preview-body", Static)
+        assert body.render().plain == "First"
+
+        await pilot.press("j")
+        await pilot.pause(0.2)
+        assert body.render().plain == "#review\n\nTarget full prompt"
+
+
 async def test_escape_and_q_cancel() -> None:
     app_escape = _ModalHost([_entry("a")])
     async with app_escape.run_test(size=(100, 30)) as pilot:
