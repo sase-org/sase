@@ -86,6 +86,41 @@ def test_scan_agent_artifact_dirs_reads_exact_unique_dirs(fixture_root: Path) ->
     assert snapshot.stats.artifact_dirs_visited == 2
 
 
+def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> None:
+    root = tmp_path / "projects"
+    artifact_dir = root / "myproj" / "artifacts" / "ace-run" / "20260712192000"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "slot-waiter"}), encoding="utf-8"
+    )
+    waiting_path = artifact_dir / "waiting.json"
+    waiting_path.write_text(
+        json.dumps(
+            {
+                "waiting_for": ["upstream"],
+                "wait_duration": 300.0,
+                "wait_until": "2026-07-12T19:30:00Z",
+                "wait_runners": 3,
+                "wait_runners_explicit": True,
+                "slot_requested_at": "2026-07-12T19:20:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    raw = json.loads(waiting_path.read_text(encoding="utf-8"))
+    snapshot = scan_agent_artifact_dirs(root, [artifact_dir])
+    waiting = snapshot.records[0].waiting
+
+    assert waiting is not None
+    assert waiting.waiting_for == raw["waiting_for"]
+    assert waiting.wait_duration == raw["wait_duration"]
+    assert waiting.wait_until == raw["wait_until"]
+    assert waiting.wait_runners == raw["wait_runners"]
+    assert waiting.wait_runners_explicit is raw["wait_runners_explicit"]
+    assert waiting.slot_requested_at == raw["slot_requested_at"]
+
+
 def test_scan_agent_artifact_dirs_honors_project_and_workflow_filters(
     fixture_root: Path,
 ) -> None:

@@ -192,6 +192,9 @@ class WaitingMarkerWire:
     waiting_for: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+    wait_runners: int | None = None
+    wait_runners_explicit: bool = False
+    slot_requested_at: str | None = None
 
 
 @dataclass(frozen=True)
