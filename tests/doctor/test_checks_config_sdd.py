@@ -113,6 +113,46 @@ def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
     )
 
 
+def test_config_sdd_errors_when_split_companion_clone_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans, _research = _write_companion_sdd_record(tmp_path)
+    (plans / ".git").mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert any(
+        issue["code"] == "missing-research-companion-clone"
+        for issue in check.data["storage_issues"]
+    )
+
+
+def test_config_sdd_warns_when_legacy_clone_lingers_after_split(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans, research = _write_companion_sdd_record(tmp_path)
+    (plans / ".git").mkdir(parents=True)
+    (research / ".git").mkdir(parents=True)
+    (tmp_path / ".sase" / "sdd").mkdir()
+    monkeypatch.setattr(
+        "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
+    )
+
+    check = check_config_sdd(_doctor_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert any(
+        issue["code"] == "legacy-sdd-after-migration"
+        for issue in check.data["storage_issues"]
+    )
+
+
 def _write_materialized_sdd_record(
     primary: Path,
     *,
@@ -133,6 +173,33 @@ def _write_materialized_sdd_record(
         },
     )
     (primary / ".sase" / "sdd" / ".git").mkdir(parents=True)
+
+
+def _write_companion_sdd_record(primary: Path) -> tuple[Path, Path]:
+    from sase.sdd.store import write_sdd_store_record
+
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": "git@github.com:acme/widget--research.git",
+                },
+            },
+        },
+    )
+    repos = primary / "sase" / "repos"
+    plans = repos / "widget--plans"
+    (plans / "beads").mkdir(parents=True)
+    return plans, repos / "widget--research"
 
 
 def _write_sdd_pair(root: Path) -> None:

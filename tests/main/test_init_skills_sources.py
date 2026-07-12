@@ -41,6 +41,14 @@ from tests.main.init_skills_handler_helpers import make_args
             ),
         ),
         (
+            "sase_beads",
+            (
+                "SASE_SDD_PLANS_DIR=$(sase sdd path plans)",
+                "SASE_SDD_BEADS_DIR=$(sase sdd path beads)",
+                "${SASE_SDD_PLANS_DIR}/202605/auth.md",
+            ),
+        ),
+        (
             "sase_memory_read",
             (
                 "sase memory read",

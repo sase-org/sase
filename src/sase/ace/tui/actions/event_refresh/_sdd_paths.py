@@ -8,9 +8,9 @@ from typing import Any
 
 def resolve_current_sdd_beads_dir() -> Path:
     """Resolve the effective beads directory for the current workspace."""
-    from sase.sdd.store import resolve_sdd_dir
+    from sase.sdd.store import resolve_sdd_kind_dir
 
-    return resolve_sdd_dir(Path.cwd(), 1) / "beads"
+    return resolve_sdd_kind_dir(Path.cwd(), 1, "beads")
 
 
 def cached_sdd_beads_dir(owner: Any) -> Path:

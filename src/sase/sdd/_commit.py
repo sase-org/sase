@@ -5,11 +5,15 @@ import os
 import subprocess
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.sdd._init_files import ensure_sdd_initialized
-from sase.sdd._store_types import SDD_STORAGE_SEPARATE_REPO
+from sase.sdd._store_types import (
+    SDD_STORAGE_COMPANION_REPOS,
+    SDD_STORAGE_SEPARATE_REPO,
+)
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
@@ -280,24 +284,78 @@ def commit_sdd_store_files(
     push_after_commit: bool | Literal["async"] | None = None,
     artifacts_dir: str | Path | None = None,
 ) -> bool:
-    """Commit SDD files and push separate-repo stores per config.
+    """Commit SDD files in their owning repository and push per config.
 
     Push failure never changes the commit result; the local commit is
     preserved and failures are logged.
     """
 
-    committed = commit_sdd_files(
-        store.repo_root,
-        message,
-        auto_commit_type=auto_commit_type,
-        paths=paths,
-        artifacts_dir=artifacts_dir,
-        repo_name=_sdd_store_label(store),
-        record_commit_marker=store.storage == SDD_STORAGE_SEPARATE_REPO,
+    committed_any = False
+    for target_store, target_paths in _sdd_commit_targets(store, paths):
+        committed = commit_sdd_files(
+            target_store.repo_root,
+            message,
+            auto_commit_type=auto_commit_type,
+            paths=target_paths,
+            artifacts_dir=artifacts_dir,
+            repo_name=_sdd_store_label(target_store),
+            record_commit_marker=target_store.storage
+            in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_COMPANION_REPOS},
+        )
+        if committed:
+            _push_sdd_store_after_commit(
+                target_store, push_after_commit=push_after_commit
+            )
+            committed_any = True
+    return committed_any
+
+
+def _sdd_commit_targets(
+    store: "SddStore", paths: Iterable[str | Path] | None
+) -> list[tuple["SddStore", list[str | Path] | None]]:
+    """Partition split-store paths between the plans and research repos."""
+
+    if not store.is_companion_storage or store.research_dir is None:
+        return [(store, list(paths) if paths is not None else None)]
+
+    plans_store = replace(store, research_dir=None, research_remote_url=None)
+    research_store = replace(
+        store,
+        sdd_dir=store.research_dir,
+        repo_root=store.research_dir,
+        remote_url=store.research_remote_url,
+        research_dir=None,
+        research_remote_url=None,
     )
-    if committed:
-        _push_sdd_store_after_commit(store, push_after_commit=push_after_commit)
-    return committed
+    if paths is None:
+        return [(plans_store, None), (research_store, None)]
+
+    plans_paths: list[str | Path] = []
+    research_paths: list[str | Path] = []
+    research_root = store.research_dir.expanduser().resolve(strict=False)
+    for raw_path in paths:
+        path = Path(raw_path)
+        if path.is_absolute() and _path_is_within(path, research_root):
+            research_paths.append(raw_path)
+        else:
+            # Relative paths retain the historical interpretation: they are
+            # rooted at the store's primary (plans) repository.
+            plans_paths.append(raw_path)
+
+    targets: list[tuple[SddStore, list[str | Path] | None]] = []
+    if plans_paths:
+        targets.append((plans_store, plans_paths))
+    if research_paths:
+        targets.append((research_store, research_paths))
+    return targets
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        path.expanduser().resolve(strict=False).relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _record_sdd_commit_marker(
@@ -343,16 +401,19 @@ def _git_head_sha(repo_dir: Path) -> str | None:
 
 
 def _sdd_store_label(store: "SddStore") -> str | None:
-    if store.storage != SDD_STORAGE_SEPARATE_REPO:
+    if store.storage not in {
+        SDD_STORAGE_SEPARATE_REPO,
+        SDD_STORAGE_COMPANION_REPOS,
+    }:
         return None
 
-    label = _sdd_store_record_label(store)
-    if label:
-        return label
     if store.remote_url:
         label = _repo_label_from_remote_url(store.remote_url)
         if label:
             return label
+    label = _sdd_store_record_label(store)
+    if label:
+        return label
     return "sdd"
 
 
@@ -410,9 +471,15 @@ def _push_sdd_store_after_commit(
     *,
     push_after_commit: bool | Literal["async"] | None,
 ) -> None:
-    from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO
+    from sase.sdd.store import (
+        SDD_STORAGE_COMPANION_REPOS,
+        SDD_STORAGE_SEPARATE_REPO,
+    )
 
-    if store.storage != SDD_STORAGE_SEPARATE_REPO:
+    if store.storage not in {
+        SDD_STORAGE_SEPARATE_REPO,
+        SDD_STORAGE_COMPANION_REPOS,
+    }:
         return
 
     mode = (

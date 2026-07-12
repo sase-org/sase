@@ -488,6 +488,8 @@ def _apply_legacy_error_allowlist(issues: list[_SddIssue]) -> list[_SddIssue]:
 def _looks_like_project_root(path: Path) -> bool:
     if path.name == "sdd" and path.parent.name == ".sase":
         return False
+    if (path / "beads").is_dir():
+        return False
     has_flat_months = any(
         child.is_dir() and len(child.name) == 6 and child.name.isdigit()
         for child in path.iterdir()

@@ -29,16 +29,28 @@ def commit_sdd_files_for_exec_plan(
     """
     from sase.sdd.files import find_sdd_file
 
-    base = Path(workspace_dir)
-    try:
-        from sase.sdd.store import resolve_sdd_dir
-
-        base = resolve_sdd_dir(base, 1)
-    except Exception:
-        pass
     fname = f"{plan_name}.md"
+    base = Path(workspace_dir)
     prompt_found = find_sdd_file(base, "prompts", fname)
     plan_found = find_sdd_file(base, "plans", fname)
+    if prompt_found is None and plan_found is None:
+        try:
+            from sase.sdd.store import read_sdd_store_record, resolve_sdd_dir
+
+            record = read_sdd_store_record(base)
+            if record is None:
+                from sase.workspace_provider.marker import find_marker_from_cwd
+
+                found = find_marker_from_cwd(str(base))
+                if found is not None and found[1].primary_workspace_dir:
+                    record = read_sdd_store_record(found[1].primary_workspace_dir)
+            if record is not None:
+                resolved = resolve_sdd_dir(base, 1)
+                if resolved.is_dir():
+                    prompt_found = find_sdd_file(resolved, "prompts", fname)
+                    plan_found = find_sdd_file(resolved, "plans", fname)
+        except Exception:
+            pass
     files = [str(f) for f in (prompt_found, plan_found) if f is not None]
     if not files:
         return True

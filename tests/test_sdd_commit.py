@@ -14,6 +14,15 @@ from sase.sdd.files import commit_sdd_files, commit_sdd_store_files
 from sase.sdd.store import SddStore
 
 
+def _init_test_git_repo(path: Path) -> None:
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"], cwd=path, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
+
+
 def test_commit_sdd_files() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
@@ -446,3 +455,85 @@ def test_commit_sdd_store_files_does_not_push_local_store(
     assert commit_sdd_store_files(store, "Commit SDD") is True
     sync.assert_not_called()
     async_push.assert_not_called()
+
+
+def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = tmp_path / "project--plans"
+    research = tmp_path / "project--research"
+    _init_test_git_repo(plans)
+    _init_test_git_repo(research)
+    plan = plans / "202607" / "plan.md"
+    report = research / "202607" / "report.md"
+    plan.parent.mkdir()
+    report.parent.mkdir()
+    plan.write_text("# Plan\n", encoding="utf-8")
+    report.write_text("# Research\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"push_after_commit": False}},
+    )
+    store = SddStore(
+        storage="companion_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.com:acme/project--plans.git",
+        research_dir=research,
+        research_remote_url="git@example.com:acme/project--research.git",
+    )
+
+    assert commit_sdd_store_files(store, "Commit split SDD", paths=[plan, report])
+
+    assert subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=plans,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines() == ["202607/plan.md"]
+    assert subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=research,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines() == ["202607/report.md"]
+
+
+def test_commit_sdd_store_files_pushes_each_changed_companion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = tmp_path / "project--plans"
+    research = tmp_path / "project--research"
+    store = SddStore(
+        storage="companion_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.com:acme/project--plans.git",
+        research_dir=research,
+        research_remote_url="git@example.com:acme/project--research.git",
+    )
+    commit_roots: list[Path] = []
+    pushed_roots: list[Path] = []
+
+    def fake_commit(root: Path, *_args: object, **_kwargs: object) -> bool:
+        commit_roots.append(root)
+        return True
+
+    def fake_push(root: Path) -> SimpleNamespace:
+        pushed_roots.append(root)
+        return SimpleNamespace(pushed=True, error=None)
+
+    monkeypatch.setattr("sase.sdd._commit.commit_sdd_files", fake_commit)
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+
+    assert commit_sdd_store_files(
+        store,
+        "Commit split SDD",
+        push_after_commit=True,
+    )
+    assert commit_roots == [plans, research]
+    assert pushed_roots == [plans, research]

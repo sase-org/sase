@@ -10,7 +10,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.llm_provider import commit_finalizer_git as finalizer_git
-from sase.llm_provider.commit_finalizer import run_commit_finalizer
+from sase.llm_provider.commit_finalizer import (
+    _auto_commit_separate_sdd_store_if_possible,
+    run_commit_finalizer,
+)
 from sase.llm_provider.types import InvokeResult
 from sase.sibling_repos import SIBLING_REPOS_JSON_ENV, record_opened_sibling
 from tests.sdd_policy_helpers import set_sdd_policy
@@ -262,6 +265,54 @@ def test_dirty_separate_sdd_store_is_auto_committed_when_main_repo_clean(
     )
     assert '"status": "finalized"' in result_json
     assert '"reason": "auto_committed_sdd_store"' in result_json
+
+
+def test_split_sdd_store_auto_commit_routes_all_companions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import SddStore, write_sdd_store_record
+
+    plans = tmp_path / "sase" / "repos" / "project--plans"
+    research = tmp_path / "sase" / "repos" / "project--research"
+    (plans / ".git").mkdir(parents=True)
+    (research / ".git").mkdir(parents=True)
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+            },
+        },
+    )
+    store = SddStore(
+        storage="companion_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.com:acme/project--plans.git",
+        research_dir=research,
+        research_remote_url="git@example.com:acme/project--research.git",
+    )
+    commit = MagicMock(return_value=True)
+    monkeypatch.setattr("sase.sdd.store.resolve_sdd_store", lambda *_args: store)
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit)
+
+    assert _auto_commit_separate_sdd_store_if_possible(str(tmp_path))
+    commit.assert_called_once_with(
+        store,
+        "chore(sdd): sync uncommitted SDD store changes",
+        auto_commit_type="sdd",
+    )
 
 
 def test_separate_sdd_store_auto_commit_runs_after_provider_pass(

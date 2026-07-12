@@ -55,3 +55,54 @@ def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
 
     assert app._sdd_beads_dir == beads_dir
     assert beads_dir in captured_paths
+
+
+def test_artifact_watcher_targets_plans_companion_beads_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase_home"))
+    (tmp_path / "sase_home" / "projects").mkdir(parents=True)
+    write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+            },
+        },
+    )
+    beads_dir = tmp_path / "sase" / "repos" / "project--plans" / "beads"
+    beads_dir.mkdir(parents=True)
+    captured_paths: list[Path] = []
+
+    class _FakeWatcher:
+        def __init__(self, watch_paths: list[Path], **kwargs: Any) -> None:
+            del kwargs
+            captured_paths.extend(watch_paths)
+
+        def start(self) -> bool:
+            return True
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions._startup_watchers.ArtifactWatcher",
+        _FakeWatcher,
+    )
+    app = _Harness()
+
+    app._start_artifact_watcher()
+
+    assert app._sdd_beads_dir == beads_dir
+    assert beads_dir in captured_paths

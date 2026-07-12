@@ -302,19 +302,29 @@ def _auto_commit_done_plan_status_if_possible(
 
 
 def _auto_commit_separate_sdd_store_if_possible(project_dir: str) -> bool:
-    """Best-effort fallback sync for dirty separate-repo SDD stores."""
+    """Best-effort fallback sync for dirty external SDD stores."""
     try:
         if not _separate_sdd_store_repo_may_exist(project_dir):
             return False
 
         from sase.sdd.files import commit_sdd_store_files
-        from sase.sdd.store import SDD_STORAGE_SEPARATE_REPO, resolve_sdd_store
+        from sase.sdd.store import (
+            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SEPARATE_REPO,
+            resolve_sdd_store,
+        )
 
         workspace_num = _finalizer_workspace_num(project_dir)
         store = resolve_sdd_store(project_dir, workspace_num)
-        if store.storage != SDD_STORAGE_SEPARATE_REPO:
+        if store.storage not in {
+            SDD_STORAGE_SEPARATE_REPO,
+            SDD_STORAGE_COMPANION_REPOS,
+        }:
             return False
-        if not (store.repo_root / ".git").exists():
+        repo_roots = [store.repo_root]
+        if store.is_companion_storage and store.research_dir is not None:
+            repo_roots.append(store.research_dir)
+        if not any((root / ".git").exists() for root in repo_roots):
             return False
         return commit_sdd_store_files(
             store,
@@ -330,9 +340,10 @@ def _auto_commit_separate_sdd_store_if_possible(project_dir: str) -> bool:
 
 
 def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
+    """Return whether a legacy or split external SDD clone is present."""
+
     project_path = Path(project_dir).expanduser()
-    if (project_path / ".sase" / "sdd" / ".git").exists():
-        return True
+    primary_candidates = [project_path]
 
     try:
         from sase.workspace_provider.marker import find_marker_from_cwd
@@ -340,23 +351,38 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
         found = find_marker_from_cwd(str(project_path))
     except Exception:
         found = None
-    if found is not None:
-        marker_primary = found[1].primary_workspace_dir
-        if (
-            marker_primary
-            and (Path(marker_primary) / ".sase" / "sdd" / ".git").exists()
-        ):
-            return True
+    if found is not None and found[1].primary_workspace_dir:
+        primary_candidates.append(Path(found[1].primary_workspace_dir))
 
     workspace_num = _workspace_num_from_env()
     if workspace_num is not None and workspace_num > 1:
         suffix_primary = _suffix_stripped_primary_workspace(project_path, workspace_num)
-        if (
-            suffix_primary is not None
-            and (suffix_primary / ".sase" / "sdd" / ".git").exists()
-        ):
-            return True
+        if suffix_primary is not None:
+            primary_candidates.append(suffix_primary)
 
+    if any(
+        (candidate / ".sase" / "sdd" / ".git").exists()
+        for candidate in primary_candidates
+    ):
+        return True
+
+    try:
+        from sase.linked_repos import resolve_linked_repo_clone_dir
+        from sase.sdd.store import read_sdd_store_record
+
+        for primary in primary_candidates:
+            record = read_sdd_store_record(primary)
+            if record is None or not record.is_companion_storage:
+                continue
+            for companion in (record.plans, record.research):
+                if companion is None:
+                    continue
+                name = companion.repo.rstrip("/").rsplit("/", 1)[-1]
+                clone = Path(resolve_linked_repo_clone_dir(project_path, name))
+                if (clone / ".git").exists():
+                    return True
+    except Exception:
+        return False
     return False
 
 

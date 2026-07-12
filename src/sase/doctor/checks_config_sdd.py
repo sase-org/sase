@@ -188,7 +188,7 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     record = read_sdd_store_record(primary)
     materialized_record = (
         record is not None
-        and record.storage == "separate_repo"
+        and record.storage in {"separate_repo", "companion_repos"}
         and record.discovery != "not_found"
     )
     clone = primary / ".sase" / "sdd"
@@ -217,7 +217,37 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
                     + ", ".join(str(path) for path in legacy_paths),
                 )
             )
-    if materialized_record and not (clone / ".git").is_dir():
+    if materialized_record and record is not None and record.is_companion_storage:
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(primary, 1)
+        companions = (
+            ("plans", store.repo_root, store.remote_url),
+            ("research", store.research_dir, store.research_remote_url),
+        )
+        for kind, companion_clone, remote_url in companions:
+            if companion_clone is None or not (companion_clone / ".git").is_dir():
+                issues.append(
+                    _StorageIssue(
+                        "error",
+                        f"missing-{kind}-companion-clone",
+                        f"companion SDD record exists but {kind} clone is missing: "
+                        f"{companion_clone}",
+                    )
+                )
+                continue
+            issues.extend(_companion_git_issues(companion_clone, remote_url))
+            issues.extend(_duplicate_remote_issues(context, primary, remote_url))
+
+        if clone.exists():
+            issues.append(
+                _StorageIssue(
+                    "warning",
+                    "legacy-sdd-after-migration",
+                    f"legacy SDD clone remains after companion migration: {clone}",
+                )
+            )
+    elif materialized_record and not (clone / ".git").is_dir():
         issues.append(
             _StorageIssue(
                 "error",
@@ -226,7 +256,12 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
             )
         )
 
-    if materialized_record and (clone / ".git").is_dir():
+    if (
+        materialized_record
+        and record is not None
+        and not record.is_companion_storage
+        and (clone / ".git").is_dir()
+    ):
         assert record is not None
         issues.extend(_companion_git_issues(clone, record.remote_url))
         issues.extend(_duplicate_remote_issues(context, primary, record.remote_url))
@@ -321,10 +356,11 @@ def _duplicate_remote_issues(
         if workspace == primary:
             continue
         record = read_sdd_store_record(workspace)
+        remote_urls = _record_remote_urls(record)
         if (
             record is not None
             and record.discovery != "not_found"
-            and record.remote_url == remote_url
+            and remote_url in remote_urls
         ):
             matches.append(getattr(project, "project_name", str(workspace)))
     if not matches:
@@ -337,6 +373,21 @@ def _duplicate_remote_issues(
             + ", ".join(sorted(matches)),
         )
     ]
+
+
+def _record_remote_urls(record: object) -> set[str]:
+    if record is None:
+        return set()
+    urls = {
+        value
+        for value in (
+            getattr(record, "remote_url", None),
+            getattr(getattr(record, "plans", None), "remote_url", None),
+            getattr(getattr(record, "research", None), "remote_url", None),
+        )
+        if isinstance(value, str) and value
+    }
+    return urls
 
 
 def _git_stdout(cwd: Path, args: list[str]) -> str | None:
@@ -357,6 +408,14 @@ def _git_stdout(cwd: Path, args: list[str]) -> str | None:
 
 
 def _existing_sdd_root(cwd: Path) -> Path | None:
+    try:
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(cwd, 1)
+        if store.is_companion_storage and store.repo_root.is_dir():
+            return store.repo_root
+    except Exception:
+        pass
     candidate = resolve_sdd_root(None, cwd=cwd)
     if candidate.is_dir():
         return candidate

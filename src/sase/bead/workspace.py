@@ -194,9 +194,14 @@ def _canonical_project_beads_dir(primary_workspace: Path) -> Path | None:
     """Resolve a project's canonical bead store without sibling enumeration."""
     from sase.sdd.store import resolve_sdd_store
 
+    store = resolve_sdd_store(primary_workspace, 1)
     primary_vc = primary_workspace / BEADS_DIRNAME
-    if resolve_sdd_store(primary_workspace, 1).is_in_tree:
+    if store.is_in_tree:
         return primary_vc if primary_vc.is_dir() else None
+
+    resolved_beads = store.kind_root("beads")
+    if resolved_beads.is_dir():
+        return resolved_beads
 
     primary_non_vc = primary_workspace / ".sase" / "sdd" / BEADS_DIRNAME_NON_VC
     if primary_non_vc.is_dir():

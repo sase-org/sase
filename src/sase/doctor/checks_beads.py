@@ -123,9 +123,9 @@ def _candidate_beads_dirs(context: DoctorContext) -> tuple[Path, ...]:
 
 def _append_resolved_beads_candidate(candidates: list[Path], workspace: Path) -> None:
     try:
-        from sase.sdd.store import resolve_sdd_dir
+        from sase.sdd.store import resolve_sdd_kind_dir
 
-        candidates.append(resolve_sdd_dir(workspace, 1) / BEADS_DIRNAME_NON_VC)
+        candidates.append(resolve_sdd_kind_dir(workspace, 1, "beads"))
     except Exception:  # noqa: BLE001 - doctor candidate resolution is best-effort.
         return
 

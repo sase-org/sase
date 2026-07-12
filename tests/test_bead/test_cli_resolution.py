@@ -45,6 +45,44 @@ def test_find_beads_location_local_mode_still_uses_primary_workspace(
     assert beads_dirname == "beads"
 
 
+def test_find_beads_location_companion_store_uses_plans_clone(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from sase.sdd.store import write_sdd_store_record
+
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    primary.mkdir()
+    workspace_2.mkdir()
+    _write_checkout_marker(workspace_2, primary, workspace_num=2)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "companion_repos",
+            "provider": "github",
+            "companions": {
+                "plans": {
+                    "repo": "acme/project--plans",
+                    "remote_url": "git@example.com:acme/project--plans.git",
+                },
+                "research": {
+                    "repo": "acme/project--research",
+                    "remote_url": "git@example.com:acme/project--research.git",
+                },
+            },
+        },
+    )
+    plans = workspace_2 / "sase" / "repos" / "project--plans"
+    (plans / "beads").mkdir(parents=True)
+    monkeypatch.chdir(workspace_2)
+
+    root, beads_dirname = _find_beads_location()
+
+    assert root == plans
+    assert beads_dirname == "beads"
+
+
 def test_find_beads_location_in_tree_prefers_current_checkout(
     tmp_path: Path, monkeypatch
 ) -> None:

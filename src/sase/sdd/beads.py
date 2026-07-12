@@ -15,22 +15,26 @@ from sase.sdd.store import (
 
 
 def init_beads(workspace_dir: str, workspace_num: int) -> Path:
-    """Bootstrap `.sase/sdd/` as a standalone git repo for local SDD tracking.
+    """Bootstrap beads in the effective non-in-tree SDD repository.
 
-    1. Creates `.sase/sdd/` in the primary workspace.
-    2. Runs `git init` inside it if not already a git repo.
-    3. Runs `bd init --quiet --skip-hooks` in the primary workspace if `beads/` missing.
+    Legacy local stores use the primary workspace's `.sase/sdd/`; migrated
+    stores use the plans companion root. The repository and `beads/` directory
+    are initialized when missing.
 
-    Returns the `.sase/sdd/` path.
+    Returns the repository root containing `beads/`.
     """
-    primary = get_primary_workspace_dir(workspace_dir, workspace_num)
-    sdd_dir = Path(primary) / ".sase" / "sdd"
     resolved_store = resolve_sdd_store(workspace_dir, workspace_num)
-    store = (
-        resolved_store
-        if resolved_store.sdd_dir == sdd_dir
-        else SddStore(SDD_STORAGE_LOCAL, sdd_dir, sdd_dir)
-    )
+    if resolved_store.is_companion_storage:
+        store = materialize_sdd_store(workspace_dir, workspace_num)
+        sdd_dir = store.kind_root("plans")
+    else:
+        primary = get_primary_workspace_dir(workspace_dir, workspace_num)
+        sdd_dir = Path(primary) / ".sase" / "sdd"
+        store = (
+            resolved_store
+            if resolved_store.sdd_dir == sdd_dir
+            else SddStore(SDD_STORAGE_LOCAL, sdd_dir, sdd_dir)
+        )
 
     print(f"  Creating {sdd_dir}", flush=True)
     sdd_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +55,7 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
     if ensure_bead_store_gitignore(sdd_dir) is not None:
         print("  Writing .gitignore ...", flush=True)
 
-    beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC
+    beads_dir = store.kind_root("beads")
     if beads_dir.is_dir():
         print("  Beads already initialized", flush=True)
     else:
@@ -88,6 +92,6 @@ def ensure_beads_initialized(workspace_dir: str, workspace_num: int) -> None:
             )
             BeadProject.init(Path(primary))
     else:
-        beads_dir = store.sdd_dir / BEADS_DIRNAME_NON_VC
+        beads_dir = store.kind_root("beads")
         if not beads_dir.is_dir():
             init_beads(workspace_dir, workspace_num)
