@@ -35,7 +35,7 @@ The launch path follows the same shape across those entry points:
 1. Parse prompt text, directives, and optional multi-prompt separators.
 2. Canonicalize ProjectSpec aliases in launch-bound VCS refs, so aliases such as `#gh:bob` become stable project
    directory keys such as `#gh:bob-cli` before history or artifact snapshots are written.
-3. Resolve workspace references such as `#git:<project>` or plugin-provided forms, rejecting inactive known projects
+3. Resolve workspace references such as `#git:<project>` or plugin-provided forms, rejecting disabled known projects
    before new work is claimed. Providers may return an optional `canonical_ref` for raw locators such as first-use
    owner/repo refs; when they do, launch metadata, history, and prompt MRU entries use that stable ref instead of the
    raw locator.
@@ -55,17 +55,29 @@ agents. Workflow launches persist step state so ACE and axe can inspect progress
 SASE avoids making a live chat session the source of truth. The durable state lives in files and stores that can be
 inspected by users, agents, and automation:
 
-| State            | Location / Owner                                                   | Use                                                                                                             |
-| ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Project lifecycle state plus review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps. |
-| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                     |
-| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
-| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.             |
-| Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`.  |
-| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                         |
-| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
-| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                                |
-| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                                             |
+The project-adjacent taxonomy has three non-overlapping roles:
+
+- A **project** is a named unit of work registered by a valid first-use VCS xprompt argument and backed by
+  `~/.sase/projects/<name>/<name>.sase`. Its user-facing lifecycle is exactly enabled or disabled; missing state means
+  enabled. An internal `sibling` backing marker supports linked-repo claims but is not a project state.
+- A **repo** is a primary project repo, an SDD sidecar repo, or a configured linked repo. One project can therefore own
+  several repos.
+- A **workspace** is a numbered clone of a project's primary repo, tracked by that project's workspace registry and
+  claimed by one SASE agent until completion. Linked/sidecar checkouts materialized within it remain repos, not
+  workspaces.
+
+| State            | Location / Owner                                                   | Use                                                                                                            |
+| ---------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| ProjectSpecs     | `<project>/<project>.sase` under `~/.sase/projects/`               | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded ChangeSpecs.                           |
+| Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                    |
+| Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                       |
+| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.            |
+| Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`. |
+| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                        |
+| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                      |
+| Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                               |
+| Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                                            |
+| Workspace stores | Per-project `registry.json` under the configured workspace root    | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.      |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated tests, alternate profiles, or
 containerized runs.
@@ -95,7 +107,8 @@ The required `sase_core_rs` extension is the shared backend boundary for determi
 wire contract or from being reused by non-Python frontends. Current Rust-backed areas include:
 
 - ChangeSpec parsing and batch query operations.
-- Project lifecycle parsing, update planning, and lifecycle-filtered project listing.
+- Project lifecycle parsing, canonical enabled/disabled normalization, the true-project predicate, VCS-kind derivation,
+  update planning, and lifecycle-filtered project listing.
 - Status transition planning.
 - Git command output parsing.
 - Notification JSONL reads and mutations.
@@ -103,6 +116,11 @@ wire contract or from being reused by non-Python frontends. Current Rust-backed 
 - Agent launch preparation, timestamp allocation, fan-out planning, low-level detached spawn, and workspace-claim
   planning.
 - Bead read, mutation, JSONL, SQLite, single-store ID allocation, and deterministic work-plan operations.
+
+The frontend-neutral `repo_inventory.py` and `workspace_provider/inventory.py` adapters currently compose those
+Rust-owned project records with Python-owned linked-repo configuration, SDD records, workspace registries, and claim
+parsing. CLI and TUI surfaces consume the same adapters. They are explicit migration seams for a future Rust core API,
+not presentation logic.
 
 The Python host still owns side effects that require app context: plugin dispatch, VCS/workspace calls, process
 signalling, file locks, TUI rendering, user confirmation, xprompt lookup, and workflow orchestration. See

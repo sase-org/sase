@@ -229,9 +229,9 @@ The modal supports live filtering as you type in the search box and displays las
 | `,?`       | Open the current tab's guide modal                                                   |
 
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
-project entries, including `home` when it appears in picker lists, must have active and launchable ProjectSpecs; PR
-choices come from active ProjectSpecs. Inactive projects do not appear in normal launch pickers until they are
-reactivated with `sase project activate <project>`.
+project entries, including `home` when it appears in picker lists, must have enabled and launchable ProjectSpecs; PR
+choices come from enabled ProjectSpecs. Disabled projects do not appear in normal launch pickers until they are enabled
+with `sase project enable <project>`.
 
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This deletes only the highlighted
 project's active/archive ProjectSpec files, refuses entries whose ProjectSpec files still contain ChangeSpecs, and does
@@ -964,41 +964,47 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set `ace.key
 
 ## Projects Tab
 
-Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `[` / `]`, or the tab strip. It lists
-non-system projects across `active`, `sibling`, and `inactive` lifecycle states, so hidden projects remain reachable
-even though normal launch and discovery views omit them. Rows include workspace path, active claim count, launchability,
-and lifecycle or workspace warnings.
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `3`, `[` / `]`, or the main tab strip. The
+tab contains a second clickable strip: **Projects · Repos · Workspaces**. `[` / `]` cycle these sub-tabs while `Tab` /
+`Shift+Tab` continue switching the main Admin Center tabs.
 
-| Key         | Action                                                                      |
-| ----------- | --------------------------------------------------------------------------- |
-| `j` / `k`   | Move selection                                                              |
-| `/`         | Filter projects by text                                                     |
-| `Tab`       | Cycle lifecycle filter: active, sibling, inactive, all                      |
-| `Shift+Tab` | Cycle lifecycle filter backward                                             |
-| `[` / `]`   | Switch Admin Center tabs (e.g. to Config or Updates); `1`–`6` jump directly |
-| `Enter`     | Activate the highlighted project when it is not active                      |
-| `Ctrl+X`    | Include or exclude inactive rows in the active filter                       |
-| `m`         | Mark or unmark the highlighted project                                      |
-| `u`         | Clear all project marks                                                     |
-| `e`         | Open the highlighted ProjectSpec in `$EDITOR`                               |
-| `A`         | Open the alias editor for the highlighted project                           |
-| `a`         | Activate highlighted project, or all marked projects                        |
-| `d`         | Deactivate highlighted project, or all marked projects                      |
-| `Ctrl+D`    | Delete highlighted SASE project directory, or all marked directories        |
-| `F`         | Force the last blocked deactivate after confirming live-work checks         |
-| `R`         | Reload project records                                                      |
-| `q` / `Esc` | Close the SASE Admin Center                                                 |
+The **Projects** sub-tab lists true, non-system projects only, with enabled projects first and disabled projects still
+visible. A true project has an active ProjectSpec and is not the internal linked-repo backing record. Rows show the
+display/canonical name, VCS kind (`git` or `gh`), enabled/disabled state, active claims, workspace/repo counts, and
+warnings. Telemetry-only directories and linked-repo backing records cannot appear.
+
+| Key       | Action                                                              |
+| --------- | ------------------------------------------------------------------- |
+| `j` / `k` | Move selection                                                      |
+| `/`       | Filter the current sub-tab                                          |
+| `[` / `]` | Cycle Projects, Repos, and Workspaces sub-tabs                      |
+| `r` / `w` | Show repos or workspaces pre-filtered to the highlighted project    |
+| `Enter`   | Run the highlighted project's default lifecycle action              |
+| `m` / `u` | Toggle one mark / clear all marks                                   |
+| `e` / `A` | Edit the ProjectSpec / aliases                                      |
+| `a` / `d` | Enable / disable the highlighted project or marked set              |
+| `Ctrl+D`  | Delete the highlighted SASE project directory or marked directories |
+| `F`       | Force the last blocked disable after confirming live-work checks    |
+| `R`       | Reload records or the current inventory                             |
+| `p`       | Open the shared project picker on the Repos or Workspaces sub-tab   |
+| `Esc`     | Clear an inventory project filter; otherwise close the Admin Center |
+| `q`       | Close the SASE Admin Center                                         |
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set instead of only the highlighted row.
 Successful lifecycle changes clear the affected marks; blocked or failed rows stay marked so you can inspect or retry
-them. Marks survive filtering and are pruned on reload when their project records disappear.
+them. Disabling uses the same locked mutation path as `sase project disable`; live `RUNNING` claims or artifact markers
+block it unless the `F` force retry is intentional.
 
-The `active` filter normally shows only active projects. `Ctrl+X` is a temporary overlay for that filter: it lets you
-include inactive rows there without switching to the dedicated `inactive` or `all` filters.
+The **Repos** sub-tab inventories every known primary, sidecar, and linked repo for enabled projects by default. Rows
+show owning project, checkout presence, and path; details include source, description, `auto_clone`, environment name,
+and SDD storage mode. The **Workspaces** sub-tab joins every registry entry with its claim, PID liveness, pin, last-used
+time, TTL staleness, and checkout presence. Missing checkouts point to `sase workspace repair`, and dead claims are
+warning-styled. Both sub-tabs load off-thread and show cached rows during refresh.
 
-Deactivating uses the same locked mutation path as `sase project deactivate`. If a project still has `RUNNING` claims or
-live artifact markers, ACE shows the blocked reason and lets you retry with `F` when the force action is intentional.
-Activating a project from this panel makes it available again in normal launch pickers.
+Press `p` on either inventory to choose all projects, an enabled project (`●`), or a disabled project (`○`). Explicitly
+selecting a disabled project is how its repos/workspaces become visible. `/` then filters within that project scope;
+`Esc` clears the scope. The picker is filterable by display name, canonical key, or state and shows repo/workspace
+counts for each project.
 
 `e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`), holds the ProjectSpec edit lock
 for the editor session, then reloads project records. In this panel, `Ctrl+D` asks for confirmation before deleting the
@@ -1921,11 +1927,11 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   as `name?: type` plus a default when the default is a simple scalar. Standalone workflow references use the `#!name`
   insertion form; typing `#!` filters completion to entries whose canonical insertion starts with `#!`.
 - **Project/ChangeSpec completion**: When the cursor is on a `#+` token, or on a `+` token that is the first character
-  in the prompt, completion opens a project/ChangeSpec picker. The picker contains active launchable projects plus
-  active PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status; system-managed `home`, inactive projects,
-  sibling records, and non-launchable projects are excluded. Typing after the trigger filters by project name, project
-  alias, or ChangeSpec name prefix. Accepting a row inserts the canonical workspace tag such as `#gh:sase` or
-  `#gh:my_change`, replacing existing line-start VCS tags when present or placing the tag after leading
+  in the prompt, completion opens a project/ChangeSpec picker. The picker contains enabled launchable projects plus
+  active PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status; system-managed `home`, disabled projects,
+  internal sibling backing records, and non-launchable projects are excluded. Typing after the trigger filters by
+  project name, project alias, or ChangeSpec name prefix. Accepting a row inserts the canonical workspace tag such as
+  `#gh:sase` or `#gh:my_change`, replacing existing line-start VCS tags when present or placing the tag after leading
   frontmatter/directives when no tag exists.
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS workflow ref, such as `#gh:`,
   `#gh:sa`, or `#git(`, completion lists that provider's projects and active PR-sized ChangeSpecs. Providers can add

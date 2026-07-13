@@ -56,8 +56,8 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase changespec search`                     | Search and filter ChangeSpecs with the query language.                                                                                  | [Query language](query_language.md)                                   |
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                                                           | [ChangeSpecs](change_spec.md)                                         |
 | `sase init`                                  | Check and initialize memory, SDD, skills, and workspace ignores for the current project.                                                | [Initialization](init.md)                                             |
-| `sase init --all --check`                    | Check every active main project without writing; report one aggregate status.                                                           | [Initialization](init.md)                                             |
-| `sase init --all --yes`                      | Initialize every active main project unattended, continuing after per-project failures.                                                 | [Initialization](init.md)                                             |
+| `sase init --all --check`                    | Check every enabled main project without writing; report one aggregate status.                                                          | [Initialization](init.md)                                             |
+| `sase init --all --yes`                      | Initialize every enabled main project unattended, continuing after per-project failures.                                                | [Initialization](init.md)                                             |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                                                           | [Memory](memory.md#inspect-context)                                   |
 | `sase memory agent-docs list`                | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.                                                      | [Initialization](init.md#agent-documents)                             |
 | `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.                                                          | [Memory](memory.md#audited-reads)                                     |
@@ -88,7 +88,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase bead sync`                             | Export the bead database to git-tracked JSONL and stage it.                                                                             | [Beads](beads.md#sync-mechanism)                                      |
 | `sase bead stats` / `doctor`                 | Inspect project statistics or bead-store health.                                                                                        | [Beads](beads.md#rust-backend)                                        |
 | `sase bead work`                             | Launch phase agents for an epic.                                                                                                        | [Beads](beads.md#sase-bead-work-id)                                   |
-| `sase project list`                          | List active projects by default, or include hidden lifecycle states with `--state`.                                                     | [Project lifecycle](project_spec.md#project-lifecycle)                |
+| `sase project list`                          | List enabled projects by default, or inspect disabled/internal backing records with `--state`.                                          | [Project lifecycle](project_spec.md#project-lifecycle)                |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                                                          | [Project lifecycle](project_spec.md#project-lifecycle)                |
 | `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                                                                      | [Project lifecycle](project_spec.md#project-lifecycle)                |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                                                               | [Project names](project_spec.md#project-names-and-aliases)            |
@@ -104,29 +104,29 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 ChangeSpecs are PR-sized review records. SDD stores durable prompt and planning artifacts. Beads add git-portable
 dependency tracking and executable epics on top of those artifacts.
 
-`sase project` defaults to `sase project list`, and `sase project list` defaults to active projects. Use
-`sase project list --state all --json` to inspect inactive and sibling projects, `sase project deactivate <project>` to
-hide a dormant project from default launch views, and `sase project activate <project>` to make a hidden project
-launchable again. Deactivating refuses projects with live `RUNNING` claims or active artifact markers unless `--force`
-is passed. Deprecated `archive` and `close` aliases still set `inactive` for compatibility. ACE's **Projects** tab (in
-the SASE Admin Center, opened with `#`) provides the interactive counterpart, including marking multiple projects,
-editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE project directories after confirmation. There is no CLI
-delete subcommand; full project-directory deletion is only available from ACE's Projects tab and removes state under
-`~/.sase/projects/`, not workspace checkouts.
+`sase project` defaults to `sase project list`, and `sase project list` defaults to enabled true projects. Use
+`sase project list --state all --json` to inspect disabled projects and internal `sibling` backing records,
+`sase project disable <project>` to hide a dormant project from default launch views, and
+`sase project enable <project>` to make it launchable again. Disabling refuses projects with live `RUNNING` claims or
+active artifact markers unless `--force` is passed. Legacy active/inactive values and the deprecated lifecycle command
+aliases remain read-compatible. ACE's **Projects** tab (in the SASE Admin Center, opened with `#`) provides the
+interactive counterpart, including marking multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete
+SASE project directories after confirmation. There is no CLI delete subcommand; full project-directory deletion is only
+available from ACE's Projects tab and removes state under `~/.sase/projects/`, not workspace checkouts.
 
 `sase project alias list [PROJECT] [-j|--json]`, `add PROJECT ALIAS`, `remove PROJECT ALIAS`, and `clear PROJECT` manage
-ProjectSpec aliases. The ACE Projects tab (in the SASE Admin Center, opened with `#`) also displays aliases, includes
-them in filtering, and opens an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace tags, but
-prompt history, agent metadata, and artifacts use the canonical directory-key project name. ProjectSpecs may also carry
-`PROJECT_NAME` as the primary user-facing name. For example, the GitHub provider can create `PROJECT_NAME: foo` and then
-`PROJECT_NAME: foo_1` for distinct `owner/foo` repositories while keeping stable canonical project records. Existing
-auto-aliased GitHub projects remain valid and keep resolving through `PROJECT_ALIASES`.
+ProjectSpec aliases. The ACE Projects sub-tab (in the SASE Admin Center, opened with `#`) also displays aliases,
+includes them in filtering, and opens an alias editor with `A`. Alias refs are accepted in launch-bound VCS workspace
+tags, but prompt history, agent metadata, and artifacts use the canonical directory-key project name. ProjectSpecs may
+also carry `PROJECT_NAME` as the primary user-facing name. For example, the GitHub provider can create
+`PROJECT_NAME: foo` and then `PROJECT_NAME: foo_1` for distinct `owner/foo` repositories while keeping stable canonical
+project records. Existing auto-aliased GitHub projects remain valid and keep resolving through `PROJECT_ALIASES`.
 
-Active-only project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
-catalogs, broad mobile helper catalogs, and all-known bead helper reads. Sibling records are hidden from those surfaces
-and are intended for configured linked repositories. To open one, pass its linked-repo name as the workspace CLI's
-project override: `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. Agent-history views that need
-older artifacts opt into all project states explicitly.
+Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
+catalogs, broad mobile helper catalogs, and all-known bead helper reads. Internal sibling backing records are hidden
+from those surfaces and support configured linked repositories. To open one, pass its linked-repo name as the workspace
+CLI's project override: `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. Agent-history views that
+need older artifacts opt into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections; use repeatable
 `-s/--status` options to select sections, `-n/--limit` to set each history section's size (`0` is unlimited), and
@@ -231,7 +231,8 @@ GitHub pull requests, and other provider plugins.
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                                                                                         | [Agent attachments](agent_images.md)                                                                                 |
 | `sase var set`                 | Attach named output variables for ACE metadata and waited-agent Jinja rendering.                                                                                      | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                         |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                                                                                       | [Configuration CLI flags](configuration.md#sase-path)                                                                |
-| `sase workspace list`          | List managed workspace checkouts in the registry, including primary `#0`.                                                                                             | [Workspace provider](workspace.md)                                                                                   |
+| `sase repo list`               | Inventory primary, sidecar, and linked repos across enabled projects or one selected project.                                                                         | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
+| `sase workspace list`          | List one project's registry or use `--all` for the cross-project workspace inventory.                                                                                 | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                                                                                       | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace open`          | Materialize, prepare, and print a workspace path.                                                                                                                     | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                                                                               | [Workspace provider](workspace.md)                                                                                   |
@@ -259,6 +260,7 @@ sase doctor -j              # stable JSON report for scripts or support bundles
 sase doctor -D              # add slower read-only deep checks
 sase doctor -C runtime      # run one group
 sase doctor -C llm.default  # run one check
+sase doctor -C project.junk_directories -C workspace.missing_checkouts
 ```
 
 Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped reports exit `0`; `ERROR` exits `1`. Use
@@ -267,5 +269,10 @@ Exit codes are designed for support-first use. `OK`, `WARN`, and all-skipped rep
 The JSON report uses `schema_version: 1` and stable top-level fields such as `status`, `counts`, `selected_checks`, and
 `checks`. Individual check `data` payloads stay bounded and may gain additional keys over time, so scripts should key
 off check ids and statuses rather than assuming every nested field is permanent.
+
+`project.junk_directories` reports directories under `~/.sase/projects/` that have no canonical ProjectSpec and gives a
+manual-review cleanup hint. `workspace.missing_checkouts` scans enabled and disabled projects through the shared
+inventory, lists registered checkout paths missing from disk, and suggests a per-project `sase workspace repair -n`
+preview. Neither check mutates state.
 
 When asking for help, attach `sase doctor -v` for a readable report or `sase doctor -j` for a machine-readable report.

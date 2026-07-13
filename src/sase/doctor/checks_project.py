@@ -43,6 +43,98 @@ def project_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Current project",
             runner=lambda: _check_project_current(context),
         ),
+        CheckSpec(
+            id="project.junk_directories",
+            group="project",
+            title="Unregistered project directories",
+            runner=lambda: _check_junk_project_directories(context),
+        ),
+    )
+
+
+def _check_junk_project_directories(context: DoctorContext) -> DiagnosticCheck:
+    """Report project-root directories that have no active ProjectSpec."""
+
+    projects_root = context.sase_home / "projects"
+    try:
+        project_dirs = sorted(
+            (
+                path
+                for path in projects_root.iterdir()
+                if path.is_dir() and path.name != "home"
+            ),
+            key=lambda path: path.name.casefold(),
+        )
+    except FileNotFoundError:
+        return DiagnosticCheck(
+            id="project.junk_directories",
+            group="project",
+            status="SKIP",
+            title="Unregistered project directories",
+            summary="SASE projects directory is not present",
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": False,
+                "junk_directory_count": 0,
+                "junk_directories": [],
+            },
+        )
+    except OSError as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        return DiagnosticCheck(
+            id="project.junk_directories",
+            group="project",
+            status="ERROR",
+            title="Unregistered project directories",
+            summary="SASE projects directory could not be scanned",
+            details=(error,),
+            next_steps=(f"Check permissions for {projects_root}.",),
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": True,
+                "error": error,
+            },
+        )
+
+    junk_dirs = [
+        path for path in project_dirs if not (path / f"{path.name}.sase").is_file()
+    ]
+    if not junk_dirs:
+        return DiagnosticCheck(
+            id="project.junk_directories",
+            group="project",
+            status="OK",
+            title="Unregistered project directories",
+            summary=f"all {len(project_dirs)} project directories have a ProjectSpec",
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": True,
+                "directory_count": len(project_dirs),
+                "junk_directory_count": 0,
+                "junk_directories": [],
+            },
+        )
+
+    visible = junk_dirs[:_MAX_DETAIL_ROWS]
+    return DiagnosticCheck(
+        id="project.junk_directories",
+        group="project",
+        status="WARN",
+        title="Unregistered project directories",
+        summary=f"found {len(junk_dirs)} project directories without a ProjectSpec",
+        details=tuple(f"{path}: missing {path.name}.sase" for path in visible),
+        next_steps=(
+            "Review these directories, then manually remove any obsolete state; "
+            "SASE only registers a directory containing its canonical <name>.sase file.",
+        ),
+        data={
+            "projects_root": str(projects_root),
+            "projects_root_exists": True,
+            "directory_count": len(project_dirs),
+            "junk_directory_count": len(junk_dirs),
+            "junk_directories": [str(path) for path in visible],
+            "details_truncated": len(junk_dirs) > len(visible),
+        },
     )
 
 

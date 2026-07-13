@@ -18,8 +18,24 @@ from sase.workspace_provider.store import WorkspaceStore
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
+    from sase.workspace_provider.inventory import WorkspaceInventory
 
 _MAX_DETAIL_ROWS = 10
+
+
+def _collect_workspace_inventory(projects_root: Path) -> WorkspaceInventory:
+    """Load the inventory lazily to avoid the running-field import cycle."""
+
+    # The inventory imports the Rust-backed claim parser through the
+    # ``running_field`` package. Initialize that package first so importing the
+    # inventory from a standalone doctor process cannot observe a partially
+    # initialized ``agent_launch_claims`` module.
+    import importlib
+
+    importlib.import_module("sase.running_field")
+    from sase.workspace_provider.inventory import collect_workspace_inventory
+
+    return collect_workspace_inventory(projects_root, include_disabled=True)
 
 
 def workspace_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
@@ -31,6 +47,99 @@ def workspace_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Workspace registry",
             runner=lambda: _check_workspace_registry(context),
         ),
+        CheckSpec(
+            id="workspace.missing_checkouts",
+            group="workspace",
+            title="Missing workspace checkouts",
+            runner=lambda: _check_missing_workspace_checkouts(context),
+        ),
+    )
+
+
+def _check_missing_workspace_checkouts(context: DoctorContext) -> DiagnosticCheck:
+    """Report missing registry checkouts across enabled and disabled projects."""
+
+    projects_root = context.sase_home / "projects"
+    try:
+        inventory = _collect_workspace_inventory(projects_root)
+    except Exception as exc:  # noqa: BLE001 - doctor reports inventory failures.
+        error = f"{type(exc).__name__}: {exc}"
+        return DiagnosticCheck(
+            id="workspace.missing_checkouts",
+            group="workspace",
+            status="ERROR",
+            title="Missing workspace checkouts",
+            summary="workspace inventory could not be loaded",
+            details=(error,),
+            next_steps=("Run `sase workspace list --all --json` for details.",),
+            data={
+                "projects_root": str(projects_root),
+                "error": error,
+            },
+        )
+
+    missing = [record for record in inventory.records if not record.exists]
+    visible_missing = missing[:_MAX_DETAIL_ROWS]
+    visible_issues = inventory.issues[: max(0, _MAX_DETAIL_ROWS - len(visible_missing))]
+    details = [
+        (
+            f"{record.project} workspace #{record.workspace_num} is missing: "
+            f"{record.checkout_dir}"
+        )
+        for record in visible_missing
+    ]
+    details.extend(
+        f"{issue.project}: inventory warning: {issue.message}"
+        for issue in visible_issues
+    )
+
+    if missing:
+        summary = f"{len(missing)} registered workspace checkout(s) are missing"
+    elif inventory.issues:
+        summary = f"workspace inventory has {len(inventory.issues)} warning(s)"
+    else:
+        summary = f"all {len(inventory.records)} registered workspace checkout(s) exist"
+
+    repair_projects = tuple(dict.fromkeys(record.project_key for record in missing))
+    next_steps = tuple(
+        f"Preview repair with `sase workspace repair -p {project} -n`."
+        for project in repair_projects
+    )
+    if inventory.issues:
+        next_steps = (
+            *next_steps,
+            "Inspect inventory warnings with `sase workspace list --all --json`.",
+        )
+
+    return DiagnosticCheck(
+        id="workspace.missing_checkouts",
+        group="workspace",
+        status="WARN" if missing or inventory.issues else "OK",
+        title="Missing workspace checkouts",
+        summary=summary,
+        details=tuple(details),
+        next_steps=next_steps,
+        data={
+            "projects_root": str(projects_root),
+            "workspace_count": len(inventory.records),
+            "missing_checkout_count": len(missing),
+            "missing_checkouts": [
+                {
+                    "project": record.project,
+                    "project_key": record.project_key,
+                    "workspace_num": record.workspace_num,
+                    "checkout_dir": record.checkout_dir,
+                    "registry_path": record.registry_path,
+                }
+                for record in visible_missing
+            ],
+            "inventory_issue_count": len(inventory.issues),
+            "inventory_issues": [
+                {"project": issue.project, "message": issue.message}
+                for issue in visible_issues
+            ],
+            "details_truncated": (len(missing) + len(inventory.issues) > len(details)),
+        },
     )
 
 

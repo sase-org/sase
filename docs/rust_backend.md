@@ -9,8 +9,9 @@ wheel automatically — no Rust toolchain required, no env-var selection, no Pyt
 The shipped Rust-backed operations are grouped by the Python facade that calls them:
 
 - Project parsing: `parse_project_bytes`
-- Project lifecycle helpers: read effective `PROJECT_STATE`, apply a lifecycle update to ProjectSpec text, and list
-  lifecycle-filtered project records for CLI/TUI/launch discovery
+- Project lifecycle helpers: normalize legacy state to canonical `enabled` / `disabled`, read and update
+  `PROJECT_STATE`, derive the true-project predicate and `git` / `gh` VCS kind, and list lifecycle-filtered project
+  records for CLI/TUI/launch discovery. Internal `sibling` backing records remain parseable but are not true projects.
 - Query parsing and evaluation: `tokenize_query`, `parse_query`, `canonicalize_query`, legacy one-shot
   `evaluate_query_many`, and the product persistent-corpus path (`compile_corpus`, `compile_query`, `evaluate_many`)
   used by `sase.core.query_corpus_facade`
@@ -46,6 +47,11 @@ The intentionally Python-owned facade surfaces (host logic, not backend fallback
 - Project lifecycle mutations stay on the Python host path: `sase project` resolves the mutable ProjectSpec file, holds
   the ProjectSpec lock, checks live `RUNNING` claims and artifact markers, and delegates only the pure `PROJECT_STATE`
   parse/update/list operations to Rust.
+- Cross-project repo and workspace inventories are frontend-neutral Python adapters, not TUI implementations.
+  `repo_inventory.py` composes Rust project records with Python-owned linked-repo config and SDD store records;
+  `workspace_provider/inventory.py` composes them with Python workspace registries and `RUNNING` claims. The CLI and
+  Admin Center consume these same adapters so their rows cannot drift. They are intended to move behind a Rust wire API
+  when those inputs become core-owned.
 - High-level subprocess orchestration, process liveness checks outside launch, filesystem mutation outside the prepared
   prompt/output path, TUI rendering, and plugin entry points stay on the host by design.
 - Agent launch host responsibilities stay in Python: provider/workspace plugin calls, VCS preallocation env mapping,

@@ -71,6 +71,18 @@ Workflow entries can have python/bash children as well as agent children. Agents
 more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
 them, respectively.
 
+**Projects, Repos, and Workspaces**
+
+A **project** is a named unit of work registered with SASE. A project is created only when a new VCS xprompt argument
+resolves to a valid project: `#git:<name>` accepts any valid project name, while `#gh:<org>/<repo>` requires an existing
+GitHub repository. Its ProjectSpec is `~/.sase/projects/<name>/<name>.sase`. Projects have exactly two user-facing
+states, enabled and disabled; missing `PROJECT_STATE:` means enabled, and only an explicit disable changes that. The
+system-managed `home` project remains hidden. A **repo** is any repository SASE knows: a project's primary repo, an SDD
+sidecar repo (`<project>--plans` or `<project>--research`), or a repo declared through `linked_repos:`. Workspace
+directories are not repos. A **workspace** is a numbered clone of a project's primary repo, managed by the workspace
+store and tracked in that project's `registry.json`. Each SASE agent claims exactly one workspace until completion.
+Linked-repo clones materialized for a workspace are repo checkouts, not additional workspaces.
+
 **Xprompt swarm**
 
 An xprompt whose body contains top-level `---` segment separators outside fenced blocks and fans out into one agent per

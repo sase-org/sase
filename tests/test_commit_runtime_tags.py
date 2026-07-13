@@ -279,6 +279,9 @@ def _run_workflow(payload: dict, method: str, provider: MagicMock) -> RunResult:
         patch(
             "sase.workflows.commit.workflow.run_before_commit_hook", return_value=True
         ),
+        patch(
+            "sase.workflows.commit.workflow.run_after_commit_hook", return_value=True
+        ),
         patch("sase.workflows.commit.workflow.resolve_cl_name", return_value=None),
         patch("sase.workflows.commit.workflow.resolve_project_file", return_value=None),
         patch(

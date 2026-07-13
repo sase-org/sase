@@ -8,6 +8,16 @@ or `#gh:org/repo`), change submission, mail preparation, and workspace directory
 A **workspace reference** is a prompt prefix such as `#git:sase`, `#gh:sase`, or a ref registered by another workspace
 provider. It tells SASE which project and workspace should be used before the rest of the prompt or workflow runs.
 
+SASE keeps three related concepts distinct:
+
+- A **project** is a named unit of work with a ProjectSpec at `~/.sase/projects/<name>/<name>.sase`; it is enabled
+  unless explicitly disabled.
+- A **repo** is a primary project repository, an SDD sidecar (`--plans` / `--research`), or a configured linked repo.
+- A **workspace** is a numbered clone of a project's primary repo, tracked in that project's workspace `registry.json`.
+
+Workspace directories are not repos. Linked-repo and sidecar clones materialized inside a numbered workspace are repo
+checkouts, not additional workspaces.
+
 ## Plugin Architecture
 
 Workspace providers are implemented as [pluggy](https://pluggy.readthedocs.io/) plugins, following the same pattern as
@@ -171,13 +181,13 @@ workspace plugin is not available in the current process. Known projects are dis
 the `sase` project is registered, `#gh:sase #!some/workflow` and the underscore shorthand `#gh_sase #!some/workflow` are
 treated as VCS workspace launches rather than ordinary xprompt references.
 
-Known-project fallback is lifecycle-aware. Normal launch and xprompt/catalog discovery paths only include active
-projects; a registered project with `PROJECT_STATE: inactive` or `PROJECT_STATE: sibling` is hidden from launch pickers
-and broad known-project lookup. Legacy `archived` and `closed` values are read as inactive. If a prompt explicitly names
-an inactive known project, launch resolution fails with an activation hint instead of silently allocating work. Use
-`sase project list --state all` to inspect hidden projects and `sase project activate <project>` before launching normal
-work there. Configured linked repositories use hidden `PROJECT_STATE: sibling` records instead of normal launch
-discovery. To prepare one, pass its linked-repo name as the workspace CLI's project override:
+Known-project fallback is lifecycle-aware. Normal launch and xprompt/catalog discovery paths only include enabled
+projects; a registered project with `PROJECT_STATE: disabled` is hidden from launch pickers and broad known-project
+lookup. Legacy `inactive`, `archived`, and `closed` values normalize to disabled. If a prompt explicitly names a
+disabled known project, launch resolution fails with an enable hint instead of silently allocating work. Use
+`sase project list --state all` to inspect disabled projects and `sase project enable <project>` before launching normal
+work there. Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing records rather than a
+project lifecycle state. To prepare one, pass its linked-repo name as the workspace CLI's project override:
 `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. In a SASE-launched agent session, that command
 records the linked-repo name in the run artifacts; ACE uses that record for opened-workspace context, and the commit
 finalizer uses it to enforce only configured numbered linked-repo workspaces the agent explicitly opened.
@@ -323,17 +333,22 @@ The `sase workspace` command surface inspects numbered workspace paths and maint
 non-adjacent roots. All subcommands accept `-p/--project NAME` to override the project; without it, the project is
 inferred from the current directory via the nearest managed-checkout marker, the workspace provider hook, and finally a
 scan of `~/.sase/projects/`. With no subcommand, `sase workspace` defaults to `sase workspace list` with default
-options. Use `sase workspace list -p NAME` or `sase workspace list --json` when passing list flags.
+options. `sase workspace list --all` switches from one inferred/selected project to the shared inventory across enabled
+and disabled projects; `--json` emits the same inventory model as structured data.
 
 | Command                                                                          | Description                                                                                                                                                                                                                |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-j/--json]`                                                | List the registry view for the project, root policy, project key, root path, and primary `#0`.                                                                                                                             |
+| `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`                        | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues.                                                     |
 | `sase workspace path NUM`                                                        | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                                                                              |
 | `sase workspace open NUM -r/--reason REASON [-p/--project PROJECT] [-c/--clean]` | Materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. Requires a non-empty `-r/--reason`. |
 | `sase workspace cleanup -s/--stale`                                              | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                                                       |
 | `sase workspace repair [-n]`                                                     | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                                                             |
 | `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]`           | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                                                               |
 | `sase workspace migrate --finalize`                                              | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                                                             |
+
+The all-project inventory includes disabled projects only when `--all` is explicit. One corrupt or unreadable registry
+is returned as an isolated issue and does not suppress rows from other projects. Registry entries whose checkout has
+been deleted remain visible with `exists: false`; preview reconciliation with `sase workspace repair -p <project> -n`.
 
 `path` always resolves `#0` to the primary checkout. For other numbers, it prints the configured path without cloning.
 Use this command when you only need to inspect the path.

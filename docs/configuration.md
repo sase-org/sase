@@ -8,6 +8,7 @@ and CLI flags.
 - [Config File Location](#config-file-location)
 - [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
   - [Config tab](#config-tab)
+  - [Projects tab](#projects-tab)
   - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
@@ -89,6 +90,23 @@ the Config tab no longer offers a one-key migration action. Prefer editing the c
 
 SASE Admin Center never writes without showing the diff and validation first, and never edits a built-in or plugin
 default (those layers are read-only).
+
+### Projects tab
+
+The Projects tab is an inventory and lifecycle surface with three clickable sub-tabs: **Projects · Repos · Workspaces**.
+`[` / `]` cycle those sub-tabs, while `Tab` / `Shift+Tab` switch the Admin Center's main tabs.
+
+- **Projects** lists true projects—directories with active ProjectSpecs, excluding `home` and internal linked-repo
+  backing records. Enabled and disabled rows appear together with VCS kind, claim, workspace, repo, and warning counts.
+  `a` / `d` enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and the established mark,
+  alias, edit, force, and confirmed-delete actions remain available.
+- **Repos** lists primary, sidecar, and linked repos for enabled projects by default. It reports checkout presence,
+  source/config metadata, `auto_clone`, environment names, and SDD storage mode.
+- **Workspaces** joins registry entries with active claims, PID liveness, pins, last-used timestamps, TTL staleness, and
+  checkout presence. Missing checkouts point to `sase workspace repair`.
+
+On Repos and Workspaces, `p` opens a shared project picker. Choosing a disabled project explicitly reveals its rows;
+`Esc` clears the project scope, `/` text-filters within it, and `R` refreshes the off-thread cached inventory.
 
 ### Updates tab
 
@@ -1499,11 +1517,11 @@ linked history by default; add `-S/--sdd` to include materialized separate SDD r
 
 `sase vcs log` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`, `yesterday`, `YYYY-MM-DD`, or
 `YYYY-MM-DDTHH:MM`. See [VCS Providers](vcs.md#per-command-vcs-usage) for output examples and provider notes. `--all`
-spans every registered active or inactive project and deduplicates shared physical checkouts. Sibling checkouts remain
-visible as linked repositories of their owning projects. Global scope can be combined with repeatable `--repo` filters
-but not `--current-only`. Add `--sdd` to either scope before selecting SDD history with `--repo sdd`; without the
-opt-in, that repo filter does not expand the eligible set. `--all --sdd` includes materialized separate SDD repositories
-across registered projects. The `--limit` is the cap on the final merged timeline.
+spans every registered enabled or disabled project and deduplicates shared physical checkouts. Internal sibling backing
+checkouts remain visible as linked repositories of their owning projects. Global scope can be combined with repeatable
+`--repo` filters but not `--current-only`. Add `--sdd` to either scope before selecting SDD history with `--repo sdd`;
+without the opt-in, that repo filter does not expand the eligible set. `--all --sdd` includes materialized separate SDD
+repositories across registered projects. The `--limit` is the cap on the final merged timeline.
 
 ### `sase changespec search`
 
@@ -1512,9 +1530,9 @@ across registered projects. The `--limit` is the cap on the final merged timelin
 | `query`        | string                      | (required) | Query string for filtering ChangeSpecs.               |
 | `-f, --format` | `plain`, `rich`, `markdown` | `rich`     | Output format (`markdown` for agent-friendly output). |
 
-Search uses the normal active-project discovery scope. Inactive and sibling projects are omitted from this CLI path; run
-`sase project list --state all` or `sase project show <project>` to inspect hidden projects, then reactivate the project
-with `sase project activate <project>` before using normal search and launch surfaces for new work.
+Search uses the normal enabled-project discovery scope. Disabled projects and internal sibling backing records are
+omitted from this CLI path; run `sase project list --state all` or `sase project show <project>` to inspect them, then
+run `sase project enable <project>` before using normal search and launch surfaces for new work.
 
 ### `sase changespec migrate-extension`
 
@@ -1533,29 +1551,34 @@ differs, the command reports a conflict and preserves both files unless `--force
 ### `sase project`
 
 With no subcommand, `sase project` defaults to `sase project list`. Project lifecycle state is stored as `PROJECT_STATE`
-metadata in the ProjectSpec header; missing state means `active`.
+metadata in the ProjectSpec header; missing state means `enabled`.
 
-| Form                                       | Flags                                        | Description                                                                    |
-| ------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------ |
-| `sase project list`                        | `-s, --state active\|inactive\|sibling\|all` | List projects in one lifecycle state; default is `active`.                     |
-| `sase project list`                        | `-j, --json`                                 | Emit machine-readable lifecycle records.                                       |
-| `sase project show <project>`              | `-j, --json`                                 | Show state, source, project/archive files, workspace, launchability, warnings. |
-| `sase project set-state <project> <state>` | `-f, --force`                                | Set `active`, `inactive`, or `sibling`.                                        |
-| `sase project activate <project>`          | `-f, --force`                                | Alias for `set-state <project> active`; `--force` has no effect for `active`.  |
-| `sase project deactivate <project>`        | `-f, --force`                                | Alias for `set-state <project> inactive`.                                      |
+| Form                                       | Flags                                         | Description                                                                    |
+| ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------ |
+| `sase project list`                        | `-s, --state enabled\|disabled\|sibling\|all` | List records in one state; default is true enabled projects.                   |
+| `sase project list`                        | `-j, --json`                                  | Emit machine-readable lifecycle and derived project/VCS fields.                |
+| `sase project show <project>`              | `-j, --json`                                  | Show state, source, project/archive files, workspace, launchability, warnings. |
+| `sase project set-state <project> <state>` | `-f, --force`                                 | Set `enabled`, `disabled`, or internal backing marker `sibling`.               |
+| `sase project enable <project>`            | `-f, --force`                                 | Enable a project; `--force` has no effect when enabling.                       |
+| `sase project disable <project>`           | `-f, --force`                                 | Disable a project after live-work safety checks.                               |
 
-Deactivating refuses projects with live `RUNNING` claims or live artifact markers (`running.json`, `waiting.json`, or
-`pending_question.json`) unless `--force` is passed. Legacy `archive` and `close` aliases still set `inactive`, and
-legacy `PROJECT_STATE: archived` / `PROJECT_STATE: closed` files are read as inactive. The system-managed `home` project
-cannot be mutated through this command. Normal launch and discovery surfaces default to active projects; use
-`list --state all` or `show` for historical or sibling inspection, then `activate` before launching normal work in a
-hidden project. The `sibling` state (a legacy backing state name) is intended for configured linked repository records
-used by `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
+Disabling refuses projects with live `RUNNING` claims or live artifact markers (`running.json`, `waiting.json`, or
+`pending_question.json`) unless `--force` is passed. Legacy `active` normalizes to enabled; `inactive`, `archived`, and
+`closed` normalize to disabled. Deprecated `activate`, `deactivate`, `archive`, and `close` command aliases remain
+accepted. The system-managed `home` project cannot be mutated. Normal launch and discovery surfaces default to enabled
+projects. `sibling` remains an internal backing-record marker for configured linked repos, not a third project state.
 
 ACE exposes the same lifecycle mutations through the **Projects** tab of the SASE Admin Center (press `#`). That tab
-also supports marks for bulk lifecycle operations, alias editing with `A`, an active-filter inactive-row overlay with
-`Ctrl+X`, ProjectSpec editing through `$EDITOR`, and confirmed deletion of whole SASE project directories under
-`~/.sase/projects/` without deleting workspace checkouts. The Models panel uses `,m` by default.
+also supports marks for bulk lifecycle operations, alias editing with `A`, ProjectSpec editing through `$EDITOR`,
+confirmed deletion of whole SASE project directories, and the Repos/Workspaces inventory sub-tabs described above.
+
+### `sase repo`
+
+`sase repo list` inventories repos known to SASE across enabled projects by default. Primary repos come from
+ProjectSpecs, sidecars from SDD store records, and linked repos from resolved `linked_repos`; a sidecar wins when the
+same checkout is also auto-injected as linked. `-p/--project` selects one enabled or disabled project and `-j/--json`
+emits the shared inventory record shape, including kind, path, checkout presence, source, description, `auto_clone`, and
+environment name.
 
 ### `sase revert`
 
@@ -1644,11 +1667,11 @@ project `AGENTS.md` from bare `sase init` when the current project's own `./sase
 SDD planner uses that same local marker and skips unmanaged repositories before provider work. Neither planner infers
 project ownership from `amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
-`--all` applies that coordinator to every registered active main project from its recorded primary workspace, even when
-the command starts outside a project. It excludes inactive, sibling, `home`, and other system-managed records, continues
-after per-project failures, and returns non-zero if any project has drift, is unavailable, or fails. `--all --check` is
-read-only, while non-interactive apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory`
-and with explicit compatibility subcommands.
+`--all` applies that coordinator to every registered enabled main project from its recorded primary workspace, even when
+the command starts outside a project. It excludes disabled projects, internal sibling backing records, `home`, and other
+system-managed records, continues after per-project failures, and returns non-zero if any project has drift, is
+unavailable, or fails. `--all --check` is read-only, while non-interactive apply still requires `--yes`. `--all` is
+incompatible with `--enable-project-memory` and with explicit compatibility subcommands.
 
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
@@ -1770,11 +1793,13 @@ Bare `sase init` and `sase validate` include the same check for Git projects.
 
 Workspace commands inspect and maintain the managed checkout registry for the inferred project, or for the project named
 by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase workspace list` with default options. Use
-`sase workspace list -p <project>` or `sase workspace list --json` when passing list flags.
+`sase workspace list -p <project>`, `sase workspace list --all`, or `sase workspace list --json` when passing list
+flags.
 
 | Command                  | Flag / argument            | Values       | Description                                                                                          |
 | ------------------------ | -------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
 | `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                              |
+| `sase workspace list`    | `-a, --all`                | flag         | Inventory registered workspaces across every enabled and disabled project.                           |
 | `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                 |
 | `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`.  |
 | `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                         |
@@ -1940,8 +1965,9 @@ help; deep mode adds slower read-only checks.
 | `-p`, `--project`     | string   | infer   | Inspect a named project when doctor cannot infer one from the checkout. |
 
 Use `sase doctor -L` to list targeted check IDs. Useful focused checks include `runtime`, `llm.default`,
-`plugins.resources`, and `config.model_xprompts`; the model-xprompt check warns when configured model preset xprompts
-expand to bare model tokens that would fall back to the default provider.
+`plugins.resources`, `project.junk_directories`, `workspace.missing_checkouts`, and `config.model_xprompts`. The two
+inventory checks report telemetry-only directories without ProjectSpecs and registered workspace paths missing from
+disk; both are read-only and provide cleanup/repair guidance.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach `sase doctor -v` or
 `sase doctor -j` when asking for help.
