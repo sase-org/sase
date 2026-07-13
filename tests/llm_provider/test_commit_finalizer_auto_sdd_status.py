@@ -283,9 +283,9 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
         tmp_path,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/project--plans",
                     "remote_url": "git@example.com:acme/project--plans.git",
@@ -298,7 +298,7 @@ def test_split_sdd_store_auto_commit_targets_only_bead_state(
         },
     )
     store = SddStore(
-        storage="companion_repos",
+        storage="sidecar_repos",
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",
@@ -383,7 +383,7 @@ def test_dirty_separate_sdd_non_bead_file_is_prompted_and_blocks(
     assert [
         (item.kind, item.name, item.changed_files) for item in dirty_state.repos
     ] == [("sdd", "sdd", ("research/report.md",))]
-    assert f"SDD companion repo sdd: {sdd_store.resolve()}" in dirty_state.details
+    assert f"SDD sidecar repo sdd: {sdd_store.resolve()}" in dirty_state.details
     assert f"cd {sdd_store.resolve()}" in dirty_state.details
     assert "/sase_git_commit" in dirty_state.details
     assert "git status --short --branch" in dirty_state.details

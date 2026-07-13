@@ -1,6 +1,6 @@
 """Wire records for the Git query parser facade.
 
-Companion to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`,
+Sidecar to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`,
 :mod:`sase.core.agent_scan_wire`, and :mod:`sase.core.status_wire`. Defines
 the **stable** boundary between Python and a future Rust implementation of
 the deterministic Git query parsers (Phase 5 of

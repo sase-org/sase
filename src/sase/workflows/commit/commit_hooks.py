@@ -289,8 +289,8 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     )
 
     # Store-backed plans must be committed after their status transition.  For a
-    # copied archive this ensures the initial companion commit contains
-    # ``status: done``; for an existing companion plan it avoids leaving the
+    # copied archive this ensures the initial sidecar commit contains
+    # ``status: done``; for an existing sidecar plan it avoids leaving the
     # completion change dirty and unpushed in the SDD clone.
     if not store.is_in_tree and (should_copy or plan_in_store):
         from sase.sdd.files import commit_sdd_store_files

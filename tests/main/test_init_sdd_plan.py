@@ -48,7 +48,7 @@ def test_plan_providerless_project_targets_local_fallback_without_config_write(
     assert not (tmp_path / ".sase" / "sdd").exists()
 
 
-def test_plan_github_reports_both_split_companions_without_writing(
+def test_plan_github_reports_both_split_sidecars_without_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -65,10 +65,10 @@ def test_plan_github_reports_both_split_companions_without_writing(
     plan = plan_sdd_init(_args(tmp_path))
 
     details = {action.detail for action in plan.actions}
-    assert any("plans companion repository" in detail for detail in details)
-    assert any("research companion repository" in detail for detail in details)
-    assert any("plans companion README.md" in detail for detail in details)
-    assert any("research companion README.md" in detail for detail in details)
+    assert any("plans sidecar repository" in detail for detail in details)
+    assert any("research sidecar repository" in detail for detail in details)
+    assert any("plans sidecar README.md" in detail for detail in details)
+    assert any("research sidecar README.md" in detail for detail in details)
     assert legacy.read_text() == "notes\n"
     assert not (tmp_path / ".sase" / "sdd").exists()
 

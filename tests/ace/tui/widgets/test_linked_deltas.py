@@ -312,7 +312,7 @@ def test_compute_linked_delta_groups_includes_opened_workspace_records(
     assert provider.has_changes_calls == [str(opened_workspace)]
 
 
-def test_compute_linked_delta_groups_includes_companion_clone(
+def test_compute_linked_delta_groups_includes_sidecar_clone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -1,6 +1,6 @@
 # SASE Research
 
-This public companion repository stores durable research for its SASE-managed source repository. It is cloned lazily
+This public sidecar repository stores durable research for its SASE-managed source repository. It is cloned lazily
 when research is requested, keeping exploratory findings and generated media separate from implementation plans.
 
 ![Research directory map](assets/research-directory-map.png)

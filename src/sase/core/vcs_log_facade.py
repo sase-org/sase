@@ -17,7 +17,7 @@ errors, and rendering.
 Rust-backed helpers call ``sase_core_rs`` directly through
 :func:`sase.core.rust.require_rust_binding`. The ``*_python`` helpers
 below are kept as host-logic golden-contract references for parser and
-aggregator behavior and for the Rust parity tests (companion to
+aggregator behavior and for the Rust parity tests (sidecar to
 :mod:`sase.core.git_query_facade`).
 
 The unit/record separators pinned here MUST match the ``git log``

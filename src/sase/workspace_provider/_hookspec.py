@@ -19,19 +19,19 @@ VcsRepoCandidateErrorKind = Literal[
     "unsupported_namespace",
     "unknown",
 ]
-SddCompanionPreflightStatus = Literal["found", "not_found", "unavailable"]
+SddSidecarPreflightStatus = Literal["found", "not_found", "unavailable"]
 
 
 @dataclass(frozen=True)
-class SddCompanionPreflight:
-    """Read-only discovery result for a provider-owned SDD companion.
+class SddSidecarPreflight:
+    """Read-only discovery result for a provider-owned SDD sidecar.
 
     ``visibility`` is the visibility the provider intends to use if the
-    companion must be created. ``message`` carries an actionable explanation
+    sidecar must be created. ``message`` carries an actionable explanation
     when ``status`` is ``"unavailable"``.
     """
 
-    status: SddCompanionPreflightStatus
+    status: SddSidecarPreflightStatus
     provider: str
     host: str
     repo: str
@@ -222,17 +222,17 @@ class WorkspaceHookSpec:
         ...
 
     @hookspec(firstresult=True)
-    def ws_preflight_sdd_companion(
+    def ws_preflight_sdd_sidecar(
         self,
         primary_workspace_dir: str,
         workspace_dir: str,
         options: dict[str, object],
-    ) -> SddCompanionPreflight | None:
-        """Discover the external SDD companion without mutating state.
+    ) -> SddSidecarPreflight | None:
+        """Discover the external SDD sidecar without mutating state.
 
         This explicit-init hook may perform authoritative network reads. It
         must not create or label repositories, clone, or write local state.
-        ``options["sdd_companion_suffix"]`` may select an arbitrary companion
+        ``options["sdd_sidecar_suffix"]`` may select an arbitrary sidecar
         suffix such as ``plans`` or ``research``; absent means legacy ``sdd``.
         Return ``None`` only when the provider does not own the workspace.
         """
@@ -245,7 +245,7 @@ class WorkspaceHookSpec:
         workspace_dir: str,
         options: dict[str, object],
     ) -> dict[str, object] | None:
-        """Compatibility hook to verify or create a companion SDD remote.
+        """Compatibility hook to verify or create a sidecar SDD remote.
 
         Providers should return a schema-versioned record mapping suitable for
         ``.sase/sdd-store.json``. Provider-owned materialization requires
@@ -253,7 +253,7 @@ class WorkspaceHookSpec:
         be passed back through ``options["sdd_repo"]``,
         ``options["sdd_host"]``, and ``options["sdd_remote_url"]`` so providers
         can verify the exact recorded remote.
-        ``options["sdd_companion_suffix"]`` follows the preflight contract.
+        ``options["sdd_sidecar_suffix"]`` follows the preflight contract.
         """
         ...
 

@@ -1,6 +1,6 @@
 """Wire records for the VCS log (commit-history) facade.
 
-Companion to :mod:`sase.core.git_query_wire`. Defines the **stable**
+Sidecar to :mod:`sase.core.git_query_wire`. Defines the **stable**
 boundary between Python and the Rust implementation of the
 provider-agnostic commit-history parser/aggregator that backs
 ``sase vcs log``.

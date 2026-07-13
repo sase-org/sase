@@ -40,7 +40,7 @@ def build_dirty_details(
             elif repo.kind == "sibling":
                 label = f"linked repo {repo.name}"
             else:
-                label = f"SDD companion repo {repo.name}"
+                label = f"SDD sidecar repo {repo.name}"
             lines.append(f"- {label}: {repo.path}")
             lines.extend(f"  - {path}" for path in repo.changed_files[:20])
             if len(repo.changed_files) > 20:

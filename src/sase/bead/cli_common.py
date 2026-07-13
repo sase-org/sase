@@ -78,7 +78,7 @@ def resolve_beads_location(
     context = _resolve_workspace_context(current)
     if context is not None:
         from sase.sdd.store import (
-            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SIDECAR_REPOS,
             SDD_STORAGE_IN_TREE,
             SDD_STORAGE_LOCAL,
             SDD_STORAGE_SEPARATE_REPO,
@@ -107,7 +107,7 @@ def resolve_beads_location(
                 store=store,
             )
 
-        if store.storage == SDD_STORAGE_COMPANION_REPOS:
+        if store.storage == SDD_STORAGE_SIDECAR_REPOS:
             root = store.kind_root("plans")
         elif store.storage == SDD_STORAGE_SEPARATE_REPO:
             root = store.sdd_dir

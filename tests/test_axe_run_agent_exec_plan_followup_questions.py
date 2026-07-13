@@ -141,7 +141,7 @@ class TestPlanFollowupQuestions:
         prompt_path.write_text("Original prompt", encoding="utf-8")
         state.sdd_spec_path = str(prompt_path)
         store = SddStore(
-            storage="companion_repos",
+            storage="sidecar_repos",
             sdd_dir=tmp_path,
             repo_root=tmp_path,
         )
@@ -205,7 +205,7 @@ class TestPlanFollowupQuestions:
         prompt_path.write_text("Original prompt\n", encoding="utf-8")
         state.sdd_spec_path = str(prompt_path)
         store = SddStore(
-            storage="companion_repos",
+            storage="sidecar_repos",
             sdd_dir=tmp_path,
             repo_root=tmp_path,
         )

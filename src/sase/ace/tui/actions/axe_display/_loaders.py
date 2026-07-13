@@ -100,7 +100,7 @@ class AxeDisplayLoadersMixin:
     _axe_cmds_hidden: bool
     _axe_current_view: AxeViewType
     # When a chop child row is selected, ``_axe_current_view`` stays at
-    # ``"axe"`` (since chops are not bgcmd slots) and this companion field
+    # ``"axe"`` (since chops are not bgcmd slots) and this sidecar field
     # carries the (lumberjack_name, chop_name) identity that the render
     # layer uses to pick the chop-detail view instead of the lumberjack
     # overview. ``None`` means a lumberjack row (or no row) is selected.

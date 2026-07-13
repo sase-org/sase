@@ -291,7 +291,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
     ensure_clone.assert_not_called()
 
 
-def test_capture_sdd_base_sha_for_companion_repo(tmp_path: Path) -> None:
+def test_capture_sdd_base_sha_for_sidecar_repo(tmp_path: Path) -> None:
     sdd_repo = tmp_path / "workspace" / ".sase" / "sdd"
     sdd_repo.mkdir(parents=True)
     _git(sdd_repo, "git", "init")

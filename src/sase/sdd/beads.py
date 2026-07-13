@@ -18,13 +18,13 @@ def init_beads(workspace_dir: str, workspace_num: int) -> Path:
     """Bootstrap beads in the effective non-in-tree SDD repository.
 
     Legacy local stores use the primary workspace's `.sase/sdd/`; migrated
-    stores use the plans companion root. The repository and `beads/` directory
+    stores use the plans sidecar root. The repository and `beads/` directory
     are initialized when missing.
 
     Returns the repository root containing `beads/`.
     """
     resolved_store = resolve_sdd_store(workspace_dir, workspace_num)
-    if resolved_store.is_companion_storage:
+    if resolved_store.is_sidecar_storage:
         store = materialize_sdd_store(workspace_dir, workspace_num)
         sdd_dir = store.kind_root("plans")
     else:

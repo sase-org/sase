@@ -156,7 +156,7 @@ def test_write_workflow_state_refreshes_artifact_index(tmp_path: Path) -> None:
     update_index.assert_called_once_with(str(tmp_path))
 
 
-def test_workflow_workspace_prep_recreates_companion_after_teardown() -> None:
+def test_workflow_workspace_prep_recreates_sidecar_after_teardown() -> None:
     from sase.axe.run_workflow_runner import _prepare_workflow_workspace
 
     calls: list[str] = []

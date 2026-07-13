@@ -557,12 +557,12 @@ class TestWorkflowVariablesHeader:
         assert "  ▣ sdd\n" in header.plain
         assert "    abcdef123456 Archive approved plan demo\n" in header.plain
 
-    def test_companion_cwd_without_repo_name_is_non_primary(
+    def test_sidecar_cwd_without_repo_name_is_non_primary(
         self,
         tmp_path: Path,
     ) -> None:
         workspace = tmp_path / "sase_18"
-        companion = workspace / "sase" / "repos" / "research"
+        sidecar = workspace / "sase" / "repos" / "research"
         agent = make_agent(
             workspace_dir=str(workspace),
             step_output={
@@ -570,7 +570,7 @@ class TestWorkflowVariablesHeader:
                     {
                         "message": "docs: add research report",
                         "sha": "abcdef123456",
-                        "cwd": str(companion),
+                        "cwd": str(sidecar),
                         "diff_path": str(tmp_path / "research.diff"),
                     }
                 ],

@@ -174,7 +174,7 @@ def test_init_commits_migration_for_external_store(
 ) -> None:
     (tmp_path / ".git").mkdir()
     (tmp_path / "sase.yml").write_text("is_sase_managed: true\n", encoding="utf-8")
-    root = tmp_path / "companion"
+    root = tmp_path / "sidecar"
     _write(root / "prompts" / "202607" / "move.md", "# Prompt\n")
     store = SddStore(storage="local", sdd_dir=root, repo_root=root)
     committed: list[tuple[str, list[Path]]] = []

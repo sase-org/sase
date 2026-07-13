@@ -57,7 +57,7 @@ def test_artifact_watcher_targets_resolved_local_sdd_beads_dir(
     assert beads_dir in captured_paths
 
 
-def test_artifact_watcher_targets_plans_companion_beads_dir(
+def test_artifact_watcher_targets_plans_sidecar_beads_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -70,9 +70,9 @@ def test_artifact_watcher_targets_plans_companion_beads_dir(
         tmp_path,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/project--plans",
                     "remote_url": "git@example.com:acme/project--plans.git",

@@ -1,6 +1,6 @@
 # Initialization
 
-SASE initialization commands create or refresh durable files that agents and companion tools rely on. Bare `sase init`
+SASE initialization commands create or refresh durable files that agents and sidecar tools rely on. Bare `sase init`
 checks the current project and home setup first, then either reports that everything is current or shows the
 initializers that need attention:
 
@@ -25,8 +25,8 @@ copying every existing project-tree `AGENTS.md` to the provider instruction file
 initialization exits successfully without detecting a provider, materializing storage, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the SDD initializer, but it cannot
-approve creation of a missing GitHub SDD companion. That creation always requires an interactive `y`/`yes` response to
-the repository-specific prompt; unattended initialization can connect an existing companion but cannot create one.
+approve creation of a missing GitHub SDD sidecar. That creation always requires an interactive `y`/`yes` response to the
+repository-specific prompt; unattended initialization can connect an existing sidecar but cannot create one.
 
 `sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
 directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
@@ -246,12 +246,12 @@ sase memory log --id <read-id>
 
 `sase init sdd` is the compatibility alias for `sase sdd init`. It materializes the provider-selected SDD store, then
 creates or refreshes generated SDD guides and directory-map assets. For a managed GitHub project it finds or creates the
-public `<owner>/<repo>--plans` and `<owner>/<repo>--research` companions, initializes and pushes both, then writes the
+public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars, initializes and pushes both, then writes the
 split store record. Existing legacy `--sdd` files remain untouched locally and in their remote, but normal SDD routing
-switches to the split companions until the supported content is explicitly migrated. Bare-git projects keep their
+switches to the split sidecars until the supported content is explicitly migrated. Bare-git projects keep their
 provider-owned in-tree layout.
 
-GitHub discovery runs before materialization. If either companion is definitively absent, the command asks a separate
+GitHub discovery runs before materialization. If either sidecar is definitively absent, the command asks a separate
 default-no question naming that `--plans` or `--research` repository; only `y` or `yes` proceeds. Declines, blank
 answers, EOF, interruption, and non-interactive stdin leave initialization incomplete and return nonzero without
 creating, labeling, cloning, importing, or writing generated files. `--check` does not probe GitHub or read stdin.
@@ -269,9 +269,9 @@ sase sdd migrate --check --diff       # after init, preview legacy content impor
 sase sdd migrate                      # apply the import and retire its local source
 ```
 
-Initialization and migration are separate on purpose: initialization creates or adopts both split companions and records
+Initialization and migration are separate on purpose: initialization creates or adopts both split sidecars and records
 their remotes, while migration copies supported content from an existing legacy tree. Once initialization records the
-split layout, normal SDD operations route to the companions even though the legacy local tree remains until migration
+split layout, normal SDD operations route to the sidecars even though the legacy local tree remains until migration
 succeeds.
 
 Keep conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in

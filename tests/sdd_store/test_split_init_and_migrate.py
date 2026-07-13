@@ -1,4 +1,4 @@
-"""Split-companion initialization and legacy migration coverage."""
+"""Split-sidecar initialization and legacy migration coverage."""
 
 from __future__ import annotations
 
@@ -7,14 +7,14 @@ import subprocess
 
 import pytest
 
-from sase.sdd._companion_init import initialize_split_sdd_companions
+from sase.sdd._sidecar_init import initialize_split_sdd_sidecars
 from sase.sdd._init_files import (
-    ensure_sdd_companion_initialized,
-    expected_sdd_companion_files,
-    plan_sdd_companion_init_actions,
+    ensure_sdd_sidecar_initialized,
+    expected_sdd_sidecar_files,
+    plan_sdd_sidecar_init_actions,
 )
 from sase.sdd._store_records import read_sdd_store_record, write_sdd_store_record
-from sase.sdd._store_types import SddCompanion, SddStoreRecord
+from sase.sdd._store_types import SddSidecar, SddStoreRecord
 from sase.sdd.migrate import (
     apply_split_sdd_migration,
     plan_split_sdd_migration,
@@ -43,27 +43,27 @@ def _git_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(key, value)
 
 
-def test_companion_generated_files_are_deterministic_and_drift_tracked(
+def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
     tmp_path: Path,
 ) -> None:
     for kind in ("plans", "research"):
         root = tmp_path / kind
-        actions = plan_sdd_companion_init_actions(kind, root)
+        actions = plan_sdd_sidecar_init_actions(kind, root)
         assert {action.path.name for action in actions} == {
             "README.md",
             f"{kind}-directory-map.png",
         }
 
-        written = ensure_sdd_companion_initialized(kind, root)
+        written = ensure_sdd_sidecar_initialized(kind, root)
         assert len(written) == 2
-        expected_readme = expected_sdd_companion_files(kind, root)[0]
+        expected_readme = expected_sdd_sidecar_files(kind, root)[0]
         assert (root / "README.md").read_text() == expected_readme.content
         assert (
             (root / "assets" / f"{kind}-directory-map.png")
             .read_bytes()
             .startswith(b"\x89PNG\r\n\x1a\n")
         )
-        assert plan_sdd_companion_init_actions(kind, root) == ()
+        assert plan_sdd_sidecar_init_actions(kind, root) == ()
 
 
 def test_split_init_creates_both_repos_before_writing_record(
@@ -81,7 +81,7 @@ def test_split_init_creates_both_repos_before_writing_record(
     def create_remote(
         _primary: str, _workspace: str, options: dict[str, object]
     ) -> dict[str, object]:
-        kind = str(options["sdd_companion_suffix"])
+        kind = str(options["sdd_sidecar_suffix"])
         calls.append((kind, options["sdd_creation_authorized"] is True))
         return {
             "schema_version": 1,
@@ -96,11 +96,11 @@ def test_split_init_creates_both_repos_before_writing_record(
 
     monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
     monkeypatch.setattr(
-        "sase.linked_repos.companion_repo_clone_dir",
+        "sase.linked_repos.sidecar_repo_clone_dir",
         lambda _workspace, kind: str(clones[kind]),
     )
 
-    outcome = initialize_split_sdd_companions(
+    outcome = initialize_split_sdd_sidecars(
         project,
         1,
         creation_authorized={"plans": True, "research": True},
@@ -109,7 +109,7 @@ def test_split_init_creates_both_repos_before_writing_record(
     assert calls == [("plans", True), ("research", True)]
     assert outcome.created == frozenset({"plans", "research"})
     record = read_sdd_store_record(project)
-    assert record is not None and record.is_companion_storage
+    assert record is not None and record.is_sidecar_storage
     assert record.plans is not None and record.plans.repo == "acme/widget--plans"
     assert record.research is not None
     assert (clones["plans"] / "README.md").is_file()
@@ -160,15 +160,15 @@ def test_migration_dry_run_rewrites_links_and_apply_is_rerunnable(
 
     record = SddStoreRecord(
         schema_version=2,
-        storage="companion_repos",
+        storage="sidecar_repos",
         provider="github",
         discovery="found",
-        plans=SddCompanion("acme/widget--plans", str(remotes["plans"])),
-        research=SddCompanion("acme/widget--research", str(remotes["research"])),
+        plans=SddSidecar("acme/widget--plans", str(remotes["plans"])),
+        research=SddSidecar("acme/widget--research", str(remotes["research"])),
     )
     write_sdd_store_record(project, record)
     monkeypatch.setattr(
-        "sase.linked_repos.companion_repo_clone_dir",
+        "sase.linked_repos.sidecar_repo_clone_dir",
         lambda _workspace, kind: str(roots[kind]),
     )
     monkeypatch.setattr(

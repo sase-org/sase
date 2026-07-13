@@ -263,7 +263,7 @@ def _repository_root(path: object) -> str | None:
     """Return the nearest repository root containing *path*, when recognizable.
 
     Commit tracking only needs repository identity, not provider behavior.  The
-    nearest marker matters because companion repositories may be nested inside
+    nearest marker matters because sidecar repositories may be nested inside
     the primary workspace.  Unknown VCS layouts deliberately return ``None``
     so callers can preserve the legacy compatibility behavior.
     """
@@ -292,7 +292,7 @@ def _persist_commit_diff_path(
     ``commit_results.json`` records every commit with its repository-aware
     metadata.  ``agent_meta.json["commit_diff_path"]`` has a narrower
     contract: it is the fallback diff for the agent's primary workspace.  Do
-    not let a linked, companion, or temporary repository replace that value.
+    not let a linked, sidecar, or temporary repository replace that value.
 
     Historical agents may lack ``workspace_dir`` or use an unrecognized VCS
     layout.  In those cases repository identity cannot be proven, so retain
@@ -387,20 +387,20 @@ def _sdd_repo_name_for_commit_cwd(
     if not workspace_dir:
         return None
     try:
-        from sase.linked_repos import companion_repo_clone_dir
+        from sase.linked_repos import sidecar_repo_clone_dir
         from sase.sdd.store import read_sdd_store_record
 
         cwd = Path(commit_cwd).expanduser().resolve(strict=False)
         workspace = Path(workspace_dir).expanduser().resolve(strict=False)
         record = read_sdd_store_record(workspace)
         for kind in ("plans", "research"):
-            root = Path(companion_repo_clone_dir(workspace, kind))
+            root = Path(sidecar_repo_clone_dir(workspace, kind))
             try:
                 cwd.relative_to(root)
             except ValueError:
                 continue
-            companion = record.companion_for_kind(kind) if record is not None else None
-            return companion.repo if companion is not None and companion.repo else kind
+            sidecar = record.sidecar_for_kind(kind) if record is not None else None
+            return sidecar.repo if sidecar is not None and sidecar.repo else kind
 
         legacy_root = workspace / ".sase" / "sdd"
         try:

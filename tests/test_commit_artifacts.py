@@ -200,10 +200,10 @@ class TestWriteResultMarker:
     ) -> None:
         artifacts_dir = tmp_path / "artifacts"
         primary = tmp_path / "sase_7"
-        companion = primary / ".sase" / "sdd"
+        sidecar = primary / ".sase" / "sdd"
         artifacts_dir.mkdir()
         (primary / ".git").mkdir(parents=True)
-        (companion / ".git").mkdir(parents=True)
+        (sidecar / ".git").mkdir(parents=True)
         meta = {"name": "agent-alpha", "workspace_dir": str(primary)}
         if existing_diff is not None:
             meta["commit_diff_path"] = existing_diff
@@ -212,7 +212,7 @@ class TestWriteResultMarker:
 
         with (
             patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
-            patch("os.getcwd", return_value=str(companion)),
+            patch("os.getcwd", return_value=str(sidecar)),
             patch(
                 "sase.workflows.commit.commit_tracking."
                 "update_agent_artifact_index_for_marker_mutation"
@@ -220,8 +220,8 @@ class TestWriteResultMarker:
         ):
             write_result_marker(
                 "create_commit",
-                {"message": "docs: companion"},
-                "/tmp/companion.diff",
+                {"message": "docs: sidecar"},
+                "/tmp/sidecar.diff",
                 "def456",
                 None,
             )
@@ -231,8 +231,8 @@ class TestWriteResultMarker:
         results = json.loads(
             (artifacts_dir / "commit_results.json").read_text(encoding="utf-8")
         )
-        assert results[0]["cwd"] == str(companion)
-        assert results[0]["diff_path"] == "/tmp/companion.diff"
+        assert results[0]["cwd"] == str(sidecar)
+        assert results[0]["diff_path"] == "/tmp/sidecar.diff"
         update_index.assert_not_called()
 
     def test_primary_subdirectory_commit_updates_primary_diff(
@@ -266,7 +266,7 @@ class TestWriteResultMarker:
         persisted = json.loads(meta_path.read_text(encoding="utf-8"))
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
 
-    def test_companion_commit_records_store_repo_name(
+    def test_sidecar_commit_records_store_repo_name(
         self,
         tmp_path: Path,
     ) -> None:
@@ -274,9 +274,9 @@ class TestWriteResultMarker:
 
         artifacts_dir = tmp_path / "artifacts"
         primary = tmp_path / "sase_7"
-        companion = primary / "sase" / "repos" / "plans"
+        sidecar = primary / "sase" / "repos" / "plans"
         artifacts_dir.mkdir()
-        companion.mkdir(parents=True)
+        sidecar.mkdir(parents=True)
         (artifacts_dir / "agent_meta.json").write_text(
             json.dumps({"workspace_dir": str(primary)}),
             encoding="utf-8",
@@ -285,9 +285,9 @@ class TestWriteResultMarker:
             primary,
             {
                 "schema_version": 2,
-                "storage": "companion_repos",
+                "storage": "sidecar_repos",
                 "provider": "github",
-                "companions": {
+                "sidecars": {
                     "plans": {
                         "repo": "sase-org/sase--plans",
                         "remote_url": "git@example.com:sase-org/sase--plans.git",
@@ -302,7 +302,7 @@ class TestWriteResultMarker:
 
         with (
             patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
-            patch("os.getcwd", return_value=str(companion)),
+            patch("os.getcwd", return_value=str(sidecar)),
         ):
             write_result_marker(
                 "create_commit",

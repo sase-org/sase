@@ -153,8 +153,8 @@ scoped to the diagram only.
    tests in `../sase-core/.../tests/`_ (per-PR gate). Drop "releases" — the contract is not release-cadence-bound.
 8. **Add a small "PyPI wheel" badge** between the `sase_core_rs` layer and the `../sase-core` layer, captioned
    `sase-core-rs>=0.1.1,<0.2.0`. This makes the user-visible edge of the boundary explicit.
-9. **Either narrow the bottom-layer title to "PyO3 extension cores" or add a small `sase_gateway` companion box**
-   adjacent to (not inside) the `../sase-core` layer, so the diagram's framing is honest about what the workspace ships.
+9. **Either narrow the bottom-layer title to "PyO3 extension cores" or add a small `sase_gateway` sidecar box** adjacent
+   to (not inside) the `../sase-core` layer, so the diagram's framing is honest about what the workspace ships.
 10. **Indicate multiplicity on the `stable wire records` pill** — a stack-of-cards icon, or a count like "10+ wire
     schemas: parser, query, status, scan, notif, cleanup, launch, bead, git, …" — so the surface area reads as a family
     rather than a single record type.

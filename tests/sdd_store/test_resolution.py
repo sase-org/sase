@@ -85,7 +85,7 @@ def test_positive_record_precedes_provider_policy(
     assert store.remote_url == written.remote_url
 
 
-def test_companion_record_round_trips_and_routes_kind_roots(
+def test_sidecar_record_round_trips_and_routes_kind_roots(
     tmp_path: Path,
     provider_patch,
 ) -> None:
@@ -99,9 +99,9 @@ def test_companion_record_round_trips_and_routes_kind_roots(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "owner/repo--plans",
                     "remote_url": "git@github.com:owner/repo--plans.git",
@@ -118,7 +118,7 @@ def test_companion_record_round_trips_and_routes_kind_roots(
     store = resolve_sdd_store(workspace, 2)
     plans = workspace / "sase" / "repos" / "plans"
     research = workspace / "sase" / "repos" / "research"
-    assert store.is_companion_storage
+    assert store.is_sidecar_storage
     assert store.sdd_dir == plans
     assert store.repo_root == plans
     assert resolve_sdd_dir(workspace, 2) == plans
@@ -127,14 +127,53 @@ def test_companion_record_round_trips_and_routes_kind_roots(
     assert resolve_sdd_kind_dir(workspace, 2, "research") == research
 
 
-def test_companion_record_requires_both_kind_mappings(tmp_path: Path) -> None:
+def test_legacy_split_record_normalizes_and_rewrites_canonical_spellings(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "repo"
+    record_path = primary / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    legacy_storage = "com" + "panion_repos"
+    legacy_sidecars_key = "com" + "panions"
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": legacy_storage,
+                legacy_sidecars_key: {
+                    "plans": {
+                        "repo": "owner/repo--plans",
+                        "remote_url": "plans-remote",
+                    },
+                    "research": {
+                        "repo": "owner/repo--research",
+                        "remote_url": "research-remote",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    record = read_sdd_store_record(primary)
+
+    assert record is not None
+    assert record.storage == "sidecar_repos"
+    write_sdd_store_record(primary, record)
+    rewritten = json.loads(record_path.read_text(encoding="utf-8"))
+    assert rewritten["storage"] == "sidecar_repos"
+    assert "sidecars" in rewritten
+    assert legacy_sidecars_key not in rewritten
+
+
+def test_sidecar_record_requires_both_kind_mappings(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="plans and research"):
         write_sdd_store_record(
             tmp_path,
             {
                 "schema_version": 2,
-                "storage": "companion_repos",
-                "companions": {
+                "storage": "sidecar_repos",
+                "sidecars": {
                     "plans": {
                         "repo": "owner/repo--plans",
                         "remote_url": "plans-remote",
@@ -185,7 +224,7 @@ def test_resolution_rejects_foreign_record_without_local_fallback(
         json.dumps(
             {
                 "schema_version": 3,
-                "storage": "companion_repos",
+                "storage": "sidecar_repos",
                 "discovery": "found",
             }
         ),
@@ -232,17 +271,17 @@ def test_materialized_sdd_clone_returns_matching_primary_clone(
     tmp_path: Path,
 ) -> None:
     primary = tmp_path / "repo"
-    companion = tmp_path / "companion.git"
+    sidecar = tmp_path / "sidecar.git"
     store = primary / ".sase" / "sdd"
-    init_bare_repo(companion)
-    clone(companion, store)
+    init_bare_repo(sidecar)
+    clone(sidecar, store)
     write_sdd_store_record(
         primary,
         {
             "storage": "separate_repo",
             "provider": "github",
             "repo": "owner/repo--sdd",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -260,7 +299,7 @@ def test_materialized_sdd_clone_skips_missing_clone_for_positive_record(
             "storage": "separate_repo",
             "provider": "github",
             "repo": "owner/repo--sdd",
-            "remote_url": str(tmp_path / "companion.git"),
+            "remote_url": str(tmp_path / "sidecar.git"),
             "discovery": "found",
         },
     )

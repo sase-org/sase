@@ -1,4 +1,4 @@
-"""Lossless adoption helpers for provider-owned companion SDD stores."""
+"""Lossless adoption helpers for provider-owned sidecar SDD stores."""
 
 from __future__ import annotations
 
@@ -19,14 +19,14 @@ _RUNTIME_ONLY_PATHS = frozenset(BEAD_STORE_GITIGNORE_PATTERNS)
 
 # Directory names that never hold durable SDD artifacts. ``.git`` is the source's
 # own version-control metadata, and ``.sase`` is workspace runtime state -- for
-# example a companion clone accidentally nested inside another store's tree --
+# example a sidecar clone accidentally nested inside another store's tree --
 # which must never be imported as if it were a durable artifact.
 _NON_ARTIFACT_DIRS = frozenset({".git", ".sase"})
 
 
 @contextmanager
 def materialization_lock(primary: Path) -> Iterator[None]:
-    """Serialize the primary companion create/adopt transaction."""
+    """Serialize the primary sidecar create/adopt transaction."""
 
     lock_path = primary / ".sase" / "sdd-materialize.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,10 +47,10 @@ def new_staging_path(primary: Path) -> Path:
 def _source_is_versioned(source: Path) -> bool:
     """Return whether a legacy source keeps its artifacts under version control.
 
-    A version-controlled source -- most commonly a stale or renamed companion
+    A version-controlled source -- most commonly a stale or renamed sidecar
     clone whose ``origin`` no longer matches the record -- retains every
     overlapping artifact in its own git history. Such a source contributes only
-    the artifacts the companion lacks; paths that already exist in the companion
+    the artifacts the sidecar lacks; paths that already exist in the sidecar
     defer to it (mirroring :func:`_copy_durable_artifacts`) instead of reading as
     an unresolvable conflict. Loose, un-versioned sources have no such safety net,
     so their overlapping differences are still surfaced for reconciliation.
@@ -78,7 +78,7 @@ def adopt_provider_store(
     record: SddStoreRecord,
     staging: Path,
 ) -> Path:
-    """Stage, merge, push, and atomically adopt a companion checkout.
+    """Stage, merge, push, and atomically adopt a sidecar checkout.
 
     Local and in-tree sources are never mutated. The primary path is replaced only
     after every import has passed conflict checks and the staged commit has pushed.
@@ -92,7 +92,7 @@ def adopt_provider_store(
         if conflicts:
             rendered = "\n  - ".join(conflicts)
             raise SddMaterializationError(
-                "legacy SDD artifacts conflict with the companion repository:\n"
+                "legacy SDD artifacts conflict with the sidecar repository:\n"
                 f"  - {rendered}\n"
                 "No source files were changed. Reconcile these paths and rerun "
                 "`sase sdd init`."
@@ -107,7 +107,7 @@ def adopt_provider_store(
     except Exception as exc:  # noqa: BLE001 - transaction failures are user-facing.
         detail = str(exc) or type(exc).__name__
         raise SddMaterializationError(
-            f"could not adopt the companion SDD repository: {detail}"
+            f"could not adopt the sidecar SDD repository: {detail}"
         ) from exc
 
 
@@ -135,7 +135,7 @@ def legacy_adoption_needed(
     workspace: Path,
     record: SddStoreRecord,
 ) -> bool:
-    """Return whether a retained legacy source differs from the companion."""
+    """Return whether a retained legacy source differs from the sidecar."""
 
     target = primary / ".sase" / "sdd"
     for source in _legacy_sources(primary, workspace, target, record):
@@ -189,7 +189,7 @@ def _ensure_staging_clone(
     source = str(target) if clone_matches_record(target, record) else record.remote_url
     if not source:
         raise SddMaterializationError(
-            "provider returned a companion record without a clone URL"
+            "provider returned a sidecar record without a clone URL"
         )
     result = _run_git(
         ["clone", source, str(staging)],
@@ -222,10 +222,10 @@ def _merge_conflicts(sources: list[Path], target: Path) -> list[str]:
             destination = target / rel
             dest_present = destination.exists() or destination.is_symlink()
             # A version-controlled source's overlapping artifacts stay safe in its
-            # own history and the import always defers to the companion for paths
+            # own history and the import always defers to the sidecar for paths
             # it already holds, so only such a source's unique artifacts matter.
-            # This keeps a stale or renamed companion clone whose committed files
-            # merely lag the companion from reading as an unresolvable conflict.
+            # This keeps a stale or renamed sidecar clone whose committed files
+            # merely lag the sidecar from reading as an unresolvable conflict.
             if versioned and dest_present:
                 continue
             existing_source = accepted.get(rel)
@@ -302,20 +302,20 @@ def _bootstrap_and_push(repo: Path) -> None:
 
     committed = commit_sdd_files(
         repo,
-        "Initialize or import SDD companion store",
+        "Initialize or import SDD sidecar store",
         auto_commit_type="sdd",
         paths=None,
         record_commit_marker=False,
     )
     if not committed:
         return
-    _push_companion_store(repo)
+    _push_sidecar_store(repo)
 
 
-def _push_companion_store(repo: Path) -> None:
-    """Push the companion commit, integrating concurrent remote work first.
+def _push_sidecar_store(repo: Path) -> None:
+    """Push the sidecar commit, integrating concurrent remote work first.
 
-    Many workspaces materialize the same shared companion repository, so a
+    Many workspaces materialize the same shared sidecar repository, so a
     non-fast-forward rejection is expected whenever another materialization (or
     an ordinary SDD push) advanced the remote between our clone and this push.
     Mirror the established bead-sync idiom -- push, and on rejection

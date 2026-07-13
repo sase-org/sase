@@ -1,19 +1,19 @@
-# Plans companion directory map
+# Plans sidecar directory map
 
 ## Target
 
 - Final asset: `src/sase/sdd/assets/plans-directory-map.png`
 - Size: 1600×900 PNG
-- Intended use: generated README for each plans companion repository
+- Intended use: generated README for each plans sidecar repository
 - Alt text:
-  `Flow from sase plan propose through review and approval into monthly plan, prompt snapshot, and bead state in the auto-cloned plans companion, with SDD commit and push.`
+  `Flow from sase plan propose through review and approval into monthly plan, prompt snapshot, and bead state in the auto-cloned plans sidecar, with SDD commit and push.`
 
 ## Final GPT Image Prompt
 
 ```text
 Use case: infographic-diagram
 Asset type: text-free structural base for a 1600x900 GitHub Markdown documentation infographic
-Primary request: Create a clean 16:9 landscape architecture infographic base explaining a plans companion repository workflow. This will be post-processed with exact deterministic labels, so include absolutely no readable words, letters, numbers, pseudo-text, logos, or watermarks.
+Primary request: Create a clean 16:9 landscape architecture infographic base explaining a plans sidecar repository workflow. This will be post-processed with exact deterministic labels, so include absolutely no readable words, letters, numbers, pseudo-text, logos, or watermarks.
 Scene/backdrop: warm off-white technical-documentation canvas with very subtle paper grain.
 Composition/framing: left-to-right workflow with generous whitespace and crisp visual hierarchy. At upper left, a blank command/input card feeds a blank review gate card and then a blank approval gate card. Their arrows lead into a large central repository container. Inside that repository container, show two clearly separate blank artifact groups: a monthly folder containing a plan document with a smaller nested prompt-snapshot document, and a bead-state folder containing a neat event-card stack. At right, show three clean workspace/window containers receiving clones from the central repository via a fan-out arrow; each workspace contains the same small blank repository-folder symbol. Along the bottom, show a distinct SDD machinery rail: a simple gear/automation node leading through a commit node and an upload/push arrow back into the repository, clearly communicating automated commit and push. Include a small empty badge near the workspace fan-out for the automatic-clone setting.
 Style/medium: crisp flat vector-like software architecture diagram; light neutral background; thin dark-slate strokes; small-radius rounded panels; subtle soft shadows; restrained teal, blue, green, amber, and slate accents; polished but not marketing art; consistent with high-quality open-source technical docs.
@@ -29,11 +29,11 @@ The built-in image-generation tool produced the text-free 1672×941 base. The or
 DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible character. The overlay uses dark slate
 `#17243a`, secondary slate `#536175`, opaque white label panels, and light-gray `#d4dbe5` borders.
 
-- Title: `PLANS COMPANION`
+- Title: `PLANS SIDECAR`
 - Subtitle: `Approved plans, prompts, and beads — auto-cloned everywhere`
 - Proposal flow: `PROPOSE`, `sase plan propose`, `capture intent`, `REVIEW`, `Human`, `review gate`, `APPROVE`, `Write`,
   `durable state`
-- Repository: `PLANS REPOSITORY`, `sase-org/sase--plans`, `public linked companion`
+- Repository: `PLANS REPOSITORY`, `sase-org/sase--plans`, `public linked sidecar`
 - Monthly contents: `MONTHLY PLAN`, `<YYYYMM>/plan.md`, `prompts/prompt.md`, `approved plan + captured proposal`
 - Beads: `BEAD STATE`, `beads/events/**`, `git-portable source of truth`
 - Clone behavior: `AUTO-CLONE`, `auto_clone: true`, `EVERY WORKSPACE`, `under sase/repos/`, and three `sase--plans`

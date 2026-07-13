@@ -89,7 +89,7 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
     try:
         from sase.sdd._commit_store import sdd_commit_targets, sdd_store_label
         from sase.sdd.store import (
-            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SIDECAR_REPOS,
             SDD_STORAGE_SEPARATE_REPO,
             resolve_sdd_store,
         )
@@ -103,7 +103,7 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
         store = resolve_sdd_store(project_dir, workspace_num or 1)
         if store.storage not in {
             SDD_STORAGE_SEPARATE_REPO,
-            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SIDECAR_REPOS,
         }:
             return []
 
@@ -118,9 +118,9 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
                 continue
             fallback = (
                 "research"
-                if store.is_companion_storage and index == 1
+                if store.is_sidecar_storage and index == 1
                 else "plans"
-                if store.is_companion_storage
+                if store.is_sidecar_storage
                 else "sdd"
             )
             dirty.append(

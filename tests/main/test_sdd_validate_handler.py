@@ -20,7 +20,7 @@ __all__ = ["mark_tmp_path_as_project"]
 pytestmark = pytest.mark.usefixtures("mark_tmp_path_as_project")
 
 
-def test_validate_accepts_empty_companion_clone_root(tmp_path: Path) -> None:
+def test_validate_accepts_empty_sidecar_clone_root(tmp_path: Path) -> None:
     root = tmp_path / "sase" / "repos" / "plans"
     (root / ".git").mkdir(parents=True)
 

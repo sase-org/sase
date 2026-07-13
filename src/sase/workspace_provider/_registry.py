@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from ._hookspec import (
     ResolvedRef,
-    SddCompanionPreflight,
+    SddSidecarPreflight,
     VcsRefNamespaces,
     VcsRepoCandidates,
     WorkflowMetadata,
@@ -283,13 +283,13 @@ def materialize_sdd_store(
     )
 
 
-def preflight_sdd_companion(
+def preflight_sdd_sidecar(
     primary_workspace_dir: str,
     workspace_dir: str,
     options: dict[str, object],
-) -> SddCompanionPreflight | None:
-    """Perform provider-owned, read-only SDD companion discovery."""
-    return _get_manager().preflight_sdd_companion(
+) -> SddSidecarPreflight | None:
+    """Perform provider-owned, read-only SDD sidecar discovery."""
+    return _get_manager().preflight_sdd_sidecar(
         primary_workspace_dir=primary_workspace_dir,
         workspace_dir=workspace_dir,
         options=options,
@@ -301,7 +301,7 @@ def create_sdd_remote(
     workspace_dir: str,
     options: dict[str, object],
 ) -> dict[str, object] | None:
-    """Dispatch the compatibility companion-remote creation hook."""
+    """Dispatch the compatibility sidecar-remote creation hook."""
     return _get_manager().create_sdd_remote(
         primary_workspace_dir=primary_workspace_dir,
         workspace_dir=workspace_dir,

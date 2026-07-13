@@ -55,9 +55,9 @@ from sase._linked_repo_markers import (
     record_opened_linked_repo,
 )
 
-# Host-scoped linked and companion clones are launch-scoped in numbered
+# Host-scoped linked and sidecar clones are launch-scoped in numbered
 # workspaces. Their primary-checkout counterparts remain durable local sources.
-COMPANION_REPO_CLONES_SUBDIR = ("sase", "repos")
+SIDECAR_REPO_CLONES_SUBDIR = ("sase", "repos")
 LINKED_REPO_CLONES_SUBDIR = ("sase", "repos", "linked")
 
 # Preserve the historical class identity for introspection and pickling even
@@ -69,7 +69,7 @@ __all__ = [
     "DEFAULT_LINKED_REPOS_CONFIG_KEY",
     "DEFAULT_PLANS_DESCRIPTION",
     "DEFAULT_RESEARCH_DESCRIPTION",
-    "COMPANION_REPO_CLONES_SUBDIR",
+    "SIDECAR_REPO_CLONES_SUBDIR",
     "LINKED_REPO_CLONES_SUBDIR",
     "LINKED_REPO_ENV_PREFIX",
     "LINKED_REPO_ENV_SUFFIXES",
@@ -84,7 +84,7 @@ __all__ = [
     "LinkedRepoResolution",
     "apply_linked_repo_env",
     "clear_workspace_repos",
-    "companion_repo_clone_dir",
+    "sidecar_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
@@ -94,7 +94,7 @@ __all__ = [
     "opened_linked_repo_workspace_dirs",
     "record_opened_linked_repo",
     "resolve_linked_repos_for_project",
-    "sdd_companion_clone_dirname",
+    "sdd_sidecar_clone_dirname",
     "scrub_linked_repo_env",
 ]
 
@@ -224,11 +224,11 @@ def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
     )
 
 
-def companion_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
-    """Return the durable host-scoped clone path for SDD companion *dirname*."""
+def sidecar_repo_clone_dir(host_checkout: str | Path, dirname: str) -> str:
+    """Return the durable host-scoped clone path for SDD sidecar *dirname*."""
 
     return normalize_path(
-        str(Path(host_checkout).joinpath(*COMPANION_REPO_CLONES_SUBDIR, dirname))
+        str(Path(host_checkout).joinpath(*SIDECAR_REPO_CLONES_SUBDIR, dirname))
     )
 
 
@@ -236,10 +236,10 @@ def _repo_basename(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1]
 
 
-def _sdd_companion_repo_dirnames(
+def _sdd_sidecar_repo_dirnames(
     primary_workspace_dir: str | Path,
 ) -> dict[str, str]:
-    """Map authoritative SDD companion basenames to clone directory names."""
+    """Map authoritative SDD sidecar basenames to clone directory names."""
 
     from sase.sdd.store import read_sdd_store_record
 
@@ -247,9 +247,9 @@ def _sdd_companion_repo_dirnames(
     record = read_sdd_store_record(primary)
     if record is not None:
         return {
-            _repo_basename(companion.repo): kind
+            _repo_basename(sidecar.repo): kind
             for kind in ("plans", "research")
-            if (companion := record.companion_for_kind(kind)) is not None
+            if (sidecar := record.sidecar_for_kind(kind)) is not None
         }
 
     project_name = primary.name
@@ -261,13 +261,13 @@ def _sdd_companion_repo_dirnames(
     }
 
 
-def sdd_companion_clone_dirname(
+def sdd_sidecar_clone_dirname(
     primary_workspace_dir: str | Path,
     name: str,
 ) -> str | None:
-    """Return the clone dirname for companion entry *name*, if it is one."""
+    """Return the clone dirname for sidecar entry *name*, if it is one."""
 
-    return _sdd_companion_repo_dirnames(primary_workspace_dir).get(name)
+    return _sdd_sidecar_repo_dirnames(primary_workspace_dir).get(name)
 
 
 def _remove_path(path: Path) -> None:
@@ -334,7 +334,7 @@ def clear_workspace_repos(
         return
 
     workspace = Path(workspace_dir)
-    repos_root = workspace.joinpath(*COMPANION_REPO_CLONES_SUBDIR)
+    repos_root = workspace.joinpath(*SIDECAR_REPO_CLONES_SUBDIR)
     trash_root = workspace / ".sase" / "trash"
     stale_trash = (
         list(trash_root.iterdir())
@@ -360,14 +360,14 @@ def clear_workspace_repos(
 def _linked_repo_clone_location(
     workspace_dir: str | Path,
 ) -> tuple[Path, str, bool] | None:
-    """Return ``(host_checkout, name, is_companion)`` for a known layout."""
+    """Return ``(host_checkout, name, is_sidecar)`` for a known layout."""
 
     path = Path(workspace_dir).expanduser().resolve(strict=False)
     layouts = (
         (LINKED_REPO_CLONES_SUBDIR, False),
-        (COMPANION_REPO_CLONES_SUBDIR, True),
+        (SIDECAR_REPO_CLONES_SUBDIR, True),
     )
-    for subdir, is_companion in layouts:
+    for subdir, is_sidecar in layouts:
         parent_parts = path.parent.parts
         if len(parent_parts) < len(subdir):
             continue
@@ -376,7 +376,7 @@ def _linked_repo_clone_location(
         host_checkout = path.parent
         for _ in subdir:
             host_checkout = host_checkout.parent
-        return host_checkout, path.name, is_companion
+        return host_checkout, path.name, is_sidecar
     return None
 
 
@@ -399,10 +399,10 @@ def _resolve_workspace_dir(
         .resolve(workspace_num)
         .checkout_dir.rstrip("/")
     )
-    companion_dirname = sdd_companion_clone_dirname(host_primary_dir, name)
+    sidecar_dirname = sdd_sidecar_clone_dirname(host_primary_dir, name)
     target = (
-        companion_repo_clone_dir(host_workspace_dir, companion_dirname)
-        if companion_dirname is not None
+        sidecar_repo_clone_dir(host_workspace_dir, sidecar_dirname)
+        if sidecar_dirname is not None
         else linked_repo_clone_dir(host_workspace_dir, name)
     )
     if not materialize:
@@ -418,18 +418,18 @@ def _resolve_workspace_dir(
 def materialize_linked_repo_workspace(
     *, primary_dir: str, workspace_dir: str, workspace_num: int
 ) -> str:
-    """Clone a host-scoped linked workspace and initialize its SDD companion."""
+    """Clone a host-scoped linked workspace and initialize its SDD sidecar."""
 
     from sase.workspace_provider.utils import ensure_git_clone_at
 
     location = _linked_repo_clone_location(workspace_dir)
     if location is not None:
-        host_checkout, name, is_companion = location
+        host_checkout, name, is_sidecar = location
         from sase.workspace_provider.git_exclude import ensure_git_info_exclude_entry
 
         ensure_git_info_exclude_entry(str(host_checkout), "/sase/repos/")
-        if is_companion:
-            workspace_dir = companion_repo_clone_dir(host_checkout, name)
+        if is_sidecar:
+            workspace_dir = sidecar_repo_clone_dir(host_checkout, name)
         else:
             workspace_dir = linked_repo_clone_dir(host_checkout, name)
 

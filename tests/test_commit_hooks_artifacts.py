@@ -120,7 +120,7 @@ class TestHandleSasePlan:
     def test_separate_repo_plan_is_tagged_without_code_repo_staging(
         self, tmp_path: Path
     ) -> None:
-        """An approved companion-store plan is tagged but not copied or staged."""
+        """An approved sidecar-store plan is tagged but not copied or staged."""
         repo_dir = tmp_path / "repo"
         plan_file = repo_dir / ".sase" / "sdd" / "plans" / "202607" / "my_plan.md"
         plan_file.parent.mkdir(parents=True)

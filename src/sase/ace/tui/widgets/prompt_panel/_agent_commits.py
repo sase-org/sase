@@ -224,13 +224,13 @@ def _repo_name_from_cwd(cwd: str) -> str:
     return project_display_name_for(repo_name) if repo_name else "repository"
 
 
-def _companion_repo_name_for_cwd(agent: Agent, cwd: str | None) -> str | None:
+def _sidecar_repo_name_for_cwd(agent: Agent, cwd: str | None) -> str | None:
     workspace = _norm_path(agent.workspace_dir)
     if workspace is None:
         return None
     for kind in ("plans", "research"):
-        companion = _norm_path(os.path.join(workspace, "sase", "repos", kind))
-        if _path_is_same_or_inside(cwd, companion):
+        sidecar = _norm_path(os.path.join(workspace, "sase", "repos", kind))
+        if _path_is_same_or_inside(cwd, sidecar):
             return kind
     legacy = _norm_path(os.path.join(workspace, ".sase", "sdd"))
     if _path_is_same_or_inside(cwd, legacy):
@@ -253,9 +253,9 @@ def _repo_name_for_commit_cwd(
         if _path_is_same_or_inside(cwd, _norm_path(repo.workspace_dir)):
             return repo.name
 
-    companion_repo_name = _companion_repo_name_for_cwd(agent, cwd)
-    if companion_repo_name is not None:
-        return companion_repo_name
+    sidecar_repo_name = _sidecar_repo_name_for_cwd(agent, cwd)
+    if sidecar_repo_name is not None:
+        return sidecar_repo_name
 
     if _path_is_same_or_inside(cwd, _norm_path(agent.workspace_dir)):
         return _primary_repo_name(agent, step_output)
@@ -289,7 +289,7 @@ def _commit_cwd_is_primary(agent: Agent, cwd_raw: object) -> bool:
     for repo in agent.linked_repos:
         if _path_is_same_or_inside(cwd, _norm_path(repo.workspace_dir)):
             return False
-    if _companion_repo_name_for_cwd(agent, cwd) is not None:
+    if _sidecar_repo_name_for_cwd(agent, cwd) is not None:
         return False
     return _path_is_same_or_inside(cwd, _norm_path(agent.workspace_dir))
 

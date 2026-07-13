@@ -150,25 +150,25 @@ def test_search_uses_resolved_local_sdd_store(
     assert _names(matches) == ["local_store_plan"]
 
 
-def test_search_indexes_flat_companion_plans_root(tmp_path: Path) -> None:
+def test_search_indexes_flat_sidecar_plans_root(tmp_path: Path) -> None:
     plans = tmp_path / "repo--plans"
     local = tmp_path / "local"
     _write_plan(
-        plans / "202607" / "flat_companion.md",
-        title="Flat companion plan",
+        plans / "202607" / "flat_sidecar.md",
+        title="Flat sidecar plan",
         status="wip",
         create_time="2026-07-11 19:00:00",
-        body="This plan lives at the plans companion root.",
+        body="This plan lives at the plans sidecar root.",
     )
 
     matches = facade.search(
-        "companion",
+        "sidecar",
         source=facade.SOURCE_REPO,
         repo_root=plans,
         local_dir=local,
     )
 
-    assert _names(matches) == ["flat_companion"]
+    assert _names(matches) == ["flat_sidecar"]
 
 
 def test_invalid_source_raises() -> None:

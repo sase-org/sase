@@ -224,7 +224,7 @@ def test_write_sdd_files() -> None:
         assert "steps:" in plan_text
 
 
-def test_write_sdd_files_supports_flat_companion_plans_root(tmp_path: Path) -> None:
+def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> None:
     source = tmp_path / "source.md"
     source.write_text("# Plan\n", encoding="utf-8")
     plans_root = tmp_path / "repo--plans"

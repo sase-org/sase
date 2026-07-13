@@ -12,7 +12,7 @@ from sase.main.init_plan import InitAction
 from sase.main.init_registry import InitCommandSpec
 from sase.main.sdd_handler import run_sdd_init
 from sase.sdd.store import SddStore
-from sase.workspace_provider import SddCompanionPreflight
+from sase.workspace_provider import SddSidecarPreflight
 from tests.main.init_onboarding_helpers import (
     _TtyStringIO,
     _args,
@@ -168,7 +168,7 @@ def test_full_drift_prompt_order_all_three_plans() -> None:
     ]
 
 
-def test_sdd_prompt_mentions_companion_repo_creation() -> None:
+def test_sdd_prompt_mentions_sidecar_repo_creation() -> None:
     calls: list[str] = []
     prompts: list[str] = []
     specs = (
@@ -180,10 +180,10 @@ def test_sdd_prompt_mentions_companion_repo_creation() -> None:
                     InitAction(
                         Path(".sase/sdd"),
                         "create",
-                        "create or connect GitHub companion repository acme/widget--sdd",
+                        "create or connect GitHub sidecar repository acme/widget--sdd",
                     ),
                 ),
-                summary="create companion repo",
+                summary="create sidecar repo",
             ),
             calls,
         ),
@@ -202,7 +202,7 @@ def test_sdd_prompt_mentions_companion_repo_creation() -> None:
 
     assert exit_code == 0
     assert calls == ["sdd"]
-    assert "This may create and push to a GitHub companion repository." in prompts[0]
+    assert "This may create and push to a GitHub sidecar repository." in prompts[0]
 
 
 @pytest.mark.parametrize(
@@ -230,9 +230,9 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda _root, _workspace: {
-            kind: SddCompanionPreflight(
+            kind: SddSidecarPreflight(
                 status="not_found",
                 provider="GitHub",
                 host="github.com",
@@ -253,7 +253,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
         plans = tmp_path / "sase" / "repos" / "plans"
         research = tmp_path / "sase" / "repos" / "research"
         store = SddStore(
-            "companion_repos",
+            "sidecar_repos",
             plans,
             plans,
             research_dir=research,
@@ -261,7 +261,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
         return SimpleNamespace(store=store)
 
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions", initialize
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars", initialize
     )
     plan = _plan(
         "sdd",
@@ -269,7 +269,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
             InitAction(
                 tmp_path / ".sase" / "sdd",
                 "create",
-                "create or connect GitHub companion repository acme/widget--sdd",
+                "create or connect GitHub sidecar repository acme/widget--sdd",
             ),
         ),
     )
@@ -289,7 +289,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     assert exit_code == 0
     assert len(prompts) == expected_prompt_count
     assert prompts[-1] == (
-        "Create public GitHub SDD companion repository "
+        "Create public GitHub SDD sidecar repository "
         "acme/widget--research on github.com? [y/N] "
     )
     assert authorizations == [{"plans": True, "research": True}]

@@ -1,6 +1,6 @@
 """Wire records for the agent/artifact filesystem scan facade.
 
-Companion to :mod:`sase.core.wire` and :mod:`sase.core.query_wire`. Defines
+Sidecar to :mod:`sase.core.wire` and :mod:`sase.core.query_wire`. Defines
 the **stable** boundary between Python and a future Rust implementation of
 the agent-artifact snapshot scan (Phase 3 of
 ``sdd/research/202604/rust_backend_migration.md`` and

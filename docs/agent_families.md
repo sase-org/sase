@@ -212,7 +212,7 @@ Precedence: explicit gate selection > project config override > the role definit
   declare `auto: run`. Auto plan approval itself remains limited to the `approve`, `tale`, and `epic` kinds.
 - The remote `run` choice (the Telegram/mobile "Run" button) archives the approved plan into the resolved SDD tale path
   exactly like an interactive Approve. Use `sase sdd path plans` rather than assuming whether that root is in-tree, a
-  legacy `.sase/sdd/` clone, or the split `--plans` companion.
+  legacy `.sase/sdd/` clone, or the split `--plans` sidecar.
 
 ### Loop Caps
 

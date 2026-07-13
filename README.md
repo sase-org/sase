@@ -93,7 +93,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
   enforced workspaces, treats static singleton linked repos as advisory, and auto-commits exact SDD status closeouts.
 - **Plugins** - Provider boundaries for agents, VCS operations, workspaces, notifications, and external integrations.
 - **Editor integration** - An xprompt LSP and JSON helper bridge for completions, snippets, hover, diagnostics, and
-  jump-to-definition in companion editors.
+  jump-to-definition in sidecar editors.
 
 ## Common commands
 
@@ -113,7 +113,7 @@ sase vcs log --all --sdd # include repos and separate SDD histories from every p
 sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
 sase bead onboard         # see the bead issue-tracking quick start
 sase sdd path             # print the effective SDD root for this workspace
-sase sdd init             # initialize managed GitHub plans/research companions
+sase sdd init             # initialize managed GitHub plans/research sidecars
 sase sdd migrate -c -d    # after init, preview importing a legacy SDD store
 sase plugin list         # browse built-in/community plugins and update indicators
 sase update -n           # preview a SASE core + installed-plugin update
@@ -200,8 +200,8 @@ SASE keeps durable state outside any one chat session:
   The directive does not change `sase.yml` or machine-wide temporary overrides.
 - **SDD storage** - Workspace providers own where prompt snapshots, tales, epics, research notes, and beads live.
   Built-in bare-git projects use in-tree `sdd/`. Newly initialized managed GitHub projects use an auto-cloned
-  `<repo>--plans` companion for plans and beads plus a separate `<repo>--research` companion. Initialization prepares
-  both in the current workspace; later workspaces clone research on demand. Unmigrated projects keep their legacy
+  `<repo>--plans` sidecar for plans and beads plus a separate `<repo>--research` sidecar. Initialization prepares both
+  in the current workspace; later workspaces clone research on demand. Unmigrated projects keep their legacy
   `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved layout usable offline. The retired
   `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and

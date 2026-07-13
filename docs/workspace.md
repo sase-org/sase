@@ -47,9 +47,9 @@ Each workspace plugin declares metadata about the workflow type it supports:
 Built-in metadata includes `SASE_GIT` for `#git`. Plugin packages can add prefixes such as `SASE_GH`.
 
 SASE treats `sdd_storage_policy` as authoritative. `in_tree` takes effect immediately, as it does for the built-in
-bare-git provider. `separate_repo` requires the provider to materialize a companion before SDD writes or workflow setup
+bare-git provider. `separate_repo` requires the provider to materialize a sidecar before SDD writes or workflow setup
 can continue. A positive `.sase/sdd-store.json` record preserves that materialized selection for offline use. Managed
-GitHub initialization can record the resolved store as `companion_repos`, routing plans/beads and research to separate
+GitHub initialization can record the resolved store as `sidecar_repos`, routing plans/beads and research to separate
 linked clones; that is a materialized-store layout, not an additional provider policy value.
 
 ### ResolvedRef
@@ -252,10 +252,10 @@ layouts.
 
 Configured linked repositories for a numbered checkout are cloned beneath that host checkout at
 `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch, SASE atomically removes the numbered
-checkout's entire `sase/repos/` tree and deletes it in the background. Companions configured with `auto_clone: true`
+checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars configured with `auto_clone: true`
 (normally `plans`) are then re-created from the durable primary-checkout clone when it matches the recorded remote, with
-a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` companion are
-re-created on demand by an audited `sase workspace open`. SASE protects the whole tree immediately with the per-clone
+a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` sidecar are re-created
+on demand by an audited `sase workspace open`. SASE protects the whole tree immediately with the per-clone
 `/sase/repos/` exclude rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`.
 Use `--check` to report drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project
 commit/push sequence.

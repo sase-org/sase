@@ -1504,7 +1504,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   running count and cap or explicit threshold, plus position among waiters currently eligible at that count. Ineligible
   waits are labeled directly, and `runners=0` is labeled as a drain barrier.
 - **COMMITS**: Commits persisted by the selected agent's post-run steps, grouped by repository. Primary workspace,
-  linked-repo, and SDD companion commits are attributed separately when the run metadata records enough path or repo
+  linked-repo, and SDD sidecar commits are attributed separately when the run metadata records enough path or repo
   information.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
@@ -1641,7 +1641,7 @@ Pressing `c` in the plan approval modal opens a custom approval dialog. Choose t
 Tale, or Epic. These choices map to the same response protocol used by external approval transports: Approve runs the
 coder without asking the runner to commit an SDD plan, while Tale and Epic commit the plan under the matching tier in
 the resolved SDD plans root's `<YYYYMM>/` directory. The root may be in-tree, a legacy `.sase/sdd/` clone, or the split
-`--plans` companion; `sase sdd path plans` prints it.
+`--plans` sidecar; `sase sdd path plans` prints it.
 
 | Key          | Action                                    |
 | ------------ | ----------------------------------------- |

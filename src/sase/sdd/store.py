@@ -9,7 +9,7 @@ import subprocess
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from sase.workspace_provider import SddCompanionPreflight
+    from sase.workspace_provider import SddSidecarPreflight
 
 from sase.sdd._paths import get_primary_workspace_dir
 from sase.sdd._store_adoption import (
@@ -37,13 +37,13 @@ from sase.sdd._store_records import (
 )
 from sase.sdd._store_types import (
     _STORAGE_VALUES,
-    SDD_STORAGE_COMPANION_REPOS,
+    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_IN_TREE,
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORE_RECORD_FILENAME,
     SddMaterializationError,
-    SddCompanion,
+    SddSidecar,
     SddPushAfterCommit,
     SddStorage,
     SddStore,
@@ -65,11 +65,11 @@ _write_sdd_store_record = write_sdd_store_record
 __all__ = [
     "SDD_STORAGE_IN_TREE",
     "SDD_STORAGE_LOCAL",
-    "SDD_STORAGE_COMPANION_REPOS",
+    "SDD_STORAGE_SIDECAR_REPOS",
     "SDD_STORAGE_SEPARATE_REPO",
     "SDD_STORE_RECORD_FILENAME",
     "SddInitOutcome",
-    "SddCompanion",
+    "SddSidecar",
     "SddMaterializationError",
     "SddPushAfterCommit",
     "SddStorage",
@@ -91,7 +91,7 @@ __all__ = [
     "ensure_sdd_kind_clone",
     "materialized_sdd_clone",
     "materialize_sdd_store",
-    "preflight_sdd_companion",
+    "preflight_sdd_sidecar",
     "normalize_sdd_store_record",
     "read_sdd_store_record",
     "resolve_sdd_dir",
@@ -129,13 +129,13 @@ def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore
     """Resolve provider-owned storage policy and concrete filesystem paths."""
 
     storage, record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
-    if storage == SDD_STORAGE_COMPANION_REPOS:
+    if storage == SDD_STORAGE_SIDECAR_REPOS:
         assert record is not None and record.plans is not None
         assert record.research is not None
-        from sase.linked_repos import companion_repo_clone_dir
+        from sase.linked_repos import sidecar_repo_clone_dir
 
-        plans_dir = Path(companion_repo_clone_dir(workspace_dir, "plans"))
-        research_dir = Path(companion_repo_clone_dir(workspace_dir, "research"))
+        plans_dir = Path(sidecar_repo_clone_dir(workspace_dir, "plans"))
+        research_dir = Path(sidecar_repo_clone_dir(workspace_dir, "research"))
         return SddStore(
             storage=storage,
             sdd_dir=plans_dir,
@@ -165,7 +165,7 @@ def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore
 def materialized_sdd_clone(
     primary_workspace_dir: str | Path,
 ) -> Path | None:
-    """Return the primary companion clone when its store was materialized."""
+    """Return the primary sidecar clone when its store was materialized."""
 
     primary = Path(primary_workspace_dir).expanduser()
     record = read_sdd_store_record(primary)
@@ -173,12 +173,12 @@ def materialized_sdd_clone(
         return None
 
     assert record is not None
-    if record.is_companion_storage:
+    if record.is_sidecar_storage:
         if record.plans is None:
             return None
-        from sase.linked_repos import companion_repo_clone_dir
+        from sase.linked_repos import sidecar_repo_clone_dir
 
-        clone = Path(companion_repo_clone_dir(primary, "plans"))
+        clone = Path(sidecar_repo_clone_dir(primary, "plans"))
         store = resolve_sdd_store(primary, 1)
         from sase.sdd._store_link import is_matching_store_clone
 
@@ -214,14 +214,14 @@ def materialize_sdd_store(
     return store
 
 
-def preflight_sdd_companion(
+def preflight_sdd_sidecar(
     workspace_dir: str | Path,
     workspace_num: int,
-) -> SddCompanionPreflight:
+) -> SddSidecarPreflight:
     """Return authoritative, read-only provider discovery for explicit init."""
     from sase.workspace_provider import (
-        SddCompanionPreflight,
-        preflight_sdd_companion as dispatch,
+        SddSidecarPreflight,
+        preflight_sdd_sidecar as dispatch,
     )
 
     workspace = Path(workspace_dir).expanduser()
@@ -242,9 +242,9 @@ def preflight_sdd_companion(
         result = dispatch(str(primary), str(workspace), options)
     except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
         raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
-    if not isinstance(result, SddCompanionPreflight):
+    if not isinstance(result, SddSidecarPreflight):
         raise SddMaterializationError(
-            "The workspace provider does not support authoritative SDD companion "
+            "The workspace provider does not support authoritative SDD sidecar "
             "preflight. Update the provider plugin and rerun `sase sdd init`."
         )
     return result
@@ -279,7 +279,7 @@ def _materialize_sdd_store(
     ).expanduser()
     record = read_sdd_store_record(primary)
 
-    if _is_companion_record(record):
+    if _is_sidecar_record(record):
         ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
         return resolve_sdd_store(workspace, workspace_num), False
 
@@ -336,12 +336,12 @@ def _materialize_sdd_store(
             if not _is_materialized_record(normalized):
                 raise SddMaterializationError(
                     "The workspace provider did not create or find the required "
-                    "companion SDD repository. Update the provider plugin and rerun "
+                    "sidecar SDD repository. Update the provider plugin and rerun "
                     "`sase sdd init`."
                 )
             if not normalized.remote_url:
                 raise SddMaterializationError(
-                    "The workspace provider returned no companion clone URL. Update "
+                    "The workspace provider returned no sidecar clone URL. Update "
                     "the provider plugin and rerun `sase sdd init`."
                 )
 
@@ -406,7 +406,7 @@ def ensure_workspace_sdd_clone(
     """Ensure a workspace-local clone, optionally failing the setup transaction."""
 
     store = resolve_sdd_store(workspace_dir, workspace_num)
-    if store.is_companion_storage:
+    if store.is_sidecar_storage:
         ensure_sdd_kind_clone(workspace_dir, workspace_num, "plans", strict=strict)
         return
 
@@ -426,11 +426,11 @@ def ensure_sdd_kind_clone(
     *,
     strict: bool = False,
 ) -> Path:
-    """Materialize and synchronize the companion clone backing *kind*."""
+    """Materialize and synchronize the sidecar clone backing *kind*."""
 
     store = resolve_sdd_store(workspace_dir, workspace_num)
     root = store.kind_root(kind)
-    if not store.is_companion_storage:
+    if not store.is_sidecar_storage:
         if store.storage == SDD_STORAGE_SEPARATE_REPO:
             ensure_workspace_sdd_clone(workspace_dir, workspace_num, strict=strict)
         return root
@@ -441,16 +441,16 @@ def ensure_sdd_kind_clone(
             raise SddMaterializationError(f"no remote URL recorded for SDD kind {kind}")
         return root
 
-    from sase.linked_repos import companion_repo_clone_dir
-    from sase.sdd._store_link import ensure_companion_sdd_clone
+    from sase.linked_repos import sidecar_repo_clone_dir
+    from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
     primary = Path(get_primary_workspace_dir(str(workspace_dir), workspace_num))
-    companion_kind = "research" if kind == "research" else "plans"
+    sidecar_kind = "research" if kind == "research" else "plans"
 
-    ensure_companion_sdd_clone(
+    ensure_sidecar_sdd_clone(
         root if kind != "beads" else root.parent,
         remote_url,
-        local_source=Path(companion_repo_clone_dir(primary, companion_kind)),
+        local_source=Path(sidecar_repo_clone_dir(primary, sidecar_kind)),
         strict=strict,
     )
     return root
@@ -486,11 +486,11 @@ def _sdd_dir_for_storage(
     return Path(primary) / ".sase" / "sdd"
 
 
-def _is_companion_record(record: SddStoreRecord | None) -> bool:
+def _is_sidecar_record(record: SddStoreRecord | None) -> bool:
     return bool(
         _is_materialized_record(record)
         and record is not None
-        and record.is_companion_storage
+        and record.is_sidecar_storage
     )
 
 
@@ -573,7 +573,7 @@ def _provider_materialization_result(
         raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
     if not _positive_result(compatibility_result):
         raise SddMaterializationError(
-            "The provider plugin did not materialize the mandatory companion SDD "
+            "The provider plugin did not materialize the mandatory sidecar SDD "
             "repository. Update the provider plugin and rerun `sase sdd init`."
         )
     return cast(dict[str, Any], compatibility_result)

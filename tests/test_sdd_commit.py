@@ -524,7 +524,7 @@ def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
         lambda: {"sdd": {"push_after_commit": False}},
     )
     store = SddStore(
-        storage="companion_repos",
+        storage="sidecar_repos",
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",
@@ -550,14 +550,14 @@ def test_commit_sdd_store_files_routes_split_paths_to_owning_repos(
     ).stdout.splitlines() == ["202607/report.md"]
 
 
-def test_commit_sdd_store_files_pushes_each_changed_companion(
+def test_commit_sdd_store_files_pushes_each_changed_sidecar(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plans = tmp_path / "project--plans"
     research = tmp_path / "project--research"
     store = SddStore(
-        storage="companion_repos",
+        storage="sidecar_repos",
         sdd_dir=plans,
         repo_root=plans,
         remote_url="git@example.com:acme/project--plans.git",

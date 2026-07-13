@@ -190,7 +190,7 @@ Helper bridge operations cover `changespec-tags`, `xprompt-catalog`, `beads-list
 reads are project-scoped rather than active-checkout-scoped: for each requested project they read one canonical store,
 `sdd/beads/` in in-tree mode, the primary workspace's `.sase/sdd/beads/` clone in local/legacy separate-repo mode, or
 `beads/` in the primary `--plans` clone for split storage. Normal `sase bead` commands launched from a numbered
-workspace can still write that workspace's own companion clone. `events/**` is canonical and `issues.jsonl` is a
+workspace can still write that workspace's own sidecar clone. `events/**` is canonical and `issues.jsonl` is a
 compatibility projection; helper reads do not merge numbered sibling workspaces or legacy bead stores. The structured
 xprompt catalog includes `definition_path` when the source can be resolved to a real file, so mobile and editor clients
 can offer jump-to-definition without reverse-engineering display paths.

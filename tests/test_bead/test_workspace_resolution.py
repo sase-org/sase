@@ -71,7 +71,7 @@ def test_canonical_project_beads_dir_non_vc_primary_only(
     assert result == primary / ".sase" / "sdd" / "beads"
 
 
-def test_canonical_project_beads_dir_uses_plans_companion(
+def test_canonical_project_beads_dir_uses_plans_sidecar(
     tmp_path: Path,
 ) -> None:
     from sase.sdd.store import write_sdd_store_record
@@ -82,9 +82,9 @@ def test_canonical_project_beads_dir_uses_plans_companion(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/project--plans",
                     "remote_url": "git@example.com:acme/project--plans.git",

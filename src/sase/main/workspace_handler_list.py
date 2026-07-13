@@ -153,16 +153,16 @@ def resolve_checkout_path(
         else:
             host_checkout = host_store.resolve(workspace_num).checkout_dir.rstrip("/")
         from sase.linked_repos import (
-            companion_repo_clone_dir,
+            sidecar_repo_clone_dir,
             linked_repo_clone_dir,
             materialize_linked_repo_workspace,
-            sdd_companion_clone_dirname,
+            sdd_sidecar_clone_dirname,
         )
 
-        companion_dirname = sdd_companion_clone_dirname(host_primary, ctx.project_name)
+        sidecar_dirname = sdd_sidecar_clone_dirname(host_primary, ctx.project_name)
         workspace_dir = (
-            companion_repo_clone_dir(host_checkout, companion_dirname)
-            if companion_dirname is not None
+            sidecar_repo_clone_dir(host_checkout, sidecar_dirname)
+            if sidecar_dirname is not None
             else linked_repo_clone_dir(host_checkout, ctx.project_name)
         )
         if not materialize:

@@ -6,18 +6,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-SddStorage = Literal["in_tree", "local", "separate_repo", "companion_repos"]
+SddStorage = Literal["in_tree", "local", "separate_repo", "sidecar_repos"]
 SddPushAfterCommit = bool | Literal["async"]
 
 SDD_STORAGE_IN_TREE: SddStorage = "in_tree"
 SDD_STORAGE_LOCAL: SddStorage = "local"
 SDD_STORAGE_SEPARATE_REPO: SddStorage = "separate_repo"
-SDD_STORAGE_COMPANION_REPOS: SddStorage = "companion_repos"
+SDD_STORAGE_SIDECAR_REPOS: SddStorage = "sidecar_repos"
 
 SDD_STORE_RECORD_FILENAME = "sdd-store.json"
 
 _STORAGE_VALUES: frozenset[str] = frozenset(
-    {"in_tree", "local", "separate_repo", "companion_repos"}
+    {"in_tree", "local", "separate_repo", "sidecar_repos"}
 )
 _DISCOVERY_VALUES: frozenset[str] = frozenset({"found", "not_found"})
 
@@ -27,7 +27,7 @@ class SddMaterializationError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class SddCompanion:
+class SddSidecar:
     """Repository identity for one side of a split SDD store."""
 
     repo: str
@@ -46,14 +46,14 @@ class SddStoreRecord:
     remote_url: str | None = None
     discovery: str | None = None
     probed_at: str | None = None
-    plans: SddCompanion | None = None
-    research: SddCompanion | None = None
+    plans: SddSidecar | None = None
+    research: SddSidecar | None = None
 
     @property
-    def is_companion_storage(self) -> bool:
-        return self.storage == SDD_STORAGE_COMPANION_REPOS
+    def is_sidecar_storage(self) -> bool:
+        return self.storage == SDD_STORAGE_SIDECAR_REPOS
 
-    def companion_for_kind(self, kind: str) -> SddCompanion | None:
+    def sidecar_for_kind(self, kind: str) -> SddSidecar | None:
         if kind in {"plans", "beads"}:
             return self.plans
         if kind == "research":
@@ -78,16 +78,16 @@ class SddStore:
         return self.storage == SDD_STORAGE_IN_TREE
 
     @property
-    def is_companion_storage(self) -> bool:
-        return self.storage == SDD_STORAGE_COMPANION_REPOS
+    def is_sidecar_storage(self) -> bool:
+        return self.storage == SDD_STORAGE_SIDECAR_REPOS
 
     def kind_root(self, kind: str) -> Path:
         """Return the directory containing one logical SDD kind."""
 
-        if self.is_companion_storage:
+        if self.is_sidecar_storage:
             if kind == "research":
                 if self.research_dir is None:
-                    raise ValueError("companion SDD store has no research root")
+                    raise ValueError("sidecar SDD store has no research root")
                 return self.research_dir
             if kind == "beads":
                 return self.sdd_dir / "beads"

@@ -1337,7 +1337,7 @@ When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-t
 `<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by the ACE TUI Agents tab to display the agent's reply as it
 streams in, and remains available after execution completes for the metadata panel's AGENT REPLY section.
 
-Providers that support richer streams may write companion artifacts. Codex writes reasoning summaries to
+Providers that support richer streams may write sidecar artifacts. Codex writes reasoning summaries to
 `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl`; providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`.
 
 ### Output Suppression

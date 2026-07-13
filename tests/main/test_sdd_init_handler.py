@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.main.sdd_handler import handle_sdd_command
-from sase.workspace_provider import SddCompanionPreflight
+from sase.workspace_provider import SddSidecarPreflight
 from sase.sdd.store import SddMaterializationError, SddStore
 from tests.main.sdd_handler_helpers import make_args, mark_tmp_path_as_project
 
@@ -24,8 +24,8 @@ class _Tty:
 
 def _github_preflight(
     status: str = "not_found", kind: str = "plans"
-) -> SddCompanionPreflight:
-    return SddCompanionPreflight(
+) -> SddSidecarPreflight:
+    return SddSidecarPreflight(
         status=status,  # type: ignore[arg-type]
         provider="GitHub",
         host="github.com",
@@ -43,7 +43,7 @@ def _split_store(project: Path) -> SddStore:
     plans = project / "sase" / "repos" / "plans"
     research = project / "sase" / "repos" / "research"
     return SddStore(
-        storage="companion_repos",
+        storage="sidecar_repos",
         sdd_dir=plans,
         repo_root=plans,
         remote_url="plans-remote",
@@ -52,7 +52,7 @@ def _split_store(project: Path) -> SddStore:
     )
 
 
-def _split_preflights(status: str = "not_found") -> dict[str, SddCompanionPreflight]:
+def _split_preflights(status: str = "not_found") -> dict[str, SddSidecarPreflight]:
     return {kind: _github_preflight(status, kind) for kind in ("plans", "research")}
 
 
@@ -134,7 +134,7 @@ def test_init_fails_before_generating_files_when_materialization_fails(
 
 
 @pytest.mark.parametrize("answer", ["y", "YES", " yes "])
-def test_missing_github_companion_requires_fresh_affirmative_confirmation(
+def test_missing_github_sidecar_requires_fresh_affirmative_confirmation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     answer: str,
@@ -148,7 +148,7 @@ def test_missing_github_companion_requires_fresh_affirmative_confirmation(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda root, workspace_num: _split_preflights(),
     )
 
@@ -162,7 +162,7 @@ def test_missing_github_companion_requires_fresh_affirmative_confirmation(
         return SimpleNamespace(store=store)
 
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions", initialize
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars", initialize
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
     args._init_stdin = _Tty()
@@ -173,9 +173,9 @@ def test_missing_github_companion_requires_fresh_affirmative_confirmation(
 
     assert excinfo.value.code == 0
     assert prompts == [
-        "Create public GitHub SDD companion repository "
+        "Create public GitHub SDD sidecar repository "
         "acme/widget--plans on github.com? [y/N] ",
-        "Create public GitHub SDD companion repository "
+        "Create public GitHub SDD sidecar repository "
         "acme/widget--research on github.com? [y/N] ",
     ]
     assert calls == [(tmp_path, 1, {"plans": True, "research": True})]
@@ -194,11 +194,11 @@ def test_declined_github_creation_has_no_materialization_side_effects(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda root, workspace_num: _split_preflights(),
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions",
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars",
         lambda *_args, **_kwargs: pytest.fail("decline must not materialize"),
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
@@ -226,11 +226,11 @@ def test_github_creation_input_failure_cancels_cleanly(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda root, workspace_num: _split_preflights(),
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions",
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars",
         lambda *_args, **_kwargs: pytest.fail("cancel must not materialize"),
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
@@ -259,11 +259,11 @@ def test_non_tty_and_bare_yes_cannot_authorize_github_creation(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda root, workspace_num: _split_preflights(),
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions",
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars",
         lambda *_args, **_kwargs: pytest.fail("--yes must not materialize"),
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
@@ -276,7 +276,7 @@ def test_non_tty_and_bare_yes_cannot_authorize_github_creation(
     assert "interactive y/yes confirmation is required" in capsys.readouterr().err
 
 
-def test_existing_github_companion_materializes_without_creation_prompt(
+def test_existing_github_sidecar_materializes_without_creation_prompt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -287,7 +287,7 @@ def test_existing_github_companion_materializes_without_creation_prompt(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda root, workspace_num: _split_preflights("found"),
     )
 
@@ -301,7 +301,7 @@ def test_existing_github_companion_materializes_without_creation_prompt(
         return SimpleNamespace(store=_split_store(tmp_path))
 
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions", initialize
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars", initialize
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
     args._init_stdin = _Tty()
@@ -325,11 +325,11 @@ def test_existing_materialized_record_skips_preflight_but_remains_guarded(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.main.sdd_handler._split_companion_provider_setup_needed",
+        "sase.main.sdd_handler._split_sidecar_provider_setup_needed",
         lambda _root: False,
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda *_args: pytest.fail("existing record must not probe the network"),
     )
 
@@ -343,7 +343,7 @@ def test_existing_materialized_record_skips_preflight_but_remains_guarded(
         return SimpleNamespace(store=_split_store(tmp_path))
 
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions", initialize
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars", initialize
     )
     args = make_args(sdd_subcommand="init", path=str(tmp_path))
     args._init_stdin = _Tty()
@@ -367,13 +367,13 @@ def test_missing_preflight_support_fails_closed_before_materialization(
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.preflight_split_sdd_companions",
+        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
         lambda *_args: (_ for _ in ()).throw(
             SddMaterializationError("Update the provider plugin")
         ),
     )
     monkeypatch.setattr(
-        "sase.sdd._companion_init.initialize_split_sdd_companions",
+        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars",
         lambda *_args, **_kwargs: pytest.fail("must fail before materialization"),
     )
 

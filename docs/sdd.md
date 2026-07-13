@@ -26,19 +26,19 @@ The workspace provider selects an initial policy; a materialized store record su
 
 - `in_tree` stores artifacts under the checkout's `sdd/` directory and commits them with code changes.
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
-- `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized companion
+- `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized sidecar
   repo.
-- `companion_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a separate `--research`
-  repo. Initialization prepares both in its current workspace; later workspaces clone research on demand. Monthly
-  directories live directly at each companion root; legacy single-root projects are unchanged until initialization and
-  migration are run.
+- `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a separate `--research` repo.
+  Initialization prepares both in its current workspace; later workspaces clone research on demand. Monthly directories
+  live directly at each sidecar root; legacy single-root projects are unchanged until initialization and migration are
+  run.
 
 Use `sase sdd path` to print the effective root, or `sase sdd path research --ensure` to materialize and print the
 research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
 should use those resolvers instead of assuming `sdd/` is relative to the checkout.
 
 Project and user configuration cannot override this selection. See [SDD Storage](sdd_storage.md) for the provider
-contract, companion-repo convention, setup guidance, and offline/push behavior.
+contract, sidecar-repo convention, setup guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files automatically. First-use
 `#git:<project>` initialization includes them in the initial commit; existing bare-repo registration, `#git`
@@ -161,14 +161,14 @@ when passing list flags such as `--kind` or `--json`.
 | `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
 | `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
 | `sase sdd list`         | List SDD markdown files; `tales`/`epics` are tier filters over `plans/`                                 |
-| `sase sdd migrate`      | Preview or apply migration from a legacy clone into initialized split companions                        |
-| `sase sdd path`         | Print the effective root or kind root; `-e/--ensure` materializes its backing companion                 |
+| `sase sdd migrate`      | Preview or apply migration from a legacy clone into initialized split sidecars                          |
+| `sase sdd path`         | Print the effective root or kind root; `-e/--ensure` materializes its backing sidecar                   |
 | `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
 | `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
 
 The file-oriented subcommands accept `-p/--path`, which may point at an SDD root or a project root. `sase sdd path`
 instead resolves the current workspace and accepts an optional kind such as `research`; `--ensure` synchronizes that
-kind's companion. Validation treats unpaired or ambiguous historical files as warnings by default and promotes them to
+kind's sidecar. Validation treats unpaired or ambiguous historical files as warnings by default and promotes them to
 errors with `--strict`; parse errors, missing targets, wrong link kinds, and broken reverse links are errors unless
 explicitly allowlisted for legacy migration.
 
@@ -179,21 +179,21 @@ filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase sdd init` command materializes the
 provider-selected store. On GitHub it finds or creates public `<owner>/<repo>--plans` and `<owner>/<repo>--research`
-companions, writes each repository's deterministic README and infographic asset, pushes both, and only then records the
+sidecars, writes each repository's deterministic README and infographic asset, pushes both, and only then records the
 split store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the
 command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init sdd`
 exposes the same flow and check/path flags, and `--path` checks the target repository's marker.
 
-Before explicit initialization creates a missing GitHub companion, it asks a default-no question naming the public
+Before explicit initialization creates a missing GitHub sidecar, it asks a default-no question naming the public
 `--plans` or `--research` repository and host. Only `y` or `yes` approves. Blank input, any other answer, EOF,
 interruption, and non-interactive stdin cancel with a nonzero exit before repository or local-state mutations. An
-existing remote companion connects without this creation prompt. `--check` remains offline and non-interactive, and
+existing remote sidecar connects without this creation prompt. `--check` remains offline and non-interactive, and
 neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
 
-For an existing legacy store, run initialization before migration: `sase sdd init` creates or adopts both companions and
+For an existing legacy store, run initialization before migration: `sase sdd init` creates or adopts both sidecars and
 records the split layout; it does not import legacy content. Then `sase sdd migrate --check --diff` previews the import.
 Applying `sase sdd migrate` copies monthly plan and research directories and durable bead files, excludes `beads.db*`,
-rewrites legacy plan-link prefixes, pushes both companions, and retires the selected local legacy source tree. README
+rewrites legacy plan-link prefixes, pushes both sidecars, and retires the selected local legacy source tree. README
 files, assets, non-month directories, and other files are not copied; after local retirement they are recoverable only
 from an existing Git remote/history or a backup.
 
@@ -210,8 +210,8 @@ SDD initializes the [bead issue tracker](beads.md) automatically when an epic ag
 
 - **In-tree mode**: Beads are stored in `sdd/beads/` at the project root.
 - **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo.
-- **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the companion checkout.
-- **Split companion mode**: Beads are stored at `beads/` in the active workspace's auto-cloned `--plans` repository.
+- **Separate-repo mode**: Beads are stored in `.sase/sdd/beads/` inside the sidecar checkout.
+- **Split sidecar mode**: Beads are stored at `beads/` in the active workspace's auto-cloned `--plans` repository.
 
 Plan-like beads carry a `tier` value:
 
@@ -236,16 +236,16 @@ sdd:
     mode: background
     ttl_seconds: 120
   repo:
-    name: "" # optional companion repo override for providers that support it
+    name: "" # optional sidecar repo override for providers that support it
   push_after_commit: async
 ```
 
-| Option                         | Type        | Default      | Description                                                                                                                                                                                                                             |
-| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.bead_refresh.mode`        | string      | `background` | Companion bead-store freshness: `background`, `blocking`, or `off`.                                                                                                                                                                     |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum seconds between successful command-triggered background integrations.                                                                                                                                                           |
-| `sdd.repo.name`                | string      | `""`         | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit`        | bool/string | `async`      | Companion-repository push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                      |
+| Option                         | Type        | Default      | Description                                                                                                                                                                                                                           |
+| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background`, `blocking`, or `off`.                                                                                                                                                                     |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum seconds between successful command-triggered background integrations.                                                                                                                                                         |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit`        | bool/string | `async`      | Sidecar-repository push behavior after SDD commits: `async`, `true`, or `false`.                                                                                                                                                      |
 
 Storage selection is not configurable. The workspace provider owns it. Retired `sdd.storage` and
 `sdd.version_controlled` keys are ignored and reported by `sase doctor` for cleanup.
@@ -256,8 +256,8 @@ mode behavior.
 ## Multi-Workspace Behavior
 
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
-store. With `separate_repo`, commands first require a usable provider companion and then use the active workspace's
-`.sase/sdd/` clone. With `companion_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
+store. With `separate_repo`, commands first require a usable provider sidecar and then use the active workspace's
+`.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
 beads. Initialization also prepares `--research` at `sase/repos/research` in its current workspace; other workspaces
 clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not
 merged; coordinate shared state through the normal VCS sync path. Prefer `sase sdd path <kind>` or the `SASE_SDD_*_DIR`

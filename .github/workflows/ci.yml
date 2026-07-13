@@ -22,31 +22,31 @@ jobs:
         with:
           repository: sase-org/sase-core
           path: sase-core
-      - name: Check out plans companion
+      - name: Check out plans sidecar
         uses: actions/checkout@v4
         with:
           repository: sase-org/sase--plans
           path: sase/repos/plans
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
-      - name: Check out research companion
+      - name: Check out research sidecar
         uses: actions/checkout@v4
         with:
           repository: sase-org/sase--research
           path: sase/repos/research
           token: ${{ secrets.SASE_RELEASE_TOKEN }}
           persist-credentials: false
-      - name: Record split SDD companion store
+      - name: Record split SDD sidecar store
         run: |
           mkdir -p .sase
           cat > .sase/sdd-store.json <<'JSON'
           {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "host": "github.com",
             "provider": "github",
             "discovery": "found",
-            "companions": {
+            "sidecars": {
               "plans": {
                 "repo": "sase-org/sase--plans",
                 "remote_url": "git@github.com:sase-org/sase--plans.git"

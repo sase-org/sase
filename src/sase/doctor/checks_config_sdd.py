@@ -198,7 +198,7 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
         return issues
     materialized_record = (
         record is not None
-        and record.storage in {"separate_repo", "companion_repos"}
+        and record.storage in {"separate_repo", "sidecar_repos"}
         and record.discovery != "not_found"
     )
     clone = primary / ".sase" / "sdd"
@@ -208,17 +208,17 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
         or record.discovery == "not_found"
         or record.storage == "separate_repo"
     ):
-        regressed = _regressed_split_companion_paths(primary)
+        regressed = _regressed_split_sidecar_paths(primary)
         if regressed is not None:
             plans, research = regressed
             issues.append(
                 _StorageIssue(
                     "error",
                     "sdd-record-regressed",
-                    "the SDD store record is missing or legacy while split companion "
+                    "the SDD store record is missing or legacy while split sidecar "
                     f"clones exist ({plans}, {research}); the record may have been "
                     "clobbered by an older sase process. Run `sase sdd init` to "
-                    "restore companion routing",
+                    "restore sidecar routing",
                 )
             )
 
@@ -227,7 +227,7 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
             _StorageIssue(
                 "error",
                 "separate-repo-not-materialized",
-                "the provider requires a companion SDD repository, but no positive "
+                "the provider requires a sidecar SDD repository, but no positive "
                 "materialized store record exists",
             )
         )
@@ -246,26 +246,26 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
                     + ", ".join(str(path) for path in legacy_paths),
                 )
             )
-    if materialized_record and record is not None and record.is_companion_storage:
+    if materialized_record and record is not None and record.is_sidecar_storage:
         from sase.sdd.store import resolve_sdd_store
 
         store = resolve_sdd_store(primary, 1)
-        companions = (
+        sidecars = (
             ("plans", store.repo_root, store.remote_url),
             ("research", store.research_dir, store.research_remote_url),
         )
-        for kind, companion_clone, remote_url in companions:
-            if companion_clone is None or not (companion_clone / ".git").is_dir():
+        for kind, sidecar_clone, remote_url in sidecars:
+            if sidecar_clone is None or not (sidecar_clone / ".git").is_dir():
                 issues.append(
                     _StorageIssue(
                         "error",
-                        f"missing-{kind}-companion-clone",
-                        f"companion SDD record exists but {kind} clone is missing: "
-                        f"{companion_clone}",
+                        f"missing-{kind}-sidecar-clone",
+                        f"sidecar SDD record exists but {kind} clone is missing: "
+                        f"{sidecar_clone}",
                     )
                 )
                 continue
-            issues.extend(_companion_git_issues(companion_clone, remote_url))
+            issues.extend(_sidecar_git_issues(sidecar_clone, remote_url))
             issues.extend(_duplicate_remote_issues(context, primary, remote_url))
 
         if clone.exists():
@@ -273,7 +273,7 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
                 _StorageIssue(
                     "warning",
                     "legacy-sdd-after-migration",
-                    f"legacy SDD clone remains after companion migration: {clone}",
+                    f"legacy SDD clone remains after sidecar migration: {clone}",
                 )
             )
     elif materialized_record and not (clone / ".git").is_dir():
@@ -288,23 +288,23 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
     if (
         materialized_record
         and record is not None
-        and not record.is_companion_storage
+        and not record.is_sidecar_storage
         and (clone / ".git").is_dir()
     ):
         assert record is not None
-        issues.extend(_companion_git_issues(clone, record.remote_url))
+        issues.extend(_sidecar_git_issues(clone, record.remote_url))
         issues.extend(_duplicate_remote_issues(context, primary, record.remote_url))
 
     return issues
 
 
-def _regressed_split_companion_paths(primary: Path) -> tuple[Path, Path] | None:
+def _regressed_split_sidecar_paths(primary: Path) -> tuple[Path, Path] | None:
     """Return split clone paths when they contradict the effective record."""
 
-    from sase.linked_repos import companion_repo_clone_dir
+    from sase.linked_repos import sidecar_repo_clone_dir
 
-    plans = Path(companion_repo_clone_dir(primary, "plans"))
-    research = Path(companion_repo_clone_dir(primary, "research"))
+    plans = Path(sidecar_repo_clone_dir(primary, "plans"))
+    research = Path(sidecar_repo_clone_dir(primary, "research"))
     if (plans / "beads").is_dir() and research.is_dir():
         return plans, research
     return None
@@ -335,7 +335,7 @@ def _read_sdd_config(config_path: Path) -> dict[str, object]:
     return sdd if isinstance(sdd, dict) else {}
 
 
-def _companion_git_issues(
+def _sidecar_git_issues(
     clone: Path, record_remote_url: str | None
 ) -> list[_StorageIssue]:
     issues: list[_StorageIssue] = []
@@ -353,7 +353,7 @@ def _companion_git_issues(
             _StorageIssue(
                 "warning",
                 "missing-origin",
-                "SDD companion clone has no origin remote",
+                "SDD sidecar clone has no origin remote",
             )
         )
 
@@ -368,8 +368,8 @@ def _companion_git_issues(
                 issues.append(
                     _StorageIssue(
                         "warning",
-                        "companion-diverged",
-                        f"SDD companion repo is {ahead} ahead and {behind} behind upstream",
+                        "sidecar-diverged",
+                        f"SDD sidecar repo is {ahead} ahead and {behind} behind upstream",
                     )
                 )
     return issues
@@ -409,8 +409,8 @@ def _duplicate_remote_issues(
     return [
         _StorageIssue(
             "warning",
-            "duplicate-companion-remote",
-            "another project claims the same SDD companion remote: "
+            "duplicate-sidecar-remote",
+            "another project claims the same SDD sidecar remote: "
             + ", ".join(sorted(matches)),
         )
     ]
@@ -453,7 +453,7 @@ def _existing_sdd_root(cwd: Path) -> Path | None:
         from sase.sdd.store import resolve_sdd_store
 
         store = resolve_sdd_store(cwd, 1)
-        if store.is_companion_storage and store.repo_root.is_dir():
+        if store.is_sidecar_storage and store.repo_root.is_dir():
             return store.repo_root
     except Exception:
         pass

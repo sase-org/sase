@@ -95,7 +95,7 @@ def inject_default_linked_repos(
     primary_workspace_dir: str,
     local_config: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    """Inject managed-project companion repos unless locally disabled."""
+    """Inject managed-project sidecar repos unless locally disabled."""
 
     merged = list(entries)
     if local_config.get("is_sase_managed") is not True:

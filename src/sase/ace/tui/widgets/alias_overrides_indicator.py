@@ -1,6 +1,6 @@
 """Non-default temporary-override indicator for the ace TUI top bar.
 
-A concise, uniform companion to :class:`LLMOverrideIndicator`. Where that
+A concise, uniform sidecar to :class:`LLMOverrideIndicator`. Where that
 widget renders the gold ``default`` override pill (the no-``%model`` launch
 default), this one surfaces temporary overrides on *every other* alias
 (``coder`` / ``phase_worker`` / ``<provider>_coder`` / user aliases) in a single

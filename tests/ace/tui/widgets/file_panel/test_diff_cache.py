@@ -182,7 +182,7 @@ def test_active_dirty_workspace_wins_over_persisted_fallback(tmp_path: Path) -> 
     diff_mod._vcs_provider_cache.clear()
     workspace = _setup_workspace(tmp_path)
     persisted = tmp_path / "persisted.diff"
-    persisted.write_text(_git_diff("companion.md"), encoding="utf-8")
+    persisted.write_text(_git_diff("sidecar.md"), encoding="utf-8")
     agent = _make_running_agent(workspace_dir=str(workspace))
     agent.diff_path = str(persisted)
     provider = _DiffTextProvider(_git_diff("src/live.py"))

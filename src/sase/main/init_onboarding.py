@@ -152,8 +152,8 @@ def _prompt_for_plan(
     prompt = f"Run `{command}` now?"
     if plan.command == "memory":
         prompt += " This may commit and push generated project memory changes."
-    if plan.command == "sdd" and _plan_may_create_companion_repo(plan):
-        prompt += " This may create and push to a GitHub companion repository."
+    if plan.command == "sdd" and _plan_may_create_sidecar_repo(plan):
+        prompt += " This may create and push to a GitHub sidecar repository."
     while True:
         answer = input_func(f"{prompt} [y/N/d] ").strip().lower()
         if answer in {"y", "yes"}:
@@ -166,9 +166,9 @@ def _prompt_for_plan(
         console.print("y = apply, n = skip, d = show diff", style="dim")
 
 
-def _plan_may_create_companion_repo(plan: InitPlan) -> bool:
+def _plan_may_create_sidecar_repo(plan: InitPlan) -> bool:
     return any(
-        "companion" in action.detail.casefold()
+        "sidecar" in action.detail.casefold()
         and "repository" in action.detail.casefold()
         for action in plan.actions
     )

@@ -1,4 +1,4 @@
-"""Migration from the legacy ``--sdd`` clone to split companion repositories."""
+"""Migration from the legacy ``--sdd`` clone to split sidecar repositories."""
 
 from __future__ import annotations
 
@@ -55,17 +55,17 @@ def plan_split_sdd_migration(
         get_primary_workspace_dir(str(workspace), workspace_num)
     ).expanduser()
     record = read_sdd_store_record(primary)
-    if record is None or not record.is_companion_storage:
+    if record is None or not record.is_sidecar_storage:
         raise SddMaterializationError(
-            "split SDD companions are not initialized; run `sase sdd init` first"
+            "split SDD sidecars are not initialized; run `sase sdd init` first"
         )
     if record.plans is None or record.research is None:
-        raise SddMaterializationError("split SDD companion record is incomplete")
+        raise SddMaterializationError("split SDD sidecar record is incomplete")
 
-    from sase.linked_repos import companion_repo_clone_dir
+    from sase.linked_repos import sidecar_repo_clone_dir
 
-    plans_root = Path(companion_repo_clone_dir(workspace, "plans"))
-    research_root = Path(companion_repo_clone_dir(workspace, "research"))
+    plans_root = Path(sidecar_repo_clone_dir(workspace, "plans"))
+    research_root = Path(sidecar_repo_clone_dir(workspace, "research"))
     legacy_root = _find_legacy_root(primary, workspace)
     if legacy_root is None:
         return _SddMigrationPlan(primary, None, plans_root, research_root, record, ())
@@ -147,18 +147,18 @@ def apply_split_sdd_migration(
             ("plans", plan.plans_root),
             ("research", plan.research_root),
         ):
-            companion = plan.record.companion_for_kind(kind)
-            assert companion is not None
+            sidecar = plan.record.sidecar_for_kind(kind)
+            assert sidecar is not None
             if changed_by_root[root]:
                 commit_sdd_files(
                     root,
                     f"Migrate legacy SDD {kind}",
                     auto_commit_type="sdd",
                     paths=changed_by_root[root],
-                    repo_name=companion.repo,
+                    repo_name=sidecar.repo,
                     record_commit_marker=False,
                 )
-            _push_companion(root)
+            _push_sidecar(root)
 
         write_sdd_store_record(plan.primary, plan.record)
         shutil.rmtree(plan.legacy_root)
@@ -253,7 +253,7 @@ def _find_legacy_root(primary: Path, workspace: Path) -> Path | None:
     return None
 
 
-def _push_companion(root: Path) -> None:
+def _push_sidecar(root: Path) -> None:
     try:
         run_sdd_git(
             ["push", "origin", "HEAD"],
@@ -266,5 +266,5 @@ def _push_companion(root: Path) -> None:
         )
     except (subprocess.CalledProcessError, OSError) as exc:
         raise SddMaterializationError(
-            f"failed to push migrated SDD companion {root}: {exc}"
+            f"failed to push migrated SDD sidecar {root}: {exc}"
         ) from exc

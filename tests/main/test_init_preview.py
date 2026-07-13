@@ -39,7 +39,7 @@ def test_action_diffstat_counts_create_update_delete_and_missing(
     )
     delete = _action_diffstat(InitAction(current, "delete"))
     procedural = _action_diffstat(
-        InitAction(tmp_path / "remote", "create", "create companion repository")
+        InitAction(tmp_path / "remote", "create", "create sidecar repository")
     )
 
     assert update is not None
@@ -94,7 +94,7 @@ def test_render_plan_diff_summarizes_binary_and_procedural_actions(
             InitAction(
                 tmp_path / "remote",
                 "create",
-                "create or connect the provider companion SDD repository",
+                "create or connect the provider sidecar SDD repository",
             ),
         ),
     )
@@ -105,6 +105,4 @@ def test_render_plan_diff_summarizes_binary_and_procedural_actions(
     rendered = output.getvalue()
     assert "Binary file differs: 1.5 kB on disk → 2.5 kB generated." in rendered
     assert "Remote/procedural action — no local file diff." in rendered
-    assert (
-        "A separate y/N confirmation guards companion repository creation." in rendered
-    )
+    assert "A separate y/N confirmation guards sidecar repository creation." in rendered

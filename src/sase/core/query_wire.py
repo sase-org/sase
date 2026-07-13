@@ -1,6 +1,6 @@
 """Wire records for the sase query language.
 
-Companion to :mod:`sase.core.wire`. Defines the **stable** boundary between
+Sidecar to :mod:`sase.core.wire`. Defines the **stable** boundary between
 Python and a future Rust implementation of the query tokenizer/parser/evaluator
 (Phase 2 of `sdd/research/202604/rust_backend_migration.md`).
 

@@ -154,7 +154,7 @@ def _search_flat_plans_root(
     sort: str | None,
     limit: int | None,
 ) -> list[dict[str, Any]]:
-    """Adapt a flat plans companion to the core's resolved-directory input."""
+    """Adapt a flat plans sidecar to the core's resolved-directory input."""
 
     repo_payload: list[dict[str, Any]] = binding(
         None,

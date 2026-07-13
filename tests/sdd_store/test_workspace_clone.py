@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from sase.sdd._store_link import ensure_companion_sdd_clone
+from sase.sdd._store_link import ensure_sidecar_sdd_clone
 from sase.sdd.store import (
     _write_sdd_store_record,
     ensure_sdd_kind_clone,
@@ -24,14 +24,14 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
     _write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -47,7 +47,7 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
     ) == "# Plan\n"
 
 
-def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
+def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     tmp_path: Path,
     provider_patch,
 ) -> None:
@@ -70,9 +70,9 @@ def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "owner/repo--plans",
                     "remote_url": str(plans_remote),
@@ -100,7 +100,7 @@ def test_ensure_workspace_sdd_clone_syncs_plans_companion_only(
     assert (research / ".git").is_dir()
 
 
-def test_moved_companion_clone_with_matching_remote_is_accepted(
+def test_moved_sidecar_clone_with_matching_remote_is_accepted(
     tmp_path: Path,
 ) -> None:
     remote = tmp_path / "plans.git"
@@ -116,7 +116,7 @@ def test_moved_companion_clone_with_matching_remote_is_accepted(
     old_clone.rename(moved_clone)
     (moved_clone / "local-untracked.md").write_text("keep\n", encoding="utf-8")
 
-    ensure_companion_sdd_clone(moved_clone, str(remote), strict=True)
+    ensure_sidecar_sdd_clone(moved_clone, str(remote), strict=True)
 
     assert not old_clone.exists()
     assert (moved_clone / "local-untracked.md").read_text(encoding="utf-8") == "keep\n"
@@ -125,7 +125,7 @@ def test_moved_companion_clone_with_matching_remote_is_accepted(
     )
 
 
-def test_companion_clone_uses_matching_local_source_and_refreshes_from_origin(
+def test_sidecar_clone_uses_matching_local_source_and_refreshes_from_origin(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = tmp_path / "plans.git"
@@ -146,7 +146,7 @@ def test_companion_clone_uses_matching_local_source_and_refreshes_from_origin(
         lambda *_args: pytest.fail("matching local source fell back to remote clone"),
     )
 
-    ensure_companion_sdd_clone(
+    ensure_sidecar_sdd_clone(
         clone_dir,
         str(remote),
         local_source=local_source,
@@ -157,7 +157,7 @@ def test_companion_clone_uses_matching_local_source_and_refreshes_from_origin(
     assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
 
 
-def test_companion_clone_skips_mismatched_local_source(
+def test_sidecar_clone_skips_mismatched_local_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = tmp_path / "plans.git"
@@ -177,7 +177,7 @@ def test_companion_clone_skips_mismatched_local_source(
         lambda *_args: pytest.fail("mismatched local source was trusted"),
     )
 
-    ensure_companion_sdd_clone(
+    ensure_sidecar_sdd_clone(
         clone_dir,
         str(remote),
         local_source=local_source,
@@ -188,7 +188,7 @@ def test_companion_clone_skips_mismatched_local_source(
     assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
 
 
-def test_companion_clone_falls_back_to_remote_when_local_source_is_missing(
+def test_sidecar_clone_falls_back_to_remote_when_local_source_is_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = tmp_path / "plans.git"
@@ -204,7 +204,7 @@ def test_companion_clone_falls_back_to_remote_when_local_source_is_missing(
         lambda *_args: pytest.fail("missing local source was used"),
     )
 
-    ensure_companion_sdd_clone(
+    ensure_sidecar_sdd_clone(
         clone_dir,
         str(remote),
         local_source=tmp_path / "missing-primary-plans",
@@ -262,13 +262,13 @@ def test_ensure_workspace_sdd_clone_pulls_stale_clean_clone(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     _write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -288,13 +288,13 @@ def test_ensure_workspace_sdd_clone_is_idempotent(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     _write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -312,7 +312,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     (workspace_sdd / "local_work.md").write_text("wip\n", encoding="utf-8")
     commit_all(workspace_sdd, "Local work")
     _write_sdd_store_record(
@@ -320,7 +320,7 @@ def test_ensure_workspace_sdd_clone_store_clone_with_commits_ahead_is_rebased(
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -339,14 +339,14 @@ def test_ensure_workspace_sdd_clone_store_clone_with_dirty_tree_is_preserved(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     (workspace_sdd / "local_notes.md").write_text("draft\n", encoding="utf-8")
     _write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -365,7 +365,7 @@ def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
     other = tmp_path / "other.git"
     init_bare_repo(other)
@@ -376,7 +376,7 @@ def test_ensure_workspace_sdd_clone_non_matching_remote_clone_is_preserved(
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -395,13 +395,13 @@ def test_ensure_workspace_sdd_clone_stale_clone_makes_relative_prompt_ref_resolv
 ) -> None:
     from sase.file_references import process_file_references
 
-    companion, _primary_sdd, _workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, _workspace_sdd = build_separate_repo_clones(tmp_path)
     _write_sdd_store_record(
         tmp_path / "repo",
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -418,7 +418,7 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    companion, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    sidecar, _primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
     stale_target = tmp_path / "old-sdd"
     stale_target.mkdir()
@@ -429,7 +429,7 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
         {
             "storage": "separate_repo",
             "provider": "github",
-            "remote_url": str(companion),
+            "remote_url": str(sidecar),
             "discovery": "found",
         },
     )
@@ -447,7 +447,7 @@ def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(
     tmp_path: Path,
     provider_patch,
 ) -> None:
-    _companion, primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    _sidecar, primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
     shutil.rmtree(workspace_sdd)
     _write_sdd_store_record(
         tmp_path / "repo",

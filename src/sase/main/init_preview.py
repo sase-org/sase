@@ -246,9 +246,9 @@ def render_plan_diff(console: Console, plan: InitPlan) -> None:
                 "Remote/procedural action — no local file diff.",
                 style="dim",
             )
-            if "companion" in action.detail.casefold():
+            if "sidecar" in action.detail.casefold():
                 console.print(
-                    "A separate y/N confirmation guards companion repository creation.",
+                    "A separate y/N confirmation guards sidecar repository creation.",
                     style="dim",
                 )
         else:

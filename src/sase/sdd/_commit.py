@@ -37,7 +37,7 @@ from sase.sdd._git import (
     run_sdd_git,
 )
 from sase.sdd._store_types import (
-    SDD_STORAGE_COMPANION_REPOS,
+    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
 )
 
@@ -69,7 +69,7 @@ def commit_sdd_store_files(
             artifacts_dir=artifacts_dir,
             repo_name=sdd_store_label(target_store),
             record_commit_marker=target_store.storage
-            in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_COMPANION_REPOS},
+            in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS},
         )
         if committed:
             push_sdd_store_after_commit(

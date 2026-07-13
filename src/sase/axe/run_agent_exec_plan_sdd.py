@@ -94,12 +94,12 @@ def _build_sdd_plan_ref(
     workspace_dir: str,
     sdd_plan_name: str | None,
     sdd_in_tree: bool,
-    sdd_companion_storage: bool = False,
+    sdd_sidecar_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
-        if sdd_companion_storage:
+        if sdd_sidecar_storage:
             return _workspace_relative_or_absolute(sdd_plan_path, workspace_dir)
         if sdd_in_tree:
             try:
@@ -119,7 +119,7 @@ def _build_sdd_plan_ref(
     from sase.sdd.files import get_yyyymm
 
     yyyymm = get_yyyymm()
-    if sdd_plan_name and sdd_companion_storage:
+    if sdd_plan_name and sdd_sidecar_storage:
         return _workspace_relative_or_absolute(
             sdd_dir / yyyymm / f"{sdd_plan_name}.md", workspace_dir
         )
@@ -137,7 +137,7 @@ def build_epic_plan_ref(
     workspace_dir: str,
     sdd_plan_name: str | None,
     sdd_in_tree: bool,
-    sdd_companion_storage: bool = False,
+    sdd_sidecar_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to the epic-creation xprompt."""
@@ -147,7 +147,7 @@ def build_epic_plan_ref(
         workspace_dir=workspace_dir,
         sdd_plan_name=sdd_plan_name,
         sdd_in_tree=sdd_in_tree,
-        sdd_companion_storage=sdd_companion_storage,
+        sdd_sidecar_storage=sdd_sidecar_storage,
         fallback_plan_file=fallback_plan_file,
     )
 
@@ -164,12 +164,12 @@ def build_saved_plan_ref(
     sdd_dir: Path,
     workspace_dir: str,
     sdd_in_tree: bool,
-    sdd_companion_storage: bool = False,
+    sdd_sidecar_storage: bool = False,
     fallback_plan_file: str,
 ) -> str:
     """Build the plan reference passed to a normal coder follow-up."""
     if sdd_plan_path and sdd_plan_path.exists():
-        if sdd_companion_storage:
+        if sdd_sidecar_storage:
             return _workspace_relative_or_absolute(sdd_plan_path, workspace_dir)
         if sdd_in_tree:
             try:

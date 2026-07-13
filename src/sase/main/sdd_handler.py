@@ -14,7 +14,7 @@ from .init_plan import InitAction, InitPlan
 from .init_project_scope import is_project_directory
 
 if TYPE_CHECKING:
-    from sase.workspace_provider import SddCompanionPreflight
+    from sase.workspace_provider import SddSidecarPreflight
 
 _NON_PROJECT_SDD_MESSAGE = (
     "sase init sdd: not a project directory (no VCS found); skipping SDD initialization"
@@ -140,34 +140,34 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     creation_authorized = False
     try:
         if _project_provider_sdd_policy(project_root) == "separate_repo":
-            from sase.sdd._companion_init import (
-                initialize_split_sdd_companions,
-                preflight_split_sdd_companions,
+            from sase.sdd._sidecar_init import (
+                initialize_split_sdd_sidecars,
+                preflight_split_sdd_sidecars,
             )
 
             authorizations: dict[str, bool] = {}
-            if _split_companion_provider_setup_needed(project_root):
-                for kind, preflight in preflight_split_sdd_companions(
+            if _split_sidecar_provider_setup_needed(project_root):
+                for kind, preflight in preflight_split_sdd_sidecars(
                     project_root, 1
                 ).items():
                     if preflight.status == "unavailable":
                         detail = preflight.message or (
-                            f"could not verify {preflight.provider} SDD companion "
+                            f"could not verify {preflight.provider} SDD sidecar "
                             f"repository {preflight.repo}"
                         )
                         raise SddMaterializationError(detail)
                     if preflight.status == "not_found":
-                        if not _confirm_sdd_companion_creation(args, preflight):
+                        if not _confirm_sdd_sidecar_creation(args, preflight):
                             return 1
                         authorizations[kind] = True
                     elif preflight.status != "found":
                         raise SddMaterializationError(
-                            "The workspace provider returned an invalid SDD companion "
+                            "The workspace provider returned an invalid SDD sidecar "
                             "preflight result. Update the provider plugin and rerun "
                             "`sase sdd init`."
                         )
 
-            outcome = initialize_split_sdd_companions(
+            outcome = initialize_split_sdd_sidecars(
                 project_root,
                 1,
                 creation_authorized=authorizations,
@@ -205,12 +205,12 @@ def run_sdd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def _confirm_sdd_companion_creation(
+def _confirm_sdd_sidecar_creation(
     args: argparse.Namespace,
-    preflight: SddCompanionPreflight,
+    preflight: SddSidecarPreflight,
 ) -> bool:
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    resource = f"{preflight.provider} SDD companion repository"
+    resource = f"{preflight.provider} SDD sidecar repository"
     if not stdin.isatty():
         print(
             f"error: {resource} creation cancelled: "
@@ -221,7 +221,7 @@ def _confirm_sdd_companion_creation(
 
     input_func = getattr(args, "_init_input_func", None) or input
     prompt = (
-        f"Create {preflight.visibility} {preflight.provider} SDD companion "
+        f"Create {preflight.visibility} {preflight.provider} SDD sidecar "
         f"repository {preflight.repo} on {preflight.host}? [y/N] "
     )
     try:
@@ -277,14 +277,14 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
             blockers=(),
         )
 
-    from sase.sdd.files import plan_sdd_companion_init_actions, plan_sdd_init_actions
+    from sase.sdd.files import plan_sdd_sidecar_init_actions, plan_sdd_init_actions
     from sase.sdd.store import resolve_sdd_dir
 
     policy = _project_provider_sdd_policy(project_root)
     actions: list[InitAction] = []
     if policy == "separate_repo":
-        roots = _split_companion_roots(project_root)
-        actions.extend(_plan_split_companion_repo_actions(project_root, roots))
+        roots = _split_sidecar_roots(project_root)
+        actions.extend(_plan_split_sidecar_repo_actions(project_root, roots))
         for kind, root in roots.items():
             actions.extend(
                 InitAction(
@@ -293,7 +293,7 @@ def plan_sdd_init(args: argparse.Namespace) -> InitPlan:
                     detail=action.detail,
                     new_content=action.new_content,
                 )
-                for action in plan_sdd_companion_init_actions(kind, root)
+                for action in plan_sdd_sidecar_init_actions(kind, root)
             )
         return InitPlan(
             command="sdd",
@@ -349,15 +349,13 @@ def _summarize_sdd_actions(actions: list[InitAction]) -> str:
     if not actions:
         return "SDD provider storage, README files, and directory map are current"
 
-    companion_actions = [
-        action for action in actions if _is_companion_repo_action(action)
-    ]
+    sidecar_actions = [action for action in actions if _is_sidecar_repo_action(action)]
     generated_actions = [
-        action for action in actions if not _is_companion_repo_action(action)
+        action for action in actions if not _is_sidecar_repo_action(action)
     ]
     summaries: list[str] = []
-    if companion_actions:
-        summaries.append("create or connect provider companion SDD repositories")
+    if sidecar_actions:
+        summaries.append("create or connect provider sidecar SDD repositories")
     if generated_actions:
         summaries.append(_summarize_generated_sdd_actions(generated_actions))
     if not summaries:
@@ -390,42 +388,42 @@ def _project_provider_sdd_policy(project_root: Path) -> str | None:
     return policy if policy in {"in_tree", "local", "separate_repo"} else None
 
 
-def _split_companion_provider_setup_needed(project_root: Path) -> bool:
+def _split_sidecar_provider_setup_needed(project_root: Path) -> bool:
     from sase.sdd._paths import get_primary_workspace_dir
     from sase.sdd.store import read_sdd_store_record
 
     primary = Path(get_primary_workspace_dir(str(project_root), 1))
     record = read_sdd_store_record(primary)
-    return record is None or not record.is_companion_storage
+    return record is None or not record.is_sidecar_storage
 
 
-def _split_companion_roots(project_root: Path) -> dict[str, Path]:
-    from sase.linked_repos import companion_repo_clone_dir
+def _split_sidecar_roots(project_root: Path) -> dict[str, Path]:
+    from sase.linked_repos import sidecar_repo_clone_dir
 
     return {
-        kind: Path(companion_repo_clone_dir(project_root, kind))
+        kind: Path(sidecar_repo_clone_dir(project_root, kind))
         for kind in ("plans", "research")
     }
 
 
-def _plan_split_companion_repo_actions(
+def _plan_split_sidecar_repo_actions(
     project_root: Path, roots: dict[str, Path]
 ) -> list[InitAction]:
-    if not _split_companion_provider_setup_needed(project_root):
+    if not _split_sidecar_provider_setup_needed(project_root):
         return []
     return [
         InitAction(
             path=root,
             operation="create",
-            detail=f"create or connect the provider {kind} companion repository",
+            detail=f"create or connect the provider {kind} sidecar repository",
         )
         for kind, root in roots.items()
     ]
 
 
-def _is_companion_repo_action(action: InitAction) -> bool:
+def _is_sidecar_repo_action(action: InitAction) -> bool:
     detail = action.detail.casefold()
-    return detail.startswith("create or connect") and "companion" in detail
+    return detail.startswith("create or connect") and "sidecar" in detail
 
 
 def _summarize_generated_sdd_actions(actions: list[InitAction]) -> str:

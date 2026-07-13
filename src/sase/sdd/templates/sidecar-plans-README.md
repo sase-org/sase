@@ -1,6 +1,6 @@
 # SASE Plans
 
-This public companion repository stores the durable planning state for its SASE-managed source repository. SASE
+This public sidecar repository stores the durable planning state for its SASE-managed source repository. SASE
 automatically clones it into each workspace and keeps plan files, their original prompt snapshots, and bead state
 available to humans and agents.
 

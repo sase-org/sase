@@ -11,16 +11,21 @@ from typing import Any, cast
 from sase.sdd._store_types import (
     _DISCOVERY_VALUES,
     _STORAGE_VALUES,
-    SDD_STORAGE_COMPANION_REPOS,
+    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
     SDD_STORE_RECORD_FILENAME,
-    SddCompanion,
+    SddSidecar,
     SddMaterializationError,
     SddStorage,
     SddStoreRecord,
 )
 
 _MAX_SUPPORTED_SCHEMA_VERSION = 2
+
+# Read-only compatibility for split-store records written before the sidecar
+# terminology shipped. Serialization always uses the canonical spellings.
+_LEGACY_STORAGE_VALUE = "companion_repos"
+_LEGACY_SIDECARS_KEY = "companions"
 
 _RecordCacheToken = tuple[int, int]
 _RecordCacheEntry = tuple[_RecordCacheToken, SddStoreRecord | None]
@@ -114,7 +119,7 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     if not isinstance(raw, dict):
         raise _foreign_record_error(record_path)
 
-    storage = raw.get("storage")
+    storage = _normalize_storage_value(raw.get("storage"))
     if storage not in _STORAGE_VALUES:
         raise _foreign_record_error(record_path)
 
@@ -130,7 +135,7 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     if discovery is not None and discovery not in _DISCOVERY_VALUES:
         raise _foreign_record_error(record_path)
 
-    plans, research = _companions_from_raw(raw)
+    plans, research = _sidecars_from_raw(raw)
     if discovery == "not_found":
         return SddStoreRecord(
             schema_version=schema_version_int,
@@ -144,7 +149,7 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
             plans=plans,
             research=research,
         )
-    if storage == SDD_STORAGE_COMPANION_REPOS and (
+    if storage == SDD_STORAGE_SIDECAR_REPOS and (
         schema_version_int < 2 or plans is None or research is None
     ):
         raise _foreign_record_error(record_path)
@@ -177,7 +182,7 @@ def _is_materialized_record(record: SddStoreRecord | None) -> bool:
     if record.storage == SDD_STORAGE_SEPARATE_REPO:
         return True
     return bool(
-        record.storage == SDD_STORAGE_COMPANION_REPOS
+        record.storage == SDD_STORAGE_SIDECAR_REPOS
         and record.plans is not None
         and record.research is not None
     )
@@ -191,10 +196,10 @@ def _coerce_sdd_store_record(
     else:
         raw = record
 
-    storage = raw.get("storage")
-    if storage not in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_COMPANION_REPOS}:
+    storage = _normalize_storage_value(raw.get("storage"))
+    if storage not in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS}:
         raise ValueError(
-            "SDD store record storage must be 'separate_repo' or 'companion_repos'"
+            "SDD store record storage must be 'separate_repo' or 'sidecar_repos'"
         )
 
     discovery = raw.get("discovery") or "found"
@@ -211,13 +216,13 @@ def _coerce_sdd_store_record(
             "SDD store record schema_version is newer than this sase build supports"
         )
 
-    plans, research = _companions_from_raw(raw)
-    if storage == SDD_STORAGE_COMPANION_REPOS:
+    plans, research = _sidecars_from_raw(raw)
+    if storage == SDD_STORAGE_SIDECAR_REPOS:
         if schema_version_int < 2:
-            raise ValueError("companion SDD store records require schema_version >= 2")
+            raise ValueError("sidecar SDD store records require schema_version >= 2")
         if plans is None or research is None:
             raise ValueError(
-                "companion SDD store records require plans and research mappings"
+                "sidecar SDD store records require plans and research mappings"
             )
 
     return SddStoreRecord(
@@ -243,40 +248,48 @@ def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
         value = getattr(record, key)
         if value is not None:
             data[key] = value
-    if record.storage == SDD_STORAGE_COMPANION_REPOS:
-        data["companions"] = {
-            "plans": _companion_to_json(record.plans),
-            "research": _companion_to_json(record.research),
+    if record.storage == SDD_STORAGE_SIDECAR_REPOS:
+        data["sidecars"] = {
+            "plans": _sidecar_to_json(record.plans),
+            "research": _sidecar_to_json(record.research),
         }
     return data
 
 
-def _companions_from_raw(
+def _sidecars_from_raw(
     raw: Mapping[str, Any],
-) -> tuple[SddCompanion | None, SddCompanion | None]:
-    companions = raw.get("companions")
-    if not isinstance(companions, Mapping):
+) -> tuple[SddSidecar | None, SddSidecar | None]:
+    sidecars = raw.get("sidecars")
+    if not isinstance(sidecars, Mapping) and "sidecars" not in raw:
+        sidecars = raw.get(_LEGACY_SIDECARS_KEY)
+    if not isinstance(sidecars, Mapping):
         return None, None
     return (
-        _coerce_companion(companions.get("plans")),
-        _coerce_companion(companions.get("research")),
+        _coerce_sidecar(sidecars.get("plans")),
+        _coerce_sidecar(sidecars.get("research")),
     )
 
 
-def _coerce_companion(value: object) -> SddCompanion | None:
+def _coerce_sidecar(value: object) -> SddSidecar | None:
     if not isinstance(value, Mapping):
         return None
     repo = _optional_str(value.get("repo"))
     remote_url = _optional_str(value.get("remote_url"))
     if repo is None or remote_url is None:
         return None
-    return SddCompanion(repo=repo, remote_url=remote_url)
+    return SddSidecar(repo=repo, remote_url=remote_url)
 
 
-def _companion_to_json(companion: SddCompanion | None) -> dict[str, str]:
-    if companion is None:
+def _sidecar_to_json(sidecar: SddSidecar | None) -> dict[str, str]:
+    if sidecar is None:
         return {}
-    return {"repo": companion.repo, "remote_url": companion.remote_url}
+    return {"repo": sidecar.repo, "remote_url": sidecar.remote_url}
+
+
+def _normalize_storage_value(value: object) -> object:
+    if value == _LEGACY_STORAGE_VALUE:
+        return SDD_STORAGE_SIDECAR_REPOS
+    return value
 
 
 def _utc_now_iso() -> str:
@@ -285,9 +298,9 @@ def _utc_now_iso() -> str:
 
 def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
     repo = record.repo if record is not None and record.repo else None
-    target = f"'{repo}'" if repo else "the expected SDD companion repository"
+    target = f"'{repo}'" if repo else "the expected SDD sidecar repository"
     return (
-        f"The provider requires a companion SDD repository, but {target} is not "
+        f"The provider requires a sidecar SDD repository, but {target} is not "
         "materialized. Run `sase sdd init` after fixing provider authentication, "
         "permissions, or network access."
     )

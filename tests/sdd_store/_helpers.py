@@ -62,20 +62,20 @@ def commit_all(repo: Path, message: str) -> None:
 
 
 def build_separate_repo_clones(tmp_path: Path) -> tuple[Path, Path, Path]:
-    """Build a companion bare repo, primary clone, and stale workspace clone."""
-    companion = tmp_path / "companion.git"
+    """Build a sidecar bare repo, primary clone, and stale workspace clone."""
+    sidecar = tmp_path / "sidecar.git"
     primary_sdd = tmp_path / "repo" / ".sase" / "sdd"
     workspace_sdd = tmp_path / "repo_2" / ".sase" / "sdd"
 
-    init_bare_repo(companion)
+    init_bare_repo(sidecar)
 
-    clone(companion, primary_sdd)
+    clone(sidecar, primary_sdd)
     (primary_sdd / "README.md").write_text("# SDD store\n", encoding="utf-8")
     commit_all(primary_sdd, "Initialize SDD store")
     git(["push", "-u", "origin", "main"], primary_sdd)
 
-    # Clone the workspace copy while the companion is still at the initial commit.
-    clone(companion, workspace_sdd)
+    # Clone the workspace copy while the sidecar is still at the initial commit.
+    clone(sidecar, workspace_sdd)
 
     # The primary store advances with the just-committed tale and pushes it.
     tale = primary_sdd / "plans" / "202607" / "feature.md"
@@ -84,4 +84,4 @@ def build_separate_repo_clones(tmp_path: Path) -> tuple[Path, Path, Path]:
     commit_all(primary_sdd, "Add tale")
     git(["push"], primary_sdd)
 
-    return companion, primary_sdd, workspace_sdd
+    return sidecar, primary_sdd, workspace_sdd

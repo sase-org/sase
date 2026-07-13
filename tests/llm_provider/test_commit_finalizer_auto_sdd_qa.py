@@ -98,7 +98,7 @@ def _configure_external_store(
     plans_repo: Path,
 ) -> SddStore:
     store = SddStore(
-        storage="companion_repos",
+        storage="sidecar_repos",
         sdd_dir=plans_repo,
         repo_root=plans_repo,
     )

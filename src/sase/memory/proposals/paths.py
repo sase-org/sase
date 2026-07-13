@@ -25,6 +25,6 @@ def memory_proposal_lock_path(
     cwd: Path | None = None,
     ledger_path: Path | None = None,
 ) -> Path:
-    """Return the lock companion for a memory-proposal ledger path."""
+    """Return the lock sidecar for a memory-proposal ledger path."""
     path = ledger_path or memory_proposal_ledger_path(project, cwd=cwd)
     return path.with_suffix(".lock")

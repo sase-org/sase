@@ -22,14 +22,14 @@ PrimaryWorkspaceResolver = Callable[[str, int], str]
 StoreResolver = Callable[[str | Path, int], SddStore]
 
 
-def ensure_companion_sdd_clone(
+def ensure_sidecar_sdd_clone(
     clone_dir: Path,
     remote_url: str,
     *,
     local_source: Path | None = None,
     strict: bool = False,
 ) -> None:
-    """Ensure a split-store companion clone exists and tracks its real remote."""
+    """Ensure a split-store sidecar clone exists and tracks its real remote."""
 
     try:
         clone_dir = clone_dir.expanduser()
@@ -45,7 +45,7 @@ def ensure_companion_sdd_clone(
                     )
                     return
                 _logger.warning(
-                    "Refusing to replace mismatched SDD companion clone at %s",
+                    "Refusing to replace mismatched SDD sidecar clone at %s",
                     clone_dir,
                 )
                 return
@@ -71,7 +71,7 @@ def ensure_companion_sdd_clone(
             cloned = _clone_sdd_store(remote_url, clone_dir)
         if not cloned and strict:
             raise SddMaterializationError(
-                f"could not create SDD companion clone at {clone_dir}"
+                f"could not create SDD sidecar clone at {clone_dir}"
             )
     except Exception as exc:
         if strict:
@@ -79,7 +79,7 @@ def ensure_companion_sdd_clone(
                 raise
             raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
         _logger.warning(
-            "Failed to ensure SDD companion clone at %s", clone_dir, exc_info=True
+            "Failed to ensure SDD sidecar clone at %s", clone_dir, exc_info=True
         )
 
 
@@ -106,7 +106,7 @@ def ensure_workspace_sdd_clone(
         if _paths_same_file(workspace_sdd, primary_sdd):
             if not _is_matching_store_clone(workspace_sdd, store) and strict:
                 raise SddMaterializationError(
-                    f"primary SDD companion clone is missing or mismatched: {workspace_sdd}"
+                    f"primary SDD sidecar clone is missing or mismatched: {workspace_sdd}"
                 )
             return
 
@@ -163,7 +163,7 @@ def ensure_workspace_sdd_clone(
             _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
         elif strict:
             raise SddMaterializationError(
-                f"could not create workspace SDD companion clone at {workspace_sdd}"
+                f"could not create workspace SDD sidecar clone at {workspace_sdd}"
             )
     except Exception as exc:
         if strict:
@@ -405,7 +405,7 @@ def _set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
 
 
 def _is_matching_store_clone(path: Path, store: SddStore) -> bool:
-    """Return true when *path* looks like a clone of the SDD companion repo.
+    """Return true when *path* looks like a clone of the SDD sidecar repo.
 
     A missing ``.git`` marks unrelated content. When the store's remote URL is
     known, the clone's ``origin`` must match it; an unknown store remote skips the

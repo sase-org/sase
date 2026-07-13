@@ -551,7 +551,7 @@ def test_agent_deltas_render_cached_linked_groups(tmp_path: Path) -> None:
     assert "    + crates/core/src/lib.rs  +3\n" in header.plain
 
 
-def test_active_primary_deltas_win_over_latest_companion_commit(
+def test_active_primary_deltas_win_over_latest_sidecar_commit(
     tmp_path: Path,
 ) -> None:
     diff_mod._diff_cache.clear()
@@ -561,8 +561,8 @@ def test_active_primary_deltas_win_over_latest_companion_commit(
     (primary / ".git").mkdir(parents=True)
     (primary / ".git" / "index").write_bytes(b"\x00" * 16)
     linked.mkdir()
-    companion_diff = tmp_path / "companion.diff"
-    companion_diff.write_text(
+    sidecar_diff = tmp_path / "sidecar.diff"
+    sidecar_diff.write_text(
         """diff --git a/crates/core/src/lib.rs b/crates/core/src/lib.rs
 new file mode 100644
 --- /dev/null
@@ -582,15 +582,15 @@ new file mode 100644
     agent = _make_agent(
         status="RUNNING",
         workspace_dir=str(primary),
-        diff_path=str(companion_diff),
+        diff_path=str(sidecar_diff),
         linked_repos=(LinkedRepoMetadata(name="sase-core", workspace_dir=str(linked)),),
         step_output={
             "meta_commits": [
                 {
-                    "message": "docs: companion plan",
+                    "message": "docs: sidecar plan",
                     "sha": "222222222222bbbb",
                     "cwd": str(linked),
-                    "diff_path": str(companion_diff),
+                    "diff_path": str(sidecar_diff),
                 },
             ],
         },

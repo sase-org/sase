@@ -399,7 +399,7 @@ telemetry:
     p95_latency_critical: 600.0
 
 sdd:
-  # Controls remote freshness for bead commands in companion repositories.
+  # Controls remote freshness for bead commands in sidecar repositories.
   # background keeps the command path local and launches a TTL-gated managed
   # fetch/rebase/push worker; blocking restores pull-before-command behavior;
   # off disables command-triggered refreshes (normal post-commit push policy
@@ -408,7 +408,7 @@ sdd:
     mode: background
     ttl_seconds: 120
   repo:
-    # Optional companion SDD repo override for providers that support
+    # Optional sidecar SDD repo override for providers that support
     # separate_repo storage. Accepts "name" or "owner/name"; empty uses the
     # provider default (GitHub: <owner>/<repo>--sdd).
     name: ""

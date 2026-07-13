@@ -170,5 +170,5 @@ audit events. Keybindings:
 | `y`         | Copy the proposal id                           |
 | `q`         | Quit                                           |
 
-The proposal ledger is append-only JSONL with a lock companion. Malformed rows are skipped when reading, and every
-review action appends a new event rather than mutating previous events.
+The proposal ledger is append-only JSONL with a lock sidecar. Malformed rows are skipped when reading, and every review
+action appends a new event rather than mutating previous events.

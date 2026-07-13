@@ -9,10 +9,10 @@ from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
     apply_linked_repo_env,
-    companion_repo_clone_dir,
+    sidecar_repo_clone_dir,
     linked_repo_clone_dir,
     resolve_linked_repos_for_project,
-    sdd_companion_clone_dirname,
+    sdd_sidecar_clone_dirname,
     scrub_linked_repo_env,
 )
 
@@ -92,7 +92,7 @@ def test_threads_auto_clone_and_gates_unmaterialized_env_paths(
     assert env["SASE_LINKED_REPO_CORE_PRIMARY_DIR"] == repo.primary_dir
 
 
-def test_managed_project_injects_default_companions(tmp_path: Path) -> None:
+def test_managed_project_injects_default_sidecars(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     plans = tmp_path / "sase--plans"
     research = tmp_path / "sase--research"
@@ -123,7 +123,7 @@ def test_managed_project_injects_default_companions(tmp_path: Path) -> None:
     ]
 
 
-def test_default_companions_honor_override_and_opt_out(tmp_path: Path) -> None:
+def test_default_sidecars_honor_override_and_opt_out(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     override = tmp_path / "custom-research"
     for path in (primary, override):
@@ -165,7 +165,7 @@ def test_default_companions_honor_override_and_opt_out(tmp_path: Path) -> None:
     assert opted_out.warnings == ()
 
 
-def test_missing_default_companions_are_skipped_quietly(tmp_path: Path) -> None:
+def test_missing_default_sidecars_are_skipped_quietly(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     primary.mkdir()
     project_file = _project_file(tmp_path / "project.sase", primary)
@@ -415,25 +415,25 @@ def test_apply_replaces_stale_inherited_env(tmp_path: Path) -> None:
     assert env["SASE_SIBLING_REPO_CORE_DIR"] == str(workspace_dir.resolve())
 
 
-def test_clone_path_helpers_split_linked_and_companion_namespaces(
+def test_clone_path_helpers_split_linked_and_sidecar_namespaces(
     tmp_path: Path,
 ) -> None:
     host = tmp_path / "main_10"
     assert linked_repo_clone_dir(host, "core") == str(
         (host / "sase" / "repos" / "linked" / "core").resolve()
     )
-    assert companion_repo_clone_dir(host, "plans") == str(
+    assert sidecar_repo_clone_dir(host, "plans") == str(
         (host / "sase" / "repos" / "plans").resolve()
     )
 
 
-def test_companion_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
+def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     primary = tmp_path / "main"
     primary.mkdir()
 
-    assert sdd_companion_clone_dirname(primary, "main--plans") == "plans"
-    assert sdd_companion_clone_dirname(primary, "main--research") == "research"
-    assert sdd_companion_clone_dirname(primary, "core") is None
+    assert sdd_sidecar_clone_dirname(primary, "main--plans") == "plans"
+    assert sdd_sidecar_clone_dirname(primary, "main--research") == "research"
+    assert sdd_sidecar_clone_dirname(primary, "core") is None
 
     from sase.sdd.store import write_sdd_store_record
 
@@ -441,8 +441,8 @@ def test_companion_dirname_uses_defaults_and_store_record(tmp_path: Path) -> Non
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
-            "companions": {
+            "storage": "sidecar_repos",
+            "sidecars": {
                 "plans": {
                     "repo": "owner/custom-plans",
                     "remote_url": "https://example.com/custom-plans.git",
@@ -455,6 +455,6 @@ def test_companion_dirname_uses_defaults_and_store_record(tmp_path: Path) -> Non
         },
     )
 
-    assert sdd_companion_clone_dirname(primary, "custom-plans") == "plans"
-    assert sdd_companion_clone_dirname(primary, "custom-research") == "research"
-    assert sdd_companion_clone_dirname(primary, "main--plans") is None
+    assert sdd_sidecar_clone_dirname(primary, "custom-plans") == "plans"
+    assert sdd_sidecar_clone_dirname(primary, "custom-research") == "research"
+    assert sdd_sidecar_clone_dirname(primary, "main--plans") is None

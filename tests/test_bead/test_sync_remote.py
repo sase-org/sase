@@ -210,7 +210,7 @@ def test_push_bead_work_launch_returns_error_on_failure(tmp_path):
     assert "git fetch failed" in outcome.error
 
 
-def test_managed_sync_worker_converges_companion_store_mutations(tmp_path):
+def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path):
     from sase.bead.model import IssueType
     from sase.bead.project import BeadProject
 

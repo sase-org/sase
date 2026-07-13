@@ -18,6 +18,8 @@ links:
 
 # [00] The Missing Operating Layer for Coding Agents
 
+> Terminology note (July 2026): the “companion repos” named in this historical post are now called **sidecar repos**.
+
 SASE is not a better model. SASE is the layer I wanted after realizing that the hard part of running coding agents is
 not always "can the model write the patch?" Sometimes the hard part is "where did the patch go?", "what was it trying to
 do?", "who is waiting on it?", "why did it start six follow-up agents while I was brushing my teeth?", and "can I please

@@ -362,7 +362,7 @@ def _bead_refresh_ttl_seconds() -> float:
 
 
 def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
-    """Launch a TTL-gated background integration for a warm companion store."""
+    """Launch a TTL-gated background integration for a warm sidecar store."""
     if bead_refresh_mode() != "background":
         return None
     repo_root = _find_git_root(beads_dir)

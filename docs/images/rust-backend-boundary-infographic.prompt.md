@@ -28,7 +28,7 @@ host layer, second facade/wire layer, a strong amber horizontal boundary divider
 extension layer, bottom Rust workspace layer. Include a single clear downward arrow crossing the amber boundary divider,
 plus a modest bottom-right contract loop panel and a left-side legend panel. In the bottom Rust workspace layer, show a
 neat 3x3 grid of small blank operation cards with ample empty interior space. Add a small blank badge between the
-extension and Rust workspace layers for a wheel/distribution label. Include an adjacent small companion box near the
+extension and Rust workspace layers for a wheel/distribution label. Include an adjacent small sidecar box near the
 bottom Rust layer for a secondary gateway surface. Keep all boxes blank inside for later labels.
 Visual style: neutral light background, crisp documentation-diagram aesthetic, high contrast outlines, subtle depth,
 restrained palette with distinct accents: teal for Python host/facade, blue for Rust extension/workspace, amber for the
@@ -57,4 +57,4 @@ The regenerated diagram addresses the 2026-05-10 critique by:
   query parse/corpus, agent artifact scan/index, status helpers/planner, git query parsers, notification JSONL store,
   agent cleanup, agent launch/RUNNING claims, and bead data operations;
 - adding the PyPI wheel badge `sase-core-rs >=0.1.1,<0.2.0`;
-- adding a companion `crates/sase_gateway` box so the `../sase-core` workspace framing stays honest.
+- adding a sidecar `crates/sase_gateway` box so the `../sase-core` workspace framing stays honest.

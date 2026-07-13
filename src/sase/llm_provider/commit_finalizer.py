@@ -391,7 +391,7 @@ def _auto_commit_separate_sdd_store_if_possible(
 
         from sase.sdd.files import commit_sdd_store_files
         from sase.sdd.store import (
-            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SIDECAR_REPOS,
             SDD_STORAGE_SEPARATE_REPO,
             resolve_sdd_store,
         )
@@ -400,11 +400,11 @@ def _auto_commit_separate_sdd_store_if_possible(
         store = resolve_sdd_store(project_dir, workspace_num)
         if store.storage not in {
             SDD_STORAGE_SEPARATE_REPO,
-            SDD_STORAGE_COMPANION_REPOS,
+            SDD_STORAGE_SIDECAR_REPOS,
         }:
             return False
         repo_roots = [store.repo_root]
-        if store.is_companion_storage and store.research_dir is not None:
+        if store.is_sidecar_storage and store.research_dir is not None:
             repo_roots.append(store.research_dir)
         if not any((root / ".git").exists() for root in repo_roots):
             return False
@@ -451,15 +451,15 @@ def _separate_sdd_store_repo_may_exist(project_dir: str) -> bool:
         return True
 
     try:
-        from sase.linked_repos import companion_repo_clone_dir
+        from sase.linked_repos import sidecar_repo_clone_dir
         from sase.sdd.store import read_sdd_store_record
 
         for primary in primary_candidates:
             record = read_sdd_store_record(primary)
-            if record is None or not record.is_companion_storage:
+            if record is None or not record.is_sidecar_storage:
                 continue
             for kind in ("plans", "research"):
-                clone = Path(companion_repo_clone_dir(project_path, kind))
+                clone = Path(sidecar_repo_clone_dir(project_path, kind))
                 if (clone / ".git").exists():
                     return True
     except Exception:

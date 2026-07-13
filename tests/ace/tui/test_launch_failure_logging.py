@@ -44,7 +44,7 @@ def _assert_persisted(kind: str) -> dict[str, Any]:
     record = records[-1]
     assert record["kind"] == kind
     assert "traceback" in record and record["traceback"]
-    # The human-readable companion log is always written too.
+    # The human-readable sidecar log is always written too.
     assert launch_failures_log_path().exists()
     return record
 

@@ -18,6 +18,8 @@ links:
 
 # [04] Beads and SDD — Planning Multi-Agent Work That Actually Lands
 
+> Terminology note (July 2026): the “companion repos” named in this historical post are now called **sidecar repos**.
+
 Orchestration only matters if you can split work into pieces with a real ordering. Beads and Spec-Driven Development
 (SDD) are the two pieces of SASE that file plans on disk and turn them into work that an agent fleet can execute.
 

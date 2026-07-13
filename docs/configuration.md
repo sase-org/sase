@@ -567,7 +567,7 @@ linked_repos:
 
 | Field                        | Type    | Default  | Description                                                                         |
 | ---------------------------- | ------- | -------- | ----------------------------------------------------------------------------------- |
-| `default_linked_repos`       | boolean | `true`   | Inject managed-project `--plans` and `--research` companion entries.                |
+| `default_linked_repos`       | boolean | `true`   | Inject managed-project `--plans` and `--research` sidecar entries.                  |
 | `linked_repos[].auto_clone`  | boolean | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
 | `linked_repos[].name`        | string  | required | Stable alias used in generated environment variable names and memory summaries.     |
 | `linked_repos[].path`        | string  | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
@@ -576,8 +576,8 @@ linked_repos:
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
 workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree.
-Companions with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
-network fallback; other linked repos and companions are materialized on demand by `sase workspace open`.
+Sidecars with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
+network fallback; other linked repos and sidecars are materialized on demand by `sase workspace open`.
 `sase init workspace` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
 `.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
 paths only for materialized entries:
@@ -1115,28 +1115,28 @@ sdd:
     mode: background
     ttl_seconds: 120
   repo:
-    name: "" # provider-specific companion repo override
+    name: "" # provider-specific sidecar repo override
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                             |
-| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.bead_refresh.mode`        | string      | `background` | Companion bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh.                                                          |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                     |
-| `sdd.repo.name`                | string      | `""`         | Optional companion repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in companion repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                           |
+| ------------------------------ | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables command-triggered refresh.                                                          |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                   |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`. |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Newly initialized
-managed GitHub projects use `--plans` and `--research` companion repositories cloned at `sase/repos/plans` and
+managed GitHub projects use `--plans` and `--research` sidecar repositories cloned at `sase/repos/plans` and
 `sase/repos/research`; unmigrated GitHub projects retain their provider-backed `.sase/sdd/` clone. Both layouts record
 materialization metadata in the primary workspace's `.sase/sdd-store.json`. Providerless projects fall back to a
 primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and `sdd.version_controlled` keys are ignored, stripped
 before validation, and reported by `sase doctor` for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
-Newly initialized managed GitHub projects and migrated projects have a schema-version 2 `companion_repos` record. Their
+Newly initialized managed GitHub projects and migrated projects have a schema-version 2 `sidecar_repos` record. Their
 plans and beads resolve into the auto-cloned `--plans` repository, while research resolves into the separate
 `--research` repository. Initialization prepares both in its current workspace; later workspaces clone research on
-demand. The legacy single-companion shape continues to resolve byte-for-byte as before.
+demand. The legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1145,15 +1145,15 @@ needed.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase sdd init` or its `sase init sdd`
 compatibility alias materializes the provider-selected store, then refreshes generated SDD guides and the directory map.
-On GitHub it finds or creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` companions, initializes
+On GitHub it finds or creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars, initializes
 and pushes both, then writes the split store record. Existing legacy `--sdd` files remain untouched locally and in their
-remote, but normal SDD routing switches to the split companions; `sase sdd migrate` imports the supported content and
+remote, but normal SDD routing switches to the split sidecars; `sase sdd migrate` imports the supported content and
 retires the local source. `--check` previews provider and generated-file work without writing. Missing or false
 management markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or
 writes.
 
 Explicit initialization first performs authoritative provider discovery for both repositories. Each missing GitHub
-companion triggers a separate prompt naming the `--plans` or `--research` repository; only `y` or `yes` authorizes that
+sidecar triggers a separate prompt naming the `--plans` or `--research` repository; only `y` or `yes` authorizes that
 invocation to create it. The prompts are default-no and unavailable on non-interactive stdin. Bare `sase init --yes`
 bypasses only the coordinator prompt and cannot authorize repository creation; `--check` remains network-free.
 
@@ -1638,7 +1638,7 @@ completion clients should filter to entries where `is_skill` is `true`.
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs read-only planners for memory, SDD,
 and skills, prints a grouped summary, and prompts once per initializer that needs work when stdin is interactive.
 Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag runs
-needed initializers but cannot authorize creation of a missing GitHub SDD companion, which always requires its own
+needed initializers but cannot authorize creation of a missing GitHub SDD sidecar, which always requires its own
 interactive `y`/`yes` response. The memory planner (which owns agent-document initialization) only generates managed
 project `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml` sets `is_sase_managed: true`. The
 SDD planner uses that same local marker and skips unmanaged repositories before provider work. Neither planner infers
@@ -1653,12 +1653,12 @@ and with explicit compatibility subcommands.
 Advanced deploy controls stay on explicit subcommands such as `sase memory init --no-commit` and
 `sase skill init --no-push`.
 
-| Flag                          | Values | Default | Description                                                                                |
-| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------ |
-| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.              |
-| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.       |
-| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                    |
-| `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub companion creation. |
+| Flag                          | Values | Default | Description                                                                              |
+| ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
+| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.            |
+| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.     |
+| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                  |
+| `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub sidecar creation. |
 
 ### `sase memory agent-docs`
 
@@ -1722,11 +1722,11 @@ Generated linked-repository memory includes `sase workspace open` guidance for e
 `sase.yml`, it materializes provider-owned storage and creates or refreshes generated SDD README files and the directory
 map. Missing or false markers produce an informative successful no-op, while invalid local configuration fails before
 provider or filesystem work. `--path` always checks the target repository's marker. GitHub setup creates the required
-public-by-default companion when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts
-transactionally. Existing private companions remain private. Bare-git projects refresh generated files automatically
-during repository setup and first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
+public-by-default sidecar when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts transactionally.
+Existing private sidecars remain private. Bare-git projects refresh generated files automatically during repository
+setup and first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
 
-When the GitHub companion is missing, this alias uses the same default-no repository-specific confirmation as
+When the GitHub sidecar is missing, this alias uses the same default-no repository-specific confirmation as
 `sase sdd init`. Non-interactive stdin, EOF, interruption, and any answer other than `y`/`yes` return nonzero before
 creation or local mutation. There is deliberately no `--yes` option on the explicit SDD initializer.
 
@@ -1911,8 +1911,8 @@ workspace instead and accepts an optional kind such as `research`. With no subco
 | `init`         | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Materialize provider-owned storage, refresh SDD guide files, and preview planned work                             |
 | `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                   |
 | `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `plans`, `tales`, `epics`, or `all`                                   |
-| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | After `init`, import supported legacy SDD content into split companions; check/diff modes are read-only           |
-| `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing companion             |
+| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | After `init`, import supported legacy SDD content into split sidecars; check/diff modes are read-only             |
+| `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing sidecar               |
 | `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs; `--write` first materializes provider storage and then writes link fixes |
 | `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |
 

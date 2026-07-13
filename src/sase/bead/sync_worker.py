@@ -1,4 +1,4 @@
-"""Managed one-shot integration worker for companion bead stores."""
+"""Managed one-shot integration worker for sidecar bead stores."""
 
 from __future__ import annotations
 

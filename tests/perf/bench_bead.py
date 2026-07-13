@@ -202,13 +202,13 @@ def _bench_shell(
     return results
 
 
-def _bench_companion_mutation_shell(
+def _bench_sidecar_mutation_shell(
     root: Path,
     *,
     runs: int,
     sase_bin: str | None,
 ) -> dict[str, dict[str, float]]:
-    """Measure warm companion-store updates, including their local git commit."""
+    """Measure warm sidecar-store updates, including their local git commit."""
     from sase.sdd.store import write_sdd_store_record
 
     plans = root / "sase" / "repos" / "plans"
@@ -251,9 +251,9 @@ def _bench_companion_mutation_shell(
         root,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "bench/plans",
                     "remote_url": str(root / "plans.git"),
@@ -590,8 +590,8 @@ def run_benchmark(
             work_root,
             phase_count=max(1, min(issue_count, 2_000)),
         )
-        companion_root = Path(td) / "companion"
-        companion_root.mkdir()
+        sidecar_root = Path(td) / "sidecar"
+        sidecar_root.mkdir()
 
         return {
             "runs": runs,
@@ -599,8 +599,8 @@ def run_benchmark(
             "dependency_count": dependency_count,
             "registry_sizes": registry_sizes,
             "shell": _bench_shell(root, runs=runs, sase_bin=sase_bin),
-            "companion_mutation_shell": _bench_companion_mutation_shell(
-                companion_root,
+            "sidecar_mutation_shell": _bench_sidecar_mutation_shell(
+                sidecar_root,
                 runs=runs,
                 sase_bin=sase_bin,
             ),

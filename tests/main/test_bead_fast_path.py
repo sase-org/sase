@@ -282,7 +282,7 @@ def test_fast_path_defers_search_help_to_argparse(monkeypatch) -> None:
     assert try_handle_bead_fast_path(["search", "--help"]) is None
 
 
-def test_fast_path_create_and_rm_use_rust_on_companion_layout(
+def test_fast_path_create_and_rm_use_rust_on_sidecar_layout(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     from sase.bead.project import BeadProject
@@ -361,7 +361,7 @@ def test_mutation_commit_messages_match_slow_path_contract() -> None:
     )
 
 
-def test_warm_companion_fast_mutation_commits_without_network_git(
+def test_warm_sidecar_fast_mutation_commits_without_network_git(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
     from sase.bead.model import IssueType
@@ -392,9 +392,9 @@ def test_warm_companion_fast_mutation_commits_without_network_git(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/project--plans",
                     "remote_url": "git@example.com:acme/project--plans.git",

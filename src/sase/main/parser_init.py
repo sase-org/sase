@@ -114,7 +114,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "Run every needed initializer without generic prompts; cannot "
-            "authorize creation of a missing GitHub SDD companion"
+            "authorize creation of a missing GitHub SDD sidecar"
         ),
     )
     init_subparsers = init_parser.add_subparsers(
@@ -168,7 +168,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Materialize provider SDD storage and refresh generated guides",
         description=(
             "Compatibility alias for `sase sdd init`. Creating a missing "
-            "GitHub companion always requires an interactive, default-no "
+            "GitHub sidecar always requires an interactive, default-no "
             "y/yes confirmation."
         ),
     )
@@ -203,7 +203,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize workspace ignore rules",
         description=(
             "Add the tracked root .gitignore rule that protects host-scoped "
-            "linked and companion repository clones under sase/repos/."
+            "linked and sidecar repository clones under sase/repos/."
         ),
     )
     workspace_parser.add_argument(

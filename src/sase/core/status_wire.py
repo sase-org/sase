@@ -1,6 +1,6 @@
 """Wire records for the ChangeSpec status state machine facade.
 
-Companion to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`, and
+Sidecar to :mod:`sase.core.wire`, :mod:`sase.core.query_wire`, and
 :mod:`sase.core.agent_scan_wire`. Defines the **stable** boundary between
 Python and a future Rust implementation of the status decision engine
 (Phase 4 of ``sdd/research/202604/rust_backend_migration.md`` and

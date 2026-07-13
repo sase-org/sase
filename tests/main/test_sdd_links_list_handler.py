@@ -64,7 +64,7 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert all(row["bidirectional"] for row in rows)
 
 
-def test_flat_companion_root_lists_and_validates_plan_pairs(
+def test_flat_sidecar_root_lists_and_validates_plan_pairs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "repo--plans"

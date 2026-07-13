@@ -113,7 +113,7 @@ def sdd_prompt_roots(base_dir: Path) -> list[Path]:
 
 
 def find_sdd_file(base_dir: Path, kind: str, name: str) -> Path | None:
-    """Search for an SDD file in canonical in-tree or companion layouts.
+    """Search for an SDD file in canonical in-tree or sidecar layouts.
 
     Version-controlled paths live under ``sdd/{kind}``. Local SDD mode passes
     ``.sase/sdd`` as ``base_dir``, where ``{kind}`` is the child directory.

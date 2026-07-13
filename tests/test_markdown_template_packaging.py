@@ -32,7 +32,7 @@ def test_wheel_contains_generated_markdown_templates(tmp_path: Path) -> None:
         "sase/sdd/templates/README.md",
         "sase/sdd/templates/plans-README.md",
         "sase/sdd/templates/research-README.md",
-        "sase/sdd/templates/companion-plans-README.md",
-        "sase/sdd/templates/companion-research-README.md",
+        "sase/sdd/templates/sidecar-plans-README.md",
+        "sase/sdd/templates/sidecar-research-README.md",
         "sase/xprompts/skills/SKILL.frame.template.md",
     } <= names

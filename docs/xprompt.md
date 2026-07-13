@@ -1302,7 +1302,7 @@ tier. Unknown modes raise a `DirectiveError`; valid modes are `plan`, `tale`, an
 When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or `sase plan propose`, sase
 auto-approves and commits it as an SDD tale in the resolved plans root's `<YYYYMM>/` directory and launches the coder
 follow-up — the same path as the TUI Tale action. Use `sase sdd path plans` instead of assuming whether the root is
-in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` companion:
+in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar:
 
 ```
 %auto:tale

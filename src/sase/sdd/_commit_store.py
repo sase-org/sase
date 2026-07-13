@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
 from sase.sdd._store_types import (
-    SDD_STORAGE_COMPANION_REPOS,
+    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
 )
 
@@ -93,7 +93,7 @@ def sdd_commit_targets(
 ) -> list[tuple["SddStore", list[str | Path] | None]]:
     """Partition split-store paths between the plans and research repos."""
 
-    if not store.is_companion_storage or store.research_dir is None:
+    if not store.is_sidecar_storage or store.research_dir is None:
         return [(store, list(paths) if paths is not None else None)]
 
     plans_store = replace(store, research_dir=None, research_remote_url=None)
@@ -217,7 +217,7 @@ def _git_head_sha(repo_dir: Path) -> str | None:
 def sdd_store_label(store: "SddStore") -> str | None:
     if store.storage not in {
         SDD_STORAGE_SEPARATE_REPO,
-        SDD_STORAGE_COMPANION_REPOS,
+        SDD_STORAGE_SIDECAR_REPOS,
     }:
         return None
 
@@ -287,7 +287,7 @@ def push_sdd_store_after_commit(
 ) -> None:
     if store.storage not in {
         SDD_STORAGE_SEPARATE_REPO,
-        SDD_STORAGE_COMPANION_REPOS,
+        SDD_STORAGE_SIDECAR_REPOS,
     }:
         return
 

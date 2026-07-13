@@ -110,16 +110,16 @@ sdd/beads/
   beads.db              # SQLite compatibility cache (gitignored)
 ```
 
-Providerless local storage and legacy single-companion storage use `.sase/sdd/beads/` with the same structure. Split
-companion storage uses `beads/` at the root of the active workspace's auto-cloned `--plans` repository. Local storage
-uses the primary workspace; both companion layouts use the active workspace clone and record provider/remote metadata in
-the primary workspace's `.sase/sdd-store.json`.
+Providerless local storage and legacy single-sidecar storage use `.sase/sdd/beads/` with the same structure. Split
+sidecar storage uses `beads/` at the root of the active workspace's auto-cloned `--plans` repository. Local storage uses
+the primary workspace; both sidecar layouts use the active workspace clone and record provider/remote metadata in the
+primary workspace's `.sase/sdd-store.json`.
 
 Normal bead commands read and write one store for the active checkout. In in-tree mode, canonical bead state lives in
 the current checkout's `sdd/beads/events/**` event store plus `sdd/beads/config.json`. Providerless local commands route
-to the primary workspace's `.sase/sdd/beads/` store. Companion-policy commands first materialize the provider store,
-then route to the active workspace clone so an agent in workspace `#N` writes either its matching `.sase/sdd/` checkout
-or its `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to legacy `issues.jsonl`.
+to the primary workspace's `.sase/sdd/beads/` store. Sidecar-policy commands first materialize the provider store, then
+route to the active workspace clone so an agent in workspace `#N` writes either its matching `.sase/sdd/` checkout or
+its `sase/repos/plans/beads/` directory. If the event store is absent, reads fall back to legacy `issues.jsonl`.
 Numbered sibling workspaces and legacy stores are not merged into normal `sase bead` reads.
 
 ### Event Log + Compatibility Projections
@@ -152,7 +152,7 @@ form when passing list filters.
 ### `sase bead init`
 
 Initialize the bead store for the current project. In effective in-tree SDD mode this is `sdd/beads/`; local and legacy
-separate-repo modes use `.sase/sdd/beads/`; split companion mode uses `beads/` in the `--plans` repository.
+separate-repo modes use `.sase/sdd/beads/`; split sidecar mode uses `beads/` in the `--plans` repository.
 
 ### `sase bead create`
 

@@ -135,9 +135,7 @@ class TestPath:
 
         assert path == str(linked_primary)
 
-    def test_companion_repo_path_stays_in_durable_namespace(
-        self, tmp_path: Path
-    ) -> None:
+    def test_sidecar_repo_path_stays_in_durable_namespace(self, tmp_path: Path) -> None:
         host_primary = tmp_path / "main"
         linked_primary = tmp_path / "main--plans"
         host_primary.mkdir()

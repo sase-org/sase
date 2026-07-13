@@ -14,8 +14,8 @@ from sase.sdd._types import (
 
 SDD_DIRECTORY_MAP_FILENAME = "sdd-directory-map.png"
 SDD_DIRECTORY_MAP_RELATIVE_PATH = f"assets/{SDD_DIRECTORY_MAP_FILENAME}"
-SDD_COMPANION_KINDS = ("plans", "research")
-SDD_COMPANION_DIRECTORY_MAP_FILENAMES = {
+SDD_SIDECAR_KINDS = ("plans", "research")
+SDD_SIDECAR_DIRECTORY_MAP_FILENAMES = {
     "plans": "plans-directory-map.png",
     "research": "research-directory-map.png",
 }
@@ -45,7 +45,7 @@ def expected_sdd_directory_readmes(
             path=sdd_root / dirname / "README.md",
             content=_read_sdd_markdown(f"{dirname}-README.md"),
         )
-        for dirname in SDD_COMPANION_KINDS
+        for dirname in SDD_SIDECAR_KINDS
     )
 
 
@@ -69,33 +69,33 @@ def expected_sdd_directory_map(
     )
 
 
-def expected_sdd_companion_files(
+def expected_sdd_sidecar_files(
     kind: str, root: str | Path
 ) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
-    """Return deterministic generated files for one split companion root."""
+    """Return deterministic generated files for one split sidecar root."""
 
-    _validate_companion_kind(kind)
-    companion_root = Path(root)
-    filename = SDD_COMPANION_DIRECTORY_MAP_FILENAMES[kind]
+    _validate_sidecar_kind(kind)
+    sidecar_root = Path(root)
+    filename = SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind]
     return (
         SddExpectedTextFile(
-            path=companion_root / "README.md",
-            content=_read_sdd_markdown(f"companion-{kind}-README.md"),
+            path=sidecar_root / "README.md",
+            content=_read_sdd_markdown(f"sidecar-{kind}-README.md"),
         ),
         SddExpectedBytesFile(
-            path=companion_root / "assets" / filename,
-            content=_read_sdd_companion_directory_map_bytes(kind),
+            path=sidecar_root / "assets" / filename,
+            content=_read_sdd_sidecar_directory_map_bytes(kind),
         ),
     )
 
 
-def plan_sdd_companion_init_actions(
+def plan_sdd_sidecar_init_actions(
     kind: str, root: str | Path
 ) -> tuple[SddInitAction, ...]:
-    """Plan generated README and asset drift for one split companion."""
+    """Plan generated README and asset drift for one split sidecar."""
 
     actions: list[SddInitAction] = []
-    for expected in expected_sdd_companion_files(kind, root):
+    for expected in expected_sdd_sidecar_files(kind, root):
         operation = (
             planned_text_operation(expected.path, expected.content)
             if isinstance(expected, SddExpectedTextFile)
@@ -106,17 +106,17 @@ def plan_sdd_companion_init_actions(
                 SddInitAction(
                     path=expected.path,
                     operation=operation,
-                    detail=f"{kind} companion {expected.path.name}",
+                    detail=f"{kind} sidecar {expected.path.name}",
                     new_content=expected.content,
                 )
             )
     return tuple(actions)
 
 
-def ensure_sdd_companion_initialized(kind: str, root: str | Path) -> tuple[Path, ...]:
-    """Refresh deterministic generated files for one split companion."""
+def ensure_sdd_sidecar_initialized(kind: str, root: str | Path) -> tuple[Path, ...]:
+    """Refresh deterministic generated files for one split sidecar."""
 
-    actions = plan_sdd_companion_init_actions(kind, root)
+    actions = plan_sdd_sidecar_init_actions(kind, root)
     for action in actions:
         action.path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(action.new_content, bytes):
@@ -205,20 +205,20 @@ def read_sdd_directory_map_bytes() -> bytes:
         return source_path.read_bytes()
 
 
-def _read_sdd_companion_directory_map_bytes(kind: str) -> bytes:
-    """Read the packaged directory-map placeholder for one companion."""
+def _read_sdd_sidecar_directory_map_bytes(kind: str) -> bytes:
+    """Read the packaged directory-map placeholder for one sidecar."""
 
-    _validate_companion_kind(kind)
+    _validate_sidecar_kind(kind)
     source = resources.files("sase.sdd").joinpath(
-        "assets", SDD_COMPANION_DIRECTORY_MAP_FILENAMES[kind]
+        "assets", SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind]
     )
     with resources.as_file(source) as source_path:
         return source_path.read_bytes()
 
 
-def _validate_companion_kind(kind: str) -> None:
-    if kind not in SDD_COMPANION_KINDS:
-        raise ValueError(f"unknown SDD companion kind: {kind}")
+def _validate_sidecar_kind(kind: str) -> None:
+    if kind not in SDD_SIDECAR_KINDS:
+        raise ValueError(f"unknown SDD sidecar kind: {kind}")
 
 
 def planned_text_operation(

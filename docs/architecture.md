@@ -60,7 +60,7 @@ inspected by users, agents, and automation:
 | ChangeSpecs      | Project `.sase` files under `~/.sase/projects/`                    | Project lifecycle state plus review lifecycle, commits, hooks, comments, mentors, dependencies, and timestamps. |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                     |
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                        |
-| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split companion roots   | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.             |
+| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.             |
 | Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`.  |
 | Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                         |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                       |
@@ -83,7 +83,7 @@ Provider abstractions keep SASE above any single agent runtime, version-control 
 | VCS provider       | Diff, checkout, commit, amend, proposal/PR dispatch, reword, submit, sync, revert, restore, and review metadata. | [VCS providers](vcs.md)         |
 | Workspace provider | Workspace reference resolution, workspace directory allocation, submit/mail preparation, workflow metadata.      | [Workspaces](workspace.md)      |
 | Resource plugins   | Extra xprompt/workflow files and default configuration.                                                          | [Plugins](plugins.md)           |
-| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for companion tools.                                       | [Integrations](integrations.md) |
+| Integration APIs   | Public Python helpers and fixed JSON bridge contracts for sidecar tools.                                         | [Integrations](integrations.md) |
 
 Core SASE ships built-in providers for common local use: bundled LLM provider entry points, plain-git VCS support, and
 bare-git workspaces. Optional packages can add hosted VCS workflows, notification delivery, editor integrations, or

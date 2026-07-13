@@ -47,7 +47,7 @@ def test_find_beads_location_local_mode_still_uses_primary_workspace(
     assert beads_dirname == "beads"
 
 
-def test_find_beads_location_companion_store_uses_plans_clone(
+def test_find_beads_location_sidecar_store_uses_plans_clone(
     tmp_path: Path, monkeypatch
 ) -> None:
     from sase.sdd.store import write_sdd_store_record
@@ -61,9 +61,9 @@ def test_find_beads_location_companion_store_uses_plans_clone(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/project--plans",
                     "remote_url": "git@example.com:acme/project--plans.git",

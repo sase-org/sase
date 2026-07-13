@@ -356,7 +356,7 @@ def refresh_linked_repos_for_workspace(
 
 
 def capture_sdd_base_sha(workspace_dir: str, workspace_num: int) -> str | None:
-    """Return the companion SDD repo HEAD to bound finalize-time scans."""
+    """Return the sidecar SDD repo HEAD to bound finalize-time scans."""
     try:
         from sase.sdd.store import resolve_sdd_store
 

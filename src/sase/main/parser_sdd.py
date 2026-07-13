@@ -33,7 +33,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Materialize provider storage and refresh generated guides",
         description=(
             "Materialize provider storage and refresh generated guides. "
-            "Creating a missing GitHub companion always requires an "
+            "Creating a missing GitHub sidecar always requires an "
             "interactive, default-no y/yes confirmation."
         ),
     )
@@ -78,10 +78,10 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
 
     migrate_parser = sdd_sub.add_parser(
         "migrate",
-        help="Migrate a legacy SDD clone into split companion repositories",
+        help="Migrate a legacy SDD clone into split sidecar repositories",
         description=(
             "Copy monthly plans, research, and durable bead state into the "
-            "initialized split companions, rewrite frontmatter links, push both "
+            "initialized split sidecars, rewrite frontmatter links, push both "
             "repositories, and retire the legacy clone. Run `sase sdd init` first."
         ),
     )
@@ -112,7 +112,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "-e",
         "--ensure",
         action="store_true",
-        help="Materialize and synchronize the backing companion clone",
+        help="Materialize and synchronize the backing sidecar clone",
     )
     path_parser.add_argument(
         "kind",

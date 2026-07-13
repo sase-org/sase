@@ -34,7 +34,7 @@ def test_config_sdd_warns_on_retired_version_controlled(
     )
 
 
-def test_config_sdd_errors_when_provider_companion_has_no_record(
+def test_config_sdd_errors_when_provider_sidecar_has_no_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda _cwd: "github")
@@ -113,11 +113,11 @@ def test_config_sdd_errors_on_orphaned_store_record(tmp_path: Path) -> None:
     )
 
 
-def test_config_sdd_errors_when_split_companion_clone_is_missing(
+def test_config_sdd_errors_when_split_sidecar_clone_is_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plans, _research = _write_companion_sdd_record(tmp_path)
+    plans, _research = _write_sidecar_sdd_record(tmp_path)
     (plans / ".git").mkdir(parents=True)
     monkeypatch.setattr(
         "sase.doctor.checks_config_sdd._git_stdout", lambda *_args: None
@@ -127,7 +127,7 @@ def test_config_sdd_errors_when_split_companion_clone_is_missing(
 
     assert check.status == "ERROR"
     assert any(
-        issue["code"] == "missing-research-companion-clone"
+        issue["code"] == "missing-research-sidecar-clone"
         for issue in check.data["storage_issues"]
     )
 
@@ -136,7 +136,7 @@ def test_config_sdd_warns_when_legacy_clone_lingers_after_split(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plans, research = _write_companion_sdd_record(tmp_path)
+    plans, research = _write_sidecar_sdd_record(tmp_path)
     (plans / ".git").mkdir(parents=True)
     (research / ".git").mkdir(parents=True)
     (tmp_path / ".sase" / "sdd").mkdir()
@@ -188,11 +188,11 @@ def test_config_sdd_record_regression_check_ignores_legacy_only_layout(
     )
 
 
-def test_config_sdd_record_regression_check_ignores_healthy_companions(
+def test_config_sdd_record_regression_check_ignores_healthy_sidecars(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plans, research = _write_companion_sdd_record(tmp_path)
+    plans, research = _write_sidecar_sdd_record(tmp_path)
     (plans / ".git").mkdir(parents=True)
     (research / ".git").mkdir(parents=True)
     monkeypatch.setattr(
@@ -229,16 +229,16 @@ def _write_materialized_sdd_record(
     (primary / ".sase" / "sdd" / ".git").mkdir(parents=True)
 
 
-def _write_companion_sdd_record(primary: Path) -> tuple[Path, Path]:
+def _write_sidecar_sdd_record(primary: Path) -> tuple[Path, Path]:
     from sase.sdd.store import write_sdd_store_record
 
     write_sdd_store_record(
         primary,
         {
             "schema_version": 2,
-            "storage": "companion_repos",
+            "storage": "sidecar_repos",
             "provider": "github",
-            "companions": {
+            "sidecars": {
                 "plans": {
                     "repo": "acme/widget--plans",
                     "remote_url": "git@github.com:acme/widget--plans.git",
@@ -305,7 +305,7 @@ def test_config_sdd_retired_storage_is_ignored_while_record_stays_active(
     )
 
 
-def test_config_sdd_warns_when_companion_diverged(
+def test_config_sdd_warns_when_sidecar_diverged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote_url = "git@github.com:acme/widget-sdd.git"
@@ -339,13 +339,13 @@ def test_config_sdd_warns_when_companion_diverged(
     assert check.status == "WARN"
     assert all("fetch" not in command for command in git_commands)
     assert any(
-        issue["code"] == "companion-diverged"
+        issue["code"] == "sidecar-diverged"
         and "3 ahead and 2 behind" in issue["message"]
         for issue in check.data["storage_issues"]
     )
 
 
-def test_config_sdd_warns_on_duplicate_companion_remote(
+def test_config_sdd_warns_on_duplicate_sidecar_remote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote_url = "git@github.com:acme/shared-sdd.git"
@@ -374,6 +374,6 @@ def test_config_sdd_warns_on_duplicate_companion_remote(
 
     assert check.status == "WARN"
     assert any(
-        issue["code"] == "duplicate-companion-remote" and "beta" in issue["message"]
+        issue["code"] == "duplicate-sidecar-remote" and "beta" in issue["message"]
         for issue in check.data["storage_issues"]
     )

@@ -11,12 +11,12 @@ from sase.sdd.store import (
     SddMaterializationError,
     create_and_materialize_sdd_store,
     materialize_sdd_store,
-    preflight_sdd_companion,
+    preflight_sdd_sidecar,
     read_sdd_store_record,
     write_sdd_store_record,
 )
 from sase.workspace_provider._hookspec import (
-    SddCompanionPreflight,
+    SddSidecarPreflight,
     WorkflowMetadata,
     hookimpl,
 )
@@ -73,10 +73,10 @@ class _FakeSeparateRepoProvider:
 
 
 class _ConcurrentPushProvider:
-    """Advance the shared companion remote between the staging clone and push.
+    """Advance the shared sidecar remote between the staging clone and push.
 
     Simulates a second workspace materializing (and pushing to) the same shared
-    companion repository first, so this materialization's push is rejected as a
+    sidecar repository first, so this materialization's push is rejected as a
     non-fast-forward and must integrate the remote work before retrying.
     """
 
@@ -107,14 +107,14 @@ class _ConcurrentPushProvider:
         self.calls += 1
         staging = Path(str(options["staging_dir"]))
         clone(self.remote, staging)
-        # A concurrent workspace pushes to the shared companion remote after our
+        # A concurrent workspace pushes to the shared sidecar remote after our
         # staging clone is taken but before we push, advancing the remote past
         # our clone so our push is a non-fast-forward rejection.
         clone(self.remote, self._rival_worktree)
         rival = self._rival_worktree / "research" / "rival.md"
         rival.parent.mkdir(parents=True, exist_ok=True)
         rival.write_text("rival\n", encoding="utf-8")
-        commit_all(self._rival_worktree, "Concurrent companion import")
+        commit_all(self._rival_worktree, "Concurrent sidecar import")
         git(["push", "origin", "HEAD"], self._rival_worktree)
         return {
             "schema_version": 1,
@@ -146,14 +146,14 @@ class _PreflightProvider(_MetadataOnlyProvider):
         self.calls: list[tuple[str, str, dict[str, object]]] = []
 
     @hookimpl
-    def ws_preflight_sdd_companion(
+    def ws_preflight_sdd_sidecar(
         self,
         primary_workspace_dir: str,
         workspace_dir: str,
         options: dict[str, object],
-    ) -> SddCompanionPreflight | None:
+    ) -> SddSidecarPreflight | None:
         self.calls.append((primary_workspace_dir, workspace_dir, options))
-        return SddCompanionPreflight(
+        return SddSidecarPreflight(
             status="not_found",
             provider="FakeHub",
             host="example.test",
@@ -171,7 +171,7 @@ def _install_provider(
 
 
 def _remote_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     seed = tmp_path / "seed"
     init_bare_repo(remote)
     clone(remote, seed)
@@ -179,7 +179,7 @@ def _remote_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
         path = seed / relpath
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    commit_all(seed, "Seed companion")
+    commit_all(seed, "Seed sidecar")
     git(["push", "-u", "origin", "main"], seed)
     shutil.rmtree(seed)
     return remote
@@ -194,7 +194,7 @@ def test_preflight_dispatches_read_only_provider_contract(
     provider = _PreflightProvider()
     _install_provider(monkeypatch, provider)
 
-    result = preflight_sdd_companion(primary, 1)
+    result = preflight_sdd_sidecar(primary, 1)
 
     assert result.status == "not_found"
     assert result.repo == "owner/repo--sdd"
@@ -217,7 +217,7 @@ def test_preflight_fails_closed_when_provider_hook_is_unavailable(
     _install_provider(monkeypatch, _MetadataOnlyProvider())
 
     with pytest.raises(SddMaterializationError, match="Update the provider plugin"):
-        preflight_sdd_companion(primary, 1)
+        preflight_sdd_sidecar(primary, 1)
 
     assert not (primary / ".sase").exists()
 
@@ -230,7 +230,7 @@ def test_materialization_bootstraps_primary_and_numbered_workspace(
     workspace = tmp_path / "repo_2"
     primary.mkdir()
     workspace.mkdir()
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
     _install_provider(monkeypatch, provider)
@@ -257,7 +257,7 @@ def test_existing_positive_clone_remains_usable_offline(
     workspace = tmp_path / "repo_2"
     primary.mkdir()
     workspace.mkdir()
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
     _install_provider(monkeypatch, provider)
@@ -288,7 +288,7 @@ def test_existing_positive_clone_adopts_new_legacy_artifacts_without_provider(
 ) -> None:
     primary = tmp_path / "repo"
     primary.mkdir()
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
     materialize_sdd_store(primary, 1)
@@ -337,7 +337,7 @@ def test_old_negative_record_is_retried_and_replaced(
         ),
         encoding="utf-8",
     )
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
 
@@ -354,14 +354,14 @@ def test_old_negative_record_is_retried_and_replaced(
         json.dumps(
             {
                 "schema_version": 2,
-                "storage": "future_companions",
+                "storage": "future_sidecars",
                 "discovery": "found",
             }
         ),
         json.dumps(
             {
                 "schema_version": 3,
-                "storage": "companion_repos",
+                "storage": "sidecar_repos",
                 "discovery": "found",
             }
         ),
@@ -379,7 +379,7 @@ def test_foreign_record_is_preserved_and_fails_loudly(
     record_path = primary / ".sase" / "sdd-store.json"
     record_path.parent.mkdir(parents=True)
     record_path.write_text(content, encoding="utf-8")
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
     _install_provider(monkeypatch, provider)
@@ -440,7 +440,7 @@ def test_local_and_in_tree_artifacts_are_imported_without_deleting_in_tree(
     assert not (store.sdd_dir / "beads" / "beads.db-wal").exists()
 
 
-def test_materialization_recovers_from_concurrent_companion_push(
+def test_materialization_recovers_from_concurrent_sidecar_push(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -477,7 +477,7 @@ def test_mismatched_local_git_repo_is_imported_via_staging(
     init_git_identity(local)
     (local / "research").mkdir()
     (local / "research" / "legacy.md").write_text("legacy\n", encoding="utf-8")
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     git(["remote", "add", "origin", str(tmp_path / "unrelated.git")], local)
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
@@ -512,17 +512,17 @@ def test_versioned_stale_clone_defers_overlap_and_skips_runtime_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    remote = _remote_with_files(tmp_path, {"plans/202607/shared.md": "companion\n"})
+    remote = _remote_with_files(tmp_path, {"plans/202607/shared.md": "sidecar\n"})
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
 
     primary = tmp_path / "repo"
     local = primary / ".sase" / "sdd"
-    # A stale companion clone whose origin is the pre-rename URL, so it is not
-    # recognized as the companion and is inspected as a legacy source.
+    # A stale sidecar clone whose origin is the pre-rename URL, so it is not
+    # recognized as the sidecar and is inspected as a legacy source.
     clone(remote, local)
     git(["remote", "set-url", "origin", str(tmp_path / "renamed.git")], local)
-    # Its committed copy of the shared tale merely lags the companion, holds a
-    # not-yet-pushed unique tale, and carries an accidentally nested companion
+    # Its committed copy of the shared tale merely lags the sidecar, holds a
+    # not-yet-pushed unique tale, and carries an accidentally nested sidecar
     # clone under .sase that must never be imported as a durable artifact.
     (local / "plans" / "202607" / "shared.md").write_text("stale\n", encoding="utf-8")
     (local / "plans" / "202607" / "unique.md").write_text("unique\n", encoding="utf-8")
@@ -533,12 +533,12 @@ def test_versioned_stale_clone_defers_overlap_and_skips_runtime_metadata(
 
     store = materialize_sdd_store(primary, 1)
 
-    # The overlapping artifact defers to the authoritative companion; the stale,
+    # The overlapping artifact defers to the authoritative sidecar; the stale,
     # version-controlled copy no longer aborts the transaction as a conflict.
     assert (store.sdd_dir / "plans" / "202607" / "shared.md").read_text() == (
-        "companion\n"
+        "sidecar\n"
     )
-    # The unique, unpushed artifact is still rescued into the companion.
+    # The unique, unpushed artifact is still rescued into the sidecar.
     assert (store.sdd_dir / "plans" / "202607" / "unique.md").read_text() == "unique\n"
     # Nested workspace runtime metadata is excluded from durable-artifact import.
     assert not (store.sdd_dir / ".sase").exists()
@@ -550,7 +550,7 @@ def test_materialization_is_idempotent(
 ) -> None:
     primary = tmp_path / "repo"
     primary.mkdir()
-    remote = tmp_path / "companion.git"
+    remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
     _install_provider(monkeypatch, provider)

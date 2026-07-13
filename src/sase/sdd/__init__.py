@@ -27,7 +27,7 @@ from sase.sdd.files import (
 )
 from sase.sdd.store import (
     SddInitOutcome,
-    SddCompanion,
+    SddSidecar,
     SddStore,
     SddStoreRecord,
     SddMaterializationError,
@@ -65,7 +65,7 @@ __all__ = [
     "write_sdd_readme",
     "write_sdd_files",
     "SddInitOutcome",
-    "SddCompanion",
+    "SddSidecar",
     "SddStore",
     "SddStoreRecord",
     "SddMaterializationError",

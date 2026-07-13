@@ -119,7 +119,7 @@ def test_primary_workspace_dir_uses_marker_when_project_unresolved(
 
     Regression: separate_repo SDD storage read the store record from the
     suffix-stripped path (``.../proj/proj``) instead of the real primary,
-    so agent launches failed to materialize the SDD companion repo.
+    so agent launches failed to materialize the SDD sidecar repo.
     """
     checkout = tmp_path / "state" / "workspaces" / "org" / "proj" / "proj_7"
     primary = tmp_path / "home" / "projects" / "org" / "proj"
@@ -251,13 +251,13 @@ def test_get_yyyymm_january() -> None:
     assert get_yyyymm(dt) == "202601"
 
 
-def test_agent_env_exports_all_companion_kind_roots(
+def test_agent_env_exports_all_sidecar_kind_roots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     plans = tmp_path / "sase" / "repos" / "plans"
     research = tmp_path / "sase" / "repos" / "research"
     store = SddStore(
-        "companion_repos",
+        "sidecar_repos",
         plans,
         plans,
         research_dir=research,
