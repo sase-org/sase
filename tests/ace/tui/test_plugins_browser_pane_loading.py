@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.widgets import OptionList
+from textual.widgets import Input, OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
@@ -166,6 +166,29 @@ async def test_plugins_pane_filter_narrows_list(
                 e.name == "telegram" for _, _, lst in pane._grouped for e in lst
             )
         )
+
+
+async def test_updates_filter_accepts_brackets_and_tab_switches_main_tab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        pane.action_focus_filter()
+        filter_input = pane.query_one("#plugins-filter-input", Input)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        await page.press("left_square_bracket", "right_square_bracket")
+        await page.wait_for(lambda _s: filter_input.value == "[]")
+        assert modal._active_tab == "updates"
+
+        await page.press("tab")
+        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        assert filter_input.value == "[]"
+        assert page.app.current_tab == "changespecs"
 
 
 async def test_plugins_pane_filter_no_matches(

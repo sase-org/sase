@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from textual.containers import VerticalScroll
-from textual.widgets import Tree
+from textual.widgets import Input, Tree
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
@@ -146,6 +146,28 @@ async def test_config_pane_filter_updates_title_match_count(
         await page.press("t", "i", "m", "e", "z", "o", "n", "e")
         await page.wait_for(lambda _s: set(pane._node_by_path) == {"timezone"})
         assert "matching 1 /" in pane._title_text()
+
+
+async def test_config_filter_accepts_brackets_and_tab_switches_main_tab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_loaders(monkeypatch)
+    async with AcePage() as page:
+        pane = await _open_config_pane(page)
+        modal = page.app.screen
+        assert isinstance(modal, ConfigCenterModal)
+        pane.action_focus_filter()
+        filter_input = pane.query_one("#config-filter-input", Input)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        await page.press("left_square_bracket", "right_square_bracket")
+        await page.wait_for(lambda _s: filter_input.value == "[]")
+        assert modal._active_tab == "config"
+
+        await page.press("tab")
+        await page.wait_for(lambda _s: modal._active_tab == "logs")
+        assert filter_input.value == "[]"
+        assert page.app.current_tab == "changespecs"
 
 
 async def test_config_pane_modified_only_toggle(

@@ -647,7 +647,7 @@ class LogsPane(CopyModeForwardingMixin, Vertical):
             return f"JUMP ' {action}  <esc> cancel"
         return (
             "j/k: move   ctrl+d/u: scroll   g/G: top/bottom   "
-            "': jump   r: refresh   [ / ]: tab   Esc: close"
+            "': jump   r: refresh   Tab/Shift+Tab: tab   Esc: close"
         )
 
 

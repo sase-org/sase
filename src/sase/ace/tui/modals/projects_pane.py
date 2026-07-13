@@ -5,7 +5,7 @@ filter tabs, summary, filter input, project list, detail pane, and hints) so it
 can live inside the **Projects** tab of the :class:`ConfigCenterModal` content
 switcher. Every behavior of the old modal is preserved; the only structural
 change is that the surrounding ``ModalScreen`` chrome (centering container,
-escape/close handling, tab navigation) now belongs to the host modal.
+escape/close handling, main-tab navigation) now belongs to the host modal.
 
 The lifecycle/delete actions (:class:`ProjectManagementActionsMixin`) and the
 pure rendering helpers (``project_management_rendering``) are reused unchanged.
@@ -60,38 +60,22 @@ class _ProjectsFilterInput(FilterInput):
     """Filter input that forwards navigation keys swallowed by ``Input``.
 
     Printable keys are consumed by :class:`Input` as text before pane or
-    screen bindings fire. The Projects tab needs two of those keys to keep
-    working while the filter is focused:
-
-    - ``[`` / ``]`` switch Admin Center tabs (forwarded to the host modal),
-      mirroring :class:`BrowserFilterInput` in ``xprompt_browser_filter_input``;
-    - ``tab`` / ``shift+tab`` cycle the state filter (forwarded to the owning
-      pane), preserving the modal's screen-level priority behavior.
+    screen bindings fire, so ``[`` / ``]`` are forwarded to the owning pane's
+    state-filter actions. ``Tab`` / ``Shift+Tab`` are intentionally left to the
+    Admin Center's priority bindings for main-tab navigation.
     """
 
     def on_key(self, event: events.Key) -> None:
-        """Forward tab-switch / state-cycle keys before they become text."""
+        """Forward state-cycle keys before they become filter text."""
         if event.key in ("left_square_bracket", "right_square_bracket"):
-            host = self.screen
-            prev_tab = getattr(host, "action_prev_center_tab", None)
-            next_tab = getattr(host, "action_next_center_tab", None)
-            if callable(prev_tab) and callable(next_tab):
-                event.stop()
-                event.prevent_default()
-                if event.key == "left_square_bracket":
-                    prev_tab()
-                else:
-                    next_tab()
-            return
-        if event.key in ("tab", "shift+tab"):
             pane = self._pane()
             if pane is not None:
                 event.stop()
                 event.prevent_default()
-                if event.key == "tab":
-                    pane.action_cycle_state_filter()
-                else:
+                if event.key == "left_square_bracket":
                     pane.action_cycle_state_filter_reverse()
+                else:
+                    pane.action_cycle_state_filter()
 
     def _pane(self) -> ProjectsPane | None:
         """Return the owning :class:`ProjectsPane`, if any."""
@@ -119,8 +103,8 @@ class ProjectsPane(
         ("ctrl+n", "next_option", "Next"),
         ("ctrl+p", "prev_option", "Previous"),
         ("/", "focus_filter", "Filter"),
-        ("tab", "cycle_state_filter", "Cycle State"),
-        ("shift+tab", "cycle_state_filter_reverse", "Cycle State Back"),
+        ("right_square_bracket", "cycle_state_filter", "Cycle State"),
+        ("left_square_bracket", "cycle_state_filter_reverse", "Cycle State Back"),
         ("ctrl+x", "toggle_inactive_projects", "Inactive"),
         ("m", "toggle_project_mark", "Mark"),
         ("u", "clear_project_marks", "Unmark All"),

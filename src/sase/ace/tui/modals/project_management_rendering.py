@@ -190,7 +190,7 @@ def _action_hints(show_inactive_projects: bool) -> str:
     """Shared keybinding hint string (no close / tab-switch affordance)."""
     inactive_action = "hide inactive" if show_inactive_projects else "show inactive"
     return (
-        "j/k navigate  / filter  Tab/Shift+Tab state  Enter highlighted  "
+        "j/k navigate  / filter  [ / ] state  Enter highlighted  "
         f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  A aliases  a activate  d deactivate  "
         "Ctrl+D delete  F force after block  R reload"
     )
@@ -207,7 +207,7 @@ def hints_text(marked_projects: set[str], show_inactive_projects: bool) -> str:
     mark_count = len(marked_projects)
     if mark_count:
         base = f"{base}  marked:{mark_count} (a/d/Ctrl+D target marked set)"
-    return f"{base}  [ / ] switch tab   q close"
+    return f"{base}  Tab/Shift+Tab switch tab   q close"
 
 
 def detail_text(

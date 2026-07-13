@@ -97,11 +97,11 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         assert [record.project_name for record in pane._filtered_records] == ["alpha"]
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "sibling"
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "inactive"
         assert [record.project_name for record in pane._filtered_records] == [
@@ -114,7 +114,7 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         assert pane._marked_projects == {"beta"}
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "all"
         assert [record.project_name for record in pane._filtered_records] == [
@@ -124,7 +124,7 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
         ]
         assert pane._marked_projects == {"beta"}
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "active"
         assert pane._marked_projects == {"beta"}

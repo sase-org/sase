@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from rich.text import Text
+from textual.binding import Binding
 from textual.widgets import ContentSwitcher, Static
 
 from sase.ace.admin_center_tab import load_admin_center_tab, save_admin_center_tab
@@ -61,6 +62,39 @@ def test_title_has_no_leading_icon_and_underline_matches() -> None:
     assert _TITLE_TEXT == _TITLE_LABEL
     assert not _TITLE_TEXT.startswith("⎈")
     assert len(_TITLE_UNDERLINE) == len(_TITLE_TEXT)
+
+
+def test_tab_cycle_bindings_are_modal_priority() -> None:
+    bindings = {
+        binding.key: binding
+        for binding in ConfigCenterModal.BINDINGS
+        if isinstance(binding, Binding)
+    }
+
+    assert bindings["tab"].action == "next_center_tab"
+    assert bindings["tab"].priority is True
+    assert bindings["shift+tab"].action == "prev_center_tab"
+    assert bindings["shift+tab"].priority is True
+
+
+async def test_tab_hotkeys_wrap_without_switching_hidden_ace_tab(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog())
+
+    async with AcePage(initial_tab="agents") as page:
+        modal = ConfigCenterModal(initial_tab="config")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+
+        await page.press("shift+tab")
+        await page.wait_for(lambda _s: modal._active_tab == "xprompts")
+        assert page.app.current_tab == "agents"
+
+        await page.press("tab")
+        await page.wait_for(lambda _s: modal._active_tab == "config")
+        assert page.app.current_tab == "agents"
 
 
 async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(

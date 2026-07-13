@@ -51,11 +51,11 @@ async def test_project_management_modal_activate_mutates_and_reloads(
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "sibling"
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "inactive"
         assert [record.project_name for record in pane._filtered_records] == ["alpha"]
@@ -104,7 +104,7 @@ async def test_project_management_modal_enter_activates_sibling(
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "sibling"
         assert [record.project_name for record in pane._filtered_records] == ["core"]

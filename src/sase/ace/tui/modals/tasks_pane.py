@@ -617,7 +617,7 @@ class TasksPane(Vertical):
     def _hints(self) -> str:
         return (
             "j/k: move   d/D: dismiss   K: kill   e: edit   y: copy   "
-            "ctrl+d/u, g/G: scroll   [ / ]: tab   Esc: close"
+            "ctrl+d/u, g/G: scroll   Tab/Shift+Tab: tab   Esc: close"
         )
 
     def _force_scroll_output_to(

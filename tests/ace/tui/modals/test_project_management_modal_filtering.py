@@ -81,12 +81,12 @@ async def test_project_management_modal_filters_states(
         pane._text_filter = ""
         pane._apply_filters()
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "sibling"
         assert [r.project_name for r in pane._filtered_records] == ["core"]
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "inactive"
         assert [r.project_name for r in pane._filtered_records] == [
@@ -94,7 +94,7 @@ async def test_project_management_modal_filters_states(
             "gamma",
         ]
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "all"
         assert [r.project_name for r in pane._filtered_records] == [
@@ -104,12 +104,12 @@ async def test_project_management_modal_filters_states(
             "gamma",
         ]
 
-        await pilot.press("tab")
+        await pilot.press("right_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "active"
         assert [r.project_name for r in pane._filtered_records] == ["alpha"]
 
-        await pilot.press("shift+tab")
+        await pilot.press("left_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "all"
         assert [r.project_name for r in pane._filtered_records] == [
@@ -119,7 +119,7 @@ async def test_project_management_modal_filters_states(
             "gamma",
         ]
 
-        await pilot.press("shift+tab")
+        await pilot.press("left_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "inactive"
         assert [r.project_name for r in pane._filtered_records] == [
@@ -127,7 +127,7 @@ async def test_project_management_modal_filters_states(
             "gamma",
         ]
 
-        await pilot.press("shift+tab")
+        await pilot.press("left_square_bracket")
         await pilot.pause()
         assert pane._state_filter == "sibling"
         assert [r.project_name for r in pane._filtered_records] == ["core"]
@@ -223,4 +223,5 @@ def test_project_management_modal_footer_includes_delete_affordance(
     assert "d deactivate" in pane._hints_text()
     assert "Ctrl+D delete" in pane._hints_text()
     assert "Ctrl+X show inactive" in pane._hints_text()
-    assert "Tab/Shift+Tab state" in pane._hints_text()
+    assert "[ / ] state" in pane._hints_text()
+    assert "Tab/Shift+Tab switch tab" in pane._hints_text()

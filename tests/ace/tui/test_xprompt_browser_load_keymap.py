@@ -1,11 +1,12 @@
 """Integration tests for the XPrompts tab ``Ctrl+I`` inline-load keymap.
 
 The Admin Center XPrompts tab loads a non-YAML xprompt into the main prompt
-input bar when ``Ctrl+I`` (or its terminal ``tab`` byte) is pressed on a
-loadable row. YAML-backed rows -- workflow ``.yml`` files and config-backed
-xprompts -- are ineligible, so the keymap is a no-op and the Admin Center stays
-open. The expansion reuses ``expand_inline_xprompt`` and stages declared inputs
-into prompt frontmatter for parity with the Select XPrompt ``Ctrl+I`` path.
+input bar when explicit ``Ctrl+I`` is pressed on a loadable row. YAML-backed
+rows -- workflow ``.yml`` files and config-backed xprompts -- are ineligible,
+so the keymap is a no-op and the Admin Center stays open. Bare ``Tab`` always
+switches the Admin Center's main tab. The expansion reuses
+``expand_inline_xprompt`` and stages declared inputs into prompt frontmatter
+for parity with the Select XPrompt ``Ctrl+I`` path.
 """
 
 from __future__ import annotations
@@ -175,36 +176,38 @@ async def test_ctrl_i_is_inert_for_yaml_backed_rows(
         await page.expect_modal("ConfigCenterModal")
 
 
-async def test_tab_routes_to_load_on_eligible_row(
+async def test_tab_switches_admin_center_tab_on_eligible_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Real terminals deliver ``Ctrl+I`` as the Tab byte; it must still load.
-    prompts = {"note": _md_xprompt("note", "Tab loaded body.", source_path="n.md")}
+    prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
     async with AcePage() as page:
-        await _open_xprompts_tab(page, monkeypatch, prompts)
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+        assert pane.highlighted_row_is_loadable() is True
 
         await page.press("tab")
-
-        await page.expect_no_modal()
-        await page.wait_for(lambda _s: bool(page.app.query("#prompt-input-bar")))
-        bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
-        assert "Tab loaded body." in bar.active_text()
-
-
-async def test_tab_does_not_load_on_yaml_backed_row(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # On an ineligible row ``tab`` falls through to normal focus cycling, so
-    # the Admin Center stays open and no prompt bar is mounted.
-    prompts = {"cfg": _md_xprompt("cfg", "from config", source_path="config")}
-    async with AcePage() as page:
-        await _open_xprompts_tab(page, monkeypatch, prompts)
-
-        await page.press("tab")
-        await page.pause()
+        await page.wait_for(lambda _s: modal._active_tab == "config")
 
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
+        assert page.app.current_tab == "changespecs"
+
+
+async def test_shift_tab_switches_admin_center_tab_on_yaml_backed_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prompts = {"cfg": _md_xprompt("cfg", "from config", source_path="config")}
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        assert pane.highlighted_row_is_loadable() is False
+
+        await page.press("shift+tab")
+        await page.wait_for(lambda _s: modal._active_tab == "updates")
+
+        assert not page.app.query("#prompt-input-bar")
+        await page.expect_modal("ConfigCenterModal")
+        assert page.app.current_tab == "changespecs"
 
 
 async def test_empty_filter_reserves_numeric_tab_keys(
@@ -265,11 +268,24 @@ async def test_digits_allowed_after_filter_text(
         assert modal._active_tab == "xprompts"
 
 
-async def test_tab_escapes_filter_after_typed_text(
+async def test_brackets_are_ordinary_xprompt_filter_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # With typed filter text, ``tab`` no longer inline-loads even a loadable
-    # row -- it moves focus out so the numeric tab keymaps re-arm.
+    prompts = {"note": _md_xprompt("note", "Body.", source_path="n.md")}
+    async with AcePage() as page:
+        modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
+        await page.wait_for(lambda _s: filter_input.has_focus)
+
+        await page.press("left_square_bracket", "right_square_bracket")
+        await page.wait_for(lambda _s: filter_input.value == "[]")
+
+        assert modal._active_tab == "xprompts"
+
+
+async def test_tab_switches_main_tab_after_typed_filter_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     prompts = {"note": _md_xprompt("note", "Tab body.", source_path="n.md")}
     async with AcePage() as page:
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
@@ -281,13 +297,9 @@ async def test_tab_escapes_filter_after_typed_text(
         await page.wait_for(lambda _s: filter_input.value == "n")
 
         await page.press("tab")
-        await page.pause()
+        await page.wait_for(lambda _s: modal._active_tab == "config")
 
-        # No prompt bar loads, the modal stays open, and focus leaves the filter.
         assert not page.app.query("#prompt-input-bar")
         await page.expect_modal("ConfigCenterModal")
-        await page.wait_for(lambda _s: not filter_input.has_focus)
-
-        # With focus off the filter, the numeric tab key switches to Config.
-        await page.press("1")
-        await page.wait_for(lambda _s: modal._active_tab == "config")
+        assert filter_input.value == "n"
+        assert page.app.current_tab == "changespecs"

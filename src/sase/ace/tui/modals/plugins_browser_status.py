@@ -224,7 +224,7 @@ class PluginsBrowserStatusMixin:
                 f"o{offline}",
                 f"v{verbose}",
                 "/ filter",
-                "[ ] tab",
+                "Tab/Shift+Tab tab",
             ]
         )
         if mark_count:

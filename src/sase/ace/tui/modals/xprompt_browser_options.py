@@ -20,7 +20,7 @@ def browser_hint_text(*, loadable: bool) -> str:
     load_hint = "^i: load  " if loadable else ""
     return (
         f"^n/^p: navigate  enter: edit here  E: $EDITOR  {load_hint}^o: add new  "
-        "^d/^u: scroll  [ / ]: switch tab  Esc: close"
+        "^d/^u: scroll  Tab/Shift+Tab: switch tab  Esc: close"
     )
 
 

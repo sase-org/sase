@@ -543,7 +543,7 @@ async def test_logs_tab_jump_mode_reuses_cached_source_labels(
         assert _option_plain(option_list, 0) == f"[1] {cached_plain}"
 
 
-async def test_brackets_switch_admin_center_tabs_not_log_sources(
+async def test_tab_switches_admin_center_tabs_and_brackets_do_not(
     log_dir: Path,
 ) -> None:
     async with _ModalTestApp().run_test() as pilot:
@@ -554,11 +554,22 @@ async def test_brackets_switch_admin_center_tabs_not_log_sources(
         await pilot.press("left_square_bracket")
         await pilot.pause()
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
-        assert modal._active_tab == "config"
-        assert switcher.current == "config"
+        assert modal._active_tab == "logs"
+        assert switcher.current == "logs"
         assert option_list.highlighted == 0
 
         await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert modal._active_tab == "logs"
+        assert switcher.current == "logs"
+        assert option_list.highlighted == 0
+
+        await pilot.press("tab")
+        await pilot.pause()
+        assert modal._active_tab == "projects"
+        assert switcher.current == "projects"
+
+        await pilot.press("shift+tab")
         await pilot.pause()
         assert modal._active_tab == "logs"
         assert switcher.current == "logs"

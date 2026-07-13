@@ -25,23 +25,16 @@ from .config_pane_view import ConfigPaneView, InputMode
 
 
 class ConfigFilterInput(Input):
-    """Filter/jump input that yields ``[`` / ``]`` to the host tab strip.
+    """Filter/jump input with pane-local escape handling.
 
-    Like the XPrompts pane's filter, ``[`` / ``]`` must reach the Config
-    Center so tab switching works while typing; ``escape`` returns focus to
-    the tree without leaving a stale filter.
+    Brackets remain ordinary filter text; ``escape`` returns focus to the tree
+    without leaving a stale filter. The Admin Center's priority ``Tab`` /
+    ``Shift+Tab`` bindings handle main-tab navigation while this input is
+    focused.
     """
 
     def on_key(self, event: events.Key) -> None:
-        if event.key in ("left_square_bracket", "right_square_bracket"):
-            host = self.screen
-            prev_tab = getattr(host, "action_prev_center_tab", None)
-            next_tab = getattr(host, "action_next_center_tab", None)
-            if callable(prev_tab) and callable(next_tab):
-                event.stop()
-                event.prevent_default()
-                (prev_tab if event.key == "left_square_bracket" else next_tab)()
-        elif event.key == "escape":
+        if event.key == "escape":
             pane = self._pane()
             if pane is not None:
                 event.stop()
@@ -297,7 +290,7 @@ class ConfigPane(Vertical):
         return (
             f"j/k: move  h/l: fold  g/G: top/bottom  ctrl+d/u: scroll  "
             f"↵/e: edit  /: filter  :: jump  "
-            f"m: {mod}  r: refresh  [ / ]: tab  Esc: close"
+            f"m: {mod}  r: refresh  Tab/Shift+Tab: tab  Esc: close"
         )
 
     # -- tree selection events --

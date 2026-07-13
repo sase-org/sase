@@ -18,9 +18,10 @@ alphabetical tabs over a :class:`ContentSwitcher`:
 
 ``#`` opens the modal on the last Admin Center tab used in the current app
 session (Config on a fresh session). ``1``-``6`` jump directly to the matching
-tab, and ``[`` / ``]`` cycle the tabs with modulo wrapping. The clickable tab
-strip mirrors the app's :class:`TabBar`. A centered caption below the tab strip
-describes the active tab using that tab's accent color.
+tab, and ``Tab`` / ``Shift+Tab`` cycle the main tabs with modulo wrapping.
+Pane-local sub-tabs use ``]`` / ``[`` (currently the Projects state filters).
+The clickable tab strip mirrors the app's :class:`TabBar`. A centered caption
+below the tab strip describes the active tab using that tab's accent color.
 """
 
 from __future__ import annotations
@@ -171,8 +172,8 @@ class ConfigCenterModal(ModalScreen[None]):
         Binding("8", "focus_center_tab(8)", "Tab 8", show=False),
         Binding("9", "focus_center_tab(9)", "Tab 9", show=False),
         Binding("0", "focus_center_tab(0)", "Tab 0", show=False),
-        ("left_square_bracket", "prev_center_tab", "Prev Tab"),
-        ("right_square_bracket", "next_center_tab", "Next Tab"),
+        Binding("tab", "next_center_tab", "Next Tab", priority=True),
+        Binding("shift+tab", "prev_center_tab", "Prev Tab", priority=True),
     ]
 
     def __init__(
