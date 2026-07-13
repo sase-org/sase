@@ -257,7 +257,66 @@ class TestDeferredWorkspacePreparation:
         )
         chdir_mock.assert_not_called()
 
-    def test_deferred_wait_prepares_claimed_workspace_after_wait(
+    def test_runners_only_deferred_wait_gates_then_claims_workspace(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        placeholder_ws = tmp_path / "placeholder"
+        real_ws = tmp_path / "real-ws"
+        placeholder_ws.mkdir()
+        real_ws.mkdir()
+        events: list[str] = []
+
+        wait_info = AGENT_INFO._replace(wait_runners=0)
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=wait_info
+        )
+        wait_for_dependencies = MagicMock()
+        detect_repeat_stop = MagicMock(return_value=None)
+        write_error = MagicMock()
+
+        def wait_for_slot(*_args: Any, claim: Any, **kwargs: Any) -> str:
+            assert kwargs["wait_runners"] == 0
+            events.append("gate")
+            return claim()
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            events.append("claim")
+            return 3, str(real_ws)
+
+        def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            events.append("run")
+            assert ctx.workspace_num == 3
+            assert ctx.workspace_dir == str(real_ws)
+            return exec_result(artifacts_dir)
+
+        patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies
+        patches[f"{RUNNER}.detect_repeat_stop"] = detect_repeat_stop
+        patches[f"{RUNNER}.wait_for_runner_slot"] = MagicMock(side_effect=wait_for_slot)
+        patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
+            side_effect=claim_deferred
+        )
+        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+            return_value=LinkedRepoResolution(repos=())
+        )
+        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=run_loop)
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(
+            patches,
+            tmp_path,
+            workspace_dir=placeholder_ws,
+            workspace_num="0",
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        assert events == ["gate", "claim", "run"]
+        wait_for_dependencies.assert_not_called()
+        detect_repeat_stop.assert_not_called()
+        write_error.assert_not_called()
+
+    def test_deferred_wait_gates_before_claim_and_prepares_claimed_workspace(
         self, tmp_path: Path
     ) -> None:
         artifacts_dir = str(tmp_path / "artifacts")
@@ -282,18 +341,27 @@ class TestDeferredWorkspacePreparation:
             assert_no_run_started_at()
             events.append("wait")
 
-        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+        def wait_for_slot(*_args: Any, claim: Any, **kwargs: Any) -> str:
+            assert kwargs["wait_runners"] is None
             assert_no_run_started_at()
+            events.append("gate")
+            return claim()
+
+        def assert_run_started_at() -> None:
+            assert "run_started_at" in json.loads(meta_path.read_text())
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            assert_run_started_at()
             events.append("claim")
             return 3, str(real_ws)
 
         def prepare_ws(workspace_dir: str, *_args: Any, **_kwargs: Any) -> bool:
-            assert_no_run_started_at()
+            assert_run_started_at()
             events.append(("prepare", workspace_dir))
             return True
 
         def refresh_linked_repos(*_args: Any, **_kwargs: Any) -> LinkedRepoResolution:
-            assert_no_run_started_at()
+            assert_run_started_at()
             events.append("refresh-linked")
             return LinkedRepoResolution(
                 repos=(
@@ -308,7 +376,7 @@ class TestDeferredWorkspacePreparation:
             )
 
         def prepare_linked_repos(**kwargs: Any) -> None:
-            assert_no_run_started_at()
+            assert_run_started_at()
             resolution = kwargs["resolution"]
             events.append(("prepare-linked", resolution.repos[0].workspace_dir))
 
@@ -319,6 +387,7 @@ class TestDeferredWorkspacePreparation:
             return exec_result(artifacts_dir)
 
         patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_deps
+        patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
         patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{RUNNER}.claim_deferred_workspace"] = claim_deferred
         patches[f"{SETUP}.prepare_workspace"] = prepare_ws
@@ -339,12 +408,72 @@ class TestDeferredWorkspacePreparation:
 
         assert events == [
             "wait",
+            "gate",
             "claim",
             ("prepare", str(real_ws)),
             "refresh-linked",
             ("prepare-linked", str(tmp_path / "sase-core_3")),
             ("run", 3, str(real_ws)),
         ]
+
+    def test_combined_wait_runs_dependencies_then_gate_then_claim(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        placeholder_ws = tmp_path / "placeholder"
+        real_ws = tmp_path / "real-ws"
+        placeholder_ws.mkdir()
+        real_ws.mkdir()
+        events: list[str] = []
+
+        wait_info = AGENT_INFO._replace(wait_names=["dep"], wait_runners=1)
+        patches = base_patches(artifacts_dir)
+        patches[f"{RUNNER}.extract_directives_and_write_meta"] = MagicMock(
+            return_value=wait_info
+        )
+
+        def wait_for_deps(*_args: Any, **_kwargs: Any) -> None:
+            events.append("wait")
+
+        def wait_for_slot(*_args: Any, claim: Any, **kwargs: Any) -> str:
+            assert kwargs["wait_runners"] == 1
+            events.append("gate")
+            return claim()
+
+        def claim_deferred(*_args: Any, **_kwargs: Any) -> tuple[int, str]:
+            events.append("claim")
+            return 3, str(real_ws)
+
+        def run_loop(ctx: Any, _prompt: str) -> SimpleNamespace:
+            events.append("run")
+            assert ctx.workspace_num == 3
+            assert ctx.workspace_dir == str(real_ws)
+            return exec_result(artifacts_dir)
+
+        wait_for_dependencies = MagicMock(side_effect=wait_for_deps)
+        patches[f"{RUNNER}.wait_for_dependencies"] = wait_for_dependencies
+        patches[f"{RUNNER}.detect_repeat_stop"] = MagicMock(return_value=None)
+        patches[f"{RUNNER}.wait_for_runner_slot"] = MagicMock(side_effect=wait_for_slot)
+        patches[f"{RUNNER}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
+        patches[f"{RUNNER}.claim_deferred_workspace"] = MagicMock(
+            side_effect=claim_deferred
+        )
+        patches[f"{RUNNER}.refresh_linked_repos_for_workspace"] = MagicMock(
+            return_value=LinkedRepoResolution(repos=())
+        )
+        patches[f"{RUNNER}.run_execution_loop"] = MagicMock(side_effect=run_loop)
+
+        run_main(
+            patches,
+            tmp_path,
+            workspace_dir=placeholder_ws,
+            workspace_num="0",
+            env={"SASE_AGENT_DEFERRED_WORKSPACE": "1"},
+        )
+
+        assert events == ["wait", "gate", "claim", "run"]
+        wait_for_dependencies.assert_called_once()
+        assert wait_for_dependencies.call_args.args[0] == ["dep"]
 
     def test_home_mode_deferred_wait_keeps_directory_workspace(
         self, tmp_path: Path
@@ -409,6 +538,7 @@ class TestDeferredWorkspacePreparation:
         patches[f"{RUNNER}.detect_repeat_stop"] = MagicMock(
             return_value=RepeatStopDecision(producer_name="foo.1", stop_value="1")
         )
+        gate_mock = patches[f"{RUNNER}.wait_for_runner_slot"]
 
         set_vars_mock = MagicMock(side_effect=lambda *a, **k: order.append("set_vars"))
         write_done_mock = MagicMock(
@@ -438,6 +568,7 @@ class TestDeferredWorkspacePreparation:
         )
 
         run_loop.assert_not_called()
+        gate_mock.assert_not_called()
         claim_mock.assert_not_called()
         # Output variables are propagated before the completed done marker.
         assert order == ["set_vars", "write_done"]
@@ -465,6 +596,7 @@ class TestDeferredWorkspacePreparation:
                 wait_names=[],
                 wait_duration=None,
                 wait_until=None,
+                wait_runners=None,
             )
         )
         patches[f"{RUNNER}.run_execution_loop"] = run_loop

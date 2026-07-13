@@ -140,7 +140,7 @@ class TestRunStartedAtRecording:
 
         assert seen == ["~/.sase/multi_prompts/202606/main.md"]
 
-    def test_error_before_execution_does_not_record_run_started_at(
+    def test_error_after_slot_admission_records_run_started_at(
         self, tmp_path: Path
     ) -> None:
         artifacts_dir = tmp_path / "artifacts"
@@ -155,8 +155,8 @@ class TestRunStartedAtRecording:
 
         run_loop.assert_not_called()
         meta_path = artifacts_dir / "agent_meta.json"
-        if meta_path.exists():
-            assert "run_started_at" not in json.loads(meta_path.read_text())
+        run_started_at = json.loads(meta_path.read_text()).get("run_started_at")
+        assert isinstance(run_started_at, str)
 
     def test_linked_repo_prep_failure_stops_before_execution(
         self, tmp_path: Path

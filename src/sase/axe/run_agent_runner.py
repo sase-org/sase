@@ -268,12 +268,13 @@ def main() -> None:
                     workspace_dir=workspace_dir,
                 )
 
-            has_wait = (
+            has_dependency_wait = (
                 bool(info.wait_names)
                 or bool(info.wait_identity_deps)
                 or info.wait_duration is not None
                 or info.wait_until is not None
             )
+            has_wait = has_dependency_wait or info.wait_runners is not None
             if deferred_workspace and not is_home_mode and not has_wait:
                 raise RuntimeError(
                     "SASE_AGENT_DEFERRED_WORKSPACE=1 but extracted wait metadata "
@@ -281,7 +282,7 @@ def main() -> None:
                 )
             wait_chats: list[str] = []
             repeat_stop: RepeatStopDecision | None = None
-            if has_wait:
+            if has_dependency_wait:
                 wait_for_dependencies(
                     info.wait_names,
                     artifacts_dir,
@@ -319,42 +320,47 @@ def main() -> None:
                 exec_outcome = "completed"
                 suppress_completion_notification = True
             else:
-                if has_wait:
-                    if info.wait_names:
-                        wait_chats = resolve_wait_chat_paths(info.wait_names)
+                run_started_at = wait_for_runner_slot(
+                    artifacts_dir,
+                    cl_name,
+                    timestamp,
+                    agent_meta,
+                    wait_runners=info.wait_runners,
+                    claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
+                )
 
-                    if (
-                        os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE")
-                        and not is_home_mode
-                    ):
-                        workspace_num, workspace_dir = claim_deferred_workspace(
-                            project_file,
-                            project_name,
-                            workflow_name,
-                            cl_name,
-                            artifacts_timestamp,
-                        )
-                        prepare_workspace_if_needed(
-                            workspace_dir=workspace_dir,
-                            workspace_num=workspace_num,
+                if deferred_workspace and not is_home_mode:
+                    workspace_num, workspace_dir = claim_deferred_workspace(
+                        project_file,
+                        project_name,
+                        workflow_name,
+                        cl_name,
+                        artifacts_timestamp,
+                    )
+                    prepare_workspace_if_needed(
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        cl_name=cl_name,
+                        update_target=update_target,
+                        project_name=project_name,
+                        is_home_mode=is_home_mode,
+                        retry_handoff=retry_handoff,
+                    )
+                    linked_repo_resolution = refresh_linked_repos_for_workspace(
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        artifacts_dir=artifacts_dir,
+                        agent_meta=agent_meta,
+                    )
+                    if update_target and retry_handoff is None:
+                        prepare_linked_repo_workspaces_if_needed(
+                            resolution=linked_repo_resolution,
                             cl_name=cl_name,
-                            update_target=update_target,
-                            project_name=project_name,
-                            is_home_mode=is_home_mode,
-                            retry_handoff=retry_handoff,
                         )
-                        linked_repo_resolution = refresh_linked_repos_for_workspace(
-                            project_file=project_file,
-                            workspace_dir=workspace_dir,
-                            workspace_num=workspace_num,
-                            artifacts_dir=artifacts_dir,
-                            agent_meta=agent_meta,
-                        )
-                        if update_target and retry_handoff is None:
-                            prepare_linked_repo_workspaces_if_needed(
-                                resolution=linked_repo_resolution,
-                                cl_name=cl_name,
-                            )
+
+                if has_dependency_wait and info.wait_names:
+                    wait_chats = resolve_wait_chat_paths(info.wait_names)
 
                 prompt, vcs_tag = resolve_agent_refs_in_prompt(prompt)
 
@@ -395,14 +401,6 @@ def main() -> None:
                     output_variable_namespaces=output_variable_namespaces,
                 )
 
-                run_started_at = wait_for_runner_slot(
-                    artifacts_dir,
-                    cl_name,
-                    timestamp,
-                    agent_meta,
-                    wait_runners=getattr(info, "wait_runners", None),
-                    claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
-                )
                 exec_result = run_execution_loop(ctx, prompt)
                 exec_outcome = exec_result.outcome
                 success = classify_exec_success(
