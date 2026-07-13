@@ -149,11 +149,26 @@ def test_repo_open_help_documents_inference_and_required_reason() -> None:
 
     assert "usage: sase repo open" in open_help
     assert "REPO" in open_help
-    assert "-p PROJECT, --project PROJECT" in open_help
-    assert "-r REASON, --reason REASON" in open_help
-    assert "-w N, --workspace N" in open_help
+    assert "-p, --project PROJECT" in open_help
+    assert "-r, --reason REASON" in open_help
+    assert "-w, --workspace N" in open_help
     assert "defaults to the checkout that contains the current directory" in open_help
     assert "sase repo open chezmoi --reason" in open_help
+
+
+def test_repo_list_help_documents_scope_workspace_and_examples() -> None:
+    """``sase repo list --help`` explains its project/workspace defaults."""
+
+    list_help = flat_help(parser_for(("sase", "repo", "list")).format_help())
+
+    assert "usage: sase repo list" in list_help
+    assert "-a, --all" in list_help
+    assert "-j, --json" in list_help
+    assert "-p, --project PROJECT" in list_help
+    assert "-w, --workspace N" in list_help
+    assert "default to the checkout that contains the current directory" in list_help
+    assert "sase repo list --workspace 12" in list_help
+    assert "sase repo list --all" in list_help
 
 
 def test_workspace_help_hides_deprecated_open_alias() -> None:

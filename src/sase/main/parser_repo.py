@@ -22,7 +22,27 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     list_parser = repo_sub.add_parser(
         "list",
-        help="List repositories for enabled projects",
+        help="List repositories and their per-workspace clone status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "List primary, sidecar, and linked repositories for the current "
+            "project and show where they are cloned. The project and workspace "
+            "default to the checkout that contains the current directory."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase repo list\n"
+            "  sase repo list --workspace 12\n"
+            "  sase repo list --project sase --json\n"
+            "  sase repo list --all"
+        ),
+    )
+    list_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        dest="all_projects",
+        help="List repos across all enabled and disabled projects",
     )
     list_parser.add_argument(
         "-j",
@@ -34,7 +54,15 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
         "-p",
         "--project",
         default=None,
-        help="Limit results to one project (enabled or disabled)",
+        help="Project to query (default: infer from current directory)",
+    )
+    list_parser.add_argument(
+        "-w",
+        "--workspace",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Workspace context (default: infer from current directory)",
     )
 
     open_parser = repo_sub.add_parser(

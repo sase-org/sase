@@ -1574,11 +1574,20 @@ confirmed deletion of whole SASE project directories, and the Repos/Workspaces i
 
 ### `sase repo`
 
-`sase repo list` inventories repos known to SASE across enabled projects by default. Primary repos come from
-ProjectSpecs, sidecars from SDD store records, and linked repos from resolved `linked_repos`; a sidecar wins when the
-same checkout is also auto-injected as linked. `-p/--project` selects one enabled or disabled project and `-j/--json`
-emits the shared inventory record shape, including kind, path, checkout presence, source, description, `auto_clone`, and
-environment name.
+`sase repo list` inventories repos for the current project by default, inferring both the project and workspace context
+from the current directory. Primary repos come from ProjectSpecs, sidecars from SDD store records, and linked repos from
+resolved `linked_repos`; a sidecar wins when the same checkout is also auto-injected as linked. The Rich table reports
+whether each repo is cloned in the selected workspace plus the number of registered workspaces containing it.
+
+| Flag              | Description                                                                 |
+| ----------------- | --------------------------------------------------------------------------- |
+| `-a, --all`       | Show all enabled and disabled projects at primary workspace context (`#0`). |
+| `-j, --json`      | Emit deterministic records with the full per-workspace `clones` matrix.     |
+| `-p, --project`   | Select one enabled or disabled project instead of inferring from cwd.       |
+| `-w, --workspace` | Select a workspace number instead of inferring it from cwd.                 |
+
+`--all` and `--project` are mutually exclusive. JSON records retain source, description, `auto_clone`, environment, and
+SDD-storage metadata while making `path` and `exists` describe the selected workspace context.
 
 ### `sase revert`
 

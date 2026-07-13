@@ -9,7 +9,7 @@ migration seam; CLI and TUI consumers should keep using this inventory API.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import os
 from pathlib import Path
 import re
@@ -31,13 +31,36 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
     effective_project_name,
 )
-from sase.linked_repos import sidecar_repo_clone_dir, sdd_sidecar_clone_dirname
+from sase.linked_repos import (
+    linked_repo_clone_dir,
+    sidecar_repo_clone_dir,
+    sdd_sidecar_clone_dirname,
+)
 from sase.sdd.store import SddMaterializationError, read_sdd_store_record
+from sase.workspace_provider.registry import (
+    WorkspaceRegistryError,
+    load_registry,
+)
+from sase.workspace_provider.store import WorkspaceStore
 
 RepoKind = Literal["primary", "sidecar", "linked"]
 
 _KIND_ORDER: dict[RepoKind, int] = {"primary": 0, "sidecar": 1, "linked": 2}
 _ENV_INVALID_CHARS = re.compile(r"[^A-Za-z0-9]+")
+
+
+@dataclass(frozen=True)
+class RepoCloneRecord:
+    """One repository's path and presence in a registered workspace."""
+
+    workspace_num: int
+    path: str
+    exists: bool
+
+    def to_json_dict(self) -> dict[str, object]:
+        """Return a stable JSON-safe representation of this clone."""
+
+        return asdict(self)
 
 
 @dataclass(frozen=True)
@@ -55,11 +78,38 @@ class RepoRecord:
     source: str
     env_name: str | None
     sdd_storage: str | None = None
+    clones: tuple[RepoCloneRecord, ...] = ()
 
-    def to_json_dict(self) -> dict[str, object]:
+    def clone_for_workspace(self, workspace_num: int) -> RepoCloneRecord | None:
+        """Return this repo's clone record for *workspace_num*, if registered."""
+
+        return next(
+            (clone for clone in self.clones if clone.workspace_num == workspace_num),
+            None,
+        )
+
+    def to_json_dict(self, *, workspace_num: int | None = None) -> dict[str, object]:
         """Return a stable JSON-safe representation of this record."""
 
-        return asdict(self)
+        selected = (
+            self.clone_for_workspace(workspace_num)
+            if workspace_num is not None
+            else None
+        )
+        return {
+            "name": self.name,
+            "kind": self.kind,
+            "project": self.project,
+            "project_key": self.project_key,
+            "path": selected.path if selected is not None else self.path,
+            "exists": selected.exists if selected is not None else self.exists,
+            "auto_clone": self.auto_clone,
+            "description": self.description,
+            "source": self.source,
+            "env_name": self.env_name,
+            "sdd_storage": self.sdd_storage,
+            "clones": [clone.to_json_dict() for clone in self.clones],
+        }
 
 
 @dataclass(frozen=True)
@@ -181,6 +231,7 @@ def _collect_project_repos(
 
     primary = _normalize_path(raw_primary)
     entries: list[Mapping[str, Any]] = []
+    resolved_config: Mapping[str, Any] | None = None
     try:
         local_config = read_project_local_config(primary)
         resolved_config = resolution_config(primary, None)
@@ -313,7 +364,123 @@ def _collect_project_repos(
             )
         )
 
+    workspace_clones, clone_issues = _workspace_checkouts(
+        primary,
+        project=project,
+        config=resolved_config,
+    )
+    issues.extend(clone_issues)
+    records = [
+        replace(
+            record,
+            clones=_repo_clones(
+                record,
+                host_primary=primary,
+                workspace_checkouts=workspace_clones,
+            ),
+        )
+        for record in records
+    ]
     return records, issues
+
+
+def _workspace_checkouts(
+    primary: str,
+    *,
+    project: str,
+    config: Mapping[str, Any] | None,
+) -> tuple[tuple[tuple[int, str], ...], list[RepoInventoryIssue]]:
+    """Return sorted registered workspace checkout paths for one host project."""
+
+    try:
+        store = WorkspaceStore(primary, config=config)
+        registry = load_registry(store, strict=True)
+    except (OSError, RuntimeError, ValueError, WorkspaceRegistryError) as exc:
+        return (
+            ((0, primary),),
+            [
+                RepoInventoryIssue(
+                    project,
+                    f"Unable to resolve workspace clone inventory: {exc}",
+                )
+            ],
+        )
+
+    issues: list[RepoInventoryIssue] = []
+    checkouts: list[tuple[int, str]] = []
+    for raw_num, entry in registry.workspaces.items():
+        try:
+            workspace_num = int(raw_num)
+        except (TypeError, ValueError):
+            issues.append(
+                RepoInventoryIssue(
+                    project,
+                    f"Ignoring non-numeric registry workspace key {raw_num!r}",
+                )
+            )
+            continue
+        checkout = entry.checkout_dir.rstrip("/") or entry.checkout_dir
+        checkouts.append((workspace_num, _normalize_path(checkout)))
+
+    checkouts.sort(key=lambda item: (item[0], item[1]))
+    return tuple(checkouts), issues
+
+
+def _repo_clones(
+    record: RepoRecord,
+    *,
+    host_primary: str,
+    workspace_checkouts: Sequence[tuple[int, str]],
+) -> tuple[RepoCloneRecord, ...]:
+    clones: list[RepoCloneRecord] = []
+    normalized_primary = _normalize_path(host_primary)
+    sidecar_dirname = (
+        sdd_sidecar_clone_dirname(normalized_primary, record.name)
+        if record.kind == "sidecar"
+        else None
+    )
+    for workspace_num, host_checkout in workspace_checkouts:
+        path = _repo_path_in_workspace(
+            record,
+            host_primary=normalized_primary,
+            host_checkout=host_checkout,
+            sidecar_dirname=sidecar_dirname,
+        )
+        clones.append(
+            RepoCloneRecord(
+                workspace_num=workspace_num,
+                path=path,
+                exists=Path(path).is_dir(),
+            )
+        )
+    return tuple(clones)
+
+
+def _repo_path_in_workspace(
+    record: RepoRecord,
+    *,
+    host_primary: str,
+    host_checkout: str,
+    sidecar_dirname: str | None,
+) -> str:
+    if record.kind == "primary":
+        return host_checkout
+
+    # The primary workspace uses each secondary repo's configured source
+    # checkout. Numbered workspaces use host-scoped materializations.
+    if _normalize_path(host_checkout) == host_primary:
+        return record.path
+
+    if record.kind == "sidecar":
+        if sidecar_dirname is not None:
+            return sidecar_repo_clone_dir(host_checkout, sidecar_dirname)
+        try:
+            relative = Path(record.path).relative_to(host_primary)
+        except ValueError:
+            return sidecar_repo_clone_dir(host_checkout, record.name)
+        return _normalize_path(str(Path(host_checkout) / relative))
+
+    return linked_repo_clone_dir(host_checkout, record.name)
 
 
 def _record_matches_project(record: ProjectRecordWire, project: str) -> bool:
@@ -396,6 +563,7 @@ def _optional_text(value: object) -> str | None:
 
 
 __all__ = [
+    "RepoCloneRecord",
     "RepoInventory",
     "RepoInventoryIssue",
     "RepoInventoryProjectNotFoundError",

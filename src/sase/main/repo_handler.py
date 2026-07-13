@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
+from collections.abc import Sequence
 import json
 import os
 from pathlib import Path
 import sys
 
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
 from sase.config.core import load_merged_config
 from sase.main.workspace_handler_context import ProjectContext
 from sase.repo_inventory import (
+    RepoCloneRecord,
     RepoInventory,
     RepoInventoryProjectNotFoundError,
     RepoRecord,
@@ -25,36 +34,260 @@ class _RepoOpenResolutionError(ValueError):
     """Raised when a repository or workspace context cannot be resolved."""
 
 
-def _print_human(inventory: RepoInventory) -> None:
-    if not inventory.records:
-        print("No repositories found.")
-    else:
-        print(f"{'NAME':<24} {'KIND':<8} {'PROJECT':<20} {'CLONED':<7} PATH")
-        for record in inventory.records:
-            print(
-                f"{record.name:<24.24} "
-                f"{record.kind:<8} "
-                f"{record.project:<20.20} "
-                f"{('yes' if record.exists else 'missing'):<7} "
-                f"{record.path or '-'}"
-            )
+_KIND_STYLES = {
+    "primary": "bold #00D7AF",
+    "sidecar": "bold #AF87FF",
+    "linked": "bold #87D7FF",
+}
 
-    for issue in inventory.issues:
-        print(f"warning [{issue.project}]: {issue.message}", file=sys.stderr)
+
+def _print_human(
+    inventory: RepoInventory,
+    *,
+    workspace_num: int,
+    project: str | None,
+    console: Console | None = None,
+) -> None:
+    output = console or Console()
+    grouped: dict[str, list[RepoRecord]] = defaultdict(list)
+    for record in inventory.records:
+        grouped[record.project].append(record)
+
+    if project is not None:
+        output.print(
+            _repo_panel(
+                grouped.get(project, list(inventory.records)),
+                project=project,
+                workspace_num=workspace_num,
+            )
+        )
+    elif grouped:
+        for project_name in sorted(grouped, key=str.casefold):
+            output.print(
+                _repo_panel(
+                    grouped[project_name],
+                    project=project_name,
+                    workspace_num=workspace_num,
+                )
+            )
+    else:
+        output.print(Text("No repositories found.", style="dim"))
+
+    if inventory.issues:
+        warnings = Text()
+        for index, issue in enumerate(inventory.issues):
+            if index:
+                warnings.append("\n")
+            warnings.append(f"[{issue.project}] ", style="bold #FFD700")
+            warnings.append(issue.message, style="dim")
+        output.print(
+            Panel(
+                warnings,
+                title="Inventory warnings",
+                border_style="#FFD700",
+                box=box.ROUNDED,
+            )
+        )
+
+
+def _repo_panel(
+    records: Sequence[RepoRecord],
+    *,
+    project: str,
+    workspace_num: int,
+) -> Panel:
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        expand=True,
+        pad_edge=False,
+        show_edge=False,
+    )
+    table.add_column("NAME", style="bold", no_wrap=True)
+    table.add_column("KIND", no_wrap=True)
+    table.add_column("CLONED", justify="center", no_wrap=True)
+    table.add_column("WORKSPACES", justify="right", no_wrap=True)
+    table.add_column("PATH", overflow="ellipsis", no_wrap=True, ratio=1)
+
+    for record in records:
+        clone = _clone_for_workspace(record, workspace_num)
+        cloned_count = sum(item.exists for item in record.clones)
+        total_count = len(record.clones)
+        if not record.clones:
+            cloned_count = int(record.exists)
+            total_count = 1
+        table.add_row(
+            Text(record.name),
+            Text(record.kind, style=_KIND_STYLES[record.kind]),
+            Text(
+                "✓" if clone.exists else "✗",
+                style="green" if clone.exists else "#FFD700",
+            ),
+            f"{cloned_count}/{total_count}",
+            Text(_compact_path(clone.path), style="dim" if clone.exists else "#FFD700"),
+        )
+
+    if not records:
+        table.add_row(Text("No repositories found.", style="dim"), "", "", "", "")
+
+    return Panel(
+        table,
+        title=f"Repos · {project} · workspace #{workspace_num}",
+        title_align="left",
+        border_style="#00D7AF",
+        box=box.ROUNDED,
+    )
+
+
+def _compact_path(path: str, *, max_len: int = 72) -> str:
+    value = path or "-"
+    home = str(Path.home())
+    if value == home or value.startswith(f"{home}/"):
+        value = f"~{value[len(home) :]}"
+    if len(value) <= max_len:
+        return value
+    return f"…{value[-(max_len - 1) :]}"
+
+
+def _clone_for_workspace(record: RepoRecord, workspace_num: int) -> RepoCloneRecord:
+    clone = record.clone_for_workspace(workspace_num)
+    if clone is not None:
+        return clone
+    if workspace_num == 0:
+        # Compatibility for callers constructing the pre-enrichment record
+        # shape, including ACE fixtures and third-party consumers.
+        return RepoCloneRecord(0, record.path, record.exists)
+    raise _RepoOpenResolutionError(
+        f"workspace #{workspace_num} is not registered for project '{record.project}'"
+    )
 
 
 def _handle_list(args: argparse.Namespace) -> int:
+    from . import workspace_handler as workspace_commands
+
+    all_projects = bool(getattr(args, "all_projects", False))
+    requested_project = getattr(args, "project", None)
+    if all_projects and requested_project:
+        print("--all cannot be combined with --project", file=sys.stderr)
+        return 2
+
+    if all_projects:
+        inventory = collect_repo_inventory(include_disabled=True)
+        if getattr(args, "json", False):
+            payload = _inventory_json_payload(inventory, workspace_num=0)
+            payload["all_projects"] = True
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            _print_inventory_issues_stderr(inventory)
+        else:
+            _print_human(inventory, workspace_num=0, project=None)
+        return 0
+
+    ctx = workspace_commands._resolve_project_context(requested_project)
     try:
-        inventory = collect_repo_inventory(project=getattr(args, "project", None))
+        workspace_num = _resolve_list_workspace_num(
+            ctx,
+            getattr(args, "workspace", None),
+        )
+    except _RepoOpenResolutionError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    try:
+        inventory = collect_repo_inventory(project=ctx.project_name)
     except RepoInventoryProjectNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
+    try:
+        display_project = next(
+            (record.project for record in inventory.records),
+            ctx.project_name,
+        )
+        _validate_workspace_context(
+            inventory.records,
+            project=display_project,
+            workspace_num=workspace_num,
+        )
+    except _RepoOpenResolutionError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     if getattr(args, "json", False):
-        print(json.dumps(inventory.to_json_dict(), indent=2, sort_keys=True))
+        payload = _inventory_json_payload(inventory, workspace_num=workspace_num)
+        payload["project"] = display_project
+        payload["workspace_num"] = workspace_num
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        _print_inventory_issues_stderr(inventory)
     else:
-        _print_human(inventory)
+        _print_human(
+            inventory,
+            workspace_num=workspace_num,
+            project=display_project,
+        )
     return 0
+
+
+def _resolve_list_workspace_num(
+    host_ctx: ProjectContext,
+    requested_workspace: int | None,
+    *,
+    cwd: Path | None = None,
+) -> int:
+    if requested_workspace is not None:
+        workspace_num = int(requested_workspace)
+        if workspace_num < 0:
+            raise _RepoOpenResolutionError(
+                f"workspace number must be >= 0, got {workspace_num}"
+            )
+        return workspace_num
+
+    found = find_marker_from_cwd(str((cwd or Path.cwd()).resolve(strict=False)))
+    if found is None:
+        return 0
+    _, marker = found
+    marker_primary = Path(marker.primary_workspace_dir).resolve(strict=False)
+    host_primary = Path(host_ctx.primary_workspace_dir).resolve(strict=False)
+    if marker_primary != host_primary:
+        return 0
+    return marker.workspace_num if marker.workspace_num >= 0 else 0
+
+
+def _validate_workspace_context(
+    records: Sequence[RepoRecord],
+    *,
+    project: str,
+    workspace_num: int,
+) -> None:
+    if not records or workspace_num == 0:
+        return
+    registered = sorted(
+        {clone.workspace_num for record in records for clone in record.clones}
+    )
+    if workspace_num in registered:
+        return
+    candidates = ", ".join(str(item) for item in registered) or "0"
+    raise _RepoOpenResolutionError(
+        f"workspace #{workspace_num} is not registered for project '{project}'. "
+        f"Registered workspaces: {candidates}"
+    )
+
+
+def _inventory_json_payload(
+    inventory: RepoInventory,
+    *,
+    workspace_num: int,
+) -> dict[str, object]:
+    return {
+        "repos": [
+            record.to_json_dict(workspace_num=workspace_num)
+            for record in inventory.records
+        ],
+        "issues": [issue.to_json_dict() for issue in inventory.issues],
+    }
+
+
+def _print_inventory_issues_stderr(inventory: RepoInventory) -> None:
+    for issue in inventory.issues:
+        print(f"warning [{issue.project}]: {issue.message}", file=sys.stderr)
 
 
 def _handle_open(args: argparse.Namespace) -> int:
