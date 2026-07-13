@@ -10,6 +10,8 @@ from sase.ace.tui.actions.agents._kill_action import AgentKillMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -104,6 +106,18 @@ class _FakeGroupKillApp(AgentKillMixin, AgentMarkingMixin):
         if 0 <= self.current_idx < len(self._agents):
             return self._agents[self.current_idx]
         return None
+
+    def _agents_in_focused_panel(self) -> list[Agent]:
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return list(self._agents)
+
+        from sase.ace.tui.actions.agents._navigation_order import (
+            rendered_panel_slice,
+        )
+
+        _global_indices, agents = rendered_panel_slice(self, panel_group.focused_key)
+        return list(agents)
 
 
 def test_action_kill_routes_to_group_when_banner_focused() -> None:
@@ -280,3 +294,98 @@ def test_group_kill_no_op_when_group_key_does_not_match() -> None:
     mock_dismiss.assert_called_once()
     assert mock_dismiss.call_args.args[0] == a1
     assert app.pushed_modals == []
+
+
+def test_group_kill_by_date_is_scoped_to_focused_panel() -> None:
+    """Same-hour agents in another tag panel are not killed."""
+    now = datetime(2026, 7, 13, 12, 0, 0)
+    epic_a = _make_agent(
+        cl_name="epic-a",
+        raw_suffix="20260713100500",
+        start_time=datetime(2026, 7, 13, 10, 5, 0),
+        tag="epic",
+    )
+    untagged_a = _make_agent(
+        cl_name="untagged-a",
+        raw_suffix="20260713101000",
+        start_time=datetime(2026, 7, 13, 10, 10, 0),
+    )
+    epic_b = _make_agent(
+        cl_name="epic-b",
+        raw_suffix="20260713102000",
+        start_time=datetime(2026, 7, 13, 10, 20, 0),
+        tag="epic",
+    )
+    untagged_b = _make_agent(
+        cl_name="untagged-b",
+        raw_suffix="20260713103000",
+        start_time=datetime(2026, 7, 13, 10, 30, 0),
+    )
+    app = _FakeGroupKillApp([epic_a, untagged_a, epic_b, untagged_b])
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
+    app._grouping_mode = GroupingMode.BY_DATE
+    app._current_group_key = ("Today", "10:00")
+
+    with patch("sase.ace.tui.models.agent_groups._tree.local_now", return_value=now):
+        app.action_kill_agent()
+
+    assert app.pushed_callbacks, "Modal callback not registered"
+    app.pushed_callbacks[0](True)
+
+    assert {agent.identity for agent in app._agents} == {
+        epic_a.identity,
+        epic_b.identity,
+    }
+
+
+def test_group_kill_standard_mode_is_scoped_to_focused_panel() -> None:
+    """A project banner targets only its focused tag panel."""
+    epic = _make_agent(
+        cl_name="epic-change",
+        raw_suffix="20260713100500",
+        tag="epic",
+    )
+    untagged = _make_agent(
+        cl_name="untagged-change",
+        raw_suffix="20260713101000",
+    )
+    app = _FakeGroupKillApp([epic, untagged])
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
+    app._grouping_mode = GroupingMode.STANDARD
+    app._current_group_key = ("proj_a",)
+
+    app.action_kill_agent()
+    assert app.pushed_callbacks, "Modal callback not registered"
+    app.pushed_callbacks[0](True)
+
+    assert [agent.identity for agent in app._agents] == [epic.identity]
+
+
+def test_cleanup_group_count_is_scoped_to_focused_panel() -> None:
+    """Cleanup-panel group stats exclude same-key groups in other panels."""
+    epic_a = _make_agent(
+        cl_name="epic-a",
+        raw_suffix="20260713100500",
+        tag="epic",
+    )
+    untagged_a = _make_agent(
+        cl_name="untagged-a",
+        raw_suffix="20260713101000",
+    )
+    epic_b = _make_agent(
+        cl_name="epic-b",
+        raw_suffix="20260713102000",
+        tag="epic",
+    )
+    untagged_b = _make_agent(
+        cl_name="untagged-b",
+        raw_suffix="20260713103000",
+    )
+    app = _FakeGroupKillApp([epic_a, untagged_a, epic_b, untagged_b])
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
+    app._grouping_mode = GroupingMode.STANDARD
+    app._current_group_key = ("proj_a",)
+
+    state = app._build_agent_cleanup_panel_state()
+
+    assert state.group_count == 2

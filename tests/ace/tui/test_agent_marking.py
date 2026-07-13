@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 from tests.ace.tui._agent_marking_helpers import _FakeMarkApp, _make_agent
 
@@ -314,6 +317,45 @@ def test_toggle_mark_stale_group_key_falls_back_to_single_agent() -> None:
 
     assert app._marked_agents == {a1.identity}
     assert app._current_group_key is None
+
+
+def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
+    """Same-hour agents in another tag panel stay unmarked."""
+    now = datetime(2026, 7, 13, 12, 0, 0)
+    epic_a = _make_agent(
+        cl_name="epic-a",
+        raw_suffix="20260713100500",
+        start_time=datetime(2026, 7, 13, 10, 5, 0),
+        tag="epic",
+    )
+    untagged_a = _make_agent(
+        cl_name="untagged-a",
+        raw_suffix="20260713101000",
+        start_time=datetime(2026, 7, 13, 10, 10, 0),
+    )
+    epic_b = _make_agent(
+        cl_name="epic-b",
+        raw_suffix="20260713102000",
+        start_time=datetime(2026, 7, 13, 10, 20, 0),
+        tag="epic",
+    )
+    untagged_b = _make_agent(
+        cl_name="untagged-b",
+        raw_suffix="20260713103000",
+        start_time=datetime(2026, 7, 13, 10, 30, 0),
+    )
+    app = _FakeMarkApp([epic_a, untagged_a, epic_b, untagged_b])
+    app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
+    app._grouping_mode = GroupingMode.BY_DATE
+    app._current_group_key = ("Today", "10:00")
+    app._group_fold_registry.collapse(app._current_group_key)
+
+    with patch("sase.ace.tui.models.agent_groups._tree.local_now", return_value=now):
+        assert app._toggle_mark_focused_group()
+
+    assert app._marked_agents == {untagged_a.identity, untagged_b.identity}
+    assert epic_a.identity not in app._marked_agents
+    assert epic_b.identity not in app._marked_agents
 
 
 def test_group_marked_agents_are_seen_by_bulk_kill() -> None:
