@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -45,6 +46,8 @@ from sase.plan_chain import (
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
+
+logger = logging.getLogger(__name__)
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 
@@ -103,6 +106,39 @@ def _meta_family_role(meta: dict[str, Any]) -> str | None:
 def _fallback_question_suffix(template: str, *, root_sequence: bool) -> str:
     token = "1" if root_sequence else "0"
     return template.replace("@", token)
+
+
+def _update_sdd_prompt_snapshot_qa(
+    ctx: AgentExecContext,
+    state: LoopState,
+    merged_qa_text: str,
+) -> None:
+    """Update a prompt snapshot and commit machine-made external-store writes.
+
+    In-tree snapshots remain part of the agent's normal workspace commit flow.
+    External SDD stores are committed here so a SASE-authored Q&A update never
+    becomes unclaimed work for the commit finalizer.
+    """
+    if state.sdd_spec_path is None:
+        return
+
+    from sase.sdd.files import commit_sdd_store_files, set_prompt_qa
+    from sase.sdd.store import resolve_sdd_store
+
+    prompt_path = Path(state.sdd_spec_path)
+    set_prompt_qa(prompt_path, merged_qa_text)
+
+    store = resolve_sdd_store(ctx.workspace_dir, ctx.workspace_num or 1)
+    if store.is_in_tree:
+        return
+
+    commit_sdd_store_files(
+        store,
+        f"Add Q&A to {prompt_path.stem} prompt",
+        auto_commit_type="sdd",
+        paths=[prompt_path],
+        artifacts_dir=state.current_artifacts_dir,
+    )
 
 
 def handle_questions_marker(
@@ -287,10 +323,8 @@ def handle_questions_marker(
     # block, continuous numbering — not an appended per-round delta).
     if state.sdd_spec_path is not None:
         try:
-            from sase.sdd.files import set_prompt_qa
-
-            set_prompt_qa(Path(state.sdd_spec_path), merged_qa_text)
+            _update_sdd_prompt_snapshot_qa(ctx, state, merged_qa_text)
         except Exception:
-            pass  # Best effort
+            logger.warning("SDD prompt Q&A snapshot update failed", exc_info=True)
 
     return None  # continue loop

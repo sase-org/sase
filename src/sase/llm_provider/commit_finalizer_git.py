@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -12,6 +13,8 @@ if TYPE_CHECKING:
 
 _AUTO_COMMIT_GIT_TIMEOUT_SECONDS = 5
 _SDD_PLAN_DIR_PREFIXES = ("sdd/plans/",)
+_EXTERNAL_SDD_PROMPT_PATTERN = re.compile(r"\d{6}/prompts/[^/]+\.md")
+_QA_HEADER = "### Questions and Answers"
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,12 @@ class _DoneStatusAutoCommitCandidate:
     repo_dir: str
     path: str
     stage_path: bool
+
+
+@dataclass(frozen=True)
+class _SddPromptQaAutoCommitCandidate:
+    repo_dir: str
+    paths: tuple[str, ...]
 
 
 def git_changed_files(repo_dir: str) -> list[str]:
@@ -68,6 +77,43 @@ def auto_commit_done_sdd_plan_status(dirty_state: DirtyState) -> bool:
         message,
         stage_path=candidate.stage_path,
     )
+
+
+def sdd_prompt_qa_auto_commit_candidates(
+    dirty_state: DirtyState,
+) -> tuple[_SddPromptQaAutoCommitCandidate, ...]:
+    """Return external SDD repos proven to contain only Q&A snapshot edits."""
+    candidates: list[_SddPromptQaAutoCommitCandidate] = []
+    for repo in dirty_state.repos:
+        if repo.kind != "sdd":
+            continue
+
+        repo_dir = _normalize_path(repo.path)
+        status_records = _git_status_records(repo_dir)
+        if not status_records:
+            continue
+        if {record.path for record in status_records} != set(repo.changed_files):
+            continue
+        if any(record.xy != " M" for record in status_records):
+            continue
+        if any(
+            _EXTERNAL_SDD_PROMPT_PATTERN.fullmatch(record.path) is None
+            for record in status_records
+        ):
+            continue
+        if any(
+            not _has_only_sdd_prompt_qa_diff(repo_dir, record.path)
+            for record in status_records
+        ):
+            continue
+
+        candidates.append(
+            _SddPromptQaAutoCommitCandidate(
+                repo_dir=repo_dir,
+                paths=tuple(record.path for record in status_records),
+            )
+        )
+    return tuple(candidates)
 
 
 def _done_sdd_plan_status_auto_commit_candidate(
@@ -189,6 +235,25 @@ def _has_exact_done_status_transition(repo_dir: str, path: str) -> bool:
         and worktree_content == "status: done"
         and head_ending == worktree_ending
     )
+
+
+def _has_only_sdd_prompt_qa_diff(repo_dir: str, path: str) -> bool:
+    head_text = _git_show_head_file(repo_dir, path)
+    if head_text is None:
+        return False
+
+    try:
+        worktree_text = (Path(repo_dir) / path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    if _QA_HEADER not in worktree_text:
+        return False
+
+    from sase.sdd._write import strip_qa_block
+
+    return strip_qa_block(worktree_text).rstrip("\n") == strip_qa_block(
+        head_text
+    ).rstrip("\n")
 
 
 def _git_show_head_file(repo_dir: str, path: str) -> str | None:

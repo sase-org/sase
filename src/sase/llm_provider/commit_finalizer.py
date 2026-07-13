@@ -22,7 +22,11 @@ from .commit_finalizer_config import (
     load_finalizer_config,
     resolve_finalizer_project_dir,
 )
-from .commit_finalizer_git import auto_commit_done_sdd_plan_status, git_changed_files
+from .commit_finalizer_git import (
+    auto_commit_done_sdd_plan_status,
+    git_changed_files,
+    sdd_prompt_qa_auto_commit_candidates,
+)
 from .commit_finalizer_prompting import (
     append_response,
     build_dirty_details,
@@ -185,7 +189,14 @@ def run_commit_finalizer(
         project_dir, artifact_root
     )
     dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
-    dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
+    dirty_state, sdd_prompt_qa_auto_committed = (
+        _auto_commit_external_sdd_prompt_qa_if_possible(
+            project_dir,
+            dirty_state,
+            artifact_root,
+        )
+    )
+    dirty_state, done_plan_auto_committed = _auto_commit_done_plan_status_if_possible(
         project_dir,
         dirty_state,
         artifact_root,
@@ -196,11 +207,14 @@ def run_commit_finalizer(
             _CommitFinalizerResult(
                 status=(
                     "finalized"
-                    if auto_committed or sdd_store_auto_committed
+                    if done_plan_auto_committed
+                    or sdd_prompt_qa_auto_committed
+                    or sdd_store_auto_committed
                     else "clean"
                 ),
                 reason=_clean_result_reason(
-                    done_plan_auto_committed=auto_committed,
+                    done_plan_auto_committed=done_plan_auto_committed,
+                    sdd_prompt_qa_auto_committed=sdd_prompt_qa_auto_committed,
                     sdd_store_auto_committed=sdd_store_auto_committed,
                 ),
                 project_dir=project_dir,
@@ -251,18 +265,32 @@ def run_commit_finalizer(
             or sdd_store_auto_committed
         )
         dirty_state = _collect_dirty_state(project_dir, artifact_root=artifact_root)
-        dirty_state, auto_committed = _auto_commit_done_plan_status_if_possible(
+        dirty_state, qa_auto_committed = (
+            _auto_commit_external_sdd_prompt_qa_if_possible(
+                project_dir,
+                dirty_state,
+                artifact_root,
+            )
+        )
+        sdd_prompt_qa_auto_committed = qa_auto_committed or sdd_prompt_qa_auto_committed
+        dirty_state, done_auto_committed = _auto_commit_done_plan_status_if_possible(
             project_dir,
             dirty_state,
             artifact_root,
         )
+        done_plan_auto_committed = done_auto_committed or done_plan_auto_committed
         if not dirty_state.repos:
-            if auto_committed:
-                reason = "auto_committed_done_plan_status"
-            elif sdd_store_auto_committed:
-                reason = "auto_committed_sdd_store"
-            else:
-                reason = "clean_after_pass"
+            reason = (
+                _clean_result_reason(
+                    done_plan_auto_committed=done_plan_auto_committed,
+                    sdd_prompt_qa_auto_committed=sdd_prompt_qa_auto_committed,
+                    sdd_store_auto_committed=sdd_store_auto_committed,
+                )
+                if done_plan_auto_committed
+                or sdd_prompt_qa_auto_committed
+                or sdd_store_auto_committed
+                else "clean_after_pass"
+            )
             _write_result(
                 artifact_root,
                 _CommitFinalizerResult(
@@ -298,6 +326,56 @@ def _auto_commit_done_plan_status_if_possible(
     if not dirty_state.repos:
         return dirty_state, False
     if not auto_commit_done_sdd_plan_status(dirty_state):
+        return dirty_state, False
+    refreshed = _collect_dirty_state(project_dir, artifact_root=artifact_root)
+    return refreshed, True
+
+
+def _auto_commit_external_sdd_prompt_qa_if_possible(
+    project_dir: str,
+    dirty_state: DirtyState,
+    artifact_root: Path | None,
+) -> tuple[DirtyState, bool]:
+    """Best-effort safety net for proven Q&A-only external prompt edits."""
+    candidates = sdd_prompt_qa_auto_commit_candidates(dirty_state)
+    if not candidates:
+        return dirty_state, False
+
+    try:
+        from sase.sdd.files import commit_sdd_store_files
+        from sase.sdd.store import resolve_sdd_store
+
+        store = resolve_sdd_store(project_dir, _finalizer_workspace_num(project_dir))
+    except Exception:
+        _logger.warning(
+            "Failed to resolve external SDD store for Q&A auto-commit",
+            exc_info=True,
+        )
+        return dirty_state, False
+
+    committed_any = False
+    for candidate in candidates:
+        for relative_path in candidate.paths:
+            prompt_path = Path(candidate.repo_dir) / relative_path
+            try:
+                committed_any = (
+                    commit_sdd_store_files(
+                        store,
+                        f"Add Q&A to {prompt_path.stem} prompt",
+                        auto_commit_type="sdd",
+                        paths=[prompt_path],
+                        artifacts_dir=artifact_root,
+                    )
+                    or committed_any
+                )
+            except Exception:
+                _logger.warning(
+                    "Failed to auto-commit external SDD prompt Q&A: %s",
+                    prompt_path,
+                    exc_info=True,
+                )
+
+    if not committed_any:
         return dirty_state, False
     refreshed = _collect_dirty_state(project_dir, artifact_root=artifact_root)
     return refreshed, True
@@ -418,12 +496,16 @@ def _finalizer_workspace_num(project_dir: str) -> int:
 def _clean_result_reason(
     *,
     done_plan_auto_committed: bool,
+    sdd_prompt_qa_auto_committed: bool,
     sdd_store_auto_committed: bool,
 ) -> str:
-    if done_plan_auto_committed and sdd_store_auto_committed:
-        return "auto_committed_done_plan_status_and_sdd_store"
+    auto_committed: list[str] = []
     if done_plan_auto_committed:
-        return "auto_committed_done_plan_status"
+        auto_committed.append("done_plan_status")
+    if sdd_prompt_qa_auto_committed:
+        auto_committed.append("sdd_prompt_qa")
     if sdd_store_auto_committed:
-        return "auto_committed_sdd_store"
-    return "no_changes"
+        auto_committed.append("sdd_store")
+    if not auto_committed:
+        return "no_changes"
+    return "auto_committed_" + "_and_".join(auto_committed)
