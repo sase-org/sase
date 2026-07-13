@@ -11,6 +11,7 @@ import pytest
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
     record_sdd_commit_result_marker,
+    write_commit_diff_artifact,
     write_result_marker,
 )
 from sase.workflows.commit.pr_operations import build_pr_body
@@ -316,6 +317,64 @@ class TestWriteResultMarker:
             (artifacts_dir / "commit_result.json").read_text(encoding="utf-8")
         )
         assert marker["repo_name"] == "sase-org/sase--plans"
+
+    @pytest.mark.parametrize(
+        ("clone_parts", "repo_name"),
+        [
+            (("gh", "acme", "widget"), "gh:acme/widget"),
+            (("projects", "dotdrop"), "dotdrop"),
+        ],
+    )
+    def test_external_commit_records_canonical_repo_and_own_diff(
+        self,
+        tmp_path: Path,
+        clone_parts: tuple[str, ...],
+        repo_name: str,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        external = primary.joinpath("sase", "repos", "external", *clone_parts)
+        source_dir = external / "src"
+        artifacts_dir.mkdir()
+        (primary / ".git").mkdir(parents=True)
+        (external / ".git").mkdir(parents=True)
+        source_dir.mkdir()
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "workspace_dir": str(primary),
+                    "commit_diff_path": "/tmp/primary.diff",
+                }
+            ),
+            encoding="utf-8",
+        )
+        diff_path = write_commit_diff_artifact(
+            "diff --git a/src/demo.py b/src/demo.py\n",
+            artifacts_dir=artifacts_dir,
+        )
+        assert diff_path is not None
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(source_dir)),
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "fix: external"},
+                diff_path,
+                "def456",
+                None,
+            )
+
+        results = json.loads(
+            (artifacts_dir / "commit_results.json").read_text(encoding="utf-8")
+        )
+        assert results[0]["repo_name"] == repo_name
+        assert results[0]["commit_diff_path"] == diff_path
+        assert Path(diff_path).read_text(encoding="utf-8").startswith("diff --git")
+        persisted = json.loads(meta_path.read_text(encoding="utf-8"))
+        assert persisted["commit_diff_path"] == "/tmp/primary.diff"
 
     def test_does_not_update_agent_meta_without_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

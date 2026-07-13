@@ -9,7 +9,7 @@ _DEFAULT_ENABLED = True
 _DEFAULT_MAX_PASSES = 2
 
 _FinalizerStatus = Literal["skipped", "clean", "finalized", "failed"]
-_DirtyRepoKind = Literal["main", "sibling", "sdd"]
+_DirtyRepoKind = Literal["main", "sibling", "external", "sdd"]
 
 
 class CommitFinalizerError(Exception):

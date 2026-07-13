@@ -292,7 +292,8 @@ def _persist_commit_diff_path(
     ``commit_results.json`` records every commit with its repository-aware
     metadata.  ``agent_meta.json["commit_diff_path"]`` has a narrower
     contract: it is the fallback diff for the agent's primary workspace.  Do
-    not let a linked, sidecar, or temporary repository replace that value.
+    not let a linked, external, sidecar, or temporary repository replace that
+    value.
 
     Historical agents may lack ``workspace_dir`` or use an unrecognized VCS
     layout.  In those cases repository identity cannot be proven, so retain
@@ -414,6 +415,33 @@ def _sdd_repo_name_for_commit_cwd(
         return None
 
 
+def _external_repo_name_for_commit_cwd(
+    commit_cwd: str,
+    workspace_dir: str | None,
+) -> str | None:
+    """Return the canonical external-repo name containing ``commit_cwd``."""
+
+    if not workspace_dir:
+        return None
+    try:
+        from sase.external_repos import external_repo_name_from_clone_parts
+        from sase.linked_repos import EXTERNAL_REPO_CLONES_SUBDIR
+
+        repo_root = _repository_root(commit_cwd)
+        if repo_root is None:
+            return None
+        external_root = (
+            Path(workspace_dir)
+            .expanduser()
+            .resolve(strict=False)
+            .joinpath(*EXTERNAL_REPO_CLONES_SUBDIR)
+        )
+        clone_parts = Path(repo_root).relative_to(external_root).parts
+        return external_repo_name_from_clone_parts(clone_parts)
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
 def record_sdd_commit_result_marker(
     *,
     cwd: str | os.PathLike[str],
@@ -473,10 +501,10 @@ def write_result_marker(
     if not run_id:
         run_id = os.path.basename(os.path.normpath(artifacts_dir))
     commit_cwd = os.getcwd()
-    repo_name = _sdd_repo_name_for_commit_cwd(
-        commit_cwd,
-        _agent_workspace_dir(artifacts_dir),
-    )
+    workspace_dir = _agent_workspace_dir(artifacts_dir)
+    repo_name = _external_repo_name_for_commit_cwd(commit_cwd, workspace_dir)
+    if repo_name is None:
+        repo_name = _sdd_repo_name_for_commit_cwd(commit_cwd, workspace_dir)
 
     marker = {
         "method": method,

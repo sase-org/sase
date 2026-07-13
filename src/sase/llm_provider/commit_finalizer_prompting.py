@@ -18,15 +18,23 @@ def build_dirty_details(
     main_instruction: str,
     main_repo: DirtyRepo | None,
     sibling_repos: tuple[DirtyRepo, ...],
+    external_repos: tuple[DirtyRepo, ...] = (),
     sdd_repos: tuple[DirtyRepo, ...] = (),
 ) -> str:
-    if main_repo is not None and not sibling_repos and not sdd_repos and main_details:
+    if (
+        main_repo is not None
+        and not sibling_repos
+        and not external_repos
+        and not sdd_repos
+        and main_details
+    ):
         return main_details
 
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
+    repos.extend(external_repos)
     repos.extend(sdd_repos)
     if not repos:
         return ""
@@ -39,6 +47,8 @@ def build_dirty_details(
                 label = "main workspace"
             elif repo.kind == "sibling":
                 label = f"linked repo {repo.name}"
+            elif repo.kind == "external":
+                label = f"external repo `{repo.name}`"
             else:
                 label = f"SDD sidecar repo {repo.name}"
             lines.append(f"- {label}: {repo.path}")
@@ -49,8 +59,8 @@ def build_dirty_details(
     if main_repo is not None and main_instruction:
         lines.extend(["", "Main workspace commit instructions:", main_instruction])
 
-    external_repos = (*sibling_repos, *sdd_repos)
-    if external_repos:
+    non_primary_repos = (*sibling_repos, *external_repos, *sdd_repos)
+    if non_primary_repos:
         lines.extend(
             [
                 "",
@@ -59,8 +69,8 @@ def build_dirty_details(
             ]
         )
 
-    if external_repos:
-        for repo in external_repos:
+    if non_primary_repos:
+        for repo in non_primary_repos:
             lines.append(
                 f"- For `{repo.name}`, run `cd {repo.path}` before using "
                 "your /sase_git_commit skill."

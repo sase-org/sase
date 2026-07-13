@@ -12,6 +12,7 @@ import pytest
 from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     OPENED_SIBLINGS_FILENAME,
+    record_opened_external_repo,
     record_opened_linked_repo,
 )
 from sase.llm_provider.commit_finalizer import run_commit_finalizer
@@ -113,6 +114,16 @@ def mark_opened_linked(
 ) -> None:
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
     record_opened_linked_repo(name, str(workspace_dir))
+
+
+def mark_opened_external(
+    monkeypatch: pytest.MonkeyPatch,
+    artifacts_dir: Path,
+    name: str,
+    workspace_dir: Path,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_external_repo(name, str(workspace_dir))
 
 
 def write_legacy_opened_siblings_marker(

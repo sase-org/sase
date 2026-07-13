@@ -11,6 +11,7 @@ from sase.linked_repos import (
     SIBLING_REPOS_JSON_ENV,
     linked_repo_metadata_from_env,
     is_legacy_static_linked_repo_record,
+    opened_external_repo_records,
     opened_linked_repo_names,
     opened_linked_repo_workspace_dirs,
 )
@@ -63,17 +64,22 @@ def collect_dirty_state(
             opened_workspace_dirs=opened_workspace_dirs,
         )
     )
+    external_repos = tuple(
+        _dirty_opened_external_repos(opened_external_repo_records(artifact_root))
+    )
     sdd_repos = tuple(_dirty_sdd_store_repos(project_dir))
     repos: list[DirtyRepo] = []
     if main_repo is not None:
         repos.append(main_repo)
     repos.extend(sibling_repos)
+    repos.extend(external_repos)
     repos.extend(sdd_repos)
     details = build_dirty_details(
         main_details=main_details,
         main_instruction=main_instruction,
         main_repo=main_repo,
         sibling_repos=sibling_repos,
+        external_repos=external_repos,
         sdd_repos=sdd_repos,
     )
     return DirtyState(
@@ -81,6 +87,38 @@ def collect_dirty_state(
         repos=tuple(repos),
         details=details,
     )
+
+
+def _dirty_opened_external_repos(
+    records: Mapping[str, Mapping[str, str]],
+) -> list[DirtyRepo]:
+    """Return dirty external repositories recorded in this agent run."""
+
+    dirty: list[DirtyRepo] = []
+    seen_names: set[str] = set()
+    seen_paths: set[str] = set()
+    for name, record in records.items():
+        canonical_name = (record.get("ref") or name).strip()
+        workspace_dir = record.get("workspace_dir", "").strip()
+        if not canonical_name or not workspace_dir:
+            continue
+        workspace_dir = finalizer_git._normalize_path(workspace_dir)
+        if canonical_name in seen_names or workspace_dir in seen_paths:
+            continue
+        changed_files = git_changed_files(workspace_dir)
+        if not changed_files:
+            continue
+        dirty.append(
+            DirtyRepo(
+                name=canonical_name,
+                path=workspace_dir,
+                changed_files=tuple(changed_files),
+                kind="external",
+            )
+        )
+        seen_names.add(canonical_name)
+        seen_paths.add(workspace_dir)
+    return dirty
 
 
 def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
