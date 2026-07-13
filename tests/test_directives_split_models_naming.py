@@ -93,8 +93,8 @@ def test_split_prompt_for_models_resume_base(tmp_path: Path) -> None:
             "#fork:foo\n%{%model:opus | %model:sonnet}\nDo work"
         )
     assert result is not None
-    assert result[0] == "%name:foo.f-0.cld_opus\n#fork:foo\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.f-0.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.f0.cld_opus\n#fork:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.f0.cld_sonnet\n#fork:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_wait_base(tmp_path: Path) -> None:
@@ -104,8 +104,8 @@ def test_split_prompt_for_models_wait_base(tmp_path: Path) -> None:
             "%wait:foo\n%{%model:opus | %model:sonnet}\nDo work"
         )
     assert result is not None
-    assert result[0] == "%name:foo.w-0.cld_opus\n%wait:foo\n%model:opus\nDo work"
-    assert result[1] == "%name:foo.w-0.cld_sonnet\n%wait:foo\n%model:sonnet\nDo work"
+    assert result[0] == "%name:foo.w0.cld_opus\n%wait:foo\n%model:opus\nDo work"
+    assert result[1] == "%name:foo.w0.cld_sonnet\n%wait:foo\n%model:sonnet\nDo work"
 
 
 def test_split_prompt_for_models_resume_base_wins_over_wait(
@@ -118,10 +118,10 @@ def test_split_prompt_for_models_resume_base_wins_over_wait(
         )
     assert result is not None
     assert result[0] == (
-        "%name:foo.f-0.cld_opus\n%wait:foo\n#fork:foo\n%model:opus\nDo work"
+        "%name:foo.f0.cld_opus\n%wait:foo\n#fork:foo\n%model:opus\nDo work"
     )
     assert result[1] == (
-        "%name:foo.f-0.cld_sonnet\n%wait:foo\n#fork:foo\n%model:sonnet\nDo work"
+        "%name:foo.f0.cld_sonnet\n%wait:foo\n#fork:foo\n%model:sonnet\nDo work"
     )
 
 

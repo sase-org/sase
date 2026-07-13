@@ -288,8 +288,8 @@ def test_launch_multi_prompt_bare_wait_and_resume_plan_fork_name(
     )
     assert (
         mock_spawn.call_args_list[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "builder.f-0"
+        == "builder.f0"
     )
     assert mock_spawn.call_args_list[2].kwargs["prompt"] == (
-        "#fork:builder.f-0\nFollow up"
+        "#fork:builder.f0\nFollow up"
     )

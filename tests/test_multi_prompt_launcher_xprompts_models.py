@@ -243,7 +243,7 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
     assert [result.agent_name for result in results] == [
         "0.cld",
         "0.cdx",
-        "0.cdx.w-0",
+        "0.cdx.w0",
     ]
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
     assert prompts == [
@@ -255,7 +255,7 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
     assert [env["SASE_AGENT_PLANNED_NAME"] for env in envs] == [
         "0.cld",
         "0.cdx",
-        "0.cdx.w-0",
+        "0.cdx.w0",
     ]
     assert [env.get("SASE_AGENT_GENERATED_NAME") for env in envs] == [
         "1",

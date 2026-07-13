@@ -109,7 +109,7 @@ def allocate_resume_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available rendering of ``<resume_name>.f-@``."""
+    """Return the first available rendering of ``<resume_name>.f@``."""
     from sase.agent.names._templates import allocate_agent_name_template
 
     return allocate_agent_name_template(
@@ -147,7 +147,7 @@ def active_resume_reserved_names(resume_name: str) -> set[str]:
 
 def resume_agent_name_template(base: str) -> str:
     """Return the template used for fork/resume-derived agent names."""
-    return f"{base}.f-@"
+    return f"{base}.f@"
 
 
 def single_wait_agent_name(prompt: str | None) -> str | None:
@@ -201,7 +201,7 @@ def allocate_wait_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available rendering of ``<wait_name>.w-@``."""
+    """Return the first available rendering of ``<wait_name>.w@``."""
     from sase.agent.names._templates import allocate_agent_name_template
 
     return allocate_agent_name_template(
@@ -239,7 +239,7 @@ def active_wait_reserved_names(wait_name: str) -> set[str]:
 
 def wait_agent_name_template(base: str) -> str:
     """Return the template used for wait-derived agent names."""
-    return f"{base}.w-@"
+    return f"{base}.w@"
 
 
 def _iter_reference_args(

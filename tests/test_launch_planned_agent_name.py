@@ -163,9 +163,9 @@ def test_single_prompt_launch_result_carries_wait_derived_name(
         results = launch_agents_from_cwd("%wait:foo do work")
 
     assert len(results) == 1
-    assert results[0].agent_name == "foo.w-0"
+    assert results[0].agent_name == "foo.w0"
     kwargs = spawn.call_args.kwargs
-    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.w-0"
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.w0"
 
 
 def test_single_prompt_with_unexpanded_xprompt_leaves_agent_name_unset(

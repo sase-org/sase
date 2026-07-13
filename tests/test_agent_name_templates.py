@@ -48,13 +48,16 @@ def test_template_base_is_stable_reference_key() -> None:
 
 def test_renders_template_shapes() -> None:
     assert render_agent_name_template("@", "0") == "0"
-    assert render_agent_name_template("@", "1") == "1"
+    assert render_agent_name_template("@", "a") == "a"
     assert render_agent_name_template("build-@", "0") == "build-0"
-    assert render_agent_name_template("build-@", "1") == "build-1"
-    assert render_agent_name_template("@.cld", "0") == "0.cld"
-    assert render_agent_name_template("@.cld", "1") == "1.cld"
+    assert render_agent_name_template("build-@", "a") == "build-a"
+    assert render_agent_name_template("build.@", "a") == "build.a"
+    assert render_agent_name_template("@.cld", "a") == "a.cld"
     assert render_agent_name_template("research.@.final", "0") == "research.0.final"
-    assert render_agent_name_template("research.@.final", "1") == "research.1.final"
+    assert render_agent_name_template("foo.f@", "0") == "foo.f0"
+    assert render_agent_name_template("foo.f@", "a") == "foo.f-a"
+    assert render_agent_name_template("foo.f@", "0a") == "foo.f0a"
+    assert render_agent_name_template("foo.f@", "a0") == "foo.f-a0"
 
 
 def test_derives_namespace_template_shapes() -> None:
@@ -64,6 +67,7 @@ def test_derives_namespace_template_shapes() -> None:
     assert agent_name_template_namespace_template("foo.@.bar") == "foo.@"
     assert agent_name_template_namespace_template("foo.@x.bar") == "foo.@x"
     assert render_agent_name_template_namespace("foo.@x.bar", "0") == "foo.0x"
+    assert render_agent_name_template_namespace("foo.f@x.bar", "a") == "foo.f-ax"
 
 
 def test_matches_template_tokens() -> None:
@@ -72,7 +76,35 @@ def test_matches_template_tokens() -> None:
     assert match_agent_name_template("build-@", "other-1") is None
     assert match_agent_name_template("@.cld", "00.cld") == "00"
     assert match_agent_name_template("research.@.final", "research.z.final") == "z"
+    assert match_agent_name_template("foo.f@", "foo.f0") == "0"
+    assert match_agent_name_template("foo.f@", "foo.f-a") == "a"
+    assert match_agent_name_template("foo.f@", "foo.f0a") == "0a"
+    assert match_agent_name_template("foo.f@", "foo.f-a0") == "a0"
     assert match_agent_name_template("@", "not.auto") is None
+
+
+@pytest.mark.parametrize(
+    ("template", "concrete"),
+    [
+        ("foo.f@", "foo.fa"),
+        ("foo.f@", "foo.f-0"),
+        ("foo.f@", "foo.f--a"),
+        ("build-@", "build--a"),
+        ("build.@", "build.-a"),
+        ("@", "-a"),
+    ],
+)
+def test_matching_rejects_noncanonical_separator_shapes(
+    template: str, concrete: str
+) -> None:
+    assert match_agent_name_template(template, concrete) is None
+
+
+@pytest.mark.parametrize("template", ["@", "@.cld", "foo.f@", "foo-@", "foo.@"])
+@pytest.mark.parametrize("token", ["0", "9", "a", "z", "0a", "a0", "00"])
+def test_render_and_match_are_exact_inverses(template: str, token: str) -> None:
+    concrete = render_agent_name_template(template, token)
+    assert match_agent_name_template(template, concrete) == token
 
 
 def test_compares_tokens_by_auto_sequence_order() -> None:
@@ -107,6 +139,13 @@ def test_allocates_lowest_available_rendered_name() -> None:
     assert reserved == {"build-0", "build-1", "build-2", "build-3"}
 
 
+def test_allocation_inserts_separator_at_letter_boundary() -> None:
+    reserved = {f"foo.f{token}" for token in "0123456789"}
+
+    assert allocate_agent_name_template("foo.f@", reserved=reserved) == "foo.f-a"
+    assert allocate_agent_name_template("foo.f@", reserved=reserved) == "foo.f-b"
+
+
 def test_allocates_by_namespace_not_just_rendered_name() -> None:
     assert allocate_agent_name_template("@.cld", reserved={"0"}) == "1.cld"
     assert allocate_agent_name_template("@.cld", reserved={"0.cdx"}) == "1.cld"
@@ -115,6 +154,17 @@ def test_allocates_by_namespace_not_just_rendered_name() -> None:
         allocate_agent_name_template("foo.@.bar", reserved={"foo.0.any"}) == "foo.1.bar"
     )
     assert allocate_agent_name_template("foo-@", reserved={"foo-0.any"}) == "foo-1"
+
+
+def test_letter_leading_namespace_reservations_use_inserted_separator() -> None:
+    reserved = {
+        *(f"foo.f{token}" for token in "0123456789"),
+        "foo.f-a.any",
+    }
+
+    assert allocate_agent_name_template("foo.f@.bar", reserved=reserved) == (
+        "foo.f-b.bar"
+    )
 
 
 def test_namespace_index_uses_dotted_prefixes_not_raw_string_prefixes() -> None:
@@ -137,6 +187,20 @@ def test_latest_uses_auto_sequence_order() -> None:
     }
 
     assert latest_agent_name_template("build-@", names=names) == "build-01"
+
+
+def test_latest_uses_canonical_conditional_separator_shapes() -> None:
+    names = {
+        "foo.f0",
+        "foo.f9",
+        "foo.f-a",
+        "foo.f-z",
+        "foo.f00",
+        "foo.fa",
+        "foo.f-0",
+    }
+
+    assert latest_agent_name_template("foo.f@", names=names) == "foo.f00"
 
 
 def test_require_latest_raises_typed_error() -> None:

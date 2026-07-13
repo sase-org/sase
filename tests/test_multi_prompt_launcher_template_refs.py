@@ -46,11 +46,11 @@ def test_launch_multi_prompt_resolves_template_wait_to_planned_predecessor(
         )
 
     calls = mock_spawn.call_args_list
-    assert [result.agent_name for result in results] == ["build-0", "build-0.w-0"]
+    assert [result.agent_name for result in results] == ["build-0", "build-0.w0"]
     assert calls[0].kwargs["prompt"] == "%n:build-@\nBuild"
     assert calls[1].kwargs["prompt"] == "%w:build-0\nReview"
     assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0.w-0"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0.w0"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -188,7 +188,7 @@ def test_launch_multi_prompt_resolves_template_resume_to_planned_predecessor(
     )
     assert (
         mock_spawn.call_args_list[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
-        == "build-0.f-0"
+        == "build-0.f0"
     )
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
@@ -236,7 +236,7 @@ def test_launch_multi_prompt_resolves_middle_template_wait_to_planned_name(
 
     assert [result.agent_name for result in results] == [
         "research.0.final",
-        "research.0.final.w-0",
+        "research.0.final.w0",
     ]
     assert mock_spawn.call_args_list[1].kwargs["prompt"] == (
         "%w:research.0.final\nReview"

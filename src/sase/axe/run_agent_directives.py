@@ -2,7 +2,6 @@
 
 import json
 import os
-import re
 from typing import Any, NamedTuple
 
 from sase.axe.chop_agents import agent_meta_from_chop_env
@@ -408,19 +407,16 @@ def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> 
     except AgentNameTemplateError:
         pass
 
-    prefix = f"{resume_name}.f-"
+    prefix = f"{resume_name}.f"
     if not planned_name.startswith(prefix):
-        legacy_pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
-        return re.match(legacy_pattern, planned_name) is not None
+        return False
 
-    token = planned_name.removeprefix(prefix).split(".", 1)[0]
-    if not token:
+    rendered_token = planned_name.removeprefix(prefix).split(".", 1)[0]
+    if not rendered_token:
         return False
     try:
-        if match_agent_name_template(template, f"{prefix}{token}") is not None:
-            return True
+        return (
+            match_agent_name_template(template, f"{prefix}{rendered_token}") is not None
+        )
     except AgentNameTemplateError:
         return False
-
-    legacy_pattern = rf"^{re.escape(resume_name)}\.f\d+(?:\.|$)"
-    return re.match(legacy_pattern, planned_name) is not None

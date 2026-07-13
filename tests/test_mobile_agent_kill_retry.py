@@ -212,17 +212,17 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
         ]
 
     monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fake_launch)
-    monkeypatch.setattr(mobile_agents, "allocate_retry_name", lambda _name: "alpha.r-0")
+    monkeypatch.setattr(mobile_agents, "allocate_retry_name", lambda _name: "alpha.r0")
 
     payload = _retry_mobile_agent(
         {"schema_version": 1, "name": "alpha", "request_id": "req-retry-1"}
     )
 
-    assert captured == ["%name:alpha.r-0\nDo work"]
+    assert captured == ["%name:alpha.r0\nDo work"]
     assert payload["source_agent"] == "alpha"
-    assert payload["launch"]["primary"]["name"] == "alpha.r-0"
+    assert payload["launch"]["primary"]["name"] == "alpha.r0"
     contexts = store.read_text(encoding="utf-8")
-    assert '"agent_name": "alpha.r-0"' in contexts
+    assert '"agent_name": "alpha.r0"' in contexts
     assert '"source_agent_name": "alpha"' in contexts
     assert '"request_id": "req-retry-1"' in contexts
 
@@ -248,7 +248,7 @@ def test_retry_mobile_agent_falls_back_to_mobile_kill_context(
     monkeypatch.setattr(
         mobile_agents,
         "allocate_retry_name",
-        lambda _name: "killed.r-0",
+        lambda _name: "killed.r0",
     )
     monkeypatch.setattr(
         mobile_agents,
@@ -270,7 +270,7 @@ def test_retry_mobile_agent_falls_back_to_mobile_kill_context(
 
     payload = _retry_mobile_agent({"schema_version": 1, "name": "killed"})
 
-    assert captured == ["%name:killed.r-0\nDo killed work"]
+    assert captured == ["%name:killed.r0\nDo killed work"]
     assert payload["source_agent"] == "killed"
 
 

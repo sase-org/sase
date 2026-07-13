@@ -56,8 +56,8 @@ class RepeatAgentSpec:
     ``prev_name`` is the resolved name of this slot's chain predecessor
     (the agent it ``%wait``s on), or ``None`` for the first slot.  It is the
     already-allocated name, not ``<base>.<k-1>`` string surgery, so it stays
-    correct for resume- and wait-derived names such as ``foo.f-1`` or
-    ``foo.w-2``.  Launch surfaces forward it as ``SASE_REPEAT_PREV_NAME`` so a
+    correct for resume- and wait-derived names such as ``foo.f1`` or
+    ``foo.w2``.  Launch surfaces forward it as ``SASE_REPEAT_PREV_NAME`` so a
     woken slot can detect a predecessor's ``STOP`` output variable.
     """
 

@@ -346,6 +346,7 @@ def evaluate_questions_transition(
     saved_chat_suffixes: Sequence[str] = (),
 ) -> QuestionsTransition:
     """Evaluate the follow-up role/suffix template after Q&A completes."""
+    from sase.agent.names import render_agent_name_template
 
     root_sequence = is_root_question_suffix(
         interrupted_suffix,
@@ -363,7 +364,7 @@ def evaluate_questions_transition(
         "q"
         if root_sequence
         else agent_family_role_for_suffix(
-            suffix_template.replace("@", "0"),
+            render_agent_name_template(suffix_template, "0"),
             agent_family_role=interrupted_role,
         )
         or interrupted_role

@@ -1158,13 +1158,15 @@ while the plan is still in review. This targets the planner row only: a `%wait:<
 parked until the whole plan chain actually completes, so a submitted plan alone never makes the chain look finished.
 
 When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
-name before spawning the waiting agent: `<name>.w-0`, `<name>.w-1`, and so on, using the first free template token.
+name before spawning the waiting agent: `<name>.w0`, `<name>.w1`, and so on, using the first free template token. After
+`<name>.w9`, letter-leading IDs gain a separator (`<name>.w-a`, `<name>.w-b`, and so on) to keep the name readable.
 Multi-value waits, bare `%wait`, and prompts whose name depends on unresolved xprompt expansion do not get a parent-side
 derived name. Repeat launches reuse this rule, then chain later repeat slots with `%wait:<previous-slot-name>`.
 
-If a prompt includes both `#fork`/`#resume` and `%wait`, the fork-derived `.f-<token>` name takes precedence over the
-wait-derived `.w-<token>` name. The wait still controls launch ordering, but the planned agent name follows the
-resume/fork lineage.
+Fork/resume names follow the same sequence: `<name>.f0` through `<name>.f9`, then `<name>.f-a`, `<name>.f-b`, and so on.
+Retries use `<name>.r0` through `<name>.r9`, then `<name>.r-a`, `<name>.r-b`, and so on. If a prompt includes both
+`#fork`/`#resume` and `%wait`, the fork-derived `.f@` template takes precedence over the wait-derived `.w@` template.
+The wait still controls launch ordering, but the planned agent name follows the resume/fork lineage.
 
 The `%wait` directive also accepts a `time=` keyword to defer launch by a duration or until an absolute wall-clock time.
 For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.

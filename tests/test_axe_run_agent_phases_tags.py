@@ -144,7 +144,7 @@ def test_wait_derived_agent_name_auto_persists_existing_group(
         seed_tags={existing: "foo"},
     )
 
-    assert info.name == "foo.w-0"
+    assert info.name == "foo.w0"
     assert info.tag == "foo"
     assert meta["tag"] == "foo"
     assert tags == {
@@ -166,7 +166,7 @@ def test_fork_derived_agent_name_auto_persists_existing_group(
         raw_resolved_prompt="#fork:foo\nDo work",
     )
 
-    assert info.name == "foo.f-0"
+    assert info.name == "foo.f0"
     assert info.tag == "foo"
     assert meta["tag"] == "foo"
     assert tags == {

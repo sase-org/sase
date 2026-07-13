@@ -220,8 +220,8 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.f-0", "foo.f-1", "foo.f-2"]
-        assert [s.prev_name for s in specs] == [None, "foo.f-0", "foo.f-1"]
+        assert [s.name for s in specs] == ["foo.f0", "foo.f1", "foo.f2"]
+        assert [s.prev_name for s in specs] == [None, "foo.f0", "foo.f1"]
 
     def test_prev_name_uses_wait_derived_names(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -230,8 +230,8 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.w-0", "foo.w-1", "foo.w-2"]
-        assert [s.prev_name for s in specs] == [None, "foo.w-0", "foo.w-1"]
+        assert [s.name for s in specs] == ["foo.w0", "foo.w1", "foo.w2"]
+        assert [s.prev_name for s in specs] == [None, "foo.w0", "foo.w1"]
 
     def test_preexisting_user_wait_is_preserved(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -253,10 +253,10 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.f-0", "foo.f-1", "foo.f-2"]
-        assert specs[0].prompt.startswith("%n:foo.f-0\n")
-        assert specs[1].prompt.startswith("%n:foo.f-1\n%wait:foo.f-0\n")
-        assert specs[2].prompt.startswith("%n:foo.f-2\n%wait:foo.f-1\n")
+        assert [s.name for s in specs] == ["foo.f0", "foo.f1", "foo.f2"]
+        assert specs[0].prompt.startswith("%n:foo.f0\n")
+        assert specs[1].prompt.startswith("%n:foo.f1\n%wait:foo.f0\n")
+        assert specs[2].prompt.startswith("%n:foo.f2\n%wait:foo.f1\n")
 
     def test_resume_prompt_wins_over_wait_derived_names(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -265,16 +265,16 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.f-0", "foo.f-1"]
-        assert specs[0].prompt.startswith("%n:foo.f-0\n")
-        assert specs[1].prompt.startswith("%n:foo.f-1\n%wait:foo.f-0\n")
+        assert [s.name for s in specs] == ["foo.f0", "foo.f1"]
+        assert specs[0].prompt.startswith("%n:foo.f0\n")
+        assert specs[1].prompt.startswith("%n:foo.f1\n%wait:foo.f0\n")
 
     def test_resume_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
         taken = (
             tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"
         )
         taken.mkdir(parents=True)
-        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.f-0"}))
+        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.f0"}))
         (taken / "done.json").write_text("{}")
 
         with patch.object(Path, "home", return_value=tmp_path):
@@ -283,7 +283,7 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.f-1", "foo.f-2"]
+        assert [s.name for s in specs] == ["foo.f1", "foo.f2"]
 
     def test_wait_prompt_uses_wait_derived_names(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
@@ -292,17 +292,17 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.w-0", "foo.w-1", "foo.w-2"]
-        assert specs[0].prompt.startswith("%n:foo.w-0\n")
-        assert specs[1].prompt.startswith("%n:foo.w-1\n%wait:foo.w-0\n")
-        assert specs[2].prompt.startswith("%n:foo.w-2\n%wait:foo.w-1\n")
+        assert [s.name for s in specs] == ["foo.w0", "foo.w1", "foo.w2"]
+        assert specs[0].prompt.startswith("%n:foo.w0\n")
+        assert specs[1].prompt.startswith("%n:foo.w1\n%wait:foo.w0\n")
+        assert specs[2].prompt.startswith("%n:foo.w2\n%wait:foo.w1\n")
 
     def test_wait_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
         taken = (
             tmp_path / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / "run1"
         )
         taken.mkdir(parents=True)
-        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.w-0"}))
+        (taken / "agent_meta.json").write_text(json.dumps({"name": "foo.w0"}))
         (taken / "done.json").write_text("{}")
 
         with patch.object(Path, "home", return_value=tmp_path):
@@ -311,7 +311,7 @@ class TestSpawnRepeatBatch:
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert [s.name for s in specs] == ["foo.w-1", "foo.w-2"]
+        assert [s.name for s in specs] == ["foo.w1", "foo.w2"]
 
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

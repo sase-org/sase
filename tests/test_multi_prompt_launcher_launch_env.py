@@ -75,7 +75,7 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
             "workflow_timestamp": "260501_120000",
         }
     ]
-    assert second_env["SASE_AGENT_PLANNED_NAME"] == "build-0.w-0"
+    assert second_env["SASE_AGENT_PLANNED_NAME"] == "build-0.w0"
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0
 
@@ -288,7 +288,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     call1_env = mock_spawn.call_args_list[1].kwargs["extra_env"]
     assert call1_env["SASE_SHARED"] == "yes"
     assert call1_env["SASE_BEAD_ID"] == "sase-x.2"
-    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "first.w-0"
+    assert call1_env["SASE_AGENT_PLANNED_NAME"] == "first.w0"
     upstreams = json.loads(call1_env[SASE_AGENT_VAR_UPSTREAMS_ENV])
     assert upstreams[0]["name"] == "first"
     assert upstreams[0]["agent_key"] == "first"

@@ -126,8 +126,8 @@ def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
         result = split_prompt_for_models("#fork:foo\n%alt(x,y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.f-0.1\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.f-0.2\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f0.1\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f0.2\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_pure_alt_resume_base_ignores_legacy_slot(
@@ -140,8 +140,8 @@ def test_split_prompt_for_models_pure_alt_resume_base_ignores_legacy_slot(
         result = split_prompt_for_models("#fork:foo\n%alt(sec=x,perf=y)\nDo work")
 
     assert result is not None
-    assert result[0] == "%name:foo.f-0.sec\n#fork:foo\nx\nDo work"
-    assert result[1] == "%name:foo.f-0.perf\n#fork:foo\ny\nDo work"
+    assert result[0] == "%name:foo.f0.sec\n#fork:foo\nx\nDo work"
+    assert result[1] == "%name:foo.f0.perf\n#fork:foo\ny\nDo work"
 
 
 def test_split_prompt_for_models_named_model_alt_overrides_model_suffix() -> None:

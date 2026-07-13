@@ -12,6 +12,7 @@ from sase.agent.names import (
     first_fork_agent_name,
     first_resume_agent_name,
     has_fork_reference,
+    resume_agent_name_template,
     resolve_resume_agent_name,
 )
 
@@ -19,6 +20,9 @@ from tests._agent_names_fixtures import make_agent as _make_agent
 
 
 class TestResumeAgentNames:
+    def test_resume_template_uses_natural_marker_shape(self) -> None:
+        assert resume_agent_name_template("foo") == "foo.f@"
+
     def test_finds_resume_colon_paren_and_backtick(self) -> None:
         assert first_resume_agent_name("#fork:foo do work") == "foo"
         assert first_resume_agent_name("#fork(foo) do work") == "foo"
@@ -129,35 +133,64 @@ class TestResumeAgentNames:
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f-0"
+            assert allocate_resume_name("foo") == "foo.f0"
 
     def test_allocates_resume_slot_gap(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f-0", done=True)
-        _make_agent(tmp_path, "proj", "run3", "foo.f-2", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f0", done=True)
+        _make_agent(tmp_path, "proj", "run3", "foo.f2", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f-1"
+            assert allocate_resume_name("foo") == "foo.f1"
 
     def test_suffixed_descendants_reserve_resume_slot(self, tmp_path: Path) -> None:
-        _make_agent(tmp_path, "proj", "run1", "foo.f-0.cld", done=True)
+        _make_agent(tmp_path, "proj", "run1", "foo.f0.cld", done=True)
         with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f-1"
+            assert allocate_resume_name("foo") == "foo.f1"
 
-    def test_legacy_descendants_do_not_reserve_new_fork_slots(
-        self, tmp_path: Path
+    def test_historical_no_dash_numeric_descendant_reserves_fork_slot(self) -> None:
+        reserved = {"foo.f0", "foo.f1.cld"}
+
+        assert allocate_resume_name("foo", reserved=reserved) == "foo.f2"
+
+    def test_historical_dash_numeric_descendant_does_not_reserve_fork_slot(
+        self,
     ) -> None:
-        _make_agent(tmp_path, "proj", "run0", "foo.f1.cld", done=True)
-        _make_agent(tmp_path, "proj", "run1", "foo.r1.cld", done=True)
-        with patch.object(Path, "home", return_value=tmp_path):
-            assert allocate_resume_name("foo") == "foo.f-0"
+        reserved = {"foo.f0", "foo.f-1.cld"}
+
+        assert allocate_resume_name("foo", reserved=reserved) == "foo.f1"
+
+    def test_historical_dash_letter_descendant_reserves_fork_slot(self) -> None:
+        reserved = {
+            *(f"foo.f{token}" for token in "0123456789"),
+            "foo.f-a.cld",
+        }
+
+        assert allocate_resume_name("foo", reserved=reserved) == "foo.f-b"
+
+    def test_fork_allocation_inserts_dash_at_letter_boundary(self) -> None:
+        reserved: set[str] = set()
+
+        assert [allocate_resume_name("foo", reserved=reserved) for _ in range(11)] == [
+            "foo.f0",
+            "foo.f1",
+            "foo.f2",
+            "foo.f3",
+            "foo.f4",
+            "foo.f5",
+            "foo.f6",
+            "foo.f7",
+            "foo.f8",
+            "foo.f9",
+            "foo.f-a",
+        ]
 
     def test_allocates_multiple_resume_names_from_one_snapshot(
         self, tmp_path: Path
     ) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             assert allocate_resume_names("foo", 3) == [
-                "foo.f-0",
-                "foo.f-1",
-                "foo.f-2",
+                "foo.f0",
+                "foo.f1",
+                "foo.f2",
             ]
 
     def test_resolve_resume_root_uses_latest_completed_family_member(

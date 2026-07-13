@@ -48,8 +48,8 @@ def test_launch_multi_prompt_plans_wait_derived_sibling_names(
 
     calls = mock_spawn.call_args_list
     assert [c.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] for c in calls] == [
-        "foo.w-0",
-        "foo.w-1",
+        "foo.w0",
+        "foo.w1",
     ]
     assert [c.kwargs["prompt"] for c in calls] == [
         "%wait:foo first",

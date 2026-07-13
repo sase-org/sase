@@ -104,8 +104,10 @@ def _meta_family_role(meta: dict[str, Any]) -> str | None:
 
 
 def _fallback_question_suffix(template: str, *, root_sequence: bool) -> str:
+    from sase.agent.names import render_agent_name_template
+
     token = "1" if root_sequence else "0"
-    return template.replace("@", token)
+    return render_agent_name_template(template, token)
 
 
 def _update_sdd_prompt_snapshot_qa(

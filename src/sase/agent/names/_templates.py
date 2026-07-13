@@ -119,7 +119,12 @@ def agent_name_template_base(template: str) -> str:
 
 
 def render_agent_name_template(template: str, token: str) -> str:
-    """Render *template* by replacing ``@`` with *token*."""
+    """Render *template* with the canonical auto-ID separator behavior.
+
+    A letter-leading token gains a dash when the marker follows an ordinary
+    character. Leading markers and markers after ``-`` or ``.`` use the token
+    directly; digit-leading tokens always remain adjacent to the prefix.
+    """
     try:
         return str(_core("render_agent_name_template")(template, token))
     except ValueError as exc:
@@ -141,7 +146,7 @@ def render_agent_name_template_namespace(template: str, token: str) -> str:
 
 
 def match_agent_name_template(template: str, concrete: str) -> str | None:
-    """Return the template token in *concrete*, or ``None`` if it does not match."""
+    """Return the canonical template token in *concrete*, if it matches."""
     try:
         token = _core("match_agent_name_template")(template, concrete)
     except ValueError as exc:

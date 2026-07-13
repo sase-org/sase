@@ -8,7 +8,7 @@ def allocate_retry_name(
     *,
     reserved: set[str] | None = None,
 ) -> str:
-    """Return the first available rendering of ``<base>.r-@``."""
+    """Return the first available rendering of ``<base>.r@``."""
     from sase.agent.names._templates import allocate_agent_name_template
 
     return allocate_agent_name_template(
@@ -19,4 +19,4 @@ def allocate_retry_name(
 
 def retry_agent_name_template(base: str) -> str:
     """Return the template used for retry-derived agent names."""
-    return f"{base}.r-@"
+    return f"{base}.r@"

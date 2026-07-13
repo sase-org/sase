@@ -140,10 +140,10 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert mock_create_artifacts.call_count == 0
     assert mock_wait.call_count == 0
     assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0"
-    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w-0"
-    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w-0.w-0"
+    assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w0"
+    assert calls[2].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "0.w0.w0"
     assert calls[1].kwargs["prompt"].startswith("%wait:0")
-    assert calls[2].kwargs["prompt"].startswith("%wait:0.w-0")
+    assert calls[2].kwargs["prompt"].startswith("%wait:0.w0")
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -186,7 +186,7 @@ def test_launch_multi_prompt_fork_reference_defers_workspace(
     assert kwargs["workspace_num"] == 0
     assert kwargs["workspace_dir"] == "/ws/main"
     assert kwargs["deferred_workspace"] is True
-    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.f-0"
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.f0"
     mock_claim_ws.assert_not_called()
     mock_ws_dir.assert_not_called()
     mock_create_artifacts.assert_not_called()
