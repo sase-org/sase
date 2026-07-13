@@ -84,6 +84,26 @@ def _run_extract(
 
 
 class TestExtractDirectivesAutoDismiss:
+    def test_preserves_completed_wait_across_refreshed_extract(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        timestamp = "2026-07-13T16:00:00+00:00"
+        (artifacts / "agent_meta.json").write_text(
+            json.dumps({"pid": 123, "wait_completed_at": timestamp}),
+            encoding="utf-8",
+        )
+
+        result = _run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(60s)\ndo stuff",
+        )
+
+        assert result["info"].meta["wait_completed_at"] == timestamp
+        assert result["meta"]["wait_completed_at"] == timestamp
+
     def test_persists_wait_runners_metadata(self, tmp_path: Path) -> None:
         result = _run_extract(
             tmp_path,

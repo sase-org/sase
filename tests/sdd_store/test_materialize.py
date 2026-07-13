@@ -384,7 +384,10 @@ def test_foreign_record_is_preserved_and_fails_loudly(
     provider = _FakeSeparateRepoProvider(remote)
     _install_provider(monkeypatch, provider)
 
-    with pytest.raises(SddMaterializationError, match="newer or unknown sase version"):
+    with pytest.raises(
+        SddMaterializationError,
+        match="uses a format this process does not understand",
+    ):
         materialize_sdd_store(primary, 1)
 
     assert record_path.read_text(encoding="utf-8") == content

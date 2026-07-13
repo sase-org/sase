@@ -8,6 +8,21 @@ from sase.axe.chop_agents import agent_meta_from_chop_env
 from sase.axe.run_agent_markers import write_agent_meta
 
 
+def _completed_wait_metadata(artifacts_dir: str) -> dict[str, str]:
+    """Preserve the durable wait barrier across a runner re-exec."""
+    try:
+        with open(
+            os.path.join(artifacts_dir, "agent_meta.json"), encoding="utf-8"
+        ) as f:
+            existing_meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(existing_meta, dict):
+        return {}
+    value = existing_meta.get("wait_completed_at")
+    return {"wait_completed_at": value} if isinstance(value, str) and value else {}
+
+
 class AgentInfo(NamedTuple):
     """Result of directive extraction and metadata writing."""
 
@@ -43,6 +58,8 @@ def extract_directives_and_write_meta(
 
     Returns AgentInfo with all extracted info.
     """
+    completed_wait_metadata = _completed_wait_metadata(artifacts_dir)
+
     from sase.llm_provider.registry import (
         get_default_provider_name,
         resolve_model_provider,
@@ -298,6 +315,7 @@ def extract_directives_and_write_meta(
             agent_meta["linked_repos"] = linked_repos
             agent_meta["sibling_repos"] = linked_repos
         agent_meta.update(agent_meta_from_chop_env())
+        agent_meta.update(completed_wait_metadata)
         if cl_name:
             agent_meta["changespec_name"] = cl_name
             agent_meta.setdefault("cl_name", cl_name)

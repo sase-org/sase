@@ -74,7 +74,12 @@ def _record_wait_completed_at(
         agent_meta["wait_completed_at"] = disk_wait_completed_at
         return disk_wait_completed_at
 
-    wait_completed_at = datetime.now(UTC).isoformat()
+    memory_wait_completed_at = agent_meta.get("wait_completed_at")
+    wait_completed_at = (
+        memory_wait_completed_at
+        if isinstance(memory_wait_completed_at, str) and memory_wait_completed_at
+        else datetime.now(UTC).isoformat()
+    )
     merged_meta = {**disk_meta, **agent_meta, "wait_completed_at": wait_completed_at}
     agent_meta.update(merged_meta)
     write_agent_meta(artifacts_dir, merged_meta)
@@ -306,7 +311,7 @@ def wait_for_dependencies(
     wait_identity_deps: list[dict[str, str]] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
-) -> None:
+) -> bool:
     """Wait for named agent dependencies, a duration, or an absolute time.
 
     When *wait_names* is non-empty, writes waiting.json, polls for ready.json,
@@ -315,10 +320,34 @@ def wait_for_dependencies(
     named dependencies, the duration starts immediately.  When *wait_until* is
     set (ISO 8601 timestamp), the agent won't start before that wall-clock time.
 
-    Exits with SIGTERM code if killed during wait.
+    Returns whether the process actually blocked. Exits with SIGTERM code if
+    killed during the wait.
     """
     _WAIT_POLL_INTERVAL = 2  # seconds
 
+    # A refreshed runner has already crossed the barrier. This durable fast path
+    # also prevents duration and mixed dependency waits from running twice.
+    existing_wait_completed_at = agent_meta.get("wait_completed_at")
+    if not (isinstance(existing_wait_completed_at, str) and existing_wait_completed_at):
+        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                disk_meta = json.load(f)
+            disk_wait_completed_at = (
+                disk_meta.get("wait_completed_at")
+                if isinstance(disk_meta, dict)
+                else None
+            )
+            if isinstance(disk_wait_completed_at, str) and disk_wait_completed_at:
+                existing_wait_completed_at = disk_wait_completed_at
+                agent_meta["wait_completed_at"] = disk_wait_completed_at
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+    if isinstance(existing_wait_completed_at, str) and existing_wait_completed_at:
+        print("Dependency wait already completed, proceeding without waiting")
+        return False
+
+    blocked = False
     wait_identity_deps = list(wait_identity_deps or [])
     has_agent_dependencies = bool(wait_names or wait_identity_deps)
     dependencies_already_resolved = (
@@ -341,7 +370,7 @@ def wait_for_dependencies(
         print("Dependencies already satisfied, proceeding without waiting")
         if not was_killed():
             _record_wait_completed_at(artifacts_dir, agent_meta)
-        return
+        return False
     elif has_agent_dependencies:
         # --- Agent-name dependency path (with optional duration/time floor) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
@@ -375,6 +404,7 @@ def wait_for_dependencies(
                     break
             if was_killed():
                 break
+            blocked = True
             time.sleep(_WAIT_POLL_INTERVAL)
 
         post_dependency_wait_until = wait_until
@@ -399,6 +429,7 @@ def wait_for_dependencies(
                 )
                 while remaining > 0 and not was_killed():
                     sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+                    blocked = True
                     time.sleep(sleep_time)
                     remaining = remaining_until(post_dependency_wait_until)
 
@@ -430,6 +461,7 @@ def wait_for_dependencies(
         remaining = remaining_until(wait_until)
         while remaining > 0 and not was_killed():
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+            blocked = True
             time.sleep(sleep_time)
             remaining = remaining_until(wait_until)
 
@@ -462,6 +494,7 @@ def wait_for_dependencies(
         remaining = duration
         while remaining > 0 and not was_killed():
             sleep_time = min(_WAIT_POLL_INTERVAL, remaining)
+            blocked = True
             time.sleep(sleep_time)
             remaining -= sleep_time
 
@@ -480,3 +513,4 @@ def wait_for_dependencies(
         sys.exit(128 + 15)  # SIGTERM
 
     print("All dependencies satisfied, proceeding with workflow")
+    return blocked

@@ -73,7 +73,7 @@ def test_resolved_named_wait_skips_waiting_marker(
         ),
         patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
     ):
-        wait_for_dependencies(
+        blocked = wait_for_dependencies(
             ["dep"],
             str(waiter_dir),
             "cl",
@@ -83,6 +83,7 @@ def test_resolved_named_wait_skips_waiting_marker(
         )
 
     sleep_mock.assert_not_called()
+    assert blocked is False
     assert index_updates == []
     assert not (waiter_dir / "waiting.json").exists()
     assert not (waiter_dir / "ready.json").exists()
@@ -393,6 +394,46 @@ def test_successful_wait_records_completion_before_cleanup(tmp_path: Path) -> No
 
     assert saw_waiting_unlink is True
     assert isinstance(agent_meta.get("wait_completed_at"), str)
+    assert not (tmp_path / "waiting.json").exists()
+
+
+def test_completed_wait_is_idempotent_on_refreshed_pass(tmp_path: Path) -> None:
+    """A refreshed pass keeps the first timestamp and writes no wait marker."""
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
+    first_meta = {"pid": 123}
+
+    with patch("sase.axe.run_agent_wait.was_killed", return_value=False):
+        wait_for_dependencies(
+            [],
+            str(tmp_path),
+            "cl",
+            "20260513120000",
+            first_meta,
+            duration=0,
+        )
+
+    first_timestamp = first_meta["wait_completed_at"]
+    refreshed_meta = {"pid": 123}
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch("sase.axe.run_agent_wait._write_waiting_marker") as write_waiting,
+        patch("sase.axe.run_agent_wait.time.sleep") as sleep_mock,
+    ):
+        blocked = wait_for_dependencies(
+            ["dependency"],
+            str(tmp_path),
+            "cl",
+            "20260513120000",
+            refreshed_meta,
+            duration=60,
+        )
+
+    assert blocked is False
+    assert refreshed_meta["wait_completed_at"] == first_timestamp
+    assert json.loads(meta_path.read_text())["wait_completed_at"] == first_timestamp
+    write_waiting.assert_not_called()
+    sleep_mock.assert_not_called()
     assert not (tmp_path / "waiting.json").exists()
 
 

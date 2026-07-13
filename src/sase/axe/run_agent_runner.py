@@ -49,6 +49,11 @@ from sase.axe.run_agent_runner_lifecycle import (
     finalize_runner_shutdown,
 )
 from sase.axe.run_agent_runner_repeat import finalize_repeat_stop
+from sase.axe.run_agent_runner_refresh import (
+    RUNNER_CODE_REFRESHED_ENV,
+    refresh_runner_code_after_wait,
+    runner_code_identity,
+)
 from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
     is_user_kill_exit,
@@ -86,6 +91,10 @@ from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
+
+# Editable sase installs can fast-forward while a detached runner spends hours
+# waiting. Capture the imported code's checkout identity before that wait starts.
+_STARTUP_CODE_IDENTITY = runner_code_identity()
 
 
 def main() -> None:
@@ -139,12 +148,13 @@ def main() -> None:
     run_started_at: str | None = None
     suppress_completion_notification = False
 
-    print_agent_start_banner(
-        cl_name=cl_name,
-        workspace_dir=workspace_dir,
-        workflow_name=workflow_name,
-        prompt=prompt,
-    )
+    if RUNNER_CODE_REFRESHED_ENV not in os.environ:
+        print_agent_start_banner(
+            cl_name=cl_name,
+            workspace_dir=workspace_dir,
+            workflow_name=workflow_name,
+            prompt=prompt,
+        )
 
     running_marker_path: str | None = None
 
@@ -233,8 +243,9 @@ def main() -> None:
                 )
             wait_chats: list[str] = []
             repeat_stop: RepeatStopDecision | None = None
+            blocking_wait_occurred = False
             if has_dependency_wait:
-                wait_for_dependencies(
+                blocking_wait_occurred = wait_for_dependencies(
                     info.wait_names,
                     artifacts_dir,
                     cl_name,
@@ -245,6 +256,17 @@ def main() -> None:
                     duration=info.wait_duration,
                     wait_until=info.wait_until,
                 )
+
+            # Re-exec before repeat-stop detection, runner-slot claiming, or any
+            # workspace mutation. The refreshed main pass intentionally resolves
+            # xprompts again so post-wait work uses the current definitions.
+            refresh_runner_code_after_wait(
+                _STARTUP_CODE_IDENTITY,
+                blocking_wait_occurred=blocking_wait_occurred,
+                killed=was_killed(),
+            )
+
+            if has_dependency_wait:
                 repeat_stop = detect_repeat_stop()
 
             if repeat_stop is not None:

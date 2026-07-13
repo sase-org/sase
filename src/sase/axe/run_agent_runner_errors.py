@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sase.llm_provider.retry_config import find_retry_config_for_error
+
 
 @dataclass(frozen=True)
 class RunnerErrorContext:
@@ -38,6 +40,12 @@ def record_runner_error(
     traceback.print_exc()
     summary = error_summary or f"{type(exc).__qualname__}: {exc}"
     traceback_str = traceback.format_exc()
+    if find_retry_config_for_error(summary) is not None:
+        print(
+            "This runner failure is retryable; retry/relaunch the agent to use "
+            "a fresh process.",
+            file=sys.stderr,
+        )
     agent_kills.labels(reason="error").inc()
     write_error_done_marker(
         current_artifacts_dir=context.current_artifacts_dir,

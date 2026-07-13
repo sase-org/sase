@@ -153,6 +153,9 @@ def _run_runner_with_wait_result(
                 return_value=wait_result,
             )
         )
+        refresh_runner_code_after_wait = stack.enter_context(
+            patch.object(run_agent_runner, "refresh_runner_code_after_wait")
+        )
         stack.enter_context(
             patch.object(
                 run_agent_runner,
@@ -229,6 +232,7 @@ def _run_runner_with_wait_result(
         "run_execution_loop": run_execution_loop,
         "shutdown_states": shutdown_states,
         "wait_for_dependencies": wait_for_dependencies,
+        "refresh_runner_code_after_wait": refresh_runner_code_after_wait,
     }
 
 
@@ -250,3 +254,15 @@ def test_queued_child_proceeds_after_identity_wait_barrier(tmp_path: Path) -> No
     assert isinstance(run_execution_loop, MagicMock)
     run_execution_loop.assert_called_once()
     assert result["done_markers"] == []
+
+
+def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) -> None:
+    result = _run_runner_with_wait_result(tmp_path, True)
+
+    refresh = result["refresh_runner_code_after_wait"]
+    assert isinstance(refresh, MagicMock)
+    refresh.assert_called_once_with(
+        run_agent_runner._STARTUP_CODE_IDENTITY,
+        blocking_wait_occurred=True,
+        killed=False,
+    )

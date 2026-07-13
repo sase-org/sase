@@ -879,6 +879,20 @@
               "fallback_model": {
                 "type": "string",
                 "description": "Model to fall back to after all retries are exhausted"
+              },
+              "continuation_prompt": {
+                "type": "string",
+                "description": "Prompt prefix applied when continuing after a retry"
+              },
+              "preserve_workspace": {
+                "type": "boolean",
+                "description": "Preserve the existing workspace when retrying",
+                "default": false
+              },
+              "spawn_new_agent": {
+                "type": "boolean",
+                "description": "Retry in a fresh detached agent process",
+                "default": false
               }
             }
           }

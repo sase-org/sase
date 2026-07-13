@@ -169,8 +169,11 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
 
 def _foreign_record_error(record_path: Path) -> SddMaterializationError:
     return SddMaterializationError(
-        f"SDD store record {record_path} was written by a newer or unknown sase "
-        "version. Upgrade and restart sase; refusing to touch it."
+        f"SDD store record {record_path} uses a format this process does not "
+        "understand. Either this long-running sase process predates the record "
+        "(retry/relaunch the agent; a fresh process will read it), or this sase "
+        "install is older than the record's writer (upgrade sase); refusing to "
+        "touch it."
     )
 
 

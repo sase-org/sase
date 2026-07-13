@@ -1,6 +1,10 @@
 """Tests for LLM provider retry configuration lookup."""
 
+from pathlib import Path
+
 from unittest.mock import patch
+
+import yaml
 
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
@@ -200,3 +204,29 @@ class TestFindRetryConfigForError:
     def test_returns_none_on_exception(self, mock_config: object) -> None:
         mock_config.side_effect = RuntimeError("broken")  # type: ignore[union-attr]
         assert find_retry_config_for_error("any error") is None
+
+    def test_default_sdd_version_skew_is_fresh_process_retryable(self) -> None:
+        default_config = yaml.safe_load(
+            (
+                Path(__file__).resolve().parents[1]
+                / "src"
+                / "sase"
+                / "default_config.yml"
+            ).read_text(encoding="utf-8")
+        )
+        error = (
+            "SddMaterializationError: SDD store record /repo/.sase/sdd-store.json "
+            "uses a format this process does not understand"
+        )
+
+        with patch(
+            "sase.llm_provider.retry_config.load_merged_config",
+            return_value=default_config,
+        ):
+            config = find_retry_config_for_error(error)
+
+        assert config is not None
+        assert config.max_retries == 1
+        assert config.wait_times == [0]
+        assert config.preserve_workspace is True
+        assert config.spawn_new_agent is True

@@ -360,6 +360,15 @@ llm_provider:
         - "failed to connect to websocket"
         - "Selected model is at capacity"
       wait_times: [60, 300, 1800]
+    # Process-version skew is provider-independent. A fresh retry inherits the
+    # existing workspace so failures late in a run do not discard agent work.
+    sase:
+      max_retries: 1
+      error_patterns:
+        - "uses a format this process does not understand"
+      wait_times: [0]
+      preserve_workspace: true
+      spawn_new_agent: true
     # Fakey ships retry defaults in its provider hook. Uncomment to override
     # them for local retry experiments.
     # fakey:
