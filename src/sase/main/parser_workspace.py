@@ -21,16 +21,23 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List managed workspace checkouts (including primary #0)",
     )
     list_parser.add_argument(
-        "-p",
-        "--project",
-        default=None,
-        help="Project to query (default: infer from current directory)",
+        "-a",
+        "--all",
+        action="store_true",
+        dest="all_projects",
+        help="List registered workspaces across all enabled and disabled projects",
     )
     list_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+    list_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to query (default: infer from current directory)",
     )
 
     path_parser = workspace_sub.add_parser(

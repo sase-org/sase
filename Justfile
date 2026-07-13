@@ -150,7 +150,13 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
+        --epic-symbol 'sase-5w(RepoInventoryIssue)' \
+        --epic-symbol 'sase-5w(RepoRecord)' \
+        --epic-symbol 'sase-5w(WorkspaceInventoryIssue)' \
+        --epic-symbol 'sase-5w(WorkspaceInventoryRecord)' \
+        --epic-symbol 'sase-5w(WorkspaceProjectInfo)' \
+        {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-toobig *args:

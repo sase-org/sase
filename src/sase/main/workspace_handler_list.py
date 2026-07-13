@@ -8,16 +8,20 @@ import os
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Protocol
+import time
+from typing import Protocol
 
 from sase.workspace_provider.registry import (
     WorkspaceEntry,
     WorkspaceRegistry,
-    load_or_init_registry,
+)
+from sase.workspace_provider.inventory import (
+    WorkspaceInventory,
+    WorkspaceInventoryProjectNotFoundError,
+    collect_workspace_inventory,
 )
 from sase.workspace_provider.store import WorkspaceStore
 from sase.workspace_provider.utils import ensure_workspace_checkout
-from sase.project_display_names import project_display_name_for
 
 from .workspace_handler_context import ConfigLoader, ProjectContext
 
@@ -52,20 +56,6 @@ class _CheckoutResolver(Protocol):
     ) -> str: ...
 
 
-def _entry_row(num: int, entry: WorkspaceEntry) -> dict[str, Any]:
-    return {
-        "workspace_num": num,
-        "checkout_dir": entry.checkout_dir.rstrip("/") or entry.checkout_dir,
-        "materialization": entry.materialization,
-        "role": entry.role,
-        "pinned": entry.pinned,
-        "created_at": entry.created_at,
-        "last_used_at": entry.last_used_at,
-        "generation": entry.generation,
-        "exists": os.path.isdir(entry.checkout_dir.rstrip("/") or entry.checkout_dir),
-    }
-
-
 def sorted_entries(registry: WorkspaceRegistry) -> list[tuple[int, WorkspaceEntry]]:
     items: list[tuple[int, WorkspaceEntry]] = []
     for key, entry in registry.workspaces.items():
@@ -78,26 +68,68 @@ def sorted_entries(registry: WorkspaceRegistry) -> list[tuple[int, WorkspaceEntr
     return items
 
 
-def _print_list_human(
+def _print_single_project_human(
     ctx: ProjectContext,
-    rows: list[dict[str, Any]],
+    inventory: WorkspaceInventory,
 ) -> None:
-    header = (
-        f"Project: {project_display_name_for(ctx.store.project_key)}  "
-        f"policy={ctx.store.root_policy}"
-    )
-    print(header)
+    print(f"Project: {ctx.project_name}  policy={ctx.store.root_policy}")
     print(f"Root: {ctx.store.root_dir}")
     print()
-    print(f"{'#':>4}  {'ROLE':<7} {'EXISTS':<6} {'PINNED':<6} {'PATH'}")
-    for row in rows:
+    print(
+        f"{'#':>4}  {'CLAIMED BY':<24} {'ROLE':<7} {'EXISTS':<7} "
+        f"{'PIN':<3} {'LAST USED':<10} {'STALE':<5} PATH"
+    )
+    for row in inventory.records:
         print(
-            f"{row['workspace_num']:>4}  "
-            f"{row['role']:<7} "
-            f"{('yes' if row['exists'] else 'no'):<6} "
-            f"{('yes' if row['pinned'] else 'no'):<6} "
-            f"{row['checkout_dir']}"
+            f"{row.workspace_num:>4}  "
+            f"{(row.claim_agent or '-'):<24.24} "
+            f"{row.role:<7.7} "
+            f"{('yes' if row.exists else 'missing'):<7} "
+            f"{('yes' if row.pinned else '-'):<3} "
+            f"{_relative_age(row.last_used_at):<10} "
+            f"{('yes' if row.stale else '-'):<5} "
+            f"{row.checkout_dir}"
         )
+    _print_inventory_issues(inventory)
+
+
+def _print_all_projects_human(inventory: WorkspaceInventory) -> None:
+    if not inventory.records:
+        print("No registered workspaces found.")
+    else:
+        print(
+            f"{'PROJECT':<20} {'#':>4}  {'CLAIMED BY':<24} {'ROLE':<7} "
+            f"{'PIN':<3} {'LAST USED':<10} {'STALE':<5} {'EXISTS':<7} PATH"
+        )
+        for row in inventory.records:
+            print(
+                f"{row.project:<20.20} "
+                f"{row.workspace_num:>4}  "
+                f"{(row.claim_agent or '-'):<24.24} "
+                f"{row.role:<7.7} "
+                f"{('yes' if row.pinned else '-'):<3} "
+                f"{_relative_age(row.last_used_at):<10} "
+                f"{('yes' if row.stale else '-'):<5} "
+                f"{('yes' if row.exists else 'missing'):<7} "
+                f"{row.checkout_dir}"
+            )
+    _print_inventory_issues(inventory)
+
+
+def _print_inventory_issues(inventory: WorkspaceInventory) -> None:
+    for issue in inventory.issues:
+        print(f"warning [{issue.project}]: {issue.message}", file=sys.stderr)
+
+
+def _relative_age(timestamp: float) -> str:
+    seconds = max(0, int(time.time() - timestamp))
+    if seconds < 60:
+        return "now"
+    if seconds < 3600:
+        return f"{seconds // 60}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
 
 
 def handle_list(
@@ -105,22 +137,40 @@ def handle_list(
     *,
     resolve_project_context: ProjectResolver,
 ) -> int:
-    ctx = resolve_project_context(args.project)
-    registry = load_or_init_registry(ctx.store)
-    rows = [_entry_row(num, entry) for num, entry in sorted_entries(registry)]
+    all_projects = bool(getattr(args, "all_projects", False))
+    requested_project = getattr(args, "project", None)
+    if all_projects and requested_project:
+        print("--all cannot be combined with --project", file=sys.stderr)
+        return 2
 
-    if args.json:
+    if all_projects:
+        inventory = collect_workspace_inventory(include_disabled=True)
+        if getattr(args, "json", False):
+            print(json.dumps(inventory.to_json_dict(), indent=2, sort_keys=True))
+        else:
+            _print_all_projects_human(inventory)
+        return 0
+
+    ctx = resolve_project_context(requested_project)
+    try:
+        inventory = collect_workspace_inventory(project=ctx.project_name)
+    except WorkspaceInventoryProjectNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if getattr(args, "json", False):
         payload = {
             "project": ctx.project_name,
             "project_key": ctx.store.project_key,
             "root_policy": ctx.store.root_policy,
             "root_dir": ctx.store.root_dir,
             "primary_workspace_dir": ctx.store.primary_workspace_dir,
-            "workspaces": rows,
+            "workspaces": [row.to_json_dict() for row in inventory.records],
+            "issues": [issue.to_json_dict() for issue in inventory.issues],
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
-        _print_list_human(ctx, rows)
+        _print_single_project_human(ctx, inventory)
     return 0
 
 

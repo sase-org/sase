@@ -44,6 +44,7 @@ from sase.main.parser_mobile import register_mobile_parser
 from sase.main.parser_plugin import register_plugin_parser
 from sase.main.parser_project import register_project_parser
 from sase.main.parser_prompt import register_prompt_parser
+from sase.main.parser_repo import register_repo_parser
 from sase.main.parser_repro import register_repro_parser
 from sase.main.parser_sdd import register_sdd_parser
 from sase.main.parser_skills import register_skills_parser
@@ -434,6 +435,7 @@ def create_parser() -> argparse.ArgumentParser:
     register_project_parser(top_level_subparsers)
     register_prompt_parser(top_level_subparsers)
     register_questions_parser(top_level_subparsers)
+    register_repo_parser(top_level_subparsers)
     register_repro_parser(top_level_subparsers)
     register_restore_parser(top_level_subparsers)
     register_revert_parser(top_level_subparsers)

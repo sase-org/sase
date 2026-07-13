@@ -32,6 +32,10 @@ REGISTRY_FILENAME = "registry.json"
 SCHEMA_VERSION = 1
 
 
+class WorkspaceRegistryError(RuntimeError):
+    """Raised when an existing workspace registry cannot be read safely."""
+
+
 @dataclass
 class WorkspaceEntry:
     """One row of the managed-workspaces registry."""
@@ -98,18 +102,37 @@ def registry_path(root_dir: str) -> str:
     return str(Path(root_dir) / REGISTRY_FILENAME)
 
 
-def _read_registry_file(path: str) -> WorkspaceRegistry | None:
+def _read_registry_file(
+    path: str,
+    *,
+    strict: bool = False,
+) -> WorkspaceRegistry | None:
     """Read a registry file from disk, returning ``None`` when absent."""
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError:
         return None
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        if strict:
+            raise WorkspaceRegistryError(
+                f"Unable to read workspace registry {path}: {exc}"
+            ) from exc
         return None
     if not isinstance(data, dict):
+        if strict:
+            raise WorkspaceRegistryError(
+                f"Unable to read workspace registry {path}: expected a JSON object"
+            )
         return None
-    return WorkspaceRegistry.from_dict(data)
+    try:
+        return WorkspaceRegistry.from_dict(data)
+    except (TypeError, ValueError) as exc:
+        if strict:
+            raise WorkspaceRegistryError(
+                f"Unable to read workspace registry {path}: {exc}"
+            ) from exc
+        return None
 
 
 def _write_registry_file(path: str, registry: WorkspaceRegistry) -> None:
@@ -136,7 +159,11 @@ def _write_registry_file(path: str, registry: WorkspaceRegistry) -> None:
         raise
 
 
-def load_or_init_registry(store: WorkspaceStore) -> WorkspaceRegistry:
+def load_registry(
+    store: WorkspaceStore,
+    *,
+    strict: bool = False,
+) -> WorkspaceRegistry:
     """Load the registry for *store*, initializing it with primary ``#0``.
 
     The primary checkout is always represented in the registry so that
@@ -144,9 +171,15 @@ def load_or_init_registry(store: WorkspaceStore) -> WorkspaceRegistry:
     the ChangeSpecI layer.  Differences between the on-disk record and the
     store's current configuration (project_key, primary path) are
     reconciled in favor of the store and written back on save.
+
+    When *strict* is true, an existing unreadable registry raises
+    :class:`WorkspaceRegistryError`. Inventory callers use this mode so one
+    corrupt project can be reported without being mistaken for an empty
+    registry; mutating compatibility paths retain the historical recovery
+    behavior through :func:`load_or_init_registry`.
     """
     path = registry_path(store.root_dir)
-    registry = _read_registry_file(path)
+    registry = _read_registry_file(path, strict=strict)
     now = time.time()
     if registry is None:
         registry = WorkspaceRegistry(
@@ -176,6 +209,12 @@ def load_or_init_registry(store: WorkspaceStore) -> WorkspaceRegistry:
         existing.pinned = True
 
     return registry
+
+
+def load_or_init_registry(store: WorkspaceStore) -> WorkspaceRegistry:
+    """Load a registry, tolerating corrupt input for legacy repair paths."""
+
+    return load_registry(store)
 
 
 def save_registry(store: WorkspaceStore, registry: WorkspaceRegistry) -> None:
@@ -242,6 +281,8 @@ __all__ = [
     "SCHEMA_VERSION",
     "WorkspaceEntry",
     "WorkspaceRegistry",
+    "WorkspaceRegistryError",
+    "load_registry",
     "load_or_init_registry",
     "record_workspace",
     "registry_path",

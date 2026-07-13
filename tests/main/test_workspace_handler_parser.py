@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import pytest
+from unittest.mock import patch
 
 from sase.main.parser import create_parser
 from sase.main.workspace_handler import handle_workspace_command
+from sase.workspace_provider.inventory import WorkspaceInventory
 from tests.main.workspace_handler_helpers import make_args
 
 
@@ -16,6 +19,29 @@ class TestWorkspaceParser:
         assert ns.workspace_subcommand == "list"
         assert ns.project == "demo"
         assert ns.json is True
+
+    def test_list_all_projects_option(self) -> None:
+        ns = create_parser().parse_args(["workspace", "list", "--all"])
+        assert ns.workspace_subcommand == "list"
+        assert ns.all_projects is True
+
+    def test_list_all_projects_json(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        ns = create_parser().parse_args(["workspace", "list", "--all", "--json"])
+        with (
+            patch(
+                "sase.main.workspace_handler_list.collect_workspace_inventory",
+                return_value=WorkspaceInventory(records=(), projects=()),
+            ) as collect,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            handle_workspace_command(ns)
+
+        assert exc_info.value.code == 0
+        collect.assert_called_once_with(include_disabled=True)
+        assert json.loads(capsys.readouterr().out)["workspaces"] == []
 
     def test_path_requires_number(self) -> None:
         with pytest.raises(SystemExit):

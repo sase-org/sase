@@ -315,6 +315,12 @@ def main() -> NoReturn:
 
         handle_questions_command(args.questions_json)
 
+    # --- repo ---
+    if args.command == "repo":
+        from .repo_handler import handle_repo_command
+
+        handle_repo_command(args)
+
     # --- repro ---
     if args.command == "repro":
         from .repro_handler import handle_repro_command
