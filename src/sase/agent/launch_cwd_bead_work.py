@@ -57,7 +57,7 @@ def launch_planned_bead_work_agents(
         return []
 
     from sase.agent.launch_projects import (
-        activate_known_project_vcs_refs_for_launch_prompt,
+        enable_known_project_vcs_refs_for_launch_prompt,
     )
     from sase.agent.launch_validation import validate_launch_name_requests
     from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
@@ -118,7 +118,7 @@ def launch_planned_bead_work_agents(
     project_file = preferred_project_spec_path(str(project_dir), project_name)
 
     normalized_query = "\n---\n".join(normalized_segments)
-    activate_known_project_vcs_refs_for_launch_prompt(normalized_query)
+    enable_known_project_vcs_refs_for_launch_prompt(normalized_query)
 
     cl_name = project_name
     vcs_ref: tuple[str, str] | None = None

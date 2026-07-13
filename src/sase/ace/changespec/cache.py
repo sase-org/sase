@@ -59,7 +59,7 @@ class ChangeSpecSnapshotCache:
 
     def find_all_changespecs_cached(
         self,
-        include_states: Sequence[str] | str = ("active",),
+        include_states: Sequence[str] | str = ("enabled",),
     ) -> list[ChangeSpec]:
         """Find ChangeSpecs across lifecycle-selected project + archive files."""
         seen: set[str] = set()
@@ -88,7 +88,7 @@ _GLOBAL_CACHE = ChangeSpecSnapshotCache()
 
 
 def find_all_changespecs_cached(
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> list[ChangeSpec]:
     """Module-level cached variant of ``find_all_changespecs``."""
     return _GLOBAL_CACHE.find_all_changespecs_cached(include_states=include_states)

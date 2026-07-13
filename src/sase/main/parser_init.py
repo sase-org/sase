@@ -92,7 +92,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "-a",
         "--all",
         action="store_true",
-        help="Attempt every known active main SASE project",
+        help="Attempt every known enabled main SASE project",
     )
     mode_group = init_parser.add_mutually_exclusive_group()
     mode_group.add_argument(

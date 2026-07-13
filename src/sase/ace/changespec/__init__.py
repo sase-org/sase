@@ -142,14 +142,14 @@ __all__ = [
 
 
 def find_all_changespecs(
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> list[ChangeSpec]:
     """Find ChangeSpecs in lifecycle-selected project files.
 
     Returns:
-        ChangeSpecs from active and archive ProjectSpec files for projects whose
+        ChangeSpecs from enabled and archive ProjectSpec files for projects whose
         lifecycle state matches ``include_states``. Normal callers default to
-        active projects; history/agent views can pass ``"all"`` explicitly.
+        enabled projects; history/agent views can pass ``"all"`` explicitly.
     """
     all_changespecs: list[ChangeSpec] = []
     for item in iter_changespec_project_file_records(include_states=include_states):

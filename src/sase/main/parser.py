@@ -103,7 +103,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "project",
-        "List active projects and hide or reactivate dormant work.",
+        "List enabled projects and manage disabled work.",
     ),
     _CompactRootCommand(
         "vcs",

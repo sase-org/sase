@@ -176,7 +176,7 @@ def test_init_help_lists_existing_subcommands(
     assert "-M, --enable-project-memory" in out
     assert "is_sase_managed:" in out
     assert "Advanced deploy controls live on explicit subcommands" in out
-    assert "active main SASE project" in out
+    assert "enabled main SASE project" in out
     assert out.index("-a, --all") < out.index("-c, --check")
     assert out.index("-c, --check") < out.index("-d, --diff")
     assert out.index("-d, --diff") < out.index("-M, --enable-project-memory")

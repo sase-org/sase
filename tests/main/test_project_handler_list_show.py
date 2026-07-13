@@ -48,19 +48,17 @@ class TestListAndShow:
         assert [item["project_name"] for item in payload] == [
             "alpha",
             "beta",
-            "core",
         ]
         assert payload[0]["aliases"] == []
         assert payload[0]["display_name"] is None
         assert payload[0]["effective_project_name"] == "alpha"
-        assert payload[0]["state"] == "active"
+        assert payload[0]["state"] == "enabled"
+        assert payload[0]["is_project"] is True
         assert payload[0]["state_source"] == "defaulted"
-        assert payload[1]["state"] == "inactive"
+        assert payload[1]["state"] == "disabled"
         assert payload[1]["state_source"] == "explicit"
-        assert payload[2]["state"] == "sibling"
-        assert payload[2]["launchable"] is False
 
-    def test_list_can_filter_sibling_projects(
+    def test_list_excludes_sibling_backing_records(
         self,
         projects_root: Path,
         lifecycle_stubs: Callable[[], None],
@@ -80,11 +78,11 @@ class TestListAndShow:
 
         assert exc.value.code == 0
         out = capsys.readouterr().out
-        assert "core" in out
-        assert "sibling*" in out
+        assert "No sibling projects." in out
+        assert "core" not in out
         assert "alpha" not in out
 
-    def test_list_defaults_to_active_projects(
+    def test_list_defaults_to_enabled_projects(
         self,
         projects_root: Path,
         lifecycle_stubs: Callable[[], None],
@@ -94,7 +92,7 @@ class TestListAndShow:
         _write_project(projects_root, "alpha", "WORKSPACE_DIR: /tmp/alpha\nNAME: a\n")
         _write_project(projects_root, "beta", "PROJECT_STATE: closed\nNAME: b\n")
 
-        args = make_args(project_subcommand="list", state="active", json=False)
+        args = make_args(project_subcommand="list", state="enabled", json=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -119,7 +117,7 @@ class TestListAndShow:
         assert exc.value.code == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["project_name"] == "alpha"
-        assert payload["state"] == "active"
+        assert payload["state"] == "enabled"
         assert payload["state_explicit"] is False
         assert payload["state_source"] == "defaulted"
         assert payload["aliases"] == []
@@ -182,7 +180,7 @@ class TestListAndShow:
             "PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="list", state="active", json=False)
+        args = make_args(project_subcommand="list", state="enabled", json=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 

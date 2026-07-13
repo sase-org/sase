@@ -235,6 +235,18 @@ class TestResolveGitRef:
             mock_init.assert_called_once_with("newproj")
             mock_branch.assert_called_once_with(workspace_dir)
 
+            from sase.core.project_lifecycle_facade import list_project_records
+
+            records = list_project_records(
+                home / ".sase" / "projects",
+                "enabled",
+                projects_only=True,
+            )
+            assert len(records) == 1
+            assert records[0].project_name == "newproj"
+            assert records[0].is_project is True
+            assert records[0].vcs_kind == "git"
+
     @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
     @patch(f"{_REF_MOD}.find_all_changespecs", return_value=[])
     @patch(f"{_INIT_MOD}.init_bare_git_project")

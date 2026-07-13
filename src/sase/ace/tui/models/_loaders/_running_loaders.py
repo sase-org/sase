@@ -6,7 +6,7 @@ surfaces home-mode ace agents from filesystem markers or
 :class:`AgentArtifactScanWire` snapshots.
 
 Project lifecycle filtering is intentionally not applied here. ``RUNNING``
-claims from inactive projects remain live work and must stay visible until
+claims from disabled projects remain live work and must stay visible until
 they finish or are cleaned up.
 
 The ProjectSpec ``RUNNING`` field and home ``running.json`` marker are

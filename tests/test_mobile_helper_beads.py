@@ -116,7 +116,7 @@ def test_beads_list_bridge_all_known_projects_ignores_orphan_bead_dirs(
     assert sibling_epic.id not in ids
 
 
-def test_beads_list_bridge_all_known_projects_ignores_inactive_projects(
+def test_beads_list_bridge_all_known_projects_ignores_disabled_projects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     alpha_dir, alpha_epic, _, _ = seed_bead_project(tmp_path / "alpha")
@@ -124,7 +124,7 @@ def test_beads_list_bridge_all_known_projects_ignores_inactive_projects(
     seed_known_projects(
         tmp_path,
         {"alpha": alpha_dir, "beta": beta_dir},
-        states={"beta": "inactive"},
+        states={"beta": "disabled"},
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 

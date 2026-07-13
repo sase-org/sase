@@ -239,25 +239,25 @@ def project_records() -> list[ProjectRecordWire]:
         )
 
     return [
-        _record("sase", state="active", claims=2, aliases=["bob"]),
-        _record("sase-core", state="active", claims=1, explicit=False),
+        _record("sase", state="enabled", claims=2, aliases=["bob"]),
+        _record("sase-core", state="enabled", claims=1, explicit=False),
         _record(
             "project-management-fullscreen",
-            state="active",
+            state="enabled",
             claims=0,
             workspace_dir="/home/visual/work/project-management-fullscreen",
         ),
         _record(
             "legacy-telemetry",
-            state="inactive",
+            state="disabled",
             launchable=False,
             warnings=["workspace checkout is missing"],
         ),
         _record("sase-core-sibling", state="sibling", launchable=False),
-        _record("scratch-spike", state="inactive", launchable=False),
+        _record("scratch-spike", state="disabled", launchable=False),
         _record(
             "old-prototype",
-            state="inactive",
+            state="disabled",
             launchable=False,
             warnings=["spec parse error", "orphaned lock"],
         ),

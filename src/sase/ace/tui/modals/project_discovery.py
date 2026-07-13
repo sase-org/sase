@@ -22,7 +22,7 @@ def _states_for_project_records(include_states: Sequence[str] | str) -> list[str
 
 def list_launchable_projects(
     projects_dir: Path | None = None,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> list[str]:
     """Return project entries that are valid project-scoped launch targets."""
     projects_base = projects_dir or sase_projects_dir()
@@ -36,7 +36,7 @@ def list_launchable_projects(
         include_home=True,
     )
     for record in records:
-        if record.state != "active":
+        if record.state != "enabled":
             continue
         if not record.project_file:
             continue
@@ -49,7 +49,7 @@ def list_launchable_projects(
 def is_launchable_project(
     project_name: str,
     projects_dir: Path | None = None,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> bool:
     """Return whether a project entry is a valid project-scoped launch target."""
     if not project_name:
@@ -66,7 +66,7 @@ def is_launchable_project(
     except ValueError:
         return False
     for record in records:
-        if record.project_name != canonical_name or record.state != "active":
+        if record.project_name != canonical_name or record.state != "enabled":
             continue
         if not record.project_file:
             return False

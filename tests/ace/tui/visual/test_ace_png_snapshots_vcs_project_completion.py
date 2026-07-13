@@ -1,7 +1,7 @@
 """ACE PNG visual snapshot for the ``+`` project completion menu (sase-4z.2).
 
 Pins how ``PromptInputBar`` renders the ``vcs_project`` completion panel: the
-``projects`` border title and one row per active project showing the project
+``projects`` border title and one row per enabled project showing the project
 name in an accent color, its provider, the resulting ``#gh:sase`` tag dimmed as
 the expansion hint, and the description. The bar is mounted over the running app
 so the full ``styles.tcss`` applies exactly as at runtime. Goldens live in

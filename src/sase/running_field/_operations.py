@@ -13,7 +13,7 @@ from sase.core.agent_launch_claims import (
 )
 from sase.core.agent_launch_wire import WorkspaceClaimRequestWire
 from sase.core.project_lifecycle_facade import read_project_lifecycle_from_content
-from sase.core.project_lifecycle_wire import is_inactive_project_lifecycle_state
+from sase.core.project_lifecycle_wire import is_disabled_project_lifecycle_state
 from sase.running_field._formatting import (
     clean_orphaned_blank_lines,
     normalize_running_field_spacing,
@@ -39,18 +39,18 @@ def _project_name_from_file(project_file: str) -> str:
     return path.stem
 
 
-def _inactive_project_claim_error(project_file: str, state: str) -> str:
+def _disabled_project_claim_error(project_file: str, state: str) -> str:
     project = _project_name_from_file(project_file)
     return (
-        f"project '{project}' is {state}; run 'sase project activate {project}' "
+        f"project '{project}' is {state}; run 'sase project enable {project}' "
         "before launching work"
     )
 
 
 def _new_work_lifecycle_error(project_file: str, content: str) -> str | None:
     lifecycle = read_project_lifecycle_from_content(content)
-    if is_inactive_project_lifecycle_state(lifecycle.state):
-        return _inactive_project_claim_error(project_file, lifecycle.state)
+    if is_disabled_project_lifecycle_state(lifecycle.state):
+        return _disabled_project_claim_error(project_file, lifecycle.state)
     return None
 
 

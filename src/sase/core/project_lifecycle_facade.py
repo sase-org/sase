@@ -48,15 +48,21 @@ def apply_project_name_update(content: str, name: str | None) -> str:
 
 def list_project_records(
     projects_root: Path | str,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
     *,
     include_home: bool = False,
+    projects_only: bool = False,
 ) -> list[ProjectRecordWire]:
     """List lifecycle records under a projects root via ``sase_core_rs``."""
 
     states = normalize_project_lifecycle_state_filter(include_states)
     binding = require_rust_binding("list_project_records")
-    payload: list[dict[str, Any]] = binding(str(projects_root), states, include_home)
+    if projects_only:
+        payload: list[dict[str, Any]] = binding(
+            str(projects_root), states, include_home, True
+        )
+    else:
+        payload = binding(str(projects_root), states, include_home)
     return [
         project_record_from_dict(dict(item))
         for item in payload

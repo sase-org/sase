@@ -116,7 +116,7 @@ def test_candidates_non_empty_catalog_no_match() -> None:
 def test_placeholder_is_non_selectable() -> None:
     placeholder = build_no_active_projects_placeholder()
     assert placeholder.metadata is None
-    assert "no active projects or PRs" in placeholder.display
+    assert "no enabled projects or PRs" in placeholder.display
 
 
 def test_candidates_include_changespec_metadata() -> None:
@@ -419,7 +419,7 @@ async def test_empty_catalog_shows_placeholder_row() -> None:
         assert len(ta._file_completion_candidates) == 1
         assert ta._file_completion_candidates[0].metadata is None
         panel = bar.query_one("#prompt-completion", Static)
-        assert "no active projects or PRs" in panel.render().plain
+        assert "no enabled projects or PRs" in panel.render().plain
 
 
 async def test_accept_placeholder_is_noop() -> None:

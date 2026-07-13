@@ -50,7 +50,9 @@ def _non_system_project_records(
     return [
         record
         for record in records
-        if record.project_name != "home" and not record.system_managed
+        if record.is_project
+        and record.project_name != "home"
+        and not record.system_managed
     ]
 
 

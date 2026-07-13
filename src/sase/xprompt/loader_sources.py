@@ -13,7 +13,7 @@ from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
-    is_inactive_project_lifecycle_state,
+    is_disabled_project_lifecycle_state,
 )
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 
@@ -423,24 +423,24 @@ def get_project_lifecycle_record(project: str) -> ProjectRecordWire | None:
 
 
 def inactive_project_message_for_ref(ref: str) -> str | None:
-    """Return a launch-blocking message when *ref* points at an inactive project."""
+    """Return a launch-blocking message when *ref* points at a disabled project."""
     for candidate in _project_ref_candidates(ref):
         record = get_project_lifecycle_record(candidate)
-        if record is None or not is_inactive_project_lifecycle_state(record.state):
+        if record is None or not is_disabled_project_lifecycle_state(record.state):
             continue
         return (
             f"project '{record.project_name}' is {record.state}; run "
-            f"'sase project activate {record.project_name}' before launching work"
+            f"'sase project enable {record.project_name}' before launching work"
         )
     return None
 
 
 def get_known_project_workspaces(
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> dict[str, Path]:
     """Enumerate lifecycle-selected projects and their primary workspaces.
 
-    Normal callers get active projects only. Management/history callers can
+    Normal callers get enabled projects only. Management/history callers can
     pass ``"all"`` or a concrete state list when hidden projects are
     intentionally in scope.
 

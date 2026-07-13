@@ -24,7 +24,7 @@ def _record(
     project_name: str,
     *,
     aliases: list[str] | None = None,
-    state: str = "active",
+    state: str = "enabled",
     system_managed: bool = False,
     project_file: str | Path | None = None,
     archive_file: str | Path | None = None,
@@ -127,7 +127,7 @@ def test_project_alias_map_loads_all_non_system_non_home_states(
             _record(
                 "docs-cli",
                 aliases=["docs"],
-                state="inactive",
+                state="disabled",
                 project_file=_write_project_spec(projects, "docs-cli"),
             ),
             _record(

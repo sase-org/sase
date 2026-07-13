@@ -18,7 +18,7 @@ def _record(
     project_name: str,
     *,
     display_name: str | None = None,
-    state: str = "active",
+    state: str = "enabled",
     system_managed: bool = False,
     workspace_exists: bool = True,
     project_file_exists: bool = True,
@@ -44,7 +44,7 @@ def _record(
         state_explicit=True,
         system_managed=system_managed,
         active_claim_count=0,
-        launchable=state == "active",
+        launchable=state == "enabled",
         aliases=[],
         warnings=warnings or [],
         parse_warnings=parse_warnings or [],
@@ -59,7 +59,7 @@ def test_inventory_selects_and_sorts_active_main_projects(
     records = [
         _record(tmp_path, "zeta", display_name="Alpha"),
         _record(tmp_path, "beta", display_name="beta"),
-        _record(tmp_path, "inactive", state="inactive"),
+        _record(tmp_path, "disabled", state="disabled"),
         _record(tmp_path, "sibling", state="sibling"),
         _record(tmp_path, "home"),
         _record(tmp_path, "managed", system_managed=True),
@@ -79,7 +79,7 @@ def test_inventory_selects_and_sorts_active_main_projects(
 
     assert inventory.error is None
     assert [target.project_name for target in inventory.targets] == ["zeta", "beta"]
-    assert calls == [(tmp_path / "projects", "active", False)]
+    assert calls == [(tmp_path / "projects", "enabled", False)]
 
 
 def test_inventory_preserves_warnings_and_unavailable_targets(

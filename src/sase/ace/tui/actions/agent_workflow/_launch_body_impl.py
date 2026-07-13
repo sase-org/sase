@@ -139,12 +139,10 @@ def run_agent_launch_body(
     with timer.stage("prompt_parse"):
         multi = parse_multi_prompt(prompt)
         from sase.agent.launch_projects import (
-            activate_known_project_vcs_refs_for_launch_prompt,
+            enable_known_project_vcs_refs_for_launch_prompt,
         )
 
-        activate_known_project_vcs_refs_for_launch_prompt(
-            "\n---\n".join(multi.segments)
-        )
+        enable_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     with timer.stage("xprompt_swarm_expand", segment_count=len(multi.segments)):
         expanded_records = expand_xprompt_swarms_with_metadata(
             multi.segments, multi.local_xprompts

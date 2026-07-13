@@ -203,7 +203,7 @@ def _known_project_names() -> list[str]:
         record.project_name
         for record in list_project_records(
             projects_dir,
-            ("active",),
+            ("enabled",),
             include_home=False,
         )
         if Path(record.project_file).is_file()

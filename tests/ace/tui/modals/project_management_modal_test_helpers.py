@@ -35,7 +35,7 @@ class ProjectsPaneTestApp(App[None]):
 def make_project_record(
     name: str,
     *,
-    state: str = "active",
+    state: str = "enabled",
     explicit: bool = True,
     claims: int = 0,
     launchable: bool = True,

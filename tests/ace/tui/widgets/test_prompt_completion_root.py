@@ -23,7 +23,7 @@ def test_git_completion_root_uses_known_projects_without_provider_resolution(
     workspace.mkdir()
     monkeypatch.setattr(
         "sase.xprompt.loader.get_known_project_workspaces",
-        lambda include_states=("active",): {"bob-cli": workspace},
+        lambda include_states=("enabled",): {"bob-cli": workspace},
     )
 
     def fail_resolve_ref(ref: str, workflow_type: str) -> object:
@@ -86,7 +86,7 @@ def test_registered_completion_root_falls_back_to_known_project_when_peek_is_non
     )
     monkeypatch.setattr(
         "sase.xprompt.loader.get_known_project_workspaces",
-        lambda include_states=("active",): {"repo": workspace},
+        lambda include_states=("enabled",): {"repo": workspace},
     )
 
     assert resolve_prompt_completion_base_dir("#spy:repo src/") == str(workspace)

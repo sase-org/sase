@@ -1,4 +1,4 @@
-"""Launch-time activation helpers for known project refs."""
+"""Launch-time enablement helpers for known project refs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
-    is_inactive_project_lifecycle_state,
+    is_disabled_project_lifecycle_state,
 )
 
 
@@ -20,7 +20,9 @@ def _known_launch_records() -> dict[str, ProjectRecordWire]:
     return {
         record.project_name: record
         for record in records
-        if record.project_name != "home" and not record.system_managed
+        if record.is_project
+        and record.project_name != "home"
+        and not record.system_managed
     }
 
 
@@ -40,30 +42,30 @@ def _resolve_known_project_launch_record(
     return launch_records.get(project_name)
 
 
-def activate_known_project_for_launch_ref(ref: str) -> ProjectRecordWire | None:
-    """Activate a known inactive project referenced by a launch ref.
+def enable_known_project_for_launch_ref(ref: str) -> ProjectRecordWire | None:
+    """Enable a known disabled project referenced by a launch ref.
 
-    Unknown refs are ignored. Active and sibling records are returned without
-    mutation. Activation failures are raised as launch-friendly RuntimeErrors.
+    Unknown refs are ignored. Enabled records are returned without mutation.
+    Enablement failures are raised as launch-friendly RuntimeErrors.
     """
     record = _resolve_known_project_launch_record(ref)
     if record is None:
         return None
-    if not is_inactive_project_lifecycle_state(record.state):
+    if not is_disabled_project_lifecycle_state(record.state):
         return record
 
     from sase.main.project_handler import set_project_state_locked
 
     try:
-        return set_project_state_locked(record.project_name, "active")
+        return set_project_state_locked(record.project_name, "enabled")
     except Exception as exc:
         raise RuntimeError(
-            f"failed to activate project '{record.project_name}' for launch: {exc}"
+            f"failed to enable project '{record.project_name}' for launch: {exc}"
         ) from exc
 
 
-def activate_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str, ...]:
-    """Activate every inactive known-project VCS ref in *prompt* once."""
+def enable_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str, ...]:
+    """Enable every disabled known-project VCS ref in *prompt* once."""
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt._parsing import (
         iter_known_project_vcs_refs,
@@ -73,7 +75,7 @@ def activate_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str,
     prompt = canonicalize_project_aliases_in_prompt(prompt)
     records = _known_launch_records()
     refs = iter_known_project_vcs_refs(prompt, records)
-    activated: list[str] = []
+    enabled: list[str] = []
     seen_projects: set[str] = set()
     for _workflow_type, ref in refs:
         project_name = resolve_known_project_ref(ref, records)
@@ -81,12 +83,12 @@ def activate_known_project_vcs_refs_for_launch_prompt(prompt: str) -> tuple[str,
             continue
         seen_projects.add(project_name)
         record = records[project_name]
-        if not is_inactive_project_lifecycle_state(record.state):
+        if not is_disabled_project_lifecycle_state(record.state):
             continue
-        updated = activate_known_project_for_launch_ref(project_name)
+        updated = enable_known_project_for_launch_ref(project_name)
         if updated is not None:
-            activated.append(updated.project_name)
-    return tuple(activated)
+            enabled.append(updated.project_name)
+    return tuple(enabled)
 
 
 def extract_known_project_vcs_launch_ref(prompt: str) -> tuple[str, str] | None:
@@ -105,8 +107,16 @@ def extract_known_project_vcs_launch_ref(prompt: str) -> tuple[str, str] | None:
     return extract_known_project_vcs_ref(prompt, include_states="all")
 
 
+activate_known_project_for_launch_ref = enable_known_project_for_launch_ref
+activate_known_project_vcs_refs_for_launch_prompt = (
+    enable_known_project_vcs_refs_for_launch_prompt
+)
+
+
 __all__ = [
     "activate_known_project_for_launch_ref",
     "activate_known_project_vcs_refs_for_launch_prompt",
+    "enable_known_project_for_launch_ref",
+    "enable_known_project_vcs_refs_for_launch_prompt",
     "extract_known_project_vcs_launch_ref",
 ]

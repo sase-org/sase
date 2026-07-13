@@ -45,13 +45,13 @@ from .project_management_rendering import (
     summary_text,
 )
 
-ProjectStateFilter = Literal["all", "active", "inactive", "sibling"]
-_DEFAULT_STATE_FILTER: ProjectStateFilter = "active"
+ProjectStateFilter = Literal["all", "enabled", "disabled", "sibling"]
+_DEFAULT_STATE_FILTER: ProjectStateFilter = "enabled"
 _PendingForce = tuple[tuple[str, ...], str]
 _STATE_FILTERS: tuple[ProjectStateFilter, ...] = (
     _DEFAULT_STATE_FILTER,
     "sibling",
-    "inactive",
+    "disabled",
     "all",
 )
 
@@ -110,8 +110,8 @@ class ProjectsPane(
         ("u", "clear_project_marks", "Unmark All"),
         ("e", "edit_project_spec", "Edit"),
         ("A", "edit_project_aliases", "Aliases"),
-        ("a", "activate_project", "Activate"),
-        ("d", "deactivate_project", "Deactivate"),
+        ("a", "enable_project", "Enable"),
+        ("d", "disable_project", "Disable"),
         ("ctrl+d", "delete_project", "Delete"),
         ("F", "force_current_state_change", "Force"),
         ("enter", "default_project_action", "Default"),
@@ -192,9 +192,9 @@ class ProjectsPane(
                 if self._state_filter == "all"
                 else record.state == self._state_filter
                 or (
-                    self._state_filter == "active"
+                    self._state_filter == "enabled"
                     and self._show_inactive_projects
-                    and record.state == "inactive"
+                    and record.state == "disabled"
                 )
             )
             if not state_matches:
@@ -470,9 +470,9 @@ class ProjectsPane(
         self._pending_force = None
         self._apply_filters()
         message = (
-            "Inactive projects visible"
+            "Disabled projects visible"
             if self._show_inactive_projects
-            else "Inactive projects hidden"
+            else "Disabled projects hidden"
         )
         self._set_status(message)
         self._refresh_options()

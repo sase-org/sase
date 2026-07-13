@@ -44,8 +44,8 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [
-            make_project_record("alpha", state="active"),
-            make_project_record("beta", state="active"),
+            make_project_record("alpha", state="enabled"),
+            make_project_record("beta", state="enabled"),
         ],
     )
 
@@ -76,7 +76,7 @@ async def test_admin_center_reaches_projects_tab_from_config(
 
         pane = modal.query_one("#projects", ProjectsPane)
         option_list = pane.query_one("#projects-list", OptionList)
-        # The default "active" state filter shows both seeded projects.
+        # The default "enabled" state filter shows both seeded projects.
         assert option_list.option_count == 2
         # Activating the tab focuses the list (browse-first).
         assert page.app.focused is option_list
@@ -131,7 +131,7 @@ async def test_projects_filter_forwards_brackets_to_cycle_state(
         await _focus_projects_filter(page)
 
         pane = modal.query_one("#projects", ProjectsPane)
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
 
         # Printable brackets are intercepted before Input can insert them and
         # cycle the Projects state filter locally in both directions, including
@@ -141,7 +141,7 @@ async def test_projects_filter_forwards_brackets_to_cycle_state(
         assert modal._active_tab == "projects"
 
         await page.press("[")
-        await page.wait_for(lambda _s: pane._state_filter == "active")
+        await page.wait_for(lambda _s: pane._state_filter == "enabled")
 
         await page.press("[")
         await page.wait_for(lambda _s: pane._state_filter == "all")
@@ -159,17 +159,17 @@ async def test_projects_filter_yields_tab_to_admin_center(
         await page.wait_for(lambda _s: bool(modal.query("#projects-filter")))
 
         pane = modal.query_one("#projects", ProjectsPane)
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
         await _focus_projects_filter(page)
 
         # The Admin Center's priority Tab binding wins over focused-input
         # traversal and leaves the Projects state filter untouched.
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "tasks")
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
         assert page.app.current_tab == "changespecs"
 
         await page.press("shift+tab")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
         assert page.app.current_tab == "changespecs"

@@ -87,10 +87,10 @@ class WorkflowExecMixin:
         project = None
         if "/" in workflow_name:
             project = workflow_name.split("/")[0]
-            from sase.agent.launch_projects import activate_known_project_for_launch_ref
+            from sase.agent.launch_projects import enable_known_project_for_launch_ref
 
             try:
-                activate_known_project_for_launch_ref(project)
+                enable_known_project_for_launch_ref(project)
             except RuntimeError as exc:
                 message = str(exc)
                 _stash_failed_workflow_prompt(submitted_prompt)

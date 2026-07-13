@@ -39,13 +39,17 @@ def _install_lifecycle_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
             if line.startswith("NAME:"):
                 break
             if line.startswith("PROJECT_STATE:"):
+                state = line.split(":", 1)[1].strip()
                 return SimpleNamespace(
-                    state=line.split(":", 1)[1].strip(),
+                    state={"active": "enabled", "inactive": "disabled"}.get(
+                        state, state
+                    ),
                     explicit=True,
                 )
-        return SimpleNamespace(state="active", explicit=False)
+        return SimpleNamespace(state="enabled", explicit=False)
 
     def apply_lifecycle(content: str, state: str) -> str:
+        state = {"active": "enabled", "inactive": "disabled"}.get(state, state)
         lines = content.splitlines(keepends=True)
         line = f"PROJECT_STATE: {state}\n"
         for index, existing in enumerate(lines):
@@ -317,9 +321,9 @@ class TestWorkspaceProjectResolution:
             handle_workspace_command(args)
 
         assert exc.value.code == 2
-        assert "explicit PROJECT_STATE 'active'" in capsys.readouterr().err
+        assert "explicit PROJECT_STATE 'enabled'" in capsys.readouterr().err
 
-    def test_configured_sibling_with_workspace_dir_and_explicit_active_state_fails(
+    def test_configured_sibling_with_workspace_dir_and_explicit_enabled_state_fails(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
@@ -337,4 +341,4 @@ class TestWorkspaceProjectResolution:
             handle_workspace_command(args)
 
         assert exc.value.code == 2
-        assert "explicit PROJECT_STATE 'active'" in capsys.readouterr().err
+        assert "explicit PROJECT_STATE 'enabled'" in capsys.readouterr().err

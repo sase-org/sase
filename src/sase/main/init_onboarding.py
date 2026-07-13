@@ -491,14 +491,14 @@ def run_init_onboarding_all(
     stdin: TextIO | None = None,
     console: Console | None = None,
 ) -> int:
-    """Run bare onboarding for every active main SASE project."""
+    """Run bare onboarding for every enabled main SASE project."""
     out_console = console or preview_console(sys.stdout)
     inventory: InitProjectInventory = resolve_init_project_inventory()
     if inventory.error is not None:
         out_console.print(f"init --all: {inventory.error}", style="red")
         return 1
     if not inventory.targets:
-        out_console.print("init --all: no active main SASE projects were found.")
+        out_console.print("init --all: no enabled main SASE projects were found.")
         return 1
 
     checked = current = initialized = needs_attention = unavailable = failed = 0

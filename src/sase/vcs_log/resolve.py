@@ -69,7 +69,7 @@ def resolve_log_repos(
 
     Without ``all_projects``, a non-project *cwd* falls back to the current VCS
     repository exactly as before.  Global scope is independent of *cwd* and
-    reads every registered active or inactive project record except ``home``.
+    reads every registered enabled or disabled project record except ``home``.
     """
     warnings: list[str] = []
 
@@ -116,7 +116,7 @@ def _resolve_all_project_repos(
 ) -> list[LogRepo]:
     try:
         records = list_project_records(
-            sase_projects_dir(), ("active", "inactive"), include_home=False
+            sase_projects_dir(), ("enabled", "disabled"), include_home=False
         )
     except Exception as exc:  # pragma: no cover - facade failures are rare
         _warn_once(

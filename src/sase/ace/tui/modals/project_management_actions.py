@@ -65,17 +65,23 @@ class ProjectManagementActionsMixin:
             self, project: str, aliases: list[str]
         ) -> ProjectRecordWire: ...
 
+    def action_enable_project(self) -> None:
+        self._set_project_state("enabled")
+
+    def action_disable_project(self) -> None:
+        self._set_project_state("disabled")
+
     def action_activate_project(self) -> None:
-        self._set_project_state("active")
+        self.action_enable_project()
 
     def action_deactivate_project(self) -> None:
-        self._set_project_state("inactive")
+        self.action_disable_project()
 
     def action_archive_project(self) -> None:
-        self.action_deactivate_project()
+        self.action_disable_project()
 
     def action_close_project(self) -> None:
-        self.action_deactivate_project()
+        self.action_disable_project()
 
     def action_edit_project_spec(self) -> None:
         record = self._selected_record()
@@ -240,14 +246,14 @@ class ProjectManagementActionsMixin:
         record = self._selected_record()
         if record is None:
             return
-        if record.state != "active":
-            self._set_project_state_for_records([record], "active")
+        if record.state != "enabled":
+            self._set_project_state_for_records([record], "enabled")
         else:
-            self._set_status(f"{effective_project_name(record)} is already active")
+            self._set_status(f"{effective_project_name(record)} is already enabled")
 
     def action_force_current_state_change(self) -> None:
         if self._pending_force is None:
-            self._set_status("No blocked deactivate to force")
+            self._set_status("No blocked disable to force")
             return
         projects, state = self._pending_force
         if len(projects) == 1 and projects[0] not in self._marked_projects:

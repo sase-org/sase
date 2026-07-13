@@ -1,6 +1,6 @@
 """Record agent-name claims without mutating previous owners.
 
-Collision checks intentionally consider all project lifecycle states; inactive
+Collision checks intentionally consider all project lifecycle states; disabled
 projects can still contain historical owners for explicit agent names.
 """
 

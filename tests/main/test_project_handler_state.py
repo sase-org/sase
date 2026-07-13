@@ -38,12 +38,12 @@ class TestMutation:
 
         assert exc.value.code == 0
         assert (
-            "WORKSPACE_DIR: /tmp/alpha\nPROJECT_STATE: inactive\nRUNNING:\n"
+            "WORKSPACE_DIR: /tmp/alpha\nPROJECT_STATE: disabled\nRUNNING:\n"
             in project_file.read_text(encoding="utf-8")
         )
-        assert "state is now inactive" in capsys.readouterr().out
+        assert "state is now disabled" in capsys.readouterr().out
 
-    def test_legacy_aliases_normalize_to_inactive(
+    def test_legacy_aliases_normalize_to_disabled(
         self,
         projects_root: Path,
         lifecycle_stubs: Callable[[], None],
@@ -60,7 +60,7 @@ class TestMutation:
             handle_project_command(args)
 
         assert exc.value.code == 0
-        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: disabled\n" in project_file.read_text(encoding="utf-8")
 
         args = make_args(
             project_subcommand="set-state",
@@ -72,7 +72,7 @@ class TestMutation:
             handle_project_command(args)
 
         assert exc.value.code == 0
-        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: disabled\n" in project_file.read_text(encoding="utf-8")
 
     def test_set_state_replaces_existing_state(
         self,
@@ -97,7 +97,7 @@ class TestMutation:
 
         assert exc.value.code == 0
         assert project_file.read_text(encoding="utf-8").startswith(
-            "PROJECT_STATE: active\n"
+            "PROJECT_STATE: enabled\n"
         )
 
     def test_set_state_accepts_project_name(
@@ -113,7 +113,7 @@ class TestMutation:
         )
 
         args = make_args(
-            project_subcommand="deactivate",
+            project_subcommand="disable",
             project="widgets",
             force=False,
         )
@@ -121,7 +121,7 @@ class TestMutation:
             handle_project_command(args)
 
         assert exc.value.code == 0
-        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: disabled\n" in project_file.read_text(encoding="utf-8")
 
     def test_set_state_accepts_sibling(
         self,
@@ -164,7 +164,7 @@ class TestMutation:
             "\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="deactivate", project="alpha", force=False)
+        args = make_args(project_subcommand="disable", project="alpha", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -186,12 +186,12 @@ class TestMutation:
             "\nNAME: a\n",
         )
 
-        args = make_args(project_subcommand="deactivate", project="alpha", force=True)
+        args = make_args(project_subcommand="disable", project="alpha", force=True)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
         assert exc.value.code == 0
-        assert "PROJECT_STATE: inactive\n" in project_file.read_text(encoding="utf-8")
+        assert "PROJECT_STATE: disabled\n" in project_file.read_text(encoding="utf-8")
 
     def test_rejects_live_artifact_marker_without_force(
         self,
@@ -209,7 +209,7 @@ class TestMutation:
         marker.mkdir(parents=True)
         (marker / "waiting.json").write_text("{}", encoding="utf-8")
 
-        args = make_args(project_subcommand="deactivate", project="alpha", force=False)
+        args = make_args(project_subcommand="disable", project="alpha", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -228,7 +228,7 @@ class TestMutation:
         hidden_dir.mkdir()
         (hidden_dir / ".sase.sase").write_text("", encoding="utf-8")
 
-        args = make_args(project_subcommand="deactivate", project=".sase", force=False)
+        args = make_args(project_subcommand="disable", project=".sase", force=False)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
@@ -245,9 +245,43 @@ class TestMutation:
         lifecycle_stubs()
         _write_project(projects_root, "home", "WORKSPACE_DIR: /tmp/home\nNAME: h\n")
 
-        args = make_args(project_subcommand="deactivate", project="home", force=True)
+        args = make_args(project_subcommand="disable", project="home", force=True)
         with pytest.raises(SystemExit) as exc:
             handle_project_command(args)
 
         assert exc.value.code == 1
         assert "system-managed" in capsys.readouterr().err
+
+    def test_legacy_activate_and_deactivate_commands_remain_aliases(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+    ) -> None:
+        lifecycle_stubs()
+        project_file = _write_project(
+            projects_root,
+            "alpha",
+            "PROJECT_STATE: disabled\nWORKSPACE_DIR: /tmp/alpha\nNAME: a\n",
+        )
+
+        with pytest.raises(SystemExit) as enabled:
+            handle_project_command(
+                make_args(
+                    project_subcommand="activate",
+                    project="alpha",
+                    force=False,
+                )
+            )
+        assert enabled.value.code == 0
+        assert "PROJECT_STATE: enabled\n" in project_file.read_text(encoding="utf-8")
+
+        with pytest.raises(SystemExit) as disabled:
+            handle_project_command(
+                make_args(
+                    project_subcommand="deactivate",
+                    project="alpha",
+                    force=False,
+                )
+            )
+        assert disabled.value.code == 0
+        assert "PROJECT_STATE: disabled\n" in project_file.read_text(encoding="utf-8")

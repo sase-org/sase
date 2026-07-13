@@ -199,7 +199,7 @@ def test_run_agent_launch_body_records_home_multi_prompt_vcs_ref_mru() -> None:
         )
         stack.enter_context(
             patch(
-                "sase.agent.launch_projects.activate_known_project_vcs_refs_for_launch_prompt",
+                "sase.agent.launch_projects.enable_known_project_vcs_refs_for_launch_prompt",
                 return_value=(),
             )
         )
@@ -272,7 +272,7 @@ def test_run_agent_launch_body_skips_home_multi_prompt_non_launchable_vcs_ref_mr
         )
         stack.enter_context(
             patch(
-                "sase.agent.launch_projects.activate_known_project_vcs_refs_for_launch_prompt",
+                "sase.agent.launch_projects.enable_known_project_vcs_refs_for_launch_prompt",
                 return_value=(),
             )
         )

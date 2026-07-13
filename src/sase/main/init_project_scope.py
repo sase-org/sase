@@ -16,7 +16,7 @@ from sase.vcs_provider import VCSProviderNotFoundError, detect_vcs_family
 
 @dataclass(frozen=True)
 class InitProjectTarget:
-    """One active main project considered by ``sase init --all``."""
+    """One enabled main project considered by ``sase init --all``."""
 
     project_name: str
     display_name: str
@@ -95,11 +95,11 @@ def _target_for_record(record: ProjectRecordWire) -> InitProjectTarget:
 
 
 def resolve_init_project_inventory() -> InitProjectInventory:
-    """Resolve every active, non-system main project through the core facade."""
+    """Resolve every enabled, non-system main project through the core facade."""
     try:
         records = list_project_records(
             sase_projects_dir(),
-            "active",
+            "enabled",
             include_home=False,
         )
     except Exception as exc:  # pragma: no cover - facade failures are rare
@@ -111,7 +111,7 @@ def resolve_init_project_inventory() -> InitProjectInventory:
     targets = tuple(
         _target_for_record(record)
         for record in sorted(records, key=_record_sort_key)
-        if record.state == "active"
+        if record.state == "enabled"
         and record.project_name != "home"
         and not record.system_managed
     )

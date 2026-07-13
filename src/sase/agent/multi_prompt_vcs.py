@@ -41,7 +41,7 @@ def _resolve_known_project_segment_context(
 
     from sase.ace.changespec.project_spec_path import preferred_project_spec_path
     from sase.agent.launch_projects import (
-        activate_known_project_for_launch_ref,
+        enable_known_project_for_launch_ref,
         extract_known_project_vcs_launch_ref,
     )
     from sase.core.paths import sase_projects_dir
@@ -54,7 +54,7 @@ def _resolve_known_project_segment_context(
         return None
 
     wf_name, ref_value = known_ref
-    activate_known_project_for_launch_ref(ref_value)
+    enable_known_project_for_launch_ref(ref_value)
     workspaces = get_known_project_workspaces()
     project_name = resolve_known_project_ref(ref_value, workspaces)
     if project_name is None:

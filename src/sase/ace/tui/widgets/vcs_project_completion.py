@@ -23,8 +23,8 @@ from sase.xprompt.vcs_project_completion import (
 VCS_PROJECT_COMPLETION_KIND = "vcs_project"
 """``_completion_kind`` value identifying the ``+`` project/PR menu."""
 
-_NO_ACTIVE_PROJECTS_LABEL = "no active projects or PRs"
-"""Placeholder row text shown when the active project/PR catalog is empty."""
+_NO_ACTIVE_PROJECTS_LABEL = "no enabled projects or PRs"
+"""Placeholder row text shown when the enabled project/PR catalog is empty."""
 
 
 def build_no_active_projects_placeholder() -> CompletionCandidate:
@@ -61,7 +61,7 @@ def vcs_project_completion_candidates(
 ) -> tuple[list[CompletionCandidate], bool]:
     """Return ``(candidates, catalog_is_empty)`` for *query*.
 
-    ``catalog_is_empty`` is ``True`` only when there are *zero* active project
+    ``catalog_is_empty`` is ``True`` only when there are *zero* enabled project
     or PR entries, so the caller shows the
     :func:`build_no_active_projects_placeholder` row rather than dismissing the
     menu. When the catalog is non-empty but *query* filters everything out,

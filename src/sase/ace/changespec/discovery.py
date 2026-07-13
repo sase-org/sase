@@ -29,7 +29,7 @@ def _normalize_project_lifecycle_states(
 
 def iter_changespec_project_files(
     projects_dir: Path | None = None,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
     *,
     include_home: bool = True,
 ) -> list[Path]:
@@ -46,7 +46,7 @@ def iter_changespec_project_files(
 
 def iter_changespec_project_file_records(
     projects_dir: Path | None = None,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
     *,
     include_home: bool = True,
 ) -> list[_ChangeSpecProjectFile]:

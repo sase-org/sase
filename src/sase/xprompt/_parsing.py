@@ -130,7 +130,7 @@ def resolve_known_project_ref(
 
 def extract_known_project_vcs_ref(
     prompt: str,
-    include_states: Sequence[str] | str = ("active",),
+    include_states: Sequence[str] | str = ("enabled",),
 ) -> tuple[str, str] | None:
     """Return ``(workflow_type, ref)`` for a generic known-project VCS ref."""
     _sync_vcs_ref_caches_to_impl()

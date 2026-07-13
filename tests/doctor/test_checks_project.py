@@ -17,7 +17,7 @@ def _record(
     tmp_path: Path,
     *,
     name: str = "alpha",
-    state: str = "active",
+    state: str = "enabled",
     workspace_dir: str | None = "/tmp/alpha",
     launchable: bool = True,
     parse_warnings: list[str] | None = None,
@@ -32,7 +32,7 @@ def _record(
         archive_file=None,
         workspace_dir=workspace_dir,
         state=state,
-        state_explicit=state != "active",
+        state_explicit=state != "enabled",
         system_managed=False,
         active_claim_count=0,
         launchable=launchable,
@@ -50,8 +50,8 @@ def _context(tmp_path: Path, project: str | None = "alpha") -> DoctorContext:
     )
 
 
-def test_project_current_warns_for_inactive_project(monkeypatch, tmp_path) -> None:
-    record = _record(tmp_path, state="inactive", launchable=False)
+def test_project_current_warns_for_disabled_project(monkeypatch, tmp_path) -> None:
+    record = _record(tmp_path, state="disabled", launchable=False)
     monkeypatch.setattr(
         "sase.doctor.checks_project.list_project_records",
         lambda *_args, **_kwargs: [record],
@@ -60,9 +60,9 @@ def test_project_current_warns_for_inactive_project(monkeypatch, tmp_path) -> No
     check = _check_project_current(_context(tmp_path))
 
     assert check.status == "WARN"
-    assert "state=inactive" in check.summary
-    assert "project state is inactive" in check.details
-    assert check.next_steps == ("Run `sase project activate alpha`.",)
+    assert "state=disabled" in check.summary
+    assert "project state is disabled" in check.details
+    assert check.next_steps == ("Run `sase project enable alpha`.",)
 
 
 def test_project_current_skips_when_no_project_context(monkeypatch, tmp_path) -> None:

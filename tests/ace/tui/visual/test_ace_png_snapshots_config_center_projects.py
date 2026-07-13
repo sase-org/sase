@@ -2,7 +2,7 @@
 
 The Projects pane is fed a deterministic spread of lifecycle records by
 overriding the ``conftest`` autouse stub via ``_patch_project_records`` so the
-state badges, column alignment, marks, inactive rows, and detail panel are all
+state badges, column alignment, marks, disabled rows, and detail panel are all
 exercised with stable data.
 """
 
@@ -45,7 +45,7 @@ async def test_config_center_projects_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Default active-state list with the first project's detail populated."""
+    """Default enabled-state list with the first project's detail populated."""
     _patch_admin_center(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -56,7 +56,7 @@ async def test_config_center_projects_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_projects_tab_120x40",
-            title="ACE SASE Admin Center — Projects tab (active list + detail)",
+            title="ACE SASE Admin Center — Projects tab (enabled list + detail)",
         )
 
 
@@ -70,7 +70,7 @@ async def test_config_center_projects_marked_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_projects_modal(page)
-        # Mark auto-advances, so two marks claim the first two active rows.
+        # Mark auto-advances, so two marks claim the first two enabled rows.
         pane.action_toggle_project_mark()
         pane.action_toggle_project_mark()
         await page.wait_for(lambda _s: pane._marked_projects == {"sase", "sase-core"})
@@ -87,7 +87,7 @@ async def test_config_center_projects_inactive_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Revealing inactive rows adds the gold badges and warning counts."""
+    """Revealing disabled rows adds the gold badges and warning counts."""
     _patch_admin_center(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -97,7 +97,7 @@ async def test_config_center_projects_inactive_png_snapshot(
         await page.wait_for(lambda _s: pane._show_inactive_projects)
         await page.wait_for(
             lambda _s: any(
-                record.state == "inactive" for record in pane._filtered_records
+                record.state == "disabled" for record in pane._filtered_records
             )
         )
         await wait_for_visual_idle(page)
@@ -105,7 +105,7 @@ async def test_config_center_projects_inactive_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_projects_inactive_120x40",
-            title="ACE SASE Admin Center — Projects tab (inactive rows visible)",
+            title="ACE SASE Admin Center — Projects tab (disabled rows visible)",
         )
 
 
@@ -120,9 +120,9 @@ async def test_config_center_projects_detail_png_snapshot(
         await wait_for_startup(page)
         _, pane = await _open_projects_modal(page)
         # Show every state, then highlight the row carrying two warnings.
-        pane.action_cycle_state_filter()  # active -> sibling
-        pane.action_cycle_state_filter()  # sibling -> inactive
-        pane.action_cycle_state_filter()  # inactive -> all
+        pane.action_cycle_state_filter()  # enabled -> sibling
+        pane.action_cycle_state_filter()  # sibling -> disabled
+        pane.action_cycle_state_filter()  # disabled -> all
         await page.wait_for(lambda _s: pane._state_filter == "all")
         # ``old-prototype`` is the last row; step down to it (cursor does not wrap).
         for _ in range(len(pane._filtered_records)):

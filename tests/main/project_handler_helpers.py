@@ -101,7 +101,7 @@ def _fake_list_workspace_claims_from_content(content: str) -> list[WorkspaceClai
 def _parse_header(
     content: str,
 ) -> tuple[str, bool, str | None, list[str], str | None, int]:
-    state = "active"
+    state = "enabled"
     explicit = False
     workspace_dir: str | None = None
     aliases: list[str] = []
@@ -116,7 +116,7 @@ def _parse_header(
         if not before_changespec:
             continue
         if line.startswith("PROJECT_STATE:"):
-            raw_state = line.split(":", 1)[1].strip() or "active"
+            raw_state = line.split(":", 1)[1].strip() or "enabled"
             state = normalize_project_lifecycle_state(raw_state)
             explicit = True
         elif line.startswith("WORKSPACE_DIR:"):
@@ -184,11 +184,12 @@ def _disk_project_records(
                 state_explicit=explicit,
                 system_managed=project_name == "home",
                 active_claim_count=active_claim_count,
-                launchable=state == "active" and workspace_dir is not None,
+                launchable=state == "enabled" and workspace_dir is not None,
                 aliases=aliases,
                 warnings=[],
                 parse_warnings=[],
                 display_name=display_name,
+                is_project=project_name != "home" and state != "sibling",
             )
         )
     return records

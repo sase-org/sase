@@ -34,7 +34,7 @@ def _record(
         project_file=str(project_dir / "alpha.sase"),
         archive_file=None,
         workspace_dir=str(primary),
-        state="active",
+        state="enabled",
         state_explicit=False,
         system_managed=False,
         active_claim_count=active_claim_count,

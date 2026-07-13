@@ -77,13 +77,13 @@ def test_list_launchable_projects_filters_invalid_entries(
 ) -> None:
     projects_dir = tmp_path / "projects"
     valid_workspace = tmp_path / "valid-workspace"
-    inactive_workspace = tmp_path / "inactive-workspace"
+    disabled_workspace = tmp_path / "disabled-workspace"
     sibling_workspace = tmp_path / "sibling-workspace"
     no_provider_workspace = tmp_path / "no-provider-workspace"
     home_workspace = tmp_path / "home-workspace"
     for workspace in (
         valid_workspace,
-        inactive_workspace,
+        disabled_workspace,
         sibling_workspace,
         no_provider_workspace,
         home_workspace,
@@ -91,7 +91,7 @@ def test_list_launchable_projects_filters_invalid_entries(
         workspace.mkdir()
 
     _write_project(projects_dir, "valid", valid_workspace)
-    _write_project(projects_dir, "inactive", inactive_workspace, state="inactive")
+    _write_project(projects_dir, "disabled", disabled_workspace, state="disabled")
     _write_project(projects_dir, "sibling", sibling_workspace, state="sibling")
     _write_project(projects_dir, "empty", None)
     _write_project(projects_dir, "stale", tmp_path / "missing-workspace")
@@ -112,21 +112,21 @@ def test_list_launchable_projects_filters_invalid_entries(
 
     assert projects == ["home", "valid"]
     assert is_launchable_project("valid", projects_dir) is True
-    assert is_launchable_project("inactive", projects_dir) is False
+    assert is_launchable_project("disabled", projects_dir) is False
     assert is_launchable_project("sibling", projects_dir) is False
     assert is_launchable_project("stale", projects_dir) is False
     assert is_launchable_project("home", projects_dir) is True
 
 
-def test_home_project_must_be_real_active_and_launchable(
+def test_home_project_must_be_real_enabled_and_launchable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     projects_dir = tmp_path / "projects"
     projects_dir.mkdir()
     home_workspace = tmp_path / "home-workspace"
-    inactive_home_workspace = tmp_path / "inactive-home-workspace"
+    disabled_home_workspace = tmp_path / "disabled-home-workspace"
     home_workspace.mkdir()
-    inactive_home_workspace.mkdir()
+    disabled_home_workspace.mkdir()
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_discovery.detect_workflow_type",
@@ -139,9 +139,9 @@ def test_home_project_must_be_real_active_and_launchable(
     assert is_launchable_project("home", projects_dir) is True
 
     home_project_file.write_text(
-        "PROJECT_STATE: inactive\n"
-        f"WORKSPACE_DIR: {inactive_home_workspace}\n"
-        "NAME: inactive_home_change\n",
+        "PROJECT_STATE: disabled\n"
+        f"WORKSPACE_DIR: {disabled_home_workspace}\n"
+        "NAME: disabled_home_change\n",
         encoding="utf-8",
     )
     assert is_launchable_project("home", projects_dir) is False

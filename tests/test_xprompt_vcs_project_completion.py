@@ -59,7 +59,7 @@ def _record(
     *,
     aliases: list[str] | None = None,
     display_name: str | None = None,
-    state: str = "active",
+    state: str = "enabled",
     system_managed: bool = False,
     launchable: bool = True,
 ) -> ProjectRecordWire:
@@ -394,7 +394,9 @@ def test_builder_appends_active_changespecs_after_projects() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+        patch.object(
+            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
+        ),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -425,7 +427,9 @@ def test_builder_filters_changespec_status_and_missing_project() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+        patch.object(
+            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
+        ),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -447,7 +451,9 @@ def test_builder_allows_changespec_name_to_match_project_name() -> None:
         list_p,
         detect_p,
         display_p,
-        patch.object(vpc, "_iter_active_changespecs", return_value=changespecs),
+        patch.object(
+            vpc, "_iter_enabled_project_changespecs", return_value=changespecs
+        ),
     ):
         entries = build_vcs_project_completion_entries(
             projects_dir="/tmp/projects", use_cache=False
@@ -531,7 +537,7 @@ def test_cache_invalidates_when_project_spec_mtime_changes(tmp_path) -> None:
         display_p,
         patch.object(vpc, "iter_changespec_project_files", return_value=[spec_file]),
         patch.object(
-            vpc, "_iter_active_changespecs", side_effect=changespec_versions
+            vpc, "_iter_enabled_project_changespecs", side_effect=changespec_versions
         ) as changespec_mock,
     ):
         first = build_vcs_project_completion_entries(projects_dir=tmp_path)
@@ -570,7 +576,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
                 "gh": (
                     VcsNamespaceEntry(
                         name="sase-org",
-                        description="2 active projects",
+                        description="2 enabled projects",
                         kind_label="org",
                     ),
                 ),
@@ -614,7 +620,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
         "gh": [
             {
                 "name": "sase-org",
-                "description": "2 active projects",
+                "description": "2 enabled projects",
                 "kind_label": "org",
             }
         ],

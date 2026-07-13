@@ -16,17 +16,19 @@ from .project_management_modal_test_helpers import (
 )
 
 
-async def test_project_management_modal_activate_mutates_and_reloads(
+async def test_project_management_modal_enable_mutates_and_reloads(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    states = {"alpha": "inactive"}
+    states = {"alpha": "disabled"}
     calls: list[tuple[str, str, bool]] = []
 
     def list_records(*_args, **_kwargs):
         return [
             make_project_record(
-                "alpha", state=states["alpha"], launchable=states["alpha"] == "active"
+                "alpha",
+                state=states["alpha"],
+                launchable=states["alpha"] == "enabled",
             )
         ]
 
@@ -35,7 +37,7 @@ async def test_project_management_modal_activate_mutates_and_reloads(
     ) -> ProjectRecordWire:
         calls.append((project, state, force))
         states[project] = state
-        return make_project_record(project, state=state, launchable=state == "active")
+        return make_project_record(project, state=state, launchable=state == "enabled")
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
@@ -57,19 +59,19 @@ async def test_project_management_modal_activate_mutates_and_reloads(
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "inactive"
+        assert pane._state_filter == "disabled"
         assert [record.project_name for record in pane._filtered_records] == ["alpha"]
 
         await pilot.press("enter")
         await pilot.pause()
 
-        assert calls == [("alpha", "active", False)]
-        assert pane._records[0].state == "active"
+        assert calls == [("alpha", "enabled", False)]
+        assert pane._records[0].state == "enabled"
         assert pane._filtered_records == []
-        assert pane._status_message == "alpha -> active"
+        assert pane._status_message == "alpha -> enabled"
 
 
-async def test_project_management_modal_enter_activates_sibling(
+async def test_project_management_modal_enter_enables_sibling(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -79,7 +81,9 @@ async def test_project_management_modal_enter_activates_sibling(
     def list_records(*_args, **_kwargs):
         return [
             make_project_record(
-                "core", state=states["core"], launchable=states["core"] == "active"
+                "core",
+                state=states["core"],
+                launchable=states["core"] == "enabled",
             )
         ]
 
@@ -88,7 +92,7 @@ async def test_project_management_modal_enter_activates_sibling(
     ) -> ProjectRecordWire:
         calls.append((project, state, force))
         states[project] = state
-        return make_project_record(project, state=state, launchable=state == "active")
+        return make_project_record(project, state=state, launchable=state == "enabled")
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
@@ -112,17 +116,17 @@ async def test_project_management_modal_enter_activates_sibling(
         await pilot.press("enter")
         await pilot.pause()
 
-        assert calls == [("core", "active", False)]
-        assert pane._records[0].state == "active"
+        assert calls == [("core", "enabled", False)]
+        assert pane._records[0].state == "enabled"
         assert pane._filtered_records == []
-        assert pane._status_message == "core -> active"
+        assert pane._status_message == "core -> enabled"
 
 
-async def test_project_management_modal_force_deactivate_after_block(
+async def test_project_management_modal_force_disable_after_block(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    state = {"alpha": "active"}
+    state = {"alpha": "enabled"}
     calls: list[tuple[str, str, bool]] = []
 
     def list_records(*_args, **_kwargs):
@@ -131,7 +135,7 @@ async def test_project_management_modal_force_deactivate_after_block(
                 "alpha",
                 state=state["alpha"],
                 claims=1,
-                launchable=state["alpha"] == "active",
+                launchable=state["alpha"] == "enabled",
             )
         ]
 
@@ -165,7 +169,7 @@ async def test_project_management_modal_force_deactivate_after_block(
 
         await pilot.press("d")
         await pilot.pause()
-        assert pane._pending_force == (("alpha",), "inactive")
+        assert pane._pending_force == (("alpha",), "disabled")
         assert "Blocked:" in pane._status_message
 
         await pilot.press("F")
@@ -174,11 +178,11 @@ async def test_project_management_modal_force_deactivate_after_block(
         await pilot.pause()
 
         assert calls == [
-            ("alpha", "inactive", False),
-            ("alpha", "inactive", True),
+            ("alpha", "disabled", False),
+            ("alpha", "disabled", True),
         ]
         assert pane._pending_force is None
-        assert pane._records[0].state == "inactive"
+        assert pane._records[0].state == "disabled"
         assert pane._filtered_records == []
 
 
@@ -186,12 +190,12 @@ async def test_project_management_modal_bulk_state_targets_marked_projects(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    states = {"alpha": "active", "beta": "active", "gamma": "active"}
+    states = {"alpha": "enabled", "beta": "enabled", "gamma": "enabled"}
     calls: list[tuple[str, str, bool]] = []
 
     def list_records(*_args, **_kwargs):
         return [
-            make_project_record(name, state=state, launchable=state == "active")
+            make_project_record(name, state=state, launchable=state == "enabled")
             for name, state in states.items()
         ]
 
@@ -200,7 +204,7 @@ async def test_project_management_modal_bulk_state_targets_marked_projects(
     ) -> ProjectRecordWire:
         calls.append((project, state, force))
         states[project] = state
-        return make_project_record(project, state=state, launchable=state == "active")
+        return make_project_record(project, state=state, launchable=state == "enabled")
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
@@ -230,14 +234,14 @@ async def test_project_management_modal_bulk_state_targets_marked_projects(
         await pilot.pause()
 
         assert calls == [
-            ("beta", "inactive", False),
-            ("gamma", "inactive", False),
+            ("beta", "disabled", False),
+            ("gamma", "disabled", False),
         ]
         assert pane._marked_projects == set()
         assert states == {
-            "alpha": "active",
-            "beta": "inactive",
-            "gamma": "inactive",
+            "alpha": "enabled",
+            "beta": "disabled",
+            "gamma": "disabled",
         }
 
 
@@ -245,12 +249,12 @@ async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    states = {"alpha": "active", "beta": "active", "gamma": "active"}
+    states = {"alpha": "enabled", "beta": "enabled", "gamma": "enabled"}
     calls: list[tuple[str, str, bool]] = []
 
     def list_records(*_args, **_kwargs):
         return [
-            make_project_record(name, state=state, launchable=state == "active")
+            make_project_record(name, state=state, launchable=state == "enabled")
             for name, state in states.items()
         ]
 
@@ -268,7 +272,7 @@ async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_
         if project == "gamma":
             raise RuntimeError("boom")
         states[project] = state
-        return make_project_record(project, state=state, launchable=state == "active")
+        return make_project_record(project, state=state, launchable=state == "enabled")
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
@@ -295,21 +299,21 @@ async def test_project_management_modal_bulk_state_preserves_blocked_and_failed_
         await pilot.pause()
 
         assert calls == [
-            ("alpha", "inactive", False),
-            ("beta", "inactive", False),
-            ("gamma", "inactive", False),
+            ("alpha", "disabled", False),
+            ("beta", "disabled", False),
+            ("gamma", "disabled", False),
         ]
         assert pane._marked_projects == {"beta", "gamma"}
-        assert pane._pending_force == (("beta",), "inactive")
-        assert states["alpha"] == "inactive"
-        assert states["beta"] == "active"
+        assert pane._pending_force == (("beta",), "disabled")
+        assert states["alpha"] == "disabled"
+        assert states["beta"] == "enabled"
 
         await pilot.press("F")
         await pilot.pause()
         await pilot.press("y")
         await pilot.pause()
 
-        assert calls[-1] == ("beta", "inactive", True)
+        assert calls[-1] == ("beta", "disabled", True)
         assert pane._marked_projects == {"gamma"}
         assert pane._pending_force is None
-        assert states["beta"] == "inactive"
+        assert states["beta"] == "disabled"

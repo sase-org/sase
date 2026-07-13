@@ -133,7 +133,7 @@ def test_explicit_standalone_workflow_executes_with_hitl_override() -> None:
     )
 
 
-def test_project_local_standalone_workflow_activates_inactive_project(
+def test_project_local_standalone_workflow_enables_disabled_project(
     monkeypatch,
     tmp_path,
 ) -> None:
@@ -144,7 +144,7 @@ def test_project_local_standalone_workflow_activates_inactive_project(
     projects_dir.mkdir(parents=True)
     project_file = projects_dir / "sase.sase"
     project_file.write_text(
-        f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {workspace}\n",
+        f"PROJECT_STATE: disabled\nWORKSPACE_DIR: {workspace}\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
@@ -168,7 +168,7 @@ def test_project_local_standalone_workflow_activates_inactive_project(
         submitted_prompt=None,
     )
     assert app.notifications == []
-    assert "PROJECT_STATE: active" in project_file.read_text(encoding="utf-8")
+    assert "PROJECT_STATE: enabled" in project_file.read_text(encoding="utf-8")
 
 
 def test_legacy_standalone_workflow_notifies_warning() -> None:

@@ -320,7 +320,7 @@ def _global_record(
     tmp_path: Path,
     project_name: str,
     *,
-    state: str = "active",
+    state: str = "enabled",
     display_name: str | None = None,
     aliases: list[str] | None = None,
     warnings: list[str] | None = None,
@@ -346,7 +346,7 @@ def _global_record(
         state_explicit=True,
         system_managed=False,
         active_claim_count=0,
-        launchable=state == "active",
+        launchable=state == "enabled",
         aliases=aliases or [],
         warnings=warnings or [],
         parse_warnings=parse_warnings or [],
@@ -371,7 +371,7 @@ def _configure_global_resolution(
     def fake_list(root, states, *, include_home):  # type: ignore[no-untyped-def]
         calls.append({"root": root, "states": states, "include_home": include_home})
         selected = (
-            {"active", "inactive", "sibling"}
+            {"enabled", "disabled", "sibling"}
             if states == "all"
             else ({states} if isinstance(states, str) else set(states))
         )
@@ -411,7 +411,7 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     records = [
         _global_record(tmp_path, "gamma", state="sibling"),
         _global_record(tmp_path, "alpha", display_name="Alpha"),
-        _global_record(tmp_path, "beta", state="inactive"),
+        _global_record(tmp_path, "beta", state="disabled"),
     ]
     core = tmp_path / "repos" / "core"
     core.mkdir(parents=True)
@@ -457,7 +457,7 @@ def test_all_projects_uses_full_inventory_outside_a_workspace(
     ]
     assert calls[0] == {
         "root": tmp_path / "projects",
-        "states": ("active", "inactive"),
+        "states": ("enabled", "disabled"),
         "include_home": False,
     }
     linked_calls = [call for call in calls[1:] if "materialize" in call]

@@ -237,7 +237,7 @@ class TestVcsParser:
             help_text.split()
         )
         assert (
-            "Include repos from every registered active or inactive project"
+            "Include repos from every registered enabled or disabled project"
             in " ".join(help_text.split())
         )
 

@@ -14,7 +14,7 @@ def _add_force(parser: argparse.ArgumentParser) -> None:
         "-f",
         "--force",
         action="store_true",
-        help="Allow deactivating a project that still has live work",
+        help="Allow disabling a project that still has live work",
     )
 
 
@@ -27,7 +27,7 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     project_sub = project_parser.add_subparsers(
         dest="project_subcommand",
         help="Project subcommands",
-        metavar="{activate,alias,deactivate,list,set-state,show}",
+        metavar="{alias,disable,enable,list,set-state,show}",
     )
 
     alias_parser = project_sub.add_parser(
@@ -39,6 +39,17 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Project alias subcommands",
         metavar="{add,clear,list,remove}",
     )
+    alias_add_parser = alias_sub.add_parser(
+        "add",
+        help="Add an alias to a project",
+    )
+    alias_add_parser.add_argument("project", help="Project name")
+    alias_add_parser.add_argument("alias", help="Alias name")
+    alias_clear_parser = alias_sub.add_parser(
+        "clear",
+        help="Remove all aliases from a project",
+    )
+    alias_clear_parser.add_argument("project", help="Project name")
     alias_list_parser = alias_sub.add_parser(
         "list",
         help="List project aliases",
@@ -55,23 +66,27 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Emit machine-readable JSON",
     )
     alias_parser.set_defaults(alias_subcommand="list", project=None, json=False)
-    alias_add_parser = alias_sub.add_parser(
-        "add",
-        help="Add an alias to a project",
-    )
-    alias_add_parser.add_argument("project", help="Project name")
-    alias_add_parser.add_argument("alias", help="Alias name")
     alias_remove_parser = alias_sub.add_parser(
         "remove",
         help="Remove an alias from a project",
     )
     alias_remove_parser.add_argument("project", help="Project name")
     alias_remove_parser.add_argument("alias", help="Alias name")
-    alias_clear_parser = alias_sub.add_parser(
-        "clear",
-        help="Remove all aliases from a project",
-    )
-    alias_clear_parser.add_argument("project", help="Project name")
+
+    for command, help_text in (
+        ("disable", "Disable a project"),
+        ("enable", "Enable a project"),
+        ("activate", argparse.SUPPRESS),
+        ("archive", argparse.SUPPRESS),
+        ("close", argparse.SUPPRESS),
+        ("deactivate", argparse.SUPPRESS),
+    ):
+        lifecycle_parser = project_sub.add_parser(
+            command,
+            help=help_text,
+        )
+        lifecycle_parser.add_argument("project", help="Project name")
+        _add_force(lifecycle_parser)
 
     list_parser = project_sub.add_parser(
         "list",
@@ -80,23 +95,11 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser.add_argument(
         "-s",
         "--state",
-        default="active",
-        metavar="{active,inactive,sibling,all}",
-        help="Lifecycle state to include (default: active)",
+        default="enabled",
+        metavar="{enabled,disabled,sibling,all}",
+        help="Lifecycle state to include (default: enabled)",
     )
     list_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit machine-readable JSON",
-    )
-
-    show_parser = project_sub.add_parser(
-        "show",
-        help="Show one project's lifecycle record",
-    )
-    show_parser.add_argument("project", help="Project name")
-    show_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
@@ -115,15 +118,14 @@ def register_project_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_force(set_state_parser)
 
-    for command, help_text in (
-        ("activate", "Set a project's lifecycle state to active"),
-        ("deactivate", "Set a project's lifecycle state to inactive"),
-        ("archive", argparse.SUPPRESS),
-        ("close", argparse.SUPPRESS),
-    ):
-        lifecycle_parser = project_sub.add_parser(
-            command,
-            help=help_text,
-        )
-        lifecycle_parser.add_argument("project", help="Project name")
-        _add_force(lifecycle_parser)
+    show_parser = project_sub.add_parser(
+        "show",
+        help="Show one project's lifecycle record",
+    )
+    show_parser.add_argument("project", help="Project name")
+    show_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )

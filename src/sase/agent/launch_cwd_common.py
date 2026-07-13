@@ -88,7 +88,7 @@ def resolve_known_project_vcs_launch_ref(
     from pathlib import Path
 
     from sase.agent.launch_projects import (
-        activate_known_project_for_launch_ref,
+        enable_known_project_for_launch_ref,
         extract_known_project_vcs_launch_ref,
     )
     from sase.xprompt._parsing import resolve_known_project_ref
@@ -99,7 +99,7 @@ def resolve_known_project_vcs_launch_ref(
         return None
 
     workflow_type, ref = known_ref
-    activate_known_project_for_launch_ref(ref)
+    enable_known_project_for_launch_ref(ref)
     known_projects = get_known_project_workspaces()
     project_name = resolve_known_project_ref(ref, known_projects)
     if project_name is None:

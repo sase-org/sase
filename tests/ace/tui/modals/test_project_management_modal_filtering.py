@@ -22,11 +22,11 @@ async def test_project_management_modal_filters_states(
     tmp_path: Path,
 ) -> None:
     records = [
-        make_project_record("alpha", state="active"),
+        make_project_record("alpha", state="enabled"),
         make_project_record("core", state="sibling", launchable=False),
-        make_project_record("beta", state="inactive", launchable=False),
-        make_project_record("gamma", state="inactive", launchable=False),
-        make_project_record("home", state="active", system_managed=True),
+        make_project_record("beta", state="disabled", launchable=False),
+        make_project_record("gamma", state="disabled", launchable=False),
+        make_project_record("home", state="enabled", system_managed=True),
     ]
     list_calls: list[tuple[Path, str, bool]] = []
 
@@ -49,12 +49,12 @@ async def test_project_management_modal_filters_states(
         assert pane._show_inactive_projects is False
         assert [r.project_name for r in pane._filtered_records] == ["alpha"]
         summary = pane._summary_text().plain
-        assert "all:4 active:1 sibling:1 inactive:2" in summary
-        assert "inactive rows:hidden" in summary
+        assert "all:4 enabled:1 sibling:1 disabled:2" in summary
+        assert "disabled rows:hidden" in summary
         tabs = pane._state_tabs_text().plain
-        assert "ACTIVE" in tabs
+        assert "ENABLED" in tabs
         assert "sibling" in tabs
-        assert "inactive" in tabs
+        assert "disabled" in tabs
         assert pane._record_label(records[2]).plain.startswith("!")
 
         await pilot.press("ctrl+x")
@@ -65,14 +65,14 @@ async def test_project_management_modal_filters_states(
             "beta",
             "gamma",
         ]
-        assert "inactive rows:visible" in pane._summary_text().plain
-        assert "Ctrl+X hide inactive" in pane._hints_text()
+        assert "disabled rows:visible" in pane._summary_text().plain
+        assert "Ctrl+X hide disabled" in pane._hints_text()
 
         await pilot.press("ctrl+x")
         await pilot.pause()
         assert pane._show_inactive_projects is False
         assert [r.project_name for r in pane._filtered_records] == ["alpha"]
-        assert "inactive rows:hidden" in pane._summary_text().plain
+        assert "disabled rows:hidden" in pane._summary_text().plain
 
         pane._text_filter = "beta"
         pane._apply_filters()
@@ -88,7 +88,7 @@ async def test_project_management_modal_filters_states(
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "inactive"
+        assert pane._state_filter == "disabled"
         assert [r.project_name for r in pane._filtered_records] == [
             "beta",
             "gamma",
@@ -106,7 +106,7 @@ async def test_project_management_modal_filters_states(
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
         assert [r.project_name for r in pane._filtered_records] == ["alpha"]
 
         await pilot.press("left_square_bracket")
@@ -121,7 +121,7 @@ async def test_project_management_modal_filters_states(
 
         await pilot.press("left_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "inactive"
+        assert pane._state_filter == "disabled"
         assert [r.project_name for r in pane._filtered_records] == [
             "beta",
             "gamma",
@@ -220,8 +220,8 @@ def test_project_management_modal_footer_includes_delete_affordance(
 
     assert "e edit" in pane._hints_text()
     assert "A aliases" in pane._hints_text()
-    assert "d deactivate" in pane._hints_text()
+    assert "d disable" in pane._hints_text()
     assert "Ctrl+D delete" in pane._hints_text()
-    assert "Ctrl+X show inactive" in pane._hints_text()
+    assert "Ctrl+X show disabled" in pane._hints_text()
     assert "[ / ] state" in pane._hints_text()
     assert "Tab/Shift+Tab switch tab" in pane._hints_text()

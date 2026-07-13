@@ -34,8 +34,8 @@ def cleanup_stale_running_entries(
 
     Iterates through all project files and checks each RUNNING entry's PID.
     If the process is no longer running, the workspace claim is released.
-    Lifecycle filtering is intentionally not applied: stale claims in archived
-    or closed projects still need cleanup.
+    Lifecycle filtering is intentionally not applied: stale claims in disabled
+    projects (including legacy archived/closed states) still need cleanup.
 
     Args:
         log_fn: Optional logging function (message, style).

@@ -78,8 +78,8 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 ) -> None:
     records = {
         "alpha": make_project_record("alpha"),
-        "beta": make_project_record("beta", state="inactive", launchable=False),
-        "gamma": make_project_record("gamma", state="inactive", launchable=False),
+        "beta": make_project_record("beta", state="disabled", launchable=False),
+        "gamma": make_project_record("gamma", state="disabled", launchable=False),
     }
 
     def list_records(*_args, **_kwargs):
@@ -103,7 +103,7 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "inactive"
+        assert pane._state_filter == "disabled"
         assert [record.project_name for record in pane._filtered_records] == [
             "beta",
             "gamma",
@@ -126,7 +126,7 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
 
         await pilot.press("right_square_bracket")
         await pilot.pause()
-        assert pane._state_filter == "active"
+        assert pane._state_filter == "enabled"
         assert pane._marked_projects == {"beta"}
 
         pane._text_filter = "alpha"

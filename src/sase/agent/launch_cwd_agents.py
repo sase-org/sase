@@ -95,10 +95,10 @@ def launch_agents_from_cwd_impl(
 
     multi = parse_multi_prompt(query)
     from sase.agent.launch_projects import (
-        activate_known_project_vcs_refs_for_launch_prompt,
+        enable_known_project_vcs_refs_for_launch_prompt,
     )
 
-    activate_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
+    enable_known_project_vcs_refs_for_launch_prompt("\n---\n".join(multi.segments))
     expanded_segment_extra_env: list[dict[str, str] | None] | None = None
     expanded_segment_template_groups: list[str | None] = []
     if segment_extra_env is not None:
@@ -145,7 +145,7 @@ def launch_agents_from_cwd_impl(
             for segment in expanded_segments
         ]
         normalized_query = "\n---\n".join(expanded_segments)
-        activate_known_project_vcs_refs_for_launch_prompt(normalized_query)
+        enable_known_project_vcs_refs_for_launch_prompt(normalized_query)
 
         # Determine cl_name from VCS refs (lightweight pattern check).
         from sase.workspace_provider import get_ref_patterns
@@ -213,7 +213,7 @@ def launch_agents_from_cwd_impl(
         return results
 
     query = normalize_default_vcs_workflow(expanded_segments[0])
-    activate_known_project_vcs_refs_for_launch_prompt(query)
+    enable_known_project_vcs_refs_for_launch_prompt(query)
     if expanded_segment_extra_env:
         segment_env = expanded_segment_extra_env[0] or {}
         extra_env = {**(extra_env or {}), **segment_env}
@@ -302,7 +302,7 @@ def launch_agents_from_cwd_impl(
         from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
         from sase.workspace_provider import get_ref_patterns
 
-        activate_known_project_vcs_refs_for_launch_prompt(
+        enable_known_project_vcs_refs_for_launch_prompt(
             "\n---\n".join(slot.prompt for slot in alt_plan.slots)
         )
         alt_cl_name = project_name

@@ -22,7 +22,7 @@ _LAUNCH_WIDTH = 9
 _WARN_WIDTH = 7
 _WORKSPACE_WIDTH = 38
 
-_STATE_TABS: tuple[str, ...] = ("active", "sibling", "inactive", "all")
+_STATE_TABS: tuple[str, ...] = ("enabled", "sibling", "disabled", "all")
 
 
 def _warning_count(record: ProjectRecordWire) -> int:
@@ -39,9 +39,9 @@ def _short_path(path: str | None, *, max_len: int = 46) -> str:
 
 
 def _state_style(state: str) -> str:
-    if state == "active":
+    if state == "enabled":
         return "bold #00D7AF"
-    if state == "inactive":
+    if state == "disabled":
         return "bold #FFD700"
     if state == "sibling":
         return "bold #87D7FF"
@@ -49,7 +49,7 @@ def _state_style(state: str) -> str:
 
 
 def _launch_label(record: ProjectRecordWire) -> str:
-    return "yes" if record.launchable and record.state == "active" else "no"
+    return "yes" if record.launchable and record.state == "enabled" else "no"
 
 
 def _aliases_label(record: ProjectRecordWire) -> str:
@@ -93,11 +93,11 @@ def column_header_text() -> Text:
 
 def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
     text = Text()
-    inactive = record.state == "inactive"
+    disabled = record.state == "disabled"
     if record.project_name in marked_projects:
         text.append("[✓]", style="bold #00D700")
-        text.append("!" if inactive else " ", style="bold #FFD700")
-    elif inactive:
+        text.append("!" if disabled else " ", style="bold #FFD700")
+    elif disabled:
         text.append("!   ", style="bold #FFD700")
     else:
         text.append(" " * _MARK_WIDTH)
@@ -128,7 +128,7 @@ def record_label(record: ProjectRecordWire, marked_projects: set[str]) -> Text:
 
 
 def state_tabs_text(state_filter: str) -> Text:
-    """Segmented ``active / sibling / inactive / all`` filter tabs.
+    """Segmented ``enabled / sibling / disabled / all`` filter tabs.
 
     The active filter is uppercased and reverse-highlighted; the rest are dim.
     Mirrors the header tabs used by the notification modal so the current
@@ -152,7 +152,7 @@ def summary_text(
     marked_projects: set[str],
     show_inactive_projects: bool,
 ) -> Text:
-    counts: dict[str, int] = {"active": 0, "inactive": 0, "sibling": 0}
+    counts: dict[str, int] = {"enabled": 0, "disabled": 0, "sibling": 0}
     for record in records:
         if record.state in counts:
             counts[record.state] += 1
@@ -161,9 +161,9 @@ def summary_text(
         " ".join(
             (
                 f"all:{len(records)}",
-                f"active:{counts['active']}",
+                f"enabled:{counts['enabled']}",
                 f"sibling:{counts['sibling']}",
-                f"inactive:{counts['inactive']}",
+                f"disabled:{counts['disabled']}",
             )
         ),
         style="dim",
@@ -176,7 +176,7 @@ def summary_text(
     )
     if text_filter:
         text.append(f"  ·  search:{text_filter}", style="dim")
-    text.append("  ·  inactive rows:", style="dim")
+    text.append("  ·  disabled rows:", style="dim")
     text.append(
         "visible" if show_inactive_projects else "hidden",
         style="#FFD700" if show_inactive_projects else "dim",
@@ -188,10 +188,10 @@ def summary_text(
 
 def _action_hints(show_inactive_projects: bool) -> str:
     """Shared keybinding hint string (no close / tab-switch affordance)."""
-    inactive_action = "hide inactive" if show_inactive_projects else "show inactive"
+    inactive_action = "hide disabled" if show_inactive_projects else "show disabled"
     return (
         "j/k navigate  / filter  [ / ] state  Enter highlighted  "
-        f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  A aliases  a activate  d deactivate  "
+        f"Ctrl+X {inactive_action}  m mark  u unmark all  e edit  A aliases  a enable  d disable  "
         "Ctrl+D delete  F force after block  R reload"
     )
 
@@ -220,7 +220,7 @@ def detail_text(
         return text
 
     source = "explicit" if record.state_explicit else "defaulted"
-    launch = "yes" if record.launchable and record.state == "active" else "no"
+    launch = "yes" if record.launchable and record.state == "enabled" else "no"
     display = effective_project_name(record)
     text.append(display, style="bold")
     if display != record.project_name:
@@ -253,9 +253,9 @@ def detail_text(
         text.append("\nWarnings:", style="bold red")
         for warning in warnings:
             text.append(f"\n  - {warning}", style="red")
-    if record.state != "active":
+    if record.state != "enabled":
         text.append(
-            f"\nHint: press a or Enter to reactivate {display}.",
+            f"\nHint: press a or Enter to enable {display}.",
             style="#87D7FF",
         )
     return text

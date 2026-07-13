@@ -357,7 +357,7 @@ class TestPromptFileCompletion:
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
             "sase.xprompt.loader.get_known_project_workspaces",
-            lambda include_states=("active",): {"bob-cli": project_root},
+            lambda include_states=("enabled",): {"bob-cli": project_root},
         )
 
         app = CompletionTestApp()
@@ -400,7 +400,7 @@ class TestPromptFileCompletion:
         monkeypatch.chdir(other_cwd)
         monkeypatch.setattr(
             "sase.xprompt.loader.get_known_project_workspaces",
-            lambda include_states=("active",): {"bob-cli": project_root},
+            lambda include_states=("enabled",): {"bob-cli": project_root},
         )
         monkeypatch.setattr(
             "sase.workspace_provider.get_ref_patterns",

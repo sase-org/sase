@@ -6,12 +6,12 @@ from sase.main.parser import create_parser
 
 
 class TestProjectParser:
-    def test_bare_project_defaults_to_list_active(self) -> None:
+    def test_bare_project_defaults_to_list_enabled(self) -> None:
         ns = create_parser().parse_args(["project"])
 
         assert ns.command == "project"
         assert ns.project_subcommand == "list"
-        assert ns.state == "active"
+        assert ns.state == "enabled"
         assert ns.json is False
 
     def test_list_options(self) -> None:
@@ -69,12 +69,12 @@ class TestProjectParser:
 
     def test_set_state_force_option(self) -> None:
         ns = create_parser().parse_args(
-            ["project", "set-state", "demo", "inactive", "-f"]
+            ["project", "set-state", "demo", "disabled", "-f"]
         )
 
         assert ns.project_subcommand == "set-state"
         assert ns.project == "demo"
-        assert ns.state == "inactive"
+        assert ns.state == "disabled"
         assert ns.force is True
 
     def test_set_state_sibling_option(self) -> None:
@@ -84,10 +84,10 @@ class TestProjectParser:
         assert ns.project == "demo"
         assert ns.state == "sibling"
 
-    def test_alias_force_option(self) -> None:
-        ns = create_parser().parse_args(["project", "deactivate", "demo", "--force"])
+    def test_disable_force_option(self) -> None:
+        ns = create_parser().parse_args(["project", "disable", "demo", "--force"])
 
-        assert ns.project_subcommand == "deactivate"
+        assert ns.project_subcommand == "disable"
         assert ns.project == "demo"
         assert ns.force is True
 
@@ -96,7 +96,11 @@ class TestProjectParser:
             ["project", "set-state", "demo", "archived"]
         )
         close = create_parser().parse_args(["project", "close", "demo"])
+        activate = create_parser().parse_args(["project", "activate", "demo"])
+        deactivate = create_parser().parse_args(["project", "deactivate", "demo"])
 
         assert set_state.project_subcommand == "set-state"
         assert set_state.state == "archived"
         assert close.project_subcommand == "close"
+        assert activate.project_subcommand == "activate"
+        assert deactivate.project_subcommand == "deactivate"

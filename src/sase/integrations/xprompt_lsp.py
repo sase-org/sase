@@ -246,7 +246,7 @@ def _default_vcs_project_catalog_path() -> Path:
 
 
 def _materialize_vcs_project_catalog(environ: MutableMapping[str, str]) -> None:
-    """Write the active project/PR completion catalog and expose its path.
+    """Write the enabled project/PR completion catalog and expose its path.
 
     The Rust xprompt LSP re-reads this JSON file on every ``+`` completion
     request, so project changes are reflected after the file is rewritten.

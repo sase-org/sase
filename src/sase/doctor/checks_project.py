@@ -9,7 +9,7 @@ from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
-    is_inactive_project_lifecycle_state,
+    is_disabled_project_lifecycle_state,
     project_lifecycle_wire_to_json_dict,
 )
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
@@ -17,7 +17,7 @@ from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
 
-_ALL_PROJECT_STATES = ("active", "inactive", "sibling")
+_ALL_PROJECT_STATES = ("enabled", "disabled", "sibling")
 _MAX_DETAIL_ROWS = 10
 
 
@@ -155,7 +155,7 @@ def _check_project_current(context: DoctorContext) -> DiagnosticCheck:
     status: CheckStatus = "WARN" if problems else "OK"
     launch = (
         "launchable"
-        if record.launchable and record.state == "active"
+        if record.launchable and record.state == "enabled"
         else "not launchable"
     )
     summary = (
@@ -190,9 +190,9 @@ def _find_record(
 
 def _project_record_problems(record: ProjectRecordWire) -> list[str]:
     problems: list[str] = []
-    if is_inactive_project_lifecycle_state(record.state):
+    if is_disabled_project_lifecycle_state(record.state):
         problems.append(f"project state is {record.state}")
-    elif record.state != "active":
+    elif record.state != "enabled":
         problems.append(f"project state is {record.state}")
     if not record.workspace_dir:
         problems.append("project has no WORKSPACE_DIR")
@@ -210,8 +210,8 @@ def _project_next_steps(
     if not problems:
         return ()
     steps: list[str] = []
-    if record.state != "active":
-        steps.append(f"Run `sase project activate {record.project_name}`.")
+    if record.state != "enabled":
+        steps.append(f"Run `sase project enable {record.project_name}`.")
     if not record.workspace_dir:
         steps.append(f"Update WORKSPACE_DIR in {record.project_file}.")
     if record.parse_warnings or record.warnings:

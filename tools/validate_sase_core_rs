@@ -287,25 +287,25 @@ def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
 
 def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     lifecycle = module.read_project_lifecycle_from_content(
-        "PROJECT_STATE: inactive\nNAME: demo\n"
+        "PROJECT_STATE: disabled\nNAME: demo\n"
     )
     if not isinstance(lifecycle, dict):
         _error("project lifecycle probe returned a non-dict payload")
         return False
-    if lifecycle.get("state") != "inactive" or lifecycle.get("explicit") is not True:
+    if lifecycle.get("state") != "disabled" or lifecycle.get("explicit") is not True:
         _error(
-            "project lifecycle probe did not accept canonical inactive state: "
+            "project lifecycle probe did not accept canonical disabled state: "
             f"got {lifecycle!r}"
         )
         return False
 
     updated = module.apply_project_lifecycle_update(
         "WORKSPACE_DIR: /tmp\nNAME: demo\n",
-        "inactive",
+        "disabled",
     )
-    if updated != "WORKSPACE_DIR: /tmp\nPROJECT_STATE: inactive\nNAME: demo\n":
+    if updated != "WORKSPACE_DIR: /tmp\nPROJECT_STATE: disabled\nNAME: demo\n":
         _error(
-            "project lifecycle update probe did not write canonical inactive "
+            "project lifecycle update probe did not write canonical disabled "
             f"state: got {updated!r}"
         )
         return False
@@ -327,28 +327,32 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     with tempfile.TemporaryDirectory(prefix="sase-core-rs-lifecycle-probe-") as tmp:
         root = Path(tmp)
         projects_root = root / "projects"
-        active_workspace = root / "active-workspace"
-        inactive_workspace = root / "inactive-workspace"
-        active_workspace.mkdir()
-        inactive_workspace.mkdir()
+        enabled_workspace = root / "enabled-workspace"
+        disabled_workspace = root / "disabled-workspace"
+        enabled_workspace.mkdir()
+        disabled_workspace.mkdir()
 
-        active_dir = projects_root / "active"
-        inactive_dir = projects_root / "inactive"
-        active_dir.mkdir(parents=True)
-        inactive_dir.mkdir(parents=True)
-        (active_dir / "active.sase").write_text(
+        enabled_dir = projects_root / "enabled"
+        disabled_dir = projects_root / "disabled"
+        enabled_dir.mkdir(parents=True)
+        disabled_dir.mkdir(parents=True)
+        (enabled_dir / "enabled.sase").write_text(
             "PROJECT_ALIASES: bob, docs\n"
-            f"WORKSPACE_DIR: {active_workspace}\n"
-            "NAME: active\n",
+            "BARE_REPO_DIR: /tmp/enabled.git\n"
+            f"WORKSPACE_DIR: {enabled_workspace}\n"
+            "NAME: enabled\n",
             encoding="utf-8",
         )
-        (inactive_dir / "inactive.sase").write_text(
-            f"PROJECT_STATE: inactive\nWORKSPACE_DIR: {inactive_workspace}\n"
-            "NAME: inactive\n",
+        (disabled_dir / "disabled.sase").write_text(
+            f"PROJECT_STATE: disabled\nWORKSPACE_DIR: {disabled_workspace}\n"
+            "NAME: disabled\n",
             encoding="utf-8",
         )
+        (projects_root / "telemetry-only").mkdir()
 
-        records = module.list_project_records(str(projects_root), ["active"], False)
+        records = module.list_project_records(
+            str(projects_root), ["enabled"], False, True
+        )
 
     if not isinstance(records, list):
         _error("project lifecycle record probe returned a non-list payload")
@@ -358,9 +362,9 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         for record in records
         if isinstance(record, dict)
     ]
-    if project_names != ["active"]:
+    if project_names != ["enabled"]:
         _error(
-            "project lifecycle record probe did not filter inactive projects: "
+            "project lifecycle record probe did not filter non-project/disabled records: "
             f"got {project_names!r}"
         )
         return False
@@ -370,6 +374,15 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         _error(
             "project lifecycle record probe did not preserve aliases: "
             f"got {aliases!r}"
+        )
+        return False
+    if first_record.get("is_project") is not True:
+        _error("project lifecycle record probe did not classify a true project")
+        return False
+    if first_record.get("vcs_kind") != "git":
+        _error(
+            "project lifecycle record probe did not derive git vcs_kind: "
+            f"got {first_record.get('vcs_kind')!r}"
         )
         return False
 

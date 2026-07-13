@@ -7,7 +7,7 @@ LSP (Phase 4, consuming a materialized JSON catalog built from
 
 The four public helpers are:
 
-* :func:`build_vcs_project_completion_entries` -- the active project/PR catalog.
+* :func:`build_vcs_project_completion_entries` -- the enabled project/PR catalog.
 * :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
 * :func:`find_vcs_project_trigger` -- detect a ``#+query`` or BOF ``+query``
   trigger token.
@@ -57,7 +57,7 @@ VcsProjectEntryKind = Literal["project", "changespec"]
 
 @dataclass(frozen=True)
 class VcsProjectEntry:
-    """One active project or ChangeSpec completion candidate.
+    """One enabled project or ChangeSpec completion candidate.
 
     Attributes:
         name: Project name (e.g. ``"sase"``) or ChangeSpec name.
@@ -126,7 +126,7 @@ def _catalog_signature(projects_dir: Path) -> object | None:
     try:
         project_files = iter_changespec_project_files(
             projects_dir=projects_dir,
-            include_states=("active",),
+            include_states=("enabled",),
             include_home=False,
         )
     except OSError:
@@ -147,21 +147,21 @@ def vcs_project_catalog_signature(projects_dir: Path) -> object | None:
     return _catalog_signature(projects_dir)
 
 
-def _iter_active_changespecs(projects_dir: Path) -> Iterator[ChangeSpec]:
-    """Yield ChangeSpecs from lifecycle-active ProjectSpec files."""
+def _iter_enabled_project_changespecs(projects_dir: Path) -> Iterator[ChangeSpec]:
+    """Yield ChangeSpecs from enabled projects' ProjectSpec files."""
     for project_file in iter_changespec_project_files(
         projects_dir=projects_dir,
-        include_states=("active",),
+        include_states=("enabled",),
         include_home=False,
     ):
         yield from parse_project_file(str(project_file))
 
 
 def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
-    """Build the active project/PR completion catalog from *projects_dir*."""
+    """Build the enabled project/PR completion catalog from *projects_dir*."""
     project_entries: dict[str, VcsProjectEntry] = {}
     prefix_by_project: dict[str, tuple[str, str]] = {}
-    for record in list_project_records(projects_dir, "active"):
+    for record in list_project_records(projects_dir, "enabled"):
         if record.system_managed or not record.launchable:
             continue
         if record.project_name == _HOME_PROJECT_NAME:
@@ -194,7 +194,7 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
         prefix_by_project[record.project_name] = (vcs_prefix, provider_display)
 
     changespec_entries: list[VcsProjectEntry] = []
-    for changespec in _iter_active_changespecs(projects_dir):
+    for changespec in _iter_enabled_project_changespecs(projects_dir):
         base_status = remove_workspace_suffix(changespec.status)
         if base_status not in _ACTIVE_CHANGESPEC_STATUSES:
             continue
@@ -228,7 +228,7 @@ def build_vcs_project_completion_entries(
     *,
     use_cache: bool = True,
 ) -> list[VcsProjectEntry]:
-    """Return ordered completion entries for launchable active projects and PRs.
+    """Return ordered completion entries for launchable enabled projects and PRs.
 
     Records that are system-managed, non-launchable, or whose workflow type
     cannot be detected are excluded. Project rows are deduped by name and sorted
@@ -277,12 +277,12 @@ def vcs_project_catalog_payload(
 ) -> dict[str, object]:
     """Return the JSON-serializable ``vcs_project`` completion catalog.
 
-    Bundles the active-project entries (from
+    Bundles the enabled-project entries (from
     :func:`build_vcs_project_completion_entries`) with the full set of known VCS
     workflow names and optional ref-root namespaces. The names let the
     out-of-process Rust LSP replace *any*
     existing workflow tag in a prompt (e.g. ``#git:foo``), not just those of
-    active projects, keeping its expansion byte-identical to the Python/TUI
+    enabled projects, keeping its expansion byte-identical to the Python/TUI
     side. This is the on-disk contract consumed by ``sase-xprompt-lsp``,
     materialized at LSP launch by :mod:`sase.integrations.xprompt_lsp`.
 
