@@ -3861,21 +3861,16 @@ ProjectsPane #projects-subtabs {
 }
 
 ProjectsPane #projects-subtab-switcher,
-ProjectsPane #projects-subtab-projects {
+ProjectsPane #projects-subtab-projects,
+ProjectsPane #projects-subtab-repos,
+ProjectsPane #projects-subtab-workspaces {
     width: 100%;
     height: 1fr;
 }
 
-ProjectsPane .projects-subtab-placeholder {
-    width: 100%;
-    height: 1fr;
-    content-align: center middle;
-    text-align: center;
-    color: $text-muted;
-    border: solid $secondary;
-}
-
-ProjectsPane #projects-summary {
+ProjectsPane #projects-summary,
+ProjectsPane #repos-summary,
+ProjectsPane #workspaces-summary {
     height: auto;
     color: $text-muted;
     text-align: center;
@@ -3884,25 +3879,33 @@ ProjectsPane #projects-summary {
     margin-bottom: 1;
 }
 
-ProjectsPane #projects-filter {
+ProjectsPane #projects-filter,
+ProjectsPane #repos-filter,
+ProjectsPane #workspaces-filter {
     height: 3;
     margin-bottom: 1;
 }
 
-ProjectsPane #projects-box {
+ProjectsPane #projects-box,
+ProjectsPane #repos-box,
+ProjectsPane #workspaces-box {
     height: 1fr;
     min-height: 7;
     border: solid $secondary;
     padding: 0 1;
 }
 
-ProjectsPane #projects-columns {
+ProjectsPane #projects-columns,
+ProjectsPane #repos-columns,
+ProjectsPane #workspaces-columns {
     height: 1;
     text-wrap: nowrap;
     text-overflow: clip;
 }
 
-ProjectsPane #projects-list {
+ProjectsPane #projects-list,
+ProjectsPane #repos-list,
+ProjectsPane #workspaces-list {
     height: 1fr;
     border: none;
     padding: 0;
@@ -3911,7 +3914,9 @@ ProjectsPane #projects-list {
     text-overflow: clip;
 }
 
-ProjectsPane #projects-detail-scroll {
+ProjectsPane #projects-detail-scroll,
+ProjectsPane #repos-detail-scroll,
+ProjectsPane #workspaces-detail-scroll {
     height: 30%;
     min-height: 5;
     border: solid $secondary;
@@ -3920,11 +3925,15 @@ ProjectsPane #projects-detail-scroll {
     margin-top: 1;
 }
 
-ProjectsPane #projects-detail {
+ProjectsPane #projects-detail,
+ProjectsPane #repos-detail,
+ProjectsPane #workspaces-detail {
     height: auto;
 }
 
-ProjectsPane #projects-hints {
+ProjectsPane #projects-hints,
+ProjectsPane #repos-hints,
+ProjectsPane #workspaces-hints {
     height: 1;
     color: $text-muted;
     text-align: center;
@@ -4740,5 +4749,49 @@ ProjectSelectModal #project-select-footer {
     text-align: center;
     color: $text-muted;
     height: 1;
+    margin-top: 1;
+}
+
+/* ===== Projects Inventory Project Picker Styling ===== */
+
+InventoryProjectPicker {
+    align: center middle;
+}
+
+InventoryProjectPicker #inventory-project-picker-container {
+    width: 78;
+    max-width: 92%;
+    height: auto;
+    max-height: 80%;
+    border: double #FFAF5F;
+    background: $surface;
+    padding: 1 2;
+}
+
+InventoryProjectPicker #inventory-project-picker-title {
+    height: 1;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+InventoryProjectPicker #inventory-project-picker-filter {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+}
+
+InventoryProjectPicker #inventory-project-picker-list {
+    height: auto;
+    max-height: 18;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+InventoryProjectPicker #inventory-project-picker-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
     margin-top: 1;
 }

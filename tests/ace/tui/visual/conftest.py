@@ -73,6 +73,17 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [],
     )
+    from sase.repo_inventory import RepoInventory
+    from sase.workspace_provider.inventory import WorkspaceInventory
+
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_inventory_panes.collect_repo_inventory",
+        lambda *_a, **_kw: RepoInventory(()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_inventory_panes.collect_workspace_inventory",
+        lambda *_a, **_kw: WorkspaceInventory((), ()),
+    )
 
 
 @pytest.fixture(autouse=True)

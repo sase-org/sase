@@ -29,6 +29,11 @@ from sase.repo_inventory import collect_repo_inventory
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 from .base import FilterInput, OptionListNavigationMixin
+from .inventory_project_picker import (
+    InventoryProjectChoice,
+    InventoryProjectPicker,
+    InventoryProjectPickerResult,
+)
 from .project_management_actions import ProjectManagementActionsMixin
 from .project_management_rendering import (
     ProjectInventoryCounts,
@@ -37,6 +42,11 @@ from .project_management_rendering import (
     hints_text,
     record_label,
     summary_text,
+)
+from .project_inventory_panes import (
+    InventoryProjectFilterRequested,
+    RepoInventoryPane,
+    WorkspaceInventoryPane,
 )
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
@@ -163,10 +173,6 @@ class _ProjectsFilterInput(FilterInput):
         return None
 
 
-class _ProjectsPlaceholder(Static, can_focus=True):
-    """Focusable empty-state used until the remaining sub-tabs land."""
-
-
 class ProjectsPane(
     ProjectManagementActionsMixin,
     OptionListNavigationMixin,
@@ -195,6 +201,8 @@ class ProjectsPane(
         ("F", "force_current_state_change", "Force"),
         ("enter", "default_project_action", "Default"),
         ("R", "reload_projects", "Reload"),
+        ("r", "show_project_repos", "Project Repos"),
+        ("w", "show_project_workspaces", "Project Workspaces"),
     ]
 
     _PROJECT_ONLY_ACTIONS = frozenset(
@@ -212,6 +220,8 @@ class ProjectsPane(
             "force_current_state_change",
             "default_project_action",
             "reload_projects",
+            "show_project_repos",
+            "show_project_workspaces",
         }
     )
 
@@ -263,19 +273,15 @@ class ProjectsPane(
                 with detail_box:
                     yield Static("", id="projects-detail")
                 yield Static(self._hints_text(), id="projects-hints")
-            yield _ProjectsPlaceholder(
-                "Repository inventory view is coming in the next phase.\n\n"
-                "Use [ / ] or click a sub-tab to keep browsing.",
+            yield RepoInventoryPane(
+                projects_root=self._projects_root,
+                project_records=self._records,
                 id=_SUBTAB_WIDGET_IDS["repos"],
-                classes="projects-subtab-placeholder",
-                markup=False,
             )
-            yield _ProjectsPlaceholder(
-                "Workspace inventory view is coming in the next phase.\n\n"
-                "Use [ / ] or click a sub-tab to keep browsing.",
+            yield WorkspaceInventoryPane(
+                projects_root=self._projects_root,
+                project_records=self._records,
                 id=_SUBTAB_WIDGET_IDS["workspaces"],
-                classes="projects-subtab-placeholder",
-                markup=False,
             )
 
     def on_mount(self) -> None:
@@ -298,11 +304,10 @@ class ProjectsPane(
         try:
             if self._active_subtab == "projects":
                 self.query_one(f"#{self._option_list_id}", OptionList).focus()
+            elif self._active_subtab == "repos":
+                self.query_one(RepoInventoryPane).focus_default()
             else:
-                self.query_one(
-                    f"#{_SUBTAB_WIDGET_IDS[self._active_subtab]}",
-                    _ProjectsPlaceholder,
-                ).focus()
+                self.query_one(WorkspaceInventoryPane).focus_default()
         except Exception:
             pass
 
@@ -342,7 +347,20 @@ class ProjectsPane(
         }
         self._prune_stale_marked_projects()
         self._apply_filters()
+        self._sync_inventory_project_records()
         return True
+
+    def _sync_inventory_project_records(self) -> None:
+        """Update mounted inventory panes after lifecycle records change."""
+
+        try:
+            self.query_one(RepoInventoryPane).set_project_records(self._records)
+        except Exception:
+            pass
+        try:
+            self.query_one(WorkspaceInventoryPane).set_project_records(self._records)
+        except Exception:
+            pass
 
     def _start_inventory_load(self) -> None:
         if not self._records:
@@ -625,6 +643,47 @@ class ProjectsPane(
         if event.tab_id in _SUBTAB_ORDER:
             self._switch_to_subtab(cast(ProjectsSubTab, event.tab_id))
 
+    @on(InventoryProjectFilterRequested)
+    def _on_inventory_project_filter_requested(
+        self,
+        event: InventoryProjectFilterRequested,
+    ) -> None:
+        event.stop()
+        self._open_project_picker(event.pane)
+
+    def _open_project_picker(
+        self,
+        pane: RepoInventoryPane | WorkspaceInventoryPane,
+    ) -> None:
+        choices: list[InventoryProjectChoice] = []
+        for record in self._records:
+            counts = self._counts_for(record)
+            display = effective_project_name(record)
+            if display != record.project_name:
+                display = f"{display} ({record.project_name})"
+            choices.append(
+                InventoryProjectChoice(
+                    project_key=record.project_name,
+                    display_name=display,
+                    state=record.state,
+                    repo_count=counts.repo_count,
+                    workspace_count=counts.workspace_count,
+                )
+            )
+
+        def on_picked(result: InventoryProjectPickerResult | None) -> None:
+            if result is not None:
+                pane.set_project_filter(result.project_key)
+                pane.focus_default()
+
+        self.app.push_screen(
+            InventoryProjectPicker(
+                choices,
+                current_project=pane.project_filter,
+            ),
+            on_picked,
+        )
+
     def _switch_to_subtab(self, subtab: ProjectsSubTab) -> None:
         self._active_subtab = subtab
         try:
@@ -648,6 +707,26 @@ class ProjectsPane(
 
     def action_focus_filter(self) -> None:
         self.query_one("#projects-filter", _ProjectsFilterInput).focus()
+
+    def _show_selected_project_inventory(self, subtab: ProjectsSubTab) -> None:
+        record = self._selected_record()
+        if record is None:
+            self._set_status("No project selected")
+            return
+        if subtab == "repos":
+            pane: RepoInventoryPane | WorkspaceInventoryPane = self.query_one(
+                RepoInventoryPane
+            )
+        else:
+            pane = self.query_one(WorkspaceInventoryPane)
+        pane.set_project_filter(record.project_name)
+        self._switch_to_subtab(subtab)
+
+    def action_show_project_repos(self) -> None:
+        self._show_selected_project_inventory("repos")
+
+    def action_show_project_workspaces(self) -> None:
+        self._show_selected_project_inventory("workspaces")
 
     def action_toggle_project_mark(self) -> None:
         record = self._selected_record()

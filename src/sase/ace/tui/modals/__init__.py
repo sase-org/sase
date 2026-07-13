@@ -46,6 +46,11 @@ from .notification_modal import NotificationModal
 from .parent_select_modal import ParentSelectModal
 from .process_select_modal import ProcessSelection, ProcessSelectModal
 from .project_alias_editor_modal import ProjectAliasEditorModal
+from .inventory_project_picker import (
+    InventoryProjectChoice,
+    InventoryProjectPicker,
+    InventoryProjectPickerResult,
+)
 from .projects_pane import ProjectsPane
 from .project_select_modal import ProjectSelectModal, ProjectSelectResult, SelectionItem
 from .prompt_history_modal import (
@@ -212,6 +217,9 @@ __all__ = [
     "PlanApprovalResult",
     "ProcessSelectModal",
     "ProcessSelection",
+    "InventoryProjectChoice",
+    "InventoryProjectPicker",
+    "InventoryProjectPickerResult",
     "ProjectAliasEditorModal",
     "ProjectsPane",
     "ProjectSelectModal",

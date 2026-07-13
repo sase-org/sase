@@ -16,8 +16,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
+from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.projects_pane import _ProjectCountsLoadResult
+from sase.repo_inventory import RepoInventory
+from sase.workspace_provider.inventory import WorkspaceInventory
 
 from tests.ace.tui.modals.project_management_modal_test_helpers import (
     make_project_record,
@@ -52,6 +55,14 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
         lambda *_args: _ProjectCountsLoadResult({}),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_inventory_panes.collect_repo_inventory",
+        lambda *_args, **_kwargs: RepoInventory(()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.modals.project_inventory_panes.collect_workspace_inventory",
+        lambda *_args, **_kwargs: WorkspaceInventory((), ()),
     )
 
 
@@ -177,3 +188,23 @@ async def test_projects_filter_yields_tab_to_admin_center(
         await page.wait_for(lambda _s: modal._active_tab == "projects")
         assert pane._active_subtab == "projects"
         assert page.app.current_tab == "changespecs"
+
+
+async def test_inventory_escape_clears_project_before_closing_admin_center(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_panes(monkeypatch)
+    async with AcePage() as page:
+        modal = ConfigCenterModal(initial_tab="projects")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _s: bool(modal.query("#projects")))
+        pane = modal.query_one("#projects", ProjectsPane)
+        repo_pane = pane.query_one(RepoInventoryPane)
+        repo_pane.set_project_filter("alpha")
+        pane._switch_to_subtab("repos")
+
+        await page.press("escape")
+
+        assert page.app.screen is modal
+        assert repo_pane.project_filter is None

@@ -172,7 +172,8 @@ def hints_text(marked_projects: set[str]) -> str:
 
     base = (
         "j/k navigate  / filter  [ / ] sub-tab  Enter highlighted  "
-        "m mark  u unmark all  e edit  A aliases  a enable  d disable  "
+        "r repos  w workspaces  m mark  u unmark all  e edit  A aliases  "
+        "a enable  d disable  "
         "Ctrl+D delete  F force after block  R reload"
     )
     mark_count = len(marked_projects)
