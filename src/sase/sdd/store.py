@@ -441,10 +441,17 @@ def ensure_sdd_kind_clone(
             raise SddMaterializationError(f"no remote URL recorded for SDD kind {kind}")
         return root
 
+    from sase.linked_repos import companion_repo_clone_dir
     from sase.sdd._store_link import ensure_companion_sdd_clone
 
+    primary = Path(get_primary_workspace_dir(str(workspace_dir), workspace_num))
+    companion_kind = "research" if kind == "research" else "plans"
+
     ensure_companion_sdd_clone(
-        root if kind != "beads" else root.parent, remote_url, strict=strict
+        root if kind != "beads" else root.parent,
+        remote_url,
+        local_source=Path(companion_repo_clone_dir(primary, companion_kind)),
+        strict=strict,
     )
     return root
 

@@ -125,6 +125,95 @@ def test_moved_companion_clone_with_matching_remote_is_accepted(
     )
 
 
+def test_companion_clone_uses_matching_local_source_and_refreshes_from_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    local_source = tmp_path / "primary" / "sase" / "repos" / "plans"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, local_source)
+    (seed / "fresh.md").write_text("fresh\n", encoding="utf-8")
+    commit_all(seed, "Add fresh plan")
+    git(["push"], seed)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._clone_sdd_store",
+        lambda *_args: pytest.fail("matching local source fell back to remote clone"),
+    )
+
+    ensure_companion_sdd_clone(
+        clone_dir,
+        str(remote),
+        local_source=local_source,
+        strict=True,
+    )
+
+    assert (clone_dir / "fresh.md").read_text(encoding="utf-8") == "fresh\n"
+    assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
+
+
+def test_companion_clone_skips_mismatched_local_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = tmp_path / "plans.git"
+    other_remote = tmp_path / "other.git"
+    seed = tmp_path / "seed"
+    local_source = tmp_path / "primary-plans"
+    clone_dir = tmp_path / "workspace-plans"
+    init_bare_repo(remote)
+    init_bare_repo(other_remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(other_remote, local_source)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._clone_sdd_store_from_primary",
+        lambda *_args: pytest.fail("mismatched local source was trusted"),
+    )
+
+    ensure_companion_sdd_clone(
+        clone_dir,
+        str(remote),
+        local_source=local_source,
+        strict=True,
+    )
+
+    assert (clone_dir / "README.md").read_text(encoding="utf-8") == "# Plans\n"
+    assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
+
+
+def test_companion_clone_falls_back_to_remote_when_local_source_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "workspace-plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._clone_sdd_store_from_primary",
+        lambda *_args: pytest.fail("missing local source was used"),
+    )
+
+    ensure_companion_sdd_clone(
+        clone_dir,
+        str(remote),
+        local_source=tmp_path / "missing-primary-plans",
+        strict=True,
+    )
+
+    assert (clone_dir / "README.md").is_file()
+
+
 def test_ensure_workspace_sdd_clone_in_tree_noop(
     tmp_path: Path,
     provider_patch,

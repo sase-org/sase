@@ -30,6 +30,7 @@ install_sigterm_handler("workflow")
 def _prepare_workflow_workspace(
     *,
     workspace_dir: str,
+    workspace_num: int,
     cl_name: str,
     update_target: str,
     project_basename: str,
@@ -43,9 +44,12 @@ def _prepare_workflow_workspace(
     ):
         return False
 
-    from sase.linked_repos import clear_linked_repo_clones
+    from sase.linked_repos import clear_workspace_repos
 
-    clear_linked_repo_clones(workspace_dir)
+    clear_workspace_repos(workspace_dir, workspace_num)
+    from sase.sdd.store import ensure_workspace_sdd_clone
+
+    ensure_workspace_sdd_clone(workspace_dir, workspace_num)
     return True
 
 
@@ -154,6 +158,7 @@ def main() -> None:
             print("=== Preparing Workspace ===")
             if not _prepare_workflow_workspace(
                 workspace_dir=workspace_dir,
+                workspace_num=workspace_num,
                 cl_name=cl_name,
                 update_target=update_target,
                 project_basename=project_basename,

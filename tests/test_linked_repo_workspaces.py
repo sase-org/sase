@@ -2,51 +2,121 @@
 
 from __future__ import annotations
 
-import errno
 from pathlib import Path
-import shutil
 
 import pytest
 
 from sase.linked_repos import (
-    clear_linked_repo_clones,
+    clear_workspace_repos,
     materialize_linked_repo_workspace,
 )
 
 
-def test_clear_linked_repo_clones_stashes_directories_and_removes_strays(
-    tmp_path: Path,
+def test_clear_workspace_repos_renames_whole_tree_and_defers_delete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    linked = tmp_path / "sase" / "repos" / "linked"
-    cached = tmp_path / "sase" / "repos" / ".linked-cache" / "core"
-    core = linked / "core"
-    core.mkdir(parents=True)
-    (core / "new.txt").write_text("new", encoding="utf-8")
-    cached.mkdir(parents=True)
-    (cached / "old.txt").write_text("old", encoding="utf-8")
-    (linked / "stray.txt").write_text("remove", encoding="utf-8")
+    repos = tmp_path / "sase" / "repos"
+    (repos / "linked" / "core").mkdir(parents=True)
+    (repos / "plans").mkdir()
+    (repos / "legacy-junk.txt").write_text("remove", encoding="utf-8")
+    popen_calls: list[tuple[list[str], dict[str, object]]] = []
+    monkeypatch.setattr(
+        "sase.linked_repos.subprocess.Popen",
+        lambda args, **kwargs: popen_calls.append((args, kwargs)),
+    )
 
-    clear_linked_repo_clones(tmp_path)
+    clear_workspace_repos(tmp_path, 10)
 
-    assert list(linked.iterdir()) == []
-    assert (cached / "new.txt").read_text(encoding="utf-8") == "new"
-    assert not (cached / "old.txt").exists()
+    assert not repos.exists()
+    trashed = list((tmp_path / ".sase" / "trash").glob("repos-*"))
+    assert len(trashed) == 1
+    assert (trashed[0] / "plans").is_dir()
+    assert (trashed[0] / "legacy-junk.txt").is_file()
+    assert len(popen_calls) == 1
+    assert str(trashed[0]) in popen_calls[0][0]
+    assert popen_calls[0][1]["start_new_session"] is True
 
 
-def test_clear_linked_repo_clones_is_noop_when_root_is_absent(tmp_path: Path) -> None:
-    clear_linked_repo_clones(tmp_path)
+def test_clear_workspace_repos_sweeps_stale_trash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stale = tmp_path / ".sase" / "trash" / "repos-stale"
+    stale.mkdir(parents=True)
+    launched: list[list[str]] = []
+    monkeypatch.setattr(
+        "sase.linked_repos.subprocess.Popen",
+        lambda args, **_kwargs: launched.append(args),
+    )
+
+    clear_workspace_repos(tmp_path, 10)
+
+    assert launched and str(stale) in launched[0]
+
+
+@pytest.mark.parametrize("workspace_num", [0, 1])
+def test_clear_workspace_repos_preserves_primary_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, workspace_num: int
+) -> None:
+    plans = tmp_path / "sase" / "repos" / "plans"
+    plans.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.linked_repos.subprocess.Popen",
+        lambda *_args, **_kwargs: pytest.fail("primary guard spawned deletion"),
+    )
+
+    clear_workspace_repos(tmp_path, workspace_num)
+
+    assert plans.is_dir()
+
+
+@pytest.mark.parametrize("shape", ["file", "symlink"])
+def test_clear_workspace_repos_removes_non_directory_shapes(
+    tmp_path: Path, shape: str
+) -> None:
+    repos = tmp_path / "sase" / "repos"
+    repos.parent.mkdir(parents=True)
+    if shape == "file":
+        repos.write_text("junk", encoding="utf-8")
+    else:
+        target = tmp_path / "outside"
+        target.mkdir()
+        repos.symlink_to(target, target_is_directory=True)
+
+    clear_workspace_repos(tmp_path, 10)
+
+    assert not repos.exists()
+    if shape == "symlink":
+        assert target.is_dir()
+
+
+def test_clear_workspace_repos_falls_back_to_synchronous_delete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repos = tmp_path / "sase" / "repos"
+    repos.mkdir(parents=True)
+    monkeypatch.setattr(
+        "sase.linked_repos.subprocess.Popen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("spawn failed")),
+    )
+
+    clear_workspace_repos(tmp_path, 10)
+
+    assert not repos.exists()
+    assert list((tmp_path / ".sase" / "trash").iterdir()) == []
+
+
+def test_clear_workspace_repos_is_noop_when_root_is_absent(tmp_path: Path) -> None:
+    clear_workspace_repos(tmp_path, 10)
 
     assert not (tmp_path / "sase" / "repos").exists()
+    assert not (tmp_path / ".sase").exists()
 
 
-def test_materialize_restores_linked_clone_from_cache(
+def test_materialize_creates_fresh_linked_clone(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     host = tmp_path / "main_10"
     (host / ".git" / "info").mkdir(parents=True)
-    cached = host / "sase" / "repos" / ".linked-cache" / "core"
-    cached.mkdir(parents=True)
-    (cached / "cached.txt").write_text("cached", encoding="utf-8")
     target = host / "sase" / "repos" / "linked" / "core"
     ensured: list[str] = []
     monkeypatch.setattr(
@@ -65,83 +135,5 @@ def test_materialize_restores_linked_clone_from_cache(
 
     assert result == str(target.resolve())
     assert ensured == [str(target.resolve())]
-    assert (target / "cached.txt").read_text(encoding="utf-8") == "cached"
-    assert not cached.exists()
     exclude = host / ".git" / "info" / "exclude"
     assert "/sase/repos/" in exclude.read_text(encoding="utf-8").splitlines()
-
-
-@pytest.mark.parametrize(
-    "race_error",
-    [
-        FileNotFoundError(),
-        OSError(errno.EEXIST, "parallel destination"),
-        OSError(errno.ENOTEMPTY, "parallel destination"),
-    ],
-)
-def test_materialize_cache_restore_rename_race_falls_through(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, race_error: OSError
-) -> None:
-    host = tmp_path / "main_10"
-    cached = host / "sase" / "repos" / ".linked-cache" / "core"
-    cached.mkdir(parents=True)
-    target = host / "sase" / "repos" / "linked" / "core"
-    ensured: list[str] = []
-
-    def racing_rename(source: object, _destination: object) -> None:
-        if Path(source) == cached:
-            raise race_error
-        raise AssertionError(f"unexpected rename source: {source}")
-
-    monkeypatch.setattr("sase.linked_repos.os.rename", racing_rename)
-    monkeypatch.setattr(
-        "sase.workspace_provider.utils.ensure_git_clone_at",
-        lambda _primary, _num, path: ensured.append(path) or path,
-    )
-    monkeypatch.setattr(
-        "sase.sdd.store.ensure_workspace_sdd_clone", lambda *_args: None
-    )
-
-    result = materialize_linked_repo_workspace(
-        primary_dir=str(tmp_path / "core"),
-        workspace_dir=str(target),
-        workspace_num=10,
-    )
-
-    assert result == str(target.resolve())
-    assert ensured == [str(target.resolve())]
-
-
-def test_materialize_corrupt_cached_clone_is_recreated_by_clone_guard(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    host = tmp_path / "main_10"
-    cached = host / "sase" / "repos" / ".linked-cache" / "core"
-    cached.mkdir(parents=True)
-    (cached / "not-a-repo.txt").write_text("corrupt", encoding="utf-8")
-    target = host / "sase" / "repos" / "linked" / "core"
-
-    def recreate_corrupt_clone(_primary: str, _num: int, path: str) -> str:
-        clone = Path(path)
-        assert (clone / "not-a-repo.txt").is_file()
-        shutil.rmtree(clone)
-        clone.mkdir(parents=True)
-        (clone / ".git").mkdir()
-        return path
-
-    monkeypatch.setattr(
-        "sase.workspace_provider.utils.ensure_git_clone_at", recreate_corrupt_clone
-    )
-    monkeypatch.setattr(
-        "sase.sdd.store.ensure_workspace_sdd_clone", lambda *_args: None
-    )
-
-    result = materialize_linked_repo_workspace(
-        primary_dir=str(tmp_path / "core"),
-        workspace_dir=str(target),
-        workspace_num=10,
-    )
-
-    assert result == str(target.resolve())
-    assert (target / ".git").is_dir()
-    assert not (target / "not-a-repo.txt").exists()

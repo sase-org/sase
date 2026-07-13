@@ -126,7 +126,7 @@ class TestHandleWorkflowErrorContinuation:
                 "sase.axe.run_agent_exec_retry.prepare_workspace",
                 MagicMock(),
             ),
-            patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
+            patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
         ):
             action = handle_workflow_error(
                 RuntimeError("API Error: 400 - Prompt is too long"),
@@ -136,7 +136,7 @@ class TestHandleWorkflowErrorContinuation:
             )
 
         assert action == "continue"
-        clear_linked.assert_not_called()
+        clear_repos.assert_not_called()
         assert state.current_prompt.startswith("NUDGE\n\n")
         assert "Do the work." in state.current_prompt
 

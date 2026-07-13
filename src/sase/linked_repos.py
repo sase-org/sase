@@ -9,12 +9,14 @@ patch these public functions at runtime.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-import errno
 import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
+import sys
 from typing import Any
+import uuid
 
 from sase._linked_repo_config import (
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
@@ -53,12 +55,10 @@ from sase._linked_repo_markers import (
     record_opened_linked_repo,
 )
 
-# Host-scoped normal linked clones are launch-scoped and live separately from
-# durable SDD companion clones. The cache is internal and is never exposed to
-# agents through environment variables or opened-workspace markers.
+# Host-scoped linked and companion clones are launch-scoped in numbered
+# workspaces. Their primary-checkout counterparts remain durable local sources.
 COMPANION_REPO_CLONES_SUBDIR = ("sase", "repos")
 LINKED_REPO_CLONES_SUBDIR = ("sase", "repos", "linked")
-LINKED_REPO_CACHE_SUBDIR = ("sase", "repos", ".linked-cache")
 
 # Preserve the historical class identity for introspection and pickling even
 # though their implementations now live in the environment helper module.
@@ -71,7 +71,6 @@ __all__ = [
     "DEFAULT_RESEARCH_DESCRIPTION",
     "COMPANION_REPO_CLONES_SUBDIR",
     "LINKED_REPO_CLONES_SUBDIR",
-    "LINKED_REPO_CACHE_SUBDIR",
     "LINKED_REPO_ENV_PREFIX",
     "LINKED_REPO_ENV_SUFFIXES",
     "LINKED_REPOS_CONFIG_KEY",
@@ -84,7 +83,7 @@ __all__ = [
     "SIBLING_REPOS_JSON_ENV",
     "LinkedRepoResolution",
     "apply_linked_repo_env",
-    "clear_linked_repo_clones",
+    "clear_workspace_repos",
     "companion_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
     "linked_repo_clone_dir",
@@ -271,10 +270,6 @@ def sdd_companion_clone_dirname(
     return _sdd_companion_repo_dirnames(primary_workspace_dir).get(name)
 
 
-def _linked_repo_cache_dir(host_checkout: str | Path, name: str) -> Path:
-    return Path(host_checkout).joinpath(*LINKED_REPO_CACHE_SUBDIR, name)
-
-
 def _remove_path(path: Path) -> None:
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path)
@@ -282,47 +277,84 @@ def _remove_path(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
-def clear_linked_repo_clones(workspace_dir: str | Path) -> None:
-    """Stash normal linked clones in the internal cache and empty their root."""
+_DELETE_PATHS_SCRIPT = """
+from pathlib import Path
+import shutil
+import sys
 
-    linked_root = Path(workspace_dir).joinpath(*LINKED_REPO_CLONES_SUBDIR)
-    if not linked_root.is_dir():
-        return
-
-    cache_root = Path(workspace_dir).joinpath(*LINKED_REPO_CACHE_SUBDIR)
-    for child in list(linked_root.iterdir()):
-        if child.is_dir() and not child.is_symlink():
-            cache_root.mkdir(parents=True, exist_ok=True)
-            cached = cache_root / child.name
-            if cached.exists() or cached.is_symlink():
-                _remove_path(cached)
-            os.rename(child, cached)
-        elif child.exists() or child.is_symlink():
-            _remove_path(child)
-
-    # Concurrent or unusual filesystem activity must not leave an unaudited
-    # ready-made entry in the launch-visible directory.
-    for child in list(linked_root.iterdir()):
-        _remove_path(child)
-
-
-def _restore_linked_repo_clone(host_checkout: Path, name: str) -> None:
-    target = Path(linked_repo_clone_dir(host_checkout, name))
-    cached = _linked_repo_cache_dir(host_checkout, name)
-    if target.exists() or target.is_symlink() or not cached.exists():
-        return
-
-    target.parent.mkdir(parents=True, exist_ok=True)
+for raw_path in sys.argv[1:]:
+    path = Path(raw_path)
     try:
-        os.rename(cached, target)
-    except FileNotFoundError:
-        # A parallel opener already consumed the cache entry.
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        else:
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
+"""
+
+
+def _delete_paths_in_background(paths: Sequence[Path]) -> None:
+    """Best-effort delete *paths* outside the workspace-prep critical path."""
+
+    if not paths:
         return
-    except OSError as exc:
-        if exc.errno not in {errno.EEXIST, errno.ENOTEMPTY}:
-            raise
-        # A parallel opener populated the destination first.
+    try:
+        kwargs: dict[str, Any] = {"start_new_session": True}
+        if os.name == "nt":
+            kwargs = {
+                "creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+            }
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                _DELETE_PATHS_SCRIPT,
+                *(str(path) for path in paths),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            **kwargs,
+        )
+    except OSError:
+        for path in paths:
+            _remove_path(path)
+
+
+def clear_workspace_repos(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> None:
+    """Remove launch-scoped repositories from a numbered host workspace."""
+
+    if workspace_num <= 1:
         return
+
+    workspace = Path(workspace_dir)
+    repos_root = workspace.joinpath(*COMPANION_REPO_CLONES_SUBDIR)
+    trash_root = workspace / ".sase" / "trash"
+    stale_trash = (
+        list(trash_root.iterdir())
+        if trash_root.is_dir() and not trash_root.is_symlink()
+        else []
+    )
+
+    if not os.path.lexists(repos_root):
+        _delete_paths_in_background(stale_trash)
+        return
+
+    if not repos_root.is_dir() or repos_root.is_symlink():
+        _remove_path(repos_root)
+        _delete_paths_in_background(stale_trash)
+        return
+
+    trash_root.mkdir(parents=True, exist_ok=True)
+    trashed_repos = trash_root / f"repos-{uuid.uuid4().hex}"
+    os.rename(repos_root, trashed_repos)
+    _delete_paths_in_background([*stale_trash, trashed_repos])
 
 
 def _linked_repo_clone_location(
@@ -400,7 +432,6 @@ def materialize_linked_repo_workspace(
             workspace_dir = companion_repo_clone_dir(host_checkout, name)
         else:
             workspace_dir = linked_repo_clone_dir(host_checkout, name)
-            _restore_linked_repo_clone(host_checkout, name)
 
     checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
     try:

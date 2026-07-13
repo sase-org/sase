@@ -61,20 +61,15 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     ),
     "src/sase/linked_repos.py:_remove_path": DirOpReview(
         exemption=(
-            "Removes only host-scoped linked repository clones or cache entries "
-            "under sase/repos, not agent artifact directories."
+            "Removes only host-scoped repository paths under sase/repos or "
+            "deferred-delete entries under .sase/trash, not agent artifact "
+            "directories."
         ),
     ),
-    "src/sase/linked_repos.py:clear_linked_repo_clones": DirOpReview(
+    "src/sase/linked_repos.py:clear_workspace_repos": DirOpReview(
         exemption=(
-            "Moves launch-scoped linked repository clones into the internal "
-            "sase/repos/.linked-cache directory, not an agent artifact directory."
-        ),
-    ),
-    "src/sase/linked_repos.py:_restore_linked_repo_clone": DirOpReview(
-        exemption=(
-            "Restores a host-scoped linked repository clone from the internal "
-            "sase/repos/.linked-cache directory, not an agent artifact directory."
+            "Moves the launch-scoped sase/repos tree into .sase/trash for "
+            "detached deletion; neither path is an agent artifact directory."
         ),
     ),
     "src/sase/main/workspace_handler_migration.py:handle_migrate": DirOpReview(

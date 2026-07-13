@@ -575,9 +575,9 @@ linked_repos:
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
-workflow launch preparation clears that directory into an internal `<host_workspace>/sase/repos/.linked-cache/` so
-normal linked repos are only restored through audited `sase workspace open` or `auto_clone` materialization. SDD
-companion repos remain durable at `<host_workspace>/sase/repos/plans` and `<host_workspace>/sase/repos/research`.
+workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree.
+Companions with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
+network fallback; other linked repos and companions are materialized on demand by `sase workspace open`.
 `sase init workspace` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
 `.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
 paths only for materialized entries:

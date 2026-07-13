@@ -203,7 +203,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize workspace ignore rules",
         description=(
             "Add the tracked root .gitignore rule that protects host-scoped "
-            "linked repository clones under sase/repos/linked/."
+            "linked and companion repository clones under sase/repos/."
         ),
     )
     workspace_parser.add_argument(

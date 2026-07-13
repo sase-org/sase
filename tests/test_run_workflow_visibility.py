@@ -156,7 +156,7 @@ def test_write_workflow_state_refreshes_artifact_index(tmp_path: Path) -> None:
     update_index.assert_called_once_with(str(tmp_path))
 
 
-def test_workflow_workspace_prep_clears_linked_clones_after_prepare() -> None:
+def test_workflow_workspace_prep_recreates_companion_after_teardown() -> None:
     from sase.axe.run_workflow_runner import _prepare_workflow_workspace
 
     calls: list[str] = []
@@ -166,19 +166,24 @@ def test_workflow_workspace_prep_clears_linked_clones_after_prepare() -> None:
             side_effect=lambda *_args, **_kwargs: calls.append("prepare") or True,
         ),
         patch(
-            "sase.linked_repos.clear_linked_repo_clones",
-            side_effect=lambda _workspace: calls.append("clear"),
+            "sase.linked_repos.clear_workspace_repos",
+            side_effect=lambda _workspace, _num: calls.append("clear"),
+        ),
+        patch(
+            "sase.sdd.store.ensure_workspace_sdd_clone",
+            side_effect=lambda _workspace, _num: calls.append("clone"),
         ),
     ):
         result = _prepare_workflow_workspace(
             workspace_dir="/tmp/workspace",
+            workspace_num=7,
             cl_name="feature",
             update_target="main",
             project_basename="sase",
         )
 
     assert result is True
-    assert calls == ["prepare", "clear"]
+    assert calls == ["prepare", "clear", "clone"]
 
 
 def test_workflow_workspace_prep_does_not_clear_after_failure() -> None:
@@ -186,17 +191,20 @@ def test_workflow_workspace_prep_does_not_clear_after_failure() -> None:
 
     with (
         patch("sase.axe.run_workflow_runner.prepare_workspace", return_value=False),
-        patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
+        patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
+        patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
     ):
         result = _prepare_workflow_workspace(
             workspace_dir="/tmp/workspace",
+            workspace_num=7,
             cl_name="feature",
             update_target="main",
             project_basename="sase",
         )
 
     assert result is False
-    clear_linked.assert_not_called()
+    clear_repos.assert_not_called()
+    ensure_clone.assert_not_called()
 
 
 @pytest.mark.skipif(

@@ -23,7 +23,11 @@ StoreResolver = Callable[[str | Path, int], SddStore]
 
 
 def ensure_companion_sdd_clone(
-    clone_dir: Path, remote_url: str, *, strict: bool = False
+    clone_dir: Path,
+    remote_url: str,
+    *,
+    local_source: Path | None = None,
+    strict: bool = False,
 ) -> None:
     """Ensure a split-store companion clone exists and tracks its real remote."""
 
@@ -49,7 +53,23 @@ def ensure_companion_sdd_clone(
             _pull_sdd_clone(clone_dir)
             return
 
-        if not _clone_sdd_store(remote_url, clone_dir) and strict:
+        cloned = False
+        if local_source is not None:
+            local_source = local_source.expanduser()
+            origin = _git_remote_url(local_source)
+            if (
+                (local_source / ".git").is_dir()
+                and origin is not None
+                and _same_git_remote(origin, remote_url)
+            ):
+                cloned = _clone_sdd_store_from_primary(local_source, clone_dir)
+                if cloned:
+                    _set_sdd_origin(clone_dir, remote_url)
+                    _pull_sdd_clone(clone_dir)
+
+        if not cloned:
+            cloned = _clone_sdd_store(remote_url, clone_dir)
+        if not cloned and strict:
             raise SddMaterializationError(
                 f"could not create SDD companion clone at {clone_dir}"
             )

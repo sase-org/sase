@@ -70,9 +70,9 @@ def prepare_workspace_if_needed(
         project_basename=project_name,
     ):
         raise RuntimeError("Failed to prepare workspace")
-    from sase.linked_repos import clear_linked_repo_clones
+    from sase.linked_repos import clear_workspace_repos
 
-    clear_linked_repo_clones(workspace_dir)
+    clear_workspace_repos(workspace_dir, workspace_num)
     from sase.sdd.store import ensure_workspace_sdd_clone
 
     ensure_workspace_sdd_clone(workspace_dir, workspace_num)

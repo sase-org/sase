@@ -215,8 +215,8 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
     def ensure_workspace_sdd_clone(workspace_dir: str, workspace_num: int) -> None:
         calls.append(("clone", (workspace_dir, workspace_num)))
 
-    def clear_linked_repo_clones(workspace_dir: str) -> None:
-        calls.append(("clear", (workspace_dir,)))
+    def clear_workspace_repos(workspace_dir: str, workspace_num: int) -> None:
+        calls.append(("clear", (workspace_dir, workspace_num)))
 
     with (
         patch(
@@ -228,8 +228,8 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
             side_effect=ensure_workspace_sdd_clone,
         ),
         patch(
-            "sase.linked_repos.clear_linked_repo_clones",
-            side_effect=clear_linked_repo_clones,
+            "sase.linked_repos.clear_workspace_repos",
+            side_effect=clear_workspace_repos,
         ),
     ):
         prepare_workspace_if_needed(
@@ -244,7 +244,7 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
 
     assert calls == [
         ("prepare", ("/tmp/workspace", "feature", "main")),
-        ("clear", ("/tmp/workspace",)),
+        ("clear", ("/tmp/workspace", 7)),
         ("clone", ("/tmp/workspace", 7)),
     ]
 
@@ -253,7 +253,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
-        patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
+        patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -266,7 +266,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
         )
 
     prepare.assert_not_called()
-    clear_linked.assert_not_called()
+    clear_repos.assert_not_called()
     ensure_clone.assert_not_called()
 
 
@@ -274,7 +274,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
     with (
         patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
-        patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
+        patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
     ):
         prepare_workspace_if_needed(
             workspace_dir="/tmp/workspace",
@@ -287,7 +287,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None
         )
 
     prepare.assert_not_called()
-    clear_linked.assert_not_called()
+    clear_repos.assert_not_called()
     ensure_clone.assert_not_called()
 
 

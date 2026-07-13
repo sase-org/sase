@@ -341,7 +341,7 @@ class TestOpen:
             patch(
                 "sase.axe.runner_utils.prepare_workspace", return_value=True
             ) as prepare_workspace,
-            patch("sase.linked_repos.clear_linked_repo_clones") as clear_linked,
+            patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)
@@ -358,7 +358,7 @@ class TestOpen:
             backup_suffix="workspace-open",
             project_basename=project_name,
         )
-        clear_linked.assert_not_called()
+        clear_repos.assert_not_called()
         assert capsys.readouterr().out.strip() == checkout
 
     def test_open_records_sibling_when_artifacts_dir_is_set(
