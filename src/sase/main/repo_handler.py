@@ -22,6 +22,7 @@ from sase.repo_inventory import (
     RepoCloneRecord,
     RepoInventory,
     RepoInventoryProjectNotFoundError,
+    RepoKind,
     RepoRecord,
     collect_repo_inventory,
 )
@@ -292,6 +293,7 @@ def _print_inventory_issues_stderr(inventory: RepoInventory) -> None:
 
 
 def _handle_open(args: argparse.Namespace) -> int:
+    from .repo_open_external import ExternalRepoOpenError, open_external_repo
     from . import workspace_handler as workspace_commands
     from .workspace_handler_list import (
         normalize_repo_open_reason,
@@ -313,7 +315,7 @@ def _handle_open(args: argparse.Namespace) -> int:
             getattr(args, "workspace", None),
         )
         inventory = collect_repo_inventory(project=host_ctx.project_name)
-        repo = _resolve_repo_record(
+        repo = _match_repo_record(
             getattr(args, "repo", ""),
             host_ctx=host_ctx,
             inventory=inventory,
@@ -321,6 +323,31 @@ def _handle_open(args: argparse.Namespace) -> int:
     except (RepoInventoryProjectNotFoundError, _RepoOpenResolutionError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+    if repo is None:
+        try:
+            external = open_external_repo(
+                getattr(args, "repo", ""),
+                host_ctx=host_ctx,
+                workspace_num=workspace_num,
+                inventory=inventory,
+                reason=reason,
+                resolve_checkout=workspace_commands._resolve_checkout_path,
+            )
+        except ExternalRepoOpenError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+
+        _record_repo_open(
+            host_ctx=host_ctx,
+            repo_name=external.canonical_name,
+            repo_kind="external",
+            workspace_num=workspace_num,
+            path=external.path,
+            reason=reason,
+        )
+        print(external.path)
+        return 0
 
     target_ctx = _repo_target_context(host_ctx, repo)
     path = prepare_opened_checkout(
@@ -334,7 +361,8 @@ def _handle_open(args: argparse.Namespace) -> int:
 
     _record_repo_open(
         host_ctx=host_ctx,
-        repo=repo,
+        repo_name=repo.name,
+        repo_kind=repo.kind,
         workspace_num=workspace_num,
         path=path,
         reason=reason,
@@ -398,17 +426,23 @@ def _resolve_open_workspace_num(
     )
 
 
-def _resolve_repo_record(
+def _match_repo_record(
     name: str,
     *,
     host_ctx: ProjectContext,
     inventory: RepoInventory,
-) -> RepoRecord:
+) -> RepoRecord | None:
+    """Return an exact tier-1 inventory match without guessing.
+
+    Materialized external rows are intentionally excluded: they re-enter the
+    external resolver so reopen semantics never run the linked-repo cleaner.
+    """
+
     requested = name.strip()
     secondary_matches = [
         record
         for record in inventory.records
-        if record.kind != "primary" and record.name == requested
+        if record.kind in {"sidecar", "linked"} and record.name == requested
     ]
     if len(secondary_matches) == 1:
         return secondary_matches[0]
@@ -426,19 +460,7 @@ def _resolve_repo_record(
     if len(primary_matches) > 1:
         raise _ambiguous_repo_error(requested, primary_matches)
 
-    valid_names = sorted(
-        {
-            record.name
-            for record in inventory.records
-            if record.project == host_ctx.project_name
-        }
-        | {host_ctx.project_name}
-    )
-    candidates = ", ".join(valid_names) or "none"
-    raise _RepoOpenResolutionError(
-        f"Unknown repo '{requested}' for project '{host_ctx.project_name}'. "
-        f"Valid repos: {candidates}"
-    )
+    return None
 
 
 def _ambiguous_repo_error(
@@ -473,7 +495,8 @@ def _repo_target_context(
 def _record_repo_open(
     *,
     host_ctx: ProjectContext,
-    repo: RepoRecord,
+    repo_name: str,
+    repo_kind: RepoKind,
     workspace_num: int,
     path: str,
     reason: str,
@@ -481,8 +504,8 @@ def _record_repo_open(
     try:
         event = build_repo_open_event(
             project=host_ctx.project_name,
-            repo=repo.name,
-            repo_kind=repo.kind,
+            repo=repo_name,
+            repo_kind=repo_kind,
             workspace_num=workspace_num,
             path=path,
             reason=reason,

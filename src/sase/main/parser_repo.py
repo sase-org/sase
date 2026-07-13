@@ -132,22 +132,28 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Prepare a repository checkout and print its path",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Resolve a primary, sidecar, or linked repository in the host "
-            "project, prepare it in one workspace context, and print only "
-            "the prepared path. The workspace defaults to the checkout that "
-            "contains the current directory."
+            "Resolve a repository in three tiers: a primary, sidecar, or linked "
+            "repository in the host project; another registered SASE project; "
+            "or an external provider ref such as gh:owner/repo (owner/repo is "
+            "GitHub shorthand). Prepare it in one workspace context and print "
+            "only the prepared path. The workspace defaults to the checkout "
+            "that contains the current directory."
         ),
         epilog=(
             "examples:\n"
             '  sase repo open chezmoi --reason "Update shared configuration"\n'
-            '  sase repo open sase-core -r "Fix the Rust binding" -w 12\n'
-            '  sase repo open sase--plans -p sase -r "Review the epic plan"'
+            '  sase repo open dotdrop -r "Port the launcher fix"\n'
+            '  sase repo open gh:pallets/click -r "Study upstream parsing"\n'
+            '  sase repo open pallets/click -r "Study upstream parsing"'
         ),
     )
     open_parser.add_argument(
         "repo",
         metavar="REPO",
-        help="Repository name shown by `sase repo list`",
+        help=(
+            "Inventory name, registered project name, gh:owner/repo, or "
+            "owner/repo shorthand"
+        ),
     )
     open_parser.add_argument(
         "-p",

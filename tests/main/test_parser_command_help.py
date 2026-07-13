@@ -154,6 +154,12 @@ def test_repo_open_help_documents_inference_and_required_reason() -> None:
     assert "-w, --workspace N" in open_help
     assert "defaults to the checkout that contains the current directory" in open_help
     assert "sase repo open chezmoi --reason" in open_help
+    assert "another registered SASE project" in open_help
+    assert "gh:owner/repo" in open_help
+    assert "owner/repo is GitHub shorthand" in open_help
+    assert "sase repo open dotdrop -r" in open_help
+    assert "sase repo open gh:pallets/click -r" in open_help
+    assert "sase repo open pallets/click -r" in open_help
 
 
 def test_repo_list_help_documents_scope_workspace_and_examples() -> None:

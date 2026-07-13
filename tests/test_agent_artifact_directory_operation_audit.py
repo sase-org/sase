@@ -115,6 +115,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifacts and indexes are removed together with the project state."
         ),
     ),
+    "src/sase/main/repo_open_external.py:_remove_clone_staging_path": DirOpReview(
+        exemption=(
+            "Removes only a just-created external-repo clone staging path under "
+            "the host workspace's sase/repos/external tree, not an agent artifact "
+            "directory."
+        ),
+    ),
     (
         "src/sase/telemetry/cli_export_config.py:handle_telemetry_export_config"
     ): DirOpReview(
