@@ -56,11 +56,11 @@ def test_parse_plus_reference_is_boolean_shorthand() -> None:
 
 
 def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
-    ref = _single_ref("#!sase/pylimit_split:prod")
+    ref = _single_ref("#!sase/toobig_split:prod")
 
-    assert ref.name == "sase/pylimit_split"
+    assert ref.name == "sase/toobig_split"
     assert ref.arg_kind is XPromptReferenceArgKind.COLON
-    assert ref.raw == "#!sase/pylimit_split:prod"
+    assert ref.raw == "#!sase/toobig_split:prod"
     assert ref.argument_source == ":prod"
     assert ref.parse_arguments() == (["prod"], {})
 

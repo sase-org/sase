@@ -206,7 +206,7 @@ because a Markdown file feels too small to be serious. Small is often the point.
 
 There are a few special XPrompts worth knowing early. `#fork` resumes a prior agent conversation by name. Workspace refs
 such as `#git:home`, `#git:<project>`, and `#gh:<owner>/<repo>` decide where the agent runs. Project XPrompts can be
-namespaced, so a prompt like `#gh:sase #sase/pylimit_split` can target a repo and then call a project-specific workflow.
+namespaced, so a prompt like `#gh:sase #!sase/toobig_split` can target a repo and then call a project-specific workflow.
 
 You type the same language in several places. `sase run` accepts it directly. The ACE prompt input adds completion
 (`Ctrl+T`), fuzzy file search (`Ctrl+R`), snippets, vim-style NORMAL mode, prompt history (`Ctrl+K`), and prompt stash

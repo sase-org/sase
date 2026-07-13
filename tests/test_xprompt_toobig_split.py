@@ -1,6 +1,6 @@
-"""Structural tests for the bundled ``#sase/pylimit_split`` xprompt workflow.
+"""Structural tests for the bundled ``#!sase/toobig_split`` xprompt workflow.
 
-These tests pin the shape of ``xprompts/pylimit_split.yml`` after Phase 2 of
+These tests pin the shape of ``xprompts/toobig_split.yml`` after Phase 2 of
 the chop-visibility plan: the workflow should consist of a single hidden
 Python step that builds a multi-prompt and hands it to
 ``launch_agent_from_cwd()``.  They also exercise the embedded Python by
@@ -20,14 +20,14 @@ from sase.xprompt.workflow_validator import validate_workflow
 
 
 @pytest.fixture
-def pylimit_workflow_path() -> Path:
+def toobig_workflow_path() -> Path:
     here = Path(__file__).resolve().parent.parent
-    return here / "xprompts" / "pylimit_split.yml"
+    return here / "xprompts" / "toobig_split.yml"
 
 
-def test_workflow_has_single_hidden_python_step(pylimit_workflow_path: Path) -> None:
+def test_workflow_has_single_hidden_python_step(toobig_workflow_path: Path) -> None:
     """The workflow is one hidden python step that captures `launched`."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
     assert len(wf.steps) == 1
 
@@ -41,9 +41,9 @@ def test_workflow_has_single_hidden_python_step(pylimit_workflow_path: Path) -> 
     assert "launch_agent_from_cwd" in step.python
 
 
-def test_workflow_passes_compile_time_validation(pylimit_workflow_path: Path) -> None:
+def test_workflow_passes_compile_time_validation(toobig_workflow_path: Path) -> None:
     """The static validator must accept the generated split_file call shape."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
 
     validate_workflow(wf)
@@ -77,7 +77,7 @@ def _run_step_python(
 
     rendered = step_python.replace("{{ limits }}", "1000 850 700")
     exec(  # noqa: S102 - test executes its own controlled snippet
-        compile(rendered, "<pylimit_split-step>", "exec"),
+        compile(rendered, "<toobig_split-step>", "exec"),
         {"print": lambda *_a, **_k: None},  # noqa: ARG005
     )
     return captured
@@ -93,10 +93,10 @@ def _assert_split_segment(segment: str, *, name: str, path: str) -> None:
 
 
 def test_step_no_files_does_not_launch(
-    pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
+    toobig_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When toobig reports no offenders, the step must not launch any agent."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
     captured = _run_step_python(
         wf.steps[0].python or "",
@@ -107,10 +107,10 @@ def test_step_no_files_does_not_launch(
 
 
 def test_step_two_files_launches_chained_multi_prompt(
-    pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
+    toobig_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Two offenders -> single launch with a 2-segment %wait-chained prompt."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
 
     captured = _run_step_python(
@@ -139,10 +139,10 @@ def test_step_two_files_launches_chained_multi_prompt(
 
 
 def test_step_dedups_files_across_trees(
-    pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
+    toobig_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A path appearing in both src/ and tests/ output produces one segment."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
 
     captured = _run_step_python(
@@ -170,10 +170,10 @@ def test_step_dedups_files_across_trees(
 
 
 def test_step_names_same_stem_with_collision_suffix(
-    pylimit_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
+    toobig_workflow_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Distinct files with the same basename get stable unique agent names."""
-    wf = _load_workflow_from_file(pylimit_workflow_path)
+    wf = _load_workflow_from_file(toobig_workflow_path)
     assert wf is not None
 
     captured = _run_step_python(

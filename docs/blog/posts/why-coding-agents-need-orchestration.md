@@ -201,7 +201,7 @@ system wearing a fake mustache.
 Cases where YAML workflows really are necessary:
 
 - `#!sase/fix_just`, because it has to run setup/repair/check steps around the agent.
-- `#!sase/pylimit_split`, because it coordinates analysis and mechanical follow-up work.
+- `#!sase/toobig_split`, because it coordinates analysis and mechanical follow-up work.
 - `#!sase/refresh_docs`, because it compares docs drift and launches targeted documentation work.
 - Research swarms, because they need fan-out, aggregation, and artifacts.
 - Bead epic creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
@@ -402,7 +402,7 @@ My own machine has more opinionated chops in my chezmoi config:
 
 - `sase_fix_just`: periodically runs `#!sase/fix_just` against `sase` when there is not already an open fixer
   ChangeSpec.
-- `sase_pylimit_split`: runs `#!sase/pylimit_split` to keep Python files from turning into archaeology sites.
+- `sase_toobig_split`: runs `#!sase/toobig_split` to keep Python files from turning into archaeology sites.
 - `sase_refresh_docs`, `sase_core_refresh_docs`, `sase_github_refresh_docs`, `sase_nvim_refresh_docs`, and
   `sase_telegram_refresh_docs`: keep docs fresh across linked repos when drift passes a threshold.
 - `gh_actions_fix`: checks configured GitHub repositories for failed Actions runs, de-dupes seen failures, fetches logs,
