@@ -645,3 +645,26 @@ def test_agent_deltas_render_path_uses_linked_cache_only(
     header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
 
     assert "▣ sase-core" in header.plain
+
+
+def test_agent_deltas_render_external_groups_after_linked_groups() -> None:
+    agent = _make_agent(status="RUNNING")
+    linked_deltas_mod._selected_agent_linked_delta_cache[agent.identity] = (
+        LinkedDeltaGroup(
+            repo_name="gh:pallets/click",
+            workspace_dir="/workspace/external/gh/pallets/click",
+            entries=(DeltaEntry(path="src/core.py", change_type="M"),),
+            kind="external",
+        ),
+        LinkedDeltaGroup(
+            repo_name="sase-core",
+            workspace_dir="/workspace/sase-core",
+            entries=(DeltaEntry(path="src/lib.rs", change_type="M"),),
+        ),
+    )
+
+    header, _ = build_header_text(agent, summary=build_detail_header_summary(agent))
+
+    assert "  ▣ sase-core\n" in header.plain
+    assert "  ◆ gh:pallets/click\n" in header.plain
+    assert header.plain.index("▣ sase-core") < header.plain.index("◆ gh:pallets/click")

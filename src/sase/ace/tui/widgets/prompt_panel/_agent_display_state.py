@@ -11,6 +11,7 @@ from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.repo_inventory import RepoKind
 
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._agent_artifacts import AgentArtifactPath
@@ -28,6 +29,7 @@ class CommitViewSpec:
     message: str
     diff_path: str | None
     is_primary: bool
+    repo_kind: RepoKind = "linked"
 
 
 @dataclass

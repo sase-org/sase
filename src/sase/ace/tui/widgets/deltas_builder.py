@@ -11,8 +11,11 @@ from ..models.fold_state import FoldLevel
 from .file_panel._linked_deltas import LinkedDeltaGroup
 from .hint_tracker import HintTracker
 from .prompt_panel._agent_context_common import (
+    COLOR_EXTERNAL_REPO_GLYPH,
+    COLOR_EXTERNAL_REPO_NAME,
     COLOR_WORKSPACE_GLYPH,
     COLOR_WORKSPACE_NAME,
+    EXTERNAL_REPO_GLYPH,
     WORKSPACE_GLYPH,
 )
 
@@ -194,7 +197,12 @@ def build_delta_entries_section(
     )
 
     primary_deltas = deltas or []
-    linked_groups = tuple(group for group in linked_delta_groups or () if group.entries)
+    linked_groups = tuple(
+        sorted(
+            (group for group in linked_delta_groups or () if group.entries),
+            key=lambda group: group.kind == "external",
+        )
+    )
     if not primary_deltas and not linked_groups:
         return tracker
 
@@ -219,10 +227,17 @@ def build_delta_entries_section(
             _append_entry(text, entry, show_line_stats=show_line_stats)
 
     for group in linked_groups:
+        external = group.kind == "external"
         text.append("  ")
-        text.append(WORKSPACE_GLYPH, style=COLOR_WORKSPACE_GLYPH)
+        text.append(
+            EXTERNAL_REPO_GLYPH if external else WORKSPACE_GLYPH,
+            style=(COLOR_EXTERNAL_REPO_GLYPH if external else COLOR_WORKSPACE_GLYPH),
+        )
         text.append(" ")
-        text.append(group.repo_name, style=COLOR_WORKSPACE_NAME)
+        text.append(
+            group.repo_name,
+            style=COLOR_EXTERNAL_REPO_NAME if external else COLOR_WORKSPACE_NAME,
+        )
         text.append("\n")
         for entry in sorted(group.entries, key=lambda e: e.path):
             if show_file_hints:

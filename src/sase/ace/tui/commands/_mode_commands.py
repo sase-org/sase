@@ -61,7 +61,7 @@ _LEADER_LABELS: dict[str, str] = {
     "repeat_last": "Repeat last leader command",
     "run_cmd": "Run background command",
     "runners": "Show runners",
-    "revert_agent": "Revert agent commits across repos",
+    "revert_agent": "Revert agent + opened repos",
     "kill_mentors": "Kill mentor workflows",
     "review_mentors": "Review mentor results",
     "agent_home": "Agent (home mode)",

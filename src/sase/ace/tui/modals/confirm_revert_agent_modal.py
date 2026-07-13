@@ -112,7 +112,7 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
     def _build_border_title(self) -> Text:
         title = Text()
         title.append(_REVERT_GLYPH, style="bold red")
-        title.append("  Revert Agent Commits", style="bold")
+        title.append("  Revert Agent + Opened Repos", style="bold")
         return title
 
     def _compose_repo_cards(self) -> ComposeResult:
@@ -154,11 +154,23 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
 
         text = Text()
         text.append("!  ", style="bold red")
-        text.append("Reverting ", style="bold red")
-        text.append(str(commit_count), style="bold")
-        text.append(f" {commit_noun} across ")
-        text.append(str(repo_count), style="bold")
-        text.append(f" {repo_noun}.")
+        external_count = sum(
+            plan.discard_local_changes for plan in self._preview.revertable_repos
+        )
+        if commit_count:
+            text.append("Reverting ", style="bold red")
+            text.append(str(commit_count), style="bold")
+            text.append(f" {commit_noun} across ")
+            text.append(str(repo_count), style="bold")
+            text.append(f" {repo_noun}.")
+            if external_count:
+                text.append(
+                    f" Cleaning {external_count} opened external repo(s) in place."
+                )
+        else:
+            text.append("Discarding local changes in ", style="bold red")
+            text.append(str(external_count), style="bold")
+            text.append(" opened external repo(s).")
         return text
 
     def _commit_lines(self) -> Text:
@@ -232,7 +244,15 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         return Text(f"Skipped (no commits): {summary}", style="dim")
 
     def _transaction_summary(self) -> Text:
-        if self._is_bulk:
+        has_external_cleanup = any(
+            plan.discard_local_changes for plan in self._preview.revertable_repos
+        )
+        if has_external_cleanup:
+            message = (
+                "Opened external repos are cleaned in place without network access. "
+                "Commit reverts remain independent per repository."
+            )
+        elif self._is_bulk:
             message = (
                 "Each repository is reverted independently; a failure in one "
                 "repo does not undo completed repos."
@@ -249,6 +269,8 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
             repo.repo_label,
             repo.is_primary,
             repo.commits,
+            repo_kind=repo.repo_kind,
+            discard_local_changes=repo.discard_local_changes,
         )
 
     def _standalone_commit_card_text(self) -> Text:
@@ -256,6 +278,7 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
             "workspace",
             True,
             self._preview.commits,
+            repo_kind="linked",
         )
 
     def _revertable_card_text(
@@ -263,17 +286,27 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         repo_label: str,
         is_primary: bool,
         commits: tuple[RevertCommit, ...],
+        *,
+        repo_kind: str,
+        discard_local_changes: bool = False,
     ) -> Text:
         text = self._repo_header_text(
             repo_label,
             is_primary=is_primary,
             commit_count=len(commits),
+            repo_kind=repo_kind,
+            discard_local_changes=discard_local_changes,
         )
         if commits:
             text.append("\n")
             text.append_text(self._commit_lines_for(commits, indent="  "))
         else:
-            text.append("\n  (no commits)", style="dim")
+            message = (
+                "local changes will be discarded"
+                if discard_local_changes
+                else "(no commits)"
+            )
+            text.append(f"\n  {message}", style="dim")
         return text
 
     def _blocked_card_text(self, repo: RepoRevertPlan) -> Text:
@@ -281,7 +314,10 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         text = Text()
         text.append(f"{_BLOCKED_GLYPH}  ", style="bold yellow")
         text.append(_truncate_plain(repo.repo_label, 24), style="bold")
-        text.append(f" {self._repo_kind(repo.is_primary)}", style="dim")
+        text.append(
+            f" {self._repo_kind(repo.is_primary, repo.repo_kind)}",
+            style="dim",
+        )
         text.append("  BLOCKED · will be skipped", style="bold yellow")
         text.append(f"\n   {repo.commit_count} commit(s) matched", style="dim")
         text.append("\n   Reason: ", style="dim")
@@ -294,9 +330,13 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         *,
         is_primary: bool,
         commit_count: int,
+        repo_kind: str,
+        discard_local_changes: bool,
     ) -> Text:
-        kind = self._repo_kind(is_primary)
-        count = f"{commit_count} commit(s)"
+        kind = self._repo_kind(is_primary, repo_kind)
+        count = (
+            "local changes" if discard_local_changes else f"{commit_count} commit(s)"
+        )
         fixed_cells = 3 + 1 + cell_len(kind) + 1 + cell_len(count)
         label_width = max(12, _REPO_CARD_WIDTH - fixed_cells - 2)
         label = _truncate_plain(repo_label, label_width)
@@ -330,8 +370,8 @@ class ConfirmRevertAgentModal(ModalScreen[bool]):
         if marker:
             text.append(marker, style="bold black on cyan")
 
-    def _repo_kind(self, is_primary: bool) -> str:
-        return "primary" if is_primary else "linked"
+    def _repo_kind(self, is_primary: bool, repo_kind: str) -> str:
+        return "primary" if is_primary else repo_kind
 
     def _revertable_repo_count(self) -> int:
         repo_count = len(self._preview.revertable_repos)

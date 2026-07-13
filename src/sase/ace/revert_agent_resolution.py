@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from sase.ace.changespec.project_spec_path import project_spec_basename
 from sase.ace.revert_agent_models import BulkRevertIntent, RevertIntent, RevertRepo
+from sase.linked_repos import opened_external_repo_records
 from sase.plan_chain import agent_family_base
 
 if TYPE_CHECKING:
@@ -55,7 +56,7 @@ def resolve_revert_workspace_dir(agent: Agent) -> str | None:
 
 
 def resolve_revert_repos(agent: Agent) -> tuple[RevertRepo, ...]:
-    """Resolve primary plus linked repository workspaces for an agent revert.
+    """Resolve primary, linked, and external repos for an agent revert.
 
     Linked-repo sourcing is deliberately status-agnostic: the action layer has
     already limited reverts to done/failed agents, and reusing linked-DELTAS
@@ -84,6 +85,23 @@ def resolve_revert_repos(agent: Agent) -> tuple[RevertRepo, ...]:
                 label=linked.name,
                 workspace_dir=workspace_dir,
                 is_primary=False,
+            )
+        )
+
+    for external in _external_repos_for_revert(agent):
+        workspace_dir = _existing_workspace_dir(external.workspace_dir)
+        if workspace_dir is None:
+            continue
+        key = _dedup_workspace_key(workspace_dir)
+        if key in seen_dirs:
+            continue
+        seen_dirs.add(key)
+        repos.append(
+            RevertRepo(
+                label=external.label,
+                workspace_dir=workspace_dir,
+                is_primary=False,
+                repo_kind="external",
             )
         )
 
@@ -126,6 +144,10 @@ def build_revert_intent(
         family_base=family_base,
         artifacts_dir=agent.get_artifacts_dir(),
         linked_repo_names=_suffix_linked_repo_names(agent),
+        external_artifact_dirs=_external_artifact_dirs_for_revert(
+            agent,
+            source_agent_name=agent_name,
+        ),
     )
 
 
@@ -146,6 +168,10 @@ def build_bulk_revert_intent(
         cl_name=representative.cl_name,
         targets=tuple(targets),
         linked_repo_names=_union_suffix_linked_repo_names(target_agents),
+        external_artifact_dirs=_union_external_artifact_dirs_for_revert(
+            targets,
+            target_agents,
+        ),
     )
 
 
@@ -168,6 +194,7 @@ def build_revert_execute_intent(
         family_base=None,
         artifacts_dir=artifacts_dir,
         linked_repo_names=_preview_linked_repo_names(preview),
+        external_repos=_preview_external_repos(preview),
     )
 
 
@@ -182,6 +209,7 @@ def build_bulk_revert_execute_intent(
         cl_name=representative.cl_name,
         targets=preview.targets,
         linked_repo_names=_preview_linked_repo_names(preview),
+        external_repos=_preview_external_repos(preview),
     )
 
 
@@ -192,11 +220,27 @@ def _preview_linked_repo_names(
     names: list[str] = []
     seen: set[str] = set()
     for plan in preview.repos:
-        if plan.is_primary or plan.repo_label in seen:
+        if plan.is_primary or plan.repo_kind == "external" or plan.repo_label in seen:
             continue
         seen.add(plan.repo_label)
         names.append(plan.repo_label)
     return tuple(names)
+
+
+def _preview_external_repos(
+    preview: RevertPreview | BulkRevertPreview,
+) -> tuple[RevertRepo, ...]:
+    """Return the external clone paths carried by a confirmed preview."""
+    return tuple(
+        RevertRepo(
+            label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            repo_kind="external",
+            source_agent_names=plan.source_agent_names,
+        )
+        for plan in preview.repos
+        if plan.repo_kind == "external"
+    )
 
 
 def _suffix_linked_repo_names(agent: Agent) -> tuple[str, ...]:
@@ -217,6 +261,101 @@ def _union_suffix_linked_repo_names(
             seen.add(name)
             names.append(name)
     return tuple(names)
+
+
+def _external_repos_for_revert(
+    agent: Agent,
+    *,
+    source_agent_name: str | None = None,
+) -> tuple[RevertRepo, ...]:
+    """Return external repositories recorded in an agent-family's markers."""
+    return external_repos_from_artifact_dirs(
+        _external_artifact_dirs_for_revert(
+            agent,
+            source_agent_name=source_agent_name,
+        )
+    )
+
+
+def _external_artifact_dirs_for_revert(
+    agent: Agent,
+    *,
+    source_agent_name: str | None = None,
+) -> tuple[tuple[str, str], ...]:
+    """Collect marker roots without performing filesystem I/O."""
+    artifacts: list[tuple[str, str]] = []
+    pending = [agent]
+    seen_agents: set[tuple[object, ...]] = set()
+    seen_dirs: set[str] = set()
+    while pending:
+        member = pending.pop(0)
+        if member.identity in seen_agents:
+            continue
+        seen_agents.add(member.identity)
+        pending.extend(member.followup_agents)
+        artifacts_dir = member.artifacts_dir
+        if not artifacts_dir:
+            continue
+        normalized = os.path.normcase(
+            os.path.abspath(os.path.expanduser(artifacts_dir))
+        )
+        if normalized in seen_dirs:
+            continue
+        seen_dirs.add(normalized)
+        artifacts.append((source_agent_name or "", artifacts_dir))
+    return tuple(artifacts)
+
+
+def external_repos_from_artifact_dirs(
+    artifact_dirs: Sequence[tuple[str, str]],
+) -> tuple[RevertRepo, ...]:
+    """Load and merge external-repo markers from tracked-worker inputs."""
+    repos: dict[tuple[str, str], RevertRepo] = {}
+    order: list[tuple[str, str]] = []
+    for source_agent_name, artifacts_dir in artifact_dirs:
+        records = opened_external_repo_records(
+            Path(artifacts_dir).expanduser().resolve(strict=False)
+        )
+        for name, record in records.items():
+            workspace_dir = record.get("workspace_dir", "")
+            key = (name, _dedup_workspace_key(workspace_dir))
+            if not workspace_dir:
+                continue
+            source_names = (source_agent_name,) if source_agent_name else ()
+            existing = repos.get(key)
+            if existing is not None:
+                source_names = tuple(
+                    dict.fromkeys((*existing.source_agent_names, *source_names))
+                )
+            else:
+                order.append(key)
+            repos[key] = RevertRepo(
+                label=name,
+                workspace_dir=workspace_dir,
+                repo_kind="external",
+                source_agent_names=source_names,
+            )
+    return tuple(repos[key] for key in order)
+
+
+def _union_external_artifact_dirs_for_revert(
+    targets: _Sequence[RevertTarget],
+    agents: _Sequence[Agent],
+) -> tuple[tuple[str, str], ...]:
+    """Return marker roots across bulk targets with source owners."""
+    artifact_dirs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for target, agent in zip(targets, agents, strict=False):
+        for source_name, artifacts_dir in _external_artifact_dirs_for_revert(
+            agent,
+            source_agent_name=target.agent_name,
+        ):
+            key = (source_name, _dedup_workspace_key(artifacts_dir))
+            if key in seen:
+                continue
+            seen.add(key)
+            artifact_dirs.append((source_name, artifacts_dir))
+    return tuple(artifact_dirs)
 
 
 def resolve_revert_family_base(agent: Agent, agent_name: str | None) -> str | None:
@@ -280,6 +419,7 @@ __all__ = [
     "build_bulk_revert_intent",
     "build_revert_execute_intent",
     "build_revert_intent",
+    "external_repos_from_artifact_dirs",
     "resolve_revert_agent_name",
     "resolve_revert_family_base",
     "resolve_revert_repos",

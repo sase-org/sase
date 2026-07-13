@@ -9,12 +9,15 @@ from rich.text import Text
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 
 from ._agent_context_common import (
+    COLOR_EXTERNAL_REPO_GLYPH,
+    COLOR_EXTERNAL_REPO_NAME,
     COLOR_EMPTY,
     COLOR_TRUNCATION,
     COLOR_WORKSPACE_GLYPH,
     COLOR_WORKSPACE_NAME,
     COLOR_WORKSPACE_PATH,
     COLOR_WORKSPACE_SUBHEADER,
+    EXTERNAL_REPO_GLYPH,
     WORKSPACE_GLYPH,
     WORKSPACE_PATH_CONNECTOR,
     append_context_lane_header,
@@ -75,13 +78,18 @@ def append_agent_opened_workspaces_section(
     visible = events[:MAX_VISIBLE_OPENED_WORKSPACES]
     show_role_column = any(item.agent_label for item in visible)
     for event in visible:
+        external = event.kind == "external"
         reason_indent = append_lane_row(
             text,
             timestamp=event.opened_at,
-            glyph=WORKSPACE_GLYPH,
-            glyph_style=COLOR_WORKSPACE_GLYPH,
+            glyph=EXTERNAL_REPO_GLYPH if external else WORKSPACE_GLYPH,
+            glyph_style=(
+                COLOR_EXTERNAL_REPO_GLYPH if external else COLOR_WORKSPACE_GLYPH
+            ),
             primary=truncate_display(event.name, WORKSPACE_NAME_LIMIT),
-            primary_style=COLOR_WORKSPACE_NAME,
+            primary_style=(
+                COLOR_EXTERNAL_REPO_NAME if external else COLOR_WORKSPACE_NAME
+            ),
             role_label=event.agent_label,
             show_role_column=show_role_column,
         )

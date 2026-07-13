@@ -29,6 +29,7 @@ from sase.ace.revert_agent_workspace import (
     RevertWorkspaceError,
     _PreparedRevertWorkspace,
 )
+from sase.linked_repos import record_opened_external_repo
 from tests.ace._revert_agent_helpers import _commit, _git, _init_repo, _msg
 
 
@@ -402,6 +403,59 @@ def test_prepare_materializes_and_prepares_linked_repo(
     # Primary and linked repos were materialized for the *same* claimed number.
     assert captured["primary_num"] == 21
     assert captured["linked_num"] == 21
+    assert len(recorder.releases) == 1
+
+
+def test_prepare_loads_external_markers_and_reuses_clone_in_place(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary_origin = tmp_path / "primary_origin"
+    primary_origin.mkdir()
+    claimed_primary = tmp_path / "claimed_primary"
+    _init_on_branch_cl(claimed_primary, agent="someone-else", subject="primary")
+    external = tmp_path / "external" / "gh" / "pallets" / "click"
+    _init_repo(external)
+    (external / "README.md").write_text("dirty\n", encoding="utf-8")
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    record_opened_external_repo(
+        "gh:pallets/click",
+        str(external),
+        reason="port parser fix",
+    )
+
+    captured: dict[str, int] = {}
+    _install_prepare_seams(
+        monkeypatch,
+        primary_dir=primary_origin,
+        claimed_primary=claimed_primary,
+        linked_resolution=SimpleNamespace(repos=[]),
+        captured=captured,
+    )
+    recorder = _ClaimRecorder(workspace_num=24)
+    recorder.install(monkeypatch)
+
+    preview = preview_agent_revert_intent(
+        RevertIntent(
+            project_file=str(tmp_path / "proj.sase"),
+            project_basename="p",
+            cl_name="cl",
+            agent_name="foo",
+            external_artifact_dirs=(("foo", str(artifacts)),),
+        )
+    )
+
+    assert preview.ok, preview.error
+    assert preview.commit_count == 0
+    assert len(preview.revertable_repos) == 1
+    plan = preview.revertable_repos[0]
+    assert plan.repo_label == "gh:pallets/click"
+    assert plan.repo_kind == "external"
+    assert plan.workspace_dir == str(external)
+    assert plan.source_agent_names == ("foo",)
+    assert plan.discard_local_changes is True
+    assert captured["primary_num"] == 24
     assert len(recorder.releases) == 1
 
 

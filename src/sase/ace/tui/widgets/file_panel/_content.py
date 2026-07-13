@@ -6,6 +6,8 @@ from rich.console import Group
 from rich.text import Text
 from textual.containers import VerticalScroll
 
+from sase.linked_repos import OpenedRepoKind
+
 from ...util.lazy_syntax import (
     FILE_PANEL_MAX_RENDER_LINES,
     LazySyntaxRenderCache,
@@ -18,6 +20,7 @@ class FilePanelContentMixin:
     """Mixin providing full-content rendering and scroll preservation."""
 
     _content_render_cache: LazySyntaxRenderCache
+    _linked_repo_kind: OpenedRepoKind
 
     def _reset_content_state(self) -> None:
         """Reset state associated with the currently displayed content."""
@@ -30,6 +33,7 @@ class FilePanelContentMixin:
         self._content_fetched_at: datetime | None = None
         self._static_header_path: str | None = None
         self._linked_repo_name: str | None = None
+        self._linked_repo_kind = "linked"
         self._linked_workspace_dir: str | None = None
         self._linked_fetched_at: datetime | None = None
 

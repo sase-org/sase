@@ -117,6 +117,34 @@ def test_modal_repo_commit_lines_and_blocked_summary() -> None:
     assert "uncommitted" in blocked
 
 
+def test_modal_labels_external_cleanup_without_commit_count() -> None:
+    preview = RevertPreview(
+        "foo",
+        "agent",
+        "/ws",
+        repos=(
+            RepoRevertPlan(
+                "gh:pallets/click",
+                "/ws/sase/repos/external/gh/pallets/click",
+                False,
+                repo_kind="external",
+                discard_local_changes=True,
+            ),
+        ),
+    )
+    modal = ConfirmRevertAgentModal(preview)
+
+    assert preview.ok
+    assert "Discarding local changes in 1 opened external repo" in (
+        modal._summary_text().plain
+    )
+    card = modal._repo_card_text(preview.repos[0]).plain
+    assert "gh:pallets/click external" in card
+    assert "local changes will be discarded" in card
+    assert "without network access" in modal._transaction_summary().plain
+    assert "Revert Agent + Opened Repos" in modal._build_border_title().plain
+
+
 def test_modal_sdd_summary_none_and_some() -> None:
     empty = ConfirmRevertAgentModal(RevertPreview("foo", "agent", "/ws", ()))
     assert empty._sdd_summary().plain == "SDD provenance: (none)"

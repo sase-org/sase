@@ -13,6 +13,7 @@ from ...graphics import is_supported_image_path
 from ...models.agent import Agent
 from ..prompt_panel._agent_commits import CommitDiffInfo, agent_commit_diffs
 from ..prompt_panel._agent_context_common import WORKSPACE_GLYPH
+from ..prompt_panel._agent_context_common import EXTERNAL_REPO_GLYPH
 from ._linked_deltas import LinkedDeltaGroup, get_cached_linked_delta_groups
 from ._messages import (
     FileListChanged,
@@ -169,6 +170,7 @@ class FilePanelFileListMixin:
                 group.workspace_dir,
                 group.diff_text,
                 group.fetched_at,
+                group.kind,
             )
             return
         self.display_static_file(path)  # type: ignore[attr-defined]
@@ -378,12 +380,24 @@ class FilePanelFileListMixin:
                 if not label:
                     label = "commit diff"
                 if not info.is_primary:
-                    label = f"{WORKSPACE_GLYPH} {label}"
+                    glyph = (
+                        EXTERNAL_REPO_GLYPH
+                        if info.repo_kind == "external"
+                        else WORKSPACE_GLYPH
+                    )
+                    label = f"{glyph} {label}"
             return FileSourceLabel(tag="git", label=label)
         if is_linked_slot(slot):
+            repo_name = linked_slot_repo_name(slot)
+            group = self._linked_group_for_repo(repo_name)
+            glyph = (
+                EXTERNAL_REPO_GLYPH
+                if group is not None and group.kind == "external"
+                else WORKSPACE_GLYPH
+            )
             return FileSourceLabel(
                 tag="repo",
-                label=f"{WORKSPACE_GLYPH} {linked_slot_repo_name(slot)}",
+                label=f"{glyph} {repo_name}",
             )
         expanded = os.path.expanduser(slot)
         label = os.path.basename(expanded) or expanded

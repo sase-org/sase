@@ -629,3 +629,31 @@ class TestWorkflowVariablesHeader:
         assert "WORKFLOW VARIABLES" not in header.plain
         assert "COMMITS:" not in header.plain
         assert header.plain.count(MAJOR_SECTION_RULE) == 1
+
+
+def test_external_commit_is_attributed_from_nested_clone_path(tmp_path: Path) -> None:
+    primary = tmp_path / "sase_7"
+    external = primary / "sase" / "repos" / "external" / "gh" / "pallets" / "click"
+    diff_path = tmp_path / "external.diff"
+    agent = make_agent(
+        workspace_dir=str(primary),
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "fix: external parser",
+                    "sha": "eeeeeeeeeeeeffff",
+                    "cwd": str(external / "src"),
+                    "diff_path": str(diff_path),
+                }
+            ],
+        },
+    )
+
+    header, _ = build_header_text(agent, cheap=True)
+    commit_diffs = agent_commit_diffs(agent)
+
+    assert "  ◆ gh:pallets/click\n" in header.plain
+    assert [
+        (diff.repo_name, diff.repo_kind, diff.is_primary, diff.workspace_dir)
+        for diff in commit_diffs
+    ] == [("gh:pallets/click", "external", False, str(external))]

@@ -14,7 +14,11 @@ from sase.ace.tui.opened_workspaces import (
     _load_opened_workspaces_for_agent,
     load_opened_workspaces_for_agent_context,
 )
-from sase.linked_repos import OPENED_LINKED_FILENAME, record_opened_linked_repo
+from sase.linked_repos import (
+    OPENED_LINKED_FILENAME,
+    record_opened_external_repo,
+    record_opened_linked_repo,
+)
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -252,3 +256,28 @@ def test_missing_artifacts_dir_returns_empty_tuple() -> None:
 
     assert _load_opened_workspaces_for_agent(agent) == ()
     assert load_opened_workspaces_for_agent_context(agent) == ()
+
+
+def test_external_workspace_records_preserve_kind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir.mkdir()
+    workspace_dir.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    record_opened_external_repo(
+        "gh:pallets/click",
+        str(workspace_dir / "sase" / "repos" / "external" / "gh" / "pallets" / "click"),
+        reason="inspect upstream parsing",
+        opened_at="2026-07-13T18:00:00+00:00",
+    )
+
+    events = _load_opened_workspaces_for_agent(
+        _make_agent(artifacts_dir=artifacts_dir, workspace_dir=workspace_dir)
+    )
+
+    assert [(event.name, event.kind) for event in events] == [
+        ("gh:pallets/click", "external")
+    ]

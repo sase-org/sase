@@ -13,6 +13,10 @@ from sase.ace.tui.modals.project_inventory_panes import (
     RepoInventoryPane,
     WorkspaceInventoryPane,
 )
+from sase.ace.tui.modals.project_inventory_rendering import (
+    repo_record_label,
+    repo_summary_text,
+)
 from sase.ace.tui.modals.project_management_rendering import ProjectInventoryCounts
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
@@ -89,6 +93,25 @@ def _workspace(
         claim_cl_name="inventory-phase" if claim_agent else None,
         claim_timestamp="260713_094059" if claim_agent else None,
     )
+
+
+def test_external_repo_inventory_uses_amber_kind_style() -> None:
+    external = _repo("gh:pallets/click", kind="external")
+
+    label = repo_record_label(external)
+    summary = repo_summary_text(
+        [external],
+        project=None,
+        text_filter="",
+        issue_count=0,
+        loading=False,
+        error="",
+    )
+
+    assert "external" in label.plain
+    assert any(str(span.style) == "bold #FFAF00" for span in label.spans)
+    assert "external:1" in summary.plain
+    assert any(str(span.style) == "bold #FFAF00" for span in summary.spans)
 
 
 def _patch_inventory_data(

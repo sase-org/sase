@@ -64,6 +64,24 @@ def _write_diff(path: Path, *, old: str, new: str) -> None:
     )
 
 
+def test_commit_view_title_labels_external_repo() -> None:
+    spec = CommitViewSpec(
+        short_sha="abcdef123456",
+        sha="abcdef1234567890",
+        repo_name="gh:pallets/click",
+        cwd="/workspace/sase/repos/external/gh/pallets/click",
+        subject="fix: parser",
+        message="fix: parser",
+        diff_path=None,
+        is_primary=False,
+        repo_kind="external",
+    )
+
+    title = CommitViewModal([spec])._build_title().plain
+
+    assert "gh:pallets/click (external)" in title
+
+
 async def _wait_for_diff(
     pilot,
     modal: CommitViewModal,

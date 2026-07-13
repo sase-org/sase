@@ -10,7 +10,8 @@ from sase.ace.tui.models.agent import Agent
 from sase.linked_repos import (
     OPENED_LINKED_FILENAME,
     OPENED_SIBLINGS_FILENAME,
-    opened_linked_repo_records,
+    OpenedRepoKind,
+    opened_repo_records,
 )
 
 MAX_KEPT_OPENED_WORKSPACES = 50
@@ -19,13 +20,14 @@ _MIN_REREAD_INTERVAL_S = 0.5
 
 @dataclass(frozen=True)
 class OpenedWorkspaceDisplayEvent:
-    """An opened linked workspace paired with an optional family role label."""
+    """An opened repository workspace paired with an optional family role."""
 
     name: str
     workspace_dir: str
     reason: str
     opened_at: str
     agent_label: str | None = None
+    kind: OpenedRepoKind = "linked"
 
 
 @dataclass
@@ -78,6 +80,7 @@ def _event_from_record(
         reason=record.get("reason", ""),
         opened_at=record.get("opened_at", ""),
         agent_label=agent_label,
+        kind=record.get("kind", "linked"),  # type: ignore[arg-type]
     )
 
 
@@ -96,7 +99,7 @@ def _sort_events(
 def _load_opened_workspaces_for_agent(
     agent: Agent, *, limit: int = MAX_KEPT_OPENED_WORKSPACES
 ) -> tuple[OpenedWorkspaceDisplayEvent, ...]:
-    """Return linked workspaces opened by ``agent``, newest first.
+    """Return repository workspaces opened by ``agent``, newest first.
 
     Uses an mtime-keyed cache + throttle so repeated detail-panel renders do
     not re-read marker JSON while the user is navigating.
@@ -117,7 +120,7 @@ def _load_opened_workspaces_for_agent(
             return cached.events[:limit]
 
     events: list[OpenedWorkspaceDisplayEvent] = []
-    for record in opened_linked_repo_records(artifact_root).values():
+    for record in opened_repo_records(artifact_root).values():
         event = _event_from_record(record, agent_label=None)
         if event is not None:
             events.append(event)
@@ -169,7 +172,7 @@ def load_opened_workspaces_for_agent_context(
         if not member.artifacts_dir:
             continue
         artifact_root = Path(member.artifacts_dir).expanduser().resolve(strict=False)
-        for name, record in opened_linked_repo_records(artifact_root).items():
+        for name, record in opened_repo_records(artifact_root).items():
             dedupe_key = (member.cache_key, name)
             if dedupe_key in seen:
                 continue

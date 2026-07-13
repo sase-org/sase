@@ -40,6 +40,7 @@ from sase.ace.revert_agent_preview import (
     preview_agent_revert,
     preview_agents_revert,
 )
+from sase.ace.revert_agent_resolution import external_repos_from_artifact_dirs
 from sase.linked_repos import resolve_linked_repos_for_project
 from sase.running_field import (
     WorkspaceClaimError,
@@ -67,7 +68,7 @@ class _PreparedRevertWorkspace:
 
     workspace_num: int
     primary_dir: str
-    #: Repositories prepared successfully (primary first, then linked repos).
+    #: Repositories prepared successfully (primary, linked, then external).
     repos: tuple[RevertRepo, ...]
     #: Per-repo plans for repositories that could not be prepared (e.g. a linked
     #: repo missing the branch). Surfaced as blocked rather than silently
@@ -260,6 +261,44 @@ def _prepare_revert_workspace(
             continue
         repos.append(RevertRepo(label=name, workspace_dir=linked_dir, is_primary=False))
 
+    seen_repo_dirs = {
+        os.path.normcase(os.path.abspath(os.path.expanduser(repo.workspace_dir)))
+        for repo in repos
+    }
+    external_repos = (
+        *intent.external_repos,
+        *external_repos_from_artifact_dirs(intent.external_artifact_dirs),
+    )
+    for external in external_repos:
+        external_dir = os.path.normpath(os.path.expanduser(external.workspace_dir))
+        dedupe_key = os.path.normcase(os.path.abspath(external_dir))
+        if dedupe_key in seen_repo_dirs:
+            continue
+        seen_repo_dirs.add(dedupe_key)
+        if not os.path.isdir(external_dir):
+            prep_blocked.append(
+                RepoRevertPlan(
+                    repo_label=external.label,
+                    workspace_dir=external_dir,
+                    is_primary=False,
+                    blocked_reason="Opened external repository is no longer available",
+                    repo_kind="external",
+                    source_agent_names=external.source_agent_names,
+                )
+            )
+            continue
+        # External repos are deliberately reused in place: they are ephemeral
+        # workspace-local clones with no ChangeSpec branch contract. Preview
+        # inspects local changes and execution discards them without network I/O.
+        repos.append(
+            RevertRepo(
+                label=external.label,
+                workspace_dir=external_dir,
+                repo_kind="external",
+                source_agent_names=external.source_agent_names,
+            )
+        )
+
     return _PreparedRevertWorkspace(
         workspace_num=workspace_num,
         primary_dir=claimed_primary,
@@ -328,21 +367,26 @@ def _remap_plans(
     released) checkout the preview ran in. A label with no prepared repository
     is marked blocked rather than reverting against a stale path.
     """
-    by_label = {repo.label: repo for repo in prepared.repos}
-    blocked_by_label = {plan.repo_label: plan for plan in prepared.prep_blocked}
+    by_label = {(repo.label, repo.repo_kind): repo for repo in prepared.repos}
+    blocked_by_label = {
+        (plan.repo_label, plan.repo_kind): plan for plan in prepared.prep_blocked
+    }
     remapped: list[RepoRevertPlan] = []
     for plan in plans:
-        prepared_repo = by_label.get(plan.repo_label)
+        key = (plan.repo_label, plan.repo_kind)
+        prepared_repo = by_label.get(key)
         if prepared_repo is not None:
             remapped.append(
                 replace(
                     plan,
                     workspace_dir=prepared_repo.workspace_dir,
                     is_primary=prepared_repo.is_primary,
+                    repo_kind=prepared_repo.repo_kind,
+                    source_agent_names=prepared_repo.source_agent_names,
                 )
             )
             continue
-        blocked = blocked_by_label.get(plan.repo_label)
+        blocked = blocked_by_label.get(key)
         reason = (
             blocked.blocked_reason
             if blocked is not None

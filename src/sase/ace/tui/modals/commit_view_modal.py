@@ -123,6 +123,8 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
         text.append(spec.repo_name, style=_COLOR_HEADER)
         if spec.is_primary:
             text.append(" (primary)", style="bold #5FD787")
+        elif spec.repo_kind == "external":
+            text.append(" (external)", style="bold #FFAF00")
         text.append("  ")
         text.append(spec.short_sha or spec.sha, style=_COLOR_SHA)
         if spec.subject:

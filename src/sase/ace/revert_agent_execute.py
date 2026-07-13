@@ -30,6 +30,7 @@ from sase.ace.revert_agent_transaction import (
     rollback_to,
     run_git_for_revert,
 )
+from sase.vcs_provider import get_vcs_provider
 
 
 def execute_agent_revert(
@@ -56,7 +57,7 @@ def execute_agent_revert(
             ),
         )
         for plan in preview.repos
-        if plan.commits
+        if plan.commits or plan.discard_local_changes
     )
     reverted_shas = _flatten_reverted_shas(outcomes)
     complete = _outcomes_complete(outcomes)
@@ -64,7 +65,7 @@ def execute_agent_revert(
     error = None if complete else _first_outcome_error(outcomes)
     message = _agent_result_message(preview.agent_name, outcomes)
 
-    if artifacts_dir and reverted_shas:
+    if artifacts_dir and (reverted_shas or _discarded_repo_count(outcomes)):
         write_revert_result(
             artifacts_dir,
             preview.agent_name,
@@ -100,15 +101,15 @@ def execute_agents_revert(preview: BulkRevertPreview) -> BulkRevertResult:
             ),
         )
         for plan in preview.repos
-        if plan.commits
+        if plan.commits or plan.discard_local_changes
     )
     reverted_shas = _flatten_reverted_shas(outcomes)
     complete = _outcomes_complete(outcomes)
     pushed = any(outcome.pushed for outcome in outcomes)
     error = None if complete else _first_outcome_error(outcomes)
-    agent_names = _target_names_with_reverted_commits(preview, outcomes)
+    agent_names = _target_names_with_reverted_work(preview, outcomes)
 
-    if reverted_shas:
+    if reverted_shas or _discarded_repo_count(outcomes):
         for target in preview.targets:
             if target.artifacts_dir and target.agent_name in agent_names:
                 write_revert_result(
@@ -172,6 +173,9 @@ def _execute_repo_plan(
     plan: RepoRevertPlan,
     message_builder: Callable[[str, tuple[str, ...]], str],
 ) -> RepoRevertOutcome:
+    if plan.discard_local_changes:
+        return _execute_external_cleanup(plan)
+
     ordered = tuple(commit.full_sha for commit in plan.commits)
     if not ordered:
         return RepoRevertOutcome(
@@ -252,6 +256,59 @@ def _execute_repo_plan(
     )
 
 
+def _execute_external_cleanup(plan: RepoRevertPlan) -> RepoRevertOutcome:
+    """Discard changes in an existing external clone without network access."""
+    if plan.blocked_reason is not None:
+        return RepoRevertOutcome(
+            repo_label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            success=False,
+            skipped_reason=plan.blocked_reason,
+            repo_kind="external",
+        )
+    if plan.repo_kind != "external":
+        return RepoRevertOutcome(
+            repo_label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            success=False,
+            skipped_reason="Local cleanup is only supported for external repos",
+        )
+    if not is_git_worktree(plan.workspace_dir):
+        return RepoRevertOutcome(
+            repo_label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            success=False,
+            skipped_reason="Workspace is not a git worktree (revert is git-only)",
+            repo_kind="external",
+        )
+    try:
+        provider = get_vcs_provider(plan.workspace_dir)
+        ok, error = provider.clean_workspace(plan.workspace_dir)
+    except Exception as exc:
+        return RepoRevertOutcome(
+            repo_label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            success=False,
+            error=f"Could not discard local changes: {exc}",
+            repo_kind="external",
+        )
+    if not ok:
+        return RepoRevertOutcome(
+            repo_label=plan.repo_label,
+            workspace_dir=plan.workspace_dir,
+            success=False,
+            error=error or "Could not discard local changes",
+            repo_kind="external",
+        )
+    return RepoRevertOutcome(
+        repo_label=plan.repo_label,
+        workspace_dir=plan.workspace_dir,
+        success=True,
+        repo_kind="external",
+        discarded_local_changes=True,
+    )
+
+
 def _flatten_reverted_shas(
     outcomes: tuple[RepoRevertOutcome, ...],
 ) -> tuple[str, ...]:
@@ -262,7 +319,12 @@ def _outcomes_complete(outcomes: tuple[RepoRevertOutcome, ...]) -> bool:
     revert_outcomes = tuple(
         outcome
         for outcome in outcomes
-        if outcome.reverted_shas or outcome.error or outcome.skipped_reason
+        if (
+            outcome.reverted_shas
+            or outcome.discarded_local_changes
+            or outcome.error
+            or outcome.skipped_reason
+        )
     )
     return bool(revert_outcomes) and all(outcome.success for outcome in revert_outcomes)
 
@@ -281,16 +343,26 @@ def _agent_result_message(
     outcomes: tuple[RepoRevertOutcome, ...],
 ) -> str:
     reverted_count = len(_flatten_reverted_shas(outcomes))
+    discarded_count = _discarded_repo_count(outcomes)
     successful = tuple(outcome for outcome in outcomes if outcome.success)
     failed = tuple(outcome for outcome in outcomes if not outcome.success)
-    if not outcomes or reverted_count == 0 and not failed:
+    if not outcomes or reverted_count == 0 and discarded_count == 0 and not failed:
         return "No commits to revert"
 
     if not failed:
         repo_suffix = (
             "" if len(successful) <= 1 else f" across {len(successful)} repo(s)"
         )
-        summary = f"Reverted {reverted_count} commit(s) for '{agent_name}'{repo_suffix}"
+        if reverted_count:
+            summary = (
+                f"Reverted {reverted_count} commit(s) for '{agent_name}'{repo_suffix}"
+            )
+        else:
+            summary = f"Discarded local changes in {discarded_count} external repo(s)"
+        if reverted_count and discarded_count:
+            summary += (
+                f"; discarded local changes in {discarded_count} external repo(s)"
+            )
         summary += (
             " and pushed" if any(outcome.pushed for outcome in successful) else ""
         )
@@ -321,18 +393,26 @@ def _bulk_result_message(
     outcomes: tuple[RepoRevertOutcome, ...],
 ) -> str:
     reverted_count = len(_flatten_reverted_shas(outcomes))
+    discarded_count = _discarded_repo_count(outcomes)
     successful = tuple(outcome for outcome in outcomes if outcome.success)
     failed = tuple(outcome for outcome in outcomes if not outcome.success)
     agent_count = len(matched_names)
-    if not outcomes or reverted_count == 0 and not failed:
+    if not outcomes or reverted_count == 0 and discarded_count == 0 and not failed:
         return "No commits to revert"
 
     if not failed:
         repo_suffix = "" if len(successful) <= 1 else f" in {len(successful)} repo(s)"
-        summary = (
-            f"Reverted {reverted_count} commit(s) across {agent_count} "
-            f"agent(s){repo_suffix}"
-        )
+        if reverted_count:
+            summary = (
+                f"Reverted {reverted_count} commit(s) across {agent_count} "
+                f"agent(s){repo_suffix}"
+            )
+        else:
+            summary = f"Discarded local changes in {discarded_count} external repo(s)"
+        if reverted_count and discarded_count:
+            summary += (
+                f"; discarded local changes in {discarded_count} external repo(s)"
+            )
         summary += (
             " and pushed" if any(outcome.pushed for outcome in successful) else ""
         )
@@ -367,7 +447,7 @@ def _format_failed_repo_summary(outcomes: tuple[RepoRevertOutcome, ...]) -> str:
     return "failed/skipped repo(s): " + "; ".join(parts)
 
 
-def _target_names_with_reverted_commits(
+def _target_names_with_reverted_work(
     preview: BulkRevertPreview,
     outcomes: tuple[RepoRevertOutcome, ...],
 ) -> tuple[str, ...]:
@@ -376,11 +456,16 @@ def _target_names_with_reverted_commits(
         for outcome in outcomes
         if outcome.reverted_shas
     }
-    if not reverted_by_repo:
-        return ()
+    discarded_by_repo = {
+        (outcome.repo_label, outcome.workspace_dir)
+        for outcome in outcomes
+        if outcome.discarded_local_changes
+    }
 
     matched: set[str] = set()
     for plan in preview.repos:
+        if (plan.repo_label, plan.workspace_dir) in discarded_by_repo:
+            matched.update(plan.source_agent_names)
         reverted = reverted_by_repo.get((plan.repo_label, plan.workspace_dir))
         if not reverted:
             continue
@@ -395,6 +480,13 @@ def _target_names_with_reverted_commits(
                 ):
                     matched.add(target.agent_name)
     return ordered_matched_names(preview.targets, matched)
+
+
+def _discarded_repo_count(outcomes: tuple[RepoRevertOutcome, ...]) -> int:
+    return sum(outcome.discarded_local_changes for outcome in outcomes)
+
+
+_target_names_with_reverted_commits = _target_names_with_reverted_work
 
 
 _apply_revert_transaction = apply_revert_transaction

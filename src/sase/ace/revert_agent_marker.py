@@ -86,6 +86,8 @@ def repo_outcome_payload(outcome: RepoRevertOutcome) -> dict[str, object]:
         "success": outcome.success,
         "reverted_shas": list(outcome.reverted_shas),
         "pushed": outcome.pushed,
+        "repo_kind": outcome.repo_kind,
+        "discarded_local_changes": outcome.discarded_local_changes,
     }
     if outcome.error is not None:
         payload["error"] = outcome.error

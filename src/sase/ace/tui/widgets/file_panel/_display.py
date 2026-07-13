@@ -17,11 +17,15 @@ from sase.ace.tui.graphics import (
 )
 
 from ..prompt_panel._agent_context_common import (
+    COLOR_EXTERNAL_REPO_GLYPH,
+    COLOR_EXTERNAL_REPO_NAME,
     COLOR_WORKSPACE_GLYPH,
     COLOR_WORKSPACE_NAME,
     COLOR_WORKSPACE_PATH,
+    EXTERNAL_REPO_GLYPH,
     WORKSPACE_GLYPH,
 )
+from sase.linked_repos import OpenedRepoKind
 from ._messages import (
     _LIVE_DIFF_SENTINEL,
     is_commit_slot,
@@ -40,6 +44,7 @@ class FilePanelDisplayMixin:
     _full_content: str | None
     _static_header_path: str | None
     _linked_repo_name: str | None
+    _linked_repo_kind: OpenedRepoKind
     _linked_workspace_dir: str | None
     _linked_fetched_at: datetime | None
     _content_fetched_at: datetime | None
@@ -103,16 +108,30 @@ class FilePanelDisplayMixin:
         repo_name: str | None = None,
         workspace_dir: str | None = None,
         fetched_at: datetime | None = None,
+        kind: OpenedRepoKind | None = None,
     ) -> Text:
-        """Build the banner shown above linked-repository diffs."""
-        repo = repo_name or self._linked_repo_name or "linked repo"
+        """Build the banner shown above opened-repository diffs."""
+        stored_kind = getattr(self, "_linked_repo_kind", "linked")
+        repo_kind: OpenedRepoKind = (
+            "external"
+            if kind == "external" or (kind is None and stored_kind == "external")
+            else "linked"
+        )
+        external = repo_kind == "external"
+        repo = repo_name or self._linked_repo_name or f"{repo_kind} repo"
         workspace = workspace_dir or self._linked_workspace_dir
         fetched = fetched_at if fetched_at is not None else self._linked_fetched_at
 
         banner = Text()
-        banner.append(WORKSPACE_GLYPH, style=COLOR_WORKSPACE_GLYPH)
-        banner.append(f" {repo}", style=COLOR_WORKSPACE_NAME)
-        banner.append(" · linked repo", style="dim")
+        banner.append(
+            EXTERNAL_REPO_GLYPH if external else WORKSPACE_GLYPH,
+            style=(COLOR_EXTERNAL_REPO_GLYPH if external else COLOR_WORKSPACE_GLYPH),
+        )
+        banner.append(
+            f" {repo}",
+            style=COLOR_EXTERNAL_REPO_NAME if external else COLOR_WORKSPACE_NAME,
+        )
+        banner.append(f" · {repo_kind} repo", style="dim")
         if workspace or fetched:
             banner.append("\n")
             if workspace:
@@ -132,11 +151,13 @@ class FilePanelDisplayMixin:
         workspace_dir: str,
         diff_text: str,
         fetched_at: datetime | None,
+        kind: OpenedRepoKind = "linked",
     ) -> None:
-        """Display a cached linked-repository diff page."""
+        """Display a cached opened-repository diff page."""
         fetch_time = fetched_at or datetime.now()
         self._last_file_content = diff_text
         self._linked_repo_name = repo_name
+        self._linked_repo_kind = kind
         self._linked_workspace_dir = workspace_dir
         self._linked_fetched_at = fetch_time
         self._static_header_path = None
@@ -149,15 +170,20 @@ class FilePanelDisplayMixin:
         self._render_full_content()  # type: ignore[attr-defined]
         self._has_displayed_content = True
 
-    def display_linked_diff_unavailable(self, repo_name: str) -> None:
-        """Display a temporary placeholder for a linked page whose cache vanished."""
+    def display_linked_diff_unavailable(
+        self,
+        repo_name: str,
+        kind: OpenedRepoKind = "linked",
+    ) -> None:
+        """Display a placeholder for an opened-repo page whose cache vanished."""
         cleanup = self._consume_image_cleanup_segments()
         self._reset_content_state()  # type: ignore[attr-defined]
         self._last_file_content = None
         self._linked_repo_name = repo_name
-        banner = self._build_linked_banner(repo_name=repo_name)
+        self._linked_repo_kind = kind
+        banner = self._build_linked_banner(repo_name=repo_name, kind=kind)
         body = Text(
-            "No linked-repo changes are currently cached.\n", style="dim italic"
+            "No opened-repo changes are currently cached.\n", style="dim italic"
         )
         self.update(Group(*cleanup, banner, Text(""), body))  # type: ignore[attr-defined]
         self._has_displayed_content = True

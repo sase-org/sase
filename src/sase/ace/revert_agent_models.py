@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 _SDD_PATH_PREFIX = "sdd/"
+RevertRepoKind = Literal["linked", "external"]
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,8 @@ class RevertRepo:
     label: str
     workspace_dir: str
     is_primary: bool = False
+    repo_kind: RevertRepoKind = "linked"
+    source_agent_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -41,10 +45,15 @@ class RepoRevertPlan:
     is_primary: bool
     commits: tuple[RevertCommit, ...] = ()
     blocked_reason: str | None = None
+    repo_kind: RevertRepoKind = "linked"
+    discard_local_changes: bool = False
+    source_agent_names: tuple[str, ...] = ()
 
     @property
     def revertable(self) -> bool:
-        return self.blocked_reason is None and bool(self.commits)
+        return self.blocked_reason is None and bool(
+            self.commits or self.discard_local_changes
+        )
 
     @property
     def commit_count(self) -> int:
@@ -63,6 +72,8 @@ class RepoRevertOutcome:
     error: str | None = None
     skipped_reason: str | None = None
     push_skipped_reason: str | None = None
+    repo_kind: RevertRepoKind = "linked"
+    discarded_local_changes: bool = False
 
 
 @dataclass(frozen=True)
@@ -227,6 +238,12 @@ class RevertIntent:
     #: against the freshly claimed workspace number rather than reusing the
     #: agent's original linked checkouts.
     linked_repo_names: tuple[str, ...] = ()
+    #: External repo marker records are kept as their original workspace-local
+    #: paths. Revert cleans them in place and never fetches or re-clones.
+    external_repos: tuple[RevertRepo, ...] = ()
+    #: ``(source agent name, artifacts dir)`` pairs resolved in-memory by the
+    #: action handler. Marker JSON is read later in the tracked worker.
+    external_artifact_dirs: tuple[tuple[str, str], ...] = ()
 
     @property
     def scope(self) -> str:
@@ -246,6 +263,8 @@ class BulkRevertIntent:
     cl_name: str
     targets: tuple[RevertTarget, ...] = ()
     linked_repo_names: tuple[str, ...] = ()
+    external_repos: tuple[RevertRepo, ...] = ()
+    external_artifact_dirs: tuple[tuple[str, str], ...] = ()
 
 
 __all__ = [
@@ -258,6 +277,7 @@ __all__ = [
     "RevertIntent",
     "RevertPreview",
     "RevertRepo",
+    "RevertRepoKind",
     "RevertResult",
     "RevertTarget",
 ]

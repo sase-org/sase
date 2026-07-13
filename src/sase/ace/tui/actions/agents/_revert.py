@@ -412,6 +412,17 @@ def _revert_dedup_key(prefix: str, intent: RevertIntent) -> str:
     parts = [prefix, intent.agent_name, intent.project_file, intent.cl_name]
     if intent.linked_repo_names:
         parts.append(",".join(sorted(intent.linked_repo_names)))
+    if intent.external_repos:
+        parts.append(",".join(sorted(repo.label for repo in intent.external_repos)))
+    if intent.external_artifact_dirs:
+        parts.append(
+            ",".join(
+                sorted(
+                    f"{source_name}={artifacts_dir}"
+                    for source_name, artifacts_dir in intent.external_artifact_dirs
+                )
+            )
+        )
     return ":".join(parts)
 
 
@@ -421,4 +432,15 @@ def _bulk_revert_dedup_key(prefix: str, intent: BulkRevertIntent) -> str:
     parts = [prefix, "bulk", names, intent.project_file, intent.cl_name]
     if intent.linked_repo_names:
         parts.append(",".join(sorted(intent.linked_repo_names)))
+    if intent.external_repos:
+        parts.append(",".join(sorted(repo.label for repo in intent.external_repos)))
+    if intent.external_artifact_dirs:
+        parts.append(
+            ",".join(
+                sorted(
+                    f"{source_name}={artifacts_dir}"
+                    for source_name, artifacts_dir in intent.external_artifact_dirs
+                )
+            )
+        )
     return ":".join(parts)

@@ -14,8 +14,12 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
 )
-from sase.linked_repos import record_opened_linked_repo
+from sase.linked_repos import record_opened_external_repo, record_opened_linked_repo
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
+from sase.ace.tui.widgets.file_panel._messages import (
+    linked_slot_id,
+    linked_slot_repo_name,
+)
 
 
 class _FakeLinkedDiffProvider:
@@ -382,3 +386,46 @@ def test_opened_workspace_uses_recorded_metadata(
     assert linked_deltas_mod.compute_linked_delta_groups(agent) == ()
     assert linked_deltas_mod.linked_agent_file_change_hint(agent) is False
     assert provider.has_changes_calls == [str(opened_workspace)]
+
+
+def test_compute_external_delta_group_preserves_kind_and_canonical_slot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    external = (
+        tmp_path / "sase_9" / "sase" / "repos" / "external" / "gh" / "pallets" / "click"
+    )
+    artifacts_dir.mkdir()
+    external.mkdir(parents=True)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    canonical_name = "gh:pallets/click"
+    record_opened_external_repo(
+        canonical_name,
+        str(external),
+        reason="port option parsing",
+        opened_at="2026-07-13T18:00:00+00:00",
+    )
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(external): " M src/core.py"},
+        diff_by_workspace={
+            str(external): """diff --git a/src/core.py b/src/core.py
+--- a/src/core.py
++++ b/src/core.py
+@@ -1 +1 @@
+-old
++new
+"""
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    agent = _agent()
+    agent.artifacts_dir = str(artifacts_dir)
+
+    groups = linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert [(group.repo_name, group.kind) for group in groups] == [
+        (canonical_name, "external")
+    ]
+    slot = linked_slot_id(canonical_name)
+    assert linked_slot_repo_name(slot) == canonical_name

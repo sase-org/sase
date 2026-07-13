@@ -6,6 +6,8 @@ from typing import Any
 from textual.widgets import Static
 from textual.worker import Worker
 
+from sase.linked_repos import OpenedRepoKind
+
 from ...models.agent import Agent
 from ...util.trace import tui_trace
 from ._content import FilePanelContentMixin, new_file_panel_render_cache
@@ -51,6 +53,7 @@ class AgentFilePanel(
         self._content_render_cache = new_file_panel_render_cache()
         self._static_header_path: str | None = None
         self._linked_repo_name: str | None = None
+        self._linked_repo_kind: OpenedRepoKind = "linked"
         self._linked_workspace_dir: str | None = None
         self._linked_fetched_at: datetime | None = None
         self._current_image_renderable = None

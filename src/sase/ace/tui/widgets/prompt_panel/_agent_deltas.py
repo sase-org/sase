@@ -183,6 +183,7 @@ def _visible_linked_delta_groups(
                 entries=entries,
                 diff_text=group.diff_text,
                 fetched_at=group.fetched_at,
+                kind=group.kind,
             )
         )
     return tuple(visible_groups)
@@ -280,36 +281,35 @@ def agent_delta_entries(agent: Agent) -> list[DeltaEntry]:
     return visible_agent_delta_entries(parse_unified_diff_deltas(diff_text))
 
 
-def _linked_workspace_dir_for_repo(agent: Agent, repo_name: str) -> str:
-    for repo in agent.linked_repos:
-        if repo.name == repo_name and repo.workspace_dir:
-            return repo.workspace_dir
-    return ""
-
-
 def agent_commit_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
-    """Build linked-repo DELTAS groups from persisted per-commit diff files."""
-    grouped: dict[str, list[CommitDiffInfo]] = {}
-    group_order: list[str] = []
+    """Build non-primary DELTAS groups from persisted per-commit diff files."""
+    grouped: dict[tuple[str, str], list[CommitDiffInfo]] = {}
+    group_order: list[tuple[str, str]] = []
     for commit_diff in agent_commit_diffs(agent):
         if commit_diff.is_primary:
             continue
-        if commit_diff.repo_name not in grouped:
-            grouped[commit_diff.repo_name] = []
-            group_order.append(commit_diff.repo_name)
-        grouped[commit_diff.repo_name].append(commit_diff)
+        key = (commit_diff.repo_name, commit_diff.repo_kind)
+        if key not in grouped:
+            grouped[key] = []
+            group_order.append(key)
+        grouped[key].append(commit_diff)
 
     groups: list[LinkedDeltaGroup] = []
-    for repo_name in group_order:
-        entries, diff_text = _commit_diff_delta_entries(grouped[repo_name])
+    for repo_name, repo_kind in sorted(
+        group_order,
+        key=lambda key: key[1] == "external",
+    ):
+        commit_infos = grouped[(repo_name, repo_kind)]
+        entries, diff_text = _commit_diff_delta_entries(commit_infos)
         if not entries:
             continue
         groups.append(
             LinkedDeltaGroup(
                 repo_name=repo_name,
-                workspace_dir=_linked_workspace_dir_for_repo(agent, repo_name),
+                workspace_dir=commit_infos[0].workspace_dir,
                 entries=tuple(entries),
                 diff_text=diff_text,
+                kind="external" if repo_kind == "external" else "linked",
             )
         )
     return tuple(groups)

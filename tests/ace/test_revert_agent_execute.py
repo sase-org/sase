@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.revert_agent import execute_agent_revert, preview_agent_revert
+from sase.ace.revert_agent import RevertRepo, execute_agent_revert, preview_agent_revert
 from tests.ace._revert_agent_helpers import (
     _add_bare_origin,
     _commit,
@@ -95,6 +95,49 @@ def test_execute_reverts_primary_and_linked_repos(tmp_path: Path) -> None:
         "primary",
         "sase-core",
     ]
+
+
+def test_execute_discards_dirty_external_clone_without_moving_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_VCS_PROVIDER", "bare_git")
+    external = tmp_path / "external" / "gh" / "pallets" / "click"
+    artifacts = tmp_path / "artifacts"
+    _init_repo(external)
+    artifacts.mkdir()
+    (external / "README.md").write_text("dirty\n", encoding="utf-8")
+    (external / "scratch.py").write_text("temporary\n", encoding="utf-8")
+    head_before = _git(external, "rev-parse", "HEAD").strip()
+    preview = preview_agent_revert(
+        (
+            RevertRepo(
+                "gh:pallets/click",
+                str(external),
+                repo_kind="external",
+                source_agent_names=("foo",),
+            ),
+        ),
+        "foo",
+    )
+
+    assert preview.ok
+    assert preview.commit_count == 0
+    assert preview.revertable_repos[0].discard_local_changes is True
+
+    result = execute_agent_revert(preview, artifacts_dir=str(artifacts))
+
+    assert result.success, result.message
+    assert result.reverted_shas == ()
+    assert result.repo_outcomes[0].discarded_local_changes is True
+    assert _git(external, "rev-parse", "HEAD").strip() == head_before
+    assert _git(external, "status", "--porcelain").strip() == ""
+    assert (external / "README.md").read_text(encoding="utf-8") == "base\n"
+    assert not (external / "scratch.py").exists()
+    saved = json.loads((artifacts / "revert_result.json").read_text())
+    assert saved["reverted_shas"] == []
+    assert saved["repos"][0]["repo_kind"] == "external"
+    assert saved["repos"][0]["discarded_local_changes"] is True
 
 
 def test_execute_reverts_linked_only_commits(tmp_path: Path) -> None:

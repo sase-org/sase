@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 from sase.agent.status_buckets import status_bucket_for_values
 from sase.ace.changespec.models import DeltaEntry
+from sase.linked_repos import OpenedRepoKind
 from sase.vcs_provider import VCSProviderNotFoundError
 
 from ...models.agent import Agent, LinkedRepoMetadata
@@ -26,19 +27,21 @@ LINKED_DELTAS_REFRESH_INTERVAL_SECONDS = DIFF_CACHE_TTL_SECONDS
 
 @dataclass(frozen=True)
 class LinkedDeltaGroup:
-    """Delta entries for one linked repository workspace."""
+    """Delta entries for one opened repository workspace."""
 
     repo_name: str
     workspace_dir: str
     entries: tuple[DeltaEntry, ...]
     diff_text: str = ""
     fetched_at: datetime | None = None
+    kind: OpenedRepoKind = "linked"
 
 
 LinkedDeltaCacheKey = tuple[
     tuple[object, ...],  # agent.identity
     str,  # repo name
     str,  # workspace_dir
+    OpenedRepoKind,  # repository kind
     str,  # VCS provider name
     tuple[int, int] | None,  # .git/index (mtime_ns, size)
     int,  # TTL bucket
@@ -74,6 +77,7 @@ def _normalized_workspace_dir(workspace_dir: str) -> str | None:
 class _LinkedWorkspaceCandidate(NamedTuple):
     repo_name: str
     workspace_dir: str
+    kind: OpenedRepoKind = "linked"
 
 
 def _linked_metadata_agents(agent: Agent) -> tuple[Agent, ...]:
@@ -125,7 +129,11 @@ def _eligible_linked_workspace_candidates(
     candidates: list[_LinkedWorkspaceCandidate] = []
     seen: set[tuple[str, str]] = set()
 
-    def add(repo_name: str, workspace_dir: str) -> None:
+    def add(
+        repo_name: str,
+        workspace_dir: str,
+        kind: OpenedRepoKind = "linked",
+    ) -> None:
         normalized = _normalized_workspace_dir(workspace_dir)
         if normalized is None:
             return
@@ -133,7 +141,7 @@ def _eligible_linked_workspace_candidates(
         if key in seen:
             return
         seen.add(key)
-        candidates.append(_LinkedWorkspaceCandidate(repo_name, normalized))
+        candidates.append(_LinkedWorkspaceCandidate(repo_name, normalized, kind))
 
     for repo in _workspace_linked_repos(agent):
         add(repo.name, repo.workspace_dir)
@@ -163,9 +171,9 @@ def _eligible_linked_workspace_candidates(
         opened_events = ()
 
     for event in opened_events:
-        add(event.name, event.workspace_dir)
+        add(event.name, event.workspace_dir, event.kind)
 
-    return tuple(candidates)
+    return tuple(sorted(candidates, key=lambda candidate: candidate.kind == "external"))
 
 
 def should_refresh_linked_delta_groups(agent: Agent) -> bool:
@@ -207,6 +215,7 @@ def _cache_key(
     agent: Agent,
     repo_name: str,
     workspace_dir: str,
+    kind: OpenedRepoKind,
 ) -> tuple[LinkedDeltaCacheKey, object] | None:
     try:
         provider = resolve_vcs_provider_for_live_diff(workspace_dir)
@@ -220,6 +229,7 @@ def _cache_key(
             agent.identity,
             repo_name,
             workspace_dir,
+            kind,
             provider_name,
             fingerprint,
             ttl_bucket,
@@ -232,8 +242,9 @@ def _compute_repo_group(
     agent: Agent,
     repo_name: str,
     workspace_dir: str,
+    kind: OpenedRepoKind,
 ) -> LinkedDeltaGroup | None:
-    keyed_provider = _cache_key(agent, repo_name, workspace_dir)
+    keyed_provider = _cache_key(agent, repo_name, workspace_dir, kind)
     if keyed_provider is None:
         return None
     key, provider = keyed_provider
@@ -261,6 +272,7 @@ def _compute_repo_group(
             entries=entries,
             diff_text=diff_text,
             fetched_at=datetime.now(),
+            kind=kind,
         )
         if entries
         else None
@@ -315,7 +327,12 @@ def linked_agent_file_change_hint(agent: Agent) -> bool | None:
         workspace_dir = _existing_workspace_dir(candidate.workspace_dir)
         if workspace_dir is None:
             continue
-        keyed_provider = _cache_key(agent, candidate.repo_name, workspace_dir)
+        keyed_provider = _cache_key(
+            agent,
+            candidate.repo_name,
+            workspace_dir,
+            candidate.kind,
+        )
         if keyed_provider is None:
             continue
         key, provider = keyed_provider
@@ -337,7 +354,12 @@ def compute_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
         workspace_dir = _existing_workspace_dir(candidate.workspace_dir)
         if workspace_dir is None:
             continue
-        group = _compute_repo_group(agent, candidate.repo_name, workspace_dir)
+        group = _compute_repo_group(
+            agent,
+            candidate.repo_name,
+            workspace_dir,
+            candidate.kind,
+        )
         if group is not None and group.entries:
             groups.append(group)
 

@@ -52,7 +52,7 @@ def preview_agent_revert(
         for repo in repo_tuple
     )
     commits = _flatten_revertable_commits(plans)
-    if not commits:
+    if not any(plan.revertable for plan in plans):
         error = _preview_empty_error(
             plans,
             f"family '{family_base}'" if family_base else f"agent '{agent_name}'",
@@ -117,7 +117,7 @@ def preview_agents_revert(
     plans = tuple(plan for plan, _matched in previewed)
     matched = set().union(*(repo_matched for _plan, repo_matched in previewed))
     commits = _flatten_revertable_commits(plans)
-    if not commits:
+    if not any(plan.revertable for plan in plans):
         return _fail(
             _preview_empty_error(plans, "the marked agents"),
             plans,
@@ -173,6 +173,9 @@ def _preview_agent_repo(
             "Workspace is not a git worktree (revert is git-only)",
         )
 
+    if repo.repo_kind == "external":
+        return _preview_external_repo(repo)
+
     commits = tuple(
         _discover_agent_commits(
             repo.workspace_dir,
@@ -187,6 +190,8 @@ def _preview_agent_repo(
         is_primary=repo.is_primary,
         commits=commits,
         blocked_reason=blocked,
+        repo_kind=repo.repo_kind,
+        source_agent_names=repo.source_agent_names,
     )
 
 
@@ -206,6 +211,11 @@ def _preview_bulk_repo(
             set(),
         )
 
+    if repo.repo_kind == "external":
+        plan = _preview_external_repo(repo)
+        matched = set(repo.source_agent_names) if plan.revertable else set()
+        return plan, matched
+
     commits, matched = _discover_bulk_commits(repo.workspace_dir, targets)
     commit_tuple = tuple(commits)
     blocked = _repo_blocked_reason(repo.workspace_dir, commit_tuple)
@@ -216,6 +226,8 @@ def _preview_bulk_repo(
             is_primary=repo.is_primary,
             commits=commit_tuple,
             blocked_reason=blocked,
+            repo_kind=repo.repo_kind,
+            source_agent_names=repo.source_agent_names,
         ),
         matched,
     )
@@ -245,6 +257,21 @@ def _repo_blocked_reason(
     return None
 
 
+def _preview_external_repo(repo: RevertRepo) -> RepoRevertPlan:
+    """Preview in-place cleanup for one workspace-local external clone."""
+    clean = worktree_is_clean(repo.workspace_dir)
+    blocked = "Could not read git status for workspace" if clean is None else None
+    return RepoRevertPlan(
+        repo_label=repo.label,
+        workspace_dir=repo.workspace_dir,
+        is_primary=False,
+        blocked_reason=blocked,
+        repo_kind="external",
+        discard_local_changes=clean is False,
+        source_agent_names=repo.source_agent_names,
+    )
+
+
 def _blocked_repo_plan(
     repo: RevertRepo,
     commits: tuple[RevertCommit, ...],
@@ -256,6 +283,8 @@ def _blocked_repo_plan(
         is_primary=repo.is_primary,
         commits=commits,
         blocked_reason=reason,
+        repo_kind=repo.repo_kind,
+        source_agent_names=repo.source_agent_names,
     )
 
 
@@ -300,6 +329,7 @@ __all__ = [
     "_preview_bulk_repo",
     "_preview_empty_error",
     "_primary_workspace_dir",
+    "_preview_external_repo",
     "_repo_blocked_reason",
     "ordered_matched_names",
     "preview_agent_revert",
