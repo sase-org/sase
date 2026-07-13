@@ -24,8 +24,6 @@ def preview_text(state: MemoryProposalState, target: TargetSummary) -> Text:
     text.append(f"target: {target.target_path} ")
     text.append("(exists)\n" if target.exists else "(available)\n")
     text.append(f"evidence: {len(state.evidence)} item(s)\n")
-    if state.keywords:
-        text.append(f"keywords: {', '.join(state.keywords)}\n")
     if state.warnings:
         text.append("\nwarnings:\n", style="bold yellow")
         for warning in state.warnings:
@@ -47,8 +45,6 @@ def detail_text(
     text.append(f"status: {state.status}\n")
     text.append(f"created: {state.created_at}\n")
     text.append(f"author: {state.author_name} ({state.author_source})\n")
-    if state.keywords:
-        text.append(f"keywords: {', '.join(state.keywords)}\n")
 
     text.append("\nEvidence\n", style="bold")
     for line in _evidence_lines(state.evidence):

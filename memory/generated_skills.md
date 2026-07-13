@@ -4,16 +4,6 @@ parent: AGENTS.md
 description:
   Read when working with sase agent skills (aka xprompt skills), which are generated from source templates in the
   `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
-keywords:
-  - sase commit
-  - SKILL.md
-  - sase skill init
-  - sase_commit
-  - sase_git_commit
-  - sase_hg_commit
-  - commit workflow
-  - commit skill
-  - xprompt skill
 ---
 
 # Generated Skill Files

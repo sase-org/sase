@@ -98,7 +98,6 @@ class MemoryProposalEvent:
     cwd: str
     title: str
     target_path: str
-    keywords: tuple[str, ...]
     author_name: str
     author_source: str
     artifacts_dir: str | None
@@ -144,7 +143,6 @@ class MemoryProposalState:
     cwd: str
     title: str
     target_path: str
-    keywords: tuple[str, ...]
     author_name: str
     author_source: str
     artifacts_dir: str | None

@@ -79,21 +79,6 @@ def validate_memory_proposal_target(
     return path.as_posix()
 
 
-def normalize_proposal_keywords(keywords: Iterable[str]) -> tuple[str, ...]:
-    """Normalize keywords while preserving first-seen order."""
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for keyword in keywords:
-        value = keyword.strip()
-        if not value:
-            continue
-        if value in seen:
-            continue
-        normalized.append(value)
-        seen.add(value)
-    return tuple(normalized)
-
-
 def parse_memory_proposal_evidence(
     evidence_values: Iterable[str], *, cwd: Path | None = None
 ) -> tuple[EvidenceRecord, ...]:

@@ -101,7 +101,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         long_note(
             "# Described\n",
             description="Existing description.",
-            extra_frontmatter="keywords:\n  - existing",
+            extra_frontmatter="keywords:\n  - existing\nowner: docs",
         ),
     )
     write(
@@ -149,8 +149,8 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     )
     described = (project_root / "memory" / "described.md").read_text(encoding="utf-8")
     assert "description: Existing description." in described
-    assert "keywords:" in described
-    assert "  - existing" in described
+    assert "keywords:" not in described
+    assert "owner: docs" in described
 
     # The inlined managed AGENTS.md must stay prettier-stable.
     agents_path = project_root / "AGENTS.md"

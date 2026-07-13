@@ -33,7 +33,6 @@ def _create_proposal(
         body=body,
         evidence_values=["chat:abc"],
         target=target,
-        keywords=("memory",),
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         cwd=tmp_path,
         proposal_id=proposal_id,

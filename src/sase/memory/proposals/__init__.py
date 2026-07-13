@@ -62,7 +62,6 @@ from sase.memory.proposals.review import (
 from sase.memory.proposals.validation import (
     build_memory_proposal_warnings,
     generate_memory_proposal_id,
-    normalize_proposal_keywords,
     parse_memory_proposal_evidence,
     validate_memory_proposal_target,
 )
@@ -112,7 +111,6 @@ __all__ = [
     "memory_proposal_ledger_path",
     "memory_proposal_lock_path",
     "memory_proposal_state_to_dict",
-    "normalize_proposal_keywords",
     "parse_memory_proposal_evidence",
     "prepare_memory_proposal_edit",
     "proposal_author_from_agent",

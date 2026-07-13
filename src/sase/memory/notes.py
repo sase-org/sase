@@ -20,6 +20,10 @@ MemoryNoteParentSource = Literal["frontmatter", "missing", "invalid"]
 
 _VALID_NOTE_TYPES = frozenset({"short", "long"})
 _CANONICAL_FRONTMATTER_KEYS = frozenset({"type", "parent", "description"})
+_RETIRED_FRONTMATTER_KEYS = frozenset({"keywords"})
+_NON_EXTENSION_FRONTMATTER_KEYS = (
+    _CANONICAL_FRONTMATTER_KEYS | _RETIRED_FRONTMATTER_KEYS
+)
 _YAML_WIDTH = 1_000_000
 _FRONTMATTER_WRAP_WIDTH = 120
 
@@ -190,7 +194,7 @@ def _render_memory_frontmatter(
         data["description"] = " ".join(description.split())
     if extra is not None:
         for key, value in extra.items():
-            if key not in _CANONICAL_FRONTMATTER_KEYS:
+            if key not in _NON_EXTENSION_FRONTMATTER_KEYS:
                 data[key] = value
 
     dumped = cast(
@@ -259,7 +263,7 @@ def apply_memory_frontmatter(
             {
                 key: value
                 for key, value in block.frontmatter.items()
-                if key not in _CANONICAL_FRONTMATTER_KEYS
+                if key not in _NON_EXTENSION_FRONTMATTER_KEYS
             }
         )
     if extra is not None:
@@ -267,7 +271,7 @@ def apply_memory_frontmatter(
             {
                 key: value
                 for key, value in extra.items()
-                if key not in _CANONICAL_FRONTMATTER_KEYS
+                if key not in _NON_EXTENSION_FRONTMATTER_KEYS
             }
         )
 

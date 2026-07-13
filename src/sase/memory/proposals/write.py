@@ -28,7 +28,6 @@ from sase.memory.proposals.validation import (
     build_memory_proposal_warnings,
     event_timestamp,
     generate_memory_proposal_id,
-    normalize_proposal_keywords,
     parse_memory_proposal_evidence,
     validate_body,
     validate_memory_proposal_target,
@@ -44,7 +43,6 @@ def create_memory_proposal(
     evidence_values: Iterable[str],
     target: str | None = None,
     slug: str | None = None,
-    keywords: Iterable[str] = (),
     author: ProposalAuthor | None = None,
     manual_author: str | None = None,
     allow_large: bool = False,
@@ -60,7 +58,6 @@ def create_memory_proposal(
     normalized_title = _normalize_title(title)
     target_path = validate_memory_proposal_target(target, slug=slug)
     evidence = parse_memory_proposal_evidence(evidence_values, cwd=cwd_path)
-    normalized_keywords = normalize_proposal_keywords(keywords)
     proposal_author = author or require_proposal_author(manual_author=manual_author)
     body_bytes = validate_body(body)
     body_sha256 = hashlib.sha256(body_bytes).hexdigest()
@@ -87,7 +84,6 @@ def create_memory_proposal(
         cwd=str(cwd_path),
         title=normalized_title,
         target_path=target_path,
-        keywords=normalized_keywords,
         author_name=proposal_author.name,
         author_source=proposal_author.source,
         artifacts_dir=proposal_author.artifacts_dir,

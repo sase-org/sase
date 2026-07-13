@@ -19,14 +19,12 @@ def _create_proposal(
     title: str = "Memory",
     body: str = "Body\n",
     target: str = "memory.md",
-    keywords: tuple[str, ...] = ("memory",),
 ) -> str:
     result = create_memory_proposal(
         title=title,
         body=body,
         evidence_values=["chat:abc"],
         target=target,
-        keywords=keywords,
         author=ProposalAuthor("agent-a", "SASE_AGENT_NAME", None),
         cwd=tmp_path,
         proposal_id=proposal_id,
@@ -117,6 +115,8 @@ def test_memory_review_show_json_includes_body_evidence_and_warnings(
     assert payload["proposal"]["evidence"][0]["kind"] == "chat"
     assert payload["proposal"]["warnings"][0]["code"].startswith("prompt_injection.")
     assert payload["events"][0]["event_type"] == "proposed"
+    assert "keywords" not in payload["proposal"]
+    assert "keywords" not in payload["events"][0]
 
 
 def test_memory_review_reject_json_records_reviewer_fields(
@@ -176,6 +176,7 @@ def test_memory_review_approve_writes_canonical_file(
     assert canonical_path.read_text(encoding="utf-8").startswith(
         "---\ntype: long\nparent: AGENTS.md\n"
     )
+    assert "keywords:" not in canonical_path.read_text(encoding="utf-8")
 
 
 def test_memory_review_approve_with_edited_file_records_edited_event(

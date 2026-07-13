@@ -74,15 +74,13 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
     assert note.body == "# Child\n"
 
 
-def test_apply_memory_frontmatter_uses_canonical_key_order_and_preserves_extra() -> (
-    None
-):
+def test_apply_memory_frontmatter_drops_keywords_and_preserves_other_extra() -> None:
     content = apply_memory_frontmatter(
         "---\nkeywords: [skills]\ndescription: Old description.\n---\n# Body\n",
         note_type="long",
         parent=AGENTS_PARENT,
         description="New description.",
-        extra={"owner": "docs"},
+        extra={"keywords": ["replacement"], "owner": "docs"},
     )
 
     assert content == (
@@ -90,8 +88,6 @@ def test_apply_memory_frontmatter_uses_canonical_key_order_and_preserves_extra()
         "type: long\n"
         "parent: AGENTS.md\n"
         "description: New description.\n"
-        "keywords:\n"
-        "  - skills\n"
         "owner: docs\n"
         "---\n"
         "\n"

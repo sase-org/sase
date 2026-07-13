@@ -1206,13 +1206,6 @@
                 "type": "boolean",
                 "default": true,
                 "description": "Whether the generated skill includes the first-step audit directive that records its own use (default true)"
-              },
-              "keywords": {
-                "type": "array",
-                "description": "Keywords used to match dynamic memory xprompts",
-                "items": {
-                  "type": "string"
-                }
               }
             }
           }

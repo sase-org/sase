@@ -3,7 +3,6 @@ type: long
 parent: AGENTS.md
 description:
   Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic whitelists.
-keywords: symvision, unused symbol, pragma, epic-symbol, external repo, lint
 ---
 
 # Fixing Symvision Errors

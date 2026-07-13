@@ -448,7 +448,6 @@ class MemoryReviewTuiApp(App[None]):
                 state.title,
                 state.target_path,
                 state.author_name,
-                " ".join(state.keywords),
             )
         ).casefold()
         return query in haystack

@@ -21,7 +21,6 @@ reference notes that agents read only when relevant.
 - `type`: `short` for always-loaded notes or `long` for read-on-demand reference notes.
 - `parent`: `AGENTS.md` for top-level notes, or `memory/<note>.md` when a long note belongs under another long note.
 - `description`: required for long notes and used in generated agent instructions and this README.
-- `keywords`: optional extra metadata preserved by memory tooling when present.
 
 ### Linking
 
@@ -85,8 +84,8 @@ reference notes that agents read only when relevant.
 - Description: Read when working with sase agent skills (aka xprompt skills), which are generated from source templates
   in the `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 - Parent: `AGENTS.md`
-- Lines: 53
-- Approx. tokens: 540
+- Lines: 43
+- Approx. tokens: 498
 
 ### `memory/symvision.md`
 
@@ -94,8 +93,8 @@ reference notes that agents read only when relevant.
 - Description: Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic
   whitelists.
 - Parent: `AGENTS.md`
-- Lines: 83
-- Approx. tokens: 1251
+- Lines: 82
+- Approx. tokens: 1232
 
 ### `memory/tui_perf.md`
 
@@ -119,8 +118,8 @@ reference notes that agents read only when relevant.
 - Total notes: 10
 - Short notes: 5
 - Long notes: 5
-- Total lines: 464
-- Total approx. tokens: 6400
+- Total lines: 453
+- Total approx. tokens: 6339
 
 ## Commands
 

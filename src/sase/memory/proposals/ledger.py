@@ -117,7 +117,6 @@ def reduce_memory_proposal_events(
                 cwd=event.cwd,
                 title=event.title,
                 target_path=event.target_path,
-                keywords=event.keywords,
                 author_name=event.author_name,
                 author_source=event.author_source,
                 artifacts_dir=event.artifacts_dir,
@@ -196,7 +195,6 @@ def _state_with_review_event(
         cwd=state.cwd,
         title=state.title,
         target_path=event.target_path,
-        keywords=state.keywords,
         author_name=state.author_name,
         author_source=state.author_source,
         artifacts_dir=state.artifacts_dir,
@@ -244,10 +242,9 @@ def _proposal_event_from_mapping(
     artifacts_dir = data.get("artifacts_dir")
     if artifacts_dir is not None and not isinstance(artifacts_dir, str):
         return None
-    keywords = _strings_tuple(data.get("keywords"))
     evidence = _evidence_tuple(data.get("evidence"))
     warnings = _warnings_tuple(data.get("warnings"))
-    if keywords is None or evidence is None or warnings is None:
+    if evidence is None or warnings is None:
         return None
 
     return MemoryProposalEvent(
@@ -259,7 +256,6 @@ def _proposal_event_from_mapping(
         cwd=data["cwd"],
         title=data["title"],
         target_path=data["target_path"],
-        keywords=keywords,
         author_name=data["author_name"],
         author_source=data["author_source"],
         artifacts_dir=artifacts_dir,
@@ -316,17 +312,6 @@ def _review_event_from_mapping(
         body_byte_count=body_byte_count,
         reason=reason,
     )
-
-
-def _strings_tuple(value: Any) -> tuple[str, ...] | None:
-    if not isinstance(value, list):
-        return None
-    strings: list[str] = []
-    for item in value:
-        if not isinstance(item, str):
-            return None
-        strings.append(item)
-    return tuple(strings)
 
 
 def _evidence_tuple(value: Any) -> tuple[EvidenceRecord, ...] | None:

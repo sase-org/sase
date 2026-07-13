@@ -207,7 +207,7 @@ def test_validate_memory_read_path_rejects_non_markdown(tmp_path: Path) -> None:
 
 
 def test_strip_leading_frontmatter_removes_only_frontmatter_block() -> None:
-    text = "---\nkeywords: [foo]\n---\n# Body\n\n"
+    text = "---\nowner: docs\n---\n# Body\n\n"
 
     result = strip_leading_frontmatter(text)
 

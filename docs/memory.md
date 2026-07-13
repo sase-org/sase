@@ -73,7 +73,6 @@ Agents do not write canonical long-term memory files directly. They create propo
 sase memory write \
   --title "Generated skills" \
   --slug generated_skills \
-  --keyword "commit skill" \
   --evidence "$(sase sdd path research)/skills.md" \
   --body "Durable memory body" \
   --notify
@@ -81,8 +80,7 @@ sase memory write \
 cat draft.md | sase memory write \
   --title "Generated skills" \
   --target generated_skills.md \
-  --from-chat abc123 \
-  --keyword "commit skill"
+  --from-chat abc123
 ```
 
 `sase memory write` is the agent-side authoring path. It writes proposal state only under `~/.sase/projects/<project>/`;
@@ -143,8 +141,6 @@ type: long
 parent: AGENTS.md
 description: Generated skills
 source_candidate: mem-20260523-142233-a1b2c3d4
-keywords:
-  - "commit skill"
 ---
 ```
 
@@ -159,20 +155,20 @@ instruction file.
 The interactive review app shows pending proposals, evidence, target status, diffs against existing files, warnings, and
 audit events. Keybindings:
 
-| Key         | Action                                               |
-| ----------- | ---------------------------------------------------- |
-| `j` / `k`   | Move through pending proposals                       |
-| `Down`/`Up` | Move through pending proposals                       |
-| `g` / `G`   | Jump to first / last proposal                        |
-| `/`         | Filter by id, title, author, target, keyword, status |
-| `Enter`/`d` | Toggle detail view                                   |
-| `Esc`       | Return from detail view                              |
-| `a`         | Approve as-is                                        |
-| `e`         | Edit in `$VISUAL`/`$EDITOR`, then approve            |
-| `r`         | Reject with a required reason                        |
-| `t`         | Override the approval target                         |
-| `y`         | Copy the proposal id                                 |
-| `q`         | Quit                                                 |
+| Key         | Action                                         |
+| ----------- | ---------------------------------------------- |
+| `j` / `k`   | Move through pending proposals                 |
+| `Down`/`Up` | Move through pending proposals                 |
+| `g` / `G`   | Jump to first / last proposal                  |
+| `/`         | Filter by id, title, author, target, or status |
+| `Enter`/`d` | Toggle detail view                             |
+| `Esc`       | Return from detail view                        |
+| `a`         | Approve as-is                                  |
+| `e`         | Edit in `$VISUAL`/`$EDITOR`, then approve      |
+| `r`         | Reject with a required reason                  |
+| `t`         | Override the approval target                   |
+| `y`         | Copy the proposal id                           |
+| `q`         | Quit                                           |
 
 The proposal ledger is append-only JSONL with a lock companion. Malformed rows are skipped when reading, and every
 review action appends a new event rather than mutating previous events.

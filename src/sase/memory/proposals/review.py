@@ -148,7 +148,6 @@ def approve_memory_proposal(
         canonical_body = _canonical_memory_content(
             proposal_id=state.proposal_id,
             title=state.title,
-            keywords=state.keywords,
             body=body,
         )
         canonical_path.parent.mkdir(parents=True, exist_ok=True)
@@ -265,18 +264,13 @@ def _read_required_text(path: Path, *, label: str) -> str:
         ) from exc
 
 
-def _canonical_memory_content(
-    *, proposal_id: str, title: str, keywords: tuple[str, ...], body: str
-) -> str:
-    extra: dict[str, object] = {"source_candidate": proposal_id}
-    if keywords:
-        extra["keywords"] = list(keywords)
+def _canonical_memory_content(*, proposal_id: str, title: str, body: str) -> str:
     content = apply_memory_frontmatter(
         body,
         note_type="long",
         parent=AGENTS_PARENT,
         description=title,
-        extra=extra,
+        extra={"source_candidate": proposal_id},
     )
     if not content.endswith("\n"):
         content += "\n"

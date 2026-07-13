@@ -36,10 +36,6 @@ def test_memory_write_json_creates_proposal(
             "memory",
             "--evidence",
             "evidence.md",
-            "--keyword",
-            "memory",
-            "--keyword",
-            "memory",
             "--body",
             "Body\n",
             "--json",
@@ -54,7 +50,7 @@ def test_memory_write_json_creates_proposal(
     proposal = payload["proposal"]
     assert proposal["status"] == "pending"
     assert proposal["target_path"] == "memory.md"
-    assert proposal["keywords"] == ["memory"]
+    assert "keywords" not in proposal
     assert proposal["author_name"] == "agent-a"
     assert Path(payload["draft_path"]).read_text(encoding="utf-8") == "Body\n"
     states = read_memory_proposals(ledger_path=Path(payload["ledger_path"]))

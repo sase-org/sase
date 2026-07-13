@@ -195,13 +195,6 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="SLUG",
         help="Slug used to derive the target filename <slug>.md",
     )
-    write_parser.add_argument(
-        "--keyword",
-        action="append",
-        default=[],
-        metavar="KEYWORD",
-        help="Keyword frontmatter candidate for future approval; repeatable",
-    )
     body_group = write_parser.add_mutually_exclusive_group()
     body_group.add_argument(
         "--file",

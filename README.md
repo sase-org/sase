@@ -85,8 +85,8 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
   and workflow visualization.
 - **ChangeSpecs** - Tracked PR-sized units of work with lifecycle state, commits, comments, mentors, and metadata.
 - **Memory** - Agent instruction memory with short-term notes inlined directly into a generated `AGENTS.md` (and
-  provider files such as `CLAUDE.md` kept as full copies of it), keyword-triggered long-term context, audited agent
-  reads, and human-reviewed write proposals.
+  provider files such as `CLAUDE.md` kept as full copies of it), explicit audited reads for long-term context, and
+  human-reviewed write proposals.
 - **SDD and Beads** - Spec-driven planning artifacts plus git-portable issue tracking for epics, phases, and
   dependencies.
 - **Commit finalizer** - A provider-neutral post-invocation check that asks SASE-launched agents to commit dirty

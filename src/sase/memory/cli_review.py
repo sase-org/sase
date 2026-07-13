@@ -285,8 +285,6 @@ def _print_show(payload: dict[str, Any]) -> None:
     print(f"title: {proposal['title']}")
     print(f"target: {proposal['target_path']}")
     print(f"author: {proposal['author_name']} ({proposal['author_source']})")
-    if proposal["keywords"]:
-        print(f"keywords: {', '.join(proposal['keywords'])}")
     print("")
     print("Evidence:")
     for evidence in proposal["evidence"]:

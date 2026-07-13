@@ -28,7 +28,6 @@ def handle_memory_write_command(args: argparse.Namespace) -> None:
             evidence_values=evidence_values,
             target=args.target,
             slug=args.slug,
-            keywords=args.keyword or (),
             manual_author=args.manual_author,
             allow_large=args.allow_large,
             cwd=Path.cwd(),

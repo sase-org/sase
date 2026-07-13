@@ -52,8 +52,6 @@ def test_parser_registers_memory_namespace() -> None:
             "note:supplemental",
             "--from-chat",
             "chat-a",
-            "--keyword",
-            "skills",
             "--file",
             "draft.md",
             "--allow-large",
@@ -68,11 +66,28 @@ def test_parser_registers_memory_namespace() -> None:
     assert write_args.target is None
     assert write_args.evidence == ["sdd/research/skills.md", "note:supplemental"]
     assert write_args.from_chat == ["chat-a"]
-    assert write_args.keyword == ["skills"]
     assert write_args.file == "draft.md"
     assert write_args.allow_large is True
     assert write_args.json is True
     assert write_args.notify is True
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "memory",
+                "write",
+                "--title",
+                "Generated skills",
+                "--slug",
+                "generated_skills",
+                "--evidence",
+                "chat:abc",
+                "--keyword",
+                "skills",
+                "--body",
+                "Body",
+            ]
+        )
 
     review_list_args = parser.parse_args(["memory", "review", "--list", "--json"])
     assert review_list_args.command == "memory"

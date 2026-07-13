@@ -74,7 +74,6 @@ Required labels:
 - `type: short | long`
 - `parent:`
 - `description:`
-- `keywords:`
 - `Tier 1: short notes`
 - `always in context`
 - `AGENTS.md`
@@ -120,7 +119,7 @@ The `DRAW` MVG block below records the deterministic backing boxes, font sizes, 
 stroke "none"
 fill "rgba(255,255,255,0.86)"
 roundrectangle 76,94 233,133 8,8
-roundrectangle 72,148 228,314 8,8
+roundrectangle 72,148 228,288 8,8
 roundrectangle 385,141 503,242 8,8
 roundrectangle 600,146 785,235 8,8
 roundrectangle 912,55 1030,83 6,6
@@ -148,7 +147,6 @@ font-size 15
 text 84,216 "type: short | long"
 text 84,242 "parent:"
 text 84,268 "description:"
-text 84,294 "keywords:"
 font-size 21
 text 395,170 "Tier 1:"
 text 395,198 "short notes"

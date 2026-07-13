@@ -124,6 +124,20 @@ def test_config_schema_accepts_xprompt_log_skill_use() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_rejects_retired_memory_keywords() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "xprompts": {
+                    "legacy_memory": {
+                        "content": "Legacy memory prompt",
+                        "keywords": ["memory"],
+                    }
+                }
+            }
+        )
+
+
 def test_config_schema_accepts_amd_h1_title_string_or_null() -> None:
     schema = _schema()
 
