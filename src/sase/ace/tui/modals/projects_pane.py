@@ -91,7 +91,8 @@ def _collect_project_inventory_counts(
             project_lookup.setdefault(name, record.project_name)
 
     repo_kind_counts: dict[str, dict[str, int]] = {
-        key: {"primary": 0, "sidecar": 0, "linked": 0} for key in project_keys
+        key: {"primary": 0, "sidecar": 0, "linked": 0, "external": 0}
+        for key in project_keys
     }
     workspace_counts = dict.fromkeys(project_keys, 0)
     claimed_workspace_counts = dict.fromkeys(project_keys, 0)
@@ -143,6 +144,7 @@ def _collect_project_inventory_counts(
             primary_repo_count=kinds["primary"],
             sidecar_repo_count=kinds["sidecar"],
             linked_repo_count=kinds["linked"],
+            external_repo_count=kinds["external"],
             workspace_count=workspace_counts[key],
             claimed_workspace_count=claimed_workspace_counts[key],
             issue_messages=tuple(issue_messages[key]),

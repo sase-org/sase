@@ -67,6 +67,24 @@ def test_interactive_identity_is_best_effort() -> None:
     assert event.artifacts_dir is None
 
 
+def test_external_repo_kind_round_trips_through_audit_log(tmp_path: Path) -> None:
+    log_path = tmp_path / "repo_opens.jsonl"
+    event = build_repo_open_event(
+        project="demo",
+        repo="gh:acme/widget",
+        repo_kind="external",
+        workspace_num=10,
+        path="/work/demo_10/sase/repos/external/gh/acme/widget",
+        reason="inspect upstream",
+        env={},
+        login_user="bryan",
+    )
+
+    append_repo_open_event(event, log_path=log_path)
+
+    assert read_repo_open_events(log_path=log_path) == (event,)
+
+
 def test_filters_and_summaries_are_deterministic() -> None:
     earlier = datetime(2026, 7, 13, 12, 0, tzinfo=UTC)
     later = datetime(2026, 7, 13, 13, 0, tzinfo=UTC)

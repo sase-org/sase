@@ -31,7 +31,14 @@ from sase.core.project_lifecycle_wire import (
     ProjectRecordWire,
     effective_project_name,
 )
+from sase.external_repos import (
+    EXTERNAL_PROJECTS_NAMESPACE,
+    external_repo_clone_parts_from_name,
+    external_repo_name_from_clone_parts,
+)
 from sase.linked_repos import (
+    EXTERNAL_REPO_CLONES_SUBDIR,
+    external_repo_clone_dir,
     linked_repo_clone_dir,
     sidecar_repo_clone_dir,
     sdd_sidecar_clone_dirname,
@@ -43,9 +50,14 @@ from sase.workspace_provider.registry import (
 )
 from sase.workspace_provider.store import WorkspaceStore
 
-RepoKind = Literal["primary", "sidecar", "linked"]
+RepoKind = Literal["primary", "sidecar", "linked", "external"]
 
-_KIND_ORDER: dict[RepoKind, int] = {"primary": 0, "sidecar": 1, "linked": 2}
+_KIND_ORDER: dict[RepoKind, int] = {
+    "primary": 0,
+    "sidecar": 1,
+    "linked": 2,
+    "external": 3,
+}
 _ENV_INVALID_CHARS = re.compile(r"[^A-Za-z0-9]+")
 
 
@@ -65,7 +77,7 @@ class RepoCloneRecord:
 
 @dataclass(frozen=True)
 class RepoRecord:
-    """One primary, sidecar, or linked repository known by SASE."""
+    """One primary, sidecar, linked, or external repository known by SASE."""
 
     name: str
     kind: RepoKind
@@ -381,6 +393,13 @@ def _collect_project_repos(
         )
         for record in records
     ]
+    external_records, external_issues = _external_repo_records(
+        project=project,
+        project_key=project_key,
+        workspace_checkouts=workspace_clones,
+    )
+    records.extend(external_records)
+    issues.extend(external_issues)
     return records, issues
 
 
@@ -456,6 +475,101 @@ def _repo_clones(
     return tuple(clones)
 
 
+def _external_repo_records(
+    *,
+    project: str,
+    project_key: str,
+    workspace_checkouts: Sequence[tuple[int, str]],
+) -> tuple[list[RepoRecord], list[RepoInventoryIssue]]:
+    """Scan registered workspace checkouts for materialized external repos."""
+
+    clone_parts_by_name: dict[str, tuple[str, ...]] = {}
+    issues: list[RepoInventoryIssue] = []
+    for _workspace_num, host_checkout in workspace_checkouts:
+        root = Path(host_checkout).joinpath(*EXTERNAL_REPO_CLONES_SUBDIR)
+        try:
+            namespaces = _child_directories(root)
+            for namespace in namespaces:
+                candidates: list[tuple[str, ...]] = []
+                if namespace.name == EXTERNAL_PROJECTS_NAMESPACE:
+                    candidates.extend(
+                        (namespace.name, project_dir.name)
+                        for project_dir in _child_directories(namespace)
+                    )
+                else:
+                    candidates.extend(
+                        (namespace.name, owner_dir.name, repo_dir.name)
+                        for owner_dir in _child_directories(namespace)
+                        for repo_dir in _child_directories(owner_dir)
+                    )
+                for parts in candidates:
+                    name = external_repo_name_from_clone_parts(parts)
+                    if name is None:
+                        continue
+                    canonical_parts = external_repo_clone_parts_from_name(name)
+                    if tuple(parts) == canonical_parts:
+                        clone_parts_by_name.setdefault(name, canonical_parts)
+        except OSError as exc:
+            issues.append(
+                RepoInventoryIssue(
+                    project,
+                    f"Unable to scan external repos in {root}: {exc}",
+                )
+            )
+
+    records: list[RepoRecord] = []
+    for name, clone_parts in sorted(
+        clone_parts_by_name.items(),
+        key=lambda item: (item[0].casefold(), item[0]),
+    ):
+        clones = tuple(
+            RepoCloneRecord(
+                workspace_num=workspace_num,
+                path=(
+                    clone_path := external_repo_clone_dir(
+                        host_checkout,
+                        clone_parts[0],
+                        *clone_parts[1:],
+                    )
+                ),
+                exists=Path(clone_path).is_dir(),
+            )
+            for workspace_num, host_checkout in workspace_checkouts
+        )
+        existing = next((clone for clone in clones if clone.exists), None)
+        if existing is None:
+            continue
+        records.append(
+            RepoRecord(
+                name=name,
+                kind="external",
+                project=project,
+                project_key=project_key,
+                path=existing.path,
+                exists=True,
+                auto_clone=False,
+                description=None,
+                source="opened external",
+                env_name=None,
+                clones=clones,
+            )
+        )
+    return records, issues
+
+
+def _child_directories(path: Path) -> tuple[Path, ...]:
+    """Return deterministic direct child directories of *path*."""
+
+    if not path.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            (child for child in path.iterdir() if child.is_dir()),
+            key=lambda child: (child.name.casefold(), child.name),
+        )
+    )
+
+
 def _repo_path_in_workspace(
     record: RepoRecord,
     *,
@@ -479,6 +593,14 @@ def _repo_path_in_workspace(
         except ValueError:
             return sidecar_repo_clone_dir(host_checkout, record.name)
         return _normalize_path(str(Path(host_checkout) / relative))
+
+    if record.kind == "external":
+        clone_parts = external_repo_clone_parts_from_name(record.name)
+        return external_repo_clone_dir(
+            host_checkout,
+            clone_parts[0],
+            *clone_parts[1:],
+        )
 
     return linked_repo_clone_dir(host_checkout, record.name)
 

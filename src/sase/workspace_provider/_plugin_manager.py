@@ -3,6 +3,7 @@
 import pluggy
 
 from ._hookspec import (
+    ExternalRepoCloneResult,
     ResolvedRef,
     SddSidecarPreflight,
     VcsRefNamespaces,
@@ -42,6 +43,18 @@ class WorkspacePluginManager:
     def resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:
         return self._pm.hook.ws_resolve_ref(  # type: ignore[no-any-return]
             ref=ref, workflow_type=workflow_type
+        )
+
+    def clone_external_repo(
+        self,
+        scheme: str,
+        ref: str,
+        dest_dir: str,
+    ) -> ExternalRepoCloneResult | None:
+        return self._pm.hook.ws_clone_external_repo(  # type: ignore[no-any-return]
+            scheme=scheme,
+            ref=ref,
+            dest_dir=dest_dir,
         )
 
     def peek_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:

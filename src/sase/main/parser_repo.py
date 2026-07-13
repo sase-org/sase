@@ -25,9 +25,10 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List repositories and their per-workspace clone status",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "List primary, sidecar, and linked repositories for the current "
-            "project and show where they are cloned. The project and workspace "
-            "default to the checkout that contains the current directory."
+            "List primary, sidecar, linked, and opened external repositories "
+            "for the current project and show where they are cloned. The project "
+            "and workspace default to the checkout that contains the current "
+            "directory."
         ),
         epilog=(
             "examples:\n"

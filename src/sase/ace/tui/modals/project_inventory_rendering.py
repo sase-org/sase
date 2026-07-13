@@ -28,6 +28,7 @@ _REPO_KIND_STYLES = {
     "primary": "bold #00D7AF",
     "sidecar": "bold #AF87FF",
     "linked": "bold #87D7FF",
+    "external": "bold #FFAF00",
 }
 
 
@@ -104,7 +105,10 @@ def repo_summary_text(
     text = Text()
     text.append("repos:", style="dim")
     text.append(str(len(records)), style="bold")
-    for kind in ("primary", "sidecar", "linked"):
+    kinds = ["primary", "sidecar", "linked"]
+    if any(record.kind == "external" for record in records):
+        kinds.append("external")
+    for kind in kinds:
         count = sum(record.kind == kind for record in records)
         text.append(f"  ·  {kind}:", style="dim")
         text.append(str(count), style=_REPO_KIND_STYLES[kind])

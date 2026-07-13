@@ -1,10 +1,14 @@
 """Tests for workspace provider hookspec definitions."""
 
 import inspect
+from pathlib import Path
 
 import pluggy
+import pytest
 
 from sase.workspace_provider._hookspec import (
+    ExternalRepoCloneResult,
+    WorkflowMetadata,
     WorkspaceHookSpec,
     hookimpl,
     hookspec,
@@ -114,3 +118,64 @@ class TestHookspecRegistration:
                 assert hook.spec.opts.get("firstresult") is True, (
                     f"ws_{method_name} should be firstresult=True"
                 )
+
+
+def test_external_repo_clone_dispatches_to_owning_plugin(tmp_path: Path) -> None:
+    class ExternalPlugin:
+        @hookimpl
+        def ws_clone_external_repo(
+            self,
+            scheme: str,
+            ref: str,
+            dest_dir: str,
+        ) -> ExternalRepoCloneResult | None:
+            if scheme != "gh":
+                return None
+            return ExternalRepoCloneResult(
+                canonical_name=f"gh:{ref}",
+                dest_dir=dest_dir,
+                default_branch="main",
+            )
+
+    pm = pluggy.PluginManager("sase_workspace")
+    pm.add_hookspecs(WorkspaceHookSpec)
+    pm.register(ExternalPlugin())
+    manager = WorkspacePluginManager(pm)
+    dest = str(tmp_path / "clone")
+
+    assert manager.clone_external_repo("gl", "acme/widget", dest) is None
+    assert manager.clone_external_repo("gh", "acme/widget", dest) == (
+        ExternalRepoCloneResult(
+            canonical_name="gh:acme/widget",
+            dest_dir=dest,
+            default_branch="main",
+        )
+    )
+
+
+def test_external_repo_scheme_discovery_uses_plugin_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.workspace_provider import _registry
+
+    monkeypatch.setattr(
+        _registry,
+        "get_all_workflow_metadata",
+        lambda: (
+            WorkflowMetadata(
+                workflow_type="gh",
+                ref_pattern=r"^#gh",
+                display_name="GitHub",
+                pre_allocated_env_prefix="SASE_GH",
+                external_repo_schemes=("GH", " gh "),
+            ),
+            WorkflowMetadata(
+                workflow_type="git",
+                ref_pattern=r"^#git",
+                display_name="Git",
+                pre_allocated_env_prefix="SASE_GIT",
+            ),
+        ),
+    )
+
+    assert _registry.get_external_repo_schemes() == {"gh"}

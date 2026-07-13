@@ -13,8 +13,11 @@ from sase.linked_repos import (
     OPENED_SIBLINGS_FILENAME,
     SIBLING_REPOS_JSON_ENV,
     linked_repo_metadata_from_env,
+    opened_external_repo_records,
     opened_linked_repo_names,
     opened_linked_repo_records,
+    opened_repo_records,
+    record_opened_external_repo,
     record_opened_linked_repo,
 )
 
@@ -66,8 +69,8 @@ def test_record_opened_writes_both_markers(
     sibling_marker = json.loads(
         (tmp_path / OPENED_SIBLINGS_FILENAME).read_text(encoding="utf-8")
     )
-    assert linked_marker["schema_version"] == 2
-    assert sibling_marker["schema_version"] == 2
+    assert linked_marker["schema_version"] == 3
+    assert sibling_marker["schema_version"] == 3
     assert [item["name"] for item in linked_marker["linked_repos"]] == ["core", "nvim"]
     assert [item["name"] for item in sibling_marker["siblings"]] == ["core", "nvim"]
     assert linked_marker["linked_repos"][0]["reason"] == "inspect sibling changes"
@@ -80,6 +83,7 @@ def test_record_opened_writes_both_markers(
         "workspace_dir": str(core.resolve()),
         "reason": "inspect sibling changes",
         "opened_at": "2026-06-20T14:00:00+00:00",
+        "kind": "linked",
     }
 
 
@@ -101,6 +105,7 @@ def test_opened_names_reads_legacy_only_marker(tmp_path: Path) -> None:
             "workspace_dir": "/tmp/core",
             "reason": "",
             "opened_at": "",
+            "kind": "linked",
         }
     }
 
@@ -123,6 +128,7 @@ def test_opened_names_reads_new_only_marker(tmp_path: Path) -> None:
             "workspace_dir": "/tmp/core",
             "reason": "",
             "opened_at": "",
+            "kind": "linked",
         }
     }
 
@@ -159,7 +165,51 @@ def test_opened_records_canonical_marker_wins_over_legacy(tmp_path: Path) -> Non
         "workspace_dir": "/tmp/canonical",
         "reason": "canonical reason",
         "opened_at": "2026-06-20T14:00:00+00:00",
+        "kind": "linked",
     }
+
+
+def test_external_marker_persists_kind_and_canonical_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    clone = (
+        tmp_path
+        / "workspace"
+        / "sase"
+        / "repos"
+        / "external"
+        / "gh"
+        / "acme"
+        / "widget"
+    )
+
+    record_opened_external_repo(
+        "gh:acme/widget",
+        str(clone),
+        reason="inspect upstream",
+        opened_at="2026-07-13T17:00:00+00:00",
+    )
+
+    marker = json.loads((tmp_path / OPENED_LINKED_FILENAME).read_text(encoding="utf-8"))
+    assert marker["schema_version"] == 3
+    assert marker["linked_repos"] == [
+        {
+            "kind": "external",
+            "name": "gh:acme/widget",
+            "opened_at": "2026-07-13T17:00:00+00:00",
+            "reason": "inspect upstream",
+            "ref": "gh:acme/widget",
+            "workspace_dir": str(clone.resolve()),
+        }
+    ]
+    assert not (tmp_path / OPENED_SIBLINGS_FILENAME).exists()
+    assert opened_linked_repo_records(tmp_path) == {}
+    assert opened_external_repo_records(tmp_path) == {
+        "gh:acme/widget": marker["linked_repos"][0]
+    }
+    assert opened_repo_records(tmp_path) == opened_external_repo_records(tmp_path)
 
 
 def test_opened_names_handles_missing_and_malformed(tmp_path: Path) -> None:

@@ -49,16 +49,22 @@ from sase._linked_repo_env import (
 from sase._linked_repo_markers import (
     OPENED_LINKED_FILENAME,
     OPENED_SIBLINGS_FILENAME,
+    OpenedRepoKind,
+    opened_external_repo_records,
     opened_linked_repo_names,
     opened_linked_repo_records,
     opened_linked_repo_workspace_dirs,
+    opened_repo_records,
+    record_opened_external_repo,
     record_opened_linked_repo,
+    record_opened_repo,
 )
 
 # Host-scoped linked and sidecar clones are launch-scoped in numbered
 # workspaces. Their primary-checkout counterparts remain durable local sources.
 SIDECAR_REPO_CLONES_SUBDIR = ("sase", "repos")
 LINKED_REPO_CLONES_SUBDIR = ("sase", "repos", "linked")
+EXTERNAL_REPO_CLONES_SUBDIR = ("sase", "repos", "external")
 
 # Preserve the historical class identity for introspection and pickling even
 # though their implementations now live in the environment helper module.
@@ -69,6 +75,7 @@ __all__ = [
     "DEFAULT_LINKED_REPOS_CONFIG_KEY",
     "DEFAULT_PLANS_DESCRIPTION",
     "DEFAULT_RESEARCH_DESCRIPTION",
+    "EXTERNAL_REPO_CLONES_SUBDIR",
     "SIDECAR_REPO_CLONES_SUBDIR",
     "LINKED_REPO_CLONES_SUBDIR",
     "LINKED_REPO_ENV_PREFIX",
@@ -77,6 +84,7 @@ __all__ = [
     "LINKED_REPOS_JSON_ENV",
     "OPENED_LINKED_FILENAME",
     "OPENED_SIBLINGS_FILENAME",
+    "OpenedRepoKind",
     "SIBLING_REPO_ENV_PREFIX",
     "SIBLING_REPO_ENV_SUFFIXES",
     "SIBLING_REPOS_CONFIG_KEY",
@@ -84,15 +92,20 @@ __all__ = [
     "LinkedRepoResolution",
     "apply_linked_repo_env",
     "clear_workspace_repos",
+    "external_repo_clone_dir",
     "sidecar_repo_clone_dir",
     "is_legacy_static_linked_repo_record",
     "linked_repo_clone_dir",
     "linked_repo_metadata_from_env",
     "materialize_linked_repo_workspace",
+    "opened_external_repo_records",
     "opened_linked_repo_names",
     "opened_linked_repo_records",
     "opened_linked_repo_workspace_dirs",
+    "opened_repo_records",
+    "record_opened_external_repo",
     "record_opened_linked_repo",
+    "record_opened_repo",
     "resolve_linked_repos_for_project",
     "sdd_sidecar_clone_dirname",
     "scrub_linked_repo_env",
@@ -221,6 +234,28 @@ def linked_repo_clone_dir(host_checkout: str | Path, name: str) -> str:
 
     return normalize_path(
         str(Path(host_checkout).joinpath(*LINKED_REPO_CLONES_SUBDIR, name))
+    )
+
+
+def external_repo_clone_dir(
+    host_checkout: str | Path,
+    scheme_or_projects: str,
+    *parts: str,
+) -> str:
+    """Return a host-scoped clone path below ``sase/repos/external``."""
+
+    components = (scheme_or_projects, *parts)
+    if any(
+        not component
+        or component in {".", ".."}
+        or component != component.strip()
+        or "/" in component
+        or "\\" in component
+        for component in components
+    ):
+        raise ValueError("external repo clone path components must be safe names")
+    return normalize_path(
+        str(Path(host_checkout).joinpath(*EXTERNAL_REPO_CLONES_SUBDIR, *components))
     )
 
 

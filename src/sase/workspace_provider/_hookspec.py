@@ -56,6 +56,15 @@ class ResolvedRef:
 
 
 @dataclass(frozen=True)
+class ExternalRepoCloneResult:
+    """Result of cloning one provider-owned repo into a workspace-local path."""
+
+    canonical_name: str
+    dest_dir: str
+    default_branch: str
+
+
+@dataclass(frozen=True)
 class VcsRepoEntry:
     """One repository completion candidate returned by a workspace plugin.
 
@@ -122,6 +131,8 @@ class WorkflowMetadata:
         sdd_storage_policy: Optional SDD storage policy declaration. Empty
             string means no opinion; providers may declare ``"in_tree"`` or
             ``"separate_repo"``.
+        external_repo_schemes: Provider schemes accepted by
+            :meth:`WorkspaceHookSpec.ws_clone_external_repo` (e.g. ``("gh",)``).
     """
 
     workflow_type: str
@@ -131,6 +142,7 @@ class WorkflowMetadata:
     vcs_family: str = ""
     vcs_provider_name: str = ""
     sdd_storage_policy: str = ""
+    external_repo_schemes: tuple[str, ...] = field(default_factory=tuple)
 
 
 class WorkspaceHookSpec:
@@ -154,6 +166,16 @@ class WorkspaceHookSpec:
 
     @hookspec(firstresult=True)
     def ws_resolve_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None: ...
+
+    @hookspec(firstresult=True)
+    def ws_clone_external_repo(
+        self,
+        scheme: str,
+        ref: str,
+        dest_dir: str,
+    ) -> ExternalRepoCloneResult | None:
+        """Clone *ref* for an owned scheme, or return ``None`` if unowned."""
+        ...
 
     @hookspec(firstresult=True)
     def ws_peek_ref(self, ref: str, workflow_type: str) -> ResolvedRef | None:

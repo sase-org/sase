@@ -30,6 +30,7 @@ class ProjectInventoryCounts:
     primary_repo_count: int = 0
     sidecar_repo_count: int = 0
     linked_repo_count: int = 0
+    external_repo_count: int = 0
     workspace_count: int = 0
     claimed_workspace_count: int = 0
     issue_messages: tuple[str, ...] = ()
@@ -213,8 +214,11 @@ def detail_text(
         " ("
         f"{resolved_counts.primary_repo_count} primary · "
         f"{resolved_counts.sidecar_repo_count} sidecar · "
-        f"{resolved_counts.linked_repo_count} linked)"
+        f"{resolved_counts.linked_repo_count} linked"
     )
+    if resolved_counts.external_repo_count:
+        text.append(f" · {resolved_counts.external_repo_count} external")
+    text.append(")")
     text.append("    Workspaces: ", style="dim")
     text.append(
         f"{resolved_counts.workspace_count} "

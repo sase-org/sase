@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from rich.console import Console
 
 from ._hookspec import (
+    ExternalRepoCloneResult,
     ResolvedRef,
     SddSidecarPreflight,
     VcsRefNamespaces,
@@ -57,6 +58,17 @@ def get_ref_patterns() -> dict[str, re.Pattern[str]]:
     """Return a mapping of workflow_type → compiled ref pattern."""
     return {
         m.workflow_type: re.compile(m.ref_pattern) for m in get_all_workflow_metadata()
+    }
+
+
+def get_external_repo_schemes() -> set[str]:
+    """Return normalized external-repo schemes declared by plugins."""
+
+    return {
+        normalized
+        for metadata in get_all_workflow_metadata()
+        for scheme in metadata.external_repo_schemes
+        if (normalized := scheme.strip().lower())
     }
 
 
@@ -189,6 +201,20 @@ def resolve_ref(ref: str, workflow_type: str) -> ResolvedRef:
         return result
 
     raise ValueError(f"No workspace plugin found for workflow type '{workflow_type}'")
+
+
+def clone_external_repo(
+    scheme: str,
+    ref: str,
+    dest_dir: str,
+) -> ExternalRepoCloneResult | None:
+    """Dispatch an external repository clone to its workspace provider."""
+
+    return _get_manager().clone_external_repo(
+        scheme=scheme,
+        ref=ref,
+        dest_dir=dest_dir,
+    )
 
 
 def peek_ref(ref: str, workflow_type: str) -> ResolvedRef | None:

@@ -9,6 +9,7 @@ Usage::
 """
 
 from ._hookspec import (
+    ExternalRepoCloneResult,
     ResolvedRef,
     SddSidecarPreflight,
     SddSidecarPreflightStatus,
@@ -38,6 +39,7 @@ from .registry import (
     save_registry,
 )
 from ._registry import (
+    clone_external_repo,
     create_sdd_remote,
     detect_workflow_type,
     extract_change_identifier,
@@ -52,6 +54,7 @@ from ._registry import (
     get_pre_allocated_env_prefix,
     get_sdd_storage_policy_by_vcs,
     get_embedded_vcs_tag_pattern,
+    get_external_repo_schemes,
     get_ref_patterns,
     get_vcs_tag_pattern,
     get_workflow_names,
@@ -70,6 +73,7 @@ from ._registry import (
 
 __all__ = [
     "CheckoutMarker",
+    "ExternalRepoCloneResult",
     "ResolvedRef",
     "SddSidecarPreflight",
     "SddSidecarPreflightStatus",
@@ -83,6 +87,7 @@ __all__ = [
     "WorkspaceHookSpec",
     "WorkspacePluginManager",
     "WorkspaceRegistry",
+    "clone_external_repo",
     "create_sdd_remote",
     "detect_workflow_type",
     "extract_change_identifier",
@@ -96,6 +101,7 @@ __all__ = [
     "get_display_name_by_vcs",
     "get_display_name_by_vcs_family",
     "get_embedded_vcs_tag_pattern",
+    "get_external_repo_schemes",
     "get_pre_allocated_env_prefix",
     "get_sdd_storage_policy_by_vcs",
     "get_ref_patterns",

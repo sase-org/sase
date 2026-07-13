@@ -129,6 +129,29 @@ def test_repo_log_summary_renders_empty_states() -> None:
     assert "No individual repository open events match" in text
 
 
+def test_repo_log_summary_renders_external_kind() -> None:
+    event = _event(
+        open_id="external-open",
+        repo="gh:acme/widget",
+        repo_kind="external",
+    )
+    output = StringIO()
+    console = Console(
+        file=output,
+        force_terminal=True,
+        color_system="truecolor",
+        no_color=False,
+        width=180,
+    )
+
+    _render_repo_open_log_summary((event,), console=console, project_name="demo")
+
+    rendered = output.getvalue()
+    assert "gh:acme/widget" in rendered
+    assert "external" in rendered
+    assert "255;175;0" in rendered
+
+
 def test_repo_log_json_filters_and_summarizes_through_repo_handler(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

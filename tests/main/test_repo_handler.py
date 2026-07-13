@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from rich.console import Console
 
 from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.main.repo_handler import (
+    _repo_panel,
     _resolve_open_workspace_num,
     _resolve_repo_record,
     handle_repo_command,
@@ -163,6 +166,39 @@ def test_repo_list_human_renders_clone_counts_and_selected_status(
     assert "WORKSPACES" in output
     assert "1/2" in output
     assert "✗" in output
+
+
+def test_repo_list_human_renders_external_row_with_amber_kind(tmp_path: Path) -> None:
+    clone = tmp_path / "sase" / "repos" / "external" / "gh" / "acme" / "widget"
+    clone.mkdir(parents=True)
+    record = RepoRecord(
+        name="gh:acme/widget",
+        kind="external",
+        project="demo",
+        project_key="demo",
+        path=str(clone),
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="opened external",
+        env_name=None,
+        clones=(RepoCloneRecord(10, str(clone), True),),
+    )
+    output = StringIO()
+    console = Console(
+        file=output,
+        force_terminal=True,
+        color_system="truecolor",
+        no_color=False,
+        width=180,
+    )
+
+    console.print(_repo_panel((record,), project="demo", workspace_num=10))
+
+    rendered = output.getvalue()
+    assert "gh:acme/widget" in rendered
+    assert "external" in rendered
+    assert "255;175;0" in rendered
 
 
 def test_repo_list_all_includes_disabled_projects_at_primary_context(

@@ -289,7 +289,7 @@ def _event_from_mapping(data: Mapping[str, Any]) -> RepoOpenEvent | None:
     if any(not isinstance(data.get(key), str) for key in required_strings):
         return None
     repo_kind = data["repo_kind"]
-    if repo_kind not in {"primary", "sidecar", "linked"}:
+    if repo_kind not in {"primary", "sidecar", "linked", "external"}:
         return None
     workspace_num = data.get("workspace_num")
     if not isinstance(workspace_num, int) or isinstance(workspace_num, bool):

@@ -28,6 +28,7 @@ _KIND_STYLES = {
     "primary": "bold #00D7AF",
     "sidecar": "bold #AF87FF",
     "linked": "bold #87D7FF",
+    "external": "bold #FFAF00",
 }
 
 
