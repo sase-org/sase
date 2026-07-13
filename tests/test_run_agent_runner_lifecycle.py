@@ -45,23 +45,33 @@ def _state(**overrides: object) -> RunnerShutdownState:
 
 
 @pytest.mark.parametrize(
-    ("overrides", "was_killed", "auto_dismiss", "expected"),
+    ("overrides", "was_killed", "auto_dismiss", "steps_hidden", "expected"),
     [
-        ({}, False, False, True),
-        ({"exec_outcome": "custom_role_cap_exhausted"}, False, False, True),
-        ({"success": True, "exec_outcome": "completed"}, False, False, False),
-        ({"exec_outcome": "killed"}, False, False, False),
-        ({"exec_outcome": "failed_retried"}, False, False, False),
-        ({"exec_outcome": "plan_rejected"}, False, False, False),
-        ({"exec_outcome": "plan_committed"}, False, False, False),
-        ({}, True, False, False),
-        ({}, False, True, False),
+        ({}, False, False, False, True),
+        ({"exec_outcome": "custom_role_cap_exhausted"}, False, False, False, True),
+        (
+            {"success": True, "exec_outcome": "completed"},
+            False,
+            False,
+            False,
+            False,
+        ),
+        ({"exec_outcome": "killed"}, False, False, False, False),
+        ({"exec_outcome": "failed_retried"}, False, False, False, False),
+        ({"exec_outcome": "plan_rejected"}, False, False, False, False),
+        ({"exec_outcome": "plan_committed"}, False, False, False, False),
+        ({}, True, False, False, False),
+        ({}, False, True, False, False),
+        ({}, False, False, True, False),
+        ({"suppress_completion_notification": True}, False, False, False, False),
+        ({"agent_hidden": True}, False, False, False, True),
     ],
 )
 def test_should_hold_workspace_matches_terminal_failed_rows(
     overrides: dict[str, object],
     was_killed: bool,
     auto_dismiss: bool,
+    steps_hidden: bool,
     expected: bool,
 ) -> None:
     assert (
@@ -69,6 +79,7 @@ def test_should_hold_workspace_matches_terminal_failed_rows(
             _state(**overrides),
             was_killed=was_killed,
             auto_dismiss=auto_dismiss,
+            steps_hidden=steps_hidden,
         )
         is expected
     )
@@ -124,7 +135,62 @@ def test_finalize_holds_failed_workspace_and_surfaces_recovery(
     assert (
         send_notification.call_args.kwargs["held_workspace_dir"] == "/tmp/workspace-17"
     )
-    assert "Workspace #17 held (failed run)" in capsys.readouterr().out
+    assert "Workspace #17 held (visible failed run)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("steps_hidden", "suppress_completion_notification"),
+    [
+        (True, False),
+        (False, True),
+    ],
+)
+def test_finalize_releases_failed_workspace_without_visible_notification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    steps_hidden: bool,
+    suppress_completion_notification: bool,
+) -> None:
+    monkeypatch.delenv("SASE_AGENT_AUTO_DISMISS", raising=False)
+    context = RunnerShutdownContext(
+        project_file="/tmp/project.sase",
+        workflow_name="run",
+        cl_name="feature",
+        artifacts_timestamp="20260712120000",
+        artifacts_dir=str(tmp_path),
+        output_path=str(tmp_path / "output.log"),
+        submitted_xprompt="do work",
+        prompt="do work",
+        is_home_mode=False,
+    )
+    all_steps_hidden = MagicMock(return_value=steps_hidden)
+    send_notification = MagicMock()
+    deps = RunnerShutdownDeps(
+        update_artifact_index=MagicMock(),
+        was_killed=MagicMock(return_value=False),
+        all_steps_hidden=all_steps_hidden,
+        write_error_report=MagicMock(),
+        send_completion_notification=send_notification,
+        auto_dismiss_completed_agent=MagicMock(),
+    )
+
+    with (
+        patch("sase.running_field.hold_workspace_claim") as hold,
+        patch("sase.running_field.release_workspace") as release,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=_state(
+                error_summary=None,
+                suppress_completion_notification=suppress_completion_notification,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_not_called()
+    release.assert_called_once_with("/tmp/project.sase", 17, "run", "feature")
+    all_steps_hidden.assert_called_once_with("/tmp/artifacts")
+    send_notification.assert_not_called()
 
 
 def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:

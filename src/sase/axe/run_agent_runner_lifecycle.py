@@ -95,13 +95,16 @@ def _should_hold_workspace(
     *,
     was_killed: bool,
     auto_dismiss: bool,
+    steps_hidden: bool,
 ) -> bool:
-    """Return whether this terminal run has a dismissable failed-agent row."""
+    """Return whether this failed run has a visible dismissal path."""
     return (
         not state.success
         and state.exec_outcome not in _NON_HOLD_FAILURE_OUTCOMES
         and not was_killed
         and not auto_dismiss
+        and not steps_hidden
+        and not state.suppress_completion_notification
     )
 
 
@@ -122,12 +125,14 @@ def finalize_runner_shutdown(
     auto_dismiss = bool(os.environ.get("SASE_AGENT_AUTO_DISMISS"))
     workspace_held = False
     killed = deps.was_killed()
+    steps_hidden = deps.all_steps_hidden(state.current_artifacts_dir)
     if not context.is_home_mode:
         try:
             if _should_hold_workspace(
                 state,
                 was_killed=killed,
                 auto_dismiss=auto_dismiss,
+                steps_hidden=steps_hidden,
             ):
                 from sase.running_field import hold_workspace_claim
 
@@ -141,7 +146,7 @@ def finalize_runner_shutdown(
                 workspace_held = result.success
                 if workspace_held:
                     print(
-                        f"Workspace #{state.workspace_num} held (failed run) — "
+                        f"Workspace #{state.workspace_num} held (visible failed run) — "
                         "dismiss the agent in ace to release it"
                     )
                 else:
@@ -192,11 +197,7 @@ def finalize_runner_shutdown(
             agent_name=state.agent_name,
         )
 
-    if (
-        not state.suppress_completion_notification
-        and not killed
-        and not deps.all_steps_hidden(state.current_artifacts_dir)
-    ):
+    if not state.suppress_completion_notification and not killed and not steps_hidden:
         deps.send_completion_notification(
             cl_name=context.cl_name,
             artifacts_timestamp=context.artifacts_timestamp,
