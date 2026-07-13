@@ -124,9 +124,9 @@ project records. Existing auto-aliased GitHub projects remain valid and keep res
 
 Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Internal sibling backing records are hidden
-from those surfaces and support configured linked repositories. To open one, pass its linked-repo name as the workspace
-CLI's project override: `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. Agent-history views that
-need older artifacts opt into all project states explicitly.
+from those surfaces and support configured linked repositories. Open one from a managed checkout with
+`sase repo open <linked_repo> -r "<reason>"`; the host project and workspace are inferred from cwd. Agent-history views
+that need older artifacts opt into all project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections; use repeatable
 `-s/--status` options to select sections, `-n/--limit` to set each history section's size (`0` is unlimited), and
@@ -232,9 +232,10 @@ GitHub pull requests, and other provider plugins.
 | `sase var set`                 | Attach named output variables for ACE metadata and waited-agent Jinja rendering.                                                                                      | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                         |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                                                                                       | [Configuration CLI flags](configuration.md#sase-path)                                                                |
 | `sase repo list`               | Show primary, sidecar, and linked repos for the cwd project/workspace; use `--all` or `--json` for cross-project and clone-matrix views.                              | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
+| `sase repo log`                | Summarize the durable repository-open audit log, with repo, agent, workspace, event-ID, and JSON filters.                                                             | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
+| `sase repo open`               | Materialize and prepare a primary, sidecar, or linked repo in the inferred workspace, then print its path.                                                            | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
 | `sase workspace list`          | List one project's registry or use `--all` for the cross-project workspace inventory.                                                                                 | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                                                                                       | [Workspace provider](workspace.md)                                                                                   |
-| `sase workspace open`          | Materialize, prepare, and print a workspace path.                                                                                                                     | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                                                                               | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace repair`        | Reconcile the workspace registry with the filesystem.                                                                                                                 | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace migrate`       | Opt-in move of adjacent checkouts to a managed root, with optional symlink transition and finalization.                                                               | [Workspace provider](workspace.md)                                                                                   |

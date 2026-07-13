@@ -155,8 +155,8 @@ SASE keeps durable state outside any one chat session:
   managed root. Set `workspace.root: adjacent` to keep the legacy `<primary>_<num>/` sibling layout, or use an absolute
   path for a custom managed-root base; `sase workspace list`, `path`, `repair`, `cleanup`, and `migrate` inspect and
   maintain that view. Normal `sase run` launches prepare their own workspaces; use
-  `sase workspace open -r "<reason>" 10` when you want to prepare a specific checkout for an external shell, editor, or
-  debugging session.
+  `sase repo open <repo> -w 10 -r "<reason>"` when you want to prepare a specific checkout for an external shell,
+  editor, or debugging session.
 - **Prompt authoring surface** - ACE's prompt input combines prompt history, snippets, `Ctrl+T` completion for
   directives, xprompts, slash skills, paths, and recent file references, plus a `Ctrl+R` recursive fuzzy file finder.
   Relative path lookup is prompt-aware: registered workspace-provider refs and known-project refs such as `#git:sase` or
@@ -187,9 +187,8 @@ SASE keeps durable state outside any one chat session:
   two host projects cannot collide. `sase init workspace` adds the tracked `/sase/repos/` ignore rule; existing legacy
   `.sase/workspaces/` clones are recognized and moved on first materialization. ACE uses that metadata for live context:
   dirty linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened inside the
-  agent with `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` appear in the `SASE CONTEXT`
-  `WORKSPACES` lane and the `t` tmux chooser. In that command, `-p/--project` names the configured linked repo's backing
-  project record.
+  agent with `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT` `WORKSPACES` lane and the `t`
+  tmux chooser. The host project and workspace are inferred from cwd; `sase repo log` exposes the durable open history.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them

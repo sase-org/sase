@@ -370,16 +370,15 @@ changes together; the unfolded view groups linked entries under the workspace gl
 resolve paths relative to the linked workspace directory. Missing workspace directories, clean repos, and
 completed/failed agents are not part of this live linked-delta display.
 
-When a SASE-launched agent opens a configured linked repo with
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`, the run records an opened-workspace marker. Here
-`-p/--project` is the workspace CLI's project selector; configured linked repos are backed by hidden
-`PROJECT_STATE: sibling` project records so their names can be used there. ACE shows recorded markers in the
-prompt/detail `SASE CONTEXT` section as a `WORKSPACES` lane with the repo name, resolved path, open time, and reason. If
-the selected agent has cached opened-linked-workspace context, pressing `t` opens a keyboard-first tmux chooser with
-`CURRENT` first and one `LINKED` target per unique opened repository workspace. Selecting `CURRENT` uses the normal
-agent-workspace tmux path; selecting a `LINKED` row opens or switches to a tmux window named after the linked workspace
-directory. If no opened-workspace context is cached, `t` opens the normal agent tmux target directly. `T` always opens
-the primary project workspace.
+When a SASE-launched agent opens a configured linked repo with `sase repo open <linked_repo> -r "<reason>"`, the run
+records an opened-workspace marker. The command infers the host project and workspace from cwd; configured linked repos
+remain backed by hidden `PROJECT_STATE: sibling` project records. ACE shows recorded markers in the prompt/detail
+`SASE CONTEXT` section as a `WORKSPACES` lane with the repo name, resolved path, open time, and reason. If the selected
+agent has cached opened-linked-workspace context, pressing `t` opens a keyboard-first tmux chooser with `CURRENT` first
+and one `LINKED` target per unique opened repository workspace. Selecting `CURRENT` uses the normal agent-workspace tmux
+path; selecting a `LINKED` row opens or switches to a tmux window named after the linked workspace directory. If no
+opened-workspace context is cached, `t` opens the normal agent tmux target directly. `T` always opens the primary
+project workspace.
 
 ### Wait Modal
 

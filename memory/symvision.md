@@ -63,7 +63,7 @@ because Symvision resolves a URI pragma against a stale local checkout while CI 
 
 - Reproduce CI: `SYMVISION_EXTERNAL_REPO_PATHS=<current-linked-checkout> just _lint-symvision`.
 - Open the linked repo the sanctioned way and use the printed path -- never guess it:
-  `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`.
+  `sase repo open <linked_repo> -r "<reason>"` from the current workspace, or pass `-w <workspace_num>` outside it.
 - Decide from what the _current_ linked repo references: still references it -> keep the symbol and its pragma; no
   longer references it -> the pragma is stale, so remove the symbol, its dead helpers, its tests, and the pragma (or
   retarget the pragma to the real consumer).

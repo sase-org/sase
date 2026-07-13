@@ -178,7 +178,8 @@ changes and run `chezmoi apply --force`; `--no-commit` does not disable that hom
 The generated `memory/sase.md` summarizes workspace naming and linked repositories. Project memory reads linked-repo
 descriptions from the project-local `./sase.yml`; home memory reads them from the global config
 `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory includes
-the uniform `sase workspace open` instructions for every configured linked repo.
+uniform `sase repo open <linked_repo> -r "<reason>"` instructions for every configured linked repo. The instructions
+explain cwd-based workspace inference and the `-w/--workspace` escape hatch for calls made outside the workspace.
 
 Every configured `linked_repos` entry (or its deprecated `sibling_repos` alias) must have a non-empty `description`.
 Initialization fails instead of generating ambiguous memory when a description is missing.

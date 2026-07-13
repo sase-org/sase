@@ -68,7 +68,7 @@ reference notes that agents read only when relevant.
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 38
-- Approx. tokens: 433
+- Approx. tokens: 432
 
 ### `memory/cli_rules.md`
 
@@ -94,7 +94,7 @@ reference notes that agents read only when relevant.
   whitelists.
 - Parent: `AGENTS.md`
 - Lines: 82
-- Approx. tokens: 1232
+- Approx. tokens: 1243
 
 ### `memory/tui_perf.md`
 
@@ -119,7 +119,7 @@ reference notes that agents read only when relevant.
 - Short notes: 5
 - Long notes: 5
 - Total lines: 465
-- Total approx. tokens: 6606
+- Total approx. tokens: 6616
 
 ## Commands
 

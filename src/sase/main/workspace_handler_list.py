@@ -31,20 +31,18 @@ ProjectResolver = Callable[[str | None], ProjectContext]
 
 
 class _WorkspaceOpenReasonError(ValueError):
-    """Raised when a ``sase workspace open`` reason is missing or empty."""
+    """Raised when a repository-open reason is missing or empty."""
 
 
 def _normalize_workspace_open_reason(reason: str | None) -> str:
-    """Normalize and validate a ``sase workspace open`` reason.
+    """Normalize and validate a legacy workspace-open reason.
 
     Trims surrounding whitespace and rejects empty values, mirroring the
     ``sase memory read`` reason contract.
     """
     normalized = (reason or "").strip()
     if not normalized:
-        raise _WorkspaceOpenReasonError(
-            "sase workspace open requires a non-empty --reason"
-        )
+        raise _WorkspaceOpenReasonError("sase repo open requires a non-empty --reason")
     return normalized
 
 

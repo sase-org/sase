@@ -1,4 +1,4 @@
-"""Loader for per-agent ``sase workspace open`` audit events."""
+"""Loader for per-agent ``sase repo open`` artifact markers."""
 
 from __future__ import annotations
 

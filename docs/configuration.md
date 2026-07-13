@@ -534,14 +534,14 @@ commit:
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
 When enabled, the finalizer checks the main workspace through the active VCS provider and configured `linked_repos` Git
-worktrees at their resolved paths. `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` records manual
-opens in `opened_linked_workspaces.json` for ACE context. In that command, `-p/--project` names the configured linked
-repo's hidden backing project record. Dirty enforced workspaces trigger a follow-up invocation that instructs the same
-provider to use the appropriate commit skill. Dirty linked repos are enforced like the main workspace. When the only
-enforced change is one tracked markdown file under `sdd/plans/`, and that file's only diff is leading front matter
-changing exactly from `status: wip` to `status: done`, the finalizer creates a direct `chore: Mark SDD plan done` commit
-instead of invoking the provider again. When `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts
-there, and the final outcome is recorded in `commit_finalizer_result.json`.
+worktrees at their resolved paths. `sase repo open <linked_repo> -r "<reason>"` records manual opens in
+`opened_linked_workspaces.json` for ACE context and in the host project's durable repo-open log. Dirty enforced
+workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit skill. Dirty
+linked repos are enforced like the main workspace. When the only enforced change is one tracked markdown file under
+`sdd/plans/`, and that file's only diff is leading front matter changing exactly from `status: wip` to `status: done`,
+the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider again. When
+`$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is recorded in
+`commit_finalizer_result.json`.
 
 Set `SASE_DISABLE_COMMIT_STOP_HOOK=1` for a one-off bypass. The environment variable name is historical; it now disables
 the provider-neutral finalizer.
@@ -551,15 +551,14 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 ### linked_repos
 
 Declares related repositories that should be visible to launched agents. Git linked-repo worktrees are eligible for
-commit-finalizer checks at their resolved `workspace_dir`. The
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command records manually opened linked workspaces
-in run artifacts for ACE context. The `-p/--project` value is the linked repo's configured name; SASE materializes a
-hidden sibling-state ProjectSpec for that name when needed. Entries can live in user config or a project-local
-`sase.yml`; local entries are resolved relative to the project's primary workspace directory.
+commit-finalizer checks at their resolved `workspace_dir`. The `sase repo open <linked_repo> -r "<reason>"` command
+records manually opened linked workspaces in run artifacts for ACE context and appends a durable audit event. SASE
+materializes a hidden sibling-state ProjectSpec for the linked repo when needed. Entries can live in user config or a
+project-local `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
 
 Linked repositories are lazy by default. Set `auto_clone: true` for a repository that every launched agent needs; SASE
-materializes and prepares those entries before execution. Lazy entries remain available through `sase workspace open`,
-but their per-repository `*_DIR` environment variables are not exported until the clone exists. Repositories with
+materializes and prepares those entries before execution. Lazy entries remain available through `sase repo open`, but
+their per-repository `*_DIR` environment variables are not exported until the clone exists. Repositories with
 `auto_clone: true` are omitted from generated agent instructions because agents do not need to open them manually.
 
 Managed projects (`is_sase_managed: true`) also receive deterministic `<project>--plans` (`auto_clone: true`) and
@@ -595,10 +594,10 @@ Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher wor
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
 workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree.
 Sidecars with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
-network fallback; other linked repos and sidecars are materialized on demand by `sase workspace open`.
-`sase init workspace` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
-`.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
-paths only for materialized entries:
+network fallback; other linked repos and sidecars are materialized on demand by `sase repo open`. `sase init workspace`
+manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before
+materialization. SASE passes resolved metadata for all entries and exports per-repository paths only for materialized
+entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -1235,11 +1234,11 @@ Existing adjacent checkouts are not moved automatically by the default. Run `sas
 carry legacy `<primary>_<num>/` directories into the managed root, or set `workspace.root: adjacent` explicitly to keep
 the old sibling layout.
 
-`sase workspace open NUM -r "<reason>"` is an explicit preparation command for a checkout you plan to use outside a
-normal `sase run` launch. It uses the same root policy when it materializes the checkout, backs up uncommitted local
-changes through the active VCS provider, cleans the checkout, checks out and syncs the provider default parent revision,
-and prints the resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the primary
-checkout and `#1` through `#9` are reserved compatibility numbers.
+`sase repo open <primary-repo> -w NUM -r "<reason>"` is an explicit preparation command for a checkout you plan to use
+outside a normal `sase run` launch. It uses the same root policy when it materializes the checkout, backs up uncommitted
+local changes through the active VCS provider, cleans the checkout, checks out and syncs the provider default parent
+revision, and prints the resulting path. For manual scratch work, choose a claim-range number such as `10`; `#0` is the
+primary checkout and `#1` through `#9` are reserved compatibility numbers.
 
 Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
@@ -1574,12 +1573,15 @@ confirmed deletion of whole SASE project directories, and the Repos/Workspaces i
 
 ### `sase repo`
 
-`sase repo list` inventories repos for the current project by default, inferring both the project and workspace context
-from the current directory. Primary repos come from ProjectSpecs, sidecars from SDD store records, and linked repos from
-resolved `linked_repos`; a sidecar wins when the same checkout is also auto-injected as linked. The Rich table reports
-whether each repo is cloned in the selected workspace plus the number of registered workspaces containing it.
+Bare `sase repo` defaults to `sase repo list`. The command family inventories primary, sidecar, and linked repositories,
+prepares a selected repo inside one workspace context, and exposes the durable audit history of successful opens.
 
-| Flag              | Description                                                                 |
+`sase repo list` defaults to the current project and infers both the project and workspace context from cwd. Primary
+repos come from ProjectSpecs, sidecars from SDD store records, and linked repos from resolved `linked_repos`; a sidecar
+wins when the same checkout is also auto-injected as linked. The Rich table reports whether each repo is cloned in the
+selected workspace plus the number of registered workspaces containing it.
+
+| List flag         | Description                                                                 |
 | ----------------- | --------------------------------------------------------------------------- |
 | `-a, --all`       | Show all enabled and disabled projects at primary workspace context (`#0`). |
 | `-j, --json`      | Emit deterministic records with the full per-workspace `clones` matrix.     |
@@ -1588,6 +1590,30 @@ whether each repo is cloned in the selected workspace plus the number of registe
 
 `--all` and `--project` are mutually exclusive. JSON records retain source, description, `auto_clone`, environment, and
 SDD-storage metadata while making `path` and `exists` describe the selected workspace context.
+
+`sase repo open REPO -r "<reason>"` resolves a repo name from that inventory, materializes and prepares it, prints its
+path, records the per-run artifact markers used by ACE and the commit finalizer, and appends an event to
+`~/.sase/projects/<project>/repo_opens.jsonl`. Run it inside a managed checkout to infer the host project and workspace.
+
+| Open argument / flag | Description                                                        |
+| -------------------- | ------------------------------------------------------------------ |
+| `REPO`               | Primary, sidecar, or linked repo name shown by `sase repo list`.   |
+| `-p, --project`      | Select the host project instead of inferring it from cwd.          |
+| `-r, --reason`       | Required non-empty audit reason.                                   |
+| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd. |
+
+`sase repo log` renders a project-scoped summary and per-repo rollup of durable open events. Repo, agent, or workspace
+filters add agent and event drill-down panels; an event ID prefix shows one complete event. `--json` returns the same
+filtered data deterministically.
+
+| Log flag          | Description                                               |
+| ----------------- | --------------------------------------------------------- |
+| `-a, --agent`     | Filter by agent name or interactive user.                 |
+| `-i, --id`        | Show one event by exact ID or unambiguous ID prefix.      |
+| `-j, --json`      | Emit deterministic structured output.                     |
+| `-p, --project`   | Select the host project instead of inferring it from cwd. |
+| `-r, --repo`      | Filter by repository name.                                |
+| `-w, --workspace` | Filter by host workspace number.                          |
 
 ### `sase revert`
 
@@ -1740,7 +1766,7 @@ unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider
 are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
 reference list, and missing long-memory `description` frontmatter is inserted. By default it also tries to commit,
 rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this command.
-Generated linked-repository memory includes `sase workspace open` guidance for every configured linked repo.
+Generated linked-repository memory includes cwd-inferred `sase repo open` guidance for every configured linked repo.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -1805,33 +1831,28 @@ by `-p/--project`. With no subcommand, `sase workspace` defaults to `sase worksp
 `sase workspace list -p <project>`, `sase workspace list --all`, or `sase workspace list --json` when passing list
 flags.
 
-| Command                  | Flag / argument            | Values       | Description                                                                                          |
-| ------------------------ | -------------------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                              |
-| `sase workspace list`    | `-a, --all`                | flag         | Inventory registered workspaces across every enabled and disabled project.                           |
-| `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                 |
-| `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`.  |
-| `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                         |
-| `sase workspace open`    | `workspace_num`            | integer      | Workspace number to materialize, prepare, and print.                                                 |
-| `sase workspace open`    | `-p, --project`            | project name | Query a project other than the inferred one; for configured linked repos, pass the linked repo name. |
-| `sase workspace open`    | `-r, --reason`             | text         | Required non-empty reason for opening and preparing the workspace.                                   |
-| `sase workspace open`    | `-P, --print`              | flag         | Explicitly print the prepared path; this is also the current default behavior.                       |
-| `sase workspace open`    | `-c, --clean`              | flag         | Compatibility flag for the default prepare/clean/sync behavior.                                      |
-| `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                         |
-| `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                          |
-| `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                          |
-| `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                             |
-| `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                        |
-| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                           |
-| `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                       |
-| `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                            |
-| `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                             |
-| `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                         |
-| `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.             |
+| Command                  | Flag / argument            | Values       | Description                                                                                         |
+| ------------------------ | -------------------------- | ------------ | --------------------------------------------------------------------------------------------------- |
+| `sase workspace list`    | `-p, --project`            | project name | Query a project other than the one inferred from the current directory.                             |
+| `sase workspace list`    | `-a, --all`                | flag         | Inventory registered workspaces across every enabled and disabled project.                          |
+| `sase workspace list`    | `-j, --json`               | flag         | Emit a machine-readable JSON object.                                                                |
+| `sase workspace path`    | `workspace_num`            | integer      | Workspace number to resolve; `0` is the primary checkout and managed claims normally start at `10`. |
+| `sase workspace path`    | `-p, --project`            | project name | Query a project other than the inferred one.                                                        |
+| `sase workspace cleanup` | `-p, --project`            | project name | Clean a project other than the inferred one.                                                        |
+| `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                         |
+| `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                         |
+| `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                            |
+| `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                       |
+| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                          |
+| `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                      |
+| `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                           |
+| `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                            |
+| `sase workspace migrate` | `-f, --finalize`           | flag         | Remove transition symlinks left behind by a prior migration.                                        |
+| `sase workspace migrate` | `-n, --dry-run`            | flag         | Report planned migration or finalization actions without touching files or the registry.            |
 
-For built-in bare-git projects, `sase workspace open` may initialize generated SDD guide files in the primary checkout
-before materializing a numbered workspace. `sase workspace list` and `sase workspace path` remain read-only and do not
-run SDD initialization.
+For built-in bare-git projects, `sase repo open` may initialize generated SDD guide files in the primary checkout before
+materializing a numbered workspace. `sase workspace list` and `sase workspace path` remain read-only and do not run SDD
+initialization.
 
 ### `sase bead`
 

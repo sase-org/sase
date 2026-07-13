@@ -89,8 +89,15 @@ sibling_repos:
         assert "the only linked repo path" in single_line(memory)
         assert (
             "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any "
-            "other way than by using `sase workspace open`!"
+            "other way than by using `sase repo open`!"
         ) in single_line(memory)
+        assert 'sase repo open <linked_repo> -r "<reason>"' in memory
+        assert "the workspace number is inferred from where you run it" in single_line(
+            memory
+        )
+        assert "pass `-w <workspace_num>` only when running from outside" in (
+            single_line(memory)
+        )
         assert "When a linked repository needs changes, agents MUST run:" not in memory
         assert "linked edits" not in memory
 
@@ -294,7 +301,7 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert run_handler(check=True) == 0
 
 
-def test_init_memory_legacy_workspace_config_uses_workspace_open(
+def test_init_memory_legacy_workspace_config_uses_repo_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -338,13 +345,10 @@ linked_repos:
     )
     assert "- `dotfiles`: User dotfiles source." in project_memory_line
     assert "- `notes`: Static notes checkout." in project_memory_line
-    assert (
-        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        in project_memory
-    )
+    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
 
 
-def test_init_memory_mixed_linked_repos_render_workspace_open(
+def test_init_memory_mixed_linked_repos_render_repo_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -384,15 +388,12 @@ linked_repos:
     )
     assert "- `dotfiles`: Static dotfiles source." in project_memory_line
     assert "numbered-workspace linked repo" in project_memory
-    assert (
-        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        in project_memory
-    )
+    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
     assert "numbered-workspace linked reads/writes" in project_memory_line
     assert "the only linked repo path" in project_memory_line
 
 
-def test_init_memory_legacy_relative_paths_use_workspace_open(
+def test_init_memory_legacy_relative_paths_use_repo_open(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -444,10 +445,7 @@ linked_repos:
         project_memory
     )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
-    assert (
-        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        in project_memory
-    )
+    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
 
 
 def test_init_memory_project_memory_includes_workspace_section(
@@ -475,14 +473,8 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
     assert "`project--research`: Durable SASE research reports" in project_memory
-    assert (
-        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        in project_memory
-    )
-    assert (
-        'sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>'
-        not in home_memory
-    )
+    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
+    assert 'sase repo open <linked_repo> -r "<reason>"' not in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert SASE_MEMORY_HEADER in home_memory

@@ -41,8 +41,8 @@ When a provider invocation succeeds inside a SASE-launched agent session, the pr
 in the shared LLM invocation layer before normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted changes through the active VCS
 provider. It enforces configured linked repositories at their host-scoped workspace paths. The
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command also records manually opened linked
-workspaces for ACE context. It does not scan arbitrary same-remote numbered workspaces just because their paths appear
+`sase repo open <linked_repo> -r "<reason>"` command also records manually opened linked repos for ACE context and the
+durable repo-open audit log. It does not scan arbitrary same-remote numbered workspaces just because their paths appear
 in run artifacts. If everything is clean, the agent response is postprocessed normally.
 
 There is one special case before the normal enforced-work follow-up path:

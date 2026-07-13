@@ -169,7 +169,7 @@ project at an existing bare repository, use `#git:<bare-repo-path>`; the path ba
 `#git:/path/to/home.git` registers the `home` project.
 
 Bare-git projects use in-tree SDD under `sdd/`. SASE creates or refreshes generated SDD guide files during new project
-initialization, existing bare-repo registration, and first `#git` or `sase workspace open` materialization. When
+initialization, existing bare-repo registration, and first `#git` or `sase repo open` materialization. When
 materialization owns the checkout setup, SASE commits and pushes only those generated guide paths with an
 `Initialize SDD` init commit.
 
@@ -187,10 +187,10 @@ lookup. Legacy `inactive`, `archived`, and `closed` values normalize to disabled
 disabled known project, launch resolution fails with an enable hint instead of silently allocating work. Use
 `sase project list --state all` to inspect disabled projects and `sase project enable <project>` before launching normal
 work there. Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing records rather than a
-project lifecycle state. To prepare one, pass its linked-repo name as the workspace CLI's project override:
-`sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>`. In a SASE-launched agent session, that command
-records the linked-repo name in the run artifacts; ACE uses that record for opened-workspace context, and the commit
-finalizer uses it to enforce only configured numbered linked-repo workspaces the agent explicitly opened.
+project lifecycle state. To prepare one, run `sase repo open <linked_repo> -r "<reason>"` from the host workspace. In a
+SASE-launched agent session, that command records the linked-repo name in the run artifacts and durable repo-open log;
+ACE uses the artifact record for opened-workspace context, and the commit finalizer uses it to enforce only configured
+numbered linked-repo workspaces the agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
@@ -265,10 +265,10 @@ Configured linked repositories for a numbered checkout are cloned beneath that h
 checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars configured with `auto_clone: true`
 (normally `plans`) are then re-created from the durable primary-checkout clone when it matches the recorded remote, with
 a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` sidecar are re-created
-on demand by an audited `sase workspace open`. SASE protects the whole tree immediately with the per-clone
-`/sase/repos/` exclude rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`.
-Use `--check` to report drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project
-commit/push sequence.
+on demand by an audited `sase repo open`. SASE protects the whole tree immediately with the per-clone `/sase/repos/`
+exclude rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to
+report drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push
+sequence.
 
 ### Registry
 
@@ -327,6 +327,22 @@ Before switching shared CI images, containers, or network-mounted homes to the d
 mounted, backed up, and on storage fast enough for agent work. Use an absolute `workspace.root` when the platform state
 directory is not the right operational location.
 
+## `sase repo` CLI
+
+Repository commands treat the repo as the object and the workspace as context. Run `sase repo open <repo> -r "<reason>"`
+from a managed checkout to infer both the host project and workspace, or pass `-p/--project` and `-w/--workspace`
+explicitly. Primary, sidecar, and linked repository names are accepted; successful opens print the prepared path, write
+the agent artifact markers used by ACE and the commit finalizer, and append the project's durable repo-open audit event.
+
+| Command                                                               | Description                                                                               |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix.  |
+| `sase repo log [-r REPO] [-a AGENT] [-w N] [-i ID] [-p PROJECT] [-j]` | Summarize or filter durable repo-open events, or inspect one event by ID prefix.          |
+| `sase repo open REPO -r REASON [-w N] [-p PROJECT]`                   | Materialize, prepare, audit, and print a primary, sidecar, or linked repository checkout. |
+
+Bare `sase repo` defaults to `sase repo list`. `sase repo list --all` includes enabled and disabled projects at primary
+workspace context, while `sase repo log` remains project-scoped.
+
 ## `sase workspace` CLI
 
 The `sase workspace` command surface inspects numbered workspace paths and maintains the per-project registry used by
@@ -336,15 +352,14 @@ scan of `~/.sase/projects/`. With no subcommand, `sase workspace` defaults to `s
 options. `sase workspace list --all` switches from one inferred/selected project to the shared inventory across enabled
 and disabled projects; `--json` emits the same inventory model as structured data.
 
-| Command                                                                          | Description                                                                                                                                                                                                                |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`                        | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues.                                                     |
-| `sase workspace path NUM`                                                        | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                                                                              |
-| `sase workspace open NUM -r/--reason REASON [-p/--project PROJECT] [-c/--clean]` | Materialize the checkout if needed, stash or otherwise back up local changes through the VCS provider, clean it, sync it to the provider default parent revision, then print the path. Requires a non-empty `-r/--reason`. |
-| `sase workspace cleanup -s/--stale`                                              | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                                                                       |
-| `sase workspace repair [-n]`                                                     | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                                                                             |
-| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]`           | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                                                                               |
-| `sase workspace migrate --finalize`                                              | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                                                                             |
+| Command                                                                | Description                                                                                                                                                            |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`              | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues. |
+| `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                          |
+| `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                   |
+| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                         |
+| `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                           |
+| `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                         |
 
 The all-project inventory includes disabled projects only when `--all` is explicit. One corrupt or unreadable registry
 is returned as an isolated issue and does not suppress rows from other projects. Registry entries whose checkout has
