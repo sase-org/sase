@@ -59,7 +59,9 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
     waiter = _artifact(tmp_path, "20260712120000", 101)
     claims: list[str] = []
     with (
-        patch.object(run_agent_wait, "_scan_runner_slot_records", return_value=[]),
+        patch.object(
+            run_agent_wait, "_scan_runner_slot_records", return_value=[]
+        ) as scan,
         patch.object(run_agent_wait, "is_process_alive", return_value=True),
         patch.object(
             run_agent_wait,
@@ -80,6 +82,7 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
     assert started_at == "started"
     assert claims == ["claim"]
     assert not (waiter / "waiting.json").exists()
+    scan.assert_called_once_with()
     sleep.assert_not_called()
 
 

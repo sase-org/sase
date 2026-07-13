@@ -229,7 +229,8 @@ class Agent:
 
     # Snapshot-derived display context. These values are recomputed from the
     # already-loaded Agents refresh payload after full and artifact-delta
-    # merges; rendering them never triggers another filesystem scan.
+    # merges; rendering them never triggers another filesystem scan. Queue
+    # position and size include only waiters eligible at the current count.
     runner_slots_in_use: int | None = None
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None

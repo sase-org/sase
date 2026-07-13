@@ -219,55 +219,6 @@ def main() -> None:
                 artifacts_dir=artifacts_dir,
             )
 
-            if deferred_workspace and not is_home_mode:
-                print(
-                    "=== Skipping workspace prep "
-                    "(deferred workspace; waiting for dependencies) ==="
-                )
-                print()
-            else:
-                prepare_workspace_if_needed(
-                    workspace_dir=workspace_dir,
-                    workspace_num=workspace_num,
-                    cl_name=cl_name,
-                    update_target=update_target,
-                    project_name=project_name,
-                    is_home_mode=is_home_mode,
-                    retry_handoff=retry_handoff,
-                )
-                if update_target and not is_home_mode and retry_handoff is None:
-                    linked_repo_resolution = refresh_linked_repos_for_workspace(
-                        project_file=project_file,
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        artifacts_dir=artifacts_dir,
-                        agent_meta=agent_meta,
-                    )
-                    prepare_linked_repo_workspaces_if_needed(
-                        resolution=linked_repo_resolution,
-                        cl_name=cl_name,
-                    )
-
-            bump_spawn_telemetry(
-                agent_llm_provider=agent_llm_provider,
-                project_name=project_name,
-                is_home_mode=is_home_mode,
-                workflow_name=workflow_name,
-                timestamp=timestamp,
-            )
-
-            if is_home_mode:
-                running_marker_path = write_home_running_marker(
-                    artifacts_dir=artifacts_dir,
-                    cl_name=cl_name,
-                    timestamp=timestamp,
-                    prompt=prompt,
-                    agent_model=agent_model,
-                    agent_llm_provider=agent_llm_provider,
-                    agent_vcs_provider=agent_vcs_provider,
-                    workspace_dir=workspace_dir,
-                )
-
             has_dependency_wait = (
                 bool(info.wait_names)
                 or bool(info.wait_identity_deps)
@@ -297,6 +248,13 @@ def main() -> None:
                 repeat_stop = detect_repeat_stop()
 
             if repeat_stop is not None:
+                bump_spawn_telemetry(
+                    agent_llm_provider=agent_llm_provider,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    workflow_name=workflow_name,
+                    timestamp=timestamp,
+                )
                 finalize_repeat_stop(
                     decision=repeat_stop,
                     artifacts_dir=artifacts_dir,
@@ -329,6 +287,14 @@ def main() -> None:
                     claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
                 )
 
+                bump_spawn_telemetry(
+                    agent_llm_provider=agent_llm_provider,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    workflow_name=workflow_name,
+                    timestamp=timestamp,
+                )
+
                 if deferred_workspace and not is_home_mode:
                     workspace_num, workspace_dir = claim_deferred_workspace(
                         project_file,
@@ -337,15 +303,18 @@ def main() -> None:
                         cl_name,
                         artifacts_timestamp,
                     )
-                    prepare_workspace_if_needed(
-                        workspace_dir=workspace_dir,
-                        workspace_num=workspace_num,
-                        cl_name=cl_name,
-                        update_target=update_target,
-                        project_name=project_name,
-                        is_home_mode=is_home_mode,
-                        retry_handoff=retry_handoff,
-                    )
+
+                prepare_workspace_if_needed(
+                    workspace_dir=workspace_dir,
+                    workspace_num=workspace_num,
+                    cl_name=cl_name,
+                    update_target=update_target,
+                    project_name=project_name,
+                    is_home_mode=is_home_mode,
+                    retry_handoff=retry_handoff,
+                )
+
+                if deferred_workspace and not is_home_mode:
                     linked_repo_resolution = refresh_linked_repos_for_workspace(
                         project_file=project_file,
                         workspace_dir=workspace_dir,
@@ -358,6 +327,30 @@ def main() -> None:
                             resolution=linked_repo_resolution,
                             cl_name=cl_name,
                         )
+                elif update_target and not is_home_mode and retry_handoff is None:
+                    linked_repo_resolution = refresh_linked_repos_for_workspace(
+                        project_file=project_file,
+                        workspace_dir=workspace_dir,
+                        workspace_num=workspace_num,
+                        artifacts_dir=artifacts_dir,
+                        agent_meta=agent_meta,
+                    )
+                    prepare_linked_repo_workspaces_if_needed(
+                        resolution=linked_repo_resolution,
+                        cl_name=cl_name,
+                    )
+
+                if is_home_mode:
+                    running_marker_path = write_home_running_marker(
+                        artifacts_dir=artifacts_dir,
+                        cl_name=cl_name,
+                        timestamp=timestamp,
+                        prompt=prompt,
+                        agent_model=agent_model,
+                        agent_llm_provider=agent_llm_provider,
+                        agent_vcs_provider=agent_vcs_provider,
+                        workspace_dir=workspace_dir,
+                    )
 
                 if has_dependency_wait and info.wait_names:
                     wait_chats = resolve_wait_chat_paths(info.wait_names)

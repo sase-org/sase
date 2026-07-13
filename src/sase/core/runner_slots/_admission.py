@@ -18,6 +18,7 @@ class RunnerSlotWaiter:
     artifact_dir: str
     slot_requested_at: str
     timestamp: str
+    threshold: int = 0
 
 
 def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
@@ -66,6 +67,11 @@ def live_runner_slot_waiters(
                 artifact_dir=record.artifact_dir,
                 slot_requested_at=waiting.slot_requested_at,
                 timestamp=record.timestamp,
+                threshold=(
+                    waiting.wait_runners
+                    if type(waiting.wait_runners) is int and waiting.wait_runners >= 0
+                    else 0
+                ),
             )
         )
     waiters.sort(key=_waiter_sort_key)
@@ -78,11 +84,20 @@ def may_start(
     queue: Iterable[RunnerSlotWaiter],
     me: str,
 ) -> bool:
-    """Return whether *me* may claim a slot without violating FIFO order."""
+    """Return whether *me* is the oldest currently eligible slot waiter."""
     if running_count > threshold:
         return False
-    first = next(iter(queue), None)
-    return first is None or first.artifact_dir == me
+
+    first_eligible = next(
+        (
+            waiter
+            for waiter in queue
+            if running_count
+            <= (threshold if waiter.artifact_dir == me else waiter.threshold)
+        ),
+        None,
+    )
+    return first_eligible is None or first_eligible.artifact_dir == me
 
 
 def _waiter_sort_key(waiter: RunnerSlotWaiter) -> tuple[int, datetime, str, str]:

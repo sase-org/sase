@@ -1179,16 +1179,21 @@ For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.
   Raises an error if the target is in the past.
 
 Agent dependencies, `time=`, and `runners=` combine in one `%wait(...)` directive. Dependencies wait first, then the
-time floor applies, and the runner-slot gate is the final stage.
+time floor applies, and the runner-slot gate is the final admission stage. Primary and linked-workspace preparation
+start only after admission, so admitted runner counts include that preparation work.
 
-The `runners=N` keyword is a per-prompt threshold: the agent starts only when at most `N` root user agents are already
-running. It overrides the configured `max_running_agents - 1` threshold for that launch, so it can either lower or raise
-the effective limit. `runners=0` is a drain barrier: the agent waits until no other root user agent is running, and
-later slot waiters queue behind it. Runner-slot admission is first-come-first-served among live waiters. The value must
-be a non-negative integer and may appear only once across a prompt's `%wait` directives.
+The `runners=N` keyword is a per-prompt threshold, not a reservation of future capacity: the agent starts only when at
+most `N` root user agents are already running. It overrides the configured `max_running_agents - 1` threshold for that
+launch, so it can either lower or raise the effective limit. Among waiters eligible at the current running count, the
+oldest live waiter starts first; an older waiter with a lower, currently ineligible threshold does not block eligible
+launches. `runners=0` is therefore a drain barrier that waits for true quiescence. Newer eligible root launches can
+start while it is parked and keep it waiting until they also finish. The value must be a non-negative integer and may
+appear only once across a prompt's `%wait` directives.
 
 Without an explicit `runners=`, the global `max_running_agents` config limits concurrent root user agents (default
-`10`). Child agents, workflow Python/bash steps, and axe ChangeSpec runners do not consume these slots.
+`10`). Immediate root launches claim a slot before workspace preparation. Dependency, time, and fork waiters remain
+uncounted until those prerequisites resolve. Child agents, workflow Python/bash steps, and axe ChangeSpec runners do not
+consume these slots.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 

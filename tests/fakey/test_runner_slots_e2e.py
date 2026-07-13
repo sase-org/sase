@@ -293,7 +293,7 @@ def test_fakey_agents_respect_cap_and_release_in_fifo_order(
     assert harness.max_active_roots == 2
 
 
-def test_fakey_drain_barrier_prevents_later_queue_jump(
+def test_fakey_drain_barrier_waits_for_later_eligible_launch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -307,17 +307,33 @@ def test_fakey_drain_barrier_prevents_later_queue_jump(
     harness.start(barrier)
     harness.wait_parked(barrier)
     harness.start(later)
-    harness.wait_parked(later)
+    harness.wait_started(later)
+    later_meta = json.loads(
+        (later.artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    barrier_meta = json.loads(
+        (barrier.artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert isinstance(later_meta.get("run_started_at"), str)
+    assert "run_started_at" not in barrier_meta
 
     harness.release_agent(running)
     harness.join(running)
-    harness.wait_started(barrier)
-    harness.wait_started(later)
+    time.sleep(0.05)
+    assert (barrier.artifacts_dir / "waiting.json").exists()
+    assert not barrier.started.exists()
 
-    assert harness.claim_order == ["running", "barrier", "later"]
-    for agent in (barrier, later):
-        harness.release_agent(agent)
-    harness.join_all([barrier, later])
+    harness.release_agent(later)
+    harness.join(later)
+    harness.wait_started(barrier)
+
+    assert harness.claim_order == ["running", "later", "barrier"]
+    barrier_meta = json.loads(
+        (barrier.artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert isinstance(barrier_meta.get("run_started_at"), str)
+    harness.release_agent(barrier)
+    harness.join(barrier)
 
 
 def test_live_config_raise_releases_fakey_waiter_without_axe(

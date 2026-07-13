@@ -22,6 +22,7 @@ def _record(
     pid: int = 100,
     run_started: bool = False,
     requested_at: str | None = None,
+    wait_runners: int | None = None,
     parent_timestamp: str | None = None,
     appears_as_agent: bool = True,
     done: bool = False,
@@ -39,7 +40,10 @@ def _record(
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
         ),
         waiting=(
-            WaitingMarkerWire(slot_requested_at=requested_at)
+            WaitingMarkerWire(
+                wait_runners=wait_runners,
+                slot_requested_at=requested_at,
+            )
             if requested_at is not None
             else None
         ),
@@ -77,6 +81,7 @@ def test_live_waiter_queue_is_fifo_and_filters_stale_processes() -> None:
     )
 
     assert [waiter.artifact_dir for waiter in queue] == ["/earlier", "/later"]
+    assert [waiter.threshold for waiter in queue] == [0, 0]
 
 
 def test_queue_ties_have_deterministic_timestamp_then_path_order() -> None:
@@ -96,11 +101,59 @@ def test_queue_ties_have_deterministic_timestamp_then_path_order() -> None:
     ]
 
 
-def test_may_start_enforces_threshold_and_fifo_barrier() -> None:
-    first = RunnerSlotWaiter("/first", "2026-07-12T12:00:00+00:00", "1")
-    second = RunnerSlotWaiter("/second", "2026-07-12T12:00:01+00:00", "2")
+def test_older_ineligible_drain_waiter_does_not_block_eligible_waiter() -> None:
+    drain = RunnerSlotWaiter("/drain", "2026-07-12T12:00:00+00:00", "1", threshold=0)
+    immediate = RunnerSlotWaiter(
+        "/immediate", "2026-07-12T12:00:01+00:00", "2", threshold=9
+    )
+
+    assert not may_start(1, 0, (drain, immediate), "/drain")
+    assert may_start(1, 9, (drain, immediate), "/immediate")
+
+
+def test_fifo_order_is_preserved_among_currently_eligible_waiters() -> None:
+    first = RunnerSlotWaiter("/first", "2026-07-12T12:00:00+00:00", "1", threshold=9)
+    second = RunnerSlotWaiter("/second", "2026-07-12T12:00:01+00:00", "2", threshold=9)
 
     assert may_start(0, 0, (), "/new")
     assert not may_start(1, 0, (), "/new")
-    assert may_start(0, 0, (first, second), "/first")
+    assert may_start(1, 9, (first, second), "/first")
+    assert not may_start(1, 9, (first, second), "/second")
+
+
+def test_drain_waiter_wins_deterministically_once_count_reaches_zero() -> None:
+    first = RunnerSlotWaiter("/drain", "2026-07-12T12:00:00+00:00", "1", threshold=0)
+    second = RunnerSlotWaiter(
+        "/immediate", "2026-07-12T12:00:01+00:00", "2", threshold=9
+    )
+
+    assert may_start(0, 0, (first, second), "/drain")
     assert not may_start(0, 25, (first, second), "/second")
+
+
+def test_live_waiter_queue_excludes_non_root_and_terminal_records() -> None:
+    requested_at = "2026-07-12T12:00:00+00:00"
+    records = [
+        _record("/root", requested_at=requested_at, wait_runners=4),
+        _record("/dead", pid=9, requested_at=requested_at, wait_runners=4),
+        _record(
+            "/child",
+            requested_at=requested_at,
+            wait_runners=4,
+            parent_timestamp="parent",
+        ),
+        _record(
+            "/step",
+            requested_at=requested_at,
+            wait_runners=4,
+            appears_as_agent=False,
+        ),
+        _record("/done", requested_at=requested_at, wait_runners=4, done=True),
+    ]
+
+    queue = live_runner_slot_waiters(
+        records,
+        lambda record: record.agent_meta.pid != 9,  # type: ignore[union-attr]
+    )
+
+    assert queue == (RunnerSlotWaiter("/root", requested_at, "root", threshold=4),)

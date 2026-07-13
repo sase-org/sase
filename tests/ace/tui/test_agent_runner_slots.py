@@ -23,7 +23,7 @@ def _agent(name: str, **overrides: object) -> Agent:
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
-def test_refresh_runner_slot_context_counts_roots_and_orders_fifo() -> None:
+def test_refresh_runner_slot_context_orders_currently_eligible_waiters() -> None:
     running = _agent(
         "running",
         status="RUNNING",
@@ -45,9 +45,31 @@ def test_refresh_runner_slot_context_counts_roots_and_orders_fifo() -> None:
 
     assert first.runner_slots_in_use == 1
     assert first.runner_slot_queue_position == 1
-    assert first.runner_slot_queue_size == 2
+    assert first.runner_slot_queue_size == 1
     assert second.runner_slots_in_use == 1
+    assert second.runner_slot_queue_position is None
+    assert second.runner_slot_queue_size == 1
+
+
+def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None:
+    second = _agent(
+        "second",
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:02Z",
+    )
+    first = _agent(
+        "first",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    refresh_runner_slot_context([second, first])
+
+    assert first.runner_slot_queue_position == 1
+    assert first.runner_slot_queue_size == 2
     assert second.runner_slot_queue_position == 2
+    assert second.runner_slot_queue_size == 2
 
 
 def test_refresh_runner_slot_context_excludes_children_and_non_ace_rows() -> None:

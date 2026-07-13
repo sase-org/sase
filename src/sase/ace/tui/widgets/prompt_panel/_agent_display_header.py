@@ -319,7 +319,12 @@ def build_header_text(
             queue_size = wait_agent.runner_slot_queue_size
             if position is not None and queue_size is not None:
                 header_text.append(
-                    f" · queue #{position} of {queue_size}",
+                    f" · eligible #{position} of {queue_size}",
+                    style="dim #AF87FF",
+                )
+            elif in_use is not None and in_use > threshold:
+                header_text.append(
+                    " · not currently eligible",
                     style="dim #AF87FF",
                 )
         header_text.append("\n")

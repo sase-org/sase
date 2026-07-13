@@ -9,7 +9,7 @@ from .agent import Agent
 
 
 def refresh_runner_slot_context(agents: list[Agent]) -> None:
-    """Attach live count and FIFO position using the loaded refresh snapshot.
+    """Attach live count and eligible FIFO position from the loaded snapshot.
 
     The loader has already PID-filtered active rows. Deriving this context
     after the Tier-1/artifact-delta merge keeps the operation O(rows), pure,
@@ -20,8 +20,15 @@ def refresh_runner_slot_context(agents: list[Agent]) -> None:
         (agent for agent in agents if _is_live_slot_waiter(agent)),
         key=_waiter_sort_key,
     )
-    queue_positions = {id(agent): index for index, agent in enumerate(waiters, 1)}
-    queue_size = len(waiters)
+    eligible_waiters = [
+        agent
+        for agent in waiters
+        if agent.wait_runners is not None and running_count <= agent.wait_runners
+    ]
+    queue_positions = {
+        id(agent): index for index, agent in enumerate(eligible_waiters, 1)
+    }
+    queue_size = len(eligible_waiters)
 
     for agent in agents:
         if agent.slot_requested_at:

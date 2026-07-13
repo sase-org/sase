@@ -637,12 +637,14 @@ the start-timestamp half is rendered as a humanized `(date_prefix, time)` pair s
 - **Different year**: `Mon DD 'YY` (date only)
 
 The elapsed duration starts at `BEGIN` when a row recorded wait-before-run metadata, otherwise at the row start time.
-Completed `DONE` / `PLAN DONE` / `TALE DONE` workflow rows use the terminal agent stop time when one exists; plan-step
-rows that finish without a subprocess stop time anchor to the latest recorded plan submission time so completed planning
-rows do not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for the planner segment
-plus the coder segment, excluding the idle approval gap between plan submission and code launch. The date prefix uses a
-softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal hierarchy without
-inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards compatibility.
+For root agents, `BEGIN` is runner admission and includes primary and linked-workspace preparation in the active
+runtime. Completed `DONE` / `PLAN DONE` / `TALE DONE` workflow rows use the terminal agent stop time when one exists;
+plan-step rows that finish without a subprocess stop time anchor to the latest recorded plan submission time so
+completed planning rows do not keep ticking. `PLAN APPROVED` rows with a running follow-up show active elapsed time for
+the planner segment plus the coder segment, excluding the idle approval gap between plan submission and code launch. The
+date prefix uses a softer `dim #8787AF` while the time half keeps the standard `#8787AF`, giving the column internal
+hierarchy without inflating the palette. Statuses not in the table fall back to `(STATUS)` text for forwards
+compatibility.
 
 ### Agent Search
 
@@ -1484,7 +1486,7 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`, inferred from phase, exact epic, or legacy `.land` names
   - `WAIT` — when the agent was spawned (waiting for a slot)
-  - `BEGIN` — when execution started
+  - `BEGIN` — when runner admission completed, before workspace preparation for root agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
   - `FBACK` — each time the agent requested feedback from the user
   - `QUEST` — each time the agent asked the user a question
@@ -1499,7 +1501,8 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
   known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
   waits add compact duration, target time, and countdown text when available. The final runner-slot stage shows the live
-  running count and cap or explicit threshold, plus FIFO queue position; `runners=0` is labeled as a drain barrier.
+  running count and cap or explicit threshold, plus position among waiters currently eligible at that count. Ineligible
+  waits are labeled directly, and `runners=0` is labeled as a drain barrier.
 - **COMMITS**: Commits persisted by the selected agent's post-run steps, grouped by repository. Primary workspace,
   linked-repo, and SDD companion commits are attributed separately when the run metadata records enough path or repo
   information.

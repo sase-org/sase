@@ -5,6 +5,12 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    WorkflowStateWire,
+)
+from sase.core.runner_slots import running_root_agent_count
 from sase.linked_repos import LinkedRepoResolution, _ResolvedLinkedRepo
 
 from tests._axe_run_agent_runner_retry_helpers import (
@@ -18,7 +24,7 @@ from tests._axe_run_agent_runner_retry_helpers import (
 
 
 class TestRunStartedAtRecording:
-    def test_agent_meta_is_published_before_workspace_preparation(
+    def test_agent_is_admitted_before_workspace_preparation(
         self, tmp_path: Path
     ) -> None:
         artifacts_dir = str(tmp_path / "artifacts")
@@ -53,7 +59,7 @@ class TestRunStartedAtRecording:
             assert workspace_dir_arg == str(workspace_dir)
             meta = json.loads(meta_path.read_text())
             assert meta["name"] == "test-agent"
-            assert "run_started_at" not in meta
+            assert isinstance(meta.get("run_started_at"), str)
             events.append("prepare")
             return True
 
@@ -64,6 +70,7 @@ class TestRunStartedAtRecording:
         patches[f"{RUNNER}.extract_directives_and_write_meta"] = extract_and_write_meta
         patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
         patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        gate = patches[f"{RUNNER}.wait_for_runner_slot"]
 
         run_main(
             patches,
@@ -73,6 +80,56 @@ class TestRunStartedAtRecording:
         )
 
         assert events == ["meta", "prepare", "run"]
+        gate.assert_called_once()
+
+    def test_admitted_root_is_counted_when_workspace_preparation_fails(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = str(tmp_path / "artifacts")
+        workspace_dir = tmp_path / "workspace"
+        workspace_dir.mkdir()
+        patches = base_patches(artifacts_dir)
+        run_loop = MagicMock()
+        write_error = MagicMock()
+
+        def prepare_workspace(
+            workspace_dir_arg: str, *_args: Any, **_kwargs: Any
+        ) -> bool:
+            assert workspace_dir_arg == str(workspace_dir)
+            meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+            run_started_at = meta.get("run_started_at")
+            assert isinstance(run_started_at, str)
+            record = AgentArtifactRecordWire(
+                project_name="proj",
+                project_dir="/projects/proj",
+                project_file="/projects/proj/proj.sase",
+                workflow_dir_name="ace-run",
+                artifact_dir=artifacts_dir,
+                timestamp="20260316_120000",
+                agent_meta=AgentMetaWire(
+                    pid=meta["pid"],
+                    run_started_at=run_started_at,
+                ),
+                workflow_state=WorkflowStateWire(appears_as_agent=True),
+            )
+            assert running_root_agent_count([record], lambda _record: True) == 1
+            raise RuntimeError("blocked workspace preparation")
+
+        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{RUNNER}.run_execution_loop"] = run_loop
+        patches[f"{RUNNER}.write_error_done_marker"] = write_error
+
+        run_main(
+            patches,
+            tmp_path,
+            update_target="main",
+            workspace_dir=workspace_dir,
+        )
+
+        run_loop.assert_not_called()
+        assert "blocked workspace preparation" in write_error.call_args.kwargs["error"]
+        meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+        assert isinstance(meta.get("run_started_at"), str)
 
     def test_no_wait_runner_records_run_started_at_before_execution(
         self, tmp_path: Path
@@ -212,8 +269,7 @@ class TestRunStartedAtRecording:
             in (write_error.call_args.kwargs["error"])
         )
         meta_path = artifacts_dir / "agent_meta.json"
-        if meta_path.exists():
-            assert "run_started_at" not in json.loads(meta_path.read_text())
+        assert isinstance(json.loads(meta_path.read_text()).get("run_started_at"), str)
 
     def test_killed_while_waiting_does_not_record_run_started_at(
         self, tmp_path: Path
