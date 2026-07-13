@@ -16,8 +16,9 @@ To diagnose a wait:
 3. Raise `max_running_agents` in `sase.yml` if more concurrency is safe. Parked agents reread configuration and normally
    react within about two seconds.
 4. Kill an unwanted parked agent normally. Dead or stale waiter PIDs are ignored automatically and cannot wedge the
-   queue.
+   queue. A crashed running process likewise stops consuming a slot as soon as its PID is observed dead.
 
 The slot gate runs in each agent process under a global file lock. It does not depend on the axe daemon, so restarting
 axe does not release or repair a slot wait. A `%wait(runners=0)` launch is intentionally a drain barrier: it starts only
-after all currently running root agents finish, and later launches queue behind it.
+after all currently running root agents finish, and later launches queue behind it until it starts. Once admitted, a
+later waiter can also start whenever its own threshold permits.

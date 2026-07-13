@@ -97,4 +97,4 @@ def test_public_symvision_target_uses_published_cli() -> None:
 
     assert "BD_COMMAND=tools/sase_bead" in output
     assert ".venv/bin/symvision src/sase" in output
-    assert "--epic-symbol 'sase-5u(get_max_running_agents)' --help" in output
+    assert "--epic-symbol" not in output

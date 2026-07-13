@@ -150,8 +150,7 @@ _lint-pyscripts: _setup
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
-        --epic-symbol 'sase-5u(get_max_running_agents)'
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-toobig *args:
@@ -374,8 +373,7 @@ all: fix lint test
 
 # Find unused Python function/class definitions
 symvision *args: _setup (_header "symvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
-        --epic-symbol 'sase-5u(get_max_running_agents)' {{ args }}
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase {{ args }}
 
 # Check Python file line counts
 toobig *args: (_header "toobig")
