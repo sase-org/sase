@@ -12,7 +12,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 import time
-from typing import Any
 
 from sase._linked_repo_config import resolution_config
 from sase.core.agent_launch_claims import list_workspace_claims_from_content
@@ -35,7 +34,7 @@ ProcessRunningProbe = Callable[[int], bool]
 
 
 @dataclass(frozen=True)
-class WorkspaceProjectInfo:
+class _WorkspaceProjectInfo:
     """Store metadata for one project represented in the inventory."""
 
     project: str
@@ -103,7 +102,7 @@ class WorkspaceInventory:
     """Workspace records, project store metadata, and isolated issues."""
 
     records: tuple[WorkspaceInventoryRecord, ...]
-    projects: tuple[WorkspaceProjectInfo, ...]
+    projects: tuple[_WorkspaceProjectInfo, ...]
     issues: tuple[WorkspaceInventoryIssue, ...] = ()
 
     def to_json_dict(self) -> dict[str, object]:
@@ -163,7 +162,7 @@ def collect_workspace_inventory(
     current_time = time.time() if now is None else now
     process_probe = process_running or _default_process_running
     records: list[WorkspaceInventoryRecord] = []
-    project_infos: list[WorkspaceProjectInfo] = []
+    project_infos: list[_WorkspaceProjectInfo] = []
     issues: list[WorkspaceInventoryIssue] = []
 
     for project_record in projects:
@@ -199,7 +198,7 @@ def _collect_project_workspaces(
     process_running: ProcessRunningProbe,
 ) -> tuple[
     list[WorkspaceInventoryRecord],
-    WorkspaceProjectInfo | None,
+    _WorkspaceProjectInfo | None,
     list[WorkspaceInventoryIssue],
 ]:
     project = effective_project_name(project_record)
@@ -233,7 +232,7 @@ def _collect_project_workspaces(
         )
 
     registry_file = registry_path(store.root_dir)
-    project_info = WorkspaceProjectInfo(
+    project_info = _WorkspaceProjectInfo(
         project=project,
         project_key=project_record.project_name,
         state=project_record.state,
@@ -424,6 +423,5 @@ __all__ = [
     "WorkspaceInventoryIssue",
     "WorkspaceInventoryProjectNotFoundError",
     "WorkspaceInventoryRecord",
-    "WorkspaceProjectInfo",
     "collect_workspace_inventory",
 ]
