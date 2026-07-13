@@ -60,7 +60,8 @@ steps:
               claimed.add(candidate)
               launched_names.append(candidate)
               per_file_prompts.append(
-                  f"%name:{candidate}\n#m_codex\n#gh:sase %group:chop %auto #split_file:{path}"
+                  f"%name:{candidate}\n%w(runners=0)\n#m_codex\n"
+                  f"#gh:sase %group:chop %auto #split_file:{path}"
               )
           multi_prompt = _build_wait_chained_multi_prompt(per_file_prompts)
           launch_agent_from_cwd(multi_prompt)

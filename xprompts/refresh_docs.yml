@@ -100,11 +100,13 @@ steps:
 
       docs_prompt = textwrap.dedent(f"""
       %name:{name_prefix}.update
+      %w(runners=0)
       #gh:{gh_ref} %g:chop #sase/docs
       """).strip()
 
       polish_prompt = textwrap.dedent(f"""
       %name:{name_prefix}.polish
+      %w(runners=0)
       #gh:{gh_ref} %g:chop #fork
 
       Inspect the documentation changes made by the first refresh-docs agent.

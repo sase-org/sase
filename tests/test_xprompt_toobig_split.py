@@ -10,11 +10,12 @@ shims, without spawning any real agents.
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from sase.agent.multi_prompt import parse_multi_prompt
+from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
 from sase.xprompt.workflow_loader import _load_workflow_from_file
 from sase.xprompt.workflow_validator import validate_workflow
 
@@ -83,7 +84,23 @@ def _run_step_python(
     return captured
 
 
+def _extract_split_directives(
+    segment: str, *, previous_name: str = "previous-agent"
+) -> PromptDirectives:
+    assert segment.count("%w(runners=0)") == 1
+    with patch(
+        "sase.agent.names.get_most_recent_agent_name",
+        return_value=previous_name,
+    ):
+        cleaned, directives = extract_prompt_directives(segment)
+
+    assert directives.wait_runners == 0
+    assert "%w(runners=0)" not in cleaned
+    return directives
+
+
 def _assert_split_segment(segment: str, *, name: str, path: str) -> None:
+    _extract_split_directives(segment)
     assert f"%name:{name}" in segment
     assert "\n#m_codex\n" in segment
     assert "#gh:sase" in segment
@@ -125,6 +142,13 @@ def test_step_two_files_launches_chained_multi_prompt(
 
     assert "%wait" not in parsed.segments[0]
     assert parsed.segments[1].startswith("%wait")
+
+    first_directives = _extract_split_directives(parsed.segments[0])
+    second_directives = _extract_split_directives(
+        parsed.segments[1], previous_name="split_file.foo"
+    )
+    assert first_directives.wait == []
+    assert second_directives.wait == ["split_file.foo"]
 
     _assert_split_segment(
         parsed.segments[0],

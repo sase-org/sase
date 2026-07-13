@@ -112,6 +112,7 @@ steps:
 
       prompt = textwrap.dedent(f"""
       %name:{name_prefix}
+      %w(runners=0)
       #gh:{gh_ref} %g:chop #pr({pr_name})
 
       Audit recent commits in {project} for bugs.
