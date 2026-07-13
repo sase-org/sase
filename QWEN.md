@@ -166,8 +166,8 @@ Read anytime new CLI subcommands or options are added.
 Read when working with sase agent skills (aka xprompt skills), which are generated from source templates in the
 `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for example).
 
-**`memory/pyvision.md`**  
-Read before fixing pyvision lint failures, including unused symbols, private misuse, pragmas, and epic whitelists.
+**`memory/symvision.md`**  
+Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic whitelists.
 
 **`memory/tui_perf.md`**  
 Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).

@@ -149,8 +149,8 @@ _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260619
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
-_lint-symvision: _setup
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase
+_lint-symvision *args: _setup
+    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
 _lint-toobig *args:
@@ -372,8 +372,8 @@ workflow-status *args:
 all: fix lint test
 
 # Find unused Python function/class definitions
-symvision *args: _setup (_header "symvision")
-    BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase {{ args }}
+symvision *args: (_header "symvision")
+    @just _lint-symvision {{ args }}
 
 # Check Python file line counts
 toobig *args: (_header "toobig")

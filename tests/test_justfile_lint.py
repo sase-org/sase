@@ -92,9 +92,23 @@ def test_public_toobig_target_uses_private_lint_stage() -> None:
     assert "just _lint-toobig 900 800 700" in output
 
 
-def test_public_symvision_target_uses_published_cli() -> None:
+def test_public_symvision_target_uses_private_lint_stage() -> None:
     output = _dry_run("symvision", "--help")
+
+    assert "just _lint-symvision --help" in output
+
+
+def test_private_symvision_stage_uses_published_cli() -> None:
+    output = _dry_run("_lint-symvision", "--help")
 
     assert "BD_COMMAND=tools/sase_bead" in output
     assert ".venv/bin/symvision src/sase" in output
-    assert "--epic-symbol" not in output
+    assert "--help" in output
+    assert "python tools/pyvision" not in output
+
+
+def test_legacy_pyvision_wiring_is_absent() -> None:
+    justfile = (ROOT / "Justfile").read_text()
+
+    assert "_lint-pyvision" not in justfile
+    assert not list((ROOT / "tools").glob("pyvision-*"))

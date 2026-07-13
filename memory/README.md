@@ -88,14 +88,14 @@ reference notes that agents read only when relevant.
 - Lines: 53
 - Approx. tokens: 540
 
-### `memory/pyvision.md`
+### `memory/symvision.md`
 
 - Type: `long`
-- Description: Read before fixing pyvision lint failures, including unused symbols, private misuse, pragmas, and epic
+- Description: Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic
   whitelists.
 - Parent: `AGENTS.md`
 - Lines: 83
-- Approx. tokens: 1240
+- Approx. tokens: 1251
 
 ### `memory/tui_perf.md`
 
@@ -120,7 +120,7 @@ reference notes that agents read only when relevant.
 - Short notes: 5
 - Long notes: 5
 - Total lines: 464
-- Total approx. tokens: 6389
+- Total approx. tokens: 6400
 
 ## Commands
 
