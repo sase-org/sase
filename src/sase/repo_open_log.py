@@ -42,7 +42,7 @@ class RepoOpenEvent:
 
 
 @dataclass(frozen=True)
-class RepoOpenRepoSummary:
+class _RepoOpenRepoSummary:
     """Aggregate open activity for one repository."""
 
     repo: str
@@ -55,7 +55,7 @@ class RepoOpenRepoSummary:
 
 
 @dataclass(frozen=True)
-class RepoOpenAgentSummary:
+class _RepoOpenAgentSummary:
     """Aggregate open activity for one agent or interactive user."""
 
     agent_name: str
@@ -117,7 +117,7 @@ def build_repo_open_event(
     )
 
 
-def repo_open_log_path(project: str) -> Path:
+def _repo_open_log_path(project: str) -> Path:
     """Return the project-scoped repository-open JSONL path."""
 
     project_name = resolve_project_alias_ref(project)
@@ -131,7 +131,7 @@ def append_repo_open_event(
 ) -> None:
     """Append one repository-open event under an exclusive file lock."""
 
-    path = log_path or repo_open_log_path(event.project)
+    path = log_path or _repo_open_log_path(event.project)
     path.parent.mkdir(parents=True, exist_ok=True)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
         with path.open("a", encoding="utf-8") as output_file:
@@ -149,7 +149,7 @@ def read_repo_open_events(
 
     if log_path is None and project is None:
         raise ValueError("project is required when log_path is not provided")
-    path = log_path or repo_open_log_path(project or "")
+    path = log_path or _repo_open_log_path(project or "")
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
         if not path.exists():
             return ()
@@ -196,18 +196,18 @@ def filter_repo_open_events(
 
 def summarize_repo_opens_by_repo(
     events: Iterable[RepoOpenEvent],
-) -> tuple[RepoOpenRepoSummary, ...]:
+) -> tuple[_RepoOpenRepoSummary, ...]:
     """Aggregate open counts and latest-open context by repository."""
 
     grouped: dict[tuple[str, RepoKind], list[RepoOpenEvent]] = {}
     for event in events:
         grouped.setdefault((event.repo, event.repo_kind), []).append(event)
 
-    summaries: list[RepoOpenRepoSummary] = []
+    summaries: list[_RepoOpenRepoSummary] = []
     for (repo, repo_kind), repo_events in grouped.items():
         latest = _latest_event(repo_events)
         summaries.append(
-            RepoOpenRepoSummary(
+            _RepoOpenRepoSummary(
                 repo=repo,
                 repo_kind=repo_kind,
                 open_count=len(repo_events),
@@ -224,18 +224,18 @@ def summarize_repo_opens_by_repo(
 
 def summarize_repo_opens_by_agent(
     events: Iterable[RepoOpenEvent],
-) -> tuple[RepoOpenAgentSummary, ...]:
+) -> tuple[_RepoOpenAgentSummary, ...]:
     """Aggregate open counts and latest-open context by agent name."""
 
     grouped: dict[str, list[RepoOpenEvent]] = {}
     for event in events:
         grouped.setdefault(event.agent_name, []).append(event)
 
-    summaries: list[RepoOpenAgentSummary] = []
+    summaries: list[_RepoOpenAgentSummary] = []
     for agent_name, agent_events in grouped.items():
         latest = _latest_event(agent_events)
         summaries.append(
-            RepoOpenAgentSummary(
+            _RepoOpenAgentSummary(
                 agent_name=agent_name,
                 open_count=len(agent_events),
                 distinct_repo_count=len({event.repo for event in agent_events}),
@@ -321,14 +321,11 @@ def _latest_event(events: list[RepoOpenEvent]) -> RepoOpenEvent:
 
 __all__ = [
     "REPO_OPEN_LOG_SCHEMA_VERSION",
-    "RepoOpenAgentSummary",
     "RepoOpenEvent",
-    "RepoOpenRepoSummary",
     "append_repo_open_event",
     "build_repo_open_event",
     "filter_repo_open_events",
     "read_repo_open_events",
-    "repo_open_log_path",
     "summarize_repo_opens_by_agent",
     "summarize_repo_opens_by_repo",
 ]

@@ -16,7 +16,7 @@ from sase.main.repo_handler import (
 )
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
-from sase.repo_open_log import read_repo_open_events, repo_open_log_path
+from sase.repo_open_log import read_repo_open_events
 from sase.repo_inventory import RepoCloneRecord, RepoInventory, RepoRecord
 from sase.linked_repos import opened_linked_repo_records
 from sase.workspace_provider.marker import CheckoutMarker
@@ -396,7 +396,7 @@ def test_repo_open_and_legacy_alias_share_audit_and_markers(
     assert legacy_output.out.strip() == checkout
     assert "deprecated" in legacy_output.err
 
-    events = read_repo_open_events(log_path=repo_open_log_path("demo"))
+    events = read_repo_open_events(log_path=project_dir / "repo_opens.jsonl")
     assert len(events) == 2
     comparable = [
         (

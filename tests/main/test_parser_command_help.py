@@ -149,9 +149,9 @@ def test_repo_open_help_documents_inference_and_required_reason() -> None:
 
     assert "usage: sase repo open" in open_help
     assert "REPO" in open_help
-    assert "-p, --project PROJECT" in open_help
-    assert "-r, --reason REASON" in open_help
-    assert "-w, --workspace N" in open_help
+    assert "-p PROJECT, --project PROJECT" in open_help
+    assert "-r REASON, --reason REASON" in open_help
+    assert "-w N, --workspace N" in open_help
     assert "defaults to the checkout that contains the current directory" in open_help
     assert "sase repo open chezmoi --reason" in open_help
 
@@ -164,8 +164,8 @@ def test_repo_list_help_documents_scope_workspace_and_examples() -> None:
     assert "usage: sase repo list" in list_help
     assert "-a, --all" in list_help
     assert "-j, --json" in list_help
-    assert "-p, --project PROJECT" in list_help
-    assert "-w, --workspace N" in list_help
+    assert "-p PROJECT, --project PROJECT" in list_help
+    assert "-w N, --workspace N" in list_help
     assert "default to the checkout that contains the current directory" in list_help
     assert "sase repo list --workspace 12" in list_help
     assert "sase repo list --all" in list_help
@@ -177,12 +177,12 @@ def test_repo_log_help_documents_filters_lookup_and_examples() -> None:
     log_help = flat_help(parser_for(("sase", "repo", "log")).format_help())
 
     assert "usage: sase repo log" in log_help
-    assert "-a, --agent AGENT_NAME" in log_help
-    assert "-i, --id OPEN_ID" in log_help
+    assert "-a AGENT_NAME, --agent AGENT_NAME" in log_help
+    assert "-i OPEN_ID, --id OPEN_ID" in log_help
     assert "-j, --json" in log_help
-    assert "-p, --project PROJECT" in log_help
-    assert "-r, --repo REPO" in log_help
-    assert "-w, --workspace N" in log_help
+    assert "-p PROJECT, --project PROJECT" in log_help
+    assert "-r REPO, --repo REPO" in log_help
+    assert "-w N, --workspace N" in log_help
     assert "defaults to the checkout that contains the current directory" in log_help
     assert "sase repo log --repo sase-core" in log_help
     assert "sase repo log --id <open-id> --json" in log_help
