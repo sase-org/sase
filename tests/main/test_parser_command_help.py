@@ -171,6 +171,23 @@ def test_repo_list_help_documents_scope_workspace_and_examples() -> None:
     assert "sase repo list --all" in list_help
 
 
+def test_repo_log_help_documents_filters_lookup_and_examples() -> None:
+    """``sase repo log --help`` exposes every audited-log filter."""
+
+    log_help = flat_help(parser_for(("sase", "repo", "log")).format_help())
+
+    assert "usage: sase repo log" in log_help
+    assert "-a, --agent AGENT_NAME" in log_help
+    assert "-i, --id OPEN_ID" in log_help
+    assert "-j, --json" in log_help
+    assert "-p, --project PROJECT" in log_help
+    assert "-r, --repo REPO" in log_help
+    assert "-w, --workspace N" in log_help
+    assert "defaults to the checkout that contains the current directory" in log_help
+    assert "sase repo log --repo sase-core" in log_help
+    assert "sase repo log --id <open-id> --json" in log_help
+
+
 def test_workspace_help_hides_deprecated_open_alias() -> None:
     """The compatibility parser remains addressable but is not advertised."""
 

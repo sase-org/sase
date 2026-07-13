@@ -342,6 +342,22 @@ def _handle_open(args: argparse.Namespace) -> int:
     return 0
 
 
+def _handle_log(args: argparse.Namespace) -> int:
+    from sase.project_display_names import project_display_name_for
+    from sase.repo_open_cli_log import handle_repo_log_command
+
+    from . import workspace_handler as workspace_commands
+
+    host_ctx = workspace_commands._resolve_project_context(
+        getattr(args, "project", None)
+    )
+    return handle_repo_log_command(
+        args,
+        project_name=project_display_name_for(host_ctx.project_name),
+        log_project_name=host_ctx.project_name,
+    )
+
+
 def _resolve_open_workspace_num(
     host_ctx: ProjectContext,
     requested_workspace: int | None,
@@ -484,7 +500,7 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
-_HANDLERS = {"list": _handle_list, "open": _handle_open}
+_HANDLERS = {"list": _handle_list, "log": _handle_log, "open": _handle_open}
 
 
 def handle_repo_command(args: argparse.Namespace) -> None:
@@ -493,7 +509,7 @@ def handle_repo_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "repo_subcommand", None)
     handler = _HANDLERS.get(subcommand) if isinstance(subcommand, str) else None
     if handler is None:
-        print("Usage: sase repo {list,open}", file=sys.stderr)
+        print("Usage: sase repo {list,log,open}", file=sys.stderr)
         raise SystemExit(2)
     raise SystemExit(handler(args))
 

@@ -6,11 +6,11 @@ import argparse
 
 
 def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register repository inventory commands."""
+    """Register repository inventory and workflow commands."""
 
     repo_parser = subparsers.add_parser(
         "repo",
-        help="List primary, sidecar, and linked repositories known by SASE",
+        help="Inspect repositories and repository-open activity",
         description=(
             "Inspect repositories known by SASE. Running `sase repo` defaults "
             "to `sase repo list`."
@@ -63,6 +63,67 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="N",
         help="Workspace context (default: infer from current directory)",
+    )
+
+    log_parser = repo_sub.add_parser(
+        "log",
+        help="Inspect the repository-open audit log",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Summarize successful repository opens for one project. Add a "
+            "repository, agent, or workspace filter to show matching agents "
+            "and individual events; use an event ID prefix for full detail. "
+            "The project defaults to the checkout that contains the current "
+            "directory."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase repo log\n"
+            "  sase repo log --repo sase-core\n"
+            "  sase repo log --agent phase-one --workspace 12\n"
+            "  sase repo log --id <open-id> --json"
+        ),
+    )
+    log_parser.add_argument(
+        "-a",
+        "--agent",
+        default=None,
+        metavar="AGENT_NAME",
+        help="Show opens attributed to this agent or interactive user",
+    )
+    log_parser.add_argument(
+        "-i",
+        "--id",
+        default=None,
+        metavar="OPEN_ID",
+        help="Show one event by exact ID or unambiguous ID prefix",
+    )
+    log_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a deterministic machine-readable JSON object",
+    )
+    log_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to query (default: infer from current directory)",
+    )
+    log_parser.add_argument(
+        "-r",
+        "--repo",
+        default=None,
+        metavar="REPO",
+        help="Show opens for this repository name",
+    )
+    log_parser.add_argument(
+        "-w",
+        "--workspace",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Show opens in this workspace number",
     )
 
     open_parser = repo_sub.add_parser(
