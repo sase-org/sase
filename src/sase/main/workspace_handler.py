@@ -107,6 +107,10 @@ def _handle_path(args: argparse.Namespace) -> int:
 
 
 def _handle_open(args: argparse.Namespace) -> int:
+    print(
+        "Warning: 'sase workspace open' is deprecated; use 'sase repo open'",
+        file=sys.stderr,
+    )
     return _handle_open_clean(args)
 
 
@@ -171,7 +175,7 @@ def handle_workspace_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase workspace {list,path,open,cleanup,repair,migrate}",
+            "Usage: sase workspace {cleanup,list,migrate,path,repair}",
             file=sys.stderr,
         )
         sys.exit(2)

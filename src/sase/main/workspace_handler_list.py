@@ -8,6 +8,7 @@ import os
 import sys
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 import time
 from typing import Protocol
 
@@ -15,6 +16,7 @@ from sase.workspace_provider.registry import (
     WorkspaceEntry,
     WorkspaceRegistry,
 )
+from sase.repo_inventory import RepoKind
 from sase.workspace_provider.inventory import (
     WorkspaceInventory,
     WorkspaceInventoryProjectNotFoundError,
@@ -43,6 +45,15 @@ def _normalize_workspace_open_reason(reason: str | None) -> str:
         raise _WorkspaceOpenReasonError(
             "sase workspace open requires a non-empty --reason"
         )
+    return normalized
+
+
+def normalize_repo_open_reason(reason: str | None) -> str:
+    """Normalize and validate a ``sase repo open`` reason."""
+
+    normalized = (reason or "").strip()
+    if not normalized:
+        raise _WorkspaceOpenReasonError("sase repo open requires a non-empty --reason")
     return normalized
 
 
@@ -279,6 +290,34 @@ def handle_open_clean(
         )
         return 2
 
+    path = prepare_opened_checkout(
+        ctx,
+        workspace_num,
+        reason=reason,
+        resolve_checkout=resolve_checkout,
+    )
+    if path is None:
+        return 1
+
+    _record_legacy_repo_open(
+        ctx,
+        workspace_num=workspace_num,
+        path=path,
+        reason=reason,
+    )
+    print(path)
+    return 0
+
+
+def prepare_opened_checkout(
+    ctx: ProjectContext,
+    workspace_num: int,
+    *,
+    reason: str,
+    resolve_checkout: _CheckoutResolver,
+) -> str | None:
+    """Materialize, prepare, and marker-record a repository checkout."""
+
     try:
         from sase.sdd.files import ensure_bare_git_sdd_initialized
 
@@ -291,7 +330,7 @@ def handle_open_clean(
         path = resolve_checkout(ctx, workspace_num, materialize=True)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
-        return 1
+        return None
 
     from sase.axe.runner_utils import prepare_workspace
     from sase.vcs_provider import VCS_DEFAULT_REVISION
@@ -304,7 +343,7 @@ def handle_open_clean(
         backup_suffix="workspace-open",
         project_basename=ctx.project_name,
     ):
-        return 1
+        return None
 
     if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):
         from sase.linked_repos import record_opened_linked_repo
@@ -315,9 +354,76 @@ def handle_open_clean(
             reason=reason,
             opened_at=datetime.now(tz=UTC).isoformat(),
         )
+    return path
 
-    print(path)
-    return 0
+
+def _record_legacy_repo_open(
+    ctx: ProjectContext,
+    *,
+    workspace_num: int,
+    path: str,
+    reason: str,
+) -> None:
+    """Best-effort durable audit for the deprecated workspace spelling."""
+
+    project, repo, repo_kind = _legacy_repo_open_identity(ctx)
+    try:
+        from sase.repo_open_log import (
+            append_repo_open_event,
+            build_repo_open_event,
+        )
+
+        event = build_repo_open_event(
+            project=project,
+            repo=repo,
+            repo_kind=repo_kind,
+            workspace_num=workspace_num,
+            path=path,
+            reason=reason,
+        )
+        append_repo_open_event(event)
+    except Exception as exc:
+        print(f"Warning: unable to record repo open: {exc}", file=sys.stderr)
+
+
+def _legacy_repo_open_identity(
+    ctx: ProjectContext,
+) -> tuple[str, str, RepoKind]:
+    is_linked = ctx.is_sibling or _is_configured_linked_repo(ctx.project_name)
+    if not is_linked:
+        repo = Path(ctx.primary_workspace_dir.rstrip("/")).name or ctx.project_name
+        return ctx.project_name, repo, "primary"
+
+    host_primary = ctx.linked_host_primary_workspace_dir
+    project = _legacy_host_project(ctx, host_primary=host_primary)
+    repo_kind: RepoKind = "linked"
+    if host_primary:
+        from sase.linked_repos import sdd_sidecar_clone_dirname
+
+        if sdd_sidecar_clone_dirname(host_primary, ctx.project_name) is not None:
+            repo_kind = "sidecar"
+    return project, ctx.project_name, repo_kind
+
+
+def _legacy_host_project(
+    ctx: ProjectContext,
+    *,
+    host_primary: str | None,
+) -> str:
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    if host_primary:
+        inferred = infer_project_name_from_cwd(host_primary)
+        if inferred:
+            return inferred
+
+    spec_project = Path(ctx.project_file).parent.name.strip()
+    if spec_project and spec_project != ctx.project_name:
+        return spec_project
+    inferred = infer_project_name_from_cwd()
+    if inferred and inferred != ctx.project_name:
+        return inferred
+    return spec_project or ctx.project_name
 
 
 def _is_configured_linked_repo(project_name: str) -> bool:

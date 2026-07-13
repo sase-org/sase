@@ -140,3 +140,27 @@ def test_workspace_open_help_requires_reason() -> None:
     assert "-r REASON" in open_help
     assert "--reason REASON" in open_help
     assert "Non-empty reason for opening and preparing the workspace" in open_help
+
+
+def test_repo_open_help_documents_inference_and_required_reason() -> None:
+    """``sase repo open --help`` exposes the audited, repo-first UX."""
+
+    open_help = flat_help(parser_for(("sase", "repo", "open")).format_help())
+
+    assert "usage: sase repo open" in open_help
+    assert "REPO" in open_help
+    assert "-p PROJECT, --project PROJECT" in open_help
+    assert "-r REASON, --reason REASON" in open_help
+    assert "-w N, --workspace N" in open_help
+    assert "defaults to the checkout that contains the current directory" in open_help
+    assert "sase repo open chezmoi --reason" in open_help
+
+
+def test_workspace_help_hides_deprecated_open_alias() -> None:
+    """The compatibility parser remains addressable but is not advertised."""
+
+    workspace_help = flat_help(parser_for(("sase", "workspace")).format_help())
+
+    assert "{cleanup,list,migrate,path,repair}" in workspace_help
+    assert "open ==SUPPRESS==" not in workspace_help
+    assert "Prepare the workspace checkout and print its path" not in workspace_help

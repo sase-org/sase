@@ -14,6 +14,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
     workspace_sub = workspace_parser.add_subparsers(
         dest="workspace_subcommand",
         help="Workspace subcommands",
+        metavar="{cleanup,list,migrate,path,repair}",
     )
 
     list_parser = workspace_sub.add_parser(
@@ -58,8 +59,11 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
 
     open_parser = workspace_sub.add_parser(
         "open",
-        help="Prepare the workspace checkout and print its path",
+        help=argparse.SUPPRESS,
     )
+    workspace_sub._choices_actions = [
+        action for action in workspace_sub._choices_actions if action.dest != "open"
+    ]
     open_parser.add_argument(
         "workspace_num",
         type=int,

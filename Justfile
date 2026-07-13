@@ -151,6 +151,14 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
+        --epic-symbol 'sase-5x(RepoOpenAgentSummary)' \
+        --epic-symbol 'sase-5x(RepoOpenEvent)' \
+        --epic-symbol 'sase-5x(RepoOpenRepoSummary)' \
+        --epic-symbol 'sase-5x(filter_repo_open_events)' \
+        --epic-symbol 'sase-5x(read_repo_open_events)' \
+        --epic-symbol 'sase-5x(repo_open_log_path)' \
+        --epic-symbol 'sase-5x(summarize_repo_opens_by_agent)' \
+        --epic-symbol 'sase-5x(summarize_repo_opens_by_repo)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
