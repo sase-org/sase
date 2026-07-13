@@ -91,6 +91,7 @@ def test_audit_launch_prompt_has_drain_barrier(
     assert len(captured) == 1
     prompt = captured[0]
     assert prompt.count("%w(runners=0)") == 1
+    assert "#!" not in prompt
 
     cleaned, directives = extract_prompt_directives(prompt)
     assert directives.wait_runners == 0
@@ -122,6 +123,7 @@ def test_refresh_docs_launch_prompts_have_chained_drain_barriers(
     parsed = []
     for segment in segments:
         assert segment.count("%w(runners=0)") == 1
+        assert "#!" not in segment
         with patch(
             "sase.agent.names.get_most_recent_agent_name",
             return_value=previous_name,

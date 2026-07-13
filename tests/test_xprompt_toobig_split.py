@@ -88,6 +88,7 @@ def _extract_split_directives(
     segment: str, *, previous_name: str = "previous-agent"
 ) -> PromptDirectives:
     assert segment.count("%w(runners=0)") == 1
+    assert "#!" not in segment
     with patch(
         "sase.agent.names.get_most_recent_agent_name",
         return_value=previous_name,
