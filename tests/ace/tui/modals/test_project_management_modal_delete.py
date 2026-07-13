@@ -116,7 +116,7 @@ async def test_project_management_modal_delete_confirm_reloads_and_removes_row(
         pilot.app._refresh_current_tab.assert_called_once_with()
 
 
-async def test_project_management_modal_deletes_defaulted_missing_spec_record(
+async def test_projects_subtab_hides_defaulted_missing_spec_record(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -130,6 +130,7 @@ async def test_project_management_modal_deletes_defaulted_missing_spec_record(
         warnings=[f"active ProjectSpec file not found: {project_dir / 'alpha.sase'}"],
         project_dir=str(project_dir),
         project_file=str(project_dir / "alpha.sase"),
+        is_project=False,
     )
 
     def list_records(*_args, **_kwargs):
@@ -139,25 +140,14 @@ async def test_project_management_modal_deletes_defaulted_missing_spec_record(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         list_records,
     )
-    monkeypatch.setattr(
-        "sase.main.project_handler.list_project_records",
-        list_records,
-    )
-
     app = ProjectsPaneTestApp(projects_root=tmp_path)
     async with app.run_test() as pilot:
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        await pilot.press("ctrl+d")
-        await pilot.pause()
-        await pilot.press("y")
-        await pilot.pause()
-
-        assert not project_dir.exists()
+        assert pane._records == []
         assert pane._filtered_records == []
-        assert pane._status_message == "Deleted alpha"
-        assert "was not found" not in pane._status_message
+        assert project_dir.exists()
 
 
 async def test_project_management_modal_delete_blocked_keeps_row_visible(

@@ -215,6 +215,9 @@ def project_records() -> list[ProjectRecordWire]:
         warnings: list[str] | None = None,
         aliases: list[str] | None = None,
         workspace_dir: str | None = None,
+        display_name: str | None = None,
+        is_project: bool = True,
+        vcs_kind: str | None = "gh",
     ) -> ProjectRecordWire:
         project_dir = f"/home/visual/.sase/projects/{name}"
         return ProjectRecordWire(
@@ -236,6 +239,9 @@ def project_records() -> list[ProjectRecordWire]:
             aliases=aliases or [],
             warnings=warnings or [],
             parse_warnings=[],
+            display_name=display_name,
+            is_project=is_project,
+            vcs_kind=vcs_kind,
         )
 
     return [
@@ -248,12 +254,19 @@ def project_records() -> list[ProjectRecordWire]:
             workspace_dir="/home/visual/work/project-management-fullscreen",
         ),
         _record(
-            "legacy-telemetry",
+            "old-experiment",
             state="disabled",
             launchable=False,
             warnings=["workspace checkout is missing"],
+            vcs_kind="git",
         ),
-        _record("sase-core-sibling", state="sibling", launchable=False),
+        _record(
+            "sase-core-sibling",
+            state="sibling",
+            launchable=False,
+            is_project=False,
+            vcs_kind=None,
+        ),
         _record("scratch-spike", state="disabled", launchable=False),
         _record(
             "old-prototype",

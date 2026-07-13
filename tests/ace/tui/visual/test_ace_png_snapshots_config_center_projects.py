@@ -2,7 +2,7 @@
 
 The Projects pane is fed a deterministic spread of lifecycle records by
 overriding the ``conftest`` autouse stub via ``_patch_project_records`` so the
-state badges, column alignment, marks, disabled rows, and detail panel are all
+sub-tab shell, state badges, inventory counts, marks, and detail panel are all
 exercised with stable data.
 """
 
@@ -45,7 +45,7 @@ async def test_config_center_projects_tab_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Default enabled-state list with the first project's detail populated."""
+    """Default Projects sub-tab with both lifecycle states and inventory counts."""
     _patch_admin_center(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
@@ -56,7 +56,7 @@ async def test_config_center_projects_tab_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "config_center_projects_tab_120x40",
-            title="ACE SASE Admin Center — Projects tab (enabled list + detail)",
+            title="ACE SASE Admin Center — Projects tab (projects + inventory counts)",
         )
 
 
@@ -83,29 +83,41 @@ async def test_config_center_projects_marked_png_snapshot(
         )
 
 
-async def test_config_center_projects_inactive_png_snapshot(
+async def test_config_center_projects_disabled_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Revealing disabled rows adds the gold badges and warning counts."""
+    """Disabled projects are visible by default with gold badges and warnings."""
     _patch_admin_center(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_projects_modal(page)
-        pane.action_toggle_inactive_projects()
-        await page.wait_for(lambda _s: pane._show_inactive_projects)
         await page.wait_for(
             lambda _s: any(
                 record.state == "disabled" for record in pane._filtered_records
             )
         )
+        for _ in range(len(pane._filtered_records)):
+            if pane._selected_project_name() == "old-experiment":
+                break
+            pane.action_next_option()
+        await page.wait_for(
+            lambda _s: pane._selected_project_name() == "old-experiment"
+        )
+        await page.wait_for(
+            lambda _s: (
+                pane._detail_debouncer is None or not pane._detail_debouncer.is_pending
+            )
+        )
+        pane._update_detail()
+        page.app.screen.refresh(layout=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_projects_inactive_120x40",
-            title="ACE SASE Admin Center — Projects tab (disabled rows visible)",
+            title="ACE SASE Admin Center — Projects tab (disabled project selected)",
         )
 
 
@@ -113,27 +125,29 @@ async def test_config_center_projects_detail_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The ``all`` filter with a warning-heavy row selected fills the detail pane."""
+    """A warning-heavy disabled row fills the redesigned detail pane."""
     _patch_admin_center(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         _, pane = await _open_projects_modal(page)
-        # Show every state, then highlight the row carrying two warnings.
-        pane.action_cycle_state_filter()  # enabled -> sibling
-        pane.action_cycle_state_filter()  # sibling -> disabled
-        pane.action_cycle_state_filter()  # disabled -> all
-        await page.wait_for(lambda _s: pane._state_filter == "all")
-        # ``old-prototype`` is the last row; step down to it (cursor does not wrap).
+        # ``old-prototype`` carries two warnings; step down to it.
         for _ in range(len(pane._filtered_records)):
             if pane._selected_project_name() == "old-prototype":
                 break
             pane.action_next_option()
         await page.wait_for(lambda _s: pane._selected_project_name() == "old-prototype")
+        await page.wait_for(
+            lambda _s: (
+                pane._detail_debouncer is None or not pane._detail_debouncer.is_pending
+            )
+        )
+        pane._update_detail()
+        page.app.screen.refresh(layout=True)
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
             "config_center_projects_detail_120x40",
-            title="ACE SASE Admin Center — Projects tab (all states + detail)",
+            title="ACE SASE Admin Center — Projects tab (warning detail)",
         )

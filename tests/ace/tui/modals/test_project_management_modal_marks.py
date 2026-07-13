@@ -38,7 +38,8 @@ async def test_project_management_modal_mark_toggles_advances_and_updates_text(
         option_list = pane.query_one("#projects-list", OptionList)
         assert pane._marked_projects == {"alpha"}
         assert option_list.highlighted == 1
-        assert "[✓] alpha" in option_list.get_option_at_index(0).prompt.plain
+        assert option_list.get_option_at_index(0).prompt.plain.startswith("[✓]")
+        assert "alpha" in option_list.get_option_at_index(0).prompt.plain
         assert "marked:1" in pane._summary_text().plain
         assert "marked:1" in pane._hints_text()
 
@@ -95,38 +96,16 @@ async def test_project_management_modal_marks_survive_filters_and_prune_on_reloa
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        assert [record.project_name for record in pane._filtered_records] == ["alpha"]
-
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "sibling"
-
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "disabled"
-        assert [record.project_name for record in pane._filtered_records] == [
-            "beta",
-            "gamma",
-        ]
-
-        await pilot.press("m")
-        await pilot.pause()
-
-        assert pane._marked_projects == {"beta"}
-
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "all"
         assert [record.project_name for record in pane._filtered_records] == [
             "alpha",
             "beta",
             "gamma",
         ]
-        assert pane._marked_projects == {"beta"}
 
-        await pilot.press("right_square_bracket")
+        pane.query_one("#projects-list", OptionList).highlighted = 1
+        await pilot.press("m")
         await pilot.pause()
-        assert pane._state_filter == "enabled"
+
         assert pane._marked_projects == {"beta"}
 
         pane._text_filter = "alpha"

@@ -44,6 +44,9 @@ def make_project_record(
     system_managed: bool = False,
     project_dir: str | None = None,
     project_file: str | None = None,
+    display_name: str | None = None,
+    is_project: bool | None = None,
+    vcs_kind: str | None = "gh",
 ) -> ProjectRecordWire:
     project_dir_text = project_dir or f"/tmp/projects/{name}"
     project_file_text = project_file or f"{project_dir_text}/{name}.sase"
@@ -62,4 +65,11 @@ def make_project_record(
         aliases=aliases or [],
         warnings=warnings or [],
         parse_warnings=[],
+        display_name=display_name,
+        is_project=(
+            state != "sibling" and not system_managed
+            if is_project is None
+            else is_project
+        ),
+        vcs_kind=vcs_kind,
     )

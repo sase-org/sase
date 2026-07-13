@@ -19,7 +19,7 @@ alphabetical tabs over a :class:`ContentSwitcher`:
 ``#`` opens the modal on the last Admin Center tab used in the current app
 session (Config on a fresh session). ``1``-``6`` jump directly to the matching
 tab, and ``Tab`` / ``Shift+Tab`` cycle the main tabs with modulo wrapping.
-Pane-local sub-tabs use ``]`` / ``[`` (currently the Projects state filters).
+Pane-local sub-tabs use ``]`` / ``[`` (including Projects / Repos / Workspaces).
 The clickable tab strip mirrors the app's :class:`TabBar`. A centered caption
 below the tab strip describes the active tab using that tab's accent color.
 """
@@ -78,7 +78,7 @@ _PANEL_TABS: tuple[PanelTab, ...] = tuple(
 _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "config": "Edit layered SASE settings with live preview",
     "logs": "Browse SASE logs and launch failures",
-    "projects": "Manage project lifecycle states and claims",
+    "projects": "Manage projects, repos, and workspace directories",
     "tasks": "Monitor background tasks and live output",
     "updates": "Update SASE core and plugins with incoming commit previews",
     "xprompts": "Browse and preview xprompt definitions",

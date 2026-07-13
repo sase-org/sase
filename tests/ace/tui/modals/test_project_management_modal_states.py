@@ -53,13 +53,6 @@ async def test_project_management_modal_enable_mutates_and_reloads(
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "sibling"
-
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "disabled"
         assert [record.project_name for record in pane._filtered_records] == ["alpha"]
 
         await pilot.press("enter")
@@ -67,11 +60,11 @@ async def test_project_management_modal_enable_mutates_and_reloads(
 
         assert calls == [("alpha", "enabled", False)]
         assert pane._records[0].state == "enabled"
-        assert pane._filtered_records == []
+        assert [record.project_name for record in pane._filtered_records] == ["alpha"]
         assert pane._status_message == "alpha -> enabled"
 
 
-async def test_project_management_modal_enter_enables_sibling(
+async def test_projects_subtab_never_surfaces_or_enables_sibling_record(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -108,18 +101,14 @@ async def test_project_management_modal_enter_enables_sibling(
         pane = app.query_one("#projects", ProjectsPane)
         await pilot.pause()
 
-        await pilot.press("right_square_bracket")
-        await pilot.pause()
-        assert pane._state_filter == "sibling"
-        assert [record.project_name for record in pane._filtered_records] == ["core"]
+        assert pane._records == []
+        assert pane._filtered_records == []
 
         await pilot.press("enter")
         await pilot.pause()
 
-        assert calls == [("core", "enabled", False)]
-        assert pane._records[0].state == "enabled"
-        assert pane._filtered_records == []
-        assert pane._status_message == "core -> enabled"
+        assert calls == []
+        assert states == {"core": "sibling"}
 
 
 async def test_project_management_modal_force_disable_after_block(
@@ -183,7 +172,7 @@ async def test_project_management_modal_force_disable_after_block(
         ]
         assert pane._pending_force is None
         assert pane._records[0].state == "disabled"
-        assert pane._filtered_records == []
+        assert [record.project_name for record in pane._filtered_records] == ["alpha"]
 
 
 async def test_project_management_modal_bulk_state_targets_marked_projects(

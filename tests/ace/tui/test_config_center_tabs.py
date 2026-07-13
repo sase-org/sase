@@ -128,7 +128,7 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert switcher.current == "projects"
         content = description.content
         assert isinstance(content, Text)
-        assert content.plain == "› Manage project lifecycle states and claims"
+        assert content.plain == "› Manage projects, repos, and workspace directories"
         assert str(content.style) == _TAB_COLORS["projects"]
 
         await page.press("4")
