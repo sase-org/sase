@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -314,44 +315,49 @@ def prepare_opened_checkout(
     reason: str,
     resolve_checkout: _CheckoutResolver,
 ) -> str | None:
-    """Materialize, prepare, and marker-record a repository checkout."""
+    """Materialize, prepare, and marker-record a repository checkout.
 
-    try:
-        from sase.sdd.files import ensure_bare_git_sdd_initialized
+    Stdout is reserved for the prepared path printed by callers, so the
+    preparation machinery's progress output is rerouted to stderr here.
+    """
 
-        ensure_bare_git_sdd_initialized(
-            ctx.primary_workspace_dir,
-            commit=True,
-            push=True,
-            raise_on_error=True,
-        )
-        path = resolve_checkout(ctx, workspace_num, materialize=True)
-    except RuntimeError as exc:
-        print(str(exc), file=sys.stderr)
-        return None
+    with contextlib.redirect_stdout(sys.stderr):
+        try:
+            from sase.sdd.files import ensure_bare_git_sdd_initialized
 
-    from sase.axe.runner_utils import prepare_workspace
-    from sase.vcs_provider import VCS_DEFAULT_REVISION
+            ensure_bare_git_sdd_initialized(
+                ctx.primary_workspace_dir,
+                commit=True,
+                push=True,
+                raise_on_error=True,
+            )
+            path = resolve_checkout(ctx, workspace_num, materialize=True)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return None
 
-    clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
-    if not prepare_workspace(
-        path,
-        clean_label,
-        VCS_DEFAULT_REVISION,
-        backup_suffix="workspace-open",
-        project_basename=ctx.project_name,
-    ):
-        return None
+        from sase.axe.runner_utils import prepare_workspace
+        from sase.vcs_provider import VCS_DEFAULT_REVISION
 
-    if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):
-        from sase.linked_repos import record_opened_linked_repo
-
-        record_opened_linked_repo(
-            ctx.project_name,
+        clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
+        if not prepare_workspace(
             path,
-            reason=reason,
-            opened_at=datetime.now(tz=UTC).isoformat(),
-        )
+            clean_label,
+            VCS_DEFAULT_REVISION,
+            backup_suffix="workspace-open",
+            project_basename=ctx.project_name,
+        ):
+            return None
+
+        if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):
+            from sase.linked_repos import record_opened_linked_repo
+
+            record_opened_linked_repo(
+                ctx.project_name,
+                path,
+                reason=reason,
+                opened_at=datetime.now(tz=UTC).isoformat(),
+            )
     return path
 
 

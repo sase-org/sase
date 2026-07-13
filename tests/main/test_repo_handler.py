@@ -16,7 +16,7 @@ from sase.main.repo_handler import (
 )
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
-from sase.repo_open_log import read_repo_open_events, repo_open_log_path
+from sase.repo_open_log import read_repo_open_events
 from sase.repo_inventory import RepoCloneRecord, RepoInventory, RepoRecord
 from sase.linked_repos import opened_linked_repo_records
 from sase.workspace_provider.marker import CheckoutMarker
@@ -358,6 +358,10 @@ def test_repo_open_and_legacy_alias_share_audit_and_markers(
     def resolve_context(project: str | None) -> ProjectContext:
         return linked_ctx if project == "core" else host_ctx
 
+    def prepare_workspace_with_progress(*_args: object, **_kwargs: object) -> bool:
+        print("Cleaning workspace...")
+        return True
+
     with (
         patch(
             "sase.main.workspace_handler._resolve_project_context",
@@ -373,7 +377,10 @@ def test_repo_open_and_legacy_alias_share_audit_and_markers(
             "sase.main.workspace_handler._resolve_checkout_path",
             return_value=checkout,
         ),
-        patch("sase.axe.runner_utils.prepare_workspace", return_value=True),
+        patch(
+            "sase.axe.runner_utils.prepare_workspace",
+            side_effect=prepare_workspace_with_progress,
+        ),
     ):
         new_args = create_parser().parse_args(
             ["repo", "open", "core", "-p", "demo", "-r", "same reason", "-w", "12"]
@@ -390,13 +397,14 @@ def test_repo_open_and_legacy_alias_share_audit_and_markers(
         legacy_output = capsys.readouterr()
 
     assert new_exit.value.code == 0
-    assert new_output.out.strip() == checkout
-    assert new_output.err == ""
+    assert new_output.out == f"{checkout}\n"
+    assert "Cleaning workspace..." in new_output.err
     assert legacy_exit.value.code == 0
-    assert legacy_output.out.strip() == checkout
+    assert legacy_output.out == f"{checkout}\n"
+    assert "Cleaning workspace..." in legacy_output.err
     assert "deprecated" in legacy_output.err
 
-    events = read_repo_open_events(log_path=repo_open_log_path("demo"))
+    events = read_repo_open_events(project="demo")
     assert len(events) == 2
     comparable = [
         (
