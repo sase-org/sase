@@ -5,6 +5,20 @@ from __future__ import annotations
 import argparse
 
 
+class _RepoHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Render short and long options with a single shared metavar."""
+
+    def _format_action_invocation(self, action: argparse.Action) -> str:
+        if not action.option_strings:
+            return super()._format_action_invocation(action)
+        if action.nargs == 0:
+            return ", ".join(action.option_strings)
+
+        default = self._get_default_metavar_for_optional(action)
+        args_string = self._format_args(action, default)
+        return f"{', '.join(action.option_strings)} {args_string}"
+
+
 def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register repository inventory and workflow commands."""
 
@@ -23,7 +37,7 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     list_parser = repo_sub.add_parser(
         "list",
         help="List repositories and their per-workspace clone status",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_RepoHelpFormatter,
         description=(
             "List primary, sidecar, and linked repositories for the current "
             "project and show where they are cloned. The project and workspace "
@@ -68,7 +82,7 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     log_parser = repo_sub.add_parser(
         "log",
         help="Inspect the repository-open audit log",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_RepoHelpFormatter,
         description=(
             "Summarize successful repository opens for one project. Add a "
             "repository, agent, or workspace filter to show matching agents "
@@ -129,7 +143,7 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
     open_parser = repo_sub.add_parser(
         "open",
         help="Prepare a repository checkout and print its path",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=_RepoHelpFormatter,
         description=(
             "Resolve a primary, sidecar, or linked repository in the host "
             "project, prepare it in one workspace context, and print only "
