@@ -161,6 +161,16 @@ Body.
         "  wrapped YAML serialization path is exercised without changing its output.\n"
         "---\n\nBody.\n"
     )
+    colon_description = (
+        "This is a deliberately long generated skill description whose YAML needs "
+        "a block scalar because it contains a mapping-like value: linked repos and "
+        "external repos must remain part of the description."
+    )
+    colon_output = skills_rendering._build_output(
+        "colon", colon_description, "Body.\n", log_skill_use=False
+    )
+    assert "description: >-\n" in colon_output
+    assert skills_rendering._validate_skill_frame(colon_output) is None
     assert skills_rendering._build_output(
         "multi", "First line.\nSecond line.", "Body.\n", log_skill_use=False
     ) == (
@@ -370,7 +380,7 @@ def test_rendered_skill_targets_omit_audit_directive_when_disabled(
 
 
 def test_packaged_skills_respect_log_skill_use_flag() -> None:
-    """Packaged sase_plan/sase_memory_read omit the directive; others keep it."""
+    """Packaged unaudited skills omit the directive; other skills keep it."""
     from sase.xprompt.loader import (
         get_sase_package_xprompts_dir,
         load_xprompt_from_file,
@@ -379,17 +389,23 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
     skills_dir = get_sase_package_xprompts_dir() / "skills"
     plan_xp = load_xprompt_from_file(skills_dir / "sase_plan.md")
     memory_xp = load_xprompt_from_file(skills_dir / "sase_memory_read.md")
+    repo_xp = load_xprompt_from_file(skills_dir / "sase_repo.md")
+    project_xp = load_xprompt_from_file(skills_dir / "sase_project.md")
     artifact_xp = load_xprompt_from_file(skills_dir / "sase_artifact.md")
     assert plan_xp is not None
     assert memory_xp is not None
+    assert repo_xp is not None
+    assert project_xp is not None
     assert artifact_xp is not None
 
     assert plan_xp.log_skill_use is False
     assert memory_xp.log_skill_use is False
+    assert repo_xp.log_skill_use is False
+    assert project_xp.log_skill_use is True
     assert artifact_xp.log_skill_use is True
 
     targets = init_skills_handler.render_skill_targets(
-        [plan_xp, memory_xp, artifact_xp],
+        [plan_xp, memory_xp, repo_xp, project_xp, artifact_xp],
         provider_filter=None,
         use_chezmoi=False,
         use_prettier=False,
@@ -397,8 +413,8 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
 
     assert targets, "expected rendered targets for registered providers"
     for target in targets:
-        if target.skill_name == "sase_artifact":
-            assert "sase skill use sase_artifact" in target.content
+        if target.skill_name in {"sase_artifact", "sase_project"}:
+            assert f"sase skill use {target.skill_name}" in target.content
         else:
             assert "sase skill use" not in target.content
 

@@ -78,28 +78,27 @@ sibling_repos:
     assert SASE_MEMORY_HEADER in project_memory
     assert SASE_MEMORY_HEADER in home_memory
 
-    linked_trigger = (
-        "When you need to make changes to files in a numbered-workspace linked "
-        "repo or need to review numbered-workspace linked repo code, agents MUST "
-        "run:"
+    repo_trigger = (
+        "When you need to read or modify files in any repository other than your "
+        "own workspace checkout, agents MUST use your `/sase_repo` skill first."
     )
     for memory in (project_memory, home_memory):
-        assert linked_trigger in single_line(memory)
-        assert "linked reads/writes" in memory
-        assert "the only linked repo path" in single_line(memory)
+        memory_line = single_line(memory)
+        assert "## Repositories" in memory
+        assert repo_trigger in memory_line
+        assert "another SASE project's repo" in memory_line
+        assert "GitHub repo not linked to the current project" in memory_line
+        assert "Open different-project and unlinked GitHub repos as external repos" in (
+            memory_line
+        )
+        assert "Use the path it prints as the only path for reads and writes" in (
+            memory_line
+        )
         assert (
-            "IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any "
-            "other way than by using `sase repo open`!"
-        ) in single_line(memory)
-        assert 'sase repo open <linked_repo> -r "<reason>"' in memory
-        assert "the workspace number is inferred from where you run it" in single_line(
-            memory
-        )
-        assert "pass `-w <workspace_num>` only when running from outside" in (
-            single_line(memory)
-        )
-        assert "When a linked repository needs changes, agents MUST run:" not in memory
-        assert "linked edits" not in memory
+            "IMPORTANT REMINDER: Do NOT locate or clone another repo any other "
+            "way than by using `/sase_repo`!"
+        ) in memory_line
+        assert 'sase repo open <linked_repo> -r "<reason>"' not in memory
 
     for root in (project_root, home_root):
         assert not (root / "memory" / "long").exists()
@@ -345,7 +344,7 @@ linked_repos:
     )
     assert "- `dotfiles`: User dotfiles source." in project_memory_line
     assert "- `notes`: Static notes checkout." in project_memory_line
-    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
+    assert "agents MUST use your `/sase_repo` skill first" in project_memory_line
 
 
 def test_init_memory_mixed_linked_repos_render_repo_open(
@@ -387,10 +386,9 @@ linked_repos:
         project_memory
     )
     assert "- `dotfiles`: Static dotfiles source." in project_memory_line
-    assert "numbered-workspace linked repo" in project_memory
-    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
-    assert "numbered-workspace linked reads/writes" in project_memory_line
-    assert "the only linked repo path" in project_memory_line
+    assert "configured linked repos and sidecars" in project_memory
+    assert "agents MUST use your `/sase_repo` skill first" in project_memory_line
+    assert "Use the path it prints as the only path" in project_memory_line
 
 
 def test_init_memory_legacy_relative_paths_use_repo_open(
@@ -445,7 +443,9 @@ linked_repos:
         project_memory
     )
     assert str(numbered_relative_path.resolve(strict=False)) not in project_memory
-    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
+    assert "agents MUST use your `/sase_repo` skill first" in single_line(
+        project_memory
+    )
 
 
 def test_init_memory_project_memory_includes_workspace_section(
@@ -473,8 +473,11 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
     assert "`project--research`: Durable SASE research reports" in project_memory
-    assert 'sase repo open <linked_repo> -r "<reason>"' in project_memory
-    assert 'sase repo open <linked_repo> -r "<reason>"' not in home_memory
+    assert "agents MUST use your `/sase_repo` skill first" in single_line(
+        project_memory
+    )
+    assert "agents MUST use your `/sase_repo` skill first" in single_line(home_memory)
+    assert "No linked repositories are configured for this context." in home_memory
     assert "{{ project }}" not in project_memory
     assert "Ephemeral" not in home_memory
     assert SASE_MEMORY_HEADER in home_memory

@@ -124,9 +124,9 @@ project records. Existing auto-aliased GitHub projects remain valid and keep res
 
 Enabled-only true-project discovery is also the default for launch pickers, ChangeSpec searches, project-local xprompt
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Internal sibling backing records are hidden
-from those surfaces and support configured linked repositories. Open one from a managed checkout with
-`sase repo open <linked_repo> -r "<reason>"`; the host project and workspace are inferred from cwd. Agent-history views
-that need older artifacts opt into all project states explicitly.
+from those surfaces and support configured linked repositories. Agents prepare one through `/sase_repo`; the underlying
+audited open infers the host project and workspace from cwd. Agent-history views that need older artifacts opt into all
+project states explicitly.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections; use repeatable
 `-s/--status` options to select sections, `-n/--limit` to set each history section's size (`0` is unlimited), and
@@ -231,9 +231,9 @@ GitHub pull requests, and other provider plugins.
 | `sase artifact create`         | Move an explicit file into persistent agent artifact storage.                                                                                                         | [Agent attachments](agent_images.md)                                                                                 |
 | `sase var set`                 | Attach named output variables for ACE metadata and waited-agent Jinja rendering.                                                                                      | [XPrompt variables](xprompt.md#cross-agent-output-variables)                                                         |
 | `sase path`                    | Print well-known paths such as schemas and xprompt directories.                                                                                                       | [Configuration CLI flags](configuration.md#sase-path)                                                                |
-| `sase repo list`               | Show primary, sidecar, and linked repos for the cwd project/workspace; use `--all` or `--json` for cross-project and clone-matrix views.                              | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
+| `sase repo list`               | Show primary, sidecar, linked, and opened external repos; use `--all` or `--json` for cross-project and clone-matrix views.                                           | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
 | `sase repo log`                | Summarize the durable repository-open audit log, with repo, agent, workspace, event-ID, and JSON filters.                                                             | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
-| `sase repo open`               | Materialize and prepare a primary, sidecar, or linked repo in the inferred workspace, then print its path.                                                            | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
+| `sase repo open`               | Open an inventory repo, another SASE project, or `gh:owner/repo` external in the inferred workspace, then print its path.                                             | [Configuration CLI flags](configuration.md#sase-repo)                                                                |
 | `sase workspace list`          | List one project's registry or use `--all` for the cross-project workspace inventory.                                                                                 | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace path`          | Print the checkout path for a workspace number.                                                                                                                       | [Workspace provider](workspace.md)                                                                                   |
 | `sase workspace cleanup`       | Remove stale unclaimed managed checkouts older than the configured TTL.                                                                                               | [Workspace provider](workspace.md)                                                                                   |

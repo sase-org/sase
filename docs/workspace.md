@@ -187,10 +187,9 @@ lookup. Legacy `inactive`, `archived`, and `closed` values normalize to disabled
 disabled known project, launch resolution fails with an enable hint instead of silently allocating work. Use
 `sase project list --state all` to inspect disabled projects and `sase project enable <project>` before launching normal
 work there. Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing records rather than a
-project lifecycle state. To prepare one, run `sase repo open <linked_repo> -r "<reason>"` from the host workspace. In a
-SASE-launched agent session, that command records the linked-repo name in the run artifacts and durable repo-open log;
-ACE uses the artifact record for opened-workspace context, and the commit finalizer uses it to enforce only configured
-numbered linked-repo workspaces the agent explicitly opened.
+project lifecycle state. Agents prepare them through `/sase_repo`. In a SASE-launched agent session, the audited open
+records the repo name and kind in run artifacts and the durable repo-open log; ACE uses the artifact record for
+opened-repo context, and the commit finalizer enforces the linked or external repo the agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching
@@ -265,10 +264,10 @@ Configured linked repositories for a numbered checkout are cloned beneath that h
 checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars configured with `auto_clone: true`
 (normally `plans`) are then re-created from the durable primary-checkout clone when it matches the recorded remote, with
 a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` sidecar are re-created
-on demand by an audited `sase repo open`. SASE protects the whole tree immediately with the per-clone `/sase/repos/`
-exclude rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to
-report drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push
-sequence.
+on demand through `/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
+`sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the per-clone `/sase/repos/` exclude
+rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report
+drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push sequence.
 
 ### Registry
 
@@ -329,16 +328,18 @@ directory is not the right operational location.
 
 ## `sase repo` CLI
 
-Repository commands treat the repo as the object and the workspace as context. Run `sase repo open <repo> -r "<reason>"`
-from a managed checkout to infer both the host project and workspace, or pass `-p/--project` and `-w/--workspace`
-explicitly. Primary, sidecar, and linked repository names are accepted; successful opens print the prepared path, write
-the agent artifact markers used by ACE and the commit finalizer, and append the project's durable repo-open audit event.
+Repository commands treat the repo as the object and the workspace as context. `sase repo open` accepts a host-project
+inventory name, another registered SASE project name, or an external provider ref such as `gh:owner/repo` (with
+`owner/repo` as GitHub shorthand). Run it from a managed checkout to infer both the host project and workspace, or pass
+`-p/--project` and `-w/--workspace` explicitly. Successful opens print the prepared path, write the agent artifact
+markers used by ACE and the commit finalizer, and append the project's durable repo-open audit event. Agents use this
+surface through `/sase_repo` and treat the printed path as authoritative.
 
-| Command                                                               | Description                                                                               |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix.  |
-| `sase repo log [-r REPO] [-a AGENT] [-w N] [-i ID] [-p PROJECT] [-j]` | Summarize or filter durable repo-open events, or inspect one event by ID prefix.          |
-| `sase repo open REPO -r REASON [-w N] [-p PROJECT]`                   | Materialize, prepare, audit, and print a primary, sidecar, or linked repository checkout. |
+| Command                                                               | Description                                                                              |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix. |
+| `sase repo log [-r REPO] [-a AGENT] [-w N] [-i ID] [-p PROJECT] [-j]` | Summarize or filter durable repo-open events, or inspect one event by ID prefix.         |
+| `sase repo open REPO -r REASON [-w N] [-p PROJECT]`                   | Materialize, prepare, audit, and print an inventory, project, or external repo checkout. |
 
 Bare `sase repo` defaults to `sase repo list`. `sase repo list --all` includes enabled and disabled projects at primary
 workspace context, while `sase repo log` remains project-scoped.

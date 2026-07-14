@@ -171,9 +171,9 @@ writes use only canonical lifecycle values.
 
 Default project discovery is active-only. That includes ACE project selection, `sase changespec search`, known-project
 workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
-bead helper reads. These records are intentionally hidden from those surfaces; use
-`sase repo open <linked_repo> -r "<reason>"` for configured linked repositories. The host project and workspace are
-inferred from cwd; agent-history views that need old artifacts pass an explicit all-state scan.
+bead helper reads. These records are intentionally hidden from those surfaces; agents use `/sase_repo` for configured
+linked repositories and for another SASE project's primary repo. The underlying audited open infers the host project and
+workspace from cwd; agent-history views that need old artifacts pass an explicit all-state scan.
 
 Use `sase project list --state all` to inspect inactive and sibling projects, `sase project show <project>` to see
 state, workspace, launchability, and warnings, and `sase project activate <project>` before using normal launch surfaces

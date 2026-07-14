@@ -12,25 +12,20 @@ generate using your `/sase_plan` skill. The agent(s) that implement the plan mig
 directory as you!
 
 {% endif %}
-## Linked Repositories
+## Repositories
 
 {% if linked_repo_entries %}
 Configured linked repositories for this context:
 
 {{ linked_repo_entries }}
 
-When you need to make changes to files in a numbered-workspace linked repo or need to review numbered-workspace linked
-repo code, agents MUST run:
-
-```bash
-sase repo open <linked_repo> -r "<reason>"
-```
-
-Run it from your workspace directory (the workspace number is inferred from where you run it; pass `-w <workspace_num>`
-only when running from outside the workspace). Use the path printed by `sase repo open` as the only linked repo path for
-numbered-workspace linked reads/writes.
-
-IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase repo open`!
 {% else %}
 No linked repositories are configured for this context.
 {% endif %}
+
+When you need to read or modify files in any repository other than your own workspace checkout, agents MUST use your
+`/sase_repo` skill first. This includes configured linked repos and sidecars, another SASE project's repo, and any
+GitHub repo not linked to the current project. Open different-project and unlinked GitHub repos as external repos through
+the skill. Use the path it prints as the only path for reads and writes.
+
+IMPORTANT REMINDER: Do NOT locate or clone another repo any other way than by using `/sase_repo`!

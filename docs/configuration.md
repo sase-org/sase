@@ -100,8 +100,8 @@ The Projects tab is an inventory and lifecycle surface with three clickable sub-
   backing records. Enabled and disabled rows appear together with VCS kind, claim, workspace, repo, and warning counts.
   `a` / `d` enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and the established mark,
   alias, edit, force, and confirmed-delete actions remain available.
-- **Repos** lists primary, sidecar, and linked repos for enabled projects by default. It reports checkout presence,
-  source/config metadata, `auto_clone`, environment names, and SDD storage mode.
+- **Repos** lists primary, sidecar, linked, and opened external repos for enabled projects by default. It reports
+  checkout presence, source/config metadata, `auto_clone`, environment names, and SDD storage mode.
 - **Workspaces** joins registry entries with active claims, PID liveness, pins, last-used timestamps, TTL staleness, and
   checkout presence. Missing checkouts point to `sase workspace repair`.
 
@@ -534,10 +534,10 @@ commit:
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
 When enabled, the finalizer checks the main workspace through the active VCS provider and configured `linked_repos` Git
-worktrees at their resolved paths. `sase repo open <linked_repo> -r "<reason>"` records manual opens in
+worktrees at their resolved paths. Repositories opened through `/sase_repo`, including external repos, are recorded in
 `opened_linked_workspaces.json` for ACE context and in the host project's durable repo-open log. Dirty enforced
 workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit skill. Dirty
-linked repos are enforced like the main workspace. When the only enforced change is one tracked markdown file under
+opened repos are enforced like the main workspace. When the only enforced change is one tracked markdown file under
 `sdd/plans/`, and that file's only diff is leading front matter changing exactly from `status: wip` to `status: done`,
 the finalizer creates a direct `chore: Mark SDD plan done` commit instead of invoking the provider again. When
 `$SASE_ARTIFACTS_DIR` is set, each pass writes prompt/response artifacts there, and the final outcome is recorded in
@@ -551,10 +551,11 @@ Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructio
 ### linked_repos
 
 Declares related repositories that should be visible to launched agents. Git linked-repo worktrees are eligible for
-commit-finalizer checks at their resolved `workspace_dir`. The `sase repo open <linked_repo> -r "<reason>"` command
-records manually opened linked workspaces in run artifacts for ACE context and appends a durable audit event. SASE
-materializes a hidden sibling-state ProjectSpec for the linked repo when needed. Entries can live in user config or a
-project-local `sase.yml`; local entries are resolved relative to the project's primary workspace directory.
+commit-finalizer checks at their resolved `workspace_dir`. Agents use `/sase_repo` to prepare them; its audited
+`sase repo open` command records manually opened linked workspaces in run artifacts for ACE context and appends a
+durable audit event. SASE materializes a hidden sibling-state ProjectSpec for the linked repo when needed. Entries can
+live in user config or a project-local `sase.yml`; local entries are resolved relative to the project's primary
+workspace directory.
 
 Linked repositories are lazy by default. Set `auto_clone: true` for a repository that every launched agent needs; SASE
 materializes and prepares those entries before execution. Lazy entries remain available through `sase repo open`, but
@@ -594,10 +595,10 @@ Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher wor
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
 workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree.
 Sidecars with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
-network fallback; other linked repos and sidecars are materialized on demand by `sase repo open`. `sase init workspace`
-manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before
-materialization. SASE passes resolved metadata for all entries and exports per-repository paths only for materialized
-entries:
+network fallback; agents materialize other linked repos and sidecars on demand through `/sase_repo`.
+`sase init workspace` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
+`.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
+paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |
@@ -611,6 +612,21 @@ canonical ones during the compatibility window.
 `<ENV_NAME>` is the uppercased, sanitized repo `name`; duplicates are uniquified with a numeric suffix.
 
 Source: `src/sase/linked_repos.py`, `src/sase/agent/launch_spawn.py`
+
+#### External repositories
+
+External repositories are per-task repos that are not part of the host project's configured inventory. They require no
+configuration entry. `sase repo open` resolves them after inventory names in two forms:
+
+- Another registered SASE project name opens that project's primary repo from its local checkout, without network
+  access, under `sase/repos/external/projects/<project>`.
+- `gh:owner/repo`, or the `owner/repo` shorthand, clones through the installed GitHub workspace provider under
+  `sase/repos/external/gh/<owner>/<repo>`.
+
+Successful external opens are idempotent, audited, and included in `sase repo list`, commit-finalizer enforcement, ACE
+file and commit deltas, and revert. Agents must use `/sase_repo` before reading or modifying any external repo and must
+use the path printed by the skill rather than locating or cloning the repo themselves. External repos are
+workspace-local and do not create project registry records.
 
 ### vcs_provider
 
@@ -1573,13 +1589,15 @@ confirmed deletion of whole SASE project directories, and the Repos/Workspaces i
 
 ### `sase repo`
 
-Bare `sase repo` defaults to `sase repo list`. The command family inventories primary, sidecar, and linked repositories,
-prepares a selected repo inside one workspace context, and exposes the durable audit history of successful opens.
+Bare `sase repo` defaults to `sase repo list`. The command family inventories primary, sidecar, linked, and opened
+external repositories, prepares a selected repo inside one workspace context, and exposes the durable audit history of
+successful opens.
 
 `sase repo list` defaults to the current project and infers both the project and workspace context from cwd. Primary
-repos come from ProjectSpecs, sidecars from SDD store records, and linked repos from resolved `linked_repos`; a sidecar
-wins when the same checkout is also auto-injected as linked. The Rich table reports whether each repo is cloned in the
-selected workspace plus the number of registered workspaces containing it.
+repos come from ProjectSpecs, sidecars from SDD store records, linked repos from resolved `linked_repos`, and external
+repos from materialized workspace-local clones; a sidecar wins when the same checkout is also auto-injected as linked.
+The Rich table reports whether each repo is cloned in the selected workspace plus the number of registered workspaces
+containing it. External rows use the canonical project name or provider ref such as `gh:pallets/click`.
 
 | List flag         | Description                                                                 |
 | ----------------- | --------------------------------------------------------------------------- |
@@ -1591,16 +1609,19 @@ selected workspace plus the number of registered workspaces containing it.
 `--all` and `--project` are mutually exclusive. JSON records retain source, description, `auto_clone`, environment, and
 SDD-storage metadata while making `path` and `exists` describe the selected workspace context.
 
-`sase repo open REPO -r "<reason>"` resolves a repo name from that inventory, materializes and prepares it, prints its
-path, records the per-run artifact markers used by ACE and the commit finalizer, and appends an event to
-`~/.sase/projects/<project>/repo_opens.jsonl`. Run it inside a managed checkout to infer the host project and workspace.
+`sase repo open REPO -r "<reason>"` resolves `REPO` in three tiers: a host-project inventory name, another registered
+SASE project name, then an external provider ref (`gh:owner/repo` or `owner/repo` GitHub shorthand). It materializes and
+prepares the repo, prints only its path to stdout, records the per-run artifact markers used by ACE and the commit
+finalizer, and appends an event to `~/.sase/projects/<project>/repo_opens.jsonl`. Run it inside a managed checkout to
+infer the host project and workspace. Reopening a valid external clone preserves its current contents and records a new
+open event.
 
-| Open argument / flag | Description                                                        |
-| -------------------- | ------------------------------------------------------------------ |
-| `REPO`               | Primary, sidecar, or linked repo name shown by `sase repo list`.   |
-| `-p, --project`      | Select the host project instead of inferring it from cwd.          |
-| `-r, --reason`       | Required non-empty audit reason.                                   |
-| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd. |
+| Open argument / flag | Description                                                                |
+| -------------------- | -------------------------------------------------------------------------- |
+| `REPO`               | Inventory name, registered project name, `gh:owner/repo`, or `owner/repo`. |
+| `-p, --project`      | Select the host project instead of inferring it from cwd.                  |
+| `-r, --reason`       | Required non-empty audit reason.                                           |
+| `-w, --workspace`    | Select the host workspace number instead of inferring it from cwd.         |
 
 `sase repo log` renders a project-scoped summary and per-repo rollup of durable open events. Repo, agent, or workspace
 filters add agent and event drill-down panels; an event ID prefix shows one complete event. `--json` returns the same
@@ -1766,7 +1787,9 @@ unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider
 are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
 reference list, and missing long-memory `description` frontmatter is inserted. By default it also tries to commit,
 rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this command.
-Generated linked-repository memory includes cwd-inferred `sase repo open` guidance for every configured linked repo.
+Generated repository memory requires agents to use `/sase_repo` before reading or modifying any repo outside their own
+workspace checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked GitHub repos even when
+no linked repositories are configured.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |

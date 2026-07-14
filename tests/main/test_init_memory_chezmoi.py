@@ -78,10 +78,11 @@ sibling_repos:
     assert (
         "- `chezmoi`: Chezmoi-managed dotfiles and global SASE configuration source."
     ) in _single_line(chezmoi_memory)
-    assert 'sase repo open <linked_repo> -r "<reason>"' in chezmoi_memory
-    assert "the workspace number is inferred from where you run it" in _single_line(
+    assert "agents MUST use your `/sase_repo` skill first" in _single_line(
         chezmoi_memory
     )
+    assert "another SASE project's repo" in _single_line(chezmoi_memory)
+    assert 'sase repo open <linked_repo> -r "<reason>"' not in chezmoi_memory
     # Chezmoi writes static copies of ``AGENTS.md`` (no ``.tmpl``).
     agents = (chezmoi_home / "AGENTS.md").read_text()
     for filename in PROVIDER_SHIM_FILES:

@@ -362,23 +362,21 @@ completed transcripts in visible row order, deduplicates repeated paths, skips l
 or have no chat file, and reports that live skip count. Stale marks are ignored for this action, and marks remain in
 place after the editor exits.
 
-### Linked Workspace Context
+### Opened Repository Context
 
-Configured `linked_repos` are recorded in agent metadata at launch time. For non-terminal agents, ACE can include dirty,
-existing linked repo workspaces in the agent detail `DELTAS` section. The folded summary counts primary and linked-repo
-changes together; the unfolded view groups linked entries under the workspace glyph and linked-repo name, and file hints
-resolve paths relative to the linked workspace directory. Missing workspace directories, clean repos, and
-completed/failed agents are not part of this live linked-delta display.
+Configured `linked_repos` are recorded in agent metadata at launch time, while linked and external repos opened during a
+run are recorded in opened-repository markers. For non-terminal agents, ACE can include dirty opened repos in the agent
+detail `DELTAS` section. The folded summary counts primary and opened-repo changes together; the unfolded view groups
+linked and external entries under distinct glyphs and canonical repo names, and file hints resolve paths relative to the
+opened repo directory. Missing workspace directories, clean repos, and completed/failed agents are not part of this live
+delta display.
 
-When a SASE-launched agent opens a configured linked repo with `sase repo open <linked_repo> -r "<reason>"`, the run
-records an opened-workspace marker. The command infers the host project and workspace from cwd; configured linked repos
-remain backed by hidden `PROJECT_STATE: sibling` project records. ACE shows recorded markers in the prompt/detail
-`SASE CONTEXT` section as a `WORKSPACES` lane with the repo name, resolved path, open time, and reason. If the selected
-agent has cached opened-linked-workspace context, pressing `t` opens a keyboard-first tmux chooser with `CURRENT` first
-and one `LINKED` target per unique opened repository workspace. Selecting `CURRENT` uses the normal agent-workspace tmux
-path; selecting a `LINKED` row opens or switches to a tmux window named after the linked workspace directory. If no
-opened-workspace context is cached, `t` opens the normal agent tmux target directly. `T` always opens the primary
-project workspace.
+When a SASE-launched agent uses `/sase_repo`, the run records an opened-repository marker. The underlying command infers
+the host project and workspace from cwd; configured linked repos remain backed by hidden `PROJECT_STATE: sibling`
+project records, while external repos remain workspace-local and create no project record. ACE shows the markers in the
+prompt/detail `SASE CONTEXT` section with the repo name, kind, resolved path, open time, and reason. Live deltas, commit
+diffs, and revert all retain the canonical external name (for example, `gh:pallets/click`); reverting an external repo
+discards local clone changes without re-cloning from the network.
 
 ### Wait Modal
 
@@ -994,11 +992,11 @@ Successful lifecycle changes clear the affected marks; blocked or failed rows st
 them. Disabling uses the same locked mutation path as `sase project disable`; live `RUNNING` claims or artifact markers
 block it unless the `F` force retry is intentional.
 
-The **Repos** sub-tab inventories every known primary, sidecar, and linked repo for enabled projects by default. Rows
-show owning project, checkout presence, and path; details include source, description, `auto_clone`, environment name,
-and SDD storage mode. The **Workspaces** sub-tab joins every registry entry with its claim, PID liveness, pin, last-used
-time, TTL staleness, and checkout presence. Missing checkouts point to `sase workspace repair`, and dead claims are
-warning-styled. Both sub-tabs load off-thread and show cached rows during refresh.
+The **Repos** sub-tab inventories every known primary, sidecar, linked, and opened external repo for enabled projects by
+default. Rows show owning project, checkout presence, and path; details include source, description, `auto_clone`,
+environment name, and SDD storage mode. The **Workspaces** sub-tab joins every registry entry with its claim, PID
+liveness, pin, last-used time, TTL staleness, and checkout presence. Missing checkouts point to `sase workspace repair`,
+and dead claims are warning-styled. Both sub-tabs load off-thread and show cached rows during refresh.
 
 Press `p` on either inventory to choose all projects, an enabled project (`●`), or a disabled project (`○`). Explicitly
 selecting a disabled project is how its repos/workspaces become visible. `/` then filters within that project scope;

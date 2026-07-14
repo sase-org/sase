@@ -59,6 +59,28 @@ from tests.main.init_skills_handler_helpers import make_args
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
         ("sase_plan", ("sase plan propose sase_plan_<name>.md",)),
         (
+            "sase_project",
+            (
+                "sase project list --json",
+                "effective_project_name",
+                "sase project disable <project>",
+                "sase project alias list",
+                "/sase_run",
+                "/sase_repo",
+            ),
+        ),
+        (
+            "sase_repo",
+            (
+                "sase repo open sase-github",
+                "sase repo open dotdrop",
+                "sase repo open gh:pallets/click",
+                "Use that printed path as the only path",
+                "sase repo list",
+                "sase repo log",
+            ),
+        ),
+        (
             "sase_run",
             (
                 "sase launch request",

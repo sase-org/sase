@@ -102,7 +102,15 @@ def _build_output(
     elif len(f"description: {description}") > 120:
         wrapped = textwrap.fill(description, width=118)
         indented = textwrap.indent(wrapped, "  ")
-        header = f"---\nname: {name}\ndescription:\n{indented}\n---"
+        frontmatter = f"name: {name}\ndescription:\n{indented}"
+        try:
+            parsed = yaml.safe_load(frontmatter)
+        except yaml.YAMLError:
+            parsed = None
+        if isinstance(parsed, dict) and parsed.get("description") == description:
+            header = f"---\n{frontmatter}\n---"
+        else:
+            header = f"---\nname: {name}\ndescription: >-\n{indented}\n---"
     else:
         header = f"---\nname: {name}\ndescription: {description}\n---"
     content, render_error = render_markdown_template(
