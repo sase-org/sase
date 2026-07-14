@@ -59,39 +59,15 @@ class TestPlanFollowupModelSelection:
         )
         assert state.current_prompt.startswith("%model:@codex_coder\n")
 
-    def test_epic_followup_uses_epic_creator_alias(self, tmp_path) -> None:
-        """An epic follow-up (``#bd/new_epic``) defaults to ``%model:@epic_creator``."""
+    def test_epic_approval_has_no_creator_model_followup(self, tmp_path) -> None:
+        """Epic approval launches bead work directly without a model-prefixed child."""
         state = run_followup_plan(
             tmp_path,
             action="epic",
             agent_model="opus",
             agent_llm_provider="claude",
         )
-        assert state.current_prompt.startswith("%model:@epic_creator\n")
-        assert "%model:@worker" not in state.current_prompt
-
-    @pytest.mark.parametrize(
-        ("agent_model", "agent_llm_provider"),
-        [
-            ("opus", None),
-            (None, "claude"),
-            (None, None),
-        ],
-    )
-    def test_epic_creator_alias_independent_of_planner_metadata(
-        self,
-        tmp_path,
-        agent_model: str | None,
-        agent_llm_provider: str | None,
-    ) -> None:
-        """The epic role alias does not depend on planner provider/model metadata."""
-        state = run_followup_plan(
-            tmp_path,
-            action="epic",
-            agent_model=agent_model,
-            agent_llm_provider=agent_llm_provider,
-        )
-        assert state.current_prompt.startswith("%model:@epic_creator\n")
+        assert state.current_prompt == "original prompt"
 
     def test_explicit_coder_model_worker_falls_back_to_coder_alias(
         self, tmp_path

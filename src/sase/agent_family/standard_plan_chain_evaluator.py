@@ -26,7 +26,6 @@ from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
-    PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_role_for_suffix,
     is_root_question_suffix,
@@ -255,7 +254,7 @@ def _accepted_role_and_suffix(
     if action == "feedback":
         return "feedback", None, f"{PLAN_CHAIN_PLAN_SUFFIX}-@", None
     if action == "epic":
-        return "epic", PLAN_CHAIN_EPIC_SUFFIX, None, None
+        return "plan", PLAN_CHAIN_PLAN_SUFFIX, None, "completed"
     if action == "approve" and not run_coder:
         return "commit", PLAN_CHAIN_COMMIT_SUFFIX, None, "plan_committed"
     return "code", PLAN_CHAIN_CODER_SUFFIX, None, None
@@ -270,7 +269,12 @@ def _transition_side_effect_ids(
     if action == "feedback":
         return ("record_feedback", "replan")
     if action == "epic":
-        return ("write_sdd", "commit_sdd", f"launch_{action}_creator")
+        return (
+            "write_sdd",
+            "commit_sdd",
+            "create_epic_beads",
+            "launch_epic_work",
+        )
     effects = ["write_sdd"]
     if commit_plan:
         effects.append("commit_sdd")

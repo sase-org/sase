@@ -566,15 +566,15 @@ llm_provider:
 
 ### Config Fields
 
-| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                    |
-| ------------------------------------ | ------ | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                      |
-| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                     |
-| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                          |
-| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                          |
-| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. |
-| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; descriptions are shown in completions and the Models panel.                                                |
-| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                    |
+| Field                                | Type   | Default     | Description                                                                                                                                                                                                                                                                           |
+| ------------------------------------ | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.provider`              | string | auto-detect | Which registered provider to use. Auto-detects by plugin-declared priority; real built-ins default to claude → codex → qwen → opencode → agy, with fakey last as a testing-only fallback.                                                                                             |
+| `llm_provider.default_effort`        | string | unset       | Default [reasoning-effort](#reasoning-effort) level applied when a prompt sets no `%effort`/`@effort`. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; unset/invalid imposes no effort.                                                                            |
+| `llm_provider.model_tier_map.large`  | string | -           | Model identifier for the `large` tier                                                                                                                                                                                                                                                 |
+| `llm_provider.model_tier_map.small`  | string | -           | Model identifier for the `small` tier                                                                                                                                                                                                                                                 |
+| `llm_provider.model_aliases.builtin` | dict   | -           | Builtin alias overrides only (`default`, `coder`, `<provider>_coder`, `epic_lander`, `phase_worker`). Values can be bare known models, explicit `provider/model`, nested provider-local model paths, or `@<alias>` references. Legacy `epic_creator` entries are accepted but unused. |
+| `llm_provider.model_aliases.custom`  | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; descriptions are shown in completions and the Models panel.                                                                                       |
+| `llm_provider.model_aliases.buckets` | dict   | -           | Optional display-only ACE Models-panel bucket descriptions.                                                                                                                                                                                                                           |
 
 ## Per-Prompt Provider Switching
 
@@ -650,7 +650,6 @@ you have not defined them. Each one falls back through other aliases to `@defaul
 | `@default`          | Model used when a prompt has no `%model` directive.                                                     | Configured `model_aliases.builtin.default`, else the provider's requested-tier default. |
 | `@coder`            | Coder follow-up launched from an accepted plan.                                                         | `@default`                                                                              |
 | `@<provider>_coder` | Coder follow-up for a plan authored by `<provider>` (`@claude_coder`, `@codex_coder`, `@agy_coder`, …). | `@coder`                                                                                |
-| `@epic_creator`     | `#bd/new_epic` follow-up launched from an accepted epic plan.                                           | `@default`                                                                              |
 | `@epic_lander`      | Epic land agent with no explicit land model.                                                            | `@default`                                                                              |
 | `@phase_worker`     | Bead phase agent with no explicit per-bead model.                                                       | `@default`                                                                              |
 
@@ -836,7 +835,8 @@ Delegated launches do not use a separate "worker lane". Instead, each delegated 
   `@claude_coder`), falling back to `@coder` and then `@default`.
 - **`sase bead work` phase agents** without an explicit per-bead model use `@phase_worker`.
 - **Epic land agents** without an explicit land model use `@epic_lander`.
-- **`#bd/new_epic` follow-ups** from an accepted epic plan use `@epic_creator`.
+
+Validated Epic approvals create beads and launch `sase bead work` directly; there is no epic-creator model lane.
 
 Planning agents stay on `@default` unless their prompt explicitly asks for a different model. To send delegated work to
 a second provider, configure the matching role alias under `llm_provider.model_aliases.builtin`:

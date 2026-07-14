@@ -27,7 +27,8 @@ Every family member records an `agent_family_role` derived from its name suffix:
 
 | Suffix                                          | Role                              | Status labels                                                                                               |
 | ----------------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `plan`, `q`, `code`, `epic`, `commit`           | The corresponding built-in role   | Built-in role statuses (e.g. coder statuses)                                                                |
+| `plan`, `q`, `code`, `commit`                   | The corresponding built-in role   | Built-in role statuses (e.g. coder statuses)                                                                |
+| `epic`                                          | Legacy epic-creator artifact role | Historical status compatibility; new Epic approvals launch bead work directly                               |
 | Numeric (`@` in `%n` allocates the next number) | `feedback` (a feedback/Q&A round) | Feedback-round statuses                                                                                     |
 | Any other word (`reviewer`, `tester`, ...)      | The word itself (open set)        | Generic RUNNING/DONE, unless a custom role definition supplies [display labels](#custom-role-status-labels) |
 

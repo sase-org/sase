@@ -833,7 +833,6 @@ defaults. Common entries include:
 | `#prompt/approve`     | Boilerplate "I've edited the previous reply with my decisions; implement this" preamble + `#plan` |
 | `#prompt/review`      | Wraps a `prompt` input and asks for a gap/ambiguity review before implementation                  |
 | `#x:name,cmd`         | Saves a freeform `sase_xcmd` command to the prompt (`@$(sase_xcmd <name> <cmd>)`)                 |
-| `#bd/new_epic`        | Multi-phase epic kickoff used by `sase bead work` (resolved via `XPromptTag`)                     |
 | `#bd/work_phase_bead` | Per-phase agent prompt used by `sase bead work`                                                   |
 | `#bd/land_epic`       | Final land agent prompt used by `sase bead work`: verifies, integrates, and closes the epic       |
 | `#bd/next`            | "What should I work on next?" helper that consults the bead tracker                               |
@@ -846,19 +845,6 @@ unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
 original prompts).
-
-`#bd/new_epic` accepts optional ChangeSpec metadata for the plan bead it creates:
-
-```text
-#git:sase #bd/new_epic(plan_file_path=sdd/plans/202604/example.md, changespec=sase_feature, bug_id=12345)
-```
-
-When `bug_id` is supplied, `changespec` must also be supplied; the generated plan bead is created with the corresponding
-`sase bead create -c/--changespec` and `-b/--bug-id` metadata.
-
-`#bd/new_epic` creates the epic plan bead first, then creates phase beads sequentially in the order they appear in the
-plan file. Phase bead creation is intentionally not parallelized because child bead suffixes are allocated by creation
-order.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow

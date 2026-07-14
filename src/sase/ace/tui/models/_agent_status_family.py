@@ -160,7 +160,7 @@ def is_completed_plan_handoff_child(agent: Agent) -> bool:
 
 
 def is_completed_epic_followup_child(agent: Agent) -> bool:
-    """Return True for completed epic creation follow-up rows."""
+    """Return True for legacy completed epic creation follow-up rows."""
     return agent.status == "DONE" and agent_family_role(agent) == "epic"
 
 

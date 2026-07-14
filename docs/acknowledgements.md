@@ -54,7 +54,8 @@ drastically simplifying the surface area:
   persistence without an external database engine.
 - **Plan tiers instead of arbitrary nesting** -- sase uses plan-like beads with explicit `plan` and `epic` tiers plus
   executable phase children, rather than deeply nested dotted-ID trees. Linked epics use
-  `--type plan(<plan_file>) --tier epic`; `sase bead work` launches one epic-planning agent per proposed epic.
+  `--type plan(<plan_file>) --tier epic`; Epic approval creates the bead DAG deterministically and `sase bead work`
+  launches one agent per phase plus a final land agent.
 - **Multi-workspace aggregation** -- Because sase already manages multiple parallel workspaces, `sase bead` can read
   issues across all workspace clones through a merged in-memory view, giving every agent visibility into the full
   project state without Dolt's sync machinery.

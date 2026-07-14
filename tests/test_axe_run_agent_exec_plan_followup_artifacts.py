@@ -14,18 +14,14 @@ from tests.plan_validation_helpers import VALID_EPIC_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 
-def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
+def test_handle_plan_marker_records_host_side_epic_kickoff(
     tmp_path,
 ) -> None:
-    """Epic approval persists the launch timestamp on the .epic follow-up."""
+    """Epic approval records launch metadata without a .epic child artifact."""
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
     (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
-    followup = tmp_path / "followup"
-    followup.mkdir()
-    (followup / "agent_meta.json").write_text(json.dumps({}))
-
     approval = PlanApprovalResult(action="epic", plan_file=plan_file)
     with (
         patch("sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state"),
@@ -36,8 +32,8 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
         patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_files"),
         patch(
-            "sase.axe.run_agent_exec_plan_accept.create_followup_artifacts",
-            return_value=str(followup),
+            "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic",
+            return_value="sase-7",
         ),
         patch(
             "sase.llm_provider._plan_utils.handle_plan_approval",
@@ -56,9 +52,10 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
     ):
         handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-    meta = json.loads((followup / "agent_meta.json").read_text())
+    meta = json.loads((tmp_path / "artifacts" / "agent_meta.json").read_text())
     assert isinstance(meta["epic_started_at"], str)
     assert meta["epic_started_at"].endswith("+00:00")
+    assert meta["epic_bead_id"] == "sase-7"
 
 
 def test_create_followup_artifacts_persists_plan_committed_flag(tmp_path) -> None:

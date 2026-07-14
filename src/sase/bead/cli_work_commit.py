@@ -45,22 +45,13 @@ def commit_successful_work_launch(
     timer: LaunchTimingRecorder,
 ) -> None:
     from sase.bead.sync import (
-        BeadWorkLaunchCommitError,
         commit_bead_work_launch,
         push_bead_work_launch,
         push_bead_work_launch_async,
     )
 
     with timer.stage("commit"):
-        try:
-            committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
-        except BeadWorkLaunchCommitError as exc:
-            print(
-                f"Error: agents launched for {kind} {bead_id}, but committing "
-                f"bead state failed: {exc}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        committed = commit_bead_work_launch(beads_dir, bead_id, title, kind=kind)
 
     if not committed:
         return

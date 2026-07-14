@@ -22,31 +22,6 @@ from .plan_approval_modal import (
 )
 
 
-def _contextual_epic_role_lane(
-    choice: PlanApprovalChoice,
-) -> tuple[str | None, str]:
-    """Resolve the epic follow-up default through its role alias.
-
-    Mirrors the runtime handoff (``_resolve_epic_role_followup``): epic
-    follow-ups default to ``@epic_creator``. Resolving the directive here keeps
-    the modal's displayed default equal to the model the follow-up will actually
-    launch with.
-    """
-    from sase.llm_provider.config import (
-        EPIC_CREATOR_MODEL_ALIAS_NAME,
-        role_model_directive_value,
-    )
-    from sase.llm_provider.registry import resolve_model_provider
-
-    del choice
-    alias = EPIC_CREATOR_MODEL_ALIAS_NAME
-    directive = role_model_directive_value(alias)
-    try:
-        return resolve_model_provider(directive)
-    except Exception:
-        return None, directive
-
-
 def _contextual_coder_lane(planner_llm_provider: str | None) -> tuple[str | None, str]:
     """Resolve the coder follow-up default through the planner's coder alias.
 
@@ -82,9 +57,8 @@ def _model_display_label(
     """Format the follow-up model for display in the modal.
 
     When no model is chosen, the displayed default resolves to the model the
-    handoff will actually use: coder follow-ups (``approve`` / ``tale``) resolve
-    the planner provider's coder alias, while epic follow-ups resolve their
-    role alias (``@epic_creator``).
+    handoff will actually use. Epic execution models live in plan frontmatter,
+    so Epic approval has no follow-up-model picker lane.
     """
     from sase.llm_provider.registry import (
         format_provider_model_label,
@@ -93,9 +67,7 @@ def _model_display_label(
 
     if coder_model is None:
         if choice == "epic":
-            role_provider, role_model = _contextual_epic_role_lane(choice)
-            label = format_provider_model_label(role_provider, role_model)
-            return f"Follow-up — {label}"
+            return "Configured by epic plan frontmatter"
         coder_provider, coder_lane_model = _contextual_coder_lane(planner_llm_provider)
         label = format_provider_model_label(coder_provider, coder_lane_model)
         return f"Follow-up — {label}"
@@ -395,8 +367,8 @@ class ApproveOptionsModal(
 
                 self.app.push_screen(CustomModelInputModal(), on_custom_dismiss)
             elif result == DEFAULT_SENTINEL:
-                # "Follow-up default" selected: reset any prior coder model back
-                # to the role default (coder alias, or @epic_creator for epic).
+                # "Follow-up default" selected: reset any prior coder model
+                # back to the provider-specific coder role default.
                 self._coder_model = None
                 self._update_model_display()
             elif result is not None:

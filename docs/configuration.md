@@ -385,8 +385,8 @@ directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ct
 works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_creator`, `@epic_lander`, `@phase_worker`), and
-configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
+implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@phase_worker`), and configured model
+aliases; provider short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -463,10 +463,13 @@ remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_creator`, `@epic_lander`, and `@phase_worker` (bead/epic role launches). Each falls back through other aliases to
-`@default`, so configuring `model_aliases.builtin.default` is enough to drive every role; override an individual role by
-configuring an alias of the same name. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
+`@epic_lander` and `@phase_worker` (bead/epic role launches). Each falls back through other aliases to `@default`, so
+configuring `model_aliases.builtin.default` is enough to drive every role; override an individual role by configuring an
+alias of the same name. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
 [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
+
+Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
+launches an epic-creator agent or resolves that alias implicitly.
 
 > The `llm_provider.worker_models` map and the reserved `@worker` / `@other` aliases were removed in epic sase-5d. Use
 > the role aliases above (`@coder` / `@phase_worker`) or an explicit model instead of `@worker`, and `@default` instead

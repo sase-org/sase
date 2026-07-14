@@ -28,6 +28,7 @@ from sase.bead.cli_work_plan import (
 )
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
+from sase.bead.sync import BeadWorkLaunchCommitError
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
@@ -38,6 +39,27 @@ if TYPE_CHECKING:
 
 
 BEAD_WORK_TIMING_ENV = "SASE_BEAD_WORK_TIMING"
+
+
+class BeadWorkError(RuntimeError):
+    """A recoverable ``sase bead work`` orchestration failure.
+
+    ``agents_launched`` distinguishes failures after every requested agent was
+    successfully started (currently the final bead-state commit) from failures
+    where the existing rollback path already terminated partial launches and
+    restored pre-claims.
+    """
+
+    def __init__(self, message: str, *, agents_launched: bool = False) -> None:
+        super().__init__(message)
+        self.agents_launched = agents_launched
+
+
+def _post_launch_commit_error(epic_id: str, exc: Exception) -> BeadWorkError:
+    return BeadWorkError(
+        f"agents launched for epic {epic_id}, but committing bead state failed: {exc}",
+        agents_launched=True,
+    )
 
 
 def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
@@ -76,9 +98,18 @@ def handle_bead_work(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
         if issue.tier == BeadTier.EPIC:
-            _handle_epic_bead_work(
-                proj, args.id, dry_run=dry_run, yes=yes, no_push=no_push, timer=timer
-            )
+            try:
+                launch_epic_bead_work(
+                    proj,
+                    args.id,
+                    dry_run=dry_run,
+                    yes=yes,
+                    no_push=no_push,
+                    timer=timer,
+                )
+            except BeadWorkError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                raise SystemExit(1) from exc
             return
 
         tier = issue.tier.value if issue.tier else "missing tier"
@@ -90,15 +121,33 @@ def handle_bead_work(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
-def _handle_epic_bead_work(
+def launch_epic_bead_work(
     proj: BeadProject,
     epic_id: str,
     *,
     dry_run: bool,
     yes: bool,
     no_push: bool,
-    timer: LaunchTimingRecorder,
-) -> None:
+    timer: LaunchTimingRecorder | None = None,
+) -> bool:
+    """Run the epic bead-work path, returning whether agents were launched.
+
+    This is the library entry point used both by the CLI and deterministic
+    epic approval. It raises :class:`BeadWorkError` instead of terminating the
+    process so host-side callers can roll back newly-created epic beads.
+    """
+    if timer is None:
+        owned_timer = _make_bead_work_timer(epic_id, dry_run=dry_run)
+        with owned_timer:
+            return launch_epic_bead_work(
+                proj,
+                epic_id,
+                dry_run=dry_run,
+                yes=yes,
+                no_push=no_push,
+                timer=owned_timer,
+            )
+
     from sase.bead.work import (
         ChangeSpecLaunchContext,
         EpicPlanError,
@@ -117,16 +166,14 @@ def _handle_epic_bead_work(
             work_phase_xprompt = resolve_work_phase_xprompt()
             land_epic_xprompt = resolve_land_epic_xprompt()
         except (BeadXPromptNotFoundError, ValueError) as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
+            raise BeadWorkError(str(e)) from e
 
     issue = proj.show(epic_id)
     with timer.stage("work_plan_build"):
         try:
             plan = build_epic_work_plan_from_beads_dir(proj.beads_dir, epic_id)
         except EpicPlanError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
+            raise BeadWorkError(str(e)) from e
 
     vcs_context: VCSLaunchContext | None = None
     changespec_context: ChangeSpecLaunchContext | None = None
@@ -138,8 +185,7 @@ def _handle_epic_bead_work(
                     bug_id=issue.changespec_bug_id,
                 )
             except ValueError as e:
-                print(f"Error: {e}", file=sys.stderr)
-                sys.exit(1)
+                raise BeadWorkError(str(e)) from e
         else:
             vcs_context = resolve_vcs_launch_context()
 
@@ -160,11 +206,11 @@ def _handle_epic_bead_work(
         warn_force_reuse_collisions(find_live_name_collisions(plan))
         print("\n--- Multi-prompt (dry run) ---")
         print(query)
-        return
+        return False
 
     if not yes and not confirm_launch():
         print("Aborted.")
-        return
+        return False
 
     with timer.stage("force_reuse_cleanup"):
         try:
@@ -174,8 +220,7 @@ def _handle_epic_bead_work(
                 extra_cleanup_names=legacy_epic_cleanup_names(plan),
             )
         except ForcedReuseCleanupError as e:
-            print(f"Error: {e}", file=sys.stderr)
-            sys.exit(1)
+            raise BeadWorkError(str(e)) from e
 
     marked_ready_this_run = False
     if not issue.is_ready_to_work:
@@ -186,8 +231,7 @@ def _handle_epic_bead_work(
             except AlreadyReadyError:
                 marked_ready_this_run = False
             except (KeyError, NotAPlanError) as e:
-                print(f"Error: {e}", file=sys.stderr)
-                sys.exit(1)
+                raise BeadWorkError(str(e)) from e
 
     claimed: list[tuple[str, Status, str]] = []
     with timer.stage("preclaim"):
@@ -201,11 +245,10 @@ def _handle_epic_bead_work(
                 ],
             )
         except (KeyError, ValueError) as e:
-            print(f"Error: pre-claim failed for epic {epic_id}: {e}", file=sys.stderr)
             rollback_work_launch(
                 proj, epic_id, claimed, unmark_ready=marked_ready_this_run
             )
-            sys.exit(1)
+            raise BeadWorkError(f"pre-claim failed for epic {epic_id}: {e}") from e
 
     try:
         with timer.stage("agent_launch"):
@@ -216,11 +259,6 @@ def _handle_epic_bead_work(
                 launch_context=changespec_context or vcs_context,
             )
     except Exception as e:
-        print(
-            f"Error: agent launch failed for epic {epic_id}: {e}\n"
-            "For broader diagnostics, run `sase doctor -v`.",
-            file=sys.stderr,
-        )
         launched_results = list(getattr(e, "results", []))
         launched_pids = [r.pid for r in launched_results]
         rollback_work_launch(
@@ -231,18 +269,31 @@ def _handle_epic_bead_work(
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
-        sys.exit(1)
+        raise BeadWorkError(
+            f"agent launch failed for epic {epic_id}: {e}\n"
+            "For broader diagnostics, run `sase doctor -v`."
+        ) from e
 
     agent_count = sum(len(w) for w in plan.waves) + 1
     print(
         f"✓ Launched {agent_count} agents for epic {epic_id} — {issue.title} "
         f"(workspace {results[0].workspace_num})"
     )
-    commit_successful_work_launch(
-        proj.beads_dir,
-        epic_id,
-        issue.title,
-        kind="epic",
-        no_push=no_push,
-        timer=timer,
-    )
+    try:
+        commit_successful_work_launch(
+            proj.beads_dir,
+            epic_id,
+            issue.title,
+            kind="epic",
+            no_push=no_push,
+            timer=timer,
+        )
+    except BeadWorkLaunchCommitError as exc:
+        raise _post_launch_commit_error(epic_id, exc) from exc
+    except Exception as exc:
+        raise _post_launch_commit_error(epic_id, exc) from exc
+    return True
+
+
+# Compatibility alias for callers/tests that imported the former private helper.
+_handle_epic_bead_work = launch_epic_bead_work

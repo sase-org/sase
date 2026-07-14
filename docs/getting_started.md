@@ -153,10 +153,10 @@ sase bead ready           # lists work whose blockers are closed
 sase bead show <bead-id>  # inspects one bead in detail
 ```
 
-Once an epic plan exists and its phase beads are filed, `sase bead work <epic-id>` builds a dependency schedule from the
-open phases, pre-claims each phase bead, launches one agent per phase in the right order, and runs a final land agent
-after the phases finish. That's the on-ramp from one-shot prompts to multi-agent execution with actual ordering. No more
-babysitting `sase run` calls in a shell loop.
+Approving a structured epic plan files its epic and phase beads, wires their dependencies, and automatically invokes the
+same path as `sase bead work <epic-id> --yes`. That path pre-claims each phase, launches one agent per phase in the
+right order, and runs a final land agent after the phases finish. You can still run `sase bead work <epic-id>` manually
+to retry remaining work.
 
 **What you just did.** Stepped from one-shot prompts into [Spec-Driven Development](sdd.md) with [Beads](beads.md) as
 dependency-aware work units.

@@ -147,12 +147,12 @@ def test_setting_one_alias_preserves_others() -> None:
     set_alias_override("phase_worker", "claude/opus", None, source="panel")
 
     # A third set must not drop the first two.
-    set_alias_override("epic_creator", "codex/o3", None, source="panel")
+    set_alias_override("epic_lander", "codex/o3", None, source="panel")
 
     assert set(get_active_alias_overrides()) == {
         "coder",
         "phase_worker",
-        "epic_creator",
+        "epic_lander",
     }
 
 

@@ -145,11 +145,26 @@ tier: tale
 model: opus
 ```
 
-Epic plan files can additionally annotate individual phases with their own `model:` lines so different phases can be
-worked by different models. The `bd/new_epic` xprompt forwards the top-level `model:` field to `sase bead create`'s
-`-m/--model` flag on the epic plan bead (so the land agent inherits it) and forwards each phase's `model:` annotation to
-that phase bead's `-m/--model` flag. When the field is absent, `--model` is omitted and the bead falls back to the
-launcher default.
+For an epic, the top-level `model` selects the final land-agent model. Per-phase models live only in the structured
+`phases[].model` frontmatter entries; body annotations are not interpreted:
+
+```yaml
+tier: epic
+title: Model-routed rollout
+goal: Complete the rollout and verify it end to end
+model: claude/opus
+phases:
+  - id: implementation
+    title: Implement the rollout
+    depends_on: []
+  - id: exercise
+    title: Exercise the completed rollout
+    depends_on: [implementation]
+    model: codex/gpt-5.6-sol
+```
+
+On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase model to its
+phase bead. Omitted phase models use `@phase_worker`; an omitted top-level model uses `@epic_lander`.
 
 ### Plan Frontmatter Schema and Validation
 

@@ -92,7 +92,6 @@ def _calm_views() -> list[AliasView]:
             provider="claude",
             model="opus",
         ),
-        _view("epic_creator", "role", provider="claude", model="opus"),
         _view("epic_lander", "role", provider="claude", model="opus"),
         _view(
             "phase_worker",

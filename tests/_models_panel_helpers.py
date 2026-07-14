@@ -114,7 +114,6 @@ def make_coder_bucket_views() -> list[AliasView]:
         make_alias_view("default", "default", description="Default model."),
         make_alias_view("codex_coder", "provider_coder", provider="codex", model="o3"),
         make_alias_view("coder", "role", provider="claude", model="opus"),
-        make_alias_view("epic_creator", "role"),
         make_alias_view(
             "claude_coder", "provider_coder", provider="claude", model="opus"
         ),

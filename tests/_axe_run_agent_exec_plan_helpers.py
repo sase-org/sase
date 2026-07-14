@@ -71,6 +71,9 @@ PLAN_PATCHES = {
     ),
     "sase.axe.run_agent_exec_plan_accept.promote_to_workflow": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
+    "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic": (
+        lambda **_kwargs: "sase-1"
+    ),
     "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
     "sase.axe.run_agent_exec_questions.update_meta_field": None,

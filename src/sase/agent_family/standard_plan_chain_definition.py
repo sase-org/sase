@@ -15,7 +15,6 @@ from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
-    PLAN_CHAIN_EPIC_SUFFIX,
     PLAN_CHAIN_PLAN_SUFFIX,
 )
 
@@ -104,8 +103,6 @@ def _choice_target_role(choice: str) -> str | None:
         return "code"
     if choice == "commit":
         return "commit"
-    if choice == "epic":
-        return "epic"
     if choice == "feedback":
         return "feedback"
     return None
@@ -117,7 +114,12 @@ def _choice_side_effects(choice: str) -> tuple[str, ...]:
     if choice == "commit":
         return ("write_sdd", "commit_sdd")
     if choice == "epic":
-        return ("write_sdd", "commit_sdd", f"launch_{choice}_creator")
+        return (
+            "write_sdd",
+            "commit_sdd",
+            "create_epic_beads",
+            "launch_epic_work",
+        )
     if choice in {"approve", "run"}:
         return ("write_sdd", "set_sase_plan_env")
     if choice == "feedback":
@@ -134,7 +136,13 @@ def standard_plan_chain_definition() -> _FamilyDefinition:
             compatibility_response=_choice_protocol(choice),
             goto_role=_choice_target_role(choice),
             side_effect_ids=_choice_side_effects(choice),
-            terminal="plan_rejected" if choice == "reject" else None,
+            terminal=(
+                "plan_rejected"
+                if choice == "reject"
+                else "completed"
+                if choice == "epic"
+                else None
+            ),
         )
         for choice in PLAN_APPROVAL_CHOICE_IDS
     )
@@ -163,11 +171,6 @@ def standard_plan_chain_definition() -> _FamilyDefinition:
                 id="code",
                 suffix=PLAN_CHAIN_CODER_SUFFIX,
                 prompt_template="standard_coder_prompt",
-            ),
-            _FamilyRoleDefinition(
-                id="epic",
-                suffix=PLAN_CHAIN_EPIC_SUFFIX,
-                prompt_template="bd/new_epic",
             ),
             _FamilyRoleDefinition(
                 id="commit",

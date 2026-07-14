@@ -13,13 +13,9 @@ from sase.bead.xprompts import (
     resolve_land_epic_xprompt,
     resolve_work_phase_xprompt,
 )
-from sase.xprompt.loader import get_all_prompts, get_all_xprompts
-from sase.xprompt.models import InputType
-from sase.xprompt.processor import process_xprompt_references
+from sase.xprompt.loader import get_all_prompts
 from sase.xprompt.tags import XPromptTag, parse_tags
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
-
-
 # ── Tag enum parsing ───────────────────────────────────────────────────
 
 
@@ -57,15 +53,11 @@ def test_builtin_land_epic_resolves() -> None:
 def test_builtin_xprompts_loaded_from_config() -> None:
     """Confirm the bead automation built-ins are present in the loader registry."""
     prompts = get_all_prompts()
-    assert "bd/new_epic" in prompts
+    assert "bd/new_epic" not in prompts
     assert "bd/land_epic" in prompts
     assert "bd/work_phase_bead" in prompts
-    assert XPromptTag.create_epic_bead in prompts["bd/new_epic"].tags
     assert XPromptTag.land_epic in prompts["bd/land_epic"].tags
     assert XPromptTag.work_phase_bead in prompts["bd/work_phase_bead"].tags
-    assert (
-        "sase bead work <epic_id> --yes" in prompts["bd/new_epic"].steps[0].prompt_part
-    )
 
 
 def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
@@ -83,53 +75,6 @@ def test_builtin_plan_review_globs_distinguish_prompt_from_plan(
     assert "@sdd/plans/*/{{ file_base }}.md" in body
     assert list(tmp_path.glob("sdd/plans/*/prompts/example.md")) == [prompt]
     assert list(tmp_path.glob("sdd/plans/*/example.md")) == [plan]
-
-
-def test_new_epic_accepts_changespec_inputs() -> None:
-    prompt = get_all_prompts()["bd/new_epic"]
-    changespec = prompt.get_input_by_name("changespec")
-    bug_id = prompt.get_input_by_name("bug_id")
-
-    assert changespec is not None
-    assert changespec.type is InputType.WORD
-    assert changespec.default is None
-    assert bug_id is not None
-    assert bug_id.type is InputType.INT
-    assert bug_id.default is None
-
-
-def test_new_epic_changespec_guidance() -> None:
-    body = get_all_prompts()["bd/new_epic"].steps[0].prompt_part
-
-    assert "-c/--changespec" in body
-    assert "-b/--bug-id" in body
-    assert "bug_id` requires `changespec" in body
-    assert "No ChangeSpec metadata was provided" in body
-    assert "--tier epic" in body
-    assert "--type plan(<plan_file>)" in body
-
-
-def test_new_epic_requires_serial_phase_creation() -> None:
-    body = get_all_prompts()["bd/new_epic"].steps[0].prompt_part
-
-    assert "Create the epic plan bead first." in body
-    assert "create the phase beads one at a time" in body
-    assert "in the exact order they appear in the" in body
-    assert "Do not run phase bead creation commands in parallel" in body
-    assert "child bead suffixes are allocated by creation order" in body
-
-
-def test_new_epic_colon_args_render_plan_path_guidance() -> None:
-    xprompt = get_all_xprompts()["bd/new_epic"]
-
-    with patch(
-        "sase.xprompt.processor.get_all_xprompts",
-        return_value={"bd/new_epic": xprompt},
-    ):
-        body = process_xprompt_references("#bd/new_epic:sdd/plans/202605/my_feature.md")
-
-    assert "sdd/plans/202605/my_feature.md" in body
-    assert "--type plan(<plan_file>)" in body
 
 
 # ── User overrides win via precedence chain ────────────────────────────

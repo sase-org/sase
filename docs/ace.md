@@ -1012,14 +1012,14 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 ## Models Panel
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
-alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_creator`, `epic_lander`, `phase_worker`)
-and any user-defined `llm_provider.model_aliases.custom` entry.
+alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `phase_worker`) and any
+user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
 provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @default`, or an
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
-deterministically: `default`, the built-in `coders` bucket, `epic_creator`, `epic_lander`, `phase_worker`, then custom
-buckets and ungrouped user aliases in alphabetical order.
+deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `phase_worker`, then custom buckets and
+ungrouped user aliases in alphabetical order.
 
 The always-present `coders` bucket groups `coder` first and every registered `<provider>_coder` alias alphabetically.
 Its collapsed row reports the member count and active overrides, while the description strip summarizes the distinct
@@ -1071,7 +1071,7 @@ processes on the machine — and is best-effort self-cleaning: expired or malfor
 temporary override is independent of `SASE_MODEL_TIER_OVERRIDE`; a concrete override takes the full provider/model path,
 while the tier override only applies when no concrete override is active.
 
-Delegated launches (plan coder follow-ups, `sase bead work` phase/land agents, epic-creation follow-ups) resolve through
+Delegated launches (plan coder follow-ups and `sase bead work` phase/land agents) resolve through
 [role aliases](llms.md#role-aliases-for-delegated-work) configured under `llm_provider.model_aliases.builtin`, all of
 which fall back to `@default`, so a `default` override also moves delegated work unless a role alias pins it elsewhere.
 
@@ -1661,19 +1661,20 @@ the resolved SDD plans root's `<YYYYMM>/` directory. The root may be in-tree, a 
 | `Ctrl+N`/`P` | Next / previous action                    |
 | `q` / `Esc`  | Cancel                                    |
 
-The dialog keeps the custom coder prompt and follow-up model controls:
+The dialog keeps the custom coder prompt and follow-up model controls for Approve and Tale. Epic approval reads its land
+and phase models from structured plan frontmatter and launches bead work directly, so those controls are hidden for
+Epic:
 
-- **Additional prompt** — Optional extra instructions for the coder follow-up. It is used by Approve and Tale; Epic and
-  Epic generates its follow-up prompt from the bead xprompts.
+- **Additional prompt** — Optional extra instructions for the coder follow-up. It is used by Approve and Tale.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using the role default. For Approve and
-  Tale that agent is the coder; for Epic it is the bead follow-up. Shows all registered models grouped by provider
-  (Claude, Codex, Antigravity, Qwen, OpenCode) with a "Custom..." option for freeform input. Type to filter by provider,
-  model id, label, or short alias; use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the filter or
-  cancel, and `'` for jump hints over the visible selectable rows. The displayed default resolves to the model the
-  handoff will actually use: for Approve and Tale it is the planner provider's coder alias (`@<planner_provider>_coder`,
-  e.g. `@claude_coder`, falling back to `@coder` when planner provider metadata is missing); for Epic it is the
-  `@epic_creator` role alias. Selecting a specific model and then re-opening the picker and choosing "Follow-up default"
-  resets the follow-up back to that role default (distinct from pressing `Esc`, which keeps the current selection).
+  Tale that agent is the coder. Shows all registered models grouped by provider (Claude, Codex, Antigravity, Qwen,
+  OpenCode) with a "Custom..." option for freeform input. Type to filter by provider, model id, label, or short alias;
+  use `j`/`k` or arrows to navigate, `Enter` to select, `Esc` to clear the filter or cancel, and `'` for jump hints over
+  the visible selectable rows. The displayed default resolves to the model the handoff will actually use: the planner
+  provider's coder alias (`@<planner_provider>_coder`, e.g. `@claude_coder`, falling back to `@coder` when planner
+  provider metadata is missing). Selecting a specific model and then re-opening the picker and choosing "Follow-up
+  default" resets the follow-up back to that role default (distinct from pressing `Esc`, which keeps the current
+  selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
 commit location and follow-up behavior.

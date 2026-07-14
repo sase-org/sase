@@ -301,6 +301,14 @@ Display a quick-start guide with common command examples.
 
 Run an entire epic-tier plan end-to-end by launching one agent per phase plus a final land agent.
 
+Approving a validated Epic plan performs this kickoff automatically. SASE creates the epic plan bead from the plan's
+`title`, `goal`, top-level `model`, and optional ChangeSpec metadata; writes its `bead_id` back to the committed plan;
+creates phase beads in `phases[]` order; wires every `depends_on` edge; then invokes the same launch path as
+`sase bead work <id> --yes`. A missing phase description becomes a deterministic pointer to the plan and phase ID.
+Failures before a complete launch remove the new epic and its children and restore the plan link. Partial agent launches
+are terminated by the normal bead-work rollback before that creation rollback runs. A failure committing bead state
+after all agents started is reported without deleting the live agents or their beads.
+
 For epic-tier plans, the command:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
@@ -423,5 +431,6 @@ applies.
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal approval saves to the resolved
-SDD `plans/` directory with `tier: tale`. Epic saves there with `tier: epic` and launches the epic follow-up that
-creates an `epic`-tier plan bead plus phase beads.
+SDD `plans/` directory with `tier: tale`. Epic saves there with `tier: epic`, deterministically creates an `epic`-tier
+plan bead plus ordered phase beads, wires their dependencies, and launches the bead-work schedule. No epic-creation
+agent is spawned.

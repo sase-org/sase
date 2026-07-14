@@ -381,8 +381,10 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
-    def test_epic_followup_records_default_effort(self, tmp_path, monkeypatch) -> None:
-        """Epic follow-up metadata records llm_provider.default_effort."""
+    def test_epic_approval_has_no_creator_followup_effort(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Host-side epic kickoff does not create follow-up model metadata."""
         monkeypatch.setattr(
             "sase.llm_provider.config._get_default_effort", lambda: "high"
         )
@@ -404,7 +406,13 @@ class TestPlanFollowupApprovals:
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        assert call("/tmp/followup", "reasoning_effort", "high") in (
+        effort_calls = [
+            meta_call
+            for meta_call in accept_mod.update_meta_field.call_args_list
+            if meta_call.args[1] == "reasoning_effort"
+        ]
+        assert effort_calls == []
+        assert call(str(tmp_path / "artifacts"), "epic_bead_id", "sase-1") in (
             accept_mod.update_meta_field.call_args_list
         )
 
@@ -625,8 +633,8 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
-    def test_epic_commit_failure_uses_archived_plan_ref(self, tmp_path) -> None:
-        """Epic handoffs fall back to the archived plan after commit failure."""
+    def test_epic_commit_failure_aborts_before_bead_creation(self, tmp_path) -> None:
+        """An uncommitted epic plan never enters deterministic bead creation."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "epic_plan.md"
@@ -658,12 +666,12 @@ class TestPlanFollowupApprovals:
                 "sase.axe.run_agent_exec_plan_accept._commit_sdd_files",
                 return_value=False,
             ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic"
+            ) as create_epic,
+            pytest.raises(RuntimeError, match="could not be committed"),
         ):
             handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        assert f"#bd/new_epic:{archived_plan}" in state.current_prompt
-        assert "sdd/plans/202605/epic_plan.md" not in state.current_prompt
-        relationships = accept_mod.create_followup_artifacts.call_args.kwargs[
-            "relationships"
-        ]
-        assert relationships["plan_committed"] is False
+        create_epic.assert_not_called()
+        assert state.current_prompt == "original prompt"

@@ -134,7 +134,7 @@ def enrich_agent_from_meta(
     # Parse plan_submitted_at (when plan was submitted for review)
     append_timestamp_field(data.get("plan_submitted_at"), agent.plan_times)
 
-    # Parse epic_started_at (when epic creation follow-up was launched)
+    # Parse epic_started_at (host kickoff, or a legacy creation follow-up)
     epic_started_at = data.get("epic_started_at")
     if isinstance(epic_started_at, str):
         try:

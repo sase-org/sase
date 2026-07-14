@@ -26,9 +26,9 @@ def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> No
         "q",
         "feedback",
         "code",
-        "epic",
         "commit",
     }
+    assert "epic" not in {role.id for role in definition.roles}
     assert tuple(choice.id for choice in plan_gate.choices) == PLAN_APPROVAL_CHOICE_IDS
     run_choice = next(choice for choice in plan_gate.choices if choice.id == "run")
     assert run_choice.compatibility_response == {
@@ -37,6 +37,13 @@ def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> No
         "run_coder": True,
     }
     assert run_choice.goto_role == "code"
+    epic_choice = next(choice for choice in plan_gate.choices if choice.id == "epic")
+    assert epic_choice.goto_role is None
+    assert epic_choice.terminal == "completed"
+    assert epic_choice.side_effect_ids[-2:] == (
+        "create_epic_beads",
+        "launch_epic_work",
+    )
     assert completion_event.terminal is True
     assert completion_event.composition_rule == (
         "after_followup_workflow_including_embedded_vcs_refs"
@@ -121,6 +128,13 @@ def test_plan_approval_transition_selects_standard_roles() -> None:
         feedback_count=1,
         qa_round_count=0,
     )
+    epic = evaluate_plan_approval_transition(
+        action="epic",
+        commit_plan=True,
+        run_coder=True,
+        feedback_count=0,
+        qa_round_count=0,
+    )
 
     assert coder.target_role == "code"
     assert coder.role_suffix == "--code"
@@ -130,6 +144,9 @@ def test_plan_approval_transition_selects_standard_roles() -> None:
     assert terminal_commit.role_suffix == "--commit"
     assert feedback.target_role == "feedback"
     assert feedback.suffix_template == "--plan-@"
+    assert epic.target_role == "plan"
+    assert epic.terminal_outcome == "completed"
+    assert "create_epic_beads" in epic.side_effect_ids
 
 
 def test_questions_transition_preserves_interrupted_role_suffix_sequence() -> None:

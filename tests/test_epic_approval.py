@@ -100,29 +100,12 @@ def test_plan_approval_result_epic() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Epic prompt construction (mirrors axe_run_agent_runner.py logic)
+# Deterministic epic plan references
 # ---------------------------------------------------------------------------
 
 
-def test_epic_prompt_with_vcs_tag() -> None:
-    """Epic prompt should include VCS tag prefix and bd/new_epic xprompt."""
-    vcs_tag = "#git:sase "
-    sdd_plan_name = "epic_approval"
-    expected = "#git:sase #bd/new_epic:sdd/plans/202605/epic_approval.md"
-    assert f"{vcs_tag}#bd/new_epic:sdd/plans/202605/{sdd_plan_name}.md" == expected
-
-
-def test_epic_prompt_without_vcs_tag() -> None:
-    """Epic prompt without VCS tag should just have the xprompt."""
-    vcs_tag = ""
-    sdd_plan_name = "my_feature"
-    expected = "#bd/new_epic:sdd/plans/202605/my_feature.md"
-    assert f"{vcs_tag}#bd/new_epic:sdd/plans/202605/{sdd_plan_name}.md" == expected
-
-
-def test_epic_prompt_non_vc_repo() -> None:
-    """Epic prompt for non-VC repo should use .sase/sdd/plans/ prefix."""
-    vcs_tag = ""
+def test_epic_plan_ref_non_vc_repo() -> None:
+    """Deterministic bead creation stores the non-VC SDD plan reference."""
     sdd_plan_name = "my_feature"
     version_controlled = False
     plan_ref = (
@@ -134,10 +117,6 @@ def test_epic_prompt_non_vc_repo() -> None:
     )
     expected = ".sase/sdd/plans/202605/my_feature.md"
     assert plan_ref == expected
-    assert (
-        f"{vcs_tag}#bd/new_epic:{plan_ref}"
-        == "#bd/new_epic:.sase/sdd/plans/202605/my_feature.md"
-    )
 
 
 def test_coder_prompt_includes_vcs_tag() -> None:

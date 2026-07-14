@@ -329,7 +329,6 @@ llm_provider:
   #     coder: "@default"           # plan coder follow-ups (fallback for <provider>_coder)
   #     claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
   #     codex_coder: claude/opus    # coder follow-ups from Codex-authored plans
-  #     epic_creator: "@default"    # #bd/new_epic follow-ups
   #     epic_lander: "@default"     # epic land agents
   #     phase_worker: "@default"    # bead phase agents
   #   custom:
@@ -486,49 +485,6 @@ xprompts:
       If steps 1-2 uncover remaining work, use your /sase_plan skill to plan it and complete the skill's tier-aware
       validate/revalidate/propose loop. Make step 3 the plan's final phase (close, run symvision, mark the plan file done)
       so the agent that executes the plan finishes the landing. Otherwise do step 3 now.
-  bd/new_epic:
-    tags: create_epic_bead
-    input:
-      plan_file_path: path
-      changespec: { type: word, default: null }
-      bug_id: { type: int, default: null }
-    content: |
-      Can you help me create one bead for every phase in the {{ plan_file_path }} plan file?
-
-      These beads should all be children of a new plan bead that you should also create. The plan bead should be linked to the
-      plan file using the `sase bead create` command's `--type plan(<plan_file>)` option and `--tier epic`. Also, add
-      the bead ID of the plan to a frontmatter field called `bead_id` and add `tier: epic`.
-
-      {% if bug_id and not changespec %}
-      IMPORTANT: This invocation is invalid because `bug_id` was provided without `changespec`. Do not create or update any
-      beads; report that `bug_id` requires `changespec`.
-      {% endif %}
-
-      {% if changespec %}
-      Attach ChangeSpec metadata to the new plan bead by passing `-c/--changespec {{ changespec }}` to
-      `sase bead create`. {% if bug_id %}Because `bug_id` is also provided, pass `-b/--bug-id {{ bug_id }}` on that same
-      plan-bead creation command.{% else %}Because no `bug_id` is provided, do not pass `-b/--bug-id`.{% endif %}
-      {% else %}
-      No ChangeSpec metadata was provided, so do not pass `-c/--changespec` or `-b/--bug-id` when creating the plan bead.
-      {% endif %}
-
-      If the plan file's frontmatter contains a top-level `model:` field, pass its value via `-m/--model <value>` on the
-      epic plan bead's `sase bead create` call so the final land agent runs with that model. If no `model:` field is
-      present in the frontmatter, omit `--model` entirely.
-
-      Create the epic plan bead first. Then create the phase beads one at a time, in the exact order they appear in the
-      plan file. Do not run phase bead creation commands in parallel: child bead suffixes are allocated by creation order,
-      so the first phase bead you create should receive the first child ID suffix, the second phase bead should receive
-      the second suffix, and so on.
-
-      For each phase, if the plan file annotates that phase with a `model:` value (matching the simple convention from
-      the plan frontmatter — e.g. a `model:` line in the phase's owner/metadata section), pass `-m/--model <value>` on
-      that phase bead's `sase bead create` call. If a phase has no `model:` annotation, omit `--model` for that phase.
-
-      Make sure that each phase bead has the appropriate dependencies set up.
-
-      After committing the bead-creation work, run `sase bead work <epic_id> --yes` (using the new plan bead's ID) to
-      mark the epic as ready to work and skip the launch confirmation prompt for this automated kickoff.
   bd/next:
     input:
       prompt: { type: text, default: "" }

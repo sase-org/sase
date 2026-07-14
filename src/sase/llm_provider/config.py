@@ -27,7 +27,7 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_creator`` / ``epic_lander`` / ``phase_worker``: bead/epic roles.
+#   - ``epic_lander`` / ``phase_worker``: bead/epic roles.
 #
 # Each role falls back to another alias (ultimately ``@default``) when it is not
 # explicitly configured. ``default`` itself falls back to the configured or
@@ -47,7 +47,8 @@ CODER_MODEL_ALIAS_NAME = "coder"
 #: Suffix that turns a provider name into its ``<provider>_coder`` alias.
 PROVIDER_CODER_ALIAS_SUFFIX = "_coder"
 
-#: The implicit "epic_creator" role alias (new-epic follow-up default).
+#: Legacy epic-creator alias name. It is no longer implicit or used by SASE,
+#: but configured builtin entries remain accepted for compatibility.
 EPIC_CREATOR_MODEL_ALIAS_NAME = "epic_creator"
 
 #: The implicit "epic_lander" role alias (epic land follow-up default).
@@ -60,10 +61,11 @@ PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
 #: falls back to when the user has not configured it explicitly.
 _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
-    EPIC_CREATOR_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
+
+_LEGACY_BUILTIN_ALIAS_NAMES = {EPIC_CREATOR_MODEL_ALIAS_NAME}
 
 _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
     DEFAULT_MODEL_ALIAS_NAME: (
@@ -73,9 +75,6 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: (
         "Coder follow-up agents launched from plans (fallback for every "
         "<provider>_coder alias)."
-    ),
-    EPIC_CREATOR_MODEL_ALIAS_NAME: (
-        "Agents that create epics from #bd/new_epic follow-ups."
     ),
     EPIC_LANDER_MODEL_ALIAS_NAME: (
         "Epic land agents that finalize and submit an epic."
@@ -366,7 +365,7 @@ def _special_model_alias_names() -> set[str]:
 
     This is the centralized alias policy that is the source of truth for which
     alias names always resolve: the fixed role aliases (``default`` plus
-    ``coder``/``epic_creator``/``epic_lander``/``phase_worker``) and a
+    ``coder``/``epic_lander``/``phase_worker``) and a
     ``<provider>_coder`` alias per registered provider. The legacy
     ``worker``/``other`` reserved aliases were retired with the worker lane
     (epic sase-5d phase 4); they only resolve now if a user defines them as
@@ -393,6 +392,8 @@ def model_alias_kind(name: str) -> str:
         return "default"
     if name in _ROLE_ALIAS_FALLBACKS:
         return "role"
+    if name in _LEGACY_BUILTIN_ALIAS_NAMES and name in get_builtin_model_aliases():
+        return "role"
     if _is_provider_coder_alias(name):
         return "provider_coder"
     return "user"
@@ -405,6 +406,8 @@ def model_alias_description(name: str) -> str | None:
         return None
     if alias in _ROLE_ALIAS_DESCRIPTIONS:
         return _ROLE_ALIAS_DESCRIPTIONS[alias]
+    if alias in _LEGACY_BUILTIN_ALIAS_NAMES and alias in get_builtin_model_aliases():
+        return "Legacy compatibility alias; SASE no longer launches this role."
     if _is_provider_coder_alias(alias):
         provider = alias[: -len(PROVIDER_CODER_ALIAS_SUFFIX)]
         return f"Coder follow-up agents for plans authored by {provider}."
@@ -474,9 +477,10 @@ def resolve_model_alias(
 
     Resolution follows configured ``llm_provider.model_aliases.builtin`` /
     ``llm_provider.model_aliases.custom`` chains and the implicit special aliases
-    (``default``, ``coder``, ``<provider>_coder``, ``epic_creator``,
-    ``epic_lander``, ``phase_worker``). Alias *values* may reference other
-    aliases with an ``@`` marker (e.g. ``coder: "@default"``); those references
+    (``default``, ``coder``, ``<provider>_coder``, ``epic_lander``,
+    ``phase_worker``). A configured legacy ``epic_creator`` entry remains an
+    ordinary compatibility alias. Alias *values* may reference other aliases
+    with an ``@`` marker (e.g. ``coder: "@default"``); those references
     are followed too. A user-configured alias always shadows the implicit
     special of the same name.
 

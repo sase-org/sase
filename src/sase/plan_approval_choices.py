@@ -155,13 +155,15 @@ PLAN_APPROVAL_CHOICE_RECORDS: tuple[_PlanApprovalChoiceRecord, ...] = (
         ),
         custom_modal_key="e",
         review_modal_key="E",
-        consequence_text="Commit to sdd/plans (tier: epic); launch bd/new_epic",
+        consequence_text=(
+            "Commit to sdd/plans (tier: epic); create beads and launch bead work"
+        ),
         cli_kind_name="epic",
         archive_side_effect=True,
         auto_mode_eligible=True,
         persist_action="epic",
         status_label="EPIC APPROVED",
-        allow_coder_options=True,
+        allow_coder_options=False,
     ),
     _PlanApprovalChoiceRecord(
         id="commit",

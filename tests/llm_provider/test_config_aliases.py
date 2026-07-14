@@ -179,7 +179,6 @@ def test_model_alias_names_include_configured_and_special(
         # fixed implicit role aliases
         "default",
         "coder",
-        "epic_creator",
         "epic_lander",
         "phase_worker",
         # per-provider coder aliases
@@ -349,10 +348,10 @@ def test_configured_provider_coder_shadows_generic_coder(
     assert resolve_model_provider("codex_coder") == ("codex", "o3")
 
 
-def test_epic_role_aliases_chain_to_default(
+def test_epic_execution_role_aliases_chain_to_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """epic_creator / epic_lander / phase_worker default to ``@default``."""
+    """Only live epic execution roles default to ``@default``."""
     mock_provider_config(
         monkeypatch,
         {
@@ -361,7 +360,8 @@ def test_epic_role_aliases_chain_to_default(
         },
     )
 
-    for role in ("epic_creator", "epic_lander", "phase_worker"):
+    assert resolve_model_alias("epic_creator") == "epic_creator"
+    for role in ("epic_lander", "phase_worker"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
 
 
@@ -466,7 +466,8 @@ def test_worker_and_other_no_longer_special_aliases(
     assert "worker" not in names
     assert "other" not in names
     # The role aliases are the implicit policy now.
-    assert {"default", "coder", "epic_creator", "epic_lander", "phase_worker"} <= names
+    assert {"default", "coder", "epic_lander", "phase_worker"} <= names
+    assert "epic_creator" not in names
 
 
 def test_unconfigured_worker_and_other_resolve_to_bare_input(

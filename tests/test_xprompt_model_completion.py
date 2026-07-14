@@ -52,7 +52,6 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@claude_coder",
         "@codex_coder",
         "@opencode_coder",
-        "@epic_creator",
         "@epic_lander",
         "@phase_worker",
         "@fast",

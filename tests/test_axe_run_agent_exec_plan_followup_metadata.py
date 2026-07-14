@@ -236,8 +236,8 @@ class TestPlanFollowupMetadata:
         assert meta_updates.get("llm_provider") == "codex"
         assert state.current_prompt.startswith("%model:@claude_coder\n")
 
-    def test_epic_meta_records_resolved_role_alias(self, tmp_path) -> None:
-        """Epic follow-ups record the concrete model their role alias resolves to."""
+    def test_epic_meta_records_bead_without_creator_model(self, tmp_path) -> None:
+        """Host-side epic kickoff records its bead, not a creator-agent model."""
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -247,9 +247,6 @@ class TestPlanFollowupMetadata:
 
         def track_meta(artifacts_dir, key, value):
             meta_updates[key] = value
-
-        def fake_resolve(model):
-            return ("codex", "gpt-5.6-sol")
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
@@ -265,15 +262,14 @@ class TestPlanFollowupMetadata:
                 "sase.axe.run_agent_exec_plan_accept.update_meta_field",
                 side_effect=track_meta,
             ),
-            patch(
-                "sase.llm_provider.registry.resolve_model_provider",
-                side_effect=fake_resolve,
-            ),
+            patch("sase.llm_provider.registry.resolve_model_provider") as resolve,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
-        assert meta_updates.get("model") == "gpt-5.6-sol"
-        assert meta_updates.get("llm_provider") == "codex"
-        assert state.current_prompt.startswith("%model:@epic_creator\n")
+        assert "model" not in meta_updates
+        assert "llm_provider" not in meta_updates
+        assert meta_updates["epic_bead_id"] == "sase-1"
+        assert state.current_prompt == "original prompt"
+        resolve.assert_not_called()
 
     def test_coder_prompt_model_directive_updates_meta(self, tmp_path) -> None:
         """A custom prompt %model directive records the model that launch will use."""

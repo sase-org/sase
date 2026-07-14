@@ -124,8 +124,8 @@ async def test_default_model_uses_planner_coder_alias() -> None:
     resolve_mock.assert_any_call("@claude_coder")
 
 
-async def test_default_model_shows_epic_creator_alias_for_epic() -> None:
-    """Epic follow-ups resolve the ``@epic_creator`` role alias for their default."""
+async def test_epic_model_is_configured_by_plan_frontmatter() -> None:
+    """Epic approval does not expose the retired creator-model lane."""
     with patch(
         "sase.llm_provider.registry.resolve_model_provider",
         return_value=("claude", "opus"),
@@ -137,8 +137,8 @@ async def test_default_model_shows_epic_creator_alias_for_epic() -> None:
 
             model_display = modal.query_one("#coder-model-display", Static)
             display_text = str(model_display.render())
-            assert "Follow-up — CLAUDE(opus)" in display_text
-    resolve_mock.assert_any_call("@epic_creator")
+            assert "Configured by epic plan frontmatter" in display_text
+    resolve_mock.assert_not_called()
 
 
 async def test_model_picker_resets_coder_model_to_followup_default() -> None:
