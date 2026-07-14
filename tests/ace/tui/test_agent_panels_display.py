@@ -36,6 +36,7 @@ class _ListWidget:
         self.last_agents: list[Agent] = []
         self.last_local_idx: int | None = None
         self.last_tag_labels: list[str | None] | None = None
+        self.last_fold_registry: object | None = None
 
     def update_list(
         self, agents: list[Agent], local_idx: int | None = None, **kwargs: Any
@@ -44,6 +45,7 @@ class _ListWidget:
         self.last_agents = agents
         self.last_local_idx = local_idx
         self.last_tag_labels = kwargs.get("tag_labels")
+        self.last_fold_registry = kwargs.get("fold_registry")
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
         return
@@ -334,6 +336,45 @@ def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
     assert getattr(main.border_title, "plain", "") == "All agents · 3 [R3]"
     assert main.last_agents == agents
     assert main.last_tag_labels == [None, "apple", "banana"]
+
+
+def test_each_panel_widget_receives_its_scoped_fold_registry() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 2, 2], container_height=30)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    registries = [
+        app._panel_widgets[wid].last_fold_registry
+        for wid in (
+            "agent-list-panel",
+            "agent-list-panel-1",
+            "agent-list-panel-2",
+        )
+    ]
+    assert registries == [
+        app._group_fold_registry.for_panel(None),
+        app._group_fold_registry.for_panel("apple"),
+        app._group_fold_registry.for_panel("banana"),
+    ]
+    assert len({id(registry) for registry in registries}) == 3
+
+
+def test_merged_widget_uses_separate_merged_scope() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(
+        agents,
+        option_counts=[3],
+        container_height=30,
+        agent_panels_grouped=True,
+    )
+    app._group_fold_registry.for_panel(None, merged=False).collapse(("p",))
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    merged = app._panel_widgets["agent-list-panel"].last_fold_registry
+    assert merged is app._group_fold_registry.for_panel(None, merged=True)
+    assert merged.is_collapsed(("p",)) is False
 
 
 def test_pre_mount_zero_height_leaves_styles_alone() -> None:

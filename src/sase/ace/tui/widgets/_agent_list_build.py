@@ -20,7 +20,6 @@ from ..agent_completion import (
     wait_dependencies_satisfied,
 )
 from ..models.agent import Agent, AgentType
-from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
@@ -28,6 +27,7 @@ from ..models.agent_groups import (
     TreeEntry,
     build_agent_tree,
 )
+from ..models.group_fold import GroupFoldView
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
     assemble_padded_option,
@@ -203,7 +203,7 @@ def build_list(
     unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
     jump_hints: dict[int, str] | None = None,
     banner_jump_hints: dict[tuple[str, ...], str] | None = None,
-    fold_registry: AgentGroupFoldRegistry | None = None,
+    fold_registry: GroupFoldView | None = None,
     current_group_key: tuple[str, ...] | None = None,
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
     tag_labels: list[str | None] | None = None,

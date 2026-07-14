@@ -13,8 +13,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import Protocol
 
 GroupKey = tuple[str, ...]
+
+
+class GroupFoldView(Protocol):
+    """Minimal single-tree fold view consumed by grouping renderers."""
+
+    def is_collapsed(self, key: GroupKey) -> bool: ...
 
 
 @dataclass

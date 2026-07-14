@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_group_fold import (
+    AgentGroupFoldRegistry,
+    AgentPanelFoldScope,
+)
 
 
 def test_default_registry_has_no_collapsed_groups() -> None:
@@ -84,3 +87,44 @@ def test_l1_and_l0_keys_coexist_independently() -> None:
     registry.collapse(l1)
     assert registry.is_collapsed(l1) is True
     assert registry.is_collapsed(l0) is False
+
+
+def test_equal_keys_are_isolated_between_split_panels() -> None:
+    registry = AgentGroupFoldRegistry()
+    untagged = registry.for_panel(None)
+    research = registry.for_panel("research")
+
+    untagged.collapse(("Done",))
+
+    assert untagged.is_collapsed(("Done",)) is True
+    assert research.is_collapsed(("Done",)) is False
+
+
+def test_split_untagged_and_merged_panel_scopes_are_independent() -> None:
+    registry = AgentGroupFoldRegistry()
+    split = registry.for_panel(None, merged=False)
+    merged = registry.for_panel(None, merged=True)
+
+    split.collapse(("Done",))
+
+    assert split.is_collapsed(("Done",)) is True
+    assert merged.is_collapsed(("Done",)) is False
+
+
+def test_reconcile_prunes_only_active_layout_scopes() -> None:
+    registry = AgentGroupFoldRegistry()
+    split = registry.for_panel(None, merged=False)
+    removed_panel = registry.for_panel("old", merged=False)
+    merged = registry.for_panel(None, merged=True)
+    split.collapse(("Done",))
+    removed_panel.collapse(("Done",))
+    merged.collapse(("Done",))
+
+    registry.reconcile_layout(
+        {AgentPanelFoldScope(None, merged=False): []},
+        merged=False,
+    )
+
+    assert split.is_collapsed(("Done",)) is False
+    assert AgentPanelFoldScope("old", merged=False) not in registry._registries
+    assert merged.is_collapsed(("Done",)) is True

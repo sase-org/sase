@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
+
 if TYPE_CHECKING:
     from ...models import Agent
 
@@ -60,10 +62,10 @@ class AgentNavigationOrderMixin:
         from ...models.agent_groups import GroupingMode, build_agent_tree
         from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
-        registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
+            registry = panel_fold_registry(self, None)
             global_indices = [
                 i
                 for i, agent in enumerate(self._agents)
@@ -77,6 +79,7 @@ class AgentNavigationOrderMixin:
                 if entry.kind == "agent" and entry.agent_idx is not None
             ]
         focused_key = panel_group.focused_key
+        registry = panel_fold_registry(self, focused_key)
         global_indices, panel_agents = rendered_panel_slice(self, focused_key)
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
         return [
@@ -119,10 +122,10 @@ class AgentNavigationOrderMixin:
         from ...models.agent_groups import GroupingMode, build_agent_tree
         from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
-        registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
+        registry = focused_panel_fold_registry(self)
 
         fold_version = registry.version if registry is not None else 0
         cached = getattr(self, "_nav_stops_cache", None)
@@ -309,11 +312,11 @@ class AgentNavigationOrderMixin:
                 if 0 <= idx < len(self._agents)
             }
 
-        registry = getattr(self, "_group_fold_registry", None)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         visible: dict[int, int | None] = {}
 
         for key in panel_group.panel_keys:
+            registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             for entry in tree:

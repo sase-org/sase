@@ -387,7 +387,7 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     ]
     app = _StubApp(agents, focused_key=None)
     app._current_group_key = None
-    app._group_fold_registry.collapse(("alpha",))
+    app._group_fold_registry.for_panel("alpha").collapse(("alpha",))
 
     app.action_focus_next_agent_panel()
 
@@ -402,6 +402,28 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     assert app._panel_group.focused_key is None
     assert app._current_group_key is None
     assert app.current_idx == 0
+
+
+def test_navigation_stop_cache_tracks_only_focused_panel_registry_version() -> None:
+    agents = [
+        _agent(tag=None, project="same", cl="a", name="untagged"),
+        _agent(tag="alpha", project="same", cl="a", name="tagged"),
+    ]
+    app = _StubApp(agents, focused_key=None)
+    app._current_group_key = None
+
+    first = app._panel_navigation_stops()
+    assert app._panel_navigation_stops() is first
+
+    # A sibling panel fold does not invalidate the focused panel's hot path.
+    app._group_fold_registry.for_panel("alpha").collapse(("same",))
+    assert app._panel_navigation_stops() is first
+
+    # The focused view's version changes, so the cached tree must rebuild.
+    app._group_fold_registry.for_panel(None).collapse(("same",))
+    rebuilt = app._panel_navigation_stops()
+    assert rebuilt is not first
+    assert rebuilt == [("banner", ("same",))]
 
 
 def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
@@ -420,7 +442,7 @@ def test_panel_switch_collapsed_banner_does_not_acknowledge_unread_agent(
         _agent(tag="alpha", project="beta", cl="b", name="render-second"),
     ]
     app = _UnreadPanelSwitchApp(agents, focused_key=None)
-    app._group_fold_registry.collapse(("alpha",))
+    app._group_fold_registry.for_panel("alpha").collapse(("alpha",))
     unread_agent = agents[2]
     app._unread_completed_agent_ids.add(unread_agent.identity)
 
@@ -444,7 +466,7 @@ def test_prev_panel_switch_can_land_on_last_collapsed_banner() -> None:
     ]
     app = _StubApp(agents, focused_key="beta")
     app.current_idx = 4
-    app._group_fold_registry.collapse(("zeta",))
+    app._group_fold_registry.for_panel("alpha").collapse(("zeta",))
 
     app.action_focus_prev_agent_panel()
 

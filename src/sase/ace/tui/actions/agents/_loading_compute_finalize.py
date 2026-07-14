@@ -77,6 +77,7 @@ class PreparedFinalizeStaleToken:
     agent_query_cache_identity: int | None
     agent_status_overrides: frozenset[tuple[tuple[AgentType, str, str | None], str]]
     grouping_mode: GroupingMode | None
+    agent_panels_grouped: bool
     hide_non_run_agents: bool
 
 
@@ -262,6 +263,7 @@ def make_finalize_stale_token(
         agent_query_cache_identity=cache_identity,
         agent_status_overrides=override_items,
         grouping_mode=snapshot.grouping_mode,
+        agent_panels_grouped=snapshot.agent_panels_grouped,
         hide_non_run_agents=snapshot.hide_non_run_agents,
     )
 
@@ -280,7 +282,8 @@ def _compute_finalize_plan(
     mutable input. The UI thread re-captures the same inputs at apply
     time and discards the plan if any drift is detected.
     """
-    from ...models.agent_groups import GroupingMode, enumerate_group_keys
+    from ...models.agent_group_fold import enumerate_panel_group_keys
+    from ...models.agent_groups import GroupingMode
     from ...util.trace import tui_trace
 
     with tui_trace("agents.finalize_query_filter", agents=len(visible_agents)):
@@ -298,12 +301,16 @@ def _compute_finalize_plan(
         if snapshot.grouping_mode is not None
         else GroupingMode.STANDARD
     )
-    group_keys = enumerate_group_keys(query_plan.filtered_agents, mode=grouping_mode)
+    panel_group_keys = enumerate_panel_group_keys(
+        query_plan.filtered_agents,
+        mode=grouping_mode,
+        merged=snapshot.agent_panels_grouped,
+    )
     stale_token = make_finalize_stale_token(snapshot)
     return PreparedFinalizePlan(
         query=query_plan,
         overrides=override_plan,
         selection=selection_plan,
-        group_keys=group_keys,
+        panel_group_keys=panel_group_keys,
         stale_token=stale_token,
     )

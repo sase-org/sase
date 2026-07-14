@@ -8,6 +8,7 @@ from ...models.agent_groups import GroupingMode
 from ...util.trace import tui_trace
 from ._display_helpers import TabName, panel_widget_id
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
+from ._fold_scope import panel_fold_registry
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
@@ -132,7 +133,6 @@ class PanelRefreshMixin:
                 w.remove()
 
         focused_idx = self._panel_group.focused_idx
-        fold_registry = self._group_fold_registry
         marked = self._marked_agents
         unread: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
@@ -145,6 +145,7 @@ class PanelRefreshMixin:
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
+            fold_registry = panel_fold_registry(self, key)
             wid = panel_widget_id(idx)
             try:
                 widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
@@ -260,7 +261,6 @@ class PanelRefreshMixin:
         )
 
         focused_idx = self._panel_group.focused_idx
-        fold_registry = self._group_fold_registry
         marked = self._marked_agents
         unread: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
@@ -273,6 +273,7 @@ class PanelRefreshMixin:
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
+            fold_registry = panel_fold_registry(self, key)
             wid = panel_widget_id(idx)
             try:
                 widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]

@@ -35,7 +35,10 @@ def get_focused_agent_group(owner: Any) -> GroupRow | None:
             owner, panel_group.focused_key
         )
 
-    registry = getattr(owner, "_group_fold_registry", None)
+    from ._fold_scope import panel_fold_registry
+
+    panel_key = panel_group.focused_key if panel_group is not None else None
+    registry = panel_fold_registry(owner, panel_key)
     mode = getattr(owner, "_grouping_mode", GroupingMode.STANDARD)
     for entry in build_agent_tree(panel_agents, fold_registry=registry, mode=mode):
         if entry.kind != "group" or entry.group is None:

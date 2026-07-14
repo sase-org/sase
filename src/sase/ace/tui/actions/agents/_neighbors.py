@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ._fold_scope import panel_fold_registry, panel_fold_version_signature
 from ._navigation_order import rendered_panel_slice
 
 if TYPE_CHECKING:
@@ -48,8 +49,7 @@ class AgentNeighborMixin:
 
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = tuple(getattr(panel_group, "panel_keys", (None,)))
-        registry = getattr(self, "_group_fold_registry", None)
-        fold_version = getattr(registry, "version", 0)
+        fold_version = panel_fold_version_signature(self, panel_keys)
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         dismiss_epoch = getattr(self, "_dismiss_revive_epoch", 0)
@@ -109,11 +109,11 @@ class AgentNeighborMixin:
         from ...models.agent_hoods import AgentNeighborRow, agent_hood
         from ...models.agent_panels import agent_is_rendered_in_agents_panel
 
-        registry = getattr(self, "_group_fold_registry", None)
         mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
 
         if panel_group is None:
+            registry = panel_fold_registry(self, None)
             global_indices = [
                 idx
                 for idx, agent in enumerate(self._agents)
@@ -133,6 +133,7 @@ class AgentNeighborMixin:
             return
 
         for panel_idx, key in enumerate(panel_group.panel_keys):
+            registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             for entry in tree:

@@ -321,6 +321,7 @@ def _prepare_loaded_agents_worker_prep(
         load_state=snapshot.load_state,
         fold_levels=snapshot.fold_levels,
         selection=snapshot.selection,
+        agent_panels_grouped=snapshot.agent_panels_grouped,
     )
     with tui_trace(
         "agents.incomplete_load_merge",

@@ -134,12 +134,13 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
                 )
 
         from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ..agents._fold_scope import panel_fold_registry
         from ..agents._navigation_order import rendered_panel_slice
 
         panel_key = None
         if panel_group is not None:
             panel_key = panel_group.panel_keys[panel_idx]
-        registry = getattr(self, "_group_fold_registry", None)
+        registry = panel_fold_registry(self, panel_key)
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         _global_indices, panel_agents = rendered_panel_slice(self, panel_key)
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)

@@ -29,6 +29,7 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         agents: list[Agent],
         *,
         collapsed: list[tuple[str, ...]] | None = None,
+        collapsed_by_panel: dict[str | None, list[tuple[str, ...]]] | None = None,
         patch_result: bool = True,
     ) -> None:
         self.current_tab = "agents"
@@ -37,6 +38,8 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         self._group_fold_registry = AgentGroupFoldRegistry()
         for key in collapsed or []:
             self._group_fold_registry.collapse(key)
+        for panel_key, keys in (collapsed_by_panel or {}).items():
+            self._group_fold_registry.for_panel(panel_key).collapse_keys(keys)
         self._panel_group = AgentPanelGroup.from_agents(agents)
         self._current_group_key: tuple[str, ...] | None = None
         self._entry_jump_mode_active = False
@@ -188,7 +191,7 @@ def test_jump_dispatch_banner_switches_focused_panel() -> None:
         _agent(project="alpha", cl="a1", name="a2", tag="ws"),
     ]
     # Two panels: untagged (idx 0) and @ws (idx 1).
-    app = _StubApp(agents, collapsed=[("alpha",)])
+    app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     assert app._panel_group.panel_keys == [None, "ws"]
     assert app._panel_group.focused_idx == 0
 
@@ -478,7 +481,7 @@ def test_fast_jump_restores_agent_banner_anchor_with_panel_focus() -> None:
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="alpha", cl="a1", name="a2", tag="ws"),
     ]
-    app = _StubApp(agents, collapsed=[("alpha",)])
+    app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     app.current_idx = 0
     app._entry_jump_agents_anchor_stack = [("banner", 1, ("alpha",))]
 
@@ -497,7 +500,7 @@ def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
         _agent(project="alpha", cl="a1", name="a1"),
         _agent(project="alpha", cl="a1", name="a2", tag="ws"),
     ]
-    app = _StubApp(agents, collapsed=[("alpha",)])
+    app = _StubApp(agents, collapsed_by_panel={"ws": [("alpha",)]})
     app.current_idx = 0
     app._entry_jump_agents_anchor_stack = [("banner", 1, ("alpha",))]
 

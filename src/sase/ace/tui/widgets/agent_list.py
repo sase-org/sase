@@ -9,11 +9,11 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from ..models.agent import Agent, AgentType, AttemptRecord
-from ..models.agent_group_fold import AgentGroupFoldRegistry
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
 )
+from ..models.group_fold import GroupFoldView
 from ..models.agent_time import row_runtime_or_wait_ticks
 from ._agent_list_build import (
     build_list,
@@ -141,7 +141,7 @@ class AgentList(OptionList, inherit_bindings=False):
         jump_hints: dict[int, str] | None = None,
         banner_jump_hints: dict[tuple[str, ...], str] | None = None,
         current_attempt_number: int | None = None,
-        fold_registry: AgentGroupFoldRegistry | None = None,
+        fold_registry: GroupFoldView | None = None,
         current_group_key: tuple[str, ...] | None = None,
         grouping_mode: GroupingMode = GroupingMode.STANDARD,
         tag_labels: list[str | None] | None = None,

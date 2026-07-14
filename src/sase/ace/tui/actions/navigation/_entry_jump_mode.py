@@ -146,14 +146,15 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         non-collapsed banners are non-selectable and excluded.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ..agents._fold_scope import panel_fold_registry
         from ..agents._navigation_order import rendered_panel_slice
 
-        registry = self._group_fold_registry
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
+            registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             for entry in tree:

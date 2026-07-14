@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._fold_scope import focused_panel_fold_registry
 from ._navigation_order import rendered_panel_slice
 from ._panel_types import TabName
 
@@ -33,7 +34,7 @@ class AgentPanelNavigationMixin:
         global_indices, panel_agents = rendered_panel_slice(self, focused_key)
         tree = build_agent_tree(
             panel_agents,
-            fold_registry=getattr(self, "_group_fold_registry", None),
+            fold_registry=focused_panel_fold_registry(self),
             mode=getattr(self, "_grouping_mode", GroupingMode.STANDARD),
         )
         for entry in tree:

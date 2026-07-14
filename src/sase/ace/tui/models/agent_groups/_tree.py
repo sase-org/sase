@@ -9,8 +9,8 @@ from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
-from ..agent_group_fold import AgentGroupFoldRegistry, GroupKey
 from ..agent_panels import panel_key_per_agent
+from ..group_fold import GroupFoldRegistry, GroupFoldView, GroupKey
 from ._buckets import (
     NO_CHANGESPEC_LABEL,
     NO_HOUR_LABEL,
@@ -170,7 +170,7 @@ def enumerate_group_keys(
 
 def build_agent_tree(
     agents: list[Agent],
-    fold_registry: AgentGroupFoldRegistry | None = None,
+    fold_registry: GroupFoldView | None = None,
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
 ) -> list[TreeEntry]:
@@ -197,7 +197,7 @@ def build_agent_tree(
         A list of :class:`TreeEntry` rows, ready to be walked by the
         renderer in order.
     """
-    registry = fold_registry if fold_registry is not None else AgentGroupFoldRegistry()
+    registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
     parent_lookup: dict[str, Agent] = {
         a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
     }

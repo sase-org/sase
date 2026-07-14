@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from sase.core.time import local_now
 
 from ._loading_compute import PreparedFinalizePlan
+from ._fold_scope import reconcile_panel_fold_registries
 from ._loading_helpers import (
     build_question_answer_family_index,
     should_clear_loaded_agent_status_override,
@@ -194,7 +195,7 @@ def _apply_finalize_plan(
 
     _sync_unread_completed_agents(app, on_agents_tab)
 
-    app._group_fold_registry.clear_unknown(plan.group_keys)
+    reconcile_panel_fold_registries(app, plan.panel_group_keys)
 
     if on_agents_tab:
         with tui_trace("agents.final_display_refresh", agents=len(app._agents)):
@@ -396,15 +397,20 @@ def finalize_agent_list(
     # key never inherits stale collapse state.  ``_grouping_mode`` is
     # the active L0 layout — keys for inactive modes live in their
     # own registry slot and stay untouched.
-    from ...models.agent_groups import enumerate_group_keys
+    from ...models.agent_group_fold import enumerate_panel_group_keys
 
     grouping_mode = getattr(app, "_grouping_mode", None)
     if grouping_mode is None:
         from ...models.agent_groups import GroupingMode
 
         grouping_mode = GroupingMode.STANDARD
-    app._group_fold_registry.clear_unknown(
-        enumerate_group_keys(app._agents, mode=grouping_mode)
+    reconcile_panel_fold_registries(
+        app,
+        enumerate_panel_group_keys(
+            app._agents,
+            mode=grouping_mode,
+            merged=bool(getattr(app, "_agent_panels_grouped", False)),
+        ),
     )
 
     # Only refresh display if on agents tab

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
-    from ...models.agent_group_fold import GroupKey
+    from ...models.agent_group_fold import AgentPanelFoldScope, GroupKey
     from ...models.agent_groups import GroupingMode
     from ...models.agent_loader import AgentLoadState
     from ...models.fold_state import FoldLevel
@@ -86,6 +86,7 @@ class PreparedApplySnapshot:
         default_factory=dict
     )
     grouping_mode: GroupingMode | None = None
+    agent_panels_grouped: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,7 @@ class PreparedFinalizePlan:
     query: PreparedQueryFilter
     overrides: PreparedStatusOverridePlan
     selection: PreparedSelectionPlan
-    group_keys: list[GroupKey]
+    panel_group_keys: dict[AgentPanelFoldScope, list[GroupKey]]
     stale_token: PreparedFinalizeStaleToken
 
 

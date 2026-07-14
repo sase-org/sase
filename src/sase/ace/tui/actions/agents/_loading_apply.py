@@ -174,6 +174,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             agent_query_cache=getattr(self, "_agent_query_cache", None),
             agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
             grouping_mode=grouping_mode,
+            agent_panels_grouped=bool(getattr(self, "_agent_panels_grouped", False)),
         )
 
     def _select_finalize_plan(

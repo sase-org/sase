@@ -15,6 +15,8 @@ from datetime import datetime
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 
 
@@ -30,6 +32,8 @@ class _StubApp(AgentFoldingMixin):
             a.raw_suffix: (1, 0) for a in agents if a.raw_suffix
         }
         self._group_fold_registry = AgentGroupFoldRegistry()
+        self._agent_panels_grouped = False
+        self._panel_group = AgentPanelGroup.from_agents(agents)
         self._current_group_key: tuple[str, ...] | None = None
         self.refilter_calls = 0
         self.focus_artifact_result = False
@@ -88,15 +92,18 @@ def _agent(
     agent_name: str | None = None,
     raw_suffix: str | None = None,
     agent_type: AgentType = AgentType.RUNNING,
+    status: str = "RUNNING",
+    tag: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
         cl_name=cl_name,
         project_file=f"/r/{project}/proj.sase",
-        status="RUNNING",
+        status=status,
         start_time=datetime(2026, 4, 25, 12, 0, 0),
         raw_suffix=raw_suffix,
         agent_name=agent_name,
+        tag=tag,
     )
 
 
@@ -370,3 +377,42 @@ def test_h_then_l_round_trip_clears_group_focus() -> None:
     assert app._group_fold_registry.is_collapsed(key) is False
     # Banner stopped being selectable — focus moved off it.
     assert app._current_group_key is None
+
+
+def test_equal_status_group_keys_fold_independently_between_panels() -> None:
+    untagged = _agent(status="DONE")
+    tagged = _agent(status="DONE", tag="research")
+    app = _StubApp([untagged, tagged], current_idx=0)
+    app._grouping_mode = GroupingMode.BY_STATUS
+
+    app.action_hooks_or_collapse()
+
+    split_done = app._group_fold_registry.for_panel(None)
+    tagged_done = app._group_fold_registry.for_panel("research")
+    assert split_done.is_collapsed(("Done",)) is True
+    assert tagged_done.is_collapsed(("Done",)) is False
+
+    app._panel_group.focused_idx = 1
+    app.current_idx = 1
+    app._current_group_key = None
+    app.action_hooks_or_collapse()
+    assert tagged_done.is_collapsed(("Done",)) is True
+
+    app.action_expand_or_layout()
+    assert tagged_done.is_collapsed(("Done",)) is False
+    assert split_done.is_collapsed(("Done",)) is True
+
+
+def test_capital_h_collapses_each_panels_deepest_visible_level() -> None:
+    deep_a = _agent(agent_name="coder.claude")
+    deep_b = _agent(agent_name="coder.codex")
+    shallow = _agent(cl_name="other", project="tagged", tag="research")
+    app = _StubApp([deep_a, deep_b, shallow])
+
+    app.action_hooks_or_collapse_all()
+
+    untagged_registry = app._group_fold_registry.for_panel(None)
+    tagged_registry = app._group_fold_registry.for_panel("research")
+    assert untagged_registry.is_collapsed(("proj", "demo", "coder")) is True
+    assert tagged_registry.is_collapsed(("tagged", "other")) is True
+    assert tagged_registry.is_collapsed(("tagged",)) is False

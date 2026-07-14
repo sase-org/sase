@@ -1,9 +1,4 @@
-"""Tests for the neutral per-group fold registry.
-
-Mirrors ``test_agent_group_fold`` but exercises ``GroupFoldRegistry``
-directly so we cover the type PR code will use without going through
-the Agent-flavoured alias.
-"""
+"""Tests for the neutral per-group fold registry."""
 
 from __future__ import annotations
 
@@ -11,9 +6,9 @@ from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 
 
-def test_agent_alias_is_the_neutral_class() -> None:
-    """``AgentGroupFoldRegistry`` is preserved as a back-compat alias."""
-    assert AgentGroupFoldRegistry is GroupFoldRegistry
+def test_agent_owner_exposes_neutral_per_panel_registry() -> None:
+    registry = AgentGroupFoldRegistry().for_panel("research")
+    assert isinstance(registry, GroupFoldRegistry)
 
 
 def test_default_registry_has_no_collapsed_groups() -> None:

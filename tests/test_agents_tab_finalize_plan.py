@@ -20,6 +20,11 @@ from sase.ace.tui.actions.agents._loading_compute_finalize import (
 )
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchIndex
+from sase.ace.tui.models.agent_group_fold import (
+    AgentGroupFoldRegistry,
+    AgentPanelFoldScope,
+)
+from sase.ace.tui.models.agent_groups import GroupingMode
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
@@ -208,6 +213,55 @@ def test_stale_plan_is_discarded_when_query_changes_after_worker() -> None:
 
     # Apply must reflect the new query, not the worker's old one.
     assert app._agents == [b]
+
+
+def test_stale_plan_is_discarded_when_panel_layout_changes() -> None:
+    """A split-layout projection must not prune merged scopes after a toggle."""
+    agent = _make_agent(cl_name="alpha", status="DONE")
+    app = FakeAgentApp()
+    app._group_fold_registry = AgentGroupFoldRegistry()
+    app._agent_panels_grouped = False
+    app._agents = [agent]
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=None,
+    )
+    plan = _compute_finalize_plan([agent], snapshot)
+
+    app._agent_panels_grouped = True
+
+    assert (
+        app._select_finalize_plan(
+            plan,
+            on_agents_tab=False,
+            selected_identity=None,
+        )
+        is None
+    )
+
+
+def test_finalize_prunes_stale_fold_only_from_panel_where_group_vanished() -> None:
+    research = _make_agent(cl_name="r", status="DONE", tag="research")
+    app = FakeAgentApp()
+    app._group_fold_registry = AgentGroupFoldRegistry()
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._agent_panels_grouped = False
+    app._agents = [research]
+    untagged_registry = app._group_fold_registry.for_panel(None)
+    research_registry = app._group_fold_registry.for_panel("research")
+    untagged_registry.collapse(("Done",))
+    research_registry.collapse(("Done",))
+
+    app._finalize_agent_list(
+        on_agents_tab=False,
+        selected_identity=None,
+        save_unfiltered=False,
+        fold_filter_already_applied=True,
+    )
+
+    assert AgentPanelFoldScope(None) not in app._group_fold_registry._registries
+    assert research_registry.is_collapsed(("Done",)) is True
 
 
 def test_stale_plan_is_discarded_when_status_override_value_changes() -> None:
