@@ -577,7 +577,7 @@ def _materialize_remote_identified_sidecar(
     workspace_num: int,
     expected_remote_url: str,
 ) -> str:
-    """Materialize a sidecar while rejecting stale clones of another remote."""
+    """Materialize a sidecar, replacing stale clones of another remote."""
 
     target = Path(workspace_dir).expanduser()
     source = Path(primary_dir).expanduser()
@@ -585,12 +585,21 @@ def _materialize_remote_identified_sidecar(
         return str(target)
 
     if workspace_num <= 1:
-        if target.exists():
-            actual = _git_origin_url(target) or "missing origin"
-            raise RuntimeError(
-                f"Sidecar clone at {target} has origin {actual!r}; expected "
-                f"{expected_remote_url!r}"
-            )
+        if os.path.lexists(target):
+            if not (target / ".git").is_dir():
+                raise RuntimeError(
+                    f"Sidecar path at {target} is not a Git clone; refusing to "
+                    "replace it during remote cutover"
+                )
+            clean = _git_worktree_is_clean(target)
+            if clean is not True:
+                detail = (
+                    "has local changes" if clean is False else "could not be inspected"
+                )
+                raise RuntimeError(
+                    f"Sidecar clone at {target} {detail}; refusing to replace "
+                    "it during remote cutover"
+                )
         from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
         ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
@@ -630,6 +639,22 @@ def _git_origin_url(path: Path) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip() or None
+
+
+def _git_worktree_is_clean(path: Path) -> bool | None:
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return not result.stdout.strip()
 
 
 def _git_remote_identity(url: str) -> str:

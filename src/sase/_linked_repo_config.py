@@ -268,15 +268,7 @@ def inject_default_linked_repos(
         )
         if token
     }
-    defaults = (
-        ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),
-        (
-            "research",
-            f"{project_name}--research",
-            DEFAULT_RESEARCH_DESCRIPTION,
-            False,
-        ),
-    )
+    defaults = (("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),)
     for role, name, description, auto_clone in defaults:
         if name in configured_names or {role, name}.intersection(
             configured_sidecar_tokens

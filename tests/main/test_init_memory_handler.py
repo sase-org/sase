@@ -127,7 +127,7 @@ sibling_repos:
             assert (root / filename).read_text() == agents
 
 
-def test_init_memory_excludes_auto_clone_and_injects_managed_research(
+def test_init_memory_excludes_auto_clone_and_does_not_inject_managed_research(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -162,7 +162,7 @@ linked_repos:
     memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
     assert "`core`: Always-present core." not in memory
     assert "`plugin`: Lazy plugin." in memory
-    assert "`project--research`: Durable SASE research reports" in memory
+    assert "project--research" not in memory
 
 
 def test_init_memory_default_linked_repos_opt_out(
@@ -481,7 +481,7 @@ def test_init_memory_project_memory_includes_workspace_section(
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "directories are named `project_<N>`" in project_memory
-    assert "`project--research`: Durable SASE research reports" in project_memory
+    assert "project--research" not in project_memory
     assert "agents MUST use your `/sase_repo` skill first" in single_line(
         project_memory
     )

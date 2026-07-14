@@ -8,8 +8,8 @@ use_chezmoi: false
 commit_hooks:
   before: ""
   after: ""
-# SASE-managed projects receive <project>--plans and <project>--research
-# linked repositories unless project-local configuration disables them.
+# SASE-managed projects receive a <project>--plans sidecar unless project-local
+# configuration disables it. Research sidecars are config-declared only.
 default_linked_repos: true
 # Linked and sidecar repositories are lazy by default. Set auto_clone: true per
 # entry when every launched agent needs the repository materialized.

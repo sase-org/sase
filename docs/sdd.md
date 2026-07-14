@@ -28,9 +28,10 @@ The workspace provider selects an initial policy; a materialized store record su
 - `local` is the fallback for providerless projects and stores artifacts at the primary workspace's `.sase/sdd/`.
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized sidecar
   repo.
-- `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a separate `--research` repo.
-  Initialization prepares both in its current workspace; later workspaces clone research on demand. Monthly directories
-  live directly at each sidecar root; legacy single-root layouts remain readable for compatibility.
+- `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo. Research uses the config-declared `research`
+  role, which can point multiple projects at one shared repository. Initialization prepares configured sidecars in its
+  current workspace; later workspaces clone research on demand. Monthly directories live directly at each sidecar root;
+  legacy single-root layouts remain readable for compatibility.
 
 Use `sase repo path plans` to print the plans root, or `sase repo path research --ensure` to materialize and print the
 research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
@@ -173,17 +174,18 @@ through noise on the happy path. Pass `-W/--show-warnings` to print each warning
 errors before filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
-provider-selected store. On GitHub it finds or creates public `<owner>/<repo>--plans` and `<owner>/<repo>--research`
-sidecars, writes each repository's deterministic README and infographic asset, pushes both, and only then records the
+provider-selected store. On GitHub it finds or creates every enabled configured sidecar, deriving
+`<owner>/<repo>--plans` for the plans role and honoring explicit repository pins for roles such as shared research. It
+writes each repository's deterministic README and infographic asset, pushes generated drift, and only then records the
 split store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the
 command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init repo`
 exposes the same flow and check/path flags, and `--path` checks the target repository's marker.
 
-Before explicit initialization creates a missing GitHub sidecar, it asks a default-no question naming the public
-`--plans` or `--research` repository and host. Only `y` or `yes` approves. Blank input, any other answer, EOF,
-interruption, and non-interactive stdin cancel with a nonzero exit before repository or local-state mutations. An
-existing remote sidecar connects without this creation prompt. `--check` remains offline and non-interactive, and
-neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
+Before explicit initialization creates a missing GitHub sidecar, it asks a default-no question naming the role,
+repository, visibility, and host. Only `y` or `yes` approves. Blank input, any other answer, EOF, interruption, and
+non-interactive stdin cancel with a nonzero exit before repository or local-state mutations. An existing remote sidecar
+connects without this creation prompt. `--check` remains offline and non-interactive, and neither bare `sase init --yes`
+nor its generic initializer approval authorizes repository creation.
 
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.
@@ -246,7 +248,7 @@ mode behavior.
 SDD artifact placement follows provider policy. With `in_tree`, bead commands use the current checkout's `sdd/beads/`
 store. With `separate_repo`, commands first require a usable provider sidecar and then use the active workspace's
 `.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
-beads. Initialization also prepares `--research` at `sase/repos/research` in its current workspace; other workspaces
-clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not
-merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
+beads. Initialization also prepares a configured `research` sidecar at `sase/repos/research` in its current workspace;
+other workspaces clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered
+sibling stores are not merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
 `sase repo path research`, or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.

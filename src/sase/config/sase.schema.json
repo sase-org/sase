@@ -1051,7 +1051,7 @@
     },
     "default_linked_repos": {
       "type": "boolean",
-      "description": "Inject the default plans and research sidecar linked repositories for SASE-managed projects.",
+      "description": "Inject the default plans sidecar repository for SASE-managed projects.",
       "default": true
     },
     "repos": {

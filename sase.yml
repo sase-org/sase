@@ -11,20 +11,24 @@ vcs_provider:
     - "just test"
     # keep-sorted end
 
-linked_repos:
-  - name: sase-core
-    path: ../sase-core
-    description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
-    auto_clone: true
-  - name: sase-github
-    path: ../sase-github
-    description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
-  - name: sase-telegram
-    path: ../sase-telegram
-    description: Telegram integration plugin for chat-driven SASE workflows and notifications.
-  - name: sase-nvim
-    path: ../sase-nvim
-    description: Neovim integration plugin for SASE syntax, completion, and editor support.
+repos:
+  linked:
+    - name: sase-core
+      path: ../sase-core
+      description: Shared Rust core backend for SASE domain behavior and cross-frontend APIs.
+      auto_clone: true
+    - name: sase-github
+      path: ../sase-github
+      description: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
+    - name: sase-telegram
+      path: ../sase-telegram
+      description: Telegram integration plugin for chat-driven SASE workflows and notifications.
+    - name: sase-nvim
+      path: ../sase-nvim
+      description: Neovim integration plugin for SASE syntax, completion, and editor support.
+  sidecar:
+    - name: plans
+      auto_clone: true
 
 xprompts:
   # keep-sorted start
@@ -103,8 +107,3 @@ mentor_profiles:
           # keep-sorted end
     file_globs:
       - "src/**/*.py"
-
-repos:
-  sidecar:
-    - name: plans
-      auto_clone: true

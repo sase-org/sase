@@ -12,7 +12,8 @@ SASE keeps three related concepts distinct:
 
 - A **project** is a named unit of work with a ProjectSpec at `~/.sase/projects/<name>/<name>.sase`; it is enabled
   unless explicitly disabled.
-- A **repo** is a primary project repository, an SDD sidecar (`--plans` / `--research`), or a configured linked repo.
+- A **repo** is a primary project repository, a configured sidecar (such as `plans` or `research`), or a configured
+  linked repo.
 - A **workspace** is a numbered clone of a project's primary repo, tracked in that project's workspace `registry.json`.
 
 Workspace directories are not repos. Linked-repo and sidecar clones materialized inside a numbered workspace are repo
@@ -266,8 +267,8 @@ checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars 
 a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` sidecar are re-created
 on demand through `/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
 `sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the per-clone `/sase/repos/` exclude
-rule; run `sase init workspace` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report
-drift, `--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push sequence.
+rule; run `sase repo init` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report drift,
+`--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push sequence.
 
 ### Registry
 

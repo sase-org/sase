@@ -18,22 +18,23 @@ beads live at `${SASE_SDD_PLANS_DIR}/beads` in split layouts.
 | --------------- | ------------------------------ | --------------------------------------------------------------------------------------- |
 | `in_tree`       | `{workspace}/sdd`              | The code repository. Built-in bare-git projects use this provider policy.               |
 | `separate_repo` | `{workspace}/.sase/sdd`        | One provider sidecar. This is GitHub's declared policy and the recorded legacy layout.  |
-| `sidecar_repos` | `{workspace}/sase/repos/plans` | A recorded two-repository layout created by managed GitHub initialization.              |
+| `sidecar_repos` | `{workspace}/sase/repos/plans` | A recorded split layout created by managed GitHub initialization.                       |
 | `local`         | `{primary}/.sase/sdd`          | A primary-workspace fallback for providerless projects or providers with no SDD policy. |
 
 Provider policy and resolved layout are related but different. A GitHub provider declares `separate_repo`; explicit
-initialization resolves that requirement into two sidecars and records `sidecar_repos`. The latter is a materialized
-store-record value, not another provider policy. Before initialization, or for an unmigrated legacy record, GitHub still
-resolves as `separate_repo`.
+initialization resolves that requirement into configured sidecars and records `sidecar_repos`. The latter is a
+materialized store-record value, not another provider policy. Before initialization, or for an unmigrated legacy record,
+GitHub still resolves as `separate_repo`.
 
 A positive materialized-store record at `{primary}/.sase/sdd-store.json` is authoritative, including while offline. Old
 negative records are not policy and are retried at the next materialization attempt.
 
 ## Split Plans and Research Sidecars
 
-Initialized managed GitHub projects use a schema-version 2 store record with `storage: sidecar_repos`. The record
-identifies both the plans and research repositories and their remotes. That record—not clone or remote existence—is the
-layout authority. Legacy records continue to use the single-root layout unchanged.
+Initialized managed GitHub projects use a schema-version 2 store record with `storage: sidecar_repos`. For
+compatibility, the record identifies the plans and research roles and their resolved remotes; the research role can
+point at a shared config-declared repository. That record—not clone or remote existence—is the layout authority. Legacy
+records continue to use the single-root layout unchanged.
 
 The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
 beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its root. Kind resolution is therefore:
@@ -44,10 +45,10 @@ beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its 
 | `beads`    | `<workspace>/sase/repos/plans/beads` |
 | `research` | `<workspace>/sase/repos/research`    |
 
-Initialization clones, initializes, and pushes both repositories in the workspace where it runs. After that, normal
-workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone research
-until a consumer runs `sase repo path research --ensure` (or another operation explicitly ensures that kind). Each
-clone's `origin` is the real sidecar remote, and refresh uses pull-with-rebase semantics.
+Initialization clones, initializes, and pushes every configured sidecar in the workspace where it runs. After that,
+normal workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone
+research until a consumer runs `sase repo path research --ensure` (or another operation explicitly ensures that kind).
+Each clone's `origin` is the configured sidecar remote, and refresh uses pull-with-rebase semantics.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
 strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files
@@ -55,10 +56,11 @@ loadable without allowing project or user config to override provider policy.
 
 ## GitHub Sidecar Repositories
 
-Managed GitHub projects initialize two public sidecars: `<owner>/<repo>--plans` and `<owner>/<repo>--research`. Both are
-prepared by initialization in the current workspace. In later workspaces, the plans clone is automatic and owns bead
-state, while research materializes on demand. The provider still supports `<owner>/<repo>--sdd` discovery and
-`sdd.repo.name` overrides for unmigrated legacy stores.
+Managed GitHub projects initialize a public `<owner>/<repo>--plans` sidecar by default. Additional sidecars are declared
+under `repos.sidecar`; for example, a global `research` entry can pin `sase-org/sase--research` so every project shares
+one lazy research repository. Configured sidecars are prepared by initialization in the current workspace. In later
+workspaces, the plans clone is automatic and owns bead state, while research materializes on demand. The provider still
+supports `<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy stores.
 
 Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase repo init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
@@ -74,10 +76,10 @@ provider-owned behavior.
 
 Split initialization is a single record-last transaction:
 
-1. SASE serializes setup and preflights both public repository names.
+1. SASE serializes setup and preflights every enabled configured sidecar repository.
 2. The provider creates or adopts each repository and SASE clones it at the linked-repository location.
 3. SASE writes deterministic per-repository README and infographic assets, then commits and pushes generated drift.
-4. Only after both repositories succeed does SASE write the schema-version 2 split store record.
+4. Only after the configured compatibility roles succeed does SASE write the schema-version 2 split store record.
 
 ## Reads, Writes, and Offline Use
 

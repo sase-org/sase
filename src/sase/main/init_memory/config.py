@@ -10,8 +10,6 @@ import subprocess
 from typing import Any
 
 from sase.linked_repos import (
-    DEFAULT_LINKED_REPOS_CONFIG_KEY,
-    DEFAULT_RESEARCH_DESCRIPTION,
     LINKED_REPOS_CONFIG_KEY,
     REPOS_CONFIG_KEY,
     SIBLING_REPOS_CONFIG_KEY,
@@ -180,34 +178,9 @@ def linked_entries_from_config(
     if not isinstance(raw, list):
         return (), (f"{config_path}: {source_key} must be a list",)
 
-    raw_entries = list(raw)
-    if (
-        config.get("is_sase_managed") is True
-        and config.get(DEFAULT_LINKED_REPOS_CONFIG_KEY) is not False
-    ):
-        resolved_project_name = project_name or project_memory_name(
-            primary_root or config_path.parent
-        )
-        research_name = f"{resolved_project_name}--research"
-        explicit_names = {
-            name.strip()
-            for item in raw_entries
-            if isinstance(item, Mapping)
-            and isinstance((name := item.get("name")), str)
-            and name.strip()
-        }
-        if research_name not in explicit_names:
-            raw_entries.append(
-                {
-                    "name": research_name,
-                    "path": f"../{research_name}",
-                    "description": DEFAULT_RESEARCH_DESCRIPTION,
-                }
-            )
-
     entries: list[LinkedRepoMemoryEntry] = []
     errors: list[str] = []
-    for index, item in enumerate(raw_entries):
+    for index, item in enumerate(raw):
         prefix = f"{config_path}: {source_key}[{index}]"
         if not isinstance(item, Mapping):
             errors.append(f"{prefix} must be a mapping")

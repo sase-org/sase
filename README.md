@@ -182,14 +182,14 @@ SASE keeps durable state outside any one chat session:
   socket-close, and Claude CLI API-error output; per-provider retry counts, waits, and fallback policy live under
   `llm_provider.retry`.
 - **Configured linked repos** - Project and user config can expose related repositories to launched agents as
-  workspace-matched directories via the `linked_repos` key (the legacy `sibling_repos` key still works as a deprecated
-  alias). SASE records those paths in environment variables and agent metadata so cross-repo work uses the same numbered
-  workspace as the main checkout. Numbered linked checkouts live under `<host_workspace>/sase/repos/<linked_repo>`, so
-  two host projects cannot collide. `sase init workspace` adds the tracked `/sase/repos/` ignore rule; existing legacy
-  `.sase/workspaces/` clones are recognized and moved on first materialization. ACE uses that metadata for live context:
-  dirty linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened inside the
-  agent with `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT` `WORKSPACES` lane and the `t`
-  tmux chooser. The host project and workspace are inferred from cwd; `sase repo log` exposes the durable open history.
+  workspace-matched directories via `repos.linked` (the legacy `linked_repos` and `sibling_repos` keys remain readable
+  deprecated aliases). SASE records those paths in environment variables and agent metadata so cross-repo work uses the
+  same numbered workspace as the main checkout. Numbered linked checkouts live under
+  `<host_workspace>/sase/repos/linked/<linked_repo>`, so two host projects cannot collide. `sase repo init` adds the
+  tracked `/sase/repos/` ignore rule. ACE uses that metadata for live context: dirty linked repos can appear in a
+  non-terminal agent's `DELTAS` section, and linked workspaces opened inside the agent with
+  `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT` `WORKSPACES` lane and the `t` tmux chooser.
+  The host project and workspace are inferred from cwd; `sase repo log` exposes the durable open history.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them
@@ -199,11 +199,12 @@ SASE keeps durable state outside any one chat session:
   plan/coder follow-ups and explicit `%name(parent, suffix)` attachments; an ordinary nested launch starts without it.
   The directive does not change `sase.yml` or machine-wide temporary overrides.
 - **SDD storage** - Workspace providers own where prompt snapshots, tales, epics, research notes, and beads live.
-  Built-in bare-git projects use in-tree `sdd/`. Newly initialized managed GitHub projects use an auto-cloned
-  `<repo>--plans` sidecar for plans and beads plus a separate `<repo>--research` sidecar. Initialization prepares both
-  in the current workspace; later workspaces clone research on demand. Unmigrated projects keep their legacy
-  `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved layout usable offline. The retired
-  `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by `sase doctor` for cleanup.
+  Built-in bare-git projects use in-tree `sdd/`. Managed GitHub projects use an auto-cloned `<repo>--plans` sidecar for
+  plans and beads; research is an explicitly configured lazy sidecar and can be shared across projects. Initialization
+  prepares every configured sidecar in the current workspace, while later workspaces clone research on demand.
+  Unmigrated projects keep their legacy `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved
+  layout usable offline. The retired `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by
+  `sase doctor` for cleanup.
 - **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
   `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
