@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.ace.tui import prompt_catalog
+from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMixin
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.xprompt.models import XPrompt
 
@@ -162,3 +163,39 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         "user": "User body$0",
     }
     assert snapshot.assist_entries_by_project[None][0].name == "review"
+
+
+def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() -> None:
+    class CatalogApp(StartupPromptCatalogMixin):
+        def _ensure_prompt_catalog_project(self, project: str | None) -> None:
+            del project
+
+        def _schedule_prompt_catalog_token_fallback_check(self) -> None:
+            pass
+
+    app = CatalogApp()
+    app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
+        generation=1,
+        source_token=("first",),
+        snippets={},
+        assist_entries_by_project={None: (_entry("review"),)},
+    )
+    app._prompt_catalog_assist_entries_cache = {}
+
+    first = app.get_prompt_catalog_assist_entries(None)
+    second = app.get_prompt_catalog_assist_entries(None)
+
+    assert first is second
+
+    app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
+        generation=2,
+        source_token=("second",),
+        snippets={},
+        assist_entries_by_project={None: (_entry("ship"),)},
+    )
+    app._prompt_catalog_assist_entries_cache = {}
+    refreshed = app.get_prompt_catalog_assist_entries(None)
+
+    assert refreshed is not first
+    assert refreshed is not None
+    assert refreshed[0].name == "ship"

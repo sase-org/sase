@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from rich.color import Color
 from rich.style import Style
 
@@ -9,6 +11,7 @@ from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import find_search_matches
 from sase.ace.tui.widgets._xprompt_syntax_highlight import _derive_argument_color
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 
 from ._completion_helpers import CompletionTestApp
 
@@ -17,11 +20,32 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
     return [name for row in ta._highlights.values() for *_range, name in row]
 
 
+def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name=name,
+        insertion=f"#{name}",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(),
+        content_preview=None,
+        is_skill=True,
+    )
+
+
+def _seed_entries(
+    ta: PromptTextArea,
+    entries: list[XPromptAssistEntry],
+) -> None:
+    ta._xprompt_arg_assist_entries_by_project[None] = entries
+
+
 async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        ta.load_text("#gh:sase %auto #pr:my_change %m:opus\n---")
+        _seed_entries(ta, [_skill_entry()])
+        ta.load_text("#gh:sase %auto #pr:my_change %m:opus use /sase_plan\n---")
         ta._build_highlight_map()
 
         names = _highlight_names(ta)
@@ -31,6 +55,7 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
             "xprompt.directive",
             "xprompt.directive_arg",
             "xprompt.separator",
+            "xprompt.skill",
         ):
             assert name in names
             assert name in ta._theme.syntax_styles
@@ -48,6 +73,11 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
         assert (
             styles["xprompt.directive_arg"].color != styles["xprompt.directive"].color
         )
+        assert styles["xprompt.skill"].bold is True
+        assert styles["xprompt.skill"].color not in {
+            styles["xprompt.invocation"].color,
+            styles["xprompt.directive"].color,
+        }
 
 
 def test_derive_argument_color_is_theme_adaptive() -> None:
@@ -85,6 +115,17 @@ def test_derive_argument_color_preserves_missing_base() -> None:
             background="#100F0F",
         )
         is None
+    )
+
+
+def test_skill_accent_color_is_pinned_for_flexoki() -> None:
+    assert (
+        _derive_argument_color(
+            "#9B76C8",
+            foreground="#FFFCF0",
+            background="#100F0F",
+        )
+        == "#C3ABD8"
     )
 
 
@@ -140,18 +181,47 @@ async def test_xprompt_overlay_skips_large_buffers() -> None:
         assert not any(name.startswith("xprompt.") for name in _highlight_names(ta))
 
 
+async def test_xprompt_skill_overlay_cold_catalog_defers_without_sync_build() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        with patch(
+            "sase.ace.tui.widgets.prompt_text_area.build_xprompt_assist_entries"
+        ) as build:
+            ta.load_text("use /sase_plan")
+            ta._build_highlight_map()
+
+        build.assert_not_called()
+        assert "xprompt.skill" not in _highlight_names(ta)
+
+
+async def test_xprompt_skill_names_are_memoized_by_warm_catalog_identity() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        entries = [_skill_entry()]
+        _seed_entries(ta, entries)
+
+        first = ta._get_warm_xprompt_skill_names()
+        second = ta._get_warm_xprompt_skill_names()
+        assert second is first
+
+        _seed_entries(ta, [_skill_entry("sase_repo")])
+        assert ta._get_warm_xprompt_skill_names() == frozenset({"sase_repo"})
+
+
 async def test_xprompt_overlay_reregisters_after_app_theme_switch() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         sentinel = Style(color="red")
-        ta._theme.syntax_styles["xprompt.invocation"] = sentinel
+        ta._theme.syntax_styles["xprompt.skill"] = sentinel
 
         app.theme = "textual-light"
         await pilot.pause()
 
-        after = ta._theme.syntax_styles["xprompt.invocation"]
-        assert after.color == Color.parse(app.current_theme.success)
+        after = ta._theme.syntax_styles["xprompt.skill"]
+        assert after.color == Color.parse("#996319")
         assert after.bold is True
         assert after != sentinel
 
@@ -162,7 +232,8 @@ async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> No
         ta = app.query_one(PromptTextArea)
         ta.load_text("#foo remains visible")
 
-        def _raise(_text: str):
+        def _raise(_text: str, *, known_skills: frozenset[str]):
+            del known_skills
             raise RuntimeError("boom")
 
         monkeypatch.setattr(

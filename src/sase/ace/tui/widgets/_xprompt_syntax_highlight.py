@@ -19,6 +19,7 @@ from sase.xprompt import xprompt_inspect
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
+    from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
     from sase.xprompt.xprompt_inspect import XPromptSpan
 else:
     _MixinBase = object
@@ -50,6 +51,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
     """Overlay recognized xprompt syntax on TextArea markdown highlighting."""
 
     if TYPE_CHECKING:
+        _xprompt_highlight_skill_entries: list[XPromptAssistEntry] | None
+        _xprompt_highlight_skill_names: frozenset[str]
 
         def _append_highlight_span(
             self,
@@ -57,6 +60,9 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             end: int,
             style_name: str,
         ) -> None: ...
+        def _get_warm_xprompt_arg_assist_entries(
+            self,
+        ) -> list[XPromptAssistEntry] | None: ...
 
     def on_mount(self) -> None:
         """Register xprompt styles after the base Jinja theme exists."""
@@ -80,7 +86,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
         text = self.text
-        if "#" not in text and "%" not in text and "---" not in text:
+        has_slash = "/" in text
+        if "#" not in text and "%" not in text and "---" not in text and not has_slash:
             return
         if len(text.encode("utf-8")) > _MAX_OVERLAY_BYTES:
             return
@@ -88,7 +95,13 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             return
 
         try:
-            spans: list[XPromptSpan] = xprompt_inspect.tokenize(text)
+            known_skills = (
+                self._get_warm_xprompt_skill_names() if has_slash else frozenset()
+            )
+            spans: list[XPromptSpan] = xprompt_inspect.tokenize(
+                text,
+                known_skills=known_skills,
+            )
         except Exception:
             return
         for span in spans:
@@ -97,6 +110,16 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 span.end,
                 f"xprompt.{span.kind}",
             )
+
+    def _get_warm_xprompt_skill_names(self) -> frozenset[str]:
+        """Return memoized skill names from the disk-free warm catalog."""
+        entries = self._get_warm_xprompt_arg_assist_entries()
+        if entries is self._xprompt_highlight_skill_entries:
+            return self._xprompt_highlight_skill_names
+        names = frozenset(entry.name for entry in entries or () if entry.is_skill)
+        self._xprompt_highlight_skill_entries = entries
+        self._xprompt_highlight_skill_names = names
+        return names
 
     def _register_xprompt_text_area_theme(
         self,
@@ -136,6 +159,14 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 "xprompt.separator": Style(
                     color=app_theme.secondary,
                     dim=True,
+                    bold=True,
+                ),
+                "xprompt.skill": Style(
+                    color=_derive_argument_color(
+                        app_theme.accent,
+                        foreground=app_theme.foreground,
+                        background=background,
+                    ),
                     bold=True,
                 ),
             }

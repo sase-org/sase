@@ -309,16 +309,20 @@ async def test_baseline_smoke(_trace_env: tuple[Path, Path, Path]) -> None:
 
 def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
     """Print tokenizer p50/p95 at the prompt overlay's 80 KB guard limit."""
-    composite = "#gh:sase %auto #pr:my_change %m:opus\n---\n"
-    prose = "Explain the implementation details and preserve behavior. " * 70
+    composite = (
+        "#gh:sase %auto #pr:my_change %m:opus use /sase_plan "
+        "then /sase_repo and leave /unknown plain\n---\n"
+    )
+    prose = "Explain /sase_git_commit details and preserve src/pkg/file.py. " * 70
     chunk = prose + composite
     tail = "\n---"
     text = (chunk * (80_000 // len(chunk) + 1))[: 80_000 - len(tail)] + tail
+    known_skills = frozenset({"sase_git_commit", "sase_plan", "sase_repo"})
     samples_ms: list[float] = []
 
     for _ in range(100):
         started = time.perf_counter()
-        xprompt_inspect.tokenize(text)
+        xprompt_inspect.tokenize(text, known_skills=known_skills)
         samples_ms.append((time.perf_counter() - started) * 1_000)
 
     ordered = sorted(samples_ms)

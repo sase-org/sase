@@ -6,10 +6,15 @@ from sase.xprompt import xprompt_inspect
 from sase.xprompt.xprompt_inspect import XPromptSpan
 
 
-def _source_by_kind(text: str, kind: str) -> list[str]:
+def _source_by_kind(
+    text: str,
+    kind: str,
+    *,
+    known_skills: frozenset[str] = frozenset(),
+) -> list[str]:
     return [
         text[span.start : span.end]
-        for span in xprompt_inspect.tokenize(text)
+        for span in xprompt_inspect.tokenize(text, known_skills=known_skills)
         if span.kind == kind
     ]
 
@@ -108,3 +113,68 @@ def test_tokenize_handles_guard_limit_sized_input() -> None:
 
     assert _source_by_kind(text, "invocation") == ["#final"]
     assert _source_by_kind(text, "directive") == ["%auto"]
+
+
+def test_tokenize_known_slash_skills_only() -> None:
+    text = "use /sase_plan, then (/sase_repo) and '/sase_git_commit'"
+    known = frozenset({"sase_plan", "sase_repo", "sase_git_commit"})
+
+    assert _source_by_kind(text, "skill", known_skills=known) == [
+        "/sase_plan",
+        "/sase_repo",
+        "/sase_git_commit",
+    ]
+
+
+def test_tokenize_rejects_unknown_greedy_and_path_like_slash_references() -> None:
+    text = (
+        "/foo /sase_planner research/sase_plan https://x/sase_plan "
+        "/sase_plan/child /sase_plan-extra /sase_plan.md"
+    )
+
+    assert (
+        _source_by_kind(
+            text,
+            "skill",
+            known_skills=frozenset({"sase_plan"}),
+        )
+        == []
+    )
+
+
+def test_tokenize_skips_slash_skills_in_protected_regions() -> None:
+    text = (
+        "```text\n/sase_plan\n```\n"
+        "%xprompts_enabled:false\n/sase_plan\n"
+        "%xprompts_enabled:true\n/sase_plan"
+    )
+
+    assert _source_by_kind(
+        text,
+        "skill",
+        known_skills=frozenset({"sase_plan"}),
+    ) == ["/sase_plan"]
+
+
+def test_tokenize_empty_known_skills_preserves_preview_behavior() -> None:
+    text = "/sase_plan then #gh:sase"
+
+    assert _source_by_kind(text, "skill") == []
+    assert _source_by_kind(text, "invocation") == ["#gh"]
+
+
+def test_tokenize_slash_skill_coexists_in_sorted_source_order() -> None:
+    text = "/sase_plan #gh:sase %auto\n---"
+    spans = xprompt_inspect.tokenize(
+        text,
+        known_skills=frozenset({"sase_plan"}),
+    )
+
+    assert [span.kind for span in spans] == [
+        "skill",
+        "invocation",
+        "invocation_arg",
+        "directive",
+        "separator",
+    ]
+    assert spans == sorted(spans, key=lambda span: (span.start, span.end))

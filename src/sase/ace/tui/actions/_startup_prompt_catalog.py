@@ -25,6 +25,10 @@ class StartupPromptCatalogMixin:
     _prompt_catalog_projects: set[str | None]
     _prompt_catalog_generation: int
     _prompt_catalog_token_check_last_mono: float
+    _prompt_catalog_assist_entries_cache: dict[
+        str | None,
+        list[XPromptAssistEntry],
+    ]
 
     def get_snippets(self: Any) -> dict[str, str]:
         """Return the memory-only xprompt + user snippet registry."""
@@ -52,7 +56,7 @@ class StartupPromptCatalogMixin:
             entries = catalog.assist_entries_by_project.get(project)
             if entries is not None:
                 self._schedule_prompt_catalog_token_fallback_check()
-                return list(entries)
+                return self._cached_prompt_catalog_assist_entries(project, entries)
             if project is not None:
                 fallback = catalog.assist_entries_by_project.get(None)
                 if fallback is not None:
@@ -60,10 +64,22 @@ class StartupPromptCatalogMixin:
                         self._schedule_prompt_catalog_rebuild(
                             reason="assist_project_miss"
                         )
-                    return list(fallback)
+                    return self._cached_prompt_catalog_assist_entries(None, fallback)
         if schedule:
             self._schedule_prompt_catalog_rebuild(reason="assist_cache_miss")
         return None
+
+    def _cached_prompt_catalog_assist_entries(
+        self: Any,
+        project: str | None,
+        entries: tuple[XPromptAssistEntry, ...],
+    ) -> list[XPromptAssistEntry]:
+        """Return a stable list for *entries* during this catalog snapshot."""
+        cached = self._prompt_catalog_assist_entries_cache.get(project)
+        if cached is None:
+            cached = list(entries)
+            self._prompt_catalog_assist_entries_cache[project] = cached
+        return cached
 
     def warm_prompt_catalog_project(self: Any, project: str | None) -> None:
         """Schedule an off-thread catalog warm for *project*."""
@@ -193,6 +209,7 @@ class StartupPromptCatalogMixin:
         if snapshot.generation != self._prompt_catalog_generation:
             return
         self._prompt_catalog = snapshot
+        self._prompt_catalog_assist_entries_cache = {}
         self._snippets_cache = dict(snapshot.snippets)
         self._refresh_visible_prompt_catalog_surfaces()
 
@@ -214,6 +231,9 @@ class StartupPromptCatalogMixin:
                     text_area._refresh_file_completion_from_cursor()
                 if getattr(text_area, "_active_xprompt_arg_hint", None) is not None:
                     text_area._refresh_xprompt_arg_hint_from_cursor()
+                if "/" in text_area.text:
+                    text_area._build_highlight_map()
+                    text_area.refresh()
                 text_area._on_prompt_completion_context_changed()
             except Exception:
                 log.debug("Failed to refresh prompt catalog surface", exc_info=True)

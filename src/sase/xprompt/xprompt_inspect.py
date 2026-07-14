@@ -3,7 +3,9 @@
 This module is presentation-only. The canonical xprompt and directive grammar
 lives in the Rust core; these scanners deliberately consume the same Python
 lexical mirrors used by the launch path so editable and read-only frontends
-render exactly the syntax that launch processing recognizes.
+render exactly the syntax that launch processing recognizes. Callers may opt
+into known ``/skill`` spans as an editor affordance; slash references remain
+literal pass-through text and are never part of launch processing.
 """
 
 from __future__ import annotations
@@ -20,7 +22,10 @@ from ._directive_types import (
 from ._disabled_regions import disabled_region_ranges
 from ._fenced_blocks import fenced_block_ranges
 from ._parsing import find_matching_paren_for_args
-from ._parsing_references import iter_xprompt_references
+from ._parsing_references import (
+    XPROMPT_REFERENCE_LEADING_CONTEXT,
+    iter_xprompt_references,
+)
 from .segment_separators import _SEGMENT_SEPARATOR_RE
 
 XPromptSpanKind = Literal[
@@ -29,9 +34,15 @@ XPromptSpanKind = Literal[
     "directive",
     "directive_arg",
     "separator",
+    "skill",
 ]
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
+_SKILL_REFERENCE_RE = re.compile(
+    XPROMPT_REFERENCE_LEADING_CONTEXT
+    + r"/(?P<name>[A-Za-z0-9_]+)(?=$|[\s'\"`?!;,()\[\]{}<>|&=+*^%$:\\])",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,13 +54,23 @@ class XPromptSpan:
     kind: XPromptSpanKind
 
 
-def tokenize(text: str) -> list[XPromptSpan]:
+def tokenize(
+    text: str,
+    *,
+    known_skills: frozenset[str] = frozenset(),
+) -> list[XPromptSpan]:
     """Return recognized xprompt spans, sorted by source offset.
 
     Fenced code blocks and ``%xprompts_enabled:false`` regions are excluded.
     Unknown directives remain unstyled, matching launch parsing behavior.
+    Slash-skill spans are emitted only for names supplied in *known_skills*.
     """
-    if not text or ("#" not in text and "%" not in text and "---" not in text):
+    if not text or (
+        "#" not in text
+        and "%" not in text
+        and "---" not in text
+        and (not known_skills or "/" not in text)
+    ):
         return []
 
     protected = sorted([*fenced_block_ranges(text), *disabled_region_ranges(text)])
@@ -83,6 +104,13 @@ def tokenize(text: str) -> list[XPromptSpan]:
         for match in _SEGMENT_SEPARATOR_RE.finditer(text):
             if not _overlaps_protected(match.start(), match.end(), protected):
                 spans.append(XPromptSpan(match.start(), match.end(), "separator"))
+
+    if known_skills and "/" in text:
+        for match in _SKILL_REFERENCE_RE.finditer(text):
+            if match.group("name") not in known_skills:
+                continue
+            if not _overlaps_protected(match.start(), match.end(), protected):
+                spans.append(XPromptSpan(match.start(), match.end(), "skill"))
 
     spans.sort(key=lambda span: (span.start, span.end))
     return spans

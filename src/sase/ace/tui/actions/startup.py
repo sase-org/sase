@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..widgets.prompt_completion import PromptCompletionSettings
+    from ..widgets.xprompt_arg_assist import XPromptAssistEntry
 
 TabName = Literal["changespecs", "agents", "axe"]
 
@@ -92,6 +93,10 @@ class StartupMixin(
     _prompt_catalog_rebuild_pending_force: bool
     _prompt_catalog_projects: set[str | None]
     _prompt_catalog_token_check_last_mono: float
+    _prompt_catalog_assist_entries_cache: dict[
+        str | None,
+        list[XPromptAssistEntry],
+    ]
     _prompt_source_watcher: ArtifactWatcher | None
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]

@@ -114,6 +114,8 @@ class PromptTextArea(
         self._xprompt_arg_assist_entries_by_project: dict[
             str | None, list[XPromptAssistEntry]
         ] = {}
+        self._xprompt_highlight_skill_entries: list[XPromptAssistEntry] | None = None
+        self._xprompt_highlight_skill_names: frozenset[str] = frozenset()
         self._xprompt_arg_assist_warming_projects: set[str | None] = set()
         self._xprompt_arg_assist_worker_projects: dict[str, str | None] = {}
         self._vcs_mru_index: int | None = None

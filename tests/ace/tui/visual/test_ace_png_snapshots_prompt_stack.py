@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui import AceApp
 from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets import StashedPromptsIndicator
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
@@ -74,14 +75,41 @@ _SEARCH_PROMPT = (
 )
 _CURSOR_PROMPT = "Readable cursor colors make vim modes obvious"
 _XPROMPT_HIGHLIGHT_SOLO = (
-    "#gh:sase %auto #pr:my_change %m:opus fix the bug\n"
+    "#gh:sase %auto #pr:my_change %m:opus fix the bug use /sase_plan\n"
     "```text\n#literal %wait:no\n---\n```"
 )
 _XPROMPT_HIGHLIGHT_STACK = (
     "#gh:sase %auto #pr:my_change inspect the failure\n"
     "---\n"
-    "%{%m:opus | %m:sonnet} #git:home summarize the fix"
+    "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
+
+_VISUAL_SKILL_ENTRIES = [
+    XPromptAssistEntry(
+        name="sase_plan",
+        insertion="#sase_plan",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(),
+        content_preview=None,
+        description="Create an implementation plan",
+        is_skill=True,
+    )
+]
+
+
+def _patch_visual_skill_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _entries(
+        _app: AceApp,
+        _project: str | None,
+        *,
+        schedule: bool = True,
+    ) -> list[XPromptAssistEntry]:
+        del schedule
+        return _VISUAL_SKILL_ENTRIES
+
+    monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
 
 
 async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
@@ -266,6 +294,7 @@ async def test_prompt_xprompt_highlight_solo_light_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    _patch_visual_skill_catalog(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         page.app.theme = "textual-light"
@@ -285,6 +314,7 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     patch_startup_loaders(monkeypatch)
+    _patch_visual_skill_catalog(monkeypatch)
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
