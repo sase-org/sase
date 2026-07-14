@@ -4,17 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-
-class _DoctorHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    def _format_action_invocation(self, action: argparse.Action) -> str:
-        if not action.option_strings:
-            return super()._format_action_invocation(action)
-        if action.nargs == 0:
-            return ", ".join(action.option_strings)
-
-        default = self._get_default_metavar_for_optional(action)
-        args_string = self._format_args(action, default)
-        return f"{', '.join(action.option_strings)} {args_string}"
+from .parser_help import CompactRawDescriptionHelpFormatter
 
 
 def register_doctor_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -38,7 +28,7 @@ def register_doctor_parser(subparsers: argparse._SubParsersAction) -> None:
             "Exit codes: OK, WARN, and SKIP exit 0; ERROR exits 1.\n"
             "--strict makes WARN exit 1."
         ),
-        formatter_class=_DoctorHelpFormatter,
+        formatter_class=CompactRawDescriptionHelpFormatter,
     )
     doctor_parser.add_argument(
         "-j",
