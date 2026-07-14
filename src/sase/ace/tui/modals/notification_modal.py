@@ -28,6 +28,7 @@ from .notification_modal_actions import NotificationStateActionsMixin
 from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
 from .notification_modal_options import NotificationOptionMixin
+from .notification_modal_question import NotificationQuestionMixin
 from .notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
@@ -36,6 +37,7 @@ from .notification_modal_tags import (
 
 
 class NotificationModal(
+    NotificationQuestionMixin,
     NotificationAttachmentMixin,
     NotificationOptionMixin,
     NotificationStateActionsMixin,
@@ -185,6 +187,7 @@ class NotificationModal(
             idx = int(event.option.id)
             if 0 <= idx < len(self._notifications):
                 self._display_file(self._notifications[idx])
+                self._update_hint_footer()
 
     def _replacement_notification_id_after_dismiss(self, idx: int) -> str | None:
         """Return the notification id that should be highlighted after dismiss."""

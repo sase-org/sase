@@ -34,6 +34,19 @@ class NotificationAttachmentMixin:
         title = self.query_one("#notification-file-title", Label)
         content_widget = self.query_one("#notification-file-content", Static)
 
+        if notification is not None:
+            question_pane = self._render_question_pane(notification)
+            if question_pane is not None:
+                pane_title, pane_content = question_pane
+                self._set_image_preview_mode(False)
+                title.update(pane_title)
+                cleanup = self._consume_image_cleanup_segments()
+                content_widget.update(
+                    Group(*cleanup, pane_content) if cleanup else pane_content
+                )
+                self._reset_file_scroll()
+                return
+
         if notification is None or not notification.files:
             self._set_image_preview_mode(False)
             title.update("No files attached")

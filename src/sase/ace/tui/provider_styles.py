@@ -131,6 +131,11 @@ def provider_emoji_badge(provider: str | None) -> str | None:
     return _shared_provider_emoji_badge(provider)
 
 
+def provider_name_style(provider: str | None) -> str:
+    """Return the Rich style used for a provider-colored display name."""
+    return _provider_style_for(provider).name_style
+
+
 def _resolve_provider_and_model(
     llm_provider: str | None,
     model: str | None,

@@ -27,6 +27,7 @@ from sase.project_display_names import (
 from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
+    QUESTION_HINT_TEXT,
 )
 from .notification_modal_tags import (
     notification_display_tags,
@@ -251,6 +252,10 @@ class NotificationOptionMixin:
         if self._entry_jump_mode_active:
             action = "back" if self._entry_jump_last_index is not None else "first"
             footer.update(f"JUMP ' {action}  <esc> cancel")
+        elif (
+            notification := self._get_highlighted_notification()
+        ) is not None and notification.action == "UserQuestion":
+            footer.update(QUESTION_HINT_TEXT)
         else:
             footer.update(DEFAULT_HINT_TEXT)
 
