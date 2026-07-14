@@ -1,0 +1,181 @@
+"""Typed Python adapter for strict Rust-backed plan validation.
+
+The authoritative frontmatter schema and every content-validation rule live in
+``sase-core``.  This module only rehydrates the JSON-shaped binding payloads
+into frozen Python records for CLI and workflow callers.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
+
+from sase.core.rust import require_rust_binding
+
+PLAN_WIRE_SCHEMA_VERSION = 2
+
+
+class PlanDiagnosticSeverity(StrEnum):
+    """Severity values emitted by the plan validator."""
+
+    ERROR = "error"
+    WARNING = "warning"
+
+
+@dataclass(frozen=True)
+class PlanDiagnostic:
+    """One actionable plan-validation problem."""
+
+    severity: PlanDiagnosticSeverity
+    code: str
+    field_path: str
+    message: str
+    line: int | None
+
+    @property
+    def is_error(self) -> bool:
+        """Return whether this diagnostic makes validation fail."""
+        return self.severity is PlanDiagnosticSeverity.ERROR
+
+
+@dataclass(frozen=True)
+class PlanFrontmatterFieldSpec:
+    """Authoritative metadata for one accepted frontmatter field."""
+
+    name: str
+    field_type: str
+    required: bool
+    description: str
+    example: Any
+
+
+@dataclass(frozen=True)
+class _ValidatedPlanPhase:
+    """Normalized epic-phase data returned by the Rust validator."""
+
+    id: str
+    title: str
+    depends_on: tuple[str, ...]
+    description: str | None
+    model: str | None
+
+
+@dataclass(frozen=True)
+class _ValidatedPlan:
+    """Normalized plan data available only after error-free validation."""
+
+    tier: str
+    goal: str
+    model: str | None
+    title: str | None
+    phases: tuple[_ValidatedPlanPhase, ...]
+    changespec: str | None
+    bug_id: int | None
+
+
+@dataclass(frozen=True)
+class PlanValidationResult:
+    """Complete strict-validation result from ``sase-core``."""
+
+    schema_version: int
+    ok: bool
+    diagnostics: tuple[PlanDiagnostic, ...]
+    plan: _ValidatedPlan | None
+
+
+def validate_plan(content: str, tier: str) -> PlanValidationResult:
+    """Validate one complete Markdown plan against ``tier``.
+
+    ``tier`` must be ``"tale"`` or ``"epic"``.  Invalid caller tiers are
+    rejected by the binding as usage errors; document problems are returned as
+    diagnostics so callers receive every problem in one pass.
+    """
+    binding = require_rust_binding("plan_validate")
+    return _validation_result_from_dict(binding(content, tier))
+
+
+def plan_frontmatter_schema(tier: str) -> tuple[PlanFrontmatterFieldSpec, ...]:
+    """Return the ordered authoritative field specification for ``tier``."""
+    binding = require_rust_binding("plan_frontmatter_schema")
+    return tuple(_field_spec_from_dict(item) for item in binding(tier))
+
+
+def _validation_result_from_dict(payload: dict[str, Any]) -> PlanValidationResult:
+    schema_version = int(payload["schema_version"])
+    if schema_version != PLAN_WIRE_SCHEMA_VERSION:
+        raise ValueError(
+            "unsupported plan validation wire schema version "
+            f"{schema_version}; expected {PLAN_WIRE_SCHEMA_VERSION}"
+        )
+    plan_payload = payload.get("plan")
+    return PlanValidationResult(
+        schema_version=schema_version,
+        ok=bool(payload["ok"]),
+        diagnostics=tuple(
+            _diagnostic_from_dict(item) for item in payload["diagnostics"]
+        ),
+        plan=(
+            _validated_plan_from_dict(plan_payload)
+            if isinstance(plan_payload, dict)
+            else None
+        ),
+    )
+
+
+def _diagnostic_from_dict(payload: dict[str, Any]) -> PlanDiagnostic:
+    line = payload.get("line")
+    return PlanDiagnostic(
+        severity=PlanDiagnosticSeverity(payload["severity"]),
+        code=str(payload["code"]),
+        field_path=str(payload["field_path"]),
+        message=str(payload["message"]),
+        line=int(line) if line is not None else None,
+    )
+
+
+def _field_spec_from_dict(payload: dict[str, Any]) -> PlanFrontmatterFieldSpec:
+    return PlanFrontmatterFieldSpec(
+        name=str(payload["name"]),
+        field_type=str(payload["type"]),
+        required=bool(payload["required"]),
+        description=str(payload["description"]),
+        example=payload["example"],
+    )
+
+
+def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
+    return _ValidatedPlan(
+        tier=str(payload["tier"]),
+        goal=str(payload["goal"]),
+        model=_optional_str(payload.get("model")),
+        title=_optional_str(payload.get("title")),
+        phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),
+        changespec=_optional_str(payload.get("changespec")),
+        bug_id=(int(payload["bug_id"]) if payload.get("bug_id") is not None else None),
+    )
+
+
+def _validated_phase_from_dict(payload: dict[str, Any]) -> _ValidatedPlanPhase:
+    return _ValidatedPlanPhase(
+        id=str(payload["id"]),
+        title=str(payload["title"]),
+        depends_on=tuple(str(item) for item in payload["depends_on"]),
+        description=_optional_str(payload.get("description")),
+        model=_optional_str(payload.get("model")),
+    )
+
+
+def _optional_str(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
+__all__ = [
+    "PLAN_WIRE_SCHEMA_VERSION",
+    "PlanDiagnostic",
+    "PlanDiagnosticSeverity",
+    "PlanFrontmatterFieldSpec",
+    "PlanValidationResult",
+    "plan_frontmatter_schema",
+    "validate_plan",
+]

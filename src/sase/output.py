@@ -18,11 +18,12 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-# Re-export escape_markup for convenient access
-__all__ = ["escape_markup"]
+# Re-export shared consoles and escaping for convenient, consistent CLI output.
+__all__ = ["console", "error_console", "escape_markup"]
 
 # Global console instance for consistent styling
 console = Console()
+error_console = Console(stderr=True)
 
 _PROVIDER_TIMER_INTERVAL_SECONDS = 0.5
 _PROVIDER_TIMER_JOIN_TIMEOUT_SECONDS = 1.0

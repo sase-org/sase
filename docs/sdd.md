@@ -149,6 +149,55 @@ worked by different models. The `bd/new_epic` xprompt forwards the top-level `mo
 that phase bead's `-m/--model` flag. When the field is absent, `--model` is omitted and the bead falls back to the
 launcher default.
 
+### Plan Frontmatter Schema and Validation
+
+Run `sase plan validate PLAN_FILE -t tale|epic` while authoring a plan. The tier is explicit and required, and the
+authored top-level `tier` must match it. Validation is hermetic: the command accepts any readable UTF-8 path and does
+not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or an active project. It reports all problems in one pass with stable
+diagnostic codes, field paths, and best-effort line numbers.
+
+Every tale and epic requires these authored fields:
+
+| Field   | Required | Rule                                                               |
+| ------- | -------- | ------------------------------------------------------------------ |
+| `tier`  | yes      | `tale` or `epic`, matching `-t/--tier`                             |
+| `goal`  | yes      | Non-empty description of the outcome the plan is intended to reach |
+| `model` | no       | Non-empty model value using the same syntax as `%model`            |
+
+SASE-managed `create_time`, `status`, `prompt`, and `bead_id` fields are accepted but never required. Unknown fields are
+errors. A plan must start with valid, closed YAML frontmatter and contain a non-empty Markdown body.
+
+Epics additionally require a non-empty `title` and an ordered, non-empty `phases` list. Optional `changespec` and
+integer `bug_id` metadata may be supplied; `bug_id` requires `changespec`. Each phase requires a unique slug `id`, a
+non-empty `title`, and a `depends_on` list. Dependencies may only name earlier phases, cannot repeat, and cannot refer
+to the phase itself. Optional phase fields are `description` and `model`. Only set a phase model when the user's prompt
+requested one or the phase performs no consequential work, such as exercising the feature itself; otherwise omit it so
+the configured `@phase_worker` role applies.
+
+```yaml
+---
+tier: epic
+title: Workspace GC rewrite
+goal: Stale workspaces are collected safely
+phases:
+  - id: core
+    title: GC planner and safety checks
+    depends_on: []
+  - id: cli
+    title: Workspace GC command
+    depends_on: [core]
+---
+# Plan
+
+Implement the validated workflow.
+```
+
+Epic-only fields on a tale produce warnings because they are inert when a human downgrades an epic-authored plan. All
+other schema violations are errors. Human failures always include the authoritative expected-schema table and a minimal
+valid example. `-j/--json` returns `schema_version`, `ok`, `tier`, `path`, the complete diagnostics list, and the
+expected schema; `-q/--quiet` suppresses successful human output. Exit status is 0 for valid plans, 1 for validation
+failures, and 2 for command-usage errors.
+
 ## CLI
 
 SDD's durable operations live on the repo and plan command groups:
@@ -162,6 +211,7 @@ SDD's durable operations live on the repo and plan command groups:
 | `sase plan links repair`   | Infer unambiguous prompt/plan pairs; add `-w/--write` to update files                          |
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
+| `sase plan validate`       | Validate one plan path with required `-t/--tier`; supports `-j/--json` and `-q/--quiet`        |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project root. Bare `sase plan links`
 defaults to `sase plan links list`. Validation treats unpaired or ambiguous historical files as warnings by default and

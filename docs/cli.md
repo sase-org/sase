@@ -74,6 +74,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan links repair`                     | Infer and optionally write missing bidirectional SDD links.                                                                             | [SDD](sdd.md)                                                         |
 | `sase plan links validate`                   | Validate SDD frontmatter links.                                                                                                         | [SDD](sdd.md)                                                         |
 | `sase plan search`                           | Search or browse tale, epic, prompt, and research artifacts.                                                                            | [SDD](sdd.md)                                                         |
+| `sase plan validate PLAN_FILE -t TIER`       | Strictly validate one plan against the tale or epic frontmatter schema.                                                                 | [SDD](sdd.md#plan-frontmatter-schema-and-validation)                  |
 | `sase bead onboard`                          | Print the bead quick-start guide.                                                                                                       | [Beads](beads.md)                                                     |
 | `sase bead init`                             | Initialize bead storage for the current project.                                                                                        | [Beads](beads.md#storage)                                             |
 | `sase bead create`                           | Create plan, epic, or phase issues.                                                                                                     | [Beads](beads.md#cli-commands)                                        |
@@ -96,6 +97,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan propose`                          | Submit a plan file for approval from the plan skill path.                                                                               | [XPrompt directives](xprompt.md#plan-directive)                       |
 | `sase plan reject`                           | Reject one pending plan by ID or prefix, then attempt planner cleanup when found.                                                       | [XPrompt directives](xprompt.md#plan-directive)                       |
 | `sase plan search`                           | Search resolved-store SDD plans and the machine-local plan archive by literal text and metadata.                                        | [SDD](sdd.md#how-sdd-works)                                           |
+| `sase plan validate`                         | Validate one explicit plan path against a required `tale` or `epic` schema, with human or JSON diagnostics.                             | [SDD](sdd.md#plan-frontmatter-schema-and-validation)                  |
 | `sase launch request`                        | Register an agent-requested launch for approval; no agent spawns until it is approved.                                                  | [Agent Families](agent_families.md#agent-initiated-launches)          |
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                                                      | [Agent Families](agent_families.md#agent-initiated-launches)          |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                                            | [XPrompt directives](xprompt.md#directives)                           |
@@ -147,6 +149,11 @@ been rejected.
 matches above local matches; JSON and full output keep ranked result order with SDD-store matches prioritized over
 otherwise-similar local matches. Useful filters include `--kind`, `--status`, `--source`, `--since`, `--until`,
 `--sort`, and `--format json|markdown` for agent-friendly output.
+
+`sase plan validate PLAN_FILE -t tale|epic` validates exactly one path without requiring a project or agent context. It
+reports every schema problem in one run and prints the expected tier schema plus a minimal valid example on failure. Use
+`-j/--json` for the stable machine-readable envelope or `-q/--quiet` to suppress successful human output. A valid plan
+exits 0, a validation failure exits 1, and invalid command usage exits 2.
 
 ## Automation
 

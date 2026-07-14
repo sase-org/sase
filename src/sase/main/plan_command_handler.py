@@ -12,6 +12,7 @@ from sase.main.plan_links_handler import handle_plan_links_command
 from sase.main.plan_propose_handler import handle_plan_propose_command
 from sase.main.plan_reject_handler import handle_plan_reject_command
 from sase.main.plan_search_handler import handle_plan_search_command
+from sase.main.plan_validate_handler import handle_plan_validate_command
 
 
 def handle_plan_command(args: argparse.Namespace) -> NoReturn:
@@ -31,6 +32,8 @@ def handle_plan_command(args: argparse.Namespace) -> NoReturn:
     if subcommand == "search":
         handle_plan_search_command(args)
         sys.exit(0)
+    if subcommand == "validate":
+        handle_plan_validate_command(args)
 
     print(f"Error: unknown plan subcommand: {subcommand}", file=sys.stderr)
     sys.exit(2)

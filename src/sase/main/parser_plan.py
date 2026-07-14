@@ -11,11 +11,12 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'plan' subcommand parser."""
     plan_parser = subparsers.add_parser(
         "plan",
-        help="Review, approve, reject, propose, and search implementation plans",
+        help="Review, approve, reject, propose, search, and validate implementation plans",
         description=(
             "Review the plan pipeline, approve or reject pending proposals from "
-            "the ChangeSpecI, inspect SDD prompt/plan links, submit a new plan "
-            "for review, or search SDD and machine-local plans.\n\n"
+            "the ChangeSpec, inspect SDD prompt/plan links, submit a new plan "
+            "for review, search SDD and machine-local plans, or strictly "
+            "validate one plan file.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),
         epilog=(
@@ -26,7 +27,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan links validate --show-warnings\n"
             "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
-            "  sase plan search auth --format json"
+            "  sase plan search auth --format json\n"
+            "  sase plan validate sase_plan_feature.md --tier tale"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -369,6 +371,49 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="DATE",
         help="Only plans created on/before DATE "
         "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d/2w/3m)",
+    )
+
+    validate_parser = plan_subparsers.add_parser(
+        "validate",
+        help="Validate one plan file against an explicit tier schema",
+        description=(
+            "Strictly validate exactly one Markdown plan file against the "
+            "tale or epic frontmatter schema. The command is hermetic: it "
+            "does not require an active project or agent run. All discovered "
+            "problems are reported in one pass; failures include the expected "
+            "schema and a minimal valid example."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan validate sase_plan_feature.md --tier tale\n"
+            "  sase plan validate epic.md -t epic --json\n"
+            "  sase plan validate plan.md -t tale --quiet"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    validate_parser.add_argument(
+        "plan_file",
+        metavar="PLAN_FILE",
+        help="Path to the plan Markdown file",
+    )
+    validate_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable validation envelope",
+    )
+    validate_parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print nothing for a valid plan in human output mode",
+    )
+    validate_parser.add_argument(
+        "-t",
+        "--tier",
+        choices=("tale", "epic"),
+        required=True,
+        help="Required plan-file tier schema: tale or epic",
     )
 
 
