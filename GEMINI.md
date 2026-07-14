@@ -157,14 +157,14 @@ When you need to make changes to files in a numbered-workspace linked repo or ne
 repo code, agents MUST run:
 
 ```bash
-sase repo open <linked_repo> -r "<reason>"
+sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>
 ```
 
-Run it from your workspace directory (the workspace number is inferred from where you run it; pass `-w <workspace_num>`
-only when running from outside the workspace). Use the path printed by `sase repo open` as the only linked repo path for
-numbered-workspace linked reads/writes.
+`<workspace_num>` must be the workspace number assigned to the primary repo (check what directory you were started in to
+figure this out). Use the path printed by `sase workspace open` as the only linked repo path for numbered-workspace
+linked reads/writes.
 
-IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase repo open`!
+IMPORTANT REMINDER: Do NOT attempt to look for a linked repo in any other way than by using `sase workspace open`!
 
 ## Tier 2 (long-term) Memory
 
