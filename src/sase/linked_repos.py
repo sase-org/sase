@@ -469,6 +469,9 @@ def materialize_linked_repo_workspace(
             workspace_dir = linked_repo_clone_dir(host_checkout, name)
 
     checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
+    from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
+
+    ensure_sase_git_info_excludes(checkout_dir)
     try:
         from sase.sdd.store import ensure_workspace_sdd_clone
 

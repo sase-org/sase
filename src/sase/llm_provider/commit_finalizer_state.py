@@ -17,7 +17,7 @@ from sase.linked_repos import (
 )
 
 from . import commit_finalizer_git as finalizer_git
-from .commit_finalizer_git import git_changed_files
+from .commit_finalizer_git import filter_sase_reserved_paths, git_changed_files
 from .commit_finalizer_prompting import build_dirty_details
 from .commit_finalizer_types import (
     DirtyRepo,
@@ -177,7 +177,22 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
 def _build_commit_details(project_dir: str) -> tuple[bool, list[str], str, str]:
     from . import commit_finalizer
 
-    return commit_finalizer.build_commit_details(project_dir)
+    has_changes, changed_files, instruction, details = (
+        commit_finalizer.build_commit_details(project_dir)
+    )
+    if not has_changes:
+        return (False, [], "", "")
+
+    filtered = filter_sase_reserved_paths(changed_files)
+    if not filtered:
+        return (False, [], "", "")
+    if filtered == changed_files:
+        return (has_changes, changed_files, instruction, details)
+
+    filtered_details = "Uncommitted changes detected:\n" + "\n".join(filtered)
+    if instruction:
+        filtered_details += f"\n\n{instruction}"
+    return (True, filtered, instruction, filtered_details)
 
 
 def _dirty_configured_sibling_repos(

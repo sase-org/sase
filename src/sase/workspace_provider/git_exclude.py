@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+SASE_GIT_INFO_EXCLUDE_PATTERNS = (".sase/", "/sase/repos/")
+
 
 def _resolve_git_dir(workspace_dir: str) -> Path | None:
     """Resolve ``.git`` for *workspace_dir*, following worktree pointers.
@@ -75,4 +77,15 @@ def ensure_git_info_exclude_entry(workspace_dir: str, pattern: str) -> None:
         return
 
 
-__all__ = ["ensure_git_info_exclude_entry"]
+def ensure_sase_git_info_excludes(workspace_dir: str) -> None:
+    """Install every SASE-managed per-clone ignore pattern."""
+
+    for pattern in SASE_GIT_INFO_EXCLUDE_PATTERNS:
+        ensure_git_info_exclude_entry(workspace_dir, pattern)
+
+
+__all__ = [
+    "SASE_GIT_INFO_EXCLUDE_PATTERNS",
+    "ensure_git_info_exclude_entry",
+    "ensure_sase_git_info_excludes",
+]

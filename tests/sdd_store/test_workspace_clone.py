@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 
@@ -45,6 +46,13 @@ def test_ensure_workspace_sdd_clone_managed_separate_repo(
     assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
         encoding="utf-8"
     ) == "# Plan\n"
+    exclude_lines = (
+        (workspace_sdd / ".git" / "info" / "exclude")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert exclude_lines.count(".sase/") == 1
+    assert exclude_lines.count("/sase/repos/") == 1
 
 
 def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
@@ -94,10 +102,82 @@ def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     assert git(["remote", "get-url", "origin"], plans).stdout.strip() == str(
         plans_remote
     )
+    plans_exclude_lines = (
+        (plans / ".git" / "info" / "exclude").read_text(encoding="utf-8").splitlines()
+    )
+    assert plans_exclude_lines.count(".sase/") == 1
+    assert plans_exclude_lines.count("/sase/repos/") == 1
     assert not research.exists()
 
     assert ensure_sdd_kind_clone(workspace, 2, "research", strict=True) == research
     assert (research / ".git").is_dir()
+    research_exclude_lines = (
+        (research / ".git" / "info" / "exclude")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    )
+    assert research_exclude_lines.count(".sase/") == 1
+    assert research_exclude_lines.count("/sase/repos/") == 1
+
+
+def test_nested_repo_inherits_owner_sdd_record_without_nested_sidecar(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    plans_remote = tmp_path / "plans.git"
+    research_remote = tmp_path / "research.git"
+    seed = tmp_path / "seed"
+    init_bare_repo(plans_remote)
+    init_bare_repo(research_remote)
+    clone(plans_remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_10"
+    nested = workspace / "sase" / "repos" / "linked" / "other"
+    primary.mkdir()
+    nested.mkdir(parents=True)
+    marker_dir = workspace / ".sase"
+    marker_dir.mkdir()
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(
+            {
+                "project_name": "repo",
+                "project_key": "repo",
+                "workspace_num": 10,
+                "primary_workspace_dir": str(primary),
+                "registry_path": str(tmp_path / "registry.json"),
+                "schema_version": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": str(plans_remote),
+                },
+                "research": {
+                    "repo": "owner/repo--research",
+                    "remote_url": str(research_remote),
+                },
+            },
+        },
+    )
+    provider_patch(None)
+
+    ensure_workspace_sdd_clone(nested, 10, strict=True)
+
+    assert (workspace / "sase" / "repos" / "plans" / "README.md").is_file()
+    assert not (nested / "sase").exists()
 
 
 def test_moved_sidecar_clone_with_matching_remote_is_accepted(

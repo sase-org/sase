@@ -81,6 +81,10 @@ def ensure_sidecar_sdd_clone(
         _logger.warning(
             "Failed to ensure SDD sidecar clone at %s", clone_dir, exc_info=True
         )
+    finally:
+        from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
+
+        ensure_sase_git_info_excludes(str(clone_dir))
 
 
 def ensure_workspace_sdd_clone(
@@ -175,6 +179,10 @@ def ensure_workspace_sdd_clone(
             workspace,
             exc_info=True,
         )
+    finally:
+        from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
+
+        ensure_sase_git_info_excludes(str(workspace / ".sase" / "sdd"))
 
 
 def _replace_workspace_sdd_clone(

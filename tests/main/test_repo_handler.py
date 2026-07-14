@@ -15,6 +15,7 @@ from sase.main.parser import create_parser, default_list_delegation_notice
 from sase.main.repo_handler import (
     _match_repo_record,
     _repo_panel,
+    _repo_target_context,
     _resolve_open_workspace_num,
     handle_repo_command,
 )
@@ -549,6 +550,10 @@ def test_repo_open_registered_project_clones_locally_and_reopens_without_cleanin
     )
     assert first.out == f"{expected}\n"
     assert (expected / ".git").is_dir()
+    exclude = expected / ".git" / "info" / "exclude"
+    exclude_lines = exclude.read_text(encoding="utf-8").splitlines()
+    assert exclude_lines.count(".sase/") == 1
+    assert exclude_lines.count("/sase/repos/") == 1
 
     dirty = expected / "keep-me.txt"
     dirty.write_text("agent work\n", encoding="utf-8")
@@ -558,6 +563,9 @@ def test_repo_open_registered_project_clones_locally_and_reopens_without_cleanin
     assert second_exit.value.code == 0
     assert capsys.readouterr().out == f"{expected}\n"
     assert dirty.read_text(encoding="utf-8") == "agent work\n"
+    exclude_lines = exclude.read_text(encoding="utf-8").splitlines()
+    assert exclude_lines.count(".sase/") == 1
+    assert exclude_lines.count("/sase/repos/") == 1
     marker = opened_external_repo_records(artifacts)["other"]
     assert marker["workspace_dir"] == str(expected)
     assert marker["reason"] == "port fix"
@@ -657,6 +665,45 @@ def test_repo_open_provider_ref_is_atomic_audited_and_idempotent(
         "gh:acme/widget",
         "gh:acme/widget",
     ]
+
+
+def test_repo_target_context_uses_durable_workspace_zero_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host_ctx = _project_context(tmp_path)
+    durable = tmp_path / "linked-primary"
+    scoped = Path(host_ctx.primary_workspace_dir) / "sase" / "repos" / "linked" / "core"
+    durable.mkdir()
+    scoped.mkdir(parents=True)
+    record = RepoRecord(
+        name="core",
+        kind="linked",
+        project="demo",
+        project_key="demo",
+        path=str(scoped),
+        exists=True,
+        auto_clone=False,
+        description=None,
+        source="test",
+        env_name="CORE",
+        clones=(
+            RepoCloneRecord(0, str(durable), True),
+            RepoCloneRecord(10, str(scoped), True),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler.load_merged_config",
+        lambda: {"workspace": {"root": "adjacent"}},
+    )
+
+    target_ctx = _repo_target_context(host_ctx, record)
+
+    assert target_ctx.primary_workspace_dir == str(durable)
+    assert target_ctx.store.primary_workspace_dir == str(durable)
+    assert (
+        target_ctx.linked_host_primary_workspace_dir == host_ctx.primary_workspace_dir
+    )
 
 
 def test_repo_open_provider_failure_removes_staging_and_records_nothing(

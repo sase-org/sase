@@ -119,9 +119,15 @@ def test_materialize_creates_fresh_linked_clone(
     (host / ".git" / "info").mkdir(parents=True)
     target = host / "sase" / "repos" / "linked" / "core"
     ensured: list[str] = []
+
+    def ensure_clone(_primary: str, _num: int, path: str) -> str:
+        ensured.append(path)
+        (Path(path) / ".git" / "info").mkdir(parents=True, exist_ok=True)
+        return path
+
     monkeypatch.setattr(
         "sase.workspace_provider.utils.ensure_git_clone_at",
-        lambda _primary, _num, path: ensured.append(path) or path,
+        ensure_clone,
     )
     monkeypatch.setattr(
         "sase.sdd.store.ensure_workspace_sdd_clone", lambda *_args: None
@@ -135,5 +141,21 @@ def test_materialize_creates_fresh_linked_clone(
 
     assert result == str(target.resolve())
     assert ensured == [str(target.resolve())]
-    exclude = host / ".git" / "info" / "exclude"
-    assert "/sase/repos/" in exclude.read_text(encoding="utf-8").splitlines()
+    host_exclude = host / ".git" / "info" / "exclude"
+    assert "/sase/repos/" in host_exclude.read_text(encoding="utf-8").splitlines()
+    clone_exclude = target / ".git" / "info" / "exclude"
+    assert clone_exclude.read_text(encoding="utf-8").splitlines() == [
+        ".sase/",
+        "/sase/repos/",
+    ]
+
+    materialize_linked_repo_workspace(
+        primary_dir=str(tmp_path / "core"),
+        workspace_dir=str(target),
+        workspace_num=10,
+    )
+
+    assert clone_exclude.read_text(encoding="utf-8").splitlines() == [
+        ".sase/",
+        "/sase/repos/",
+    ]

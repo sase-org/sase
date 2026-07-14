@@ -405,6 +405,11 @@ def ensure_workspace_sdd_clone(
 ) -> None:
     """Ensure a workspace-local clone, optionally failing the setup transaction."""
 
+    owner_anchor = _inherited_sdd_record_owner_anchor(workspace_dir, workspace_num)
+    if owner_anchor is not None:
+        ensure_workspace_sdd_clone(owner_anchor, workspace_num, strict=strict)
+        return
+
     store = resolve_sdd_store(workspace_dir, workspace_num)
     if store.is_sidecar_storage:
         ensure_sdd_kind_clone(workspace_dir, workspace_num, "plans", strict=strict)
@@ -427,6 +432,10 @@ def ensure_sdd_kind_clone(
     strict: bool = False,
 ) -> Path:
     """Materialize and synchronize the sidecar clone backing *kind*."""
+
+    owner_anchor = _inherited_sdd_record_owner_anchor(workspace_dir, workspace_num)
+    if owner_anchor is not None:
+        return ensure_sdd_kind_clone(owner_anchor, workspace_num, kind, strict=strict)
 
     store = resolve_sdd_store(workspace_dir, workspace_num)
     root = store.kind_root(kind)
@@ -470,6 +479,40 @@ def _resolve_sdd_storage(
     policy = _provider_sdd_storage_policy(workspace)
     storage = policy if policy in _STORAGE_VALUES else SDD_STORAGE_LOCAL
     return cast(SddStorage, storage), record, primary
+
+
+def _inherited_sdd_record_owner_anchor(
+    workspace_dir: str | Path,
+    workspace_num: int,
+) -> Path | None:
+    """Return the owning checkout when a nested repo inherited its SDD record."""
+
+    workspace = Path(workspace_dir).expanduser().resolve(strict=False)
+    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
+    record = read_sdd_store_record(primary)
+    if not _is_materialized_record(record):
+        return None
+
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(str(workspace))
+    except Exception:
+        return None
+    if found is None:
+        return None
+
+    checkout_dir, marker = found
+    owner_anchor = Path(checkout_dir).expanduser().resolve(strict=False)
+    if owner_anchor == workspace:
+        return None
+
+    marker_primary = (
+        Path(marker.primary_workspace_dir).expanduser().resolve(strict=False)
+    )
+    if Path(primary).expanduser().resolve(strict=False) != marker_primary:
+        return None
+    return owner_anchor
 
 
 def _sdd_dir_for_storage(

@@ -251,25 +251,33 @@ def _materialize_external_repo(target: _ExternalRepoTarget) -> str:
 
     dest = Path(target.dest_dir)
     if _is_valid_git_repo(dest):
-        return str(dest.resolve(strict=False))
-    if os.path.lexists(dest):
-        raise ExternalRepoOpenError(
-            f"External repo destination exists but is not a valid repository: {dest}"
-        )
+        path = str(dest.resolve(strict=False))
+    else:
+        if os.path.lexists(dest):
+            raise ExternalRepoOpenError(
+                "External repo destination exists but is not a valid repository: "
+                f"{dest}"
+            )
 
-    project_source_dir = target.project_source_dir
-    if project_source_dir is not None:
-        return _atomic_external_clone(
-            dest,
-            lambda temp: _clone_external_project(project_source_dir, temp),
-        )
-    provider_ref = target.provider_ref
-    if provider_ref is None:
-        raise ExternalRepoOpenError("External repo target has no clone source.")
-    return _atomic_external_clone(
-        dest,
-        lambda temp: _clone_provider_external(provider_ref, temp),
-    )
+        project_source_dir = target.project_source_dir
+        if project_source_dir is not None:
+            path = _atomic_external_clone(
+                dest,
+                lambda temp: _clone_external_project(project_source_dir, temp),
+            )
+        else:
+            provider_ref = target.provider_ref
+            if provider_ref is None:
+                raise ExternalRepoOpenError("External repo target has no clone source.")
+            path = _atomic_external_clone(
+                dest,
+                lambda temp: _clone_provider_external(provider_ref, temp),
+            )
+
+    from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
+
+    ensure_sase_git_info_excludes(path)
+    return path
 
 
 def _clone_external_project(source_dir: str, temp_dir: Path) -> None:

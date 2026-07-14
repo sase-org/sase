@@ -481,11 +481,13 @@ def _repo_target_context(
 ) -> ProjectContext:
     if repo.kind == "primary":
         return host_ctx
+    primary_clone = repo.clone_for_workspace(0)
+    primary_dir = primary_clone.path if primary_clone is not None else repo.path
     return ProjectContext(
         project_name=repo.name,
         project_file=host_ctx.project_file,
-        primary_workspace_dir=repo.path,
-        store=WorkspaceStore(repo.path, config=load_merged_config()),
+        primary_workspace_dir=primary_dir,
+        store=WorkspaceStore(primary_dir, config=load_merged_config()),
         is_sibling=True,
         is_configured_linked_repo=True,
         linked_host_primary_workspace_dir=host_ctx.primary_workspace_dir,
