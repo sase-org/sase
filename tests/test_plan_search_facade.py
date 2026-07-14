@@ -32,6 +32,20 @@ def _write_plan(
     )
 
 
+def _write_prompt(
+    path: Path,
+    *,
+    title: str,
+    create_time: str,
+    body: str,
+    plan: str,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"---\ncreate_time: {create_time}\nplan: {plan}\n---\n# {title}\n\n{body}\n"
+    )
+
+
 @pytest.fixture
 def corpus(tmp_path: Path) -> tuple[Path, Path]:
     """Build a temp repo ``sdd/`` tree and a temp local archive."""
@@ -169,6 +183,53 @@ def test_search_indexes_flat_sidecar_plans_root(tmp_path: Path) -> None:
     )
 
     assert _names(matches) == ["flat_sidecar"]
+
+
+@pytest.mark.parametrize("flat", [False, True])
+def test_search_indexes_prompt_inventory(tmp_path: Path, flat: bool) -> None:
+    repo = tmp_path / ("repo--plans" if flat else "sdd")
+    plans_root = repo if flat else repo / "plans"
+    _write_prompt(
+        plans_root / "202607" / "prompts" / "deploy_widget.md",
+        title="Deploy widget",
+        create_time="2026-07-12 09:30:00",
+        body="Capture the deployment request.",
+        plan="202607/deploy_widget.md",
+    )
+
+    matches = facade.search(
+        source=facade.SOURCE_REPO,
+        kinds=["prompt"],
+        repo_root=repo,
+        local_dir=tmp_path / "local",
+    )
+
+    assert _names(matches) == ["deploy_widget"]
+    assert matches[0].plan.source == "repo"
+    assert matches[0].plan.kind == "prompt"
+    assert matches[0].plan.relpath.endswith("202607/prompts/deploy_widget.md")
+    assert matches[0].plan.prompt_link == "202607/deploy_widget.md"
+
+
+def test_prompt_inventory_participates_in_unfiltered_query(tmp_path: Path) -> None:
+    sdd = tmp_path / "sdd"
+    _write_prompt(
+        sdd / "plans" / "202607" / "prompts" / "deploy_widget.md",
+        title="Deploy widget",
+        create_time="2026-07-12 09:30:00",
+        body="Capture the deployment request.",
+        plan="plans/202607/deploy_widget.md",
+    )
+
+    matches = facade.search(
+        "deployment request",
+        source=facade.SOURCE_REPO,
+        repo_root=sdd,
+        local_dir=tmp_path / "local",
+    )
+
+    assert _names(matches) == ["deploy_widget"]
+    assert matches[0].matched_fields == ["body"]
 
 
 def test_invalid_source_raises() -> None:

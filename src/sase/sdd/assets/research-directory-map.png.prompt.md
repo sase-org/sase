@@ -6,7 +6,7 @@
 - Size: 1600×900 PNG
 - Intended use: generated README for each research sidecar repository
 - Alt text:
-  `Research swarm branches consolidate a monthly report and infographic in the research sidecar, which is lazily materialized with sase sdd path research --ensure.`
+  `Research swarm branches consolidate a monthly report and infographic in the research sidecar, which is lazily materialized with sase repo path research --ensure.`
 
 ## Final GPT Image Prompt
 
@@ -37,7 +37,7 @@ DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible
   `*_infographic.png`, `beside the report`
 - Lazy clone: `ON DEMAND`, `Ensure clone`, `LAZY`, `auto_clone: false`, `WORKSPACE CLONE`, `sase/repos/`,
   `sase--research`
-- Resolver: `LAZY MATERIALIZATION`, `sase sdd path research --ensure`,
+- Resolver: `LAZY MATERIALIZATION`, `sase repo path research --ensure`,
   `materializes the linked clone when research is needed`
 
 ## Post-Processing
@@ -47,7 +47,7 @@ DejaVu Sans Bold/Book and DejaVu Sans Mono Bold/Book were used for every visible
    left, consolidated monthly outputs in the repository panel, and the on-demand clone labels on the right.
 3. Composite the overlay over the resized base and strip metadata. Keep the output 8-bit sRGB.
 4. Inspect both the full-size raster and a 900px-wide reduction. Confirm that `auto_clone: false`,
-   `sase-org/sase--research`, `<YYYYMM>/`, `report.md`, `*_infographic.png`, and `sase sdd path research --ensure`
+   `sase-org/sase--research`, `<YYYYMM>/`, `report.md`, `*_infographic.png`, and `sase repo path research --ensure`
    remain legible.
 
 Equivalent ImageMagick pipeline:

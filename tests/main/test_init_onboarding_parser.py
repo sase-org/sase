@@ -55,14 +55,14 @@ def test_parser_accepts_bare_init_modes() -> None:
 def test_parser_accepts_scoped_init_check_modes() -> None:
     parser = create_parser()
 
-    sdd_short_args = parser.parse_args(["sdd", "init", "-c"])
-    assert sdd_short_args.command == "sdd"
-    assert sdd_short_args.sdd_subcommand == "init"
-    assert sdd_short_args.check is True
+    repo_short_args = parser.parse_args(["repo", "init", "-c"])
+    assert repo_short_args.command == "repo"
+    assert repo_short_args.repo_subcommand == "init"
+    assert repo_short_args.check is True
 
-    sdd_long_args = parser.parse_args(["sdd", "init", "--check"])
-    assert sdd_long_args.check is True
-    assert parser.parse_args(["sdd", "init", "-d"]).diff is True
+    repo_long_args = parser.parse_args(["repo", "init", "--check"])
+    assert repo_long_args.check is True
+    assert parser.parse_args(["repo", "init", "-d"]).diff is True
 
     memory_short_args = parser.parse_args(["memory", "init", "-c"])
     assert memory_short_args.command == "memory"

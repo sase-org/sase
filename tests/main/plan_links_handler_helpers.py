@@ -1,4 +1,4 @@
-"""Shared helpers for ``sase sdd`` handler tests."""
+"""Shared helpers for ``sase plan links`` handler tests."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def mark_tmp_path_as_project(tmp_path: Path) -> None:
 
 def make_args(**overrides: object) -> argparse.Namespace:
     defaults: dict[str, object] = {
-        "sdd_subcommand": "validate",
+        "plan_links_subcommand": "validate",
         "path": None,
         "json": False,
         "quiet": False,
@@ -40,7 +40,3 @@ def write_pair(root: Path, name: str = "linked") -> tuple[Path, Path]:
         encoding="utf-8",
     )
     return prompt, plan
-
-
-def directory_readmes(root: Path) -> dict[str, Path]:
-    return {kind: root / kind / "README.md" for kind in ("plans", "research")}

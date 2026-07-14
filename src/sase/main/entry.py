@@ -339,12 +339,6 @@ def main() -> NoReturn:
 
         run_parsed_prompt(args)
 
-    # --- sdd ---
-    if args.command == "sdd":
-        from .sdd_handler import handle_sdd_command
-
-        handle_sdd_command(args)
-
     # --- skill ---
     if args.command == "skill":
         from .skills_handler import handle_skills_command

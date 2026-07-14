@@ -110,11 +110,12 @@ sase vcs list            # inspect the available primary, linked, and SDD reposi
 sase vcs log             # inspect recent primary and linked repository commits
 sase vcs log --sdd       # include the current project's separate SDD history
 sase vcs log --all --sdd # include repos and separate SDD histories from every project
-sase plan                 # review pending proposals, approvals, and inferred rejected archive rows
-sase bead onboard         # see the bead issue-tracking quick start
-sase sdd path             # print the effective SDD root for this workspace
-sase sdd init             # initialize managed GitHub plans/research sidecars
-sase sdd migrate -c -d    # after init, preview importing a legacy SDD store
+sase plan                     # review pending proposals, approvals, and inferred rejected archive rows
+sase plan search              # search or browse plan, prompt, and research artifacts
+sase plan links validate      # validate prompt/plan frontmatter links
+sase bead onboard             # see the bead issue-tracking quick start
+sase repo path plans          # print the plans repository path for this workspace
+sase repo init                # initialize configured sidecars and repository wiring
 sase plugin list         # browse built-in/community plugins and update indicators
 sase update -n           # preview a SASE core + installed-plugin update
 sase workspace list       # inspect numbered workspaces for the current project

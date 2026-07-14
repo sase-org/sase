@@ -67,11 +67,11 @@ The project-adjacent taxonomy has three non-overlapping roles:
   workspaces.
 
 | State            | Location / Owner                                                   | Use                                                                                                            |
-| ---------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| ---------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ---------- |
 | ProjectSpecs     | `<project>/<project>.sase` under `~/.sase/projects/`               | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded ChangeSpecs.                           |
 | Agent metadata   | Agent artifact directories under `~/.sase/`                        | Running/completed status, prompt snapshots, output, diffs, workflow state, and attachments.                    |
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                       |
-| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase sdd path <kind>`.            |
+| SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase repo path plans              | research`. |
 | Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`. |
 | Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                        |
 | Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                      |

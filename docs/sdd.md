@@ -30,12 +30,11 @@ The workspace provider selects an initial policy; a materialized store record su
   repo.
 - `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo and research in a separate `--research` repo.
   Initialization prepares both in its current workspace; later workspaces clone research on demand. Monthly directories
-  live directly at each sidecar root; legacy single-root projects are unchanged until initialization and migration are
-  run.
+  live directly at each sidecar root; legacy single-root layouts remain readable for compatibility.
 
-Use `sase sdd path` to print the effective root, or `sase sdd path research --ensure` to materialize and print the
+Use `sase repo path plans` to print the plans root, or `sase repo path research --ensure` to materialize and print the
 research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
-should use those resolvers instead of assuming `sdd/` is relative to the checkout.
+should use those variables or repo resolvers instead of assuming `sdd/` is relative to the checkout.
 
 Project and user configuration cannot override this selection. See [SDD Storage](sdd_storage.md) for the provider
 contract, sidecar-repo convention, setup guidance, and offline/push behavior.
@@ -48,7 +47,7 @@ project-local SDD content.
 
 Research notes live under `research/{YYYYMM}/` inside the effective SDD root. A `#research` xprompt (defined in user or
 project config -- the packaged default was removed) conventionally tells the agent to create a new markdown file in the
-current month directory; `sase sdd` does not write research files automatically.
+current month directory; SASE does not write research files automatically.
 
 ## How SDD Works
 
@@ -74,8 +73,8 @@ The plan file produced by the agent is:
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
 the creation date. Prompt snapshots are nested under each plan month at `<plans-root>/<YYYYMM>/prompts/`. This keeps
 paired artifacts together while plan discovery remains limited to `<plans-root>/<YYYYMM>/*.md`. Resolve the plans root
-with `sase sdd path plans` or `SASE_SDD_PLANS_DIR`; historical top-level `prompts/` and `specs/` aliases remain readable
-during migration.
+with `sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical top-level `prompts/` and `specs/` aliases remain
+readable for compatibility.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
 the bead issue tracker.
@@ -91,10 +90,11 @@ launching the follow-up. `--kind approve` runs the coder without committing an S
 the approved plan in SDD without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection
 response as the TUI, then attempts to dismiss and user-kill the matching planner row when it can be found.
 
-To recall prior plans, `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source, surfaced
-first) and the machine-local `~/.sase/plans/` archive by content. The query is optional — omit it to browse and filter
-with `--kind`, `--status`, `--source`, and `--since`/`--until` date bounds. Results are ranked (relevance with a query,
-recency without) and render as colored `compact`/`full` output or as agent-friendly `json`/`markdown` via `--format`.
+To recall prior artifacts, `sase plan search [QUERY]` searches plans, prompt snapshots, and research in the resolved SDD
+store (the `repo` source, surfaced first) plus the machine-local `~/.sase/plans/` archive. The query is optional — omit
+it to browse and filter with `--kind tale|epic|prompt|research`, `--status`, `--source`, and `--since`/`--until` date
+bounds. Results are ranked (relevance with a query, recency without) and render as colored `compact`/`full` output or as
+agent-friendly `json`/`markdown` via `--format`.
 
 ### Q&A Sections
 
@@ -125,9 +125,9 @@ The example shows the in-tree/local/legacy single-root link form. In a split `--
 the leading `plans/` component (`202605/example.md` and `202605/prompts/example.md`) because monthly directories live at
 the repository root.
 
-`sase sdd validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical files
-as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not part of
-the prompt-plan link validator.
+`sase plan links validate` checks these bidirectional links for prompts, tales, and epics. It treats unpaired historical
+files as warnings by default and as errors with `--strict`. Research notes are durable SDD context, but they are not
+part of the prompt-plan link validator.
 
 ### Model Field
 
@@ -150,38 +150,33 @@ launcher default.
 
 ## CLI
 
-The `sase sdd` command group manages generated SDD documentation and frontmatter links:
+SDD's durable operations live on the repo and plan command groups:
 
-With no subcommand, `sase sdd` defaults to `sase sdd list` with default options. Use the explicit `sase sdd list` form
-when passing list flags such as `--kind` or `--json`.
+| Command                    | Purpose                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `sase repo init`           | Initialize configured sidecars, generated guides, config, and the repository ignore rule       |
+| `sase init repo`           | Alias for `sase repo init`                                                                     |
+| `sase repo path REPO`      | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar               |
+| `sase plan links [list]`   | Print each prompt/plan frontmatter link and whether its reverse link is intact                 |
+| `sase plan links repair`   | Infer unambiguous prompt/plan pairs; add `-w/--write` to update files                          |
+| `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
+| `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
 
-| Command                 | Purpose                                                                                                 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase sdd init`         | Create/connect effective SDD storage, then refresh generated guide files                                |
-| `sase init sdd`         | Compatibility alias for the provider-owned `sase sdd init` flow                                         |
-| `sase sdd links`        | Print each prompt/artifact frontmatter link and whether its reverse link is intact                      |
-| `sase sdd list`         | List SDD markdown files; `tales`/`epics` are tier filters over `plans/`                                 |
-| `sase sdd migrate`      | Preview or apply migration from a legacy clone into initialized split sidecars                          |
-| `sase sdd path`         | Print the effective root or kind root; `-e/--ensure` materializes its backing sidecar                   |
-| `sase sdd repair-links` | Infer unambiguous prompt/artifact pairs; add `-w/--write` to update files                               |
-| `sase sdd validate`     | Validate frontmatter links; `-j/--json`, `-q/--quiet`, `--strict`, and `-W/--show-warnings` tune output |
+The link subcommands accept `-p/--path`, which may point at an SDD root or a project root. Bare `sase plan links`
+defaults to `sase plan links list`. Validation treats unpaired or ambiguous historical files as warnings by default and
+promotes them to errors with `--strict`; parse errors, missing targets, wrong link kinds, and broken reverse links are
+errors unless explicitly allowlisted for legacy data.
 
-The file-oriented subcommands accept `-p/--path`, which may point at an SDD root or a project root. `sase sdd path`
-instead resolves the current workspace and accepts an optional kind such as `research`; `--ensure` synchronizes that
-kind's sidecar. Validation treats unpaired or ambiguous historical files as warnings by default and promotes them to
-errors with `--strict`; parse errors, missing targets, wrong link kinds, and broken reverse links are errors unless
-explicitly allowlisted for legacy migration.
+`sase plan links validate` hides warning-severity issues from its text output by default — the summary line still
+reports the warning count and appends `(use --show-warnings to display)` so they remain discoverable without scrolling
+through noise on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to
+errors before filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-`sase sdd validate` hides warning-severity issues from its text output by default — the summary line still reports the
-warning count and appends `(use --show-warnings to display)` so they remain discoverable without scrolling through noise
-on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to errors before
-filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
-
-For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase sdd init` command materializes the
+For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
 provider-selected store. On GitHub it finds or creates public `<owner>/<repo>--plans` and `<owner>/<repo>--research`
 sidecars, writes each repository's deterministic README and infographic asset, pushes both, and only then records the
 split store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the
-command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init sdd`
+command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init repo`
 exposes the same flow and check/path flags, and `--path` checks the target repository's marker.
 
 Before explicit initialization creates a missing GitHub sidecar, it asks a default-no question naming the public
@@ -190,17 +185,10 @@ interruption, and non-interactive stdin cancel with a nonzero exit before reposi
 existing remote sidecar connects without this creation prompt. `--check` remains offline and non-interactive, and
 neither bare `sase init --yes` nor its generic initializer approval authorizes repository creation.
 
-For an existing legacy store, run initialization before migration: `sase sdd init` creates or adopts both sidecars and
-records the split layout; it does not import legacy content. Then `sase sdd migrate --check --diff` previews the import.
-Applying `sase sdd migrate` copies monthly plan and research directories and durable bead files, excludes `beads.db*`,
-rewrites legacy plan-link prefixes, pushes both sidecars, and retires the selected local legacy source tree. README
-files, assets, non-month directories, and other files are not copied; after local retirement they are recoverable only
-from an existing Git remote/history or a backup.
-
 Keep conceptual details here in `docs/sdd.md`; generated guides are safe to overwrite, so do not put hand-maintained
 conceptual prose in those README files.
 
-Bare-git projects normally do not need a manual `sase sdd init`: SASE runs the same generated-file refresh during
+Bare-git projects normally do not need a manual `sase repo init`: SASE runs the same generated-file refresh during
 repository setup, workspace materialization, and the first in-tree SDD write. The explicit command remains useful for
 manual refreshes and `--check` drift audits.
 
@@ -260,5 +248,5 @@ store. With `separate_repo`, commands first require a usable provider sidecar an
 `.sase/sdd/` clone. With `sidecar_repos`, each workspace auto-clones `--plans` at `sase/repos/plans` for plans and
 beads. Initialization also prepares `--research` at `sase/repos/research` in its current workspace; other workspaces
 clone it when explicitly ensured. Providerless local storage uses the primary workspace. Numbered sibling stores are not
-merged; coordinate shared state through the normal VCS sync path. Prefer `sase sdd path <kind>` or the `SASE_SDD_*_DIR`
-variables over hard-coded relative paths.
+merged; coordinate shared state through the normal VCS sync path. Prefer `sase repo path plans`,
+`sase repo path research`, or the `SASE_SDD_*_DIR` variables over hard-coded relative paths.

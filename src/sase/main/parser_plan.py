@@ -14,8 +14,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Review, approve, reject, propose, and search implementation plans",
         description=(
             "Review the plan pipeline, approve or reject pending proposals from "
-            "the ChangeSpecI, submit a new plan for review, or search SDD and "
-            "machine-local plans.\n\n"
+            "the ChangeSpecI, inspect SDD prompt/plan links, submit a new plan "
+            "for review, or search SDD and machine-local plans.\n\n"
             "With no subcommand, `sase plan` defaults to `sase plan list`."
         ),
         epilog=(
@@ -23,6 +23,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan\n"
             "  sase plan list --json\n"
             "  sase plan approve abcdef12 --kind tale\n"
+            "  sase plan links validate --show-warnings\n"
             "  sase plan reject abcdef12\n"
             "  sase plan propose sase_plan_feature.md\n"
             "  sase plan search auth --format json"
@@ -100,6 +101,89 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="without_members",
         metavar="ROLE",
         help="Skip a default custom family member for this approval (repeatable)",
+    )
+
+    links_parser = plan_subparsers.add_parser(
+        "links",
+        help="List, validate, or repair SDD prompt/plan links",
+        description=(
+            "Inspect bidirectional frontmatter links between SDD prompts and "
+            "plans. With no subcommand, `sase plan links` defaults to "
+            "`sase plan links list`."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase plan links\n"
+            "  sase plan links list --json\n"
+            "  sase plan links repair --write\n"
+            "  sase plan links validate --show-warnings"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    links_subparsers = links_parser.add_subparsers(
+        dest="plan_links_subcommand",
+        help="Link subcommands",
+        metavar="<subcommand>",
+        title="subcommands",
+    )
+
+    links_list_parser = links_subparsers.add_parser(
+        "list",
+        help="List SDD frontmatter links",
+        description=(
+            "Print every SDD prompt/plan frontmatter link and whether its "
+            "reverse link is intact. This is also the default for bare "
+            "`sase plan links`."
+        ),
+    )
+    links_list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    _add_links_path_arg(links_list_parser)
+
+    links_repair_parser = links_subparsers.add_parser(
+        "repair",
+        help="Infer and repair bidirectional SDD links",
+    )
+    _add_links_path_arg(links_repair_parser)
+    links_repair_parser.add_argument(
+        "-w",
+        "--write",
+        action="store_true",
+        help="Write inferred link fixes",
+    )
+
+    links_validate_parser = links_subparsers.add_parser(
+        "validate",
+        help="Validate SDD frontmatter links",
+    )
+    links_validate_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+    _add_links_path_arg(links_validate_parser)
+    links_validate_parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Only print validation failures",
+    )
+    links_validate_parser.add_argument(
+        "-W",
+        "--show-warnings",
+        action="store_true",
+        help="Show warning-severity issues (hidden by default)",
+    )
+    links_validate_parser.add_argument(
+        "-s",
+        "--strict",
+        action="store_true",
+        help="Treat unpaired historical files as validation errors",
     )
 
     list_parser = plan_subparsers.add_parser(
@@ -232,11 +316,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     search_parser.add_argument(
         "-k",
         "--kind",
-        choices=["tale", "epic", "research"],
+        choices=["tale", "epic", "prompt", "research"],
         action="append",
         help=(
-            "Filter SDD-store plans by plan-file tier (tale or epic) or by "
-            "research kind (repeatable)"
+            "Filter SDD-store artifacts by plan-file tier (tale or epic), "
+            "prompt, or research kind (repeatable)"
         ),
     )
     search_parser.add_argument(
@@ -285,4 +369,13 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="DATE",
         help="Only plans created on/before DATE "
         "(YYYY-MM-DD, YYYY-MM, YYYYMM, or relative 14d/2w/3m)",
+    )
+
+
+def _add_links_path_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-p",
+        "--path",
+        default=None,
+        help="SDD root or project root path (default: current project)",
     )

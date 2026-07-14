@@ -90,10 +90,10 @@ def check_config_sdd(context: DoctorContext) -> DiagnosticCheck:
 
     next_steps: tuple[str, ...] = ()
     if reported_validation_issues:
-        next_steps += (f"Run `sase sdd validate -p {root} -W`.",)
+        next_steps += (f"Run `sase plan links validate -p {root} -W`.",)
     if storage_issues:
         next_steps += (
-            "Run `sase sdd init` after fixing provider access; remove any retired "
+            "Run `sase repo init` after fixing provider access; remove any retired "
             "sdd.storage/sdd.version_controlled keys reported above.",
         )
 
@@ -142,7 +142,7 @@ def _storage_only_check(storage_issues: list[_StorageIssue]) -> DiagnosticCheck:
             for issue in storage_issues[:MAX_DETAIL_ROWS]
         ),
         next_steps=(
-            "Run `sase sdd init` after fixing provider access; remove any retired "
+            "Run `sase repo init` after fixing provider access; remove any retired "
             "sdd.storage/sdd.version_controlled keys reported above.",
         ),
         data={
@@ -217,7 +217,7 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
                     "sdd-record-regressed",
                     "the SDD store record is missing or legacy while split sidecar "
                     f"clones exist ({plans}, {research}); the record may have been "
-                    "clobbered by an older sase process. Run `sase sdd init` to "
+                    "clobbered by an older sase process. Run `sase repo init` to "
                     "restore sidecar routing",
                 )
             )

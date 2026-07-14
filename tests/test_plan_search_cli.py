@@ -157,6 +157,12 @@ def test_search_parser_defaults() -> None:
     assert args.until is None
 
 
+def test_search_parser_accepts_prompt_kind() -> None:
+    args = _run(["plan", "search", "--kind", "prompt"])
+
+    assert args.kind == ["prompt"]
+
+
 def test_search_parser_rejects_negative_limit(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -351,6 +357,42 @@ def test_search_json_kind_filter(
 
     payload = json.loads(capsys.readouterr().out)
     assert [result["plan"]["name"] for result in payload["results"]] == ["unified_auth"]
+
+
+def test_search_json_prompt_kind(
+    corpus: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    prompt = corpus / "sdd" / "plans" / "202606" / "prompts" / "auth_request.md"
+    prompt.parent.mkdir(parents=True, exist_ok=True)
+    prompt.write_text(
+        "---\n"
+        "create_time: 2026-06-19 10:00:00\n"
+        "plan: plans/202606/auth_token_refresh.md\n"
+        "---\n"
+        "# Auth request\n\n"
+        "Refresh authentication behavior.\n",
+        encoding="utf-8",
+    )
+
+    handle_plan_search_command(
+        _run(
+            [
+                "plan",
+                "search",
+                "--format",
+                "json",
+                "--source",
+                "repo",
+                "--kind",
+                "prompt",
+            ]
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert [result["plan"]["name"] for result in payload["results"]] == ["auth_request"]
+    assert payload["results"][0]["plan"]["kind"] == "prompt"
 
 
 def test_search_json_no_matches_is_success(

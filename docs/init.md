@@ -281,8 +281,8 @@ sase init repo                    # alias for sase repo init
 
 Both apply and `--check` first read the current repository's own `sase.yml`. A missing or false `is_sase_managed` marker
 makes the command an informative, successful no-op before provider work; malformed YAML and non-boolean marker values
-fail safely. The historical `sase sdd init` spelling remains available during the CLI migration window and delegates to
-the same repository initializer. `sase init sdd` and `sase init workspace` are no longer public subcommands.
+fail safely. `sase init repo` delegates to the same repository initializer; `sase init workspace` is no longer a public
+subcommand because its ignore-rule work is part of repository initialization.
 
 Built-in bare-git projects keep their provider-owned in-tree SDD layout. For those projects, `sase repo init` refreshes
 the existing generated SDD guides while still maintaining the plans declaration and repository ignore rule. Keep

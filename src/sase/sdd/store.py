@@ -245,7 +245,7 @@ def preflight_sdd_sidecar(
     if not isinstance(result, SddSidecarPreflight):
         raise SddMaterializationError(
             "The workspace provider does not support authoritative SDD sidecar "
-            "preflight. Update the provider plugin and rerun `sase sdd init`."
+            "preflight. Update the provider plugin and rerun `sase repo init`."
         )
     return result
 
@@ -337,12 +337,12 @@ def _materialize_sdd_store(
                 raise SddMaterializationError(
                     "The workspace provider did not create or find the required "
                     "sidecar SDD repository. Update the provider plugin and rerun "
-                    "`sase sdd init`."
+                    "`sase repo init`."
                 )
             if not normalized.remote_url:
                 raise SddMaterializationError(
                     "The workspace provider returned no sidecar clone URL. Update "
-                    "the provider plugin and rerun `sase sdd init`."
+                    "the provider plugin and rerun `sase repo init`."
                 )
 
             adopt_provider_store(primary, workspace, normalized, staging)
@@ -617,7 +617,7 @@ def _provider_materialization_result(
     if not _positive_result(compatibility_result):
         raise SddMaterializationError(
             "The provider plugin did not materialize the mandatory sidecar SDD "
-            "repository. Update the provider plugin and rerun `sase sdd init`."
+            "repository. Update the provider plugin and rerun `sase repo init`."
         )
     return cast(dict[str, Any], compatibility_result)
 

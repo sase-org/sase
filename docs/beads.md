@@ -27,10 +27,10 @@ metadata.
 ## Quick Start
 
 ```bash
-SDD_ROOT=$(sase sdd path)
+PLANS_ROOT=$(sase repo path plans)
 sase bead init                                          # Initialize beads in current project
-sase bead create -t "New feature" --type "plan(${SDD_ROOT}/plans/202605/feature.md)" --tier plan
-sase bead create -t "Epic" --type "plan(${SDD_ROOT}/plans/202605/epic.md)" --tier epic
+sase bead create -t "New feature" --type "plan(${PLANS_ROOT}/202605/feature.md)" --tier plan
+sase bead create -t "Epic" --type "plan(${PLANS_ROOT}/202605/epic.md)" --tier epic
 sase bead create -t "Sub-task" --type "phase(beads-001)"   # Create a phase under a plan
 sase bead list                                          # List open and in-progress issues
 sase bead list --status=open                            # List open issues
@@ -61,7 +61,7 @@ sase bead work beads-001                                # Launch agents for an e
 Plans are groupings that can optionally link to an SDD file via the `design` field. Phases always belong to a parent
 plan and use hierarchical IDs (e.g., `beads-001.1`, `beads-001.2`).
 
-Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase sdd path plans` or
+Plan beads carry a tier. The paths below are relative to the effective plans root. Use `sase repo path plans` or
 `SASE_SDD_PLANS_DIR` to locate it without depending on the storage layout.
 
 | Tier   | Plans-root path | Behavior                                           |
@@ -417,7 +417,7 @@ navigate from a bead to its linked SDD file.
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan approval flow: `sdd/plans/...`
 in in-tree mode, `.sase/sdd/plans/...` in local and legacy separate-repo modes, or `<YYYYMM>/...` in the split `--plans`
 repository. SASE resolves those references against the effective SDD root when launching bead work. For manual commands
-and prompts, `SASE_SDD_PLANS_DIR` or `sase sdd path plans` is less ambiguous than guessing which relative prefix
+and prompts, `SASE_SDD_PLANS_DIR` or `sase repo path plans` is less ambiguous than guessing which relative prefix
 applies.
 
 ### Plan Approval Flow

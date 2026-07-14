@@ -16,10 +16,10 @@ from dataclasses import dataclass, field
 class Plan:
     """A single discovered markdown plan artifact.
 
-    ``source`` is ``"repo"`` for committed ``sdd/`` plans and ``"local"`` for the
-    machine-local archive. ``kind`` is one of the repo plan kinds
-    (``tale``/``epic``/``research``) or the synthetic ``"local"`` kind for
-    archive entries. ``relpath`` is relative to the plan's
+    ``source`` is ``"repo"`` for committed SDD artifacts and ``"local"`` for the
+    machine-local archive. ``kind`` is one of the repo artifact kinds
+    (``tale``/``epic``/``prompt``/``research``) or the synthetic ``"local"``
+    kind for archive entries. ``relpath`` is relative to the plan's
     root and always uses ``/`` separators.
     """
 

@@ -58,11 +58,11 @@ def test_validate_suppresses_successful_child_output(
     assert exit_code == 0
     assert calls == [
         [sys.executable, "-m", "sase", "init", "--check"],
-        [sys.executable, "-m", "sase", "sdd", "validate"],
+        [sys.executable, "-m", "sase", "plan", "links", "validate"],
     ]
     captured = capsys.readouterr()
     assert captured.out == (
-        "SASE validation\n  ok     init --check\n  ok     sdd validate\n"
+        "SASE validation\n  ok     init --check\n  ok     plan links validate\n"
     )
     assert captured.err == ""
 
@@ -95,11 +95,11 @@ def test_validate_runs_both_checks_when_first_fails(
     assert exit_code == 1
     assert calls == [
         [sys.executable, "-m", "sase", "init", "--check"],
-        [sys.executable, "-m", "sase", "sdd", "validate"],
+        [sys.executable, "-m", "sase", "plan", "links", "validate"],
     ]
     out = capsys.readouterr().out
     assert "  fail   init --check\n" in out
-    assert "  ok     sdd validate\n" in out
+    assert "  ok     plan links validate\n" in out
     assert "init --check failed (exit 2)" in out
     assert "stdout:\ninit stdout\n" in out
     assert "stderr:\ninit stderr\n" in out
@@ -134,10 +134,10 @@ def test_validate_prints_output_for_each_failed_check(
     assert exit_code == 1
     out = capsys.readouterr().out
     assert "  fail   init --check\n" in out
-    assert "  fail   sdd validate\n" in out
+    assert "  fail   plan links validate\n" in out
     assert "init --check failed (exit 1)" in out
     assert "stderr:\ninit broken\n" in out
-    assert "sdd validate failed (exit 3)" in out
+    assert "plan links validate failed (exit 3)" in out
     assert "stdout:\nsdd broken\n" in out
     assert "run `sase doctor -v` or `sase doctor -j`" in out
 

@@ -1,14 +1,17 @@
-"""Tests for ``sase sdd`` link repair, link listing, and file listing."""
+"""Tests for ``sase plan links`` parsing, dispatch, listing, and repair."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from sase.main.sdd_handler import handle_sdd_command
-from tests.main.sdd_handler_helpers import (
+from sase.main import plan_command_handler
+from sase.main.parser import create_parser
+from sase.main.plan_links_handler import handle_plan_links_command
+from tests.main.plan_links_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
     write_pair,
@@ -17,6 +20,56 @@ from tests.main.sdd_handler_helpers import (
 __all__ = ["mark_tmp_path_as_project"]
 
 pytestmark = pytest.mark.usefixtures("mark_tmp_path_as_project")
+
+
+def test_parser_registers_nested_links_commands() -> None:
+    parser = create_parser()
+
+    bare = parser.parse_args(["plan", "links"])
+    assert bare.command == "plan"
+    assert bare.plan_subcommand == "links"
+    assert bare.plan_links_subcommand == "list"
+
+    validate = parser.parse_args(
+        [
+            "plan",
+            "links",
+            "validate",
+            "-p",
+            "sdd",
+            "-j",
+            "-q",
+            "--strict",
+            "-W",
+        ]
+    )
+    assert validate.plan_links_subcommand == "validate"
+    assert validate.path == "sdd"
+    assert validate.json is True
+    assert validate.quiet is True
+    assert validate.strict is True
+    assert validate.show_warnings is True
+
+    repair = parser.parse_args(["plan", "links", "repair", "-p", "sdd", "-w"])
+    assert repair.plan_links_subcommand == "repair"
+    assert repair.write is True
+
+
+def test_plan_command_dispatches_links() -> None:
+    args = create_parser().parse_args(["plan", "links", "list"])
+
+    with (
+        patch.object(
+            plan_command_handler,
+            "handle_plan_links_command",
+            side_effect=SystemExit(0),
+        ) as links_mock,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        plan_command_handler.handle_plan_command(args)
+
+    assert excinfo.value.code == 0
+    links_mock.assert_called_once_with(args)
 
 
 def test_repair_links_write_backfills_unambiguous_pair(
@@ -31,8 +84,8 @@ def test_repair_links_write_backfills_unambiguous_pair(
     plan.write_text("---\nkeep: yes\ntier: epic\n---\n# Epic\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(
-            make_args(sdd_subcommand="repair-links", path=str(root), write=True)
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="repair", path=str(root), write=True)
         )
 
     assert excinfo.value.code == 0
@@ -53,7 +106,9 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     write_pair(root)
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(sdd_subcommand="links", path=str(root), json=True))
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="list", path=str(root), json=True)
+        )
 
     assert excinfo.value.code == 0
     rows = json.loads(capsys.readouterr().out)
@@ -64,7 +119,7 @@ def test_links_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert all(row["bidirectional"] for row in rows)
 
 
-def test_flat_sidecar_root_lists_and_validates_plan_pairs(
+def test_flat_sidecar_root_validates_plan_pairs(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "repo--plans"
@@ -78,36 +133,17 @@ def test_flat_sidecar_root_lists_and_validates_plan_pairs(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(
-            make_args(sdd_subcommand="list", path=str(root), kind="all", json=True)
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="validate", path=str(root), json=True)
         )
 
     assert excinfo.value.code == 0
-    rows = json.loads(capsys.readouterr().out)
-    assert {row["path"] for row in rows} == {
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert {item["path"] for item in payload["files"]} == {
         "202607/linked.md",
         "202607/prompts/linked.md",
     }
-
-
-def test_list_default_uses_configured_separate_repo_store(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "sase.yml").write_text(
-        "sdd:\n  storage: separate_repo\n", encoding="utf-8"
-    )
-    (tmp_path / "sdd" / "beads").mkdir(parents=True)
-    root = tmp_path / ".sase" / "sdd"
-    write_pair(root)
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(
-            make_args(sdd_subcommand="list", path=None, kind="tales", json=False)
-        )
-
-    assert excinfo.value.code == 0
-    assert capsys.readouterr().out == "tales\tplans/202605/linked.md\n"
 
 
 def test_list_invalid_path_exits_nonzero(
@@ -116,8 +152,8 @@ def test_list_invalid_path_exits_nonzero(
     missing = tmp_path / "missing"
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(
-            make_args(sdd_subcommand="list", path=str(missing), kind="all", json=False)
+        handle_plan_links_command(
+            make_args(plan_links_subcommand="list", path=str(missing), json=False)
         )
 
     assert excinfo.value.code == 1

@@ -73,7 +73,7 @@ Agents do not write canonical long-term memory files directly. They create propo
 sase memory write \
   --title "Generated skills" \
   --slug generated_skills \
-  --evidence "$(sase sdd path research)/skills.md" \
+  --evidence "$(sase repo path research)/skills.md" \
   --body "Durable memory body" \
   --notify
 

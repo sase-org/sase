@@ -12,11 +12,9 @@ from sase.main.repo_init_handler import run_repo_init
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_registry import InitCommandSpec
 from sase.main.repo_init_handler import plan_repo_init
-from sase.main.sdd_handler import handle_sdd_command
 from sase.sdd._sidecar_init import _SidecarInitOutcome, SidecarInitSpec
 from sase.sdd.store import SddMaterializationError, SddStore
 from sase.workspace_provider import SddSidecarPreflight
-from tests.main.sdd_handler_helpers import make_args
 
 
 class _Tty:
@@ -470,20 +468,3 @@ def test_repo_init_check_is_read_only_and_does_not_preflight(
     assert run_repo_init(_args(tmp_path, check=True)) == 1
     assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == before
     assert not (tmp_path / ".gitignore").exists()
-
-
-def test_sdd_init_compatibility_command_delegates_to_repo_init(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    seen: list[argparse.Namespace] = []
-    monkeypatch.setattr(
-        "sase.main.repo_init_handler.run_repo_init",
-        lambda args: seen.append(args) or 7,
-    )
-    args = make_args(sdd_subcommand="init")
-
-    with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(args)
-
-    assert excinfo.value.code == 7
-    assert seen == [args]

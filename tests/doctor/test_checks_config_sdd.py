@@ -170,7 +170,7 @@ def test_config_sdd_errors_when_record_regresses_with_split_clones(
 
     assert check.status == "ERROR"
     assert any(
-        issue["code"] == "sdd-record-regressed" and "sase sdd init" in issue["message"]
+        issue["code"] == "sdd-record-regressed" and "sase repo init" in issue["message"]
         for issue in check.data["storage_issues"]
     )
 

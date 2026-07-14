@@ -23,10 +23,10 @@ example, a prompt at `plans/202605/prompts/example.md` pairs with `plans/202605/
 
 ## Commands
 
-- `sase sdd list` lists SDD markdown artifacts.
+- `sase plan search` searches or browses SDD markdown artifacts.
 - `sase repo path plans` and `sase repo path research` print the effective storage directories for those repositories.
-- `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
-- `sase sdd repair-links` infers and repairs missing bidirectional links.
+- `sase plan links validate` checks frontmatter links between prompts and plans.
+- `sase plan links repair` infers and repairs missing bidirectional links.
 - `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.
 - `sase bead` manages SDD bead issues and epic work.
 

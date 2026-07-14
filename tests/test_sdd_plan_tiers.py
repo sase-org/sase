@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.sdd.links import list_sdd_files, validate_sdd_tree
+from sase.sdd.links import _list_sdd_files, validate_sdd_tree
 from sase.sdd.plan_tiers import (
     classify_plan_file,
     read_plan_tier,
@@ -35,9 +35,9 @@ def test_list_and_validate_canonical_plan_files(tmp_path: Path) -> None:
     )
     _write(root / "plans" / "202607" / "missing.md", "# Missing tier\n")
 
-    assert [file.name for file in list_sdd_files(root, kind="epics")] == ["epic"]
-    assert [file.name for file in list_sdd_files(root, kind="tales")] == ["missing"]
-    assert len(list_sdd_files(root, kind="plans")) == 2
+    assert [file.name for file in _list_sdd_files(root, kind="epics")] == ["epic"]
+    assert [file.name for file in _list_sdd_files(root, kind="tales")] == ["missing"]
+    assert len(_list_sdd_files(root, kind="plans")) == 2
 
     validation = validate_sdd_tree(str(root))
     assert any(issue.code == "plan-tier" for issue in validation.errors)

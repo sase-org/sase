@@ -95,7 +95,7 @@ def adopt_provider_store(
                 "legacy SDD artifacts conflict with the sidecar repository:\n"
                 f"  - {rendered}\n"
                 "No source files were changed. Reconcile these paths and rerun "
-                "`sase sdd init`."
+                "`sase repo init`."
             )
         for source in sources:
             _copy_durable_artifacts(source, staging)

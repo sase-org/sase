@@ -27,8 +27,8 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
         _ROOT / "README.md",
         _ROOT / "src" / "sase" / "default_config.yml",
         *(_ROOT / "src" / "sase" / "sdd").glob("*.py"),
-        _ROOT / "src" / "sase" / "main" / "parser_sdd.py",
-        _ROOT / "src" / "sase" / "main" / "sdd_handler.py",
+        _ROOT / "src" / "sase" / "main" / "parser_plan.py",
+        _ROOT / "src" / "sase" / "main" / "plan_links_handler.py",
         _ROOT / "src" / "sase" / "axe" / "run_agent_exec_plan_sdd.py",
         _ROOT / "src" / "sase" / "axe" / "run_agent_exec_plan_accept.py",
         _ROOT / "src" / "sase" / "llm_provider" / "commit_finalizer_git.py",
@@ -47,4 +47,4 @@ def test_active_sources_and_docs_use_only_canonical_plan_paths() -> None:
 def test_operational_tests_keep_only_the_explicit_stale_link_rejection() -> None:
     matches = _matches(list((_ROOT / "tests").rglob("*.py")))
 
-    assert matches == ["tests/main/test_sdd_validate_handler.py"]
+    assert matches == ["tests/main/test_plan_links_validate_handler.py"]

@@ -1,16 +1,16 @@
 # SDD Storage
 
-The workspace provider owns SDD placement. Use `sase sdd path` when you need the effective root for the current project:
+The workspace provider owns SDD placement. Resolve project-owned storage through repository roles:
 
 ```bash
-sase sdd path
-sase sdd path research
-sase sdd path research --ensure
+sase repo path plans
+sase repo path research
+sase repo path research --ensure
 ```
 
-`sase sdd path` is a read-only resolver unless `-e/--ensure` is passed. `--ensure` clones or synchronizes the sidecar
-that backs the selected kind. Launched agents receive `SASE_SDD_DIR` plus `SASE_SDD_PLANS_DIR`, `SASE_SDD_RESEARCH_DIR`,
-and `SASE_SDD_BEADS_DIR`.
+`sase repo path` is read-only unless `-e/--ensure` is passed. `--ensure` clones or synchronizes the selected sidecar.
+Launched agents receive `SASE_SDD_DIR` plus `SASE_SDD_PLANS_DIR`, `SASE_SDD_RESEARCH_DIR`, and `SASE_SDD_BEADS_DIR`;
+beads live at `${SASE_SDD_PLANS_DIR}/beads` in split layouts.
 
 ## Resolved Layouts
 
@@ -31,15 +31,14 @@ negative records are not policy and are retried at the next materialization atte
 
 ## Split Plans and Research Sidecars
 
-Newly initialized managed GitHub projects and migrated projects use a schema-version 2 store record with
-`storage: sidecar_repos`. The record identifies both the plans and research repositories and their remotes. That
-record—not clone or remote existence—is the layout authority. Legacy records continue to use the single-root layout
-unchanged.
+Initialized managed GitHub projects use a schema-version 2 store record with `storage: sidecar_repos`. The record
+identifies both the plans and research repositories and their remotes. That record—not clone or remote existence—is the
+layout authority. Legacy records continue to use the single-root layout unchanged.
 
 The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
 beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its root. Kind resolution is therefore:
 
-| Kind       | Migrated path                        |
+| Kind       | Resolved path                        |
 | ---------- | ------------------------------------ |
 | `plans`    | `<workspace>/sase/repos/plans`       |
 | `beads`    | `<workspace>/sase/repos/plans/beads` |
@@ -47,7 +46,7 @@ beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its 
 
 Initialization clones, initializes, and pushes both repositories in the workspace where it runs. After that, normal
 workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone research
-until a consumer runs `sase sdd path research --ensure` (or another operation explicitly ensures that kind). Each
+until a consumer runs `sase repo path research --ensure` (or another operation explicitly ensures that kind). Each
 clone's `origin` is the real sidecar remote, and refresh uses pull-with-rebase semantics.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
@@ -61,16 +60,16 @@ prepared by initialization in the current workspace. In later workspaces, the pl
 state, while research materializes on demand. The provider still supports `<owner>/<repo>--sdd` discovery and
 `sdd.repo.name` overrides for unmigrated legacy stores.
 
-Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase sdd init` to create or connect the
+Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase repo init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
 provider work. The `#gh` setup step also materializes the sidecar before claiming and launching work. Authentication,
 authorization, network, discovery, creation, label, clone, import, or initial-push failures stop setup; GitHub projects
 do not fall back to local storage.
 
-Explicit `sase sdd init` (including `sase init sdd` and bare-onboarding dispatch) probes GitHub before materialization.
-If the sidecar is absent, creation requires a fresh interactive `y`/`yes` response to a prompt naming its host,
-repository, and public visibility; the default is no. Non-interactive input and `sase init --yes` cannot grant this
-resource-specific authorization. Existing sidecars and non-explicit materialization consumers retain their normal
+Explicit `sase repo init` (including `sase init repo` and bare-onboarding dispatch) probes GitHub before
+materialization. If the sidecar is absent, creation requires a fresh interactive `y`/`yes` response to a prompt naming
+its host, repository, and public visibility; the default is no. Non-interactive input and `sase init --yes` cannot grant
+this resource-specific authorization. Existing sidecars and non-explicit materialization consumers retain their normal
 provider-owned behavior.
 
 Split initialization is a single record-last transaction:
@@ -79,21 +78,6 @@ Split initialization is a single record-last transaction:
 2. The provider creates or adopts each repository and SASE clones it at the linked-repository location.
 3. SASE writes deterministic per-repository README and infographic assets, then commits and pushes generated drift.
 4. Only after both repositories succeed does SASE write the schema-version 2 split store record.
-
-Initialization does not import legacy artifacts. Use this order for a project with an existing `.sase/sdd/` or `sdd/`
-tree:
-
-```bash
-sase sdd init                  # create/adopt and record the split sidecars
-sase sdd migrate --check --diff # preview; exit 1 means migration work remains
-sase sdd migrate               # copy, push, then retire the selected local source
-```
-
-Migration copies only monthly `plans/<YYYYMM>/` and `research/<YYYYMM>/` content plus durable `beads/` files. It
-rewrites legacy plan-link prefixes and excludes `beads.db*`. README files, assets, non-month directories, and other
-legacy files are not copied. After both sidecar pushes succeed, the command removes the selected local legacy source
-tree; its Git history remains in any existing remote. Inspect the preview and confirm that remote or make a backup
-before applying. A failed transaction leaves the source tree in place.
 
 ## Reads, Writes, and Offline Use
 

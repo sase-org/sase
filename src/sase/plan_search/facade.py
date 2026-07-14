@@ -114,6 +114,9 @@ def search(
         )
         return plan_search_matches_from_list(payload)
 
+    include_prompts = repo_path is not None and _kind_selected(kinds, "prompt")
+    binding_limit = None if include_prompts else limit
+
     payload = binding(
         repo_arg,
         local_arg,
@@ -124,8 +127,23 @@ def search(
         since,
         until,
         sort,
-        limit,
+        binding_limit,
     )
+    if include_prompts:
+        assert repo_path is not None
+        payload.extend(
+            _search_repo_prompts(
+                binding,
+                repo_path=repo_path,
+                query=query,
+                statuses=statuses,
+                since=since,
+                until=until,
+                sort=sort,
+            )
+        )
+        _sort_wire_matches(payload, query=query, sort=sort)
+        _apply_limit(payload, limit)
     return plan_search_matches_from_list(payload)
 
 
@@ -184,6 +202,20 @@ def _search_flat_plans_root(
         normalized["score"] = float(item.get("score", 0.0)) + 1.0
         normalized_repo.append(normalized)
 
+    normalized_repo.extend(
+        _search_repo_prompts(
+            binding,
+            repo_path=repo_path,
+            query=query,
+            statuses=statuses,
+            since=since,
+            until=until,
+            sort=sort,
+        )
+        if _kind_selected(kinds, "prompt")
+        else []
+    )
+
     local_payload: list[dict[str, Any]] = []
     if local_arg is not None:
         local_payload = binding(
@@ -200,9 +232,89 @@ def _search_flat_plans_root(
         )
     merged = [*normalized_repo, *local_payload]
     _sort_wire_matches(merged, query=query, sort=sort)
-    if limit is not None and limit > 0:
-        return merged[:limit]
+    _apply_limit(merged, limit)
     return merged
+
+
+def _search_repo_prompts(
+    binding: Any,
+    *,
+    repo_path: Path,
+    query: str | None,
+    statuses: Sequence[str] | None,
+    since: str | None,
+    until: str | None,
+    sort: str | None,
+) -> list[dict[str, Any]]:
+    """Search prompt directories through the core engine and relabel results.
+
+    The Rust plan reader intentionally scans only plan/research artifacts. Prompt
+    snapshots are one directory deeper (``<month>/prompts``), so the Python
+    facade supplies each prompt directory as a local corpus, then restores repo
+    identity before merging. Query matching, status/date filtering, scoring, and
+    body/frontmatter parsing therefore remain core-owned.
+    """
+    normalized: list[dict[str, Any]] = []
+    for prompt_dir in _repo_prompt_dirs(repo_path):
+        prompt_payload: list[dict[str, Any]] = binding(
+            None,
+            str(prompt_dir),
+            query,
+            None,
+            _as_str_list(statuses),
+            None,
+            since,
+            until,
+            sort,
+            None,
+        )
+        for item in prompt_payload:
+            plan = dict(item["plan"])
+            prompt_path = Path(str(plan["path"]))
+            try:
+                relpath = prompt_path.relative_to(repo_path).as_posix()
+            except ValueError:
+                relpath = prompt_path.name
+            frontmatter = dict(plan.get("frontmatter") or {})
+            plan["source"] = SOURCE_REPO
+            plan["kind"] = "prompt"
+            plan["relpath"] = relpath
+            plan["prompt_link"] = str(frontmatter.get("plan") or "")
+            result = dict(item)
+            result["plan"] = plan
+            result["score"] = float(item.get("score", 0.0)) + 1.0
+            normalized.append(result)
+    return normalized
+
+
+def _repo_prompt_dirs(repo_path: Path) -> tuple[Path, ...]:
+    """Return canonical and tolerated legacy prompt roots without duplicates."""
+    plans_root = repo_path / "plans"
+    if not plans_root.is_dir():
+        plans_root = repo_path
+
+    roots: list[Path] = []
+    if plans_root.is_dir():
+        roots.extend(
+            prompt_dir
+            for prompt_dir in sorted(plans_root.glob("*/prompts"))
+            if prompt_dir.is_dir()
+        )
+    roots.extend(
+        root
+        for dirname in ("prompts", "specs")
+        if (root := repo_path / dirname).is_dir()
+    )
+    return tuple(dict.fromkeys(root.resolve() for root in roots))
+
+
+def _kind_selected(kinds: Sequence[str] | None, kind: str) -> bool:
+    return kinds is None or any(value.lower() == kind for value in kinds)
+
+
+def _apply_limit(items: list[dict[str, Any]], limit: int | None) -> None:
+    if limit is not None and limit > 0:
+        del items[limit:]
 
 
 def _sort_wire_matches(

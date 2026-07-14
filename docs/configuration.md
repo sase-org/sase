@@ -231,8 +231,8 @@ is_sase_managed: false # default
 Only the target repository's own checked-in `./sase.yml` is consulted for this authorization. Defaults, user config, and
 merged overlays cannot opt repositories in globally. When false or absent, memory init does not create, refresh, or
 validate project memory and does not create or alter the root `AGENTS.md`; it still propagates every existing project
-`AGENTS.md` to provider files beside it. Explicit `sase sdd init` and its planner or compatibility alias become
-successful no-ops before provider and storage work. Invalid local YAML or a non-boolean marker fails safely.
+`AGENTS.md` to provider files beside it. Explicit `sase repo init` and its `sase init repo` alias become successful
+no-ops before provider and storage work. Invalid local YAML or a non-boolean marker fails safely.
 
 This is a direct migration: `memory.enabled` is retired and does not authorize repository management. Existing managed
 projects must replace it with top-level `is_sase_managed: true`.
@@ -1190,14 +1190,13 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase sdd init` or its `sase init sdd`
-compatibility alias materializes the provider-selected store, then refreshes generated SDD guides and the directory map.
-On GitHub it finds or creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars, initializes
-and pushes both, then writes the split store record. Existing legacy `--sdd` files remain untouched locally and in their
-remote, but normal SDD routing switches to the split sidecars; `sase sdd migrate` imports the supported content and
-retires the local source. `--check` previews provider and generated-file work without writing. Missing or false
-management markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or
-writes.
+For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase repo init` or its `sase init repo`
+alias initializes configured sidecars, then refreshes generated guides and the directory map. On GitHub it finds or
+creates the public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars, initializes and pushes both, then
+writes the split store record. Existing legacy `--sdd` files remain untouched locally and in their remote, while normal
+SDD routing uses the configured sidecars. `--check` previews provider and generated-file work without writing. Missing
+or false management markers make both forms successful no-ops; invalid local marker configuration fails before provider
+calls or writes.
 
 Explicit initialization first performs authoritative provider discovery for both repositories. Each missing GitHub
 sidecar triggers a separate prompt naming the `--plans` or `--research` repository; only `y` or `yes` authorizes that
@@ -1812,19 +1811,19 @@ no linked repositories are configured.
 | `-M, --enable-project-memory` | flag   | -       | Set `is_sase_managed: true`, enabling managed project memory; incompatible with `--check`.              |
 | `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config. |
 
-### `sase init sdd`
+### `sase init repo`
 
-`sase init sdd` is the compatibility alias for `sase sdd init`. For targets marked `is_sase_managed: true` in their own
-`sase.yml`, it materializes provider-owned storage and creates or refreshes generated SDD README files and the directory
-map. Missing or false markers produce an informative successful no-op, while invalid local configuration fails before
-provider or filesystem work. `--path` always checks the target repository's marker. GitHub setup creates the required
-public-by-default sidecar when missing, applies the `sase--sdd` label, and imports legacy SDD artifacts transactionally.
-Existing private sidecars remain private. Bare-git projects refresh generated files automatically during repository
-setup and first SDD writes; the explicit command remains useful for refreshes and `--check` audits.
+`sase init repo` is an alias for `sase repo init`. For targets marked `is_sase_managed: true` in their own `sase.yml`,
+it initializes configured sidecars, creates or refreshes generated README files, ensures the plans declaration, and
+maintains the root `/sase/repos/` ignore rule. Missing or false markers produce an informative successful no-op, while
+invalid local configuration fails before provider or filesystem work. `--path` always checks the target repository's
+marker. GitHub setup creates missing sidecars with their configured public/private visibility. Bare-git projects refresh
+generated files automatically during repository setup and first SDD writes; the explicit command remains useful for
+refreshes and `--check` audits.
 
 When the GitHub sidecar is missing, this alias uses the same default-no repository-specific confirmation as
-`sase sdd init`. Non-interactive stdin, EOF, interruption, and any answer other than `y`/`yes` return nonzero before
-creation or local mutation. There is deliberately no `--yes` option on the explicit SDD initializer.
+`sase repo init`. Non-interactive stdin, EOF, interruption, and any answer other than `y`/`yes` return nonzero before
+creation or local mutation. Generic `--yes` approval never authorizes repository creation.
 
 | Flag          | Values | Default         | Description                                                        |
 | ------------- | ------ | --------------- | ------------------------------------------------------------------ |
@@ -1992,29 +1991,27 @@ With no subcommand, `sase bead` defaults to `sase bead list`.
 | `-P, --no-push` | flag   | -          | Commit launched bead state locally but skip the post-commit `git push`.  |
 | `-y, --yes`     | flag   | -          | Skip the launch confirmation prompt when launching phase or epic agents. |
 
-### `sase sdd`
+### SDD repository and plan commands
 
-`sase sdd` manages SDD prompt/artifact documentation and frontmatter links. File-oriented subcommands accept
-`-p/--path`, which may point at an SDD root or at a project root containing `sdd/`. `sase sdd path` resolves the current
-workspace instead and accepts an optional kind such as `research`. With no subcommand, `sase sdd` defaults to
-`sase sdd list`. `sase init sdd` is the compatibility alias for `sase sdd init`.
+SDD initialization/path resolution lives under `sase repo`; artifact browsing and prompt/plan link maintenance live
+under `sase plan`. Link commands accept `-p/--path`, which may point at an SDD root or a project root. Bare
+`sase plan links` defaults to its `list` child.
 
-| Subcommand     | Flags                                                                    | Description                                                                                                       |
-| -------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `init`         | `-p/--path`, `-c/--check`, `-d/--diff`                                   | Materialize provider-owned storage, refresh SDD guide files, and preview planned work                             |
-| `links`        | `-p/--path`, `-j/--json`                                                 | List prompt/artifact frontmatter links and bidirectional status                                                   |
-| `list`         | `-p/--path`, `-k/--kind`, `-j/--json`                                    | List SDD markdown files; kind is `prompts`, `plans`, `tales`, `epics`, or `all`                                   |
-| `migrate`      | `-p/--path`, `-c/--check`, `-d/--diff`                                   | After `init`, import supported legacy SDD content into split sidecars; check/diff modes are read-only             |
-| `path`         | `-e/--ensure`, `[kind]`                                                  | Print the effective root or kind root; `--ensure` materializes and synchronizes its backing sidecar               |
-| `repair-links` | `-p/--path`, `-w/--write`                                                | Infer unambiguous prompt/artifact pairs; `--write` first materializes provider storage and then writes link fixes |
-| `validate`     | `-p/--path`, `-j/--json`, `-q/--quiet`, `--strict`, `-W/--show-warnings` | Validate SDD frontmatter links; strict mode turns unpaired historical files into errors                           |
+| Command                    | Flags                                                                       | Description                                                             |
+| -------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `sase repo init`           | `-p/--path`, `-c/--check`, `-d/--diff`, `-C/--no-commit`                    | Initialize configured sidecars and repository wiring                    |
+| `sase repo path REPO`      | `-e/--ensure`, `-p/--project`, `-w/--workspace`                             | Print a primary or sidecar path; optionally materialize it              |
+| `sase plan links [list]`   | `-p/--path`, `-j/--json`                                                    | List prompt/plan frontmatter links and bidirectional status             |
+| `sase plan links repair`   | `-p/--path`, `-w/--write`                                                   | Infer unambiguous prompt/plan pairs and optionally write fixes          |
+| `sase plan links validate` | `-p/--path`, `-j/--json`, `-q/--quiet`, `-s/--strict`, `-W/--show-warnings` | Validate links; strict mode turns unpaired historical files into errors |
+| `sase plan search`         | `-k/--kind`, `-o/--source`, `-f/--format`, plus query/date/status filters   | Search or browse tale, epic, prompt, and research artifacts             |
 
 ### `sase validate`
 
-`sase validate` is the top-level SASE validation command. It currently runs `sase init --check` and `sase sdd validate`,
-prints one status line per check, and exits non-zero if any check fails. Because `sase init --check` includes home-level
-memory and skill deployment surfaces, this command can fail on user/home initialization drift even when repository-local
-SDD validation passes.
+`sase validate` is the top-level SASE validation command. It currently runs `sase init --check` and
+`sase plan links validate`, prints one status line per check, and exits non-zero if any check fails. Because
+`sase init --check` includes home-level memory and skill deployment surfaces, this command can fail on user/home
+initialization drift even when repository-local SDD validation passes.
 
 ### `sase doctor`
 

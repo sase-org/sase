@@ -90,10 +90,6 @@ def repair_to_json(report: RepairReport) -> dict[str, Any]:
     }
 
 
-def files_to_json(files: list[SddFile]) -> list[dict[str, Any]]:
-    return [_file_to_json(file) for file in files]
-
-
 def _file_to_json(file: SddFile) -> dict[str, Any]:
     return {
         "path": file.relpath,

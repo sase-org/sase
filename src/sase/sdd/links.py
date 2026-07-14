@@ -16,7 +16,6 @@ from sase.sdd._link_models import (
     SddFile,
     SddIssue,
     SddValidation,
-    files_to_json,
     repair_to_json,
     validation_to_json,
 )
@@ -73,7 +72,7 @@ def validate_sdd_tree(
         )
         return _SddValidation(root=root, files=[], issues=[issue])
 
-    files = list_sdd_files(root, kind="all")
+    files = _list_sdd_files(root, kind="all")
     by_path = {file.path.resolve(): file for file in files}
     issues: list[_SddIssue] = []
 
@@ -208,7 +207,7 @@ def validate_sdd_tree(
     )
 
 
-def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
+def _list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
     """Return known SDD markdown files under ``root``."""
     files: list[_SddFile] = []
     plans_root = root / "plans"
@@ -244,7 +243,7 @@ def list_sdd_files(root: Path, *, kind: str = "all") -> list[_SddFile]:
 
 def collect_sdd_links(root: Path) -> list[dict[str, Any]]:
     """Return link rows suitable for text or JSON display."""
-    files = list_sdd_files(root, kind="all")
+    files = _list_sdd_files(root, kind="all")
     by_path = {file.path.resolve(): file for file in files}
     rows: list[dict[str, Any]] = []
     for file in files:
@@ -287,7 +286,7 @@ def repair_sdd_links(path: str | None = None, *, write: bool = False) -> _Repair
             root=root, write=write, actions=[], issues=[issue], changed_files=[]
         )
 
-    files = list_sdd_files(root, kind="all")
+    files = _list_sdd_files(root, kind="all")
     issues: list[_SddIssue] = []
     updates: dict[Path, dict[str, str]] = defaultdict(dict)
     actions: list[_RepairAction] = []

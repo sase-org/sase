@@ -72,3 +72,10 @@ def test_legacy_init_commands_are_rejected() -> None:
 
     with pytest.raises(SystemExit):
         parser.parse_args(["init-git", "demo"])
+
+
+def test_retired_sdd_namespace_is_rejected() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["sdd", "validate"])

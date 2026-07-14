@@ -25,7 +25,10 @@ class _ValidationResult:
 
 _CHECKS = (
     _ValidationCheck("init --check", ("init", "--check")),
-    _ValidationCheck("sdd validate", ("sdd", "validate")),
+    _ValidationCheck(
+        "plan links validate",
+        ("plan", "links", "validate"),
+    ),
 )
 
 _SUPPORT_HINT = (

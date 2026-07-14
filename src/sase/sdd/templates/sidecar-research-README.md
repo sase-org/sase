@@ -19,5 +19,5 @@ Research should record the question, evidence, alternatives, and a clear recomme
 ## Commands
 
 - `sase repo path research --ensure` materializes this clone and prints its root.
-- `sase sdd list` lists durable SDD artifacts.
+- `sase plan search --kind research` lists durable research artifacts.
 - `#research`, `#research/more`, and `#research_swarm` create or extend research under the current month.

@@ -1,4 +1,4 @@
-"""Split-sidecar initialization and legacy migration coverage."""
+"""Split-sidecar initialization coverage."""
 
 from __future__ import annotations
 
@@ -17,13 +17,7 @@ from sase.sdd._init_files import (
     expected_sdd_sidecar_files,
     plan_sdd_sidecar_init_actions,
 )
-from sase.sdd._store_records import read_sdd_store_record, write_sdd_store_record
-from sase.sdd._store_types import SddSidecar, SddStoreRecord
-from sase.sdd.migrate import (
-    apply_split_sdd_migration,
-    plan_split_sdd_migration,
-    render_split_sdd_migration_diff,
-)
+from sase.sdd._store_records import read_sdd_store_record
 from sase.workspace_provider import SddSidecarPreflight
 
 
@@ -279,81 +273,3 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db-wal",
     ]
     assert (clones["research"] / "README.md").is_file()
-
-
-def test_migration_dry_run_rewrites_links_and_apply_is_rerunnable(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _git_env(monkeypatch)
-    project = tmp_path / "widget"
-    project.mkdir()
-    (project / ".git").mkdir()
-    (project / "sase.yml").write_text("is_sase_managed: true\n")
-    legacy = project / ".sase" / "sdd"
-    plan_file = legacy / "plans" / "202607" / "example.md"
-    prompt_file = legacy / "plans" / "202607" / "prompts" / "example.md"
-    research_file = legacy / "research" / "202607" / "finding.md"
-    bead_file = legacy / "beads" / "events" / "event.json"
-    for path, content in {
-        plan_file: "---\nprompt: .sase/sdd/plans/202607/prompts/example.md\n---\n",
-        prompt_file: "---\nplan: sdd/plans/202607/example.md\n---\n",
-        research_file: "# Finding\n",
-        bead_file: "{}\n",
-        legacy / "beads" / "beads.db": "local db\n",
-        legacy / "legends" / "keep.md": "left in archived remote\n",
-    }.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
-
-    roots: dict[str, Path] = {}
-    remotes: dict[str, Path] = {}
-    for kind in ("plans", "research"):
-        remote = _bare_remote(tmp_path, f"migration-{kind}")
-        root = tmp_path / f"clone-{kind}"
-        _git(tmp_path, "clone", str(remote), str(root))
-        (root / "README.md").write_text(f"# {kind}\n")
-        _git(root, "add", "README.md")
-        _git(root, "commit", "-m", f"Initialize {kind}")
-        _git(root, "push", "origin", "HEAD")
-        roots[kind] = root
-        remotes[kind] = remote
-
-    record = SddStoreRecord(
-        schema_version=2,
-        storage="sidecar_repos",
-        provider="github",
-        discovery="found",
-        plans=SddSidecar("acme/widget--plans", str(remotes["plans"])),
-        research=SddSidecar("acme/widget--research", str(remotes["research"])),
-    )
-    write_sdd_store_record(project, record)
-    monkeypatch.setattr(
-        "sase.linked_repos.sidecar_repo_clone_dir",
-        lambda _workspace, kind: str(roots[kind]),
-    )
-    monkeypatch.setattr(
-        "sase.sdd.store.ensure_sdd_kind_clone",
-        lambda *_args, **_kwargs: None,
-    )
-
-    preview = plan_split_sdd_migration(project)
-    assert preview.has_changes
-    assert len(preview.actions) == 4
-    rendered = render_split_sdd_migration_diff(preview)
-    assert "prompt: 202607/prompts/example.md" in rendered
-    assert plan_file.is_file()
-
-    applied = apply_split_sdd_migration(project)
-    assert len(applied.actions) == 4
-    assert not legacy.exists()
-    assert (
-        "prompt: 202607/prompts/example.md"
-        in (roots["plans"] / "202607" / "example.md").read_text()
-    )
-    assert (
-        "plan: 202607/example.md"
-        in (roots["plans"] / "202607" / "prompts" / "example.md").read_text()
-    )
-    assert not (roots["plans"] / "beads" / "beads.db").exists()
-    assert (roots["plans"] / "beads" / "events" / "event.json").is_file()
-    assert not plan_split_sdd_migration(project).has_changes

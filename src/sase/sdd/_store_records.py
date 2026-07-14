@@ -304,7 +304,7 @@ def _store_not_materialized_message(record: SddStoreRecord | None) -> str:
     target = f"'{repo}'" if repo else "the expected SDD sidecar repository"
     return (
         f"The provider requires a sidecar SDD repository, but {target} is not "
-        "materialized. Run `sase sdd init` after fixing provider authentication, "
+        "materialized. Run `sase repo init` after fixing provider authentication, "
         "permissions, or network access."
     )
 

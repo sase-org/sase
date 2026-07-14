@@ -1,4 +1,4 @@
-"""Tests for ``sase sdd validate`` handling."""
+"""Tests for ``sase plan links validate`` handling."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.main.sdd_handler import handle_sdd_command
+from sase.main.plan_links_handler import handle_plan_links_command
 from sase.sdd.links import validate_sdd_tree
-from tests.main.sdd_handler_helpers import (
+from tests.main.plan_links_handler_helpers import (
     make_args,
     mark_tmp_path_as_project,
     write_pair,
@@ -40,7 +40,7 @@ def test_validate_allows_default_unpaired_warnings(
     unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root)))
+        handle_plan_links_command(make_args(path=str(root)))
 
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
@@ -59,7 +59,7 @@ def test_validate_show_warnings_flag_displays_warning_lines(
     unpaired.write_text("---\ntier: tale\n---\n# Unpaired plan\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), show_warnings=True))
+        handle_plan_links_command(make_args(path=str(root), show_warnings=True))
 
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
@@ -79,7 +79,7 @@ def test_validate_default_uses_configured_separate_repo_store(
     write_pair(tmp_path / ".sase" / "sdd")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=None))
+        handle_plan_links_command(make_args(path=None))
 
     assert excinfo.value.code == 0
     assert "SDD validation passed: 2 files" in capsys.readouterr().out
@@ -93,7 +93,7 @@ def test_validate_strict_fails_unpaired_warnings(tmp_path: Path) -> None:
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), strict=True, quiet=True))
+        handle_plan_links_command(make_args(path=str(root), strict=True, quiet=True))
 
     assert excinfo.value.code == 1
 
@@ -109,7 +109,7 @@ def test_validate_fails_broken_bidirectional_link(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), json=True))
+        handle_plan_links_command(make_args(path=str(root), json=True))
 
     assert excinfo.value.code == 1
     payload = json.loads(capsys.readouterr().out)
@@ -127,7 +127,7 @@ def test_validate_reports_invalid_yaml_frontmatter(
     path.write_text("---\nplan: [unterminated\n---\n# Bad\n", encoding="utf-8")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), json=True))
+        handle_plan_links_command(make_args(path=str(root), json=True))
 
     assert excinfo.value.code == 1
     payload = json.loads(capsys.readouterr().out)
@@ -153,7 +153,7 @@ def test_validate_downgrades_allowlisted_legacy_error(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), json=True))
+        handle_plan_links_command(make_args(path=str(root), json=True))
 
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -192,7 +192,7 @@ def test_validate_quarantines_retired_legend_prompt_links(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), json=True))
+        handle_plan_links_command(make_args(path=str(root), json=True))
 
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -219,7 +219,7 @@ def test_validate_does_not_allowlist_other_paths(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), json=True))
+        handle_plan_links_command(make_args(path=str(root), json=True))
 
     assert excinfo.value.code == 1
     payload = json.loads(capsys.readouterr().out)
@@ -246,7 +246,7 @@ def test_validate_does_not_resolve_legacy_plan_link_to_canonical_plan(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_sdd_command(make_args(path=str(root), quiet=True))
+        handle_plan_links_command(make_args(path=str(root), quiet=True))
 
     assert excinfo.value.code == 1
     assert "target does not exist" in capsys.readouterr().err
