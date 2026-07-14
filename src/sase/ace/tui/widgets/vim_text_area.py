@@ -256,6 +256,13 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     def _clear_search_highlights(self, *, refresh: bool = True) -> None:
         """Clear the host's search highlights. Default: no-op."""
 
+    def _flash_yank(
+        self,
+        start: tuple[int, int],
+        end: tuple[int, int],
+    ) -> None:
+        """Briefly highlight a just-yanked region. Default: no-op."""
+
     def _preview_token_under_cursor(self) -> None:
         """Preview the token under the cursor (``K``). Default: inert."""
 

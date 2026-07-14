@@ -27,6 +27,7 @@ from sase.ace.tui.widgets._xprompt_arg_hints import XPromptArgHintMixin
 from sase.ace.tui.widgets._xprompt_syntax_highlight import (
     XPromptSyntaxHighlightMixin,
 )
+from sase.ace.tui.widgets._yank_highlight import YankHighlightMixin
 from sase.ace.tui.widgets.vim_text_area import VimTextArea
 from sase.ace.tui.widgets.file_completion import (
     CompletionCandidate,
@@ -61,6 +62,7 @@ class PromptTextArea(
     PromptTextAreaKeyHandlingMixin,
     PromptTextAreaActionsMixin,
     JinjaDiagnosticsMixin,
+    YankHighlightMixin,
     AltSyntaxHighlightMixin,
     SearchHighlightMixin,
     XPromptSyntaxHighlightMixin,

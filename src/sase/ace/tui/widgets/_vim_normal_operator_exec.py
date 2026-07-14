@@ -24,6 +24,11 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
     if TYPE_CHECKING:
 
         def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None: ...
+        def _flash_yank(
+            self,
+            start: tuple[int, int],
+            end: tuple[int, int],
+        ) -> None: ...
 
     def _execute_charwise_operator(
         self,
@@ -58,6 +63,7 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
             self._store_vim_register(text, "charwise")
             if text:
                 copy_to_system_clipboard(text)
+                self._flash_yank(start, end)
             self.cursor_location = start
             self._mutation_key_buffer.clear()
             return
@@ -156,6 +162,11 @@ class VimNormalOperatorExecutionMixin(VimNormalSurroundMixin):
         if op == "y":
             if lines:
                 copy_to_system_clipboard(text)
+            if text:
+                self._flash_yank(
+                    (first_row, 0),
+                    (last_row, len(lines[-1])),
+                )
             self._mutation_key_buffer.clear()
             return
 
