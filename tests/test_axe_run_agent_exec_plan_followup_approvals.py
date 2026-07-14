@@ -8,12 +8,14 @@ import pytest
 from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
+from sase.plan_approval_actions import PlanApprovalValidationError
 from sase.sdd.store import SddStore
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
     patched_plan_deps,
 )
+from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
 @pytest.fixture
@@ -31,7 +33,7 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         plan_artifacts_dir = state.current_artifacts_dir
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
@@ -53,11 +55,31 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
+    def test_runner_epic_gate_precedes_all_sdd_side_effects(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan = tmp_path / "invalid.md"
+        plan.write_text("# Invalid epic\n", encoding="utf-8")
+        approval = PlanApprovalResult(action="epic", plan_file=str(plan))
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch("sase.sdd.files.write_sdd_files") as write_sdd,
+            pytest.raises(PlanApprovalValidationError),
+        ):
+            handle_plan_marker({"plan_file": str(plan)}, ctx, state)
+
+        write_sdd.assert_not_called()
+        accept_mod.update_meta_field.assert_not_called()
+
     def test_plan_approval_initializes_sdd_before_writing_files(self, tmp_path) -> None:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
         order: list[str] = []
 
         def ensure_sdd(*_args, **_kwargs):
@@ -134,7 +156,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
 
         approval = PlanApprovalResult(
             action="epic",
@@ -367,7 +389,7 @@ class TestPlanFollowupApprovals:
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "epic.md")
-        (tmp_path / "epic.md").write_text("# Plan")
+        (tmp_path / "epic.md").write_text(VALID_EPIC_PLAN)
 
         approval = PlanApprovalResult(action="epic", plan_file=plan_file)
         with (
@@ -512,7 +534,7 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
-        archived_plan.write_text("# Archived Plan")
+        archived_plan.write_text(VALID_EPIC_PLAN)
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
@@ -557,7 +579,7 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "scratch_plan.md"
         archived_plan.parent.mkdir()
-        archived_plan.write_text("# Archived Plan")
+        archived_plan.write_text(VALID_EPIC_PLAN)
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "scratch_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")
@@ -609,7 +631,7 @@ class TestPlanFollowupApprovals:
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "epic_plan.md"
         archived_plan.parent.mkdir()
-        archived_plan.write_text("# Archived Plan")
+        archived_plan.write_text(VALID_EPIC_PLAN)
         sdd_plan = tmp_path / "sdd" / "plans" / "202605" / "epic_plan.md"
         sdd_plan.parent.mkdir(parents=True)
         sdd_plan.write_text("# Saved Plan")

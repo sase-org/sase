@@ -10,6 +10,7 @@ from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
+from tests.plan_validation_helpers import VALID_EPIC_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 
@@ -20,7 +21,7 @@ def test_handle_plan_marker_writes_epic_started_at_on_epic_followup(
     ctx = make_ctx(tmp_path)
     state = make_state(tmp_path)
     plan_file = str(tmp_path / "plan.md")
-    (tmp_path / "plan.md").write_text("# Plan")
+    (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
     followup = tmp_path / "followup"
     followup.mkdir()
     (followup / "agent_meta.json").write_text(json.dumps({}))

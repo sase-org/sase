@@ -1604,11 +1604,14 @@ The badge is omitted when provider/model metadata is absent, leaving the legacy 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
 inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|tale` or
 `sase plan reject <id-prefix>` to write the same response protocol used by the TUI modal. Use the `id_prefix` from a
-Proposed row; if the selector is omitted, the CLI acts only when exactly one proposal is pending. `approve` starts the
-coder without committing an SDD plan, `tale` commits the plan as an SDD tale and starts the coder, `epic` commit the
-matching SDD tier and launch the bead follow-up, and `commit` records the approved plan in SDD without launching a
-coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for the
-`approve` and `tale` paths. CLI rejection also attempts the durable planner cleanup used by no-feedback TUI rejection.
+Proposed row; if the selector is omitted, the CLI acts only when exactly one proposal is pending. Omitting `--kind` uses
+the plan's authored tier. In the Plan Review modal, `enter` uses that same authored-tier default; `a`, `t`, and `E`
+remain explicit overrides. `approve` starts the coder without committing an SDD plan, `tale` commits the plan as an SDD
+tale and starts the coder, `epic` commits the matching SDD tier and launches the bead follow-up, and `commit` records
+the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt`
+adds extra coder instructions for the `approve` and `tale` paths. Tale and epic choices validate the plan against the
+target schema before consuming the approval; failures surface an error and keep the notification actionable. CLI
+rejection also attempts the durable planner cleanup used by no-feedback TUI rejection.
 
 For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key modal that configures how the agent's
 _next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the

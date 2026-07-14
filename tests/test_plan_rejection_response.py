@@ -9,6 +9,7 @@ from sase.ace.tui.modals.plan_approval_modal import (
     _plan_approval_result_for_choice,
 )
 from sase.notifications import Notification
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 
@@ -24,7 +25,7 @@ def test_reject_without_feedback_writes_plan_response(tmp_path: Path) -> None:
     request_file.write_text("{}")
 
     plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan")
+    plan_file.write_text(VALID_TALE_PLAN)
 
     notification = Notification(
         id="test-notif",
@@ -71,7 +72,7 @@ def _make_approval_app_and_notification(tmp_path: Path) -> tuple:
     (response_dir / "plan_request.json").write_text("{}")
 
     plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan")
+    plan_file.write_text(VALID_TALE_PLAN)
 
     notification = Notification(
         id="test-notif",
@@ -163,6 +164,53 @@ def test_approval_choice_response_mapping() -> None:
         "commit_plan": True,
         "run_coder": True,
     }
+
+
+def test_plan_modal_defaults_to_authored_tier(tmp_path: Path) -> None:
+    app, notification, _response_dir, _mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    handle_plan_approval(app, notification)
+
+    modal = app.push_screen.call_args.args[0]
+    assert modal._default_choice == "tale"
+
+
+def test_tui_failed_epic_gate_keeps_response_unconsumed_until_fixed(
+    tmp_path: Path,
+) -> None:
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    plan = Path(notification.files[0])
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with patch(
+        "sase.ace.tui.actions.agents._notification_navigation.find_agent_for_notification",
+        return_value=mock_agent,
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args.args[1]
+
+        on_dismiss(_plan_approval_result_for_choice("epic"))
+
+        assert not (response_dir / "plan_response.json").exists()
+        assert (response_dir / "plan_request.json").is_file()
+        assert "approval blocked" in app.notify.call_args.kwargs["title"].lower()
+
+        plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+        on_dismiss(_plan_approval_result_for_choice("epic"))
+
+    response = json.loads((response_dir / "plan_response.json").read_text())
+    assert response["action"] == "epic"
 
 
 def test_approve_with_prompt_writes_prompt_and_sets_tale_status(

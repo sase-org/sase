@@ -68,12 +68,12 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "-k",
         "--kind",
         choices=PLAN_APPROVAL_CLI_KINDS,
-        default="approve",
+        default=None,
         help=(
-            "Approval kind: approve runs coder without committing an SDD plan; "
-            "tale commits to sdd/plans with tier tale; epic commits there "
-            "with tier epic; commit "
-            "records the plan without launching coder"
+            "Approval kind (default: authored plan tier): approve runs coder "
+            "without committing an SDD plan; tale commits to sdd/plans with "
+            "tier tale; epic commits there with tier epic; commit records the "
+            "plan without launching coder"
         ),
     )
     approve_parser.add_argument(

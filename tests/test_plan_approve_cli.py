@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from datetime import datetime
 from pathlib import Path
@@ -11,10 +12,17 @@ import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.core.time import get_timezone
-from sase.main.plan_approve_handler import _approve_plan_from_cli
+from sase.main.plan_approve_handler import (
+    _approve_plan_from_cli,
+    handle_plan_approve_command,
+)
 from sase.notifications.models import Notification
 from sase.notifications.store import append_notification, load_notifications
-from sase.plan_approval_actions import PlanApprovalActionError
+from sase.plan_approval_actions import (
+    PlanApprovalActionError,
+    PlanApprovalValidationError,
+)
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 _LIVE_AGENT_TS = "20260613120000"
@@ -66,7 +74,7 @@ def _write_member_request(response_dir: Path) -> None:
 
 def _plan_file(root: Path, name: str = "plan.md") -> Path:
     path = root / name
-    path.write_text("# Plan\n", encoding="utf-8")
+    path.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     return path
 
 
@@ -171,6 +179,89 @@ def test_plan_approve_by_unique_prefix_writes_protocol_json_and_meta(
     meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
     assert meta["plan_approved"] is True
     assert meta["plan_action"] == expected_meta_action
+
+
+def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(selector="abcdef12", kind=None)
+
+    assert result.response_json == {
+        "action": "epic",
+        "commit_plan": True,
+        "run_coder": True,
+    }
+
+
+def test_failed_epic_gate_leaves_proposal_pending_and_retryable(
+    tmp_path: Path,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    with pytest.raises(PlanApprovalValidationError) as exc_info:
+        _approve_plan_from_cli(selector="abcdef12", kind="epic")
+
+    assert exc_info.value.code == "plan_validation_failed"
+    assert "required-missing" in str(exc_info.value)
+    assert not (response_dir / "plan_response.json").exists()
+    assert (response_dir / "plan_request.json").is_file()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.dismissed is False
+
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
+
+    assert result.response_json["action"] == "epic"
+    assert (response_dir / "plan_response.json").is_file()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.dismissed is True
+
+
+def test_plan_approve_cli_renders_validation_schema_and_exits_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+    args = argparse.Namespace(
+        selector="abcdef12",
+        kind="epic",
+        prompt=None,
+        model=None,
+        with_members=(),
+        without_members=(),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_plan_approve_command(args)
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "Expected epic frontmatter schema" in captured.err
+    assert "Minimal valid epic plan" in captured.err
+    assert "Validation failed" in captured.err
+    assert not (response_dir / "plan_response.json").exists()
+
+
+def test_epic_authored_plan_can_be_downgraded_to_tale(tmp_path: Path) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    _append_plan_notification("abcdef12-plan", plan, response_dir)
+
+    result = _approve_plan_from_cli(selector="abcdef12", kind="tale")
+
+    assert result.response_json == {
+        "action": "approve",
+        "commit_plan": True,
+        "run_coder": True,
+    }
 
 
 def test_plan_approve_marks_shared_action_handled(tmp_path: Path) -> None:

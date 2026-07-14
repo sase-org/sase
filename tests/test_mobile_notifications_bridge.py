@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.integrations.mobile_notifications import (
     MobileNotificationBridgeRow,
     MobilePlanActionError,
@@ -19,6 +21,7 @@ from sase.integrations.mobile_notifications import (
     resolve_mobile_notification_detail,
 )
 from sase.notifications.models import Notification
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 _FRESH_FIXTURE_BASE = datetime.now(UTC).replace(microsecond=0)
@@ -397,7 +400,7 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
+    plan_file.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     row = _notification(
         "abcdef12-plan",
         "2026-05-06T13:00:00+00:00",
@@ -440,6 +443,45 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
         commit=True,
         push=False,
     )
+
+
+def test_execute_mobile_epic_gate_keeps_action_pending_on_failure(
+    tmp_path: Path,
+) -> None:
+    response_dir = tmp_path / "agent" / "plan_approval"
+    response_dir.mkdir(parents=True)
+    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
+    plan_file = tmp_path / "plan.md"
+    plan_file.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    row = _notification(
+        "abcdef12-plan",
+        "2026-05-06T13:00:00+00:00",
+        action="PlanApproval",
+        files=[str(plan_file)],
+        action_data={"response_dir": str(response_dir)},
+    )
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([row]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+        patch("sase.notifications.mark_dismissed") as mark_dismissed,
+        pytest.raises(MobilePlanActionError) as exc_info,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id="abcdef12-plan",
+            prefix="abcdef12",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        execute_mobile_plan_action("abcdef12", "epic")
+
+    assert exc_info.value.code == "plan_validation_failed"
+    assert not (response_dir / "plan_response.json").exists()
+    assert (response_dir / "plan_request.json").is_file()
+    mark_dismissed.assert_not_called()
 
 
 def test_execute_mobile_plan_action_rejects_duplicate_response(

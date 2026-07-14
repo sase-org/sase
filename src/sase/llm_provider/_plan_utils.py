@@ -51,6 +51,16 @@ def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResul
     )
 
 
+def _validated_auto_approval_result(
+    auto_action: str, plan_file: str
+) -> PlanApprovalResult:
+    """Validate a tiered auto-approval before consuming its pending action."""
+    from sase.plan_approval_actions import resolve_plan_approval_choice
+
+    resolved_action = resolve_plan_approval_choice(plan_file, auto_action)
+    return _auto_approval_result(resolved_action, plan_file)
+
+
 def _auto_default_member_ids() -> tuple[str, ...]:
     payload = plan_approval_member_request_payload()
     return default_member_ids_from_request_data(payload, auto_mode=True)
@@ -213,12 +223,13 @@ def handle_plan_approval(
     if auto_action is not None:
         if not plan_file:
             return None
+        result = _validated_auto_approval_result(auto_action, plan_file)
         # Auto-approval resolves the plan outside the notification + Telegram
         # callback path. Any notification or inline keyboard already sent for
         # this plan must be cleared, so record handled-state and dismiss the
         # matching notification if it exists.
         _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-        return _auto_approval_result(auto_action, plan_file)
+        return result
 
     if not plan_file:
         return None
@@ -373,9 +384,10 @@ def handle_plan_approval(
 
         auto_action = get_auto_plan_approval_action()
         if auto_action is not None:
+            result = _validated_auto_approval_result(auto_action, plan_file)
             if request_path.exists():
                 request_path.unlink()
             _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-            return _auto_approval_result(auto_action, plan_file)
+            return result
 
         time.sleep(_POLL_INTERVAL)

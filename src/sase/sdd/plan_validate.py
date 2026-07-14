@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -95,6 +96,31 @@ def validate_plan(content: str, tier: str) -> PlanValidationResult:
     return _validation_result_from_dict(binding(content, tier))
 
 
+def validate_plan_file(path: Path, tier: str) -> PlanValidationResult:
+    """Read and validate one UTF-8 plan file against ``tier``.
+
+    File-system and UTF-8 failures use the same diagnostic envelope as
+    content-validation failures so approval gates and the CLI can render one
+    consistent, actionable result.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        detail = exc.strerror or str(exc)
+        return _file_error("file-unreadable", f"cannot read plan file: {detail}")
+
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        line = raw[: exc.start].count(b"\n") + 1
+        return _file_error(
+            "utf8-invalid",
+            "plan file is not valid UTF-8",
+            line=line,
+        )
+    return validate_plan(content, tier)
+
+
 def plan_frontmatter_schema(tier: str) -> tuple[PlanFrontmatterFieldSpec, ...]:
     """Return the ordered authoritative field specification for ``tier``."""
     binding = require_rust_binding("plan_frontmatter_schema")
@@ -170,6 +196,25 @@ def _optional_str(value: Any) -> str | None:
     return str(value) if value is not None else None
 
 
+def _file_error(
+    code: str, message: str, *, line: int | None = None
+) -> PlanValidationResult:
+    return PlanValidationResult(
+        schema_version=PLAN_WIRE_SCHEMA_VERSION,
+        ok=False,
+        diagnostics=(
+            PlanDiagnostic(
+                severity=PlanDiagnosticSeverity.ERROR,
+                code=code,
+                field_path="",
+                message=message,
+                line=line,
+            ),
+        ),
+        plan=None,
+    )
+
+
 __all__ = [
     "PLAN_WIRE_SCHEMA_VERSION",
     "PlanDiagnostic",
@@ -178,4 +223,5 @@ __all__ = [
     "PlanValidationResult",
     "plan_frontmatter_schema",
     "validate_plan",
+    "validate_plan_file",
 ]

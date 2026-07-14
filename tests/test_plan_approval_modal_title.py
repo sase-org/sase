@@ -82,6 +82,13 @@ def test_modal_constructor_defaults_provider_and_model_to_none() -> None:
     modal = PlanApprovalModal("/tmp/plan.md")
     assert modal._llm_provider is None
     assert modal._model is None
+    assert modal._default_choice == "approve"
+
+
+def test_modal_constructor_accepts_authored_tier_default() -> None:
+    modal = PlanApprovalModal("/tmp/plan.md", default_choice="epic")
+
+    assert modal._default_choice == "epic"
 
 
 def test_bindings_include_g_scroll_to_top() -> None:
@@ -142,15 +149,27 @@ def test_action_tale_returns_tale_choice_with_commit() -> None:
     assert result.run_coder is True
 
 
+def test_action_approve_default_uses_authored_tier() -> None:
+    modal = PlanApprovalModal.__new__(PlanApprovalModal)
+    modal._default_choice = "epic"
+    captured: list[PlanApprovalResult] = []
+    modal.dismiss = captured.append  # type: ignore[assignment]
+
+    modal.action_approve_default()
+
+    assert captured[0].choice == "epic"
+    assert captured[0].action == "epic"
+
+
 def test_action_custom_uses_custom_modal_path() -> None:
     modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    called = False
+    modal._default_choice = "epic"
+    called: list[object] = []
 
-    def fake_push_approve_options() -> None:
-        nonlocal called
-        called = True
+    def fake_push_approve_options(**kwargs: object) -> None:
+        called.append(kwargs["choice"])
 
     modal._push_approve_options = fake_push_approve_options  # type: ignore[method-assign]
     modal.action_custom()
 
-    assert called
+    assert called == ["epic"]

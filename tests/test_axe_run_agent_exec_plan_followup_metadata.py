@@ -14,6 +14,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
+from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
 @pytest.fixture
@@ -240,7 +241,7 @@ class TestPlanFollowupMetadata:
         ctx = make_ctx(tmp_path, agent_model="opus", agent_llm_provider="claude")
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
-        (tmp_path / "plan.md").write_text("# Plan")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
 
         meta_updates: dict[str, str] = {}
 

@@ -13,6 +13,7 @@ from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     execute_plan_approval_response,
 )
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 def _response_dir(root: Path) -> Path:
@@ -93,7 +94,11 @@ def test_shared_plan_response_writer_golden_json(
 ) -> None:
     response_dir = _response_dir(tmp_path)
     plan = tmp_path / f"{choice}.md"
-    plan.write_text("# Plan\n", encoding="utf-8")
+    plan_content = {
+        "epic": VALID_EPIC_PLAN,
+        "tale": VALID_TALE_PLAN,
+    }.get(choice, "# Plan\n")
+    plan.write_text(plan_content, encoding="utf-8")
 
     with patch(
         "sase.plan_approval_actions._archive_plan_for_approval", return_value=None

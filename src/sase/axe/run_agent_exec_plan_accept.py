@@ -220,6 +220,11 @@ def handle_accepted_plan(
 
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
+    if plan_result.action == "epic":
+        from sase.plan_approval_actions import require_plan_approval_validation
+
+        require_plan_approval_validation(plan_result.plan_file, "epic")
+
     update_meta_field(state.current_artifacts_dir, "plan_approved", True)
     update_meta_field(
         state.current_artifacts_dir,

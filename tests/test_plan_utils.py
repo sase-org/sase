@@ -17,8 +17,10 @@ from sase.main.plan_approve_handler import (
     get_auto_plan_approval_action,
     is_auto_approve_active,
 )
+from sase.plan_approval_actions import PlanApprovalValidationError
 
 from tests.conftest import redirect_sase_home
+from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
 def _only_plan_approval_response_dir(sase_home: Path, session_id: str) -> Path:
@@ -122,8 +124,10 @@ def test_handle_plan_approval_auto_approve() -> None:
     )
 
 
-def test_handle_plan_approval_auto_epic_skips_notification() -> None:
+def test_handle_plan_approval_auto_epic_skips_notification(tmp_path: Path) -> None:
     """Plan-specific auto-epic enters the existing epic action path."""
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     with (
         patch(
             "sase.main.plan_approve_handler.get_auto_plan_approval_action",
@@ -131,14 +135,16 @@ def test_handle_plan_approval_auto_epic_skips_notification() -> None:
         ),
         patch("sase.notifications.senders.notify_plan_approval") as notify,
     ):
-        result = handle_plan_approval("/path/to/plan.md", "session-123")
+        result = handle_plan_approval(str(plan), "session-123")
 
-    assert result == PlanApprovalResult(action="epic", plan_file="/path/to/plan.md")
+    assert result == PlanApprovalResult(action="epic", plan_file=str(plan))
     notify.assert_not_called()
 
 
-def test_handle_plan_approval_auto_tale_skips_notification() -> None:
+def test_handle_plan_approval_auto_tale_skips_notification(tmp_path: Path) -> None:
     """Plan-specific auto-tale enters the auto-approval action path."""
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     with (
         patch(
             "sase.main.plan_approve_handler.get_auto_plan_approval_action",
@@ -146,10 +152,29 @@ def test_handle_plan_approval_auto_tale_skips_notification() -> None:
         ),
         patch("sase.notifications.senders.notify_plan_approval") as notify,
     ):
-        result = handle_plan_approval("/path/to/plan.md", "session-123")
+        result = handle_plan_approval(str(plan), "session-123")
 
-    assert result == PlanApprovalResult(action="tale", plan_file="/path/to/plan.md")
+    assert result == PlanApprovalResult(action="tale", plan_file=str(plan))
     notify.assert_not_called()
+
+
+def test_invalid_auto_epic_does_not_consume_pending_action(tmp_path: Path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Invalid epic\n", encoding="utf-8")
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value="epic",
+        ),
+        patch(
+            "sase.llm_provider._plan_utils._mark_auto_approved_plan_handled"
+        ) as mark_handled,
+        pytest.raises(PlanApprovalValidationError),
+    ):
+        handle_plan_approval(str(plan), "session-123", agent_name="planner")
+
+    mark_handled.assert_not_called()
 
 
 @pytest.mark.parametrize("auto_action", ["approve", "tale", "epic"])
@@ -160,7 +185,7 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
     from sase.notifications import load_notifications, pending_actions
 
     plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
+    Path(plan_file).write_text(VALID_EPIC_PLAN)
     session_id = f"waiting-auto-{auto_action}"
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")

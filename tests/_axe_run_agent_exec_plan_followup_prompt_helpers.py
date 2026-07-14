@@ -1,6 +1,7 @@
 """Shared helpers for plan follow-up prompt construction tests."""
 
 import contextlib
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,7 @@ from tests._axe_run_agent_exec_plan_helpers import (
     make_state,
     patched_plan_deps,
 )
+from tests.plan_validation_helpers import VALID_EPIC_PLAN
 
 
 @pytest.fixture
@@ -69,6 +71,8 @@ def run_followup_plan(
     agent_llm_provider: str | None = "claude",
 ):
     plan_file = write_plan_file(tmp_path)
+    if action == "epic":
+        Path(plan_file).write_text(VALID_EPIC_PLAN, encoding="utf-8")
     approval = PlanApprovalResult(action=action, plan_file=plan_file)
     _, state, _ = run_plan_approval(
         tmp_path,

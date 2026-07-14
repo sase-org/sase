@@ -1357,13 +1357,14 @@ elsewhere (see [Configured Model Aliases](llms.md#configured-model-aliases)). Th
 the alias to the concrete model the coder actually launches with.
 
 Outside the TUI, `sase plan` shows the same pending PlanApproval notifications plus recent approved and inferred
-rejected archived plans. Use the `id_prefix` from a Proposed row with
-`sase plan approve <id-prefix> --kind approve|commit|epic|tale` to approve from a shell, or
-`sase plan reject <id-prefix>` to reject. The `approve` kind runs the coder without committing an SDD plan; `tale`
-commits an SDD tale and runs the coder; `epic` commits the matching SDD tier and launches the bead follow-up; `commit`
-records the approved plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model, while
-`-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths. CLI rejection writes the same
-no-feedback rejection response as ACE, then attempts to dismiss and user-kill the matching planner when it can be found.
+rejected archived plans. Use the `id_prefix` from a Proposed row with `sase plan approve <id-prefix>` to use the
+authored plan tier, add `--kind approve|commit|epic|tale` for an explicit override, or `sase plan reject <id-prefix>` to
+reject. The `approve` kind runs the coder without committing an SDD plan; `tale` commits an SDD tale and runs the coder;
+`epic` commits the matching SDD tier and launches the bead follow-up; `commit` records the approved plan in SDD without
+launching a coder. `-m/--model` picks the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for
+the `approve` and `tale` paths. Tale and epic approvals validate the target schema first and leave an invalid proposal
+pending. CLI rejection writes the same no-feedback rejection response as ACE, then attempts to dismiss and user-kill the
+matching planner when it can be found.
 
 When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or `sase plan propose`, sase follows the
 same epic path as the TUI Epic action: it writes the SDD epic files, commits them as needed, initializes beads, and

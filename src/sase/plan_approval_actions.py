@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,13 @@ from sase.plan_approval_choices import (
     PLAN_APPROVAL_CLI_KINDS,
     approval_choice_archives_plan,
     require_plan_approval_choice,
+)
+from sase.sdd.plan_validate import (
+    PlanFrontmatterFieldSpec,
+    PlanValidationResult,
+    plan_frontmatter_schema,
+    validate_plan,
+    validate_plan_file,
 )
 
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
@@ -47,9 +55,37 @@ class PlanApprovalActionError(RuntimeError):
         self.target = target
 
 
+class PlanApprovalValidationError(PlanApprovalActionError):
+    """An approval target tier rejected the pending plan."""
+
+    def __init__(
+        self,
+        *,
+        plan_path: Path,
+        tier: str,
+        validation: PlanValidationResult,
+        schema: tuple[PlanFrontmatterFieldSpec, ...],
+    ) -> None:
+        self.plan_path = plan_path
+        self.tier = tier
+        self.validation = validation
+        self.schema = schema
+        details = "; ".join(
+            _approval_diagnostic_text(plan_path, diagnostic)
+            for diagnostic in validation.diagnostics
+            if diagnostic.is_error
+        )
+        command = f"sase plan validate {shlex.quote(str(plan_path))} --tier {tier}"
+        message = f"plan failed {tier} validation"
+        if details:
+            message += f": {details}"
+        message += f". Fix the plan and retry; run `{command}` for the full schema."
+        super().__init__("plan_validation_failed", str(plan_path), message)
+
+
 def execute_plan_approval_response(
     notification: PlanApprovalActionContext,
-    choice: str,
+    choice: str | None,
     *,
     feedback: str | None = None,
     commit_plan: bool | None = None,
@@ -81,6 +117,8 @@ def execute_plan_approval_response(
             "invalid_request", "plan_file", "plan file is missing"
         )
 
+    choice = resolve_plan_approval_choice(notification.host_files[0], choice)
+
     response_json, message = _plan_response_json(
         choice,
         feedback=feedback,
@@ -101,6 +139,94 @@ def execute_plan_approval_response(
         response_json=response_json,
         message=message,
     )
+
+
+def resolve_plan_approval_choice(plan_file: str, choice: str | None) -> str:
+    """Resolve an implicit approval choice and enforce target-tier validation.
+
+    An omitted choice follows the tier authored in the pending plan. Explicit
+    ``tale`` and ``epic`` choices are cross-tier overrides and therefore
+    validate against their target schema before any approval side effect.
+    Choices that do not assign an SDD tier keep their existing behavior.
+    """
+    plan_path = Path(plan_file).expanduser()
+    if choice is None:
+        from sase.sdd.plan_tiers import read_plan_tier
+
+        choice = read_plan_tier(plan_path)
+        if choice is None:
+            raise PlanApprovalActionError(
+                "invalid_request",
+                "tier",
+                "approval kind was omitted, but the plan has no valid authored "
+                "tier; add `tier: tale` or `tier: epic`, or pass `--kind`",
+            )
+
+    try:
+        require_plan_approval_choice(choice)
+    except KeyError as exc:
+        raise PlanApprovalActionError(
+            "unsupported_action", choice, "unsupported plan action choice"
+        ) from exc
+
+    if choice in {"tale", "epic"}:
+        require_plan_approval_validation(plan_path, choice)
+    return choice
+
+
+def require_plan_approval_validation(
+    plan_file: str | Path,
+    tier: str,
+) -> PlanValidationResult:
+    """Validate an approval target before notifications or files are mutated."""
+    plan_path = Path(plan_file).expanduser()
+    validation = _validate_plan_for_approval(plan_path, tier)
+    if validation.ok:
+        return validation
+    raise PlanApprovalValidationError(
+        plan_path=plan_path,
+        tier=tier,
+        validation=validation,
+        schema=plan_frontmatter_schema(tier),
+    )
+
+
+def _validate_plan_for_approval(
+    plan_path: Path,
+    tier: str,
+) -> PlanValidationResult:
+    """Validate as the target tier that approval will persist.
+
+    A cross-tier approval override replaces only the authored ``tier`` scalar
+    in the validation copy. This lets an epic-authored plan be intentionally
+    downgraded (its epic fields become tale warnings), while upgrading a tale
+    still fails on missing epic structure. The source file is never changed by
+    the gate.
+    """
+    from sase.sdd.plan_tiers import read_plan_tier
+
+    authored_tier = read_plan_tier(plan_path)
+    if authored_tier is None or authored_tier == tier:
+        return validate_plan_file(plan_path, tier)
+
+    try:
+        content = plan_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return validate_plan_file(plan_path, tier)
+    target_content, replacements = re.subn(
+        r"(?m)^tier[ \t]*:.*$",
+        f"tier: {tier}",
+        content,
+        count=1,
+    )
+    if replacements != 1:
+        return validate_plan_file(plan_path, tier)
+    return validate_plan(target_content, tier)
+
+
+def _approval_diagnostic_text(plan_path: Path, diagnostic: Any) -> str:
+    location = f"{plan_path}:{diagnostic.line}" if diagnostic.line else str(plan_path)
+    return f"{location} [{diagnostic.code}] {diagnostic.message}"
 
 
 def _plan_response_json(

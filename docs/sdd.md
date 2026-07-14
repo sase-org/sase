@@ -85,11 +85,13 @@ flips the agent into the `PLAN` status immediately rather than waiting for the n
 consumed by the inotify-based artifact watcher and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
-recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix> --kind tale|epic` writes the
-same approval response as the TUI and tells the runner to commit the promoted plan under the matching SDD tier before
-launching the follow-up. `--kind approve` runs the coder without committing an SDD plan, while `--kind commit` records
-the approved plan in SDD without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection
-response as the TUI, then attempts to dismiss and user-kill the matching planner row when it can be found.
+recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix>` defaults to the tier
+authored in the plan; `--kind tale|epic` explicitly overrides it. The selected target schema is validated before the
+response, SDD copy, or notification dismissal, and failures leave the proposal pending. A passing approval tells the
+runner to commit the promoted plan under the matching SDD tier before launching the follow-up. `--kind approve` runs the
+coder without committing an SDD plan, while `--kind commit` records the approved plan in SDD without launching a coder.
+`sase plan reject <id-prefix>` writes the same no-feedback rejection response as the TUI, then attempts to dismiss and
+user-kill the matching planner row when it can be found.
 
 To recall prior artifacts, `sase plan search [QUERY]` searches plans, prompt snapshots, and research in the resolved SDD
 store (the `repo` source, surfaced first) plus the machine-local `~/.sase/plans/` archive. The query is optional — omit

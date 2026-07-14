@@ -2199,12 +2199,13 @@ filters. The JSON summary includes `status_filter`, `tier_filter`, and a non-def
 Use the Proposed row's `id_prefix` as the selector for `sase plan approve` or `sase plan reject`; omitting the selector
 is valid only when exactly one pending proposal exists. The Rejected rows are inferred from archived proposal files that
 are not represented by current proposed or approved state, so they are useful for history but are not actionable
-selectors. Approval kind `approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the
-plan as an SDD tale and then runs the coder, `epic` and `epic` commits the matching SDD tier and launches the bead
-follow-up, and `commit` records the approved plan in SDD without launching a coder. The `-m/--model` flag applies to the
-follow-up agent; `-p/--prompt` adds extra coder instructions only for the `approve` and `tale` paths. `sase plan reject`
-writes the rejection response first, then attempts the same durable cleanup path as TUI no-feedback rejection when the
-matching planner row is still discoverable.
+selectors. Omitting `--kind` uses the plan's authored tier; explicit choices override it and tale/epic targets are
+validated before the proposal is consumed. Approval kind `approve` runs the coder without asking the runner to commit an
+SDD plan, `tale` commits the plan as an SDD tale and then runs the coder, `epic` commits the matching SDD tier and
+launches the bead follow-up, and `commit` records the approved plan in SDD without launching a coder. The `-m/--model`
+flag applies to the follow-up agent; `-p/--prompt` adds extra coder instructions only for the `approve` and `tale`
+paths. `sase plan reject` writes the rejection response first, then attempts the same durable cleanup path as TUI
+no-feedback rejection when the matching planner row is still discoverable.
 
 `sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and the machine-local
 `~/.sase/plans/` archive. The query is a literal case-insensitive substring; omit it to browse and filter. `--format`

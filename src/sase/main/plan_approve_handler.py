@@ -25,6 +25,7 @@ from sase.notifications.models import Notification
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
     PlanApprovalActionResult,
+    PlanApprovalValidationError,
     execute_plan_approval_response,
 )
 from sase.plan_approval_choices import PLAN_APPROVAL_AUTO_MODE_CHOICES
@@ -82,12 +83,23 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
     try:
         result = _approve_plan_from_cli(
             selector=getattr(args, "selector", None),
-            kind=getattr(args, "kind", "approve"),
+            kind=getattr(args, "kind", None),
             coder_prompt=getattr(args, "prompt", None),
             coder_model=getattr(args, "model", None),
             with_members=tuple(getattr(args, "with_members", ()) or ()),
             without_members=tuple(getattr(args, "without_members", ()) or ()),
         )
+    except PlanApprovalValidationError as exc:
+        from sase.main.plan_validate_render import render_validation_human
+
+        render_validation_human(
+            exc.validation,
+            tier=exc.tier,
+            path=str(exc.plan_path),
+            schema=exc.schema,
+            console=Console(stderr=True),
+        )
+        sys.exit(1)
     except PlanApprovalActionError as exc:
         Console(stderr=True).print(f"[red]Error:[/red] {exc}")
         if exc.code in {"missing_selector", "ambiguous_prefix", "not_found"}:
@@ -106,7 +118,7 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
 def _approve_plan_from_cli(
     *,
     selector: str | None,
-    kind: str,
+    kind: str | None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     with_members: tuple[str, ...] = (),

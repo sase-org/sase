@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ._notification_hitl_modal import handle_hitl as handle_hitl
 from ._notification_launch_approval import (
@@ -26,6 +26,7 @@ from ._notification_utils import (
     refresh_notification_agent_or_request,
 )
 from sase.plan_approval_choices import (
+    PlanApprovalModalChoice,
     approval_choice_archives_plan,
     approval_choice_persist_action,
     approval_choice_status_label,
@@ -84,6 +85,14 @@ def handle_plan_approval(
     plan_file = notification.files[0]
     llm_provider = notification.action_data.get("llm_provider")
     model = notification.action_data.get("model")
+    from sase.sdd.plan_tiers import read_plan_tier
+
+    authored_tier = read_plan_tier(Path(plan_file).expanduser())
+    default_choice = (
+        cast(PlanApprovalModalChoice, authored_tier)
+        if authored_tier in {"tale", "epic"}
+        else None
+    )
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -105,6 +114,7 @@ def handle_plan_approval(
                     llm_provider=llm_provider,
                     model=model,
                     member_options=member_options,
+                    default_choice=default_choice,
                 ),
                 on_dismiss,
             )
@@ -188,6 +198,24 @@ def handle_plan_approval(
         plan_response_path = response_path / "plan_response.json"
         response_data = _build_plan_approval_response(result)
 
+        choice = _plan_approval_choice_for_status(result)
+        if choice in {"tale", "epic"}:
+            from sase.plan_approval_actions import (
+                PlanApprovalValidationError,
+                require_plan_approval_validation,
+            )
+
+            try:
+                require_plan_approval_validation(plan_file, choice)
+            except PlanApprovalValidationError as exc:
+                app.notify(  # type: ignore[attr-defined]
+                    str(exc),
+                    title=f"{choice.title()} approval blocked",
+                    severity="error",
+                    timeout=15,
+                )
+                return
+
         try:
             write_workflow_action_response(
                 plan_response_path,
@@ -222,6 +250,7 @@ def handle_plan_approval(
             llm_provider=llm_provider,
             model=model,
             member_options=member_options,
+            default_choice=default_choice,
         ),
         on_dismiss,
     )

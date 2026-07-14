@@ -95,6 +95,7 @@ class PlanApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("enter", "approve_default", "Default"),
         *review_modal_choice_bindings(),
         ("c", "custom", "Custom"),
         ("r", "reject", "Reject"),
@@ -116,6 +117,7 @@ class PlanApprovalModal(
         llm_provider: str | None = None,
         model: str | None = None,
         member_options: Sequence[PlanApprovalMemberOption] = (),
+        default_choice: PlanApprovalChoice | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -135,6 +137,7 @@ class PlanApprovalModal(
         self._llm_provider = llm_provider
         self._model = model
         self._member_options = tuple(member_options)
+        self._default_choice: PlanApprovalChoice = default_choice or "approve"
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -147,7 +150,9 @@ class PlanApprovalModal(
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
+        default_label = self._default_choice.title()
         hints = (
+            f"[green]enter[/green]={default_label}  "
             f"{review_modal_choice_hints_markup()}  [green]c[/green]=Custom  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
@@ -226,6 +231,10 @@ class PlanApprovalModal(
         """Approve the plan without an SDD commit."""
         self.dismiss(_plan_approval_result_for_choice("approve"))
 
+    def action_approve_default(self) -> None:
+        """Approve using the tier authored in the pending plan."""
+        self.dismiss(_plan_approval_result_for_choice(self._default_choice))
+
     def action_tale(self) -> None:
         """Approve the plan as an SDD tale."""
         self.dismiss(_plan_approval_result_for_choice("tale"))
@@ -288,7 +297,7 @@ class PlanApprovalModal(
 
     def action_custom(self) -> None:
         """Open the custom approval modal."""
-        self._push_approve_options()
+        self._push_approve_options(choice=self._default_choice)
 
     def action_approve_options(self) -> None:
         """Backward-compatible alias for the old action name."""

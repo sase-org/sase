@@ -41,6 +41,12 @@ def test_plan_command_group_parses_subcommands() -> None:
     assert approve_args.prompt == "Focus tests"
 
 
+def test_plan_approve_kind_defaults_from_plan_at_execution_time() -> None:
+    args = create_parser().parse_args(["plan", "approve", "abcdef12"])
+
+    assert args.kind is None
+
+
 def test_plan_reject_parses_with_optional_selector() -> None:
     """``sase plan reject`` accepts an optional notification selector."""
     parser = create_parser()

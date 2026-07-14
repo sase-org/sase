@@ -134,15 +134,17 @@ project states explicitly.
 `-t/--tier` to filter by plan-file tier. Proposed rows are never limited and are the actionable rows; each includes an
 `id_prefix`, agent, project, provider/model, plan path, and response directory. Pass that prefix to
 `sase plan approve <prefix>` or `sase plan reject <prefix>`. If the selector is omitted, exactly one pending proposal
-must exist. The Rejected section is inferred from archived proposal files that are not represented by the proposed or
-approved state; it is a history aid, not the selector source for new actions. The approval kind is the workflow choice:
-`approve` runs the coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and
-then runs the coder, `epic` commits the matching SDD tier and launches the bead follow-up, and `commit` records the
-approved plan in SDD without launching a coder. Use `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt`
-to add extra coder instructions for the `approve` and `tale` paths. `sase plan reject` writes the rejection response
-first, then uses the same durable cleanup path as the TUI no-feedback rejection action when the matching planner row is
-still discoverable. If cleanup cannot find or kill the row, the CLI reports that separately after the plan has already
-been rejected.
+must exist. When `--kind` is omitted, approval follows the plan's authored `tier`; an explicit kind overrides it. The
+Rejected section is inferred from archived proposal files that are not represented by the proposed or approved state; it
+is a history aid, not the selector source for new actions. The approval kind is the workflow choice: `approve` runs the
+coder without asking the runner to commit an SDD plan, `tale` commits the plan as an SDD tale and then runs the coder,
+`epic` commits the matching SDD tier and launches the bead follow-up, and `commit` records the approved plan in SDD
+without launching a coder. Use `-m/--model` to pick the follow-up agent's model. Use `-p/--prompt` to add extra coder
+instructions for the `approve` and `tale` paths. Tale and epic approvals validate against their target schema before
+writing a response; a failure prints the diagnostics and expected schema and leaves the proposal pending for retry.
+`sase plan reject` writes the rejection response first, then uses the same durable cleanup path as the TUI no-feedback
+rejection action when the matching planner row is still discoverable. If cleanup cannot find or kill the row, the CLI
+reports that separately after the plan has already been rejected.
 
 `sase plan search [QUERY]` searches plans in the resolved SDD store (the `repo` source) and the machine-local
 `~/.sase/plans/` archive. Omit the query to browse with metadata filters. Compact and Markdown output group SDD-store
