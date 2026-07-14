@@ -103,3 +103,8 @@ mentor_profiles:
           # keep-sorted end
     file_globs:
       - "src/**/*.py"
+
+repos:
+  sidecar:
+    - name: plans
+      auto_clone: true

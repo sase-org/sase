@@ -31,10 +31,10 @@ def test_init_namespace_parses_migrated_leaf_commands() -> None:
     assert memory_no_commit_args.init_subcommand == "memory"
     assert memory_no_commit_args.no_commit is True
 
-    sdd_args = parser.parse_args(["init", "sdd", "-p", "sdd"])
-    assert sdd_args.command == "init"
-    assert sdd_args.init_subcommand == "sdd"
-    assert sdd_args.path == "sdd"
+    repo_args = parser.parse_args(["init", "repo", "--no-commit"])
+    assert repo_args.command == "init"
+    assert repo_args.init_subcommand == "repo"
+    assert repo_args.no_commit is True
 
     init_args = parser.parse_args(
         ["init", "skills", "--dry-run", "--provider", "codex"]

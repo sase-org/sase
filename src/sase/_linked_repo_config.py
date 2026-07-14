@@ -224,7 +224,7 @@ def _sidecar_repo_identity(
     if store_repo and _repo_basename(store_repo) == slug:
         remote_url = store_remote
     if remote_url is None:
-        full_name = _full_github_repo_name(primary, repo)
+        full_name = full_github_repo_name(primary, repo)
         if full_name is not None:
             remote_url = f"https://github.com/{full_name}.git"
 
@@ -402,7 +402,7 @@ def _derived_sidecar_repo(primary: Path, role: str) -> str:
     return slug
 
 
-def _full_github_repo_name(primary: Path, repo: str) -> str | None:
+def full_github_repo_name(primary: Path, repo: str) -> str | None:
     cleaned = repo.strip().strip("/")
     if not cleaned:
         return None

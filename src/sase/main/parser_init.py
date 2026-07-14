@@ -2,8 +2,6 @@
 
 import argparse
 
-from sase.main.parser_sdd import add_sdd_path_arg
-
 
 def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
     """Add the compatibility flag that marks a repository as SASE-managed."""
@@ -79,8 +77,8 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Initialize SASE-managed resources",
         description=(
             "Check and initialize SASE-managed resources. With no subcommand, "
-            "runs the onboarding coordinator for memory, SDD, skills, and "
-            "workspace ignore rules."
+            "runs the onboarding coordinator for memory, repositories, and "
+            "skills."
         ),
         epilog=(
             "Advanced deploy controls live on explicit subcommands; for example, "
@@ -114,7 +112,7 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help=(
             "Run every needed initializer without generic prompts; cannot "
-            "authorize creation of a missing GitHub SDD sidecar"
+            "authorize creation of a missing provider sidecar repository"
         ),
     )
     init_subparsers = init_parser.add_subparsers(
@@ -163,30 +161,36 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Skip the project git commit/push sequence",
     )
 
-    sdd_parser = init_subparsers.add_parser(
-        "sdd",
-        help="Materialize provider SDD storage and refresh generated guides",
+    repo_parser = init_subparsers.add_parser(
+        "repo",
+        help="Alias for `sase repo init`",
         description=(
-            "Compatibility alias for `sase sdd init`. Creating a missing "
-            "GitHub sidecar always requires an interactive, default-no "
-            "y/yes confirmation."
+            "Alias for `sase repo init`, which initializes configured sidecars, "
+            "declares the plans sidecar, and maintains the project ignore rule. "
+            "Creating a missing provider repository always requires an "
+            "interactive, default-no y/yes confirmation."
         ),
     )
-    sdd_parser.add_argument(
+    repo_parser.add_argument(
         "-c",
         "--check",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Report provider and generated-file work without writing files",
+        help="Report sidecar, config, and ignore-rule work without writing files",
     )
-    sdd_parser.add_argument(
+    repo_parser.add_argument(
         "-d",
         "--diff",
         action="store_true",
         default=argparse.SUPPRESS,
-        help="Show full file diffs for planned SDD changes",
+        help="Show full file diffs for planned repository changes",
     )
-    add_sdd_path_arg(sdd_parser)
+    repo_parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="Write project config and ignore rules without committing or pushing",
+    )
 
     skills_parser = init_subparsers.add_parser(
         "skills",
@@ -197,32 +201,3 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     add_skills_init_arguments(skills_parser)
-
-    workspace_parser = init_subparsers.add_parser(
-        "workspace",
-        help="Initialize workspace ignore rules",
-        description=(
-            "Add the tracked root .gitignore rule that protects host-scoped "
-            "linked and sidecar repository clones under sase/repos/."
-        ),
-    )
-    workspace_parser.add_argument(
-        "-c",
-        "--check",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Report workspace ignore-rule drift without writing files",
-    )
-    workspace_parser.add_argument(
-        "-d",
-        "--diff",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Show the full .gitignore diff",
-    )
-    workspace_parser.add_argument(
-        "-C",
-        "--no-commit",
-        action="store_true",
-        help="Write .gitignore without committing or pushing the change",
-    )

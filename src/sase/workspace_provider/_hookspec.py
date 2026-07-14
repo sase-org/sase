@@ -256,6 +256,9 @@ class WorkspaceHookSpec:
         must not create or label repositories, clone, or write local state.
         ``options["sdd_sidecar_suffix"]`` may select an arbitrary sidecar
         suffix such as ``plans`` or ``research``; absent means legacy ``sdd``.
+        ``options["sdd_repo"]`` may pin an exact provider repository, while
+        ``options["sdd_visibility"]`` and ``options["sdd_description"]`` carry
+        creation-time settings from the configured sidecar entry.
         Return ``None`` only when the provider does not own the workspace.
         """
         ...
@@ -275,7 +278,8 @@ class WorkspaceHookSpec:
         be passed back through ``options["sdd_repo"]``,
         ``options["sdd_host"]``, and ``options["sdd_remote_url"]`` so providers
         can verify the exact recorded remote.
-        ``options["sdd_sidecar_suffix"]`` follows the preflight contract.
+        ``options["sdd_sidecar_suffix"]``, ``options["sdd_visibility"]``, and
+        ``options["sdd_description"]`` follow the preflight contract.
         """
         ...
 

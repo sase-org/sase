@@ -25,7 +25,7 @@ def test_noop_plans_print_initialized_message(
     calls: list[str] = []
     specs = (
         _spec("memory", _plan("memory"), calls),
-        _spec("sdd", _plan("sdd"), calls),
+        _spec("repo", _plan("repo"), calls),
         _spec("skills", _plan("skills"), calls),
     )
 
@@ -40,10 +40,10 @@ def test_noop_plans_print_initialized_message(
     assert calls == []
     out = capsys.readouterr().out
     assert "SASE is initialized. No init subcommands need to run." in out
-    assert "Checked: memory, sdd, skills." in out
+    assert "Checked: memory, repo, skills." in out
 
 
-def test_bare_init_check_skips_sdd_outside_project(
+def test_bare_init_check_skips_repo_outside_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -55,11 +55,11 @@ def test_bare_init_check_skips_sdd_outside_project(
     specs = (
         _spec("memory", _plan("memory", summary="memory current"), calls),
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
-                actions=(_changed_action("sdd/README.md"),),
-                summary="create SDD README files",
+                "repo",
+                actions=(_changed_action("sase.yml"),),
+                summary="create repository wiring",
             ),
             calls,
         ),
@@ -76,11 +76,11 @@ def test_bare_init_check_skips_sdd_outside_project(
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "Checked: memory, skills." in out
-    assert "init sdd" not in out
+    assert "init repo" not in out
     assert calls == []
 
 
-def test_bare_init_check_includes_sdd_inside_project(
+def test_bare_init_check_includes_repo_inside_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -93,11 +93,11 @@ def test_bare_init_check_includes_sdd_inside_project(
     specs = (
         _spec("memory", _plan("memory", summary="memory current"), calls),
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
-                actions=(_changed_action("sdd/README.md"),),
-                summary="create SDD README files",
+                "repo",
+                actions=(_changed_action("sase.yml"),),
+                summary="create repository wiring",
             ),
             calls,
         ),
@@ -113,8 +113,8 @@ def test_bare_init_check_includes_sdd_inside_project(
 
     assert exit_code == 1
     out = capsys.readouterr().out
-    assert "init sdd" in out
-    assert "create SDD README files" in out
+    assert "init repo" in out
+    assert "create repository wiring" in out
     assert calls == []
 
 
@@ -155,11 +155,11 @@ def test_check_mode_reports_drift_without_running(
     calls: list[str] = []
     specs = (
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
-                actions=(_changed_action("sdd/README.md"),),
-                summary="update SDD README files",
+                "repo",
+                actions=(_changed_action("sase.yml"),),
+                summary="update repository wiring",
             ),
             calls,
         ),
@@ -176,7 +176,7 @@ def test_check_mode_reports_drift_without_running(
     assert calls == []
     out = capsys.readouterr().out
     assert "Needs attention:" in out
-    assert "update SDD README files" in out
+    assert "update repository wiring" in out
 
 
 def test_check_mode_does_not_apply_later_changed_plans() -> None:
@@ -237,7 +237,7 @@ def test_needs_attention_output_snapshot_lists_every_action(
 ) -> None:
     calls: list[str] = []
     specs = (
-        _spec("sdd", _plan("sdd", summary="SDD current"), calls),
+        _spec("repo", _plan("repo", summary="Repos current"), calls),
         _spec(
             "memory",
             _plan(
@@ -266,7 +266,7 @@ def test_needs_attention_output_snapshot_lists_every_action(
         "SASE initialization check\n"
         "\n"
         "Up to date:\n"
-        "  ok   init sdd     SDD current\n"
+        "  ok   init repo    Repos current\n"
         "\n"
         "Needs attention:\n"
         "  run  init memory  refresh 4 memory files\n"
@@ -286,9 +286,9 @@ def test_check_diff_renders_full_diff_and_reports_drift(
     calls: list[str] = []
     specs = (
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
+                "repo",
                 actions=(InitAction(target, "update", "README", "after\n"),),
             ),
             calls,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 import subprocess
 import sys
@@ -16,7 +17,7 @@ LINKED_REPO_GITIGNORE_PATTERN = "/sase/repos/"
 COMMAND_LABEL = "init workspace"
 
 
-def _git_root(path: Path | None = None) -> Path | None:
+def find_git_root(path: Path | None = None) -> Path | None:
     cwd = Path.cwd() if path is None else path
     try:
         result = subprocess.run(
@@ -42,10 +43,12 @@ def _updated_gitignore_content(existing: str) -> str:
     return f"{LINKED_REPO_GITIGNORE_PATTERN}\n"
 
 
-def _workspace_gitignore_plan() -> tuple[Path, str, str] | None:
-    if not is_project_directory():
+def _workspace_gitignore_plan(
+    project_root: Path | None = None,
+) -> tuple[Path, str, str] | None:
+    if not is_project_directory(project_root):
         return None
-    root = _git_root()
+    root = find_git_root(project_root)
     if root is None:
         return None
     gitignore = root / ".gitignore"
@@ -59,10 +62,12 @@ def _workspace_gitignore_plan() -> tuple[Path, str, str] | None:
     return gitignore, existing, updated
 
 
-def plan_init_workspace(_args: argparse.Namespace) -> InitPlan:
+def plan_init_workspace(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for the root linked-repo ignore rule."""
 
-    planned = _workspace_gitignore_plan()
+    path = getattr(args, "path", None)
+    project_root = Path(path).expanduser() if path is not None else None
+    planned = _workspace_gitignore_plan(project_root)
     if planned is None:
         return InitPlan(
             command="workspace",
@@ -93,10 +98,10 @@ def plan_init_workspace(_args: argparse.Namespace) -> InitPlan:
     )
 
 
-def _ensure_workspace_gitignore() -> Path | None:
+def ensure_workspace_gitignore(project_root: Path | None = None) -> Path | None:
     """Append the linked-repo clone rule and return the changed path."""
 
-    planned = _workspace_gitignore_plan()
+    planned = _workspace_gitignore_plan(project_root)
     if planned is None:
         return None
     gitignore, existing, updated = planned
@@ -115,105 +120,73 @@ def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _commit_workspace_gitignore(root: Path, gitignore: Path) -> int:
-    """Commit only the init-managed root ``.gitignore`` path."""
+def commit_workspace_paths(
+    root: Path,
+    paths: Sequence[Path],
+    *,
+    command_label: str = COMMAND_LABEL,
+    message: str = "chore: initialize SASE workspace ignores",
+) -> int:
+    """Commit only the project files owned by an initialization command."""
 
     if not run_before_commit_hook(str(root)):
         return 1
-    relative = gitignore.relative_to(root).as_posix()
-    added = _run_git(root, "add", "--", relative)
+    relative = tuple(path.relative_to(root).as_posix() for path in paths)
+    if not relative:
+        return 0
+    added = _run_git(root, "add", "--", *relative)
     if added.returncode != 0:
         print(
-            f"{COMMAND_LABEL}: git add failed: {added.stderr.strip()}",
+            f"{command_label}: git add failed: {added.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
-    staged = _run_git(root, "diff", "--cached", "--quiet", "--", relative)
+    staged = _run_git(root, "diff", "--cached", "--quiet", "--", *relative)
     if staged.returncode == 0:
         return 0
     if staged.returncode != 1:
         print(
-            f"{COMMAND_LABEL}: staged diff check failed: {staged.stderr.strip()}",
+            f"{command_label}: staged diff check failed: {staged.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
 
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
-    message = apply_auto_commit_type_tag(
-        "chore: initialize SASE workspace ignores", "init"
-    )
-    committed = _run_git(root, "commit", "-m", message, "--", relative)
+    commit_message = apply_auto_commit_type_tag(message, "init")
+    committed = _run_git(root, "commit", "-m", commit_message, "--", *relative)
     if committed.returncode != 0:
         print(
-            f"{COMMAND_LABEL}: commit failed: {committed.stderr.strip()}",
+            f"{command_label}: commit failed: {committed.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
 
     from ._init_chezmoi_deploy import skip_pull_push_without_upstream
 
-    if skip_pull_push_without_upstream(root, COMMAND_LABEL):
+    if skip_pull_push_without_upstream(root, command_label):
         return 0
     pulled = _run_git(root, "pull", "--rebase")
     if pulled.returncode != 0:
         print(
-            f"{COMMAND_LABEL}: pull failed: {pulled.stderr.strip()}",
+            f"{command_label}: pull failed: {pulled.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
     pushed = _run_git(root, "push")
     if pushed.returncode != 0:
         print(
-            f"{COMMAND_LABEL}: push failed: {pushed.stderr.strip()}",
+            f"{command_label}: push failed: {pushed.stderr.strip()}",
             file=sys.stderr,
         )
         return 1
     return 0
 
 
-def run_init_workspace(args: argparse.Namespace) -> int:
-    """Apply ``sase init workspace`` and return a process exit code."""
-
-    if getattr(args, "check", False):
-        from .init_onboarding import run_init_check
-        from .init_registry import InitCommandSpec
-
-        return run_init_check(
-            args,
-            specs=(
-                InitCommandSpec(
-                    name="workspace",
-                    label="Workspace",
-                    plan=plan_init_workspace,
-                    run=run_init_workspace,
-                ),
-            ),
-        )
-    if getattr(args, "diff", False):
-        from .init_preview import preview_console, render_plan_diff
-
-        render_plan_diff(preview_console(sys.stdout), plan_init_workspace(args))
-
-    root = _git_root()
-    changed = _ensure_workspace_gitignore()
-    if changed is None:
-        return 0
-    print(f"{COMMAND_LABEL}: updated {changed}")
-    if getattr(args, "no_commit", False) or root is None:
-        return 0
-    return _commit_workspace_gitignore(root, changed)
-
-
-def handle_init_workspace_command(args: argparse.Namespace) -> None:
-    """Handle ``sase init workspace``."""
-
-    sys.exit(run_init_workspace(args))
-
-
 __all__ = [
     "LINKED_REPO_GITIGNORE_PATTERN",
-    "handle_init_workspace_command",
+    "commit_workspace_paths",
+    "ensure_workspace_gitignore",
+    "find_git_root",
     "plan_init_workspace",
-    "run_init_workspace",
 ]

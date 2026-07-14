@@ -10,16 +10,52 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
 
     repo_parser = subparsers.add_parser(
         "repo",
-        help="Inspect and resolve repositories and repository-open activity",
+        help="Initialize, inspect, resolve, and open repositories",
         description=(
-            "Inspect repositories known by SASE. Running `sase repo` defaults "
-            "to `sase repo list`."
+            "Initialize, inspect, and resolve repositories known by SASE. "
+            "Running `sase repo` defaults to `sase repo list`."
         ),
     )
     repo_sub = repo_parser.add_subparsers(
         dest="repo_subcommand",
         help="Repository subcommands",
     )
+    init_parser = repo_sub.add_parser(
+        "init",
+        help="Initialize configured sidecars and project repository wiring",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Declare the managed plans sidecar, initialize every enabled "
+            "configured sidecar, and add the tracked /sase/repos/ ignore rule.\n\n"
+            "Creating a missing provider repository always requires an "
+            "interactive, default-no y/yes confirmation."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase repo init --check\n"
+            "  sase repo init --diff --no-commit\n"
+            "  sase repo init"
+        ),
+    )
+    init_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Report sidecar, config, and ignore-rule work without writing files",
+    )
+    init_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show full file diffs for planned repository changes",
+    )
+    init_parser.add_argument(
+        "-C",
+        "--no-commit",
+        action="store_true",
+        help="Write project config and ignore rules without committing or pushing",
+    )
+
     list_parser = repo_sub.add_parser(
         "list",
         help="List repositories and their per-workspace clone status",

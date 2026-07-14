@@ -7,7 +7,11 @@ import subprocess
 
 import pytest
 
-from sase.sdd._sidecar_init import initialize_split_sdd_sidecars
+from sase.sdd._sidecar_init import (
+    SidecarInitSpec,
+    initialize_sidecars,
+    preflight_sidecars,
+)
 from sase.sdd._init_files import (
     ensure_sdd_sidecar_initialized,
     expected_sdd_sidecar_files,
@@ -20,6 +24,7 @@ from sase.sdd.migrate import (
     plan_split_sdd_migration,
     render_split_sdd_migration_diff,
 )
+from sase.workspace_provider import SddSidecarPreflight
 
 
 def _git(cwd: Path, *args: str) -> None:
@@ -66,6 +71,160 @@ def test_sidecar_generated_files_are_deterministic_and_drift_tracked(
         assert plan_sdd_sidecar_init_actions(kind, root) == ()
 
 
+def test_custom_sidecar_generates_deterministic_generic_readme(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+
+    actions = plan_sdd_sidecar_init_actions(
+        "artifacts",
+        root,
+        description="Durable generated build artifacts.",
+    )
+
+    assert [action.path.name for action in actions] == ["README.md"]
+    written = ensure_sdd_sidecar_initialized(
+        "artifacts",
+        root,
+        description="Durable generated build artifacts.",
+    )
+    assert written == (root / "README.md",)
+    assert (root / "README.md").read_text(encoding="utf-8") == (
+        "# SASE Artifacts\n\n"
+        "Durable generated build artifacts.\n\n"
+        "This repository is managed as a SASE sidecar and is cloned below "
+        "`sase/repos/artifacts` in project workspaces.\n"
+    )
+
+
+def test_custom_sidecar_preflight_passes_pin_visibility_and_description(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "widget"
+    project.mkdir()
+    captured: list[dict[str, object]] = []
+    spec = SidecarInitSpec(
+        role="artifacts",
+        repo="acme/shared-artifacts",
+        remote_url="https://github.com/acme/shared-artifacts.git",
+        visibility="private",
+        description="Durable build artifacts.",
+    )
+
+    def preflight(
+        _primary: str,
+        _workspace: str,
+        options: dict[str, object],
+    ) -> SddSidecarPreflight:
+        captured.append(options)
+        return SddSidecarPreflight(
+            status="not_found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/shared-artifacts",
+            visibility="private",
+        )
+
+    monkeypatch.setattr("sase.workspace_provider.preflight_sdd_sidecar", preflight)
+
+    result = preflight_sidecars(project, 1, (spec,))
+
+    assert result["artifacts"].visibility == "private"
+    assert captured == [
+        {
+            "create": False,
+            "provider_policy": "separate_repo",
+            "sdd_sidecar_suffix": "artifacts",
+            "sdd_visibility": "private",
+            "workspace_num": 1,
+            "sdd_repo": "acme/shared-artifacts",
+            "sdd_remote_url": "https://github.com/acme/shared-artifacts.git",
+            "sdd_description": "Durable build artifacts.",
+        }
+    ]
+
+
+def test_custom_sidecar_preflight_rejects_provider_visibility_downgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = tmp_path / "widget"
+    project.mkdir()
+    spec = SidecarInitSpec(role="artifacts", visibility="private")
+    monkeypatch.setattr(
+        "sase.workspace_provider.preflight_sdd_sidecar",
+        lambda *_args: SddSidecarPreflight(
+            status="not_found",
+            provider="GitHub",
+            host="github.com",
+            repo="acme/widget--artifacts",
+            visibility="public",
+        ),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="config requires private",
+    ):
+        preflight_sidecars(project, 1, (spec,))
+
+
+def test_custom_sidecar_init_uses_pinned_private_provider_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git_env(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    remote = _bare_remote(tmp_path, "shared-artifacts")
+    clone = tmp_path / "artifacts-clone"
+    captured: list[dict[str, object]] = []
+    spec = SidecarInitSpec(
+        role="artifacts",
+        repo="acme/shared-artifacts",
+        remote_url=str(remote),
+        visibility="private",
+        description="Durable build artifacts.",
+    )
+
+    def create_remote(
+        _primary: str,
+        _workspace: str,
+        options: dict[str, object],
+    ) -> dict[str, object]:
+        captured.append(options)
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/shared-artifacts",
+            "remote_url": str(remote),
+            "discovery": "found",
+            "created": True,
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, _role: str(clone),
+    )
+
+    outcome = initialize_sidecars(
+        project,
+        1,
+        (spec,),
+        creation_authorized={"artifacts": True},
+    )
+
+    assert outcome.created == frozenset({"artifacts"})
+    assert outcome.record is None
+    assert (clone / "README.md").is_file()
+    assert captured[0]["sdd_repo"] == "acme/shared-artifacts"
+    assert captured[0]["sdd_visibility"] == "private"
+    assert captured[0]["sdd_creation_authorized"] is True
+
+
 def test_split_init_creates_both_repos_before_writing_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -100,9 +259,10 @@ def test_split_init_creates_both_repos_before_writing_record(
         lambda _workspace, kind: str(clones[kind]),
     )
 
-    outcome = initialize_split_sdd_sidecars(
+    outcome = initialize_sidecars(
         project,
         1,
+        (SidecarInitSpec(role="plans"), SidecarInitSpec(role="research")),
         creation_authorized={"plans": True, "research": True},
     )
 

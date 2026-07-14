@@ -14,19 +14,21 @@ sase init --all         # visit every active main project; prompt when interacti
 sase init --all --yes   # initialize every active main project without prompting
 ```
 
-The coordinator plans in registry order: memory, SDD, skills, then workspace ignore rules. Memory initialization owns
-agent-document initialization (managed `AGENTS.md` and its provider instruction copies). Planning is read-only. In
-non-interactive shells, bare `sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes`
-when you want an unattended apply run. Apply runs can write project files, deploy home files through chezmoi when
-configured, and use each initializer's normal commit/push behavior. Project-wide ownership requires
-`is_sase_managed: true` in the current repository's own `./sase.yml`; defaults and merged user configuration cannot
-grant it. Without that local marker, memory init leaves project memory and the root `AGENTS.md` untouched while still
-copying every existing project-tree `AGENTS.md` to the provider instruction files beside it, and explicit SDD
-initialization exits successfully without detecting a provider, materializing storage, or generating files.
+The coordinator plans in registry order: memory, repositories, then skills. Memory initialization owns agent-document
+initialization (managed `AGENTS.md` and its provider instruction copies); repository initialization owns configured
+sidecars and the workspace ignore rule. Planning is read-only. In non-interactive shells, bare `sase init` reports drift
+and exits non-zero instead of prompting; use `sase init --yes` when you want an unattended apply run. Apply runs can
+write project files, deploy home files through chezmoi when configured, and use each initializer's normal commit/push
+behavior. Project-wide ownership requires `is_sase_managed: true` in the current repository's own `./sase.yml`; defaults
+and merged user configuration cannot grant it. Without that local marker, memory init leaves project memory and the root
+`AGENTS.md` untouched while still copying every existing project-tree `AGENTS.md` to the provider instruction files
+beside it, and explicit repository initialization exits successfully without detecting a provider, materializing
+sidecars, or generating files.
 
-One resource-specific exception is intentionally non-bypassable: `--yes` can run the SDD initializer, but it cannot
-approve creation of a missing GitHub SDD sidecar. That creation always requires an interactive `y`/`yes` response to the
-repository-specific prompt; unattended initialization can connect an existing sidecar but cannot create one.
+One resource-specific exception is intentionally non-bypassable: `--yes` can run the repository initializer, but it
+cannot approve creation of a missing provider sidecar. Each creation always requires an interactive `y`/`yes` response
+to a prompt naming the host, repository, and configured visibility; unattended initialization can connect existing
+sidecars but cannot create them.
 
 `sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
 directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
@@ -38,8 +40,8 @@ unless `--yes` is supplied.
 
 Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `is_sase_managed: true`
 before normal initialization. The compatibility spelling remains, but the marker now authorizes SASE management of the
-repository as a whole and thereby enables managed project memory and explicit SDD initialization. The option preserves
-other local configuration and is available on both bare `sase init` and `sase memory init` (as well as the
+repository as a whole and thereby enables managed project memory and explicit repository initialization. The option
+preserves other local configuration and is available on both bare `sase init` and `sase memory init` (as well as the
 `sase init memory` compatibility alias). Because it writes configuration, it cannot be combined with `--check` or
 `--all`; repositories must be marked one at a time.
 
@@ -56,11 +58,10 @@ sase memory log
 sase memory log --include proposals
 sase memory log --path generated_skills.md
 sase memory log --id <read-id>
-sase init sdd
-sase init sdd --check
-sase init workspace
-sase init workspace --check
-sase init workspace --no-commit
+sase repo init
+sase repo init --check
+sase repo init --diff --no-commit
+sase init repo # alias for sase repo init
 sase skill list
 sase skill init --dry-run
 sase skill log
@@ -76,17 +77,17 @@ Start with `sase init -c` or `sase memory init --check` when you only want a dri
 `sase memory init --no-commit` is the usual first apply run for memory because it writes the generated files but skips
 the project git commit/pull/push path. It is not a dry run: it can still write project files, write home memory, and
 follow home-level `use_chezmoi` deployment. `sase init memory` remains a compatibility alias for `sase memory init`, and
-`sase init skills` remains a compatibility alias for `sase skill init`.
+`sase init repo` is an alias for `sase repo init`, and `sase init skills` remains an alias for `sase skill init`.
 
 ## Commands
 
 | Command                                 | Purpose                                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase init`                             | Check memory, SDD, skills, and workspace ignores; prompt once per needed initializer.       |
+| `sase init`                             | Check memory, repositories, and skills; prompt once per needed initializer.                 |
 | `sase init -a, --all`                   | Check or initialize every registered active main project, continuing after project errors.  |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                  |
-| `sase init --yes`                       | Run every needed initializer in memory, SDD, skills, workspace order without prompting.     |
+| `sase init --yes`                       | Run every needed initializer in memory, repository, skills order without generic prompts.   |
 | `sase memory`                           | Alias for `sase memory list`.                                                               |
 | `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.       |
 | `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                    |
@@ -103,11 +104,10 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                        |
 | `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                      | Compatibility alias for `sase memory init`.                                                 |
-| `sase init sdd`                         | Compatibility alias for the provider-owned `sase sdd init` flow.                            |
-| `sase init sdd --check`                 | Report provider and generated-file work without writing files.                              |
-| `sase init workspace`                   | Add `/sase/repos/` to the root `.gitignore` and use the normal project commit/push flow.    |
-| `sase init workspace --check`           | Report a missing linked-repo ignore rule without writing files.                             |
-| `sase init workspace --no-commit`       | Add the linked-repo ignore rule without committing or pushing it.                           |
+| `sase repo init`                        | Initialize configured sidecars, the plans declaration, and `/sase/repos/` ignore rule.      |
+| `sase repo init --check`                | Report sidecar, project-config, generated-guide, and ignore-rule drift without writing.     |
+| `sase repo init --no-commit`            | Apply project config and ignore changes without committing or pushing them.                 |
+| `sase init repo`                        | Alias for `sase repo init`.                                                                 |
 | `sase skill`                            | Alias for `sase skill list`.                                                                |
 | `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing. |
 | `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                     |
@@ -121,7 +121,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on explicit subcommands rather than
 the bare coordinator. Scoped `--check` flags also live on explicit subcommands when you want to validate only memory,
-only SDD, only skill generated files, or only workspace ignore rules.
+repository/sidecar wiring, or generated skill files.
 
 ## Agent Documents
 
@@ -244,45 +244,49 @@ sase memory log --path generated_skills.md
 sase memory log --id <read-id>
 ```
 
-## SDD Initialization
+## Repository Initialization
 
-`sase init sdd` is the compatibility alias for `sase sdd init`. It materializes the provider-selected SDD store, then
-creates or refreshes generated SDD guides and directory-map assets. For a managed GitHub project it finds or creates the
-public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars, initializes and pushes both, then writes the
-split store record. Existing legacy `--sdd` files remain untouched locally and in their remote, but normal SDD routing
-switches to the split sidecars until the supported content is explicitly migrated. Bare-git projects keep their
-provider-owned in-tree layout.
+`sase repo init` initializes every enabled `repos.sidecar` entry for the current managed project. It also adds the
+explicit project-local plans declaration when absent:
 
-GitHub discovery runs before materialization. If either sidecar is definitively absent, the command asks a separate
-default-no question naming that `--plans` or `--research` repository; only `y` or `yes` proceeds. Declines, blank
-answers, EOF, interruption, and non-interactive stdin leave initialization incomplete and return nonzero without
-creating, labeling, cloning, importing, or writing generated files. `--check` does not probe GitHub or read stdin.
-
-Both the apply command and `--check` first read the target repository's own `sase.yml`. A missing or false
-`is_sase_managed` marker makes the command an informative, successful no-op before provider or storage work; malformed
-YAML and non-boolean marker values fail safely. With `--path`, the target repository's marker is used rather than the
-caller's configuration.
-
-```bash
-sase init sdd                         # initialize or refresh the resolved store
-sase init sdd --check                 # preview initialization work
-sase init sdd --path /path/to/project
-sase sdd migrate --check --diff       # after init, preview legacy content import
-sase sdd migrate                      # apply the import and retire its local source
+```yaml
+repos:
+  sidecar:
+    - name: plans
+      auto_clone: true
 ```
 
-Initialization and migration are separate on purpose: initialization creates or adopts both split sidecars and records
-their remotes, while migration copies supported content from an existing legacy tree. Once initialization records the
-split layout, normal SDD operations route to the sidecars even though the legacy local tree remains until migration
-succeeds.
+An existing `plans` entry is preserved verbatim, including `disabled: true`. The write uses SASE's comment-preserving
+configuration editor. The same initializer adds `/sase/repos/` to the tracked root `.gitignore`; those two project-file
+changes use the normal commit/pull/push path unless `--no-commit` is supplied.
 
-Keep conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
-[docs/sdd_storage.md](sdd_storage.md). The files generated by `sase init sdd` are intentionally short project-local
-guides and are safe to overwrite. Use `--check` to preview provider work and generated-file changes without writing.
+For each enabled sidecar, provider discovery runs before materialization. A missing remote gets its own default-no
+prompt naming the visibility, provider, full repository name, and host. Only `y` or `yes` authorizes creation; `--yes`,
+blank answers, EOF, interruption, and non-interactive stdin cannot authorize it. The configured `repo:` pin and
+`visibility:` are passed to the provider, and initialization fails closed if the provider cannot honor the requested
+visibility.
 
-Built-in bare-git projects run this same generated-file refresh automatically during first-use `#git:<project>`
-initialization, existing bare-repo registration, workspace materialization, and the first in-tree SDD write. Manual
-`sase init sdd` is still useful when you want an explicit refresh or a drift check.
+Plans and research sidecars retain their illustrated README and directory-map templates. Custom sidecar roles receive a
+deterministic generic README using their configured description. Initialized guide files are committed and pushed in
+their respective sidecar repositories. When plans and research are available, the legacy split SDD store record is
+maintained for compatibility.
+
+```bash
+sase repo init                    # initialize sidecars and project wiring
+sase repo init --check            # preview without network probes or writes
+sase repo init --diff             # show file diffs, then apply
+sase repo init --no-commit        # write project config/ignore changes without committing
+sase init repo                    # alias for sase repo init
+```
+
+Both apply and `--check` first read the current repository's own `sase.yml`. A missing or false `is_sase_managed` marker
+makes the command an informative, successful no-op before provider work; malformed YAML and non-boolean marker values
+fail safely. The historical `sase sdd init` spelling remains available during the CLI migration window and delegates to
+the same repository initializer. `sase init sdd` and `sase init workspace` are no longer public subcommands.
+
+Built-in bare-git projects keep their provider-owned in-tree SDD layout. For those projects, `sase repo init` refreshes
+the existing generated SDD guides while still maintaining the plans declaration and repository ignore rule. Keep
+conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in [docs/sdd_storage.md](sdd_storage.md).
 
 ## Skill Initialization
 

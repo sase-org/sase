@@ -70,12 +70,27 @@ def expected_sdd_directory_map(
 
 
 def expected_sdd_sidecar_files(
-    kind: str, root: str | Path
+    kind: str,
+    root: str | Path,
+    *,
+    description: str | None = None,
 ) -> tuple[SddExpectedTextFile | SddExpectedBytesFile, ...]:
-    """Return deterministic generated files for one split sidecar root."""
+    """Return deterministic generated files for one sidecar root.
 
-    _validate_sidecar_kind(kind)
+    The historical plans and research roles retain their illustrated guide
+    templates. Custom roles receive a small deterministic README so repo init
+    can seed arbitrary configured sidecars without inventing role-specific
+    directory layouts.
+    """
+
     sidecar_root = Path(root)
+    if kind not in SDD_SIDECAR_KINDS:
+        return (
+            SddExpectedTextFile(
+                path=sidecar_root / "README.md",
+                content=_generic_sidecar_readme(kind, description),
+            ),
+        )
     filename = SDD_SIDECAR_DIRECTORY_MAP_FILENAMES[kind]
     return (
         SddExpectedTextFile(
@@ -90,12 +105,19 @@ def expected_sdd_sidecar_files(
 
 
 def plan_sdd_sidecar_init_actions(
-    kind: str, root: str | Path
+    kind: str,
+    root: str | Path,
+    *,
+    description: str | None = None,
 ) -> tuple[SddInitAction, ...]:
     """Plan generated README and asset drift for one split sidecar."""
 
     actions: list[SddInitAction] = []
-    for expected in expected_sdd_sidecar_files(kind, root):
+    for expected in expected_sdd_sidecar_files(
+        kind,
+        root,
+        description=description,
+    ):
         operation = (
             planned_text_operation(expected.path, expected.content)
             if isinstance(expected, SddExpectedTextFile)
@@ -113,10 +135,19 @@ def plan_sdd_sidecar_init_actions(
     return tuple(actions)
 
 
-def ensure_sdd_sidecar_initialized(kind: str, root: str | Path) -> tuple[Path, ...]:
-    """Refresh deterministic generated files for one split sidecar."""
+def ensure_sdd_sidecar_initialized(
+    kind: str,
+    root: str | Path,
+    *,
+    description: str | None = None,
+) -> tuple[Path, ...]:
+    """Refresh deterministic generated files for one sidecar."""
 
-    actions = plan_sdd_sidecar_init_actions(kind, root)
+    actions = plan_sdd_sidecar_init_actions(
+        kind,
+        root,
+        description=description,
+    )
     for action in actions:
         action.path.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(action.new_content, bytes):
@@ -219,6 +250,21 @@ def _read_sdd_sidecar_directory_map_bytes(kind: str) -> bytes:
 def _validate_sidecar_kind(kind: str) -> None:
     if kind not in SDD_SIDECAR_KINDS:
         raise ValueError(f"unknown SDD sidecar kind: {kind}")
+
+
+def _generic_sidecar_readme(kind: str, description: str | None) -> str:
+    title = kind.replace("-", " ").replace("_", " ").strip().title() or "Sidecar"
+    purpose = (
+        description.strip()
+        if isinstance(description, str) and description.strip()
+        else "This repository stores durable resources for its SASE-managed source repository."
+    )
+    return (
+        f"# SASE {title}\n\n"
+        f"{purpose}\n\n"
+        "This repository is managed as a SASE sidecar and is cloned below "
+        f"`sase/repos/{kind}` in project workspaces.\n"
+    )
 
 
 def planned_text_operation(

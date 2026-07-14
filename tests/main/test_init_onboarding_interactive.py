@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from sase.main.init_onboarding import run_init_onboarding
 from sase.main.init_plan import InitAction
 from sase.main.init_registry import InitCommandSpec
-from sase.main.sdd_handler import run_sdd_init
-from sase.sdd.store import SddStore
+from sase.main.repo_init_handler import run_repo_init
+from sase.sdd._sidecar_init import _SidecarInitOutcome, SidecarInitSpec
 from sase.workspace_provider import SddSidecarPreflight
 from tests.main.init_onboarding_helpers import (
     _TtyStringIO,
@@ -129,11 +128,11 @@ def test_full_drift_prompt_order_all_three_plans() -> None:
             calls,
         ),
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
-                actions=(_changed_action("sdd/README.md"),),
-                summary="update SDD files",
+                "repo",
+                actions=(_changed_action("sase.yml"),),
+                summary="update repository wiring",
             ),
             calls,
         ),
@@ -160,27 +159,27 @@ def test_full_drift_prompt_order_all_three_plans() -> None:
     )
 
     assert exit_code == 0
-    assert calls == ["memory", "sdd", "skills"]
+    assert calls == ["memory", "repo", "skills"]
     assert [prompt.split(" now?", maxsplit=1)[0] for prompt in prompts] == [
         "Run `sase init memory`",
-        "Run `sase init sdd`",
+        "Run `sase init repo`",
         "Run `sase init skills --force`",
     ]
 
 
-def test_sdd_prompt_mentions_sidecar_repo_creation() -> None:
+def test_repo_prompt_mentions_sidecar_repo_creation() -> None:
     calls: list[str] = []
     prompts: list[str] = []
     specs = (
         _spec(
-            "sdd",
+            "repo",
             _plan(
-                "sdd",
+                "repo",
                 actions=(
                     InitAction(
-                        Path(".sase/sdd"),
+                        Path("sase/repos/plans"),
                         "create",
-                        "create or connect GitHub sidecar repository acme/widget--sdd",
+                        "create or connect provider plans sidecar repository",
                     ),
                 ),
                 summary="create sidecar repo",
@@ -201,8 +200,8 @@ def test_sdd_prompt_mentions_sidecar_repo_creation() -> None:
     )
 
     assert exit_code == 0
-    assert calls == ["sdd"]
-    assert "This may create and push to a GitHub sidecar repository." in prompts[0]
+    assert calls == ["repo"]
+    assert "This may create and push to a provider sidecar repository." in prompts[0]
 
 
 @pytest.mark.parametrize(
@@ -225,13 +224,21 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     prompts: list[str] = []
     answers = iter(responses)
     authorizations: list[dict[str, bool] | None] = []
+    sidecars = (
+        SidecarInitSpec(role="plans"),
+        SidecarInitSpec(role="research"),
+    )
     monkeypatch.setattr(
-        "sase.main.sdd_handler._project_provider_sdd_policy",
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
         lambda _root: "separate_repo",
     )
     monkeypatch.setattr(
-        "sase.sdd._sidecar_init.preflight_split_sdd_sidecars",
-        lambda _root, _workspace: {
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: sidecars,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda _root, _workspace, _sidecars: {
             kind: SddSidecarPreflight(
                 status="not_found",
                 provider="GitHub",
@@ -246,34 +253,32 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     def initialize(
         _root: Path,
         _workspace: int,
+        _sidecars: tuple[SidecarInitSpec, ...],
         *,
         creation_authorized: dict[str, bool] | None = None,
-    ) -> SimpleNamespace:
+    ) -> _SidecarInitOutcome:
         authorizations.append(creation_authorized)
         plans = tmp_path / "sase" / "repos" / "plans"
         research = tmp_path / "sase" / "repos" / "research"
-        store = SddStore(
-            "sidecar_repos",
-            plans,
-            plans,
-            research_dir=research,
+        return _SidecarInitOutcome(
+            store=None,
+            record=None,
+            created=frozenset(),
+            roots={"plans": plans, "research": research},
         )
-        return SimpleNamespace(store=store)
 
-    monkeypatch.setattr(
-        "sase.sdd._sidecar_init.initialize_split_sdd_sidecars", initialize
-    )
+    monkeypatch.setattr("sase.sdd._sidecar_init.initialize_sidecars", initialize)
     plan = _plan(
-        "sdd",
+        "repo",
         actions=(
             InitAction(
-                tmp_path / ".sase" / "sdd",
+                tmp_path / "sase" / "repos" / "plans",
                 "create",
-                "create or connect GitHub sidecar repository acme/widget--sdd",
+                "create or connect provider plans sidecar repository",
             ),
         ),
     )
-    spec = InitCommandSpec("sdd", "SDD", lambda _args: plan, run_sdd_init)
+    spec = InitCommandSpec("repo", "Repos", lambda _args: plan, run_repo_init)
 
     def answer(prompt: str) -> str:
         prompts.append(prompt)
@@ -289,7 +294,7 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     assert exit_code == 0
     assert len(prompts) == expected_prompt_count
     assert prompts[-1] == (
-        "Create public GitHub SDD sidecar repository "
+        "Create public GitHub sidecar repository "
         "acme/widget--research on github.com? [y/N] "
     )
     assert authorizations == [{"plans": True, "research": True}]

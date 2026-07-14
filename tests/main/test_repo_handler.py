@@ -43,6 +43,18 @@ def test_repo_parser_defaults_to_list() -> None:
     )
 
 
+def test_repo_init_parser_exposes_scoped_controls() -> None:
+    args = create_parser().parse_args(
+        ["repo", "init", "--check", "--diff", "--no-commit"]
+    )
+
+    assert args.command == "repo"
+    assert args.repo_subcommand == "init"
+    assert args.check is True
+    assert args.diff is True
+    assert args.no_commit is True
+
+
 def test_repo_list_json(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

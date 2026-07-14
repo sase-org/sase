@@ -80,11 +80,12 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     assert memory_long_args.check is True
     assert parser.parse_args(["memory", "init", "--diff"]).diff is True
 
-    init_sdd_args = parser.parse_args(["init", "sdd", "--check"])
-    assert init_sdd_args.command == "init"
-    assert init_sdd_args.init_subcommand == "sdd"
-    assert init_sdd_args.check is True
-    assert parser.parse_args(["init", "sdd", "-d"]).diff is True
+    init_repo_args = parser.parse_args(["init", "repo", "--check"])
+    assert init_repo_args.command == "init"
+    assert init_repo_args.init_subcommand == "repo"
+    assert init_repo_args.check is True
+    assert parser.parse_args(["init", "repo", "-d"]).diff is True
+    assert parser.parse_args(["init", "repo", "-C"]).no_commit is True
 
     init_memory_args = parser.parse_args(["init", "memory", "--check"])
     assert init_memory_args.command == "init"
@@ -95,10 +96,10 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     init_memory_enable_args = parser.parse_args(["init", "memory", "-M"])
     assert init_memory_enable_args.enable_project_memory is True
 
-    parent_sdd_args = parser.parse_args(["init", "--check", "sdd"])
-    assert parent_sdd_args.init_subcommand == "sdd"
-    assert parent_sdd_args.check is True
-    assert parser.parse_args(["init", "--diff", "sdd"]).diff is True
+    parent_repo_args = parser.parse_args(["init", "--check", "repo"])
+    assert parent_repo_args.init_subcommand == "repo"
+    assert parent_repo_args.check is True
+    assert parser.parse_args(["init", "--diff", "repo"]).diff is True
 
     parent_memory_args = parser.parse_args(["init", "--check", "memory"])
     assert parent_memory_args.init_subcommand == "memory"
@@ -125,12 +126,10 @@ def test_parser_accepts_scoped_init_check_modes() -> None:
     assert parent_skills_args.check is True
     assert parser.parse_args(["init", "--diff", "skills"]).diff is True
 
-    init_workspace_args = parser.parse_args(["init", "workspace", "--check"])
-    assert init_workspace_args.command == "init"
-    assert init_workspace_args.init_subcommand == "workspace"
-    assert init_workspace_args.check is True
-    assert parser.parse_args(["init", "workspace", "--diff"]).diff is True
-    assert parser.parse_args(["init", "workspace", "--no-commit"]).no_commit is True
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "sdd"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["init", "workspace"])
 
 
 def test_parser_rejects_bare_init_check_yes_conflict() -> None:
@@ -167,9 +166,9 @@ def test_init_help_lists_existing_subcommands(
     out = capsys.readouterr().out
     assert "amd" not in out
     assert "memory" in out
-    assert "sdd" in out
+    assert "repo" in out
     assert "skills" in out
-    assert "workspace" in out
+    assert "workspace" not in out
     assert "-a, --all" in out
     assert "-c, --check" in out
     assert "-d, --diff" in out
@@ -183,10 +182,9 @@ def test_init_help_lists_existing_subcommands(
     assert out.index("-M, --enable-project-memory") < out.index("-y, --yes")
 
 
-def test_registry_order_is_memory_sdd_skills_workspace() -> None:
+def test_registry_order_is_memory_repo_skills() -> None:
     assert tuple(spec.name for spec in iter_init_command_specs()) == (
         "memory",
-        "sdd",
+        "repo",
         "skills",
-        "workspace",
     )

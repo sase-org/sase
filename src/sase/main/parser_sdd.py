@@ -49,13 +49,13 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show full file diffs for planned SDD changes",
     )
-    add_sdd_path_arg(init_parser)
+    _add_sdd_path_arg(init_parser)
 
     links_parser = sdd_sub.add_parser(
         "links",
         help="List SDD frontmatter links",
     )
-    add_sdd_path_arg(links_parser)
+    _add_sdd_path_arg(links_parser)
     links_parser.add_argument(
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
     )
@@ -64,7 +64,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List SDD markdown files",
     )
-    add_sdd_path_arg(list_parser)
+    _add_sdd_path_arg(list_parser)
     list_parser.add_argument(
         "-k",
         "--kind",
@@ -97,7 +97,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Preview rewritten links and copied files before applying",
     )
-    add_sdd_path_arg(migrate_parser)
+    _add_sdd_path_arg(migrate_parser)
 
     path_parser = sdd_sub.add_parser(
         "path",
@@ -125,7 +125,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "repair-links",
         help="Infer and repair bidirectional SDD links",
     )
-    add_sdd_path_arg(repair_parser)
+    _add_sdd_path_arg(repair_parser)
     repair_parser.add_argument(
         "-w", "--write", action="store_true", help="Write inferred link fixes"
     )
@@ -134,7 +134,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
         "validate",
         help="Validate SDD frontmatter links",
     )
-    add_sdd_path_arg(validate_parser)
+    _add_sdd_path_arg(validate_parser)
     validate_parser.add_argument(
         "-j", "--json", action="store_true", help="Emit machine-readable JSON"
     )
@@ -155,7 +155,7 @@ def register_sdd_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def add_sdd_path_arg(parser: argparse.ArgumentParser) -> None:
+def _add_sdd_path_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-p",
         "--path",

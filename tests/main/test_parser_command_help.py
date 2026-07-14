@@ -162,6 +162,19 @@ def test_repo_open_help_documents_inference_and_required_reason() -> None:
     assert "sase repo open pallets/click -r" in open_help
 
 
+def test_repo_init_help_documents_guarded_sidecar_creation() -> None:
+    """``sase repo init --help`` exposes its guarded apply controls."""
+
+    init_help = flat_help(parser_for(("sase", "repo", "init")).format_help())
+
+    assert "usage: sase repo init" in init_help
+    assert "-c, --check" in init_help
+    assert "-d, --diff" in init_help
+    assert "-C, --no-commit" in init_help
+    assert "interactive, default-no y/yes confirmation" in init_help
+    assert "sase repo init --diff --no-commit" in init_help
+
+
 def test_repo_list_help_documents_scope_workspace_and_examples() -> None:
     """``sase repo list --help`` explains its project/workspace defaults."""
 

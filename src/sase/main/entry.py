@@ -201,21 +201,15 @@ def main() -> NoReturn:
 
             handle_init_memory_command(args)
 
-        if args.init_subcommand == "sdd":
-            from .sdd_handler import handle_sdd_command
+        if args.init_subcommand == "repo":
+            from .repo_init_handler import handle_repo_init_command
 
-            args.sdd_subcommand = "init"
-            handle_sdd_command(args)
+            handle_repo_init_command(args)
 
         if args.init_subcommand == "skills":
             from .init_skills_handler import handle_init_skills_command
 
             handle_init_skills_command(args)
-
-        if args.init_subcommand == "workspace":
-            from .init_workspace_handler import handle_init_workspace_command
-
-            handle_init_workspace_command(args)
 
         parser.error(f"unknown init subcommand: {args.init_subcommand}")
 

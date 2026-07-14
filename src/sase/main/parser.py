@@ -71,7 +71,7 @@ _COMPACT_ROOT_COMMANDS: tuple[_CompactRootCommand, ...] = (
     ),
     _CompactRootCommand(
         "init",
-        "Check or initialize memory, SDD guides, skills, and workspace ignores.",
+        "Check or initialize memory, repositories, and skills.",
     ),
     _CompactRootCommand(
         "version",

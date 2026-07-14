@@ -674,7 +674,14 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
+def _handle_init(args: argparse.Namespace) -> int:
+    from .repo_init_handler import run_repo_init
+
+    return run_repo_init(args)
+
+
 _HANDLERS = {
+    "init": _handle_init,
     "list": _handle_list,
     "log": _handle_log,
     "open": _handle_open,
@@ -688,7 +695,7 @@ def handle_repo_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "repo_subcommand", None)
     handler = _HANDLERS.get(subcommand) if isinstance(subcommand, str) else None
     if handler is None:
-        print("Usage: sase repo {list,log,open,path}", file=sys.stderr)
+        print("Usage: sase repo {init,list,log,open,path}", file=sys.stderr)
         raise SystemExit(2)
     raise SystemExit(handler(args))
 
