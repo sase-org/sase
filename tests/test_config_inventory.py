@@ -232,7 +232,8 @@ def test_inventory_attaches_deprecation_replacement() -> None:
     """The deprecation policy attaches a replacement to the deprecated field."""
     inventory = _build_fixture_inventory()
     sibling = inventory.field("sibling_repos")
-    assert sibling.deprecated_replacement == "linked_repos"
+    assert sibling.deprecated_replacement == "repos.linked"
+    assert inventory.field("linked_repos").deprecated_replacement == "repos.linked"
 
 
 def test_inventory_write_capabilities_are_writable_layers() -> None:
@@ -251,7 +252,7 @@ def test_inventory_source_rail_flags_and_existence() -> None:
     inventory = _build_fixture_inventory()
     user = inventory.source("user")
     assert user is not None
-    assert user.deprecated_keys == ("sibling_repos",)
+    assert user.deprecated_keys == ("linked_repos", "sibling_repos")
     assert user.writable is True
     assert user.kind == "user"
 
@@ -325,7 +326,9 @@ def test_config_field_model_flattens_real_schema() -> None:
     """The real schema flattens into dotted-path fields with classifications."""
     model = config_field_model()
     by_path = {f.path: f for f in model.fields}
-    # The deprecated alias is present and flagged with its replacement.
+    # The canonical nested fields and deprecated aliases are all visible.
+    assert "repos.linked" in by_path
+    assert "repos.sidecar" in by_path
     assert "linked_repos" in by_path
     assert by_path["linked_repos"].kind == "array"
 

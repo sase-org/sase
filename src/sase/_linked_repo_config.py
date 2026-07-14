@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import re
+import subprocess
 from typing import Any
+from urllib.parse import urlparse
 
 import yaml  # type: ignore[import-untyped]
 
+REPOS_CONFIG_KEY = "repos"
+REPOS_LINKED_CONFIG_KEY = "linked"
+REPOS_SIDECAR_CONFIG_KEY = "sidecar"
 LINKED_REPOS_CONFIG_KEY = "linked_repos"
 SIBLING_REPOS_CONFIG_KEY = "sibling_repos"
 DEFAULT_LINKED_REPOS_CONFIG_KEY = "default_linked_repos"
@@ -18,6 +25,21 @@ DEFAULT_PLANS_DESCRIPTION = "Durable SASE plans, prompt snapshots, and bead stat
 DEFAULT_RESEARCH_DESCRIPTION = "Durable SASE research reports and generated media."
 
 _DEFAULT_LINKED_REPO_MARKER = "_sase_default_linked_repo"
+_SIDECAR_REPO_MARKER = "_sase_sidecar_repo"
+_SIDECAR_ROLE_KEY = "_sase_sidecar_role"
+_SIDECAR_SLUG_KEY = "_sase_sidecar_slug"
+_SIDECAR_REMOTE_URL_KEY = "_sase_sidecar_remote_url"
+_SIDECAR_REPO_REF_KEY = "_sase_sidecar_repo_ref"
+
+
+@dataclass(frozen=True)
+class _SidecarRepoIdentity:
+    """Resolved role, repository slug, and remote for one sidecar entry."""
+
+    role: str
+    slug: str
+    repo: str
+    remote_url: str | None
 
 
 def resolution_config(
@@ -51,42 +73,167 @@ def _merge_resolution_config(
     return result
 
 
-def merged_entries_from_config(
+def _merged_entries_from_config(
     config: Mapping[str, Any],
 ) -> tuple[list[Mapping[str, Any]], list[str]]:
-    """Merge canonical ``linked_repos`` with deprecated ``sibling_repos``.
+    """Merge ``repos.linked`` with its deprecated top-level aliases.
 
     Within a single key, exact duplicates are deduped but distinct same-name
-    entries remain. Across keys, canonical entries win; divergent legacy
+    entries remain. Across keys, the precedence chain is ``repos.linked``,
+    ``linked_repos``, then ``sibling_repos``. Divergent lower-precedence
     entries with the same name produce a non-fatal warning.
     """
 
-    canonical = _dedupe_entries(_entries_for_key(config, LINKED_REPOS_CONFIG_KEY))
-    legacy = _dedupe_entries(_entries_for_key(config, SIBLING_REPOS_CONFIG_KEY))
-
-    canonical_by_name: dict[str, Mapping[str, Any]] = {}
-    for entry in canonical:
-        name = entry.get("name")
-        if isinstance(name, str) and name.strip():
-            canonical_by_name.setdefault(name.strip(), entry)
-
-    merged: list[Mapping[str, Any]] = list(canonical)
+    sources = (
+        (
+            "repos.linked",
+            _dedupe_entries(_entries_for_repos_key(config, REPOS_LINKED_CONFIG_KEY)),
+        ),
+        (
+            LINKED_REPOS_CONFIG_KEY,
+            _dedupe_entries(_entries_for_key(config, LINKED_REPOS_CONFIG_KEY)),
+        ),
+        (
+            SIBLING_REPOS_CONFIG_KEY,
+            _dedupe_entries(_entries_for_key(config, SIBLING_REPOS_CONFIG_KEY)),
+        ),
+    )
+    merged: list[Mapping[str, Any]] = []
+    selected_by_name: dict[str, tuple[str, Mapping[str, Any]]] = {}
     warnings: list[str] = []
-    for entry in legacy:
-        name = entry.get("name")
-        key_name = name.strip() if isinstance(name, str) else ""
-        canonical_entry = canonical_by_name.get(key_name) if key_name else None
-        if canonical_entry is not None:
-            if not _entries_equivalent(canonical_entry, entry):
-                warnings.append(
-                    f"Linked repo {key_name!r} is defined in both linked_repos "
-                    "and sibling_repos with different settings; using the "
-                    "linked_repos definition and ignoring the sibling_repos one"
-                )
-            continue
-        merged.append(entry)
+    for source_name, entries in sources:
+        for entry in entries:
+            name = entry.get("name")
+            key_name = name.strip() if isinstance(name, str) else ""
+            selected = selected_by_name.get(key_name) if key_name else None
+            if selected is not None:
+                selected_source, selected_entry = selected
+                if not _entries_equivalent(selected_entry, entry):
+                    warnings.append(
+                        f"Linked repo {key_name!r} is defined in both "
+                        f"{selected_source} and {source_name} with different "
+                        f"settings; using the {selected_source} definition and "
+                        f"ignoring the {source_name} one"
+                    )
+                continue
+            merged.append(entry)
+            if key_name:
+                selected_by_name[key_name] = (source_name, entry)
 
     return merged, warnings
+
+
+def merged_sidecar_entries_from_config(
+    config: Mapping[str, Any],
+    *,
+    primary_workspace_dir: str,
+) -> list[Mapping[str, Any]]:
+    """Return merged, normalized ``repos.sidecar`` entries.
+
+    Config-list concatenation preserves layer order, so later entries are
+    project-local overrides of earlier global entries. Entries are merged by
+    role name or resolved repository slug. A disabled override deliberately
+    remains in the result so it can suppress both earlier config and implicit
+    or store-record fallbacks.
+    """
+
+    raw_entries = _entries_for_repos_key(config, REPOS_SIDECAR_CONFIG_KEY)
+    merged: list[dict[str, Any]] = []
+    tokens_by_index: list[set[str]] = []
+    for raw_entry in raw_entries:
+        entry = dict(raw_entry)
+        tokens = _sidecar_entry_tokens(entry, primary_workspace_dir)
+        matched_index = next(
+            (
+                index
+                for index, existing_tokens in enumerate(tokens_by_index)
+                if tokens and tokens.intersection(existing_tokens)
+            ),
+            None,
+        )
+        if matched_index is None:
+            merged.append(entry)
+            tokens_by_index.append(tokens)
+            continue
+        merged[matched_index].update(entry)
+        tokens_by_index[matched_index] = _sidecar_entry_tokens(
+            merged[matched_index], primary_workspace_dir
+        )
+
+    normalized: list[Mapping[str, Any]] = []
+    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    for entry in merged:
+        identity = _sidecar_repo_identity(entry, primary_workspace_dir=str(primary))
+        normalized_entry = dict(entry)
+        normalized_entry.setdefault("auto_clone", False)
+        normalized_entry.setdefault("visibility", "public")
+        normalized_entry.setdefault("disabled", False)
+        normalized_entry[_SIDECAR_REPO_MARKER] = True
+        if identity is not None:
+            normalized_entry["name"] = identity.role
+            normalized_entry.setdefault(
+                "path", str(primary / "sase" / "repos" / identity.role)
+            )
+            normalized_entry[_SIDECAR_ROLE_KEY] = identity.role
+            normalized_entry[_SIDECAR_SLUG_KEY] = identity.slug
+            normalized_entry[_SIDECAR_REPO_REF_KEY] = identity.repo
+            normalized_entry[_SIDECAR_REMOTE_URL_KEY] = identity.remote_url
+        normalized.append(normalized_entry)
+    return normalized
+
+
+def merged_repo_entries_from_config(
+    config: Mapping[str, Any],
+    *,
+    primary_workspace_dir: str,
+) -> tuple[list[Mapping[str, Any]], list[str]]:
+    """Return canonical linked entries followed by configured sidecars."""
+
+    linked, warnings = _merged_entries_from_config(config)
+    sidecars = merged_sidecar_entries_from_config(
+        config,
+        primary_workspace_dir=primary_workspace_dir,
+    )
+    return [*linked, *sidecars], warnings
+
+
+def _sidecar_repo_identity(
+    entry: Mapping[str, Any],
+    *,
+    primary_workspace_dir: str,
+) -> _SidecarRepoIdentity | None:
+    """Resolve one configured sidecar's role, slug, repo ref, and remote URL."""
+
+    role_value = entry.get("name")
+    role = role_value.strip() if isinstance(role_value, str) else ""
+    if not role:
+        return None
+
+    primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    store_repo, store_remote = _store_sidecar_identity(primary, role)
+    configured_repo = entry.get("repo")
+    repo = configured_repo.strip() if isinstance(configured_repo, str) else ""
+    if not repo:
+        repo = store_repo or _derived_sidecar_repo(primary, role)
+
+    slug = _repo_basename(repo)
+    if not slug:
+        return None
+
+    remote_url: str | None = None
+    if store_repo and _repo_basename(store_repo) == slug:
+        remote_url = store_remote
+    if remote_url is None:
+        full_name = _full_github_repo_name(primary, repo)
+        if full_name is not None:
+            remote_url = f"https://github.com/{full_name}.git"
+
+    return _SidecarRepoIdentity(
+        role=role,
+        slug=slug,
+        repo=repo,
+        remote_url=remote_url,
+    )
 
 
 def inject_default_linked_repos(
@@ -112,12 +259,28 @@ def inject_default_linked_repos(
         for entry in entries
         if isinstance((name := entry.get("name")), str) and name.strip()
     }
+    configured_sidecar_tokens = {
+        token
+        for entry in entries
+        for token in (
+            _optional_entry_text(entry, _SIDECAR_ROLE_KEY),
+            _optional_entry_text(entry, _SIDECAR_SLUG_KEY),
+        )
+        if token
+    }
     defaults = (
-        (f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),
-        (f"{project_name}--research", DEFAULT_RESEARCH_DESCRIPTION, False),
+        ("plans", f"{project_name}--plans", DEFAULT_PLANS_DESCRIPTION, True),
+        (
+            "research",
+            f"{project_name}--research",
+            DEFAULT_RESEARCH_DESCRIPTION,
+            False,
+        ),
     )
-    for name, description, auto_clone in defaults:
-        if name in configured_names:
+    for role, name, description, auto_clone in defaults:
+        if name in configured_names or {role, name}.intersection(
+            configured_sidecar_tokens
+        ):
             continue
         merged.append(
             {
@@ -126,6 +289,11 @@ def inject_default_linked_repos(
                 "description": description,
                 "auto_clone": auto_clone,
                 _DEFAULT_LINKED_REPO_MARKER: True,
+                _SIDECAR_REPO_MARKER: True,
+                _SIDECAR_ROLE_KEY: role,
+                _SIDECAR_SLUG_KEY: name,
+                _SIDECAR_REPO_REF_KEY: name,
+                _SIDECAR_REMOTE_URL_KEY: None,
             }
         )
     return merged
@@ -140,6 +308,15 @@ def _entries_for_key(config: Mapping[str, Any], key: str) -> list[Mapping[str, A
         if isinstance(item, Mapping):
             entries.append({str(name): value for name, value in item.items()})
     return entries
+
+
+def _entries_for_repos_key(
+    config: Mapping[str, Any], key: str
+) -> list[Mapping[str, Any]]:
+    repos = config.get(REPOS_CONFIG_KEY)
+    if not isinstance(repos, Mapping):
+        return []
+    return _entries_for_key(repos, key)
 
 
 def _dedupe_entries(
@@ -177,8 +354,108 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
     return {
         "name": name if isinstance(name, str) else "",
         "path": path if isinstance(path, str) else "",
+        "description": (
+            entry.get("description")
+            if isinstance(entry.get("description"), str)
+            else ""
+        ),
         "auto_clone": entry.get("auto_clone") is True,
     }
+
+
+def _sidecar_entry_tokens(
+    entry: Mapping[str, Any], primary_workspace_dir: str
+) -> set[str]:
+    identity = _sidecar_repo_identity(
+        entry,
+        primary_workspace_dir=primary_workspace_dir,
+    )
+    if identity is None:
+        return set()
+    return {identity.role, identity.slug}
+
+
+def _store_sidecar_identity(primary: Path, role: str) -> tuple[str, str | None]:
+    if role not in {"plans", "research"}:
+        return "", None
+    try:
+        from sase.sdd.store import read_sdd_store_record
+
+        record = read_sdd_store_record(primary)
+    except (OSError, RuntimeError, ValueError):
+        return "", None
+    if record is None:
+        return "", None
+    sidecar = record.sidecar_for_kind(role)
+    if sidecar is None:
+        return "", None
+    return sidecar.repo, sidecar.remote_url
+
+
+def _derived_sidecar_repo(primary: Path, role: str) -> str:
+    project = _github_repo_name_from_origin(primary)
+    project_slug = project.rsplit("/", 1)[-1] if project else primary.name
+    slug = f"{project_slug}--{role}"
+    if project and "/" in project:
+        owner = project.split("/", 1)[0]
+        return f"{owner}/{slug}"
+    return slug
+
+
+def _full_github_repo_name(primary: Path, repo: str) -> str | None:
+    cleaned = repo.strip().strip("/")
+    if not cleaned:
+        return None
+    if "/" in cleaned:
+        owner, slug = cleaned.split("/", 1)
+        return f"{owner}/{slug}" if owner and slug and "/" not in slug else None
+    project = _github_repo_name_from_origin(primary)
+    if project is None or "/" not in project:
+        return None
+    return f"{project.split('/', 1)[0]}/{cleaned}"
+
+
+def _github_repo_name_from_origin(primary: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=primary,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    remote = result.stdout.strip()
+    if not remote:
+        return None
+
+    ssh_match = re.match(r"^[^@\s]+@github\.com:(.+)$", remote)
+    if ssh_match:
+        path = ssh_match.group(1)
+    else:
+        parsed = urlparse(remote)
+        if parsed.hostname != "github.com":
+            return None
+        path = parsed.path
+    cleaned = path.strip("/")
+    if cleaned.endswith(".git"):
+        cleaned = cleaned[: -len(".git")]
+    parts = cleaned.split("/")
+    if len(parts) != 2 or not all(parts):
+        return None
+    return f"{parts[0]}/{parts[1]}"
+
+
+def _repo_basename(repo: str) -> str:
+    return repo.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:
+    value = entry.get(key)
+    return value.strip() if isinstance(value, str) else ""
 
 
 def resolve_config_path(path: str, *, relative_to: str) -> str:

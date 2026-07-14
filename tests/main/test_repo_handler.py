@@ -299,6 +299,76 @@ def test_repo_name_resolution_prefers_linked_over_primary_alias(
     assert resolved is linked
 
 
+def test_repo_name_resolution_accepts_sidecar_slug(tmp_path: Path) -> None:
+    host_ctx = _project_context(tmp_path)
+    sidecar = _repo_record(
+        tmp_path,
+        name="research",
+        slug="shared-research",
+        kind="sidecar",
+    )
+
+    resolved = _match_repo_record(
+        "shared-research",
+        host_ctx=host_ctx,
+        inventory=RepoInventory((sidecar,)),
+    )
+
+    assert resolved is sidecar
+
+
+def test_repo_open_accepts_sidecar_slug(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    host_ctx = _project_context(tmp_path)
+    sidecar = _repo_record(
+        tmp_path,
+        name="research",
+        slug="shared-research",
+        kind="sidecar",
+    )
+    opened_names: list[str] = []
+    monkeypatch.setattr(
+        "sase.main.workspace_handler._resolve_project_context",
+        lambda _project: host_ctx,
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler.collect_repo_inventory",
+        lambda **_kwargs: RepoInventory((sidecar,)),
+    )
+    monkeypatch.setattr(
+        "sase.main.workspace_handler_list.prepare_opened_checkout",
+        lambda ctx, *_args, **_kwargs: (
+            opened_names.append(ctx.project_name) or sidecar.path
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_handler._record_repo_open", lambda **_kwargs: None
+    )
+    args = create_parser().parse_args(
+        [
+            "repo",
+            "open",
+            "shared-research",
+            "--project",
+            "demo",
+            "--reason",
+            "inspect reports",
+            "--workspace",
+            "0",
+        ]
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handle_repo_command(args)
+
+    assert exc_info.value.code == 0
+    assert opened_names == ["research"]
+    assert capsys.readouterr().out == f"{sidecar.path}\n"
+
+
 def test_unknown_repo_lists_valid_candidates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -816,6 +886,7 @@ def _repo_record(
     *,
     name: str,
     kind: str,
+    slug: str | None = None,
     clones: tuple[RepoCloneRecord, ...] = (),
 ) -> RepoRecord:
     path = tmp_path / f"{kind}-{name}"
@@ -831,6 +902,7 @@ def _repo_record(
         description=None,
         source="test",
         env_name=None,
+        slug=slug,
         clones=clones,
     )
 

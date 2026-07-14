@@ -23,10 +23,16 @@ from sase._linked_repo_config import (
     DEFAULT_PLANS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
     LINKED_REPOS_CONFIG_KEY,
+    REPOS_CONFIG_KEY,
     SIBLING_REPOS_CONFIG_KEY,
     _DEFAULT_LINKED_REPO_MARKER,
+    _SIDECAR_REMOTE_URL_KEY,
+    _SIDECAR_REPO_MARKER,
+    _SIDECAR_ROLE_KEY,
+    _SIDECAR_SLUG_KEY,
     inject_default_linked_repos,
-    merged_entries_from_config,
+    merged_repo_entries_from_config,
+    merged_sidecar_entries_from_config,
     normalize_path,
     read_project_local_config,
     resolution_config,
@@ -85,6 +91,7 @@ __all__ = [
     "OPENED_LINKED_FILENAME",
     "OPENED_SIBLINGS_FILENAME",
     "OpenedRepoKind",
+    "REPOS_CONFIG_KEY",
     "SIBLING_REPO_ENV_PREFIX",
     "SIBLING_REPO_ENV_SUFFIXES",
     "SIBLING_REPOS_CONFIG_KEY",
@@ -125,7 +132,10 @@ def resolve_linked_repos_for_project(
     primary_workspace_dir = _primary_workspace_dir(project_file, workspace_dir)
     local_config = read_project_local_config(primary_workspace_dir)
     resolved_config = resolution_config(primary_workspace_dir, config)
-    entries, merge_warnings = merged_entries_from_config(resolved_config)
+    entries, merge_warnings = merged_repo_entries_from_config(
+        resolved_config,
+        primary_workspace_dir=primary_workspace_dir,
+    )
     entries = inject_default_linked_repos(
         entries,
         primary_workspace_dir=primary_workspace_dir,
@@ -165,12 +175,21 @@ def _resolve_linked_repos(
         name = entry.get("name")
         raw_path = entry.get("path")
         auto_clone = entry.get("auto_clone") is True
+        is_sidecar = entry.get(_SIDECAR_REPO_MARKER) is True
+        disabled = entry.get("disabled") is True
+        sidecar_role = _entry_text(entry, _SIDECAR_ROLE_KEY)
+        sidecar_slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
+        remote_url = _entry_text(entry, _SIDECAR_REMOTE_URL_KEY)
+        if disabled:
+            continue
         if not isinstance(name, str) or not name.strip():
-            resolution_warnings.append("Skipping linked repo with missing name")
+            kind = "sidecar" if is_sidecar else "linked repo"
+            resolution_warnings.append(f"Skipping {kind} with missing name")
             continue
         if not isinstance(raw_path, str) or not raw_path.strip():
             resolution_warnings.append(
-                f"Skipping linked repo {name!r} with missing path"
+                f"Skipping {'sidecar' if is_sidecar else 'linked repo'} "
+                f"{name!r} with missing path"
             )
             continue
 
@@ -184,11 +203,12 @@ def _resolve_linked_repos(
         if not Path(primary_dir).is_dir():
             if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True:
                 continue
-            resolution_warnings.append(
-                f"Skipping linked repo {name!r}: primary path does not exist: "
-                f"{primary_dir}"
-            )
-            continue
+            if not is_sidecar:
+                resolution_warnings.append(
+                    f"Skipping linked repo {name!r}: primary path does not exist: "
+                    f"{primary_dir}"
+                )
+                continue
 
         try:
             resolved_workspace_dir = _resolve_workspace_dir(
@@ -198,6 +218,8 @@ def _resolve_linked_repos(
                 workspace_num=workspace_num,
                 config=config,
                 materialize=materialize,
+                sidecar_dirname=sidecar_role if is_sidecar else None,
+                expected_remote_url=remote_url,
             )
         except RuntimeError as exc:
             resolution_warnings.append(f"Skipping linked repo {name!r}: {exc}")
@@ -213,6 +235,9 @@ def _resolve_linked_repos(
                 workspace_dir=resolved_workspace_dir,
                 workspace_num=workspace_num,
                 auto_clone=auto_clone,
+                kind="sidecar" if is_sidecar else "linked",
+                slug=sidecar_slug or None,
+                remote_url=remote_url or None,
             )
         )
 
@@ -273,36 +298,74 @@ def _repo_basename(repo: str) -> str:
 
 def _sdd_sidecar_repo_dirnames(
     primary_workspace_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
 ) -> dict[str, str]:
-    """Map authoritative SDD sidecar basenames to clone directory names."""
+    """Map configured/store/fallback sidecar names to clone directory names."""
 
     from sase.sdd.store import read_sdd_store_record
 
     primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
+    configured: dict[str, str] = {}
+    configured_roles: set[str] = set()
+    disabled: set[str] = set()
+    try:
+        resolved_config = resolution_config(str(primary), config)
+        configured_entries = merged_sidecar_entries_from_config(
+            resolved_config,
+            primary_workspace_dir=str(primary),
+        )
+    except Exception:
+        configured_entries = []
+    for entry in configured_entries:
+        role = _entry_text(entry, _SIDECAR_ROLE_KEY)
+        slug = _entry_text(entry, _SIDECAR_SLUG_KEY)
+        tokens = {token for token in (role, slug) if token}
+        if role:
+            configured_roles.add(role)
+        if entry.get("disabled") is True:
+            disabled.update(tokens)
+            continue
+        if role:
+            configured.update(dict.fromkeys(tokens, role))
+
     record = read_sdd_store_record(primary)
     if record is not None:
-        return {
+        store_mapping = {
             _repo_basename(sidecar.repo): kind
             for kind in ("plans", "research")
             if (sidecar := record.sidecar_for_kind(kind)) is not None
+            and kind not in configured_roles
+            and kind not in disabled
+            and _repo_basename(sidecar.repo) not in disabled
         }
+        return {**store_mapping, **configured}
 
     project_name = primary.name
     if not project_name:
-        return {}
-    return {
-        f"{project_name}--plans": "plans",
-        f"{project_name}--research": "research",
+        return configured
+    fallbacks = {
+        slug: kind
+        for kind in ("plans", "research")
+        if kind not in configured_roles
+        if kind not in disabled
+        if (slug := f"{project_name}--{kind}") not in disabled
     }
+    return {**fallbacks, **configured}
 
 
 def sdd_sidecar_clone_dirname(
     primary_workspace_dir: str | Path,
     name: str,
+    *,
+    config: Mapping[str, Any] | None = None,
 ) -> str | None:
     """Return the clone dirname for sidecar entry *name*, if it is one."""
 
-    return _sdd_sidecar_repo_dirnames(primary_workspace_dir).get(name)
+    return _sdd_sidecar_repo_dirnames(
+        primary_workspace_dir,
+        config=config,
+    ).get(name)
 
 
 def _remove_path(path: Path) -> None:
@@ -423,8 +486,17 @@ def _resolve_workspace_dir(
     workspace_num: int,
     config: Mapping[str, Any],
     materialize: bool,
+    sidecar_dirname: str | None = None,
+    expected_remote_url: str = "",
 ) -> str:
     if workspace_num <= 1:
+        if materialize and sidecar_dirname is not None and expected_remote_url:
+            return materialize_linked_repo_workspace(
+                primary_dir=primary_dir,
+                workspace_dir=primary_dir,
+                workspace_num=workspace_num,
+                expected_remote_url=expected_remote_url,
+            )
         return primary_dir
 
     from sase.workspace_provider.store import WorkspaceStore
@@ -434,7 +506,11 @@ def _resolve_workspace_dir(
         .resolve(workspace_num)
         .checkout_dir.rstrip("/")
     )
-    sidecar_dirname = sdd_sidecar_clone_dirname(host_primary_dir, name)
+    sidecar_dirname = sidecar_dirname or sdd_sidecar_clone_dirname(
+        host_primary_dir,
+        name,
+        config=config,
+    )
     target = (
         sidecar_repo_clone_dir(host_workspace_dir, sidecar_dirname)
         if sidecar_dirname is not None
@@ -447,11 +523,16 @@ def _resolve_workspace_dir(
         primary_dir=primary_dir,
         workspace_dir=target,
         workspace_num=workspace_num,
+        expected_remote_url=expected_remote_url or None,
     )
 
 
 def materialize_linked_repo_workspace(
-    *, primary_dir: str, workspace_dir: str, workspace_num: int
+    *,
+    primary_dir: str,
+    workspace_dir: str,
+    workspace_num: int,
+    expected_remote_url: str | None = None,
 ) -> str:
     """Clone a host-scoped linked workspace and initialize its SDD sidecar."""
 
@@ -468,7 +549,15 @@ def materialize_linked_repo_workspace(
         else:
             workspace_dir = linked_repo_clone_dir(host_checkout, name)
 
-    checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
+    if expected_remote_url:
+        checkout_dir = _materialize_remote_identified_sidecar(
+            primary_dir=primary_dir,
+            workspace_dir=workspace_dir,
+            workspace_num=workspace_num,
+            expected_remote_url=expected_remote_url,
+        )
+    else:
+        checkout_dir = ensure_git_clone_at(primary_dir, workspace_num, workspace_dir)
     from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
     ensure_sase_git_info_excludes(checkout_dir)
@@ -479,6 +568,89 @@ def materialize_linked_repo_workspace(
     except Exception:
         pass
     return normalize_path(checkout_dir)
+
+
+def _materialize_remote_identified_sidecar(
+    *,
+    primary_dir: str,
+    workspace_dir: str,
+    workspace_num: int,
+    expected_remote_url: str,
+) -> str:
+    """Materialize a sidecar while rejecting stale clones of another remote."""
+
+    target = Path(workspace_dir).expanduser()
+    source = Path(primary_dir).expanduser()
+    if target.is_dir() and _clone_origin_matches(target, expected_remote_url):
+        return str(target)
+
+    if workspace_num <= 1:
+        if target.exists():
+            actual = _git_origin_url(target) or "missing origin"
+            raise RuntimeError(
+                f"Sidecar clone at {target} has origin {actual!r}; expected "
+                f"{expected_remote_url!r}"
+            )
+        from sase.sdd._store_link import ensure_sidecar_sdd_clone
+
+        ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
+        return str(target)
+
+    if os.path.lexists(target):
+        _remove_path(target)
+    if source.is_dir() and _clone_origin_matches(source, expected_remote_url):
+        from sase.workspace_provider.utils import ensure_git_clone_at
+
+        return ensure_git_clone_at(str(source), workspace_num, str(target))
+
+    from sase.sdd._store_link import ensure_sidecar_sdd_clone
+
+    ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
+    return str(target)
+
+
+def _clone_origin_matches(path: Path, expected_remote_url: str) -> bool:
+    origin = _git_origin_url(path)
+    return origin is not None and _git_remote_identity(origin) == _git_remote_identity(
+        expected_remote_url
+    )
+
+
+def _git_origin_url(path: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _git_remote_identity(url: str) -> str:
+    value = url.strip().rstrip("/")
+    if value.endswith(".git"):
+        value = value[: -len(".git")]
+    ssh_match = re.match(r"^[^@\s]+@([^:]+):(.+)$", value)
+    if ssh_match:
+        return f"{ssh_match.group(1).casefold()}/{ssh_match.group(2).strip('/')}"
+    url_match = re.match(
+        r"^[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+)$",
+        value,
+    )
+    if url_match:
+        return f"{url_match.group(1).casefold()}/{url_match.group(2).strip('/')}"
+    return normalize_path(value)
+
+
+def _entry_text(entry: Mapping[str, Any], key: str) -> str:
+    value = entry.get(key)
+    return value.strip() if isinstance(value, str) else ""
 
 
 def _sanitize_env_name(name: str) -> str:

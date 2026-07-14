@@ -232,9 +232,11 @@ def _unknown_repo_error(
 ) -> ExternalRepoOpenError:
     valid_names = sorted(
         {
-            record.name
+            candidate
             for record in inventory.records
             if record.project == host_ctx.project_name and record.kind != "external"
+            for candidate in (record.name, record.slug)
+            if candidate is not None
         }
         | {host_ctx.project_name}
     )

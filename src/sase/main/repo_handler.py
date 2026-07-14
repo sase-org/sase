@@ -442,7 +442,8 @@ def _match_repo_record(
     secondary_matches = [
         record
         for record in inventory.records
-        if record.kind in {"sidecar", "linked"} and record.name == requested
+        if record.kind in {"sidecar", "linked"}
+        and requested in {record.name, record.slug}
     ]
     if len(secondary_matches) == 1:
         return secondary_matches[0]
@@ -491,6 +492,7 @@ def _repo_target_context(
         is_sibling=True,
         is_configured_linked_repo=True,
         linked_host_primary_workspace_dir=host_ctx.primary_workspace_dir,
+        linked_repo_remote_url=repo.remote_url,
     )
 
 

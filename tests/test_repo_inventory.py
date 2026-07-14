@@ -121,6 +121,127 @@ def test_inventory_collects_all_repo_kinds_and_sidecar_wins_overlap(
     assert sum(record.name == "widget--plans" for record in inventory.records) == 1
 
 
+def test_inventory_surfaces_configured_sidecar_role_and_slug(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    config = {
+        "repos": {
+            "sidecar": [
+                {
+                    "name": "research",
+                    "repo": "acme/shared-research",
+                    "description": "Shared reports",
+                    "visibility": "private",
+                }
+            ]
+        }
+    }
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    sidecar = next(record for record in inventory.records if record.kind == "sidecar")
+    assert sidecar.name == "research"
+    assert sidecar.slug == "shared-research"
+    assert sidecar.path == str(
+        (Path(project.workspace_dir or "") / "sase" / "repos" / "research").resolve()
+    )
+    assert sidecar.exists is False
+    assert sidecar.source == "repos.sidecar config"
+    assert sidecar.remote_url == "https://github.com/acme/shared-research.git"
+
+
+def test_disabled_configured_sidecar_suppresses_store_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "https://example.test/widget--plans.git",
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": "https://example.test/widget--research.git",
+                },
+            },
+        },
+    )
+    config = {"repos": {"sidecar": [{"name": "research", "disabled": True}]}}
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    sidecars = [record for record in inventory.records if record.kind == "sidecar"]
+    assert [record.name for record in sidecars] == ["widget--plans"]
+
+
+def test_pinned_sidecar_identity_overrides_stale_store_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = _project_record(tmp_path)
+    primary = Path(project.workspace_dir or "")
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "https://example.test/widget--plans.git",
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": "https://example.test/widget--research.git",
+                },
+            },
+        },
+    )
+    config = {
+        "repos": {"sidecar": [{"name": "research", "repo": "acme/shared-research"}]}
+    }
+    monkeypatch.setattr(
+        "sase.repo_inventory.list_project_records",
+        lambda *_args, **_kwargs: [project],
+    )
+    monkeypatch.setattr(
+        "sase.repo_inventory.resolution_config",
+        lambda *_args, **_kwargs: config,
+    )
+
+    inventory = collect_repo_inventory(tmp_path / "projects")
+
+    research = next(record for record in inventory.records if record.name == "research")
+    assert research.slug == "shared-research"
+    assert research.remote_url == "https://github.com/acme/shared-research.git"
+    assert research.source == "repos.sidecar config"
+
+
 def test_explicit_disabled_project_is_included(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

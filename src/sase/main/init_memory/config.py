@@ -13,6 +13,7 @@ from sase.linked_repos import (
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
     DEFAULT_RESEARCH_DESCRIPTION,
     LINKED_REPOS_CONFIG_KEY,
+    REPOS_CONFIG_KEY,
     SIBLING_REPOS_CONFIG_KEY,
 )
 from sase.project_management import load_local_config
@@ -147,11 +148,13 @@ def primary_workspace_root_for_memory(root: Path) -> Path:
 def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
     """Return the configured related-repo list plus the source config key.
 
-    Prefers the canonical ``linked_repos`` key and falls back to the deprecated
-    ``sibling_repos`` alias so legacy configs still drive memory generation
-    during the compatibility window.
+    Prefers canonical ``repos.linked`` and falls back through the deprecated
+    top-level aliases so legacy configs still drive memory generation.
     """
 
+    repos = config.get(REPOS_CONFIG_KEY)
+    if isinstance(repos, Mapping) and "linked" in repos:
+        return repos.get("linked", []), "repos.linked"
     if LINKED_REPOS_CONFIG_KEY in config:
         return config.get(LINKED_REPOS_CONFIG_KEY, []), LINKED_REPOS_CONFIG_KEY
     if SIBLING_REPOS_CONFIG_KEY in config:

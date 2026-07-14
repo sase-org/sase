@@ -18,7 +18,7 @@ and CLI flags.
   - [agent_family](#agent_family)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
-  - [linked_repos](#linked_repos)
+  - [repos](#repos)
   - [vcs_provider](#vcs_provider)
   - [vcs_repo_completion](#vcs_repo_completion)
   - [vcs_ref_completion](#vcs_ref_completion)
@@ -74,8 +74,8 @@ will go, and whether it validates:
   the field tree is generated from the schema (`/` filters, `:` jumps to a dotted path, `m` shows only modified fields,
   `r` refreshes); the detail pane shows the type, default, effective value, and the full provenance stack with the
   winning layer marked. Structured values (object maps and arrays of objects, such as `ace.lumberjack` or
-  [`linked_repos`](#linked_repos)) render as a multi-line, syntax-highlighted YAML block instead of a one-line JSON
-  blob, while scalars and short flat lists keep their compact inline form.
+  [`repos`](#repos)) render as a multi-line, syntax-highlighted YAML block instead of a one-line JSON blob, while
+  scalars and short flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a toggle for booleans, an option cycle
   for enums, validated inputs for numbers and strings, a line editor for string lists, and a raw-YAML escape hatch for
   complex shapes. Pick the write **scope** (`ctrl+t` cycles user base / overlays / a selected local file; `ctrl+n`
@@ -85,8 +85,9 @@ will go, and whether it validates:
   effective merged value, and schema validation of the candidate config. The write is source-preserving (comments, key
   order, and quoting are kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
 
-The deprecated `sibling_repos` key remains readable as a compatibility alias for [`linked_repos`](#linked_repos), but
-the Config tab no longer offers a one-key migration action. Prefer editing the config to use `linked_repos` directly.
+The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility aliases for
+[`repos.linked`](#repos), but the Config tab no longer offers a one-key migration action. Prefer editing the config to
+use `repos.linked` directly.
 
 SASE Admin Center never writes without showing the diff and validation first, and never edits a built-in or plugin
 default (those layers are read-only).
@@ -533,7 +534,7 @@ commit:
 | `commit.finalizer.enabled`    | bool | `true`  | Run the post-invocation commit finalizer for SASE-launched agent sessions.           |
 | `commit.finalizer.max_passes` | int  | `2`     | Maximum follow-up invocations before a still-dirty enforced workspace fails the run. |
 
-When enabled, the finalizer checks the main workspace through the active VCS provider and configured `linked_repos` Git
+When enabled, the finalizer checks the main workspace through the active VCS provider and configured `repos.linked` Git
 worktrees at their resolved paths. Repositories opened through `/sase_repo`, including external repos, are recorded in
 `opened_linked_workspaces.json` for ACE context and in the host project's durable repo-open log. Dirty enforced
 workspaces trigger a follow-up invocation that instructs the same provider to use the appropriate commit skill. Dirty
@@ -548,9 +549,9 @@ the provider-neutral finalizer.
 
 Source: `src/sase/llm_provider/commit_finalizer.py`, `src/sase/commit_instructions.py`
 
-### linked_repos
+### repos
 
-Declares related repositories that should be visible to launched agents. Git linked-repo worktrees are eligible for
+Declares linked and sidecar repositories related to a project. Git linked-repo worktrees are eligible for
 commit-finalizer checks at their resolved `workspace_dir`. Agents use `/sase_repo` to prepare them; its audited
 `sase repo open` command records manually opened linked workspaces in run artifacts for ACE context and appends a
 durable audit event. SASE materializes a hidden sibling-state ProjectSpec for the linked repo when needed. Entries can
@@ -562,34 +563,47 @@ materializes and prepares those entries before execution. Lazy entries remain av
 their per-repository `*_DIR` environment variables are not exported until the clone exists. Repositories with
 `auto_clone: true` are omitted from generated agent instructions because agents do not need to open them manually.
 
-Managed projects (`is_sase_managed: true`) also receive deterministic `<project>--plans` (`auto_clone: true`) and
-`<project>--research` (lazy) linked-repository entries. A project-local entry with either name overrides its default.
-Set project-local `default_linked_repos: false` to disable both injected entries.
+Sidecar entries use their `name` as both the role and `sase/repos/<name>` clone directory. Their repository defaults to
+`<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or `owner/repo`.
+Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or repository slug.
+Set `disabled: true` in a later config layer to suppress a matching global entry or implicit fallback.
 
-The deprecated `sibling_repos` key is still accepted as an alias during the compatibility window. Prefer `linked_repos`
-in new config.
+Managed projects (`is_sase_managed: true`) continue to receive deterministic `<project>--plans` (`auto_clone: true`) and
+`<project>--research` (lazy) compatibility entries when no matching explicit sidecar is configured. Set project-local
+`default_linked_repos: false` to disable both injected entries.
+
+The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
+Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
 
 ```yaml
-linked_repos:
-  - name: core
-    path: ../sase-core
-    description: Shared backend/domain behavior used by SASE frontends.
-    auto_clone: true
-  - name: github
-    path: ../sase-github
-    description: GitHub VCS and workspace provider plugin.
-  - name: chezmoi
-    path: ~/.local/share/chezmoi
-    description: User dotfiles source managed by chezmoi.
+repos:
+  linked:
+    - name: core
+      path: ../sase-core
+      description: Shared backend/domain behavior used by SASE frontends.
+      auto_clone: true
+  sidecar:
+    - name: plans
+      auto_clone: true
+    - name: research
+      repo: sase-org/sase--research
+      description: Durable SASE research reports and generated media.
+      visibility: public
 ```
 
-| Field                        | Type    | Default  | Description                                                                         |
-| ---------------------------- | ------- | -------- | ----------------------------------------------------------------------------------- |
-| `default_linked_repos`       | boolean | `true`   | Inject managed-project `--plans` and `--research` sidecar entries.                  |
-| `linked_repos[].auto_clone`  | boolean | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
-| `linked_repos[].name`        | string  | required | Stable alias used in generated environment variable names and memory summaries.     |
-| `linked_repos[].path`        | string  | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
-| `linked_repos[].description` | string  | required | Human-readable purpose used when generating agent memory for the linked repository. |
+| Field                         | Type           | Default  | Description                                                                         |
+| ----------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------- |
+| `default_linked_repos`        | boolean        | `true`   | Inject managed-project `--plans` and `--research` compatibility sidecars.           |
+| `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
+| `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
+| `repos.linked[].path`         | string         | required | Primary checkout path. Relative paths resolve from the project's primary workspace. |
+| `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
+| `repos.sidecar[].name`        | string         | required | Role name, clone directory, and primary CLI lookup key.                             |
+| `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
+| `repos.sidecar[].description` | string         | -        | Human-readable purpose shown in repository inventory.                               |
+| `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize the sidecar automatically before agent launch.                          |
+| `repos.sidecar[].visibility`  | public/private | `public` | Visibility used when creating the remote.                                           |
+| `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars.                          |
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
@@ -1594,10 +1608,11 @@ external repositories, prepares a selected repo inside one workspace context, an
 successful opens.
 
 `sase repo list` defaults to the current project and infers both the project and workspace context from cwd. Primary
-repos come from ProjectSpecs, sidecars from SDD store records, linked repos from resolved `linked_repos`, and external
-repos from materialized workspace-local clones; a sidecar wins when the same checkout is also auto-injected as linked.
-The Rich table reports whether each repo is cloned in the selected workspace plus the number of registered workspaces
-containing it. External rows use the canonical project name or provider ref such as `gh:pallets/click`.
+repos come from ProjectSpecs, sidecars from `repos.sidecar` plus SDD store records, linked repos from resolved
+`repos.linked` (including compatibility aliases), and external repos from materialized workspace-local clones; a sidecar
+wins when the same checkout is also auto-injected as linked. The Rich table reports whether each repo is cloned in the
+selected workspace plus the number of registered workspaces containing it. External rows use the canonical project name
+or provider ref such as `gh:pallets/click`.
 
 | List flag         | Description                                                                 |
 | ----------------- | --------------------------------------------------------------------------- |

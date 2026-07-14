@@ -338,16 +338,45 @@ def test_load_config_layers_flags_deprecated_sibling_repos_key(
     assert user_layer.unsupported_keys == []
 
 
-def test_load_config_layers_canonical_linked_repos_not_deprecated(
+def test_load_config_layers_flags_deprecated_linked_repos_key(
     tmp_path: Path,
 ) -> None:
-    """The canonical ``linked_repos:`` key is not flagged as deprecated."""
     (tmp_path / "sase.yml").write_text(
         yaml.dump(
             {
                 "linked_repos": [
                     {"name": "core", "path": "../sase-core", "description": "core"}
                 ]
+            }
+        )
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+
+    user_layer = next(ly for ly in layers if ly.name == "user")
+    assert user_layer.deprecated_keys == ["linked_repos"]
+
+
+def test_load_config_layers_canonical_repos_linked_not_deprecated(
+    tmp_path: Path,
+) -> None:
+    """The canonical ``repos.linked:`` key is not flagged as deprecated."""
+    (tmp_path / "sase.yml").write_text(
+        yaml.dump(
+            {
+                "repos": {
+                    "linked": [
+                        {
+                            "name": "core",
+                            "path": "../sase-core",
+                            "description": "core",
+                        }
+                    ]
+                }
             }
         )
     )

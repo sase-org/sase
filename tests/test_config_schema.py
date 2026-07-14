@@ -562,6 +562,54 @@ def test_config_schema_accepts_linked_repo_auto_clone_and_default_opt_out() -> N
     assert list(Draft7Validator(schema).iter_errors(config)) == []
 
 
+def test_config_schema_accepts_canonical_linked_and_sidecar_repos() -> None:
+    schema = _schema()
+    config = {
+        "repos": {
+            "linked": [
+                {
+                    "name": "core",
+                    "path": "../sase-core",
+                    "description": "Shared core.",
+                    "auto_clone": True,
+                }
+            ],
+            "sidecar": [
+                {
+                    "name": "research",
+                    "repo": "sase-org/sase--research",
+                    "description": "Durable research.",
+                    "auto_clone": False,
+                    "visibility": "private",
+                    "disabled": False,
+                }
+            ],
+        }
+    }
+
+    assert list(Draft7Validator(schema).iter_errors(config)) == []
+
+
+@pytest.mark.parametrize(
+    ("entry", "field"),
+    [
+        ({"name": "research", "visibility": "internal"}, "visibility"),
+        ({"name": "research", "disabled": "no"}, "disabled"),
+        ({"name": "research", "auto_clone": "yes"}, "auto_clone"),
+    ],
+)
+def test_config_schema_rejects_invalid_sidecar_controls(
+    entry: dict[str, object], field: str
+) -> None:
+    config = {"repos": {"sidecar": [entry]}}
+
+    errors = list(Draft7Validator(_schema()).iter_errors(config))
+
+    assert [list(error.absolute_path) for error in errors] == [
+        ["repos", "sidecar", 0, field]
+    ]
+
+
 @pytest.mark.parametrize(
     ("config", "expected_path"),
     [

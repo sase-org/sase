@@ -19,8 +19,12 @@ from sase._linked_repo_config import (
     DEFAULT_PLANS_DESCRIPTION,
     DEFAULT_RESEARCH_DESCRIPTION,
     _DEFAULT_LINKED_REPO_MARKER,
+    _SIDECAR_REMOTE_URL_KEY,
+    _SIDECAR_REPO_MARKER,
+    _SIDECAR_ROLE_KEY,
+    _SIDECAR_SLUG_KEY,
     inject_default_linked_repos,
-    merged_entries_from_config,
+    merged_repo_entries_from_config,
     read_project_local_config,
     resolution_config,
     resolve_config_path,
@@ -89,6 +93,8 @@ class RepoRecord:
     description: str | None
     source: str
     env_name: str | None
+    slug: str | None = None
+    remote_url: str | None = None
     sdd_storage: str | None = None
     clones: tuple[RepoCloneRecord, ...] = ()
 
@@ -119,6 +125,8 @@ class RepoRecord:
             "description": self.description,
             "source": self.source,
             "env_name": self.env_name,
+            "slug": self.slug,
+            "remote_url": self.remote_url,
             "sdd_storage": self.sdd_storage,
             "clones": [clone.to_json_dict() for clone in self.clones],
         }
@@ -247,7 +255,10 @@ def _collect_project_repos(
     try:
         local_config = read_project_local_config(primary)
         resolved_config = resolution_config(primary, None)
-        entries, merge_warnings = merged_entries_from_config(resolved_config)
+        entries, merge_warnings = merged_repo_entries_from_config(
+            resolved_config,
+            primary_workspace_dir=primary,
+        )
         entries = inject_default_linked_repos(
             entries,
             primary_workspace_dir=primary,
@@ -264,6 +275,16 @@ def _collect_project_repos(
     env_names = _entry_env_names(entries)
     entry_metadata = _entry_metadata_by_name(entries, env_names)
     materialized_sidecars: set[str] = set()
+    disabled_sidecars = {
+        token
+        for entry in entries
+        if entry.get(_SIDECAR_REPO_MARKER) is True and entry.get("disabled") is True
+        for token in (
+            _optional_text(entry.get(_SIDECAR_ROLE_KEY)),
+            _optional_text(entry.get(_SIDECAR_SLUG_KEY)),
+        )
+        if token is not None
+    }
 
     try:
         store_record = read_sdd_store_record(primary)
@@ -277,10 +298,20 @@ def _collect_project_repos(
                 sidecar = store_record.sidecar_for_kind(kind)
                 if sidecar is None:
                     continue
-                name = _repo_basename(sidecar.repo)
-                materialized_sidecars.add(name)
-                metadata = entry_metadata.get(name, {})
-                path = sidecar_repo_clone_dir(primary, kind)
+                store_slug = _repo_basename(sidecar.repo)
+                if kind in disabled_sidecars or store_slug in disabled_sidecars:
+                    continue
+                metadata = entry_metadata.get(kind) or entry_metadata.get(
+                    store_slug, {}
+                )
+                role = _optional_text(metadata.get("role")) or store_slug
+                slug = _optional_text(metadata.get("slug")) or store_slug
+                materialized_sidecars.update({role, slug})
+                path = (
+                    _optional_text(metadata.get("path"))
+                    if metadata.get("is_configured_sidecar") is True
+                    else None
+                ) or sidecar_repo_clone_dir(primary, kind)
                 default_description = (
                     DEFAULT_PLANS_DESCRIPTION
                     if kind == "plans"
@@ -288,7 +319,7 @@ def _collect_project_repos(
                 )
                 records.append(
                     RepoRecord(
-                        name=name,
+                        name=role,
                         kind="sidecar",
                         project=project,
                         project_key=project_key,
@@ -297,33 +328,51 @@ def _collect_project_repos(
                         auto_clone=bool(metadata.get("auto_clone", kind == "plans")),
                         description=_optional_text(metadata.get("description"))
                         or default_description,
-                        source="SDD store record",
+                        source=(
+                            "repos.sidecar config"
+                            if metadata.get("is_configured_sidecar") is True
+                            else "SDD store record"
+                        ),
                         env_name=_optional_text(metadata.get("env_name"))
-                        or _sanitize_env_name(name),
+                        or _sanitize_env_name(role),
+                        slug=slug,
+                        remote_url=(
+                            _optional_text(metadata.get("remote_url"))
+                            or sidecar.remote_url
+                        ),
                         sdd_storage=store_record.storage,
                     )
                 )
         elif store_record.repo:
             name = _repo_basename(store_record.repo)
-            materialized_sidecars.add(name)
-            path = str(Path(primary) / ".sase" / "sdd")
-            records.append(
-                RepoRecord(
-                    name=name,
-                    kind="sidecar",
-                    project=project,
-                    project_key=project_key,
-                    path=path,
-                    exists=Path(path).is_dir(),
-                    auto_clone=True,
-                    description="Durable SASE development artifacts.",
-                    source="SDD store record",
-                    env_name=_sanitize_env_name(name),
-                    sdd_storage=store_record.storage,
+            if name in disabled_sidecars or "plans" in disabled_sidecars:
+                name = ""
+            if not name:
+                store_record = None
+            else:
+                materialized_sidecars.add(name)
+                path = str(Path(primary) / ".sase" / "sdd")
+                records.append(
+                    RepoRecord(
+                        name=name,
+                        kind="sidecar",
+                        project=project,
+                        project_key=project_key,
+                        path=path,
+                        exists=Path(path).is_dir(),
+                        auto_clone=True,
+                        description="Durable SASE development artifacts.",
+                        source="SDD store record",
+                        env_name=_sanitize_env_name(name),
+                        slug=name,
+                        remote_url=store_record.remote_url,
+                        sdd_storage=store_record.storage,
+                    )
                 )
-            )
 
     for index, entry in enumerate(entries):
+        if entry.get("disabled") is True:
+            continue
         linked_name = _optional_text(entry.get("name"))
         raw_path = _optional_text(entry.get("path"))
         if linked_name is None or raw_path is None:
@@ -335,12 +384,20 @@ def _collect_project_repos(
             )
             continue
 
-        sidecar_kind = sdd_sidecar_clone_dirname(primary, linked_name)
-        is_sidecar = (
-            entry.get(_DEFAULT_LINKED_REPO_MARKER) is True or sidecar_kind is not None
+        sidecar_kind = sdd_sidecar_clone_dirname(
+            primary,
+            linked_name,
+            config=resolved_config,
         )
+        is_sidecar = (
+            entry.get(_SIDECAR_REPO_MARKER) is True
+            or entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
+            or sidecar_kind is not None
+        )
+        entry_slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
         if (
             linked_name in materialized_sidecars
+            or (entry_slug is not None and entry_slug in materialized_sidecars)
             or _repo_basename(linked_name) in materialized_sidecars
         ):
             continue
@@ -369,9 +426,19 @@ def _collect_project_repos(
                 source=(
                     "auto-injected sidecar"
                     if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True
-                    else "linked_repos config"
+                    else (
+                        "repos.sidecar config"
+                        if entry.get(_SIDECAR_REPO_MARKER) is True
+                        else "repos.linked config"
+                    )
                 ),
                 env_name=env_names.get(index),
+                slug=entry_slug if is_sidecar else None,
+                remote_url=(
+                    _optional_text(entry.get(_SIDECAR_REMOTE_URL_KEY))
+                    if is_sidecar
+                    else None
+                ),
                 sdd_storage=None,
             )
         )
@@ -618,6 +685,8 @@ def _entry_env_names(entries: Sequence[Mapping[str, Any]]) -> dict[int, str]:
     used: set[str] = set()
     names: dict[int, str] = {}
     for index, entry in enumerate(entries):
+        if entry.get("disabled") is True:
+            continue
         name = _optional_text(entry.get("name"))
         if name is None:
             continue
@@ -638,17 +707,32 @@ def _entry_metadata_by_name(
 ) -> dict[str, dict[str, object]]:
     metadata: dict[str, dict[str, object]] = {}
     for index, entry in enumerate(entries):
+        if entry.get("disabled") is True:
+            continue
         name = _optional_text(entry.get("name"))
         if name is None:
             continue
-        metadata.setdefault(
-            name,
-            {
-                "auto_clone": entry.get("auto_clone") is True,
-                "description": entry.get("description"),
-                "env_name": env_names.get(index),
-            },
-        )
+        role = _optional_text(entry.get(_SIDECAR_ROLE_KEY))
+        slug = _optional_text(entry.get(_SIDECAR_SLUG_KEY))
+        payload: dict[str, object] = {
+            "auto_clone": entry.get("auto_clone") is True,
+            "description": entry.get("description"),
+            "env_name": env_names.get(index),
+            "is_configured_sidecar": (
+                entry.get(_SIDECAR_REPO_MARKER) is True
+                and entry.get(_DEFAULT_LINKED_REPO_MARKER) is not True
+            ),
+            "path": entry.get("path"),
+            "remote_url": entry.get(_SIDECAR_REMOTE_URL_KEY),
+            "role": role,
+            "slug": slug,
+        }
+        for key in {name, role, slug}:
+            if key is not None:
+                if payload["is_configured_sidecar"] is True:
+                    metadata[key] = payload
+                else:
+                    metadata.setdefault(key, payload)
     return metadata
 
 

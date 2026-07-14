@@ -385,7 +385,10 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"workflows"})
 # a canonical replacement. Mapped to the key callers should migrate to. Surfaced
 # (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
 # nudge to migrate without breaking launched agents with repeated warnings.
-DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {"sibling_repos": "linked_repos"}
+DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
+    "linked_repos": "repos.linked",
+    "sibling_repos": "repos.linked",
+}
 
 # Placement is provider-owned. These nested keys are recognized only so old
 # configuration can be ignored with an actionable cleanup diagnostic.

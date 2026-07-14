@@ -196,6 +196,15 @@ def resolve_checkout_path(
     Materializes (cloning when missing) only when *materialize* is true.
     """
     if workspace_num <= 1:
+        if materialize and ctx.is_configured_linked_repo and ctx.linked_repo_remote_url:
+            from sase.linked_repos import materialize_linked_repo_workspace
+
+            return materialize_linked_repo_workspace(
+                primary_dir=ctx.primary_workspace_dir,
+                workspace_dir=ctx.primary_workspace_dir,
+                workspace_num=workspace_num,
+                expected_remote_url=ctx.linked_repo_remote_url,
+            )
         return ctx.primary_workspace_dir.rstrip("/") or ctx.primary_workspace_dir
     if ctx.is_configured_linked_repo and workspace_num > 1:
         host_primary = ctx.linked_host_primary_workspace_dir
@@ -232,6 +241,7 @@ def resolve_checkout_path(
             primary_dir=ctx.primary_workspace_dir,
             workspace_dir=workspace_dir,
             workspace_num=workspace_num,
+            expected_remote_url=ctx.linked_repo_remote_url,
         )
     if materialize:
         path = ensure_workspace_checkout(
@@ -323,6 +333,15 @@ def prepare_opened_checkout(
 
     with contextlib.redirect_stdout(sys.stderr):
         try:
+            if ctx.is_configured_linked_repo and ctx.linked_repo_remote_url:
+                from sase.linked_repos import materialize_linked_repo_workspace
+
+                materialize_linked_repo_workspace(
+                    primary_dir=ctx.primary_workspace_dir,
+                    workspace_dir=ctx.primary_workspace_dir,
+                    workspace_num=0,
+                    expected_remote_url=ctx.linked_repo_remote_url,
+                )
             from sase.sdd.files import ensure_bare_git_sdd_initialized
 
             ensure_bare_git_sdd_initialized(

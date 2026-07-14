@@ -11,9 +11,11 @@ commit_hooks:
 # SASE-managed projects receive <project>--plans and <project>--research
 # linked repositories unless project-local configuration disables them.
 default_linked_repos: true
-# Linked repositories are lazy by default. Set auto_clone: true per entry when
-# every launched agent needs the repository materialized in its workspace.
-linked_repos: []
+# Linked and sidecar repositories are lazy by default. Set auto_clone: true per
+# entry when every launched agent needs the repository materialized.
+repos:
+  linked: []
+  sidecar: []
 
 # Maximum number of root user agents that may run concurrently across all
 # projects. Axe ChangeSpec runners use their separate axe.max_* limits.

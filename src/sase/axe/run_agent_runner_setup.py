@@ -108,6 +108,9 @@ def prepare_linked_repo_workspaces_if_needed(
                 primary_dir=repo.primary_dir,
                 workspace_dir=repo.workspace_dir,
                 workspace_num=repo.workspace_num,
+                expected_remote_url=(
+                    repo.remote_url if repo.kind == "sidecar" else None
+                ),
             )
         except RuntimeError as exc:
             raise RuntimeError(

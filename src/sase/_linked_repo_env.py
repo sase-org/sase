@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+from typing import Literal
 
 # Canonical linked-repo env vars.
 LINKED_REPOS_JSON_ENV = "SASE_LINKED_REPOS_JSON"
@@ -30,6 +31,9 @@ class ResolvedLinkedRepo:
     workspace_dir: str
     workspace_num: int
     auto_clone: bool = False
+    kind: Literal["linked", "sidecar"] = "linked"
+    slug: str | None = None
+    remote_url: str | None = None
 
     @property
     def is_materialized(self) -> bool:
@@ -45,6 +49,9 @@ class ResolvedLinkedRepo:
             "workspace_dir": self.workspace_dir,
             "workspace_num": self.workspace_num,
             "auto_clone": self.auto_clone,
+            "kind": self.kind,
+            "slug": self.slug,
+            "remote_url": self.remote_url,
         }
 
 

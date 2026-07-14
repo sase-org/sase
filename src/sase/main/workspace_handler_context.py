@@ -32,6 +32,7 @@ class ProjectContext:
     is_sibling: bool = False
     is_configured_linked_repo: bool = False
     linked_host_primary_workspace_dir: str | None = None
+    linked_repo_remote_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -269,7 +270,7 @@ def _linked_repo_project_from_env(
     from sase.linked_repos import linked_repo_metadata_from_env
 
     for item in linked_repo_metadata_from_env(os.environ):
-        if item.get("name") != project_name:
+        if project_name not in {item.get("name"), item.get("slug")}:
             continue
         primary_dir = str(item.get("primary_dir") or "").strip()
         if not primary_dir:
@@ -295,8 +296,9 @@ def _config_names_linked_repo(
         config = load_config() or {}
     except Exception:
         return False
-    for key in ("linked_repos", "sibling_repos"):
-        entries = config.get(key)
+    repos = config.get("repos")
+    canonical = repos.get("linked") if isinstance(repos, dict) else None
+    for entries in (canonical, config.get("linked_repos"), config.get("sibling_repos")):
         if not isinstance(entries, list):
             continue
         for entry in entries:

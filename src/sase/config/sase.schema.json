@@ -32,6 +32,44 @@
         }
       }
     },
+    "sidecarRepo": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "auto_clone": {
+          "type": "boolean",
+          "description": "Materialize and synchronize this sidecar automatically before each agent launch.",
+          "default": false
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose used in repository inventory and generated agent memory.",
+          "minLength": 1
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Disable this sidecar entry and suppress matching implicit sidecar defaults.",
+          "default": false
+        },
+        "name": {
+          "type": "string",
+          "description": "Stable role name used as the sase/repos/<name> clone directory and CLI lookup key.",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "description": "Optional owner/repo or bare repository slug. Omit to derive <project>--<name> in the project's organization.",
+          "minLength": 1
+        },
+        "visibility": {
+          "type": "string",
+          "description": "Visibility used when creating a missing sidecar repository.",
+          "enum": ["public", "private"],
+          "default": "public"
+        }
+      }
+    },
     "xpromptInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -1016,9 +1054,34 @@
       "description": "Inject the default plans and research sidecar linked repositories for SASE-managed projects.",
       "default": true
     },
+    "repos": {
+      "type": "object",
+      "description": "Repositories related to the current project.",
+      "additionalProperties": false,
+      "properties": {
+        "linked": {
+          "type": "array",
+          "description": "Related repositories exposed to launched agents as workspace-matched directories.",
+          "items": {
+            "$ref": "#/definitions/linkedRepo"
+          },
+          "default": []
+        },
+        "sidecar": {
+          "type": "array",
+          "description": "Project-owned sidecar repositories cloned below sase/repos/<name>.",
+          "items": {
+            "$ref": "#/definitions/sidecarRepo"
+          },
+          "default": []
+        }
+      },
+      "default": {}
+    },
     "linked_repos": {
       "type": "array",
-      "description": "Related repositories to expose to launched agents as workspace-matched directories. Each entry is published through the SASE_LINKED_REPOS_JSON and SASE_LINKED_REPO_<NAME>_DIR env vars.",
+      "description": "Deprecated alias for 'repos.linked'. Still parsed during the compatibility window; prefer 'repos.linked' in new config.",
+      "deprecated": true,
       "items": {
         "$ref": "#/definitions/linkedRepo"
       },
@@ -1026,7 +1089,8 @@
     },
     "sibling_repos": {
       "type": "array",
-      "description": "Deprecated alias for 'linked_repos'. Still parsed during the compatibility window; prefer 'linked_repos' in new config.",
+      "description": "Deprecated alias for 'repos.linked'. Still parsed during the compatibility window; prefer 'repos.linked' in new config.",
+      "deprecated": true,
       "items": {
         "$ref": "#/definitions/linkedRepo"
       },

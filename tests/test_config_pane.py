@@ -367,7 +367,7 @@ def test_render_detail_flags_deprecation_and_replacement(
 ) -> None:
     detail = cp._render_detail(view, "sibling_repos").plain
     assert "DEPRECATED" in detail
-    assert "linked_repos" in detail  # replacement
+    assert "repos.linked" in detail  # replacement
 
 
 def test_render_detail_section_summarizes_children(
