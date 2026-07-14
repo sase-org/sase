@@ -9,6 +9,7 @@ from sase.ace.changespec.project_spec_path import preferred_project_spec_path
 from sase.core.paths import sase_projects_dir
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
+from ._entry_name_prompts import prepare_kill_and_edit_prompt
 from ._types import PromptContext
 
 if TYPE_CHECKING:
@@ -25,12 +26,6 @@ class EntryRelaunchMixin:
 
         def _rewrite_retry_prompt_name(
             self, raw_prompt: str, retry_name: str
-        ) -> str: ...
-
-        def _force_name_reuse_in_prompt(
-            self,
-            raw_prompt: str,
-            replacement_name: str | None = None,
         ) -> str: ...
 
     def _retry_edit_agent(self) -> None:
@@ -90,7 +85,7 @@ class EntryRelaunchMixin:
             self.notify("No prompt found for this agent", severity="warning")  # type: ignore[attr-defined]
             return
 
-        raw_prompt = self._force_name_reuse_in_prompt(raw_prompt, agent.agent_name)
+        raw_prompt = prepare_kill_and_edit_prompt(raw_prompt, agent.agent_name)
 
         from ..agents._core import DISMISSABLE_STATUSES
 

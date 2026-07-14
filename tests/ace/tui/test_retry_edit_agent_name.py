@@ -5,7 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from unittest.mock import Mock, patch
 
+import pytest
+
 from sase.agent.retry_prompt import rewrite_retry_prompt_name
+from sase.ace.tui.actions.agent_workflow._entry_name_prompts import (
+    prepare_kill_and_edit_prompt,
+)
 from sase.ace.tui.actions.agent_workflow._entry_points import (
     EntryPointsMixin,
     _force_name_reuse_in_prompt,
@@ -176,6 +181,24 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
         "Do work"
     )
     assert _force_name_reuse_in_prompt(prompt) == prompt
+
+
+@pytest.mark.parametrize(
+    ("raw_prompt", "agent_name", "expected"),
+    [
+        ("%n:foo\nDo work", "foo", "%n:!foo\nDo work"),
+        ("%name:foo\nDo work", "foo", "%name:!foo\nDo work"),
+        ("%name:@.cld\nDo work", "0.cld", "%name:!0.cld\nDo work"),
+        ("%name:!foo\nDo work", "foo", "%name:!foo\nDo work"),
+        ("Do work", None, "Do work"),
+    ],
+)
+def test_prepare_kill_and_edit_prompt_contract(
+    raw_prompt: str,
+    agent_name: str | None,
+    expected: str,
+) -> None:
+    assert prepare_kill_and_edit_prompt(raw_prompt, agent_name) == expected
 
 
 @patch("sase.agent.names.allocate_retry_name", return_value="foo.r0")

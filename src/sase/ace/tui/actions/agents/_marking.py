@@ -436,7 +436,9 @@ class AgentMarkingMixin:
             self.notify("No marked agents remain", severity="warning")  # type: ignore[attr-defined]
             return
 
-        from sase.agent.retry_prompt import force_name_reuse_in_prompt
+        from ..agent_workflow._entry_name_prompts import (
+            prepare_kill_and_edit_prompt,
+        )
 
         # Collect raw prompts BEFORE any kill mutates the agent list. Marks are
         # preserved on abort so the user can fix the prompt-less row.
@@ -447,11 +449,7 @@ class AgentMarkingMixin:
             if raw_prompt is None:
                 missing += 1
                 continue
-            prompts.append(
-                force_name_reuse_in_prompt(
-                    raw_prompt, replacement_name=agent.agent_name
-                )
-            )
+            prompts.append(prepare_kill_and_edit_prompt(raw_prompt, agent.agent_name))
         if missing:
             suffix = "s" if missing != 1 else ""
             self.notify(  # type: ignore[attr-defined]

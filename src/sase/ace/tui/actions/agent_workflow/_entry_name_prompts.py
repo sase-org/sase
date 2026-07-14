@@ -18,3 +18,16 @@ def force_name_reuse_in_prompt(
     from sase.agent.retry_prompt import force_name_reuse_in_prompt as force_reuse
 
     return force_reuse(raw_prompt, replacement_name=replacement_name)
+
+
+def prepare_kill_and_edit_prompt(
+    raw_prompt: str,
+    agent_name: str | None,
+) -> str:
+    """Return the exact editable prompt for a kill-and-edit relaunch.
+
+    Both the focused-agent and marked-agent routes use this boundary so name
+    aliases, templates, and already-forced directives cannot drift between
+    the single- and multi-pane workflows.
+    """
+    return force_name_reuse_in_prompt(raw_prompt, replacement_name=agent_name)

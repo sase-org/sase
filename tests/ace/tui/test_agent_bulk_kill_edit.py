@@ -9,10 +9,22 @@ forced-name-reuse rule used by the focused-row ``,x`` path.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+import json
+import os
+from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+from textual.app import App, ComposeResult
+from textual.widgets import Static
+
+from sase.ace.tui.actions.agent_workflow._entry_relaunch import EntryRelaunchMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
-from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.modals import ConfirmKillAllModal
+from sase.ace.tui.widgets import PromptInputBar
 
 AgentIdentity = tuple[AgentType, str, str | None]
 
@@ -93,6 +105,38 @@ class _FakeBulkEditApp(AgentMarkingMixin):
         )
 
 
+class _MountedBulkEditApp(AgentMarkingMixin, EntryRelaunchMixin, App[None]):
+    """Textual app that keeps the real confirmation and prompt mount paths."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, agents: list[Agent]) -> None:
+        super().__init__()
+        self.current_tab = "agents"  # type: ignore[assignment]
+        self.current_idx = 0
+        self._agents = list(agents)
+        self._agents_with_children = list(agents)
+        self._marked_agents = set()
+        self._marked_agent_order = []
+        self._prompt_context = None
+        self._last_custom_agent_selection = None
+        self.bulk_kill_calls: list[tuple[list[Agent], list[Agent]]] = []
+
+    def compose(self) -> ComposeResult:
+        yield Static("", id="host")
+
+    def _unmount_prompt_bar(self) -> str:
+        return ""
+
+    def _do_bulk_kill_agents(
+        self,
+        killable: list[Agent],
+        dismissable: list[Agent] | None = None,
+    ) -> None:
+        self.bulk_kill_calls.append((list(killable), list(dismissable or [])))
+        self._reset_marked_agents()
+
+
 def _mark_in_order(app: _FakeBulkEditApp, *agents: _FakeAgent) -> None:
     for agent in agents:
         app._record_marked_agent(agent.identity)
@@ -101,6 +145,35 @@ def _mark_in_order(app: _FakeBulkEditApp, *agents: _FakeAgent) -> None:
 def _confirm(app: _FakeBulkEditApp) -> None:
     assert app.pushed_callbacks, "Modal callback not registered"
     app.pushed_callbacks[-1](True)
+
+
+def _artifact_waiting_agent(
+    artifacts_dir: Path,
+    *,
+    cl_name: str,
+    timestamp: str,
+    prompt: str,
+    concrete_name: str,
+) -> Agent:
+    artifacts_dir.mkdir(parents=True)
+    (artifacts_dir / "raw_xprompt.md").write_text(prompt, encoding="utf-8")
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"name": concrete_name}),
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=cl_name,
+        project_file=f"/tmp/projects/proj/{cl_name}.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 14, 10, 0, 0),
+        pid=os.getpid(),
+        raw_suffix=timestamp,
+        artifacts_dir=str(artifacts_dir),
+    )
+    enrich_agent_from_meta(agent, str(artifacts_dir))
+    assert agent.agent_name == concrete_name
+    return agent
 
 
 # --- happy path ------------------------------------------------------------
@@ -143,6 +216,55 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
         "%name:!done\nWork done",
         "%n:!run\nWork run",
     ]
+
+
+async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
+    tmp_path: Path,
+) -> None:
+    literal = _artifact_waiting_agent(
+        tmp_path / "literal",
+        cl_name="literal",
+        timestamp="20260714100000",
+        prompt="%n:literal.wait\nWork literal",
+        concrete_name="literal.wait",
+    )
+    templated = _artifact_waiting_agent(
+        tmp_path / "templated",
+        cl_name="templated",
+        timestamp="20260714100100",
+        prompt="%name:@.cld\nWork templated",
+        concrete_name="0.cld",
+    )
+    app = _MountedBulkEditApp([literal, templated])
+    app._record_marked_agent(templated.identity)
+    app._record_marked_agent(literal.identity)
+
+    with patch(
+        "sase.ace.last_agent_selection.save_last_agent_selection_if_launchable",
+        return_value=False,
+    ):
+        async with app.run_test(size=(100, 40)) as pilot:
+            app._bulk_kill_marked_agents_and_edit()
+            await pilot.pause()
+            assert isinstance(app.screen, ConfirmKillAllModal)
+
+            await pilot.press("y")
+            await pilot.pause()
+            assert isinstance(app.screen, ConfirmKillAllModal)
+            await pilot.press("y")
+            await pilot.pause()
+
+            bar = app.query_one(PromptInputBar)
+            assert len(bar._stack) == 2
+            assert bar.all_prompt_texts() == [
+                "%name:!0.cld\nWork templated",
+                "%n:!literal.wait\nWork literal",
+            ]
+
+    assert len(app.bulk_kill_calls) == 1
+    killable, dismissable = app.bulk_kill_calls[0]
+    assert killable == [templated, literal]
+    assert dismissable == []
 
 
 def test_bulk_kill_and_edit_one_mark_uses_marked_flow() -> None:
