@@ -328,8 +328,12 @@ def _create_or_adopt_sidecar(
         }
     )
     if existing_sidecar is not None:
-        options.setdefault("sdd_repo", existing_sidecar.repo)
-        options.setdefault("sdd_remote_url", existing_sidecar.remote_url)
+        resolved_repo = options.get("sdd_repo")
+        if not isinstance(resolved_repo, str) or not resolved_repo.strip():
+            options["sdd_repo"] = existing_sidecar.repo
+            options.setdefault("sdd_remote_url", existing_sidecar.remote_url)
+        elif _repo_refs_match(resolved_repo, existing_sidecar.repo):
+            options.setdefault("sdd_remote_url", existing_sidecar.remote_url)
     try:
         raw = create_sdd_remote(str(primary), str(workspace), options)
         normalized = normalize_sdd_store_record(cast(dict[str, object], raw))
@@ -351,6 +355,16 @@ def _create_or_adopt_sidecar(
         host=normalized.host,
         created=created,
     )
+
+
+def _repo_refs_match(left: str, right: str) -> bool:
+    def normalize(value: str) -> str:
+        normalized = value.strip().strip("/")
+        if normalized.endswith(".git"):
+            normalized = normalized[: -len(".git")]
+        return normalized.casefold()
+
+    return normalize(left) == normalize(right)
 
 
 def _provider_options(

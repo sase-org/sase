@@ -221,7 +221,12 @@ def _sidecar_repo_identity(
         return None
 
     remote_url: str | None = None
-    if store_repo and _repo_basename(store_repo) == slug:
+    if (
+        store_repo
+        and _repo_basename(store_repo) == slug
+        and store_remote is not None
+        and _remote_url_identifies_repo(store_remote, store_repo)
+    ):
         remote_url = store_remote
     if remote_url is None:
         full_name = full_github_repo_name(primary, repo)
@@ -443,6 +448,36 @@ def _github_repo_name_from_origin(primary: Path) -> str | None:
 
 def _repo_basename(repo: str) -> str:
     return repo.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _remote_url_identifies_repo(remote_url: str, repo: str) -> bool:
+    """Return whether *remote_url* names the repository in *repo*."""
+
+    expected = repo.strip().strip("/")
+    if expected.endswith(".git"):
+        expected = expected[: -len(".git")]
+    if not expected:
+        return False
+
+    remote = remote_url.strip().rstrip("/")
+    ssh_match = re.match(r"^[^@\s]+@[^:]+:(.+)$", remote)
+    if ssh_match:
+        remote_repo = ssh_match.group(1)
+    else:
+        parsed = urlparse(remote)
+        if parsed.scheme and parsed.path:
+            remote_repo = parsed.path
+        elif "/" not in expected:
+            remote_repo = Path(remote).name
+        else:
+            return False
+
+    normalized_remote = remote_repo.strip().strip("/")
+    if normalized_remote.endswith(".git"):
+        normalized_remote = normalized_remote[: -len(".git")]
+    if "/" not in expected:
+        normalized_remote = normalized_remote.rsplit("/", 1)[-1]
+    return normalized_remote.casefold() == expected.casefold()
 
 
 def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:

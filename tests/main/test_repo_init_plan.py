@@ -152,7 +152,7 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
 
     artifacts = next(spec for spec in specs if spec.role == "artifacts")
     assert artifacts.repo == "acme/shared-artifacts"
-    assert artifacts.remote_url is None
+    assert artifacts.remote_url == "https://github.com/acme/shared-artifacts.git"
     assert artifacts.visibility == "private"
     assert artifacts.description == "Durable artifacts."
 

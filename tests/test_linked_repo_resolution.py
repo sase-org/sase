@@ -12,6 +12,7 @@ from sase._linked_repo_config import (
     _merge_resolution_config,
     merged_sidecar_entries_from_config,
 )
+from sase.sdd.store import write_sdd_store_record
 from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     SIBLING_REPOS_JSON_ENV,
@@ -124,6 +125,87 @@ def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> Non
     assert repo.primary_dir == str((primary / "sase" / "repos" / "research").resolve())
     assert repo.workspace_dir == str(
         (tmp_path / "sase_4" / "sase" / "repos" / "research").resolve()
+    )
+
+
+def test_configured_sidecar_ignores_poisoned_store_remote(tmp_path: Path) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:acme/widget--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={
+            "repos": {
+                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+            }
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert len(resolution.repos) == 1
+    assert resolution.repos[0].remote_url == (
+        "https://github.com/sase-org/sase--research.git"
+    )
+
+
+def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:sase-org/sase--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={
+            "repos": {
+                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+            }
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert resolution.repos[0].remote_url == (
+        "git@github.com:sase-org/sase--research.git"
     )
 
 

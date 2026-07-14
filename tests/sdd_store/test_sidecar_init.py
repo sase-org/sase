@@ -18,6 +18,7 @@ from sase.sdd._init_files import (
     plan_sdd_sidecar_init_actions,
 )
 from sase.sdd._store_records import read_sdd_store_record
+from sase.sdd._store_records import write_sdd_store_record
 from sase.workspace_provider import SddSidecarPreflight
 
 
@@ -273,3 +274,83 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db-wal",
     ]
     assert (clones["research"] / "README.md").is_file()
+
+
+def test_split_init_cuts_over_changed_pinned_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_env(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    old_remote = _bare_remote(tmp_path, "widget--research")
+    shared_remote = _bare_remote(tmp_path, "shared-research")
+    clone = tmp_path / "research-clone"
+    _git(tmp_path, "clone", str(old_remote), str(clone))
+    captured: list[dict[str, object]] = []
+    write_sdd_store_record(
+        project,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "host": "github.com",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": str(old_remote),
+                },
+            },
+        },
+    )
+
+    def create_remote(
+        _primary: str, _workspace: str, options: dict[str, object]
+    ) -> dict[str, object]:
+        captured.append(options)
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "sase-org/shared-research",
+            "remote_url": str(shared_remote),
+            "discovery": "found",
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, _kind: str(clone),
+    )
+
+    outcome = initialize_sidecars(
+        project,
+        0,
+        (
+            SidecarInitSpec(
+                role="research",
+                repo="sase-org/shared-research",
+                remote_url=str(shared_remote),
+            ),
+        ),
+    )
+
+    assert captured[0]["sdd_repo"] == "sase-org/shared-research"
+    assert captured[0]["sdd_remote_url"] == str(shared_remote)
+    assert outcome.record is not None and outcome.record.research is not None
+    assert outcome.record.research.repo == "sase-org/shared-research"
+    assert outcome.record.research.remote_url == str(shared_remote)
+    origin = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=clone,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    assert origin == str(shared_remote)
+    assert (clone / "README.md").is_file()

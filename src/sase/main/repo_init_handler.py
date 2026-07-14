@@ -384,6 +384,7 @@ def _plan_sidecar_actions(
 def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]:
     from sase._linked_repo_config import (
         _DEFAULT_LINKED_REPO_MARKER,
+        _SIDECAR_REMOTE_URL_KEY,
         _SIDECAR_REPO_REF_KEY,
         _SIDECAR_ROLE_KEY,
         full_github_repo_name,
@@ -426,6 +427,7 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
             SidecarInitSpec(
                 role=role,
                 repo=repo,
+                remote_url=_entry_text(entry, _SIDECAR_REMOTE_URL_KEY) or None,
                 visibility=visibility,
                 description=_entry_text(entry, "description") or None,
             )
