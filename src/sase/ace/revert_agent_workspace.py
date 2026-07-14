@@ -7,8 +7,8 @@ unrelated to the commits being reverted.
 
 Instead every revert operation (preview and execute, single and bulk) claims a
 *fresh* short-lived workspace, prepares that checkout on the relevant ChangeSpec
-branch, runs the existing preview/execute logic there, and releases the claim in
-all completion and failure paths.
+branch or project default branch, runs the existing preview/execute logic there,
+and releases the claim in all completion and failure paths.
 
 Preview and execute claim *separate* workspaces so no claim is held while the
 confirmation modal waits for user input. Execute re-uses the previewed commit
@@ -64,7 +64,7 @@ class RevertWorkspaceError(RuntimeError):
 
 @dataclass(frozen=True)
 class _PreparedRevertWorkspace:
-    """A claimed checkout prepared on the ChangeSpec branch for a revert."""
+    """A claimed checkout prepared on the target branch for a revert."""
 
     workspace_num: int
     primary_dir: str
@@ -210,8 +210,8 @@ def _prepare_revert_workspace(
 
     Raises:
         RevertWorkspaceError: When the project has no git WORKSPACE_DIR, the
-            primary checkout cannot be materialized, or the ChangeSpec branch
-            cannot be checked out in the primary checkout.
+            primary checkout cannot be materialized, or the target branch cannot
+            be checked out in the primary checkout.
     """
     primary_dir = parse_workspace_dir(intent.project_file)
     if not primary_dir:
@@ -311,9 +311,22 @@ def _prepare_branch(
     workspace_dir: str,
     intent: RevertIntent | BulkRevertIntent,
 ) -> tuple[bool, str | None]:
-    """Clean stale state and check out the ChangeSpec branch in *workspace_dir*."""
+    """Clean stale state and check out the revert branch in *workspace_dir*."""
     provider = get_vcs_provider(workspace_dir)
     provider.stash_and_clean(f"{intent.cl_name}-revert", workspace_dir)
+    if intent.is_project_scoped:
+        revision = provider.get_default_parent_revision(workspace_dir)
+        checkout_ok, checkout_error = provider.checkout(revision, workspace_dir)
+        if not checkout_ok:
+            return checkout_ok, checkout_error
+        try:
+            # A claimed workspace may be reused with a stale default branch.
+            # Sync is best-effort so local-only repositories still prepare.
+            provider.sync_workspace(workspace_dir)
+        except NotImplementedError:
+            pass
+        return True, None
+
     revision = provider.resolve_revision(
         intent.cl_name, intent.project_basename, workspace_dir
     )

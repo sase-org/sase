@@ -131,16 +131,17 @@ def build_revert_intent(
 ) -> RevertIntent:
     """Capture immutable single-agent revert intent from an agent row.
 
-    The intent carries stable provenance (project, ChangeSpec branch, agent
-    name, family base, artifacts dir, and the suffix-linked repo names the run
-    touched) so the backend can claim a fresh workspace instead of reusing the
-    directory the agent originally ran in.
+    The intent carries stable provenance (project, target scope, agent name,
+    family base, artifacts dir, and the suffix-linked repo names the run touched)
+    so the backend can claim a fresh workspace instead of reusing the directory
+    the agent originally ran in.
     """
     return RevertIntent(
         project_file=agent.project_file,
         project_basename=project_spec_basename(agent.project_file),
         cl_name=agent.cl_name,
         agent_name=agent_name,
+        is_project_scoped=agent.is_project_agent,
         family_base=family_base,
         artifacts_dir=agent.get_artifacts_dir(),
         linked_repo_names=_suffix_linked_repo_names(agent),
@@ -158,14 +159,15 @@ def build_bulk_revert_intent(
 ) -> BulkRevertIntent:
     """Capture immutable bulk revert intent for marked agents.
 
-    Bulk reverts run against a single project and ChangeSpec branch (taken from
-    *representative*); ``linked_repo_names`` is the ordered union of suffix-linked
-    repos touched across *target_agents*.
+    Bulk reverts run against a single project and scope (taken from
+    *representative*); ``linked_repo_names`` is the ordered union of
+    suffix-linked repos touched across *target_agents*.
     """
     return BulkRevertIntent(
         project_file=representative.project_file,
         project_basename=project_spec_basename(representative.project_file),
         cl_name=representative.cl_name,
+        is_project_scoped=representative.is_project_agent,
         targets=tuple(targets),
         linked_repo_names=_union_suffix_linked_repo_names(target_agents),
         external_artifact_dirs=_union_external_artifact_dirs_for_revert(
@@ -191,6 +193,7 @@ def build_revert_execute_intent(
         project_basename=project_spec_basename(agent.project_file),
         cl_name=agent.cl_name,
         agent_name=preview.agent_name,
+        is_project_scoped=agent.is_project_agent,
         family_base=None,
         artifacts_dir=artifacts_dir,
         linked_repo_names=_preview_linked_repo_names(preview),
@@ -207,6 +210,7 @@ def build_bulk_revert_execute_intent(
         project_file=representative.project_file,
         project_basename=project_spec_basename(representative.project_file),
         cl_name=representative.cl_name,
+        is_project_scoped=representative.is_project_agent,
         targets=preview.targets,
         linked_repo_names=_preview_linked_repo_names(preview),
         external_repos=_preview_external_repos(preview),

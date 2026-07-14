@@ -8,6 +8,7 @@ reusing (or blocking on) the directory the agent originally ran in.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,7 +31,13 @@ from sase.ace.revert_agent_workspace import (
     _PreparedRevertWorkspace,
 )
 from sase.linked_repos import record_opened_external_repo
-from tests.ace._revert_agent_helpers import _commit, _git, _init_repo, _msg
+from tests.ace._revert_agent_helpers import (
+    _add_bare_origin,
+    _commit,
+    _git,
+    _init_repo,
+    _msg,
+)
 
 
 def _init_on_branch_cl(repo: Path, agent: str = "foo", subject: str = "feature") -> str:
@@ -403,6 +410,206 @@ def test_prepare_materializes_and_prepares_linked_repo(
     # Primary and linked repos were materialized for the *same* claimed number.
     assert captured["primary_num"] == 21
     assert captured["linked_num"] == 21
+    assert len(recorder.releases) == 1
+
+
+def test_project_scoped_preview_uses_default_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary_origin = tmp_path / "primary_origin"
+    primary_origin.mkdir()
+    claimed_primary = tmp_path / "claimed_primary"
+    _init_repo(claimed_primary)
+    tagged_sha = _commit(
+        claimed_primary,
+        _msg("project feature", "foo"),
+        {"project.txt": "project\n"},
+    )
+    remote = tmp_path / "remote.git"
+    _add_bare_origin(claimed_primary, remote)
+    _git(claimed_primary, "push", "-q", "-u", "origin", "main")
+
+    captured: dict[str, int] = {}
+    _install_prepare_seams(
+        monkeypatch,
+        primary_dir=primary_origin,
+        claimed_primary=claimed_primary,
+        linked_resolution=SimpleNamespace(repos=[]),
+        captured=captured,
+    )
+    recorder = _ClaimRecorder(workspace_num=25)
+    recorder.install(monkeypatch)
+
+    project_name = "gh_example__project"
+    preview = preview_agent_revert_intent(
+        RevertIntent(
+            project_file=str(tmp_path / project_name / f"{project_name}.sase"),
+            project_basename=project_name,
+            cl_name=project_name,
+            agent_name="foo",
+            is_project_scoped=True,
+        )
+    )
+
+    assert preview.ok, preview.error
+    assert [commit.full_sha for commit in preview.commits] == [tagged_sha]
+    assert _git(claimed_primary, "branch", "--show-current").strip() == "main"
+    assert project_name not in _git(claimed_primary, "branch", "--list")
+    assert captured["primary_num"] == 25
+    assert len(recorder.releases) == 1
+
+
+def test_project_scoped_linked_repo_uses_default_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary_origin = tmp_path / "primary_origin"
+    primary_origin.mkdir()
+    claimed_primary = tmp_path / "claimed_primary"
+    _init_repo(claimed_primary)
+    _commit(
+        claimed_primary,
+        _msg("primary project feature", "foo"),
+        {"primary.txt": "primary\n"},
+    )
+    claimed_linked = tmp_path / "claimed_linked"
+    _init_repo(claimed_linked)
+    _commit(
+        claimed_linked,
+        _msg("linked project feature", "foo"),
+        {"linked.txt": "linked\n"},
+    )
+
+    captured: dict[str, int] = {}
+    linked_resolution = SimpleNamespace(
+        repos=[
+            SimpleNamespace(
+                name="sase-core",
+                workspace_dir=str(claimed_linked),
+                primary_dir=str(primary_origin),
+            )
+        ]
+    )
+    _install_prepare_seams(
+        monkeypatch,
+        primary_dir=primary_origin,
+        claimed_primary=claimed_primary,
+        linked_resolution=linked_resolution,
+        captured=captured,
+    )
+    recorder = _ClaimRecorder(workspace_num=26)
+    recorder.install(monkeypatch)
+
+    project_name = "gh_example__project"
+    preview = preview_agent_revert_intent(
+        RevertIntent(
+            project_file=str(tmp_path / project_name / f"{project_name}.sase"),
+            project_basename=project_name,
+            cl_name=project_name,
+            agent_name="foo",
+            is_project_scoped=True,
+            linked_repo_names=("sase-core",),
+        )
+    )
+
+    assert preview.ok, preview.error
+    assert [repo.repo_label for repo in preview.revertable_repos] == [
+        "primary",
+        "sase-core",
+    ]
+    assert preview.blocked_repos == ()
+    assert preview.commit_count == 2
+    assert _git(claimed_linked, "branch", "--show-current").strip() == "main"
+    assert len(recorder.releases) == 1
+
+
+def test_project_scoped_preview_syncs_stale_reused_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    publisher = tmp_path / "publisher"
+    _init_repo(publisher)
+    remote = tmp_path / "remote.git"
+    _add_bare_origin(publisher, remote)
+    _git(publisher, "push", "-q", "-u", "origin", "main")
+
+    claimed_primary = tmp_path / "claimed_primary"
+    shutil.copytree(publisher, claimed_primary)
+    stale_head = _git(claimed_primary, "rev-parse", "HEAD").strip()
+    tagged_sha = _commit(
+        publisher,
+        _msg("new remote project feature", "foo"),
+        {"remote.txt": "remote\n"},
+    )
+    _git(publisher, "push", "-q", "origin", "main")
+    assert stale_head != tagged_sha
+
+    primary_origin = tmp_path / "primary_origin"
+    primary_origin.mkdir()
+    captured: dict[str, int] = {}
+    _install_prepare_seams(
+        monkeypatch,
+        primary_dir=primary_origin,
+        claimed_primary=claimed_primary,
+        linked_resolution=SimpleNamespace(repos=[]),
+        captured=captured,
+    )
+    recorder = _ClaimRecorder(workspace_num=27)
+    recorder.install(monkeypatch)
+
+    project_name = "gh_example__project"
+    preview = preview_agent_revert_intent(
+        RevertIntent(
+            project_file=str(tmp_path / project_name / f"{project_name}.sase"),
+            project_basename=project_name,
+            cl_name=project_name,
+            agent_name="foo",
+            is_project_scoped=True,
+        )
+    )
+
+    assert preview.ok, preview.error
+    assert [commit.full_sha for commit in preview.commits] == [tagged_sha]
+    assert _git(claimed_primary, "rev-parse", "HEAD").strip() == tagged_sha
+    assert len(recorder.releases) == 1
+
+
+def test_project_scoped_preview_tolerates_missing_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary_origin = tmp_path / "primary_origin"
+    primary_origin.mkdir()
+    claimed_primary = tmp_path / "claimed_primary"
+    _init_repo(claimed_primary)
+    tagged_sha = _commit(
+        claimed_primary,
+        _msg("local project feature", "foo"),
+        {"local.txt": "local\n"},
+    )
+
+    captured: dict[str, int] = {}
+    _install_prepare_seams(
+        monkeypatch,
+        primary_dir=primary_origin,
+        claimed_primary=claimed_primary,
+        linked_resolution=SimpleNamespace(repos=[]),
+        captured=captured,
+    )
+    recorder = _ClaimRecorder(workspace_num=28)
+    recorder.install(monkeypatch)
+
+    project_name = "gh_example__project"
+    preview = preview_agent_revert_intent(
+        RevertIntent(
+            project_file=str(tmp_path / project_name / f"{project_name}.sase"),
+            project_basename=project_name,
+            cl_name=project_name,
+            agent_name="foo",
+            is_project_scoped=True,
+        )
+    )
+
+    assert preview.ok, preview.error
+    assert [commit.full_sha for commit in preview.commits] == [tagged_sha]
+    assert _git(claimed_primary, "remote").strip() == ""
     assert len(recorder.releases) == 1
 
 

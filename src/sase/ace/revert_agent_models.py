@@ -223,15 +223,19 @@ class RevertIntent:
     """Immutable revert intent captured from a single agent row.
 
     Carries everything the backend needs to claim a *fresh* workspace, prepare
-    it on the ChangeSpec branch, and discover/execute a revert without depending
-    on the directory the agent originally ran in (which can be reclaimed by
-    other agents and accumulate unrelated changes).
+    it on the appropriate ChangeSpec or project-default branch, and
+    discover/execute a revert without depending on the directory the agent
+    originally ran in (which can be reclaimed by other agents and accumulate
+    unrelated changes).
     """
 
     project_file: str
     project_basename: str
     cl_name: str
     agent_name: str
+    #: The agent ran against the project (its ``cl_name`` is the project name),
+    #: so preparation targets the default branch rather than a ChangeSpec branch.
+    is_project_scoped: bool = False
     family_base: str | None = None
     artifacts_dir: str | None = None
     #: Names of linked repos the agent run touched. Re-resolved
@@ -254,13 +258,17 @@ class RevertIntent:
 class BulkRevertIntent:
     """Immutable revert intent for a bulk (marked-agent) revert.
 
-    Bulk reverts must resolve to a single project file and a single ChangeSpec
-    branch; individual agents contribute through :attr:`targets`.
+    Bulk reverts must resolve to a single project file and scope; individual
+    agents contribute through :attr:`targets`.
     """
 
     project_file: str
     project_basename: str
     cl_name: str
+    #: The agents ran against the project (their ``cl_name`` is the project
+    #: name), so preparation targets the default branch rather than a
+    #: ChangeSpec branch.
+    is_project_scoped: bool = False
     targets: tuple[RevertTarget, ...] = ()
     linked_repo_names: tuple[str, ...] = ()
     external_repos: tuple[RevertRepo, ...] = ()
