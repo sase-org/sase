@@ -10,7 +10,7 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
 
     repo_parser = subparsers.add_parser(
         "repo",
-        help="Inspect repositories and repository-open activity",
+        help="Inspect and resolve repositories and repository-open activity",
         description=(
             "Inspect repositories known by SASE. Running `sase repo` defaults "
             "to `sase repo list`."
@@ -174,6 +174,49 @@ def register_repo_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="N",
         help="Host workspace number (default: infer from current directory)",
+    )
+
+    path_parser = repo_sub.add_parser(
+        "path",
+        help="Print a primary or sidecar repository path",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Resolve a primary or sidecar repository by role name or repository "
+            "slug and print exactly one absolute path. Resolution is read-only "
+            "unless --ensure is passed. Linked and external repositories must "
+            "be prepared with `sase repo open` instead."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase repo path plans\n"
+            "  sase repo path research --ensure\n"
+            "  sase repo path plans --project sase --workspace 12"
+        ),
+    )
+    path_parser.add_argument(
+        "repo",
+        metavar="REPO",
+        help="Primary name, sidecar role name, or sidecar repository slug",
+    )
+    path_parser.add_argument(
+        "-e",
+        "--ensure",
+        action="store_true",
+        help="Materialize and synchronize the backing sidecar clone",
+    )
+    path_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to query (default: infer from current directory)",
+    )
+    path_parser.add_argument(
+        "-w",
+        "--workspace",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Workspace context (default: infer from current directory)",
     )
 
 

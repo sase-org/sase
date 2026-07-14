@@ -2,8 +2,8 @@
 
 This SDD root keeps durable planning context close to the code it describes. It stores prompts, approved plans, roadmap
 material, and bead state in predictable paths so humans and agents can reference the same artifacts over time. The root
-may be the checkout's `sdd/` directory or a separate `.sase/sdd/` store; run `sase sdd path` or read `SASE_SDD_DIR` from
-agent environments to locate it.
+may be the checkout's `sdd/` directory or a separate `.sase/sdd/` store; run `sase repo path plans` or read
+`SASE_SDD_PLANS_DIR` from agent environments to locate its plan storage.
 
 ![SDD directory map](assets/sdd-directory-map.png)
 
@@ -24,7 +24,7 @@ example, a prompt at `plans/202605/prompts/example.md` pairs with `plans/202605/
 ## Commands
 
 - `sase sdd list` lists SDD markdown artifacts.
-- `sase sdd path` prints the effective SDD root; pass a kind such as `research` to print that child directory.
+- `sase repo path plans` and `sase repo path research` print the effective storage directories for those repositories.
 - `sase sdd validate` checks frontmatter links between prompts and plan-like artifacts.
 - `sase sdd repair-links` infers and repairs missing bidirectional links.
 - `sase plan search` searches these `sdd/` plans and the machine-local `~/.sase/plans/` archive by content.

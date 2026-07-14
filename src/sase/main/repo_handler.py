@@ -387,6 +387,152 @@ def _handle_log(args: argparse.Namespace) -> int:
     )
 
 
+def _handle_path(args: argparse.Namespace) -> int:
+    from . import workspace_handler as workspace_commands
+
+    host_ctx = workspace_commands._resolve_project_context(
+        getattr(args, "project", None)
+    )
+    requested = str(getattr(args, "repo", "")).strip()
+    if not requested:
+        print("repository name must not be empty", file=sys.stderr)
+        return 2
+
+    try:
+        workspace_num = _resolve_list_workspace_num(
+            host_ctx,
+            getattr(args, "workspace", None),
+        )
+        inventory = collect_repo_inventory(project=host_ctx.project_name)
+        _validate_workspace_context(
+            inventory.records,
+            project=host_ctx.project_name,
+            workspace_num=workspace_num,
+        )
+        repo = _match_repo_path_record(
+            requested,
+            host_ctx=host_ctx,
+            inventory=inventory,
+        )
+    except (RepoInventoryProjectNotFoundError, _RepoOpenResolutionError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if repo is not None and repo.kind in {"linked", "external"}:
+        print(
+            f"Repository '{requested}' is {repo.kind}; use "
+            f'`sase repo open {requested} --reason "<reason>"` instead.',
+            file=sys.stderr,
+        )
+        return 2
+
+    path: str | Path
+    try:
+        if repo is not None:
+            clone = _clone_for_workspace(repo, workspace_num)
+            path = clone.path
+            if repo.kind == "sidecar" and getattr(args, "ensure", False):
+                from sase.linked_repos import materialize_linked_repo_workspace
+
+                path = materialize_linked_repo_workspace(
+                    primary_dir=repo.path,
+                    workspace_dir=path,
+                    workspace_num=workspace_num,
+                    expected_remote_url=repo.remote_url,
+                )
+        elif requested in {"plans", "research"} and not _sidecar_role_disabled(
+            requested,
+            primary_workspace_dir=host_ctx.primary_workspace_dir,
+        ):
+            path = _resolve_legacy_sdd_repo_path(
+                requested,
+                inventory=inventory,
+                workspace_num=workspace_num,
+                ensure=bool(getattr(args, "ensure", False)),
+            )
+        else:
+            raise _RepoOpenResolutionError(
+                f"Repository '{requested}' is not a primary or sidecar repository "
+                f"for project '{host_ctx.project_name}'"
+            )
+    except _RepoOpenResolutionError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(Path(path).expanduser().resolve(strict=False))
+    return 0
+
+
+def _match_repo_path_record(
+    name: str,
+    *,
+    host_ctx: ProjectContext,
+    inventory: RepoInventory,
+) -> RepoRecord | None:
+    repo = _match_repo_record(name, host_ctx=host_ctx, inventory=inventory)
+    if repo is not None:
+        return repo
+
+    matches = [
+        record
+        for record in inventory.records
+        if record.kind == "external" and name in {record.name, record.slug}
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        raise _ambiguous_repo_error(name, matches)
+    return None
+
+
+def _resolve_legacy_sdd_repo_path(
+    kind: str,
+    *,
+    inventory: RepoInventory,
+    workspace_num: int,
+    ensure: bool,
+) -> Path:
+    from sase.sdd.store import ensure_sdd_kind_clone, resolve_sdd_kind_dir
+
+    primary_records = [
+        record for record in inventory.records if record.kind == "primary"
+    ]
+    if len(primary_records) != 1:
+        raise _RepoOpenResolutionError(
+            "Unable to identify the project's primary repository"
+        )
+    workspace_dir = _clone_for_workspace(primary_records[0], workspace_num).path
+    if ensure:
+        ensure_sdd_kind_clone(workspace_dir, workspace_num, kind, strict=True)
+    return resolve_sdd_kind_dir(workspace_dir, workspace_num, kind)
+
+
+def _sidecar_role_disabled(
+    role: str,
+    *,
+    primary_workspace_dir: str,
+) -> bool:
+    from sase._linked_repo_config import (
+        merged_sidecar_entries_from_config,
+        resolution_config,
+    )
+
+    try:
+        config = resolution_config(primary_workspace_dir, None)
+        entries = merged_sidecar_entries_from_config(
+            config,
+            primary_workspace_dir=primary_workspace_dir,
+        )
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return any(
+        entry.get("name") == role and entry.get("disabled") is True for entry in entries
+    )
+
+
 def _resolve_open_workspace_num(
     host_ctx: ProjectContext,
     requested_workspace: int | None,
@@ -528,7 +674,12 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
-_HANDLERS = {"list": _handle_list, "log": _handle_log, "open": _handle_open}
+_HANDLERS = {
+    "list": _handle_list,
+    "log": _handle_log,
+    "open": _handle_open,
+    "path": _handle_path,
+}
 
 
 def handle_repo_command(args: argparse.Namespace) -> None:
@@ -537,7 +688,7 @@ def handle_repo_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "repo_subcommand", None)
     handler = _HANDLERS.get(subcommand) if isinstance(subcommand, str) else None
     if handler is None:
-        print("Usage: sase repo {list,log,open}", file=sys.stderr)
+        print("Usage: sase repo {list,log,open,path}", file=sys.stderr)
         raise SystemExit(2)
     raise SystemExit(handler(args))
 

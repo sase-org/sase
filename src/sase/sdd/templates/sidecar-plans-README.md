@@ -19,6 +19,6 @@ Plan and prompt links are relative to this repository root. For example, `202607
 ## Commands
 
 - `sase plan list` and `sase plan search` inspect plans.
-- `sase sdd path plans` prints this clone's root.
+- `sase repo path plans` prints this clone's root.
 - `sase sdd validate` checks prompt and plan frontmatter links.
 - `sase bead` manages bead work stored under `beads/`.
