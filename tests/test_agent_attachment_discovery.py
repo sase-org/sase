@@ -3,7 +3,7 @@
 import socket
 from pathlib import Path
 
-from sase.axe.image_attachments import ExtraRepoScan
+from sase.axe.image_attachments import DiffScan, ExtraRepoScan
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.image_attachments import collect_agent_markdown_paths
 from sase.axe.image_attachments import collect_agent_video_paths
@@ -61,6 +61,93 @@ def test_collect_agent_markdown_paths_from_diff_file_when_tree_clean(
     assert collect_agent_markdown_paths(str(tmp_path), diff_path=str(diff_path)) == [
         str(source.resolve())
     ]
+
+
+def test_collect_agent_paths_resolve_diff_scan_against_nested_repo(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _init_repo(workspace)
+    (workspace / ".gitignore").write_text("sase/repos/research/\n")
+    _run(workspace, "git", "add", ".")
+    _run(workspace, "git", "commit", "-m", "base")
+
+    research_repo = workspace / "sase" / "repos" / "research"
+    research_repo.mkdir(parents=True)
+    _init_repo(research_repo)
+    markdown = research_repo / "202607" / "report.md"
+    image = research_repo / "202607" / "diagram.png"
+    markdown.parent.mkdir()
+    markdown.write_text("# Report\n")
+    image.write_bytes(b"png")
+    _run(research_repo, "git", "add", ".")
+    _run(research_repo, "git", "commit", "-m", "add report")
+
+    diff_path = tmp_path / "research.diff"
+    diff_path.write_text(
+        "diff --git a/202607/report.md b/202607/report.md\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/202607/report.md\n"
+        "diff --git a/202607/diagram.png b/202607/diagram.png\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/202607/diagram.png\n"
+    )
+    scan = DiffScan(str(diff_path), str(research_repo))
+
+    assert collect_agent_markdown_paths(str(workspace), diff_scans=[scan]) == [
+        str(markdown.resolve())
+    ]
+    assert collect_agent_image_paths(str(workspace), diff_scans=[scan]) == [
+        str(image.resolve())
+    ]
+
+
+def test_collect_agent_markdown_paths_from_multiple_diff_scans(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _init_repo(workspace)
+    first = workspace / "docs" / "first.md"
+    first.parent.mkdir()
+    first.write_text("# First\n")
+    _run(workspace, "git", "add", ".")
+    _run(workspace, "git", "commit", "-m", "add first")
+
+    second_repo = tmp_path / "second"
+    second_repo.mkdir()
+    _init_repo(second_repo)
+    second = second_repo / "notes" / "second.md"
+    second.parent.mkdir()
+    second.write_text("# Second\n")
+    _run(second_repo, "git", "add", ".")
+    _run(second_repo, "git", "commit", "-m", "add second")
+
+    first_diff = tmp_path / "first.diff"
+    first_diff.write_text(
+        "diff --git a/docs/first.md b/docs/first.md\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/docs/first.md\n"
+    )
+    second_diff = tmp_path / "second.diff"
+    second_diff.write_text(
+        "diff --git a/notes/second.md b/notes/second.md\n"
+        "new file mode 100644\n"
+        "--- /dev/null\n"
+        "+++ b/notes/second.md\n"
+    )
+
+    assert collect_agent_markdown_paths(
+        str(workspace),
+        diff_scans=[
+            DiffScan(str(first_diff), str(workspace)),
+            DiffScan(str(second_diff), str(second_repo)),
+        ],
+    ) == [str(first.resolve()), str(second.resolve())]
 
 
 def test_collect_agent_markdown_paths_from_head_commit(tmp_path: Path) -> None:

@@ -28,6 +28,14 @@ class ExtraRepoScan:
     exclude: Callable[[str], bool] | None = None
 
 
+@dataclass(frozen=True)
+class DiffScan:
+    """Saved diff whose paths are relative to a particular repository."""
+
+    diff_path: str
+    base_dir: str | None = None
+
+
 def _is_supported_image_path(path: str | os.PathLike[str]) -> bool:
     """Return whether *path* has an image extension SASE should attach."""
     return Path(path).suffix.lower() in SUPPORTED_IMAGE_EXTENSIONS
@@ -63,6 +71,7 @@ def collect_agent_image_paths(
     workspace_dir: str,
     *,
     diff_path: str | None = None,
+    diff_scans: Iterable[DiffScan] = (),
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     extra_repo_scans: Iterable[ExtraRepoScan] = (),
@@ -78,6 +87,7 @@ def collect_agent_image_paths(
         workspace_dir,
         is_supported_path=_is_supported_image_path,
         diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=existing_files,
         extra_repo_scans=extra_repo_scans,
@@ -88,6 +98,7 @@ def collect_agent_video_paths(
     workspace_dir: str,
     *,
     diff_path: str | None = None,
+    diff_scans: Iterable[DiffScan] = (),
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     extra_repo_scans: Iterable[ExtraRepoScan] = (),
@@ -101,6 +112,7 @@ def collect_agent_video_paths(
         workspace_dir,
         is_supported_path=_is_supported_video_path,
         diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=existing_files,
         extra_repo_scans=extra_repo_scans,
@@ -111,6 +123,7 @@ def collect_agent_markdown_paths(
     workspace_dir: str,
     *,
     diff_path: str | None = None,
+    diff_scans: Iterable[DiffScan] = (),
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     artifacts_dir: str | None = None,
@@ -128,6 +141,7 @@ def collect_agent_markdown_paths(
         workspace_dir,
         is_supported_path=_is_supported_markdown_path,
         diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=existing_files,
         artifacts_dir=artifacts_dir,
@@ -140,37 +154,49 @@ def _collect_agent_attachment_paths(
     *,
     is_supported_path: Callable[[str | os.PathLike[str]], bool],
     diff_path: str | None = None,
+    diff_scans: Iterable[DiffScan] = (),
     include_head_commit: bool = False,
     existing_files: Iterable[str] = (),
     artifacts_dir: str | None = None,
     extra_repo_scans: Iterable[ExtraRepoScan] = (),
 ) -> list[str]:
-    candidates: list[str] = []
-    candidates.extend(_local_changed_paths(workspace_dir))
-    candidates.extend(_untracked_paths(workspace_dir))
-    candidates.extend(_paths_from_diff_file(diff_path))
+    candidates: list[tuple[str, str]] = []
+    candidates.extend(
+        (path, workspace_dir) for path in _local_changed_paths(workspace_dir)
+    )
+    candidates.extend((path, workspace_dir) for path in _untracked_paths(workspace_dir))
+    candidates.extend(
+        (path, workspace_dir) for path in _paths_from_diff_file(diff_path)
+    )
+    for diff_scan in diff_scans:
+        base_dir = diff_scan.base_dir or workspace_dir
+        candidates.extend(
+            (path, base_dir) for path in _paths_from_diff_file(diff_scan.diff_path)
+        )
     if include_head_commit:
-        candidates.extend(_head_commit_paths(workspace_dir))
+        candidates.extend(
+            (path, workspace_dir) for path in _head_commit_paths(workspace_dir)
+        )
 
     attachment_paths = [
         resolved
-        for candidate in candidates
+        for candidate, base_dir in candidates
         if (
             resolved := _resolve_existing_attachment_path(
                 candidate,
-                workspace_dir,
+                base_dir,
                 is_supported_path=is_supported_path,
                 artifacts_dir=artifacts_dir,
             )
         )
     ]
-    for scan in extra_repo_scans:
-        repo_dir = _scan_repo_dir(scan)
+    for extra_scan in extra_repo_scans:
+        repo_dir = _scan_repo_dir(extra_scan)
         if repo_dir is None:
             continue
         attachment_paths.extend(
             resolved
-            for candidate in _extra_repo_changed_paths(repo_dir, scan)
+            for candidate in _extra_repo_changed_paths(repo_dir, extra_scan)
             if (
                 resolved := _resolve_existing_attachment_path(
                     candidate,
@@ -287,6 +313,18 @@ def _scan_repo_dir(scan: ExtraRepoScan) -> str | None:
 
 def _git_head_sha(workspace_dir: str) -> str:
     return _run_git(workspace_dir, "rev-parse", "HEAD").strip()
+
+
+def same_git_repo(left_dir: str, right_dir: str) -> bool:
+    """Return whether two directories belong to the same Git worktree."""
+    left_root = _run_git(left_dir, "rev-parse", "--show-toplevel").strip()
+    right_root = _run_git(right_dir, "rev-parse", "--show-toplevel").strip()
+    if not left_root or not right_root:
+        return False
+    try:
+        return Path(left_root).resolve() == Path(right_root).resolve()
+    except OSError:
+        return False
 
 
 def _untracked_paths(workspace_dir: str) -> list[str]:

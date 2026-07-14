@@ -1,6 +1,7 @@
 """Tests for run_agent_exec finalize attachment handling."""
 
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -13,6 +14,146 @@ from sase.core.agent_artifact_facade import list_agent_artifacts
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._axe_run_agent_exec_helpers import run_command
+
+
+def test_finalize_loop_attributes_commit_artifacts_to_recorded_repo(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _init_repo(workspace)
+    (workspace / ".gitignore").write_text("sase/repos/research/\n")
+    (workspace / "base.txt").write_text("base\n")
+    run_command(workspace, "git", "add", ".")
+    run_command(workspace, "git", "commit", "-m", "base")
+
+    unrelated_image = workspace / "tests" / "golden.png"
+    unrelated_image.parent.mkdir()
+    unrelated_image.write_bytes(b"png")
+    run_command(workspace, "git", "add", ".")
+    run_command(workspace, "git", "commit", "-m", "unrelated workspace tip")
+
+    research_repo = workspace / "sase" / "repos" / "research"
+    research_repo.mkdir(parents=True)
+    _init_repo(research_repo)
+    (research_repo / "README.md").write_text("# Research\n")
+    run_command(research_repo, "git", "add", ".")
+    run_command(research_repo, "git", "commit", "-m", "base")
+    report = research_repo / "202607" / "report.md"
+    report.parent.mkdir()
+    report.write_text("# Report\n")
+    run_command(research_repo, "git", "add", ".")
+    run_command(research_repo, "git", "commit", "-m", "add report")
+
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    ctx.workspace_dir = str(workspace)
+    artifacts = Path(ctx.artifacts_dir)
+    diff_dir = artifacts / "commit_diffs"
+    diff_dir.mkdir()
+    diff_path = diff_dir / "001.diff"
+    diff_path.write_text(_stdout(research_repo, "git", "show", "--format=", "HEAD"))
+    commit_record = {
+        "result": _stdout(research_repo, "git", "rev-parse", "HEAD"),
+        "cwd": str(research_repo),
+        "diff_path": str(diff_path),
+    }
+    (artifacts / "commit_result.json").write_text(json.dumps(commit_record))
+    (artifacts / "commit_results.json").write_text(json.dumps([commit_record]))
+    (artifacts / "workflow_state.json").write_text(json.dumps({"steps": []}))
+    state = LoopState(
+        current_prompt="create research report",
+        current_role_suffix="",
+        current_artifacts_dir=str(artifacts),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="create research report",
+    )
+
+    def fake_render_markdown_pdf(src: Path, dest: Path, **kwargs) -> Path:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(b"%PDF")
+        return dest
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.attachments.markdown_pdf.render_markdown_pdf",
+            side_effect=fake_render_markdown_pdf,
+        ) as render,
+    ):
+        result = _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert result.image_paths == []
+    assert result.markdown_source_count == 1
+    assert len(result.markdown_pdf_paths) == 1
+    assert render.call_args.args[0] == report
+    done = json.loads((artifacts / "done.json").read_text())
+    assert done["image_paths"] == []
+    assert done["markdown_pdf_paths"] == result.markdown_pdf_paths
+    assert str(unrelated_image.resolve()) not in done["image_paths"]
+
+
+def test_finalize_loop_legacy_commit_metadata_scans_workspace_head(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _init_repo(workspace)
+    (workspace / "base.txt").write_text("base\n")
+    run_command(workspace, "git", "add", ".")
+    run_command(workspace, "git", "commit", "-m", "base")
+    image = workspace / "generated.png"
+    image.write_bytes(b"png")
+    run_command(workspace, "git", "add", ".")
+    run_command(workspace, "git", "commit", "-m", "add image")
+
+    ctx = make_exec_ctx(tmp_path, is_home_mode=False)
+    ctx.workspace_dir = str(workspace)
+    artifacts = Path(ctx.artifacts_dir)
+    (artifacts / "commit_result.json").write_text(
+        json.dumps({"result": _stdout(workspace, "git", "rev-parse", "HEAD")})
+    )
+    (artifacts / "workflow_state.json").write_text(json.dumps({"steps": []}))
+    state = LoopState(
+        current_prompt="create image",
+        current_role_suffix="",
+        current_artifacts_dir=str(artifacts),
+        loop_outcome="completed",
+        sdd_spec_path=None,
+        original_prompt="create image",
+    )
+
+    with patch(
+        "sase.axe.run_agent_exec_finalize.save_chat_history",
+        return_value=str(tmp_path / "chat.md"),
+    ):
+        result = _finalize_loop(
+            ctx,
+            state,
+            RetryTracker(retry_cfg=None),
+            SimpleNamespace(response_text="done"),
+        )
+
+    assert result.image_paths == [str(image.resolve())]
+
+
+def _init_repo(repo: Path) -> None:
+    run_command(repo, "git", "init")
+    run_command(repo, "git", "config", "user.email", "test@example.com")
+    run_command(repo, "git", "config", "user.name", "Test User")
+
+
+def _stdout(cwd: Path, *args: str) -> str:
+    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+    return result.stdout
 
 
 def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(

@@ -231,21 +231,47 @@ def _collect_default_artifacts(
     step_output: dict[str, Any] | None,
 ) -> tuple[list[str], int, list[str], list[str], bool]:
     from sase.axe.image_attachments import (
+        DiffScan,
         collect_agent_image_paths,
         collect_agent_markdown_paths,
         collect_agent_video_paths,
+        same_git_repo,
     )
 
-    include_head_commit = bool(
-        step_output
-        and any(step_output.get(key) for key in ("meta_new_commit", "meta_pr_url"))
-    )
     workspace_dir = getattr(ctx, "workspace_dir", os.getcwd())
+    commit_records = _commit_records(step_output)
+    if step_output and step_output.get("meta_pr_url"):
+        include_head_commit = True
+    elif commit_records:
+        include_head_commit = any(
+            same_git_repo(cwd, workspace_dir)
+            for record in commit_records
+            if (cwd := _metadata_str(record, "cwd")) is not None
+        )
+    elif step_output and (commit_cwd := _metadata_str(step_output, "meta_commit_cwd")):
+        include_head_commit = same_git_repo(commit_cwd, workspace_dir)
+    else:
+        include_head_commit = bool(step_output and step_output.get("meta_new_commit"))
+
+    diff_scans: list[DiffScan] = []
+    seen_diff_paths: set[str] = set()
+    for record in commit_records:
+        record_diff_path = _metadata_str(record, "diff_path")
+        if record_diff_path is None:
+            continue
+        normalized_diff_path = _normalized_path(record_diff_path)
+        if normalized_diff_path in seen_diff_paths:
+            continue
+        seen_diff_paths.add(normalized_diff_path)
+        diff_scans.append(DiffScan(record_diff_path, _metadata_str(record, "cwd")))
+    if diff_path and _normalized_path(diff_path) not in seen_diff_paths:
+        diff_scans.append(DiffScan(diff_path, workspace_dir))
+
     base_files = [path for path in [saved_path, diff_path] if path]
     extra_repo_scans = _sdd_repo_scans(ctx)
     markdown_paths = collect_agent_markdown_paths(
         workspace_dir,
-        diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=base_files,
         artifacts_dir=state.current_artifacts_dir,
@@ -256,14 +282,14 @@ def _collect_default_artifacts(
     clear_workflow_pdf_activity(state.current_artifacts_dir)
     image_paths = collect_agent_image_paths(
         workspace_dir,
-        diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=[*base_files, *markdown_pdf_paths],
         extra_repo_scans=extra_repo_scans,
     )
     video_paths = collect_agent_video_paths(
         workspace_dir,
-        diff_path=diff_path,
+        diff_scans=diff_scans,
         include_head_commit=include_head_commit,
         existing_files=[*base_files, *markdown_pdf_paths, *image_paths],
         extra_repo_scans=extra_repo_scans,
@@ -290,6 +316,19 @@ def _collect_default_artifacts(
         video_paths,
         default_artifacts_persisted,
     )
+
+
+def _commit_records(step_output: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not step_output:
+        return []
+    records = step_output.get("meta_commits")
+    if not isinstance(records, list):
+        return []
+    return [record for record in records if isinstance(record, dict)]
+
+
+def _normalized_path(path: str) -> str:
+    return os.path.normcase(os.path.abspath(os.path.expanduser(path)))
 
 
 def _sdd_repo_scans(ctx: AgentExecContext) -> list[Any]:
