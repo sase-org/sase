@@ -28,7 +28,7 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
     path_arg = str(args.plan_file)
     tier = str(args.tier)
     schema = plan_frontmatter_schema(tier)
-    validation = _read_and_validate(Path(path_arg), tier=tier)
+    validation = read_and_validate_plan_file(Path(path_arg), tier=tier)
 
     if args.json:
         payload = validation_json_payload(
@@ -50,7 +50,8 @@ def handle_plan_validate_command(args: argparse.Namespace) -> NoReturn:
     sys.exit(0 if validation.ok else 1)
 
 
-def _read_and_validate(path: Path, *, tier: str) -> PlanValidationResult:
+def read_and_validate_plan_file(path: Path, *, tier: str) -> PlanValidationResult:
+    """Read and validate one plan file without producing output."""
     try:
         raw = path.read_bytes()
     except OSError as exc:
@@ -88,4 +89,4 @@ def _file_error(
     )
 
 
-__all__ = ["handle_plan_validate_command"]
+__all__ = ["handle_plan_validate_command", "read_and_validate_plan_file"]

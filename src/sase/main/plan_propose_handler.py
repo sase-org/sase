@@ -17,9 +17,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
 
     1. Guard: verify SASE_AGENT and SASE_ARTIFACTS_DIR env vars
     2. Validate plan_file exists
-    3. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
-    4. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
-    5. Kill the agent runner's process group via SIGTERM
+    3. Validate the authored plan tier (and any pinned auto-approval tier)
+    4. Move plan into the ~/.sase/plans/ archive (consumes the scratch file)
+    5. Write .sase_plan_pending marker JSON to SASE_ARTIFACTS_DIR
+    6. Kill the agent runner's process group via SIGTERM
     """
     # Guard: must be running inside sase agent
     if not os.environ.get("SASE_AGENT"):
@@ -42,6 +43,32 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     plan_path = Path(plan_file).resolve()
     if not plan_path.is_file():
         print(f"Error: plan file not found: {plan_file}", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate before formatting or making any queue-related mutation.  A
+    # pinned tale/epic auto action is the target tier so the core validator
+    # emits its authoritative tier-mismatch diagnostic and target schema.
+    from sase.main.plan_approve_handler import get_auto_plan_approval_action
+    from sase.main.plan_validate_handler import read_and_validate_plan_file
+    from sase.main.plan_validate_render import render_validation_human
+    from sase.output import error_console
+    from sase.sdd.plan_tiers import read_plan_tier
+    from sase.sdd.plan_validate import plan_frontmatter_schema
+
+    authored_tier = read_plan_tier(plan_path)
+    auto_action = get_auto_plan_approval_action()
+    target_tier = (
+        auto_action if auto_action in {"tale", "epic"} else authored_tier or "tale"
+    )
+    validation = read_and_validate_plan_file(plan_path, tier=target_tier)
+    if not validation.ok:
+        render_validation_human(
+            validation,
+            tier=target_tier,
+            path=plan_file,
+            schema=plan_frontmatter_schema(target_tier),
+            console=error_console,
+        )
         sys.exit(1)
 
     # Format plan file in-place with prettier before archiving

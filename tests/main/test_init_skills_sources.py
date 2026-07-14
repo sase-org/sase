@@ -57,7 +57,18 @@ from tests.main.init_skills_handler_helpers import make_args
             ),
         ),
         ("sase_notify", ("sase notify list -j", "sase notify show --id")),
-        ("sase_plan", ("sase plan propose sase_plan_<name>.md",)),
+        (
+            "sase_plan",
+            (
+                "tier: tale",
+                "tier: epic",
+                "depends_on: []",
+                "Otherwise omit it so the configured `@phase_worker`",
+                "sase plan validate sase_plan_<name>.md --tier tale",
+                "sase plan validate sase_plan_<name>.md --tier epic",
+                "sase plan propose sase_plan_<name>.md",
+            ),
+        ),
         (
             "sase_project",
             (
