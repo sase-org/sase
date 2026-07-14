@@ -50,6 +50,8 @@ REQUIRED_BINDINGS = (
     "agent_name_template_tokens_after",
     "set_prompt_stash_pinned",
     "rewrite_prompt_stash",
+    "plan_validate",
+    "plan_frontmatter_schema",
 )
 
 

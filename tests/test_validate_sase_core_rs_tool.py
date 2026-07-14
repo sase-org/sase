@@ -47,6 +47,33 @@ def _scanner_with_custom_role(value: Any) -> SimpleNamespace:
     return SimpleNamespace(scan_agent_artifacts=scan_agent_artifacts)
 
 
+def _module_with_required_bindings(
+    validator: ModuleType,
+    *,
+    missing: set[str] | None = None,
+) -> SimpleNamespace:
+    missing = missing or set()
+    return SimpleNamespace(
+        **{
+            name: lambda: None
+            for name in validator.REQUIRED_BINDINGS
+            if name not in missing
+        }
+    )
+
+
+def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    plan_bindings = {"plan_validate", "plan_frontmatter_schema"}
+
+    assert plan_bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(_module_with_required_bindings(validator))
+    for binding in plan_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_accepts_custom_role_agent_meta_probe() -> None:
     validator = _load_validate_sase_core_rs()
 
