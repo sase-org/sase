@@ -85,6 +85,10 @@ _XPROMPT_HIGHLIGHT_STACK = (
 )
 _CODEBLOCK_HIGHLIGHT_SOLO = (
     "#gh:sase %auto inspect the parser; keep `#commit %m:opus` literal\n"
+    "```\n"
+    "plain text without a language still forms one card\n"
+    "```\n"
+    "Then verify the typed transform:\n"
     "```python\n"
     "def normalize(value: str) -> str:\n"
     "    # #literal and %wait:no stay inert here\n"

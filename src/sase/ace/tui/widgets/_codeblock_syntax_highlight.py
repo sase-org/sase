@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from rich.color import Color as RichColor
+from rich.segment import Segment
 from rich.style import Style
 from textual.color import Color
+from textual.strip import Strip
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.util.code_injection import (
@@ -31,6 +34,7 @@ class CodeBlockHighlightMixin(_MixinBase):
     """Overlay launch-accurate code literal zones and injected syntax spans."""
 
     if TYPE_CHECKING:
+        _codeblock_band_lines: frozenset[int]
 
         def _append_highlight_span(
             self,
@@ -38,6 +42,10 @@ class CodeBlockHighlightMixin(_MixinBase):
             end: int,
             style_name: str,
         ) -> None: ...
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._codeblock_band_lines: frozenset[int] = frozenset()
+        super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
         """Register code styles after the base Jinja theme exists."""
@@ -60,6 +68,7 @@ class CodeBlockHighlightMixin(_MixinBase):
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
+        self._codeblock_band_lines = frozenset()
         text = self.text
         if "`" not in text and "~" not in text:
             return
@@ -74,7 +83,16 @@ class CodeBlockHighlightMixin(_MixinBase):
         except Exception:
             return
 
+        band_lines: set[int] = set()
+        line_cursor = 0
+        offset_cursor = 0
         for block in details:
+            block_start, block_end = block.block_range
+            first_line = line_cursor + text.count("\n", offset_cursor, block_start)
+            last_line = first_line + text.count("\n", block_start, block_end)
+            band_lines.update(range(first_line, last_line + 1))
+            line_cursor = last_line
+            offset_cursor = block_end
             if block.content_range[1] > block.content_range[0]:
                 self._append_highlight_span(
                     *block.content_range,
@@ -88,17 +106,13 @@ class CodeBlockHighlightMixin(_MixinBase):
             self._append_injected_highlights(
                 text, block.content_range, block.info_string
             )
+        self._codeblock_band_lines = frozenset(band_lines)
 
         for start, end in inline_ranges:
             delimiter_length = _backtick_run_length(text, start)
             content_start = start + delimiter_length
             content_end = end - delimiter_length
-            if content_end > content_start:
-                self._append_highlight_span(
-                    content_start,
-                    content_end,
-                    "codeblock.inline",
-                )
+            self._append_highlight_span(start, end, "codeblock.inline")
             self._append_highlight_span(
                 start,
                 content_start,
@@ -109,6 +123,136 @@ class CodeBlockHighlightMixin(_MixinBase):
                 end,
                 "codeblock.delimiter",
             )
+
+    def _render_line(self, y: int) -> Strip:
+        """Paint fenced code blocks as full-width, overlay-safe cards."""
+        strip = super()._render_line(y)
+        original_strip = strip
+        try:
+            _scroll_x, scroll_y = self.scroll_offset
+            y_offset = y + scroll_y
+            wrapped_document = self.wrapped_document
+            if y_offset >= wrapped_document.height:
+                return strip
+
+            try:
+                line_info = wrapped_document._offset_to_line_info[y_offset]
+            except IndexError:
+                return strip
+            if line_info is None:
+                return strip
+
+            line_index, _section_offset = line_info
+            if line_index not in self._codeblock_band_lines:
+                return strip
+
+            theme = self._theme
+            card_style = theme.syntax_styles.get("codeblock.content")
+            if card_style is None or card_style.bgcolor is None:
+                return strip
+
+            base_style = theme.base_style or self.rich_style
+            fill_backgrounds = {base_style.bgcolor}
+            if theme.cursor_line_style is not None:
+                fill_backgrounds.add(theme.cursor_line_style.bgcolor)
+            fill_backgrounds.discard(None)
+            if not fill_backgrounds:
+                return strip
+
+            gutter_width = self.gutter_width
+            gutter = strip.crop(0, gutter_width) if gutter_width else None
+            content = strip.crop(gutter_width)
+            card_background = Style(bgcolor=card_style.bgcolor)
+            segments = [
+                Segment(
+                    segment.text,
+                    (segment.style or Style.null()) + card_background,
+                    segment.control,
+                )
+                if segment.control is None
+                and segment.style is not None
+                and segment.style.bgcolor in fill_backgrounds
+                else segment
+                for segment in content._segments
+            ]
+            painted_content = Strip(segments, content.cell_length)
+            painted_content = self._restore_codeblock_selection(
+                painted_content,
+                line_index=line_index,
+                y_offset=y_offset,
+                scroll_x=_scroll_x,
+                card_background=card_style.bgcolor,
+            )
+            return Strip.join((gutter, painted_content))
+        except Exception:
+            return original_strip
+
+    def _restore_codeblock_selection(
+        self,
+        content: Strip,
+        *,
+        line_index: int,
+        y_offset: int,
+        scroll_x: int,
+        card_background: RichColor,
+    ) -> Strip:
+        """Restore a selection background hidden by the fallback content tint."""
+        selection_start, selection_end = self.selection
+        if selection_start == selection_end:
+            return content
+
+        selection_top, selection_bottom = sorted(self.selection)
+        top_row, top_column = selection_top
+        bottom_row, bottom_column = selection_bottom
+        if not top_row <= line_index <= bottom_row:
+            return content
+
+        line_length = len(self.document.get_line(line_index))
+        selected_start = top_column if line_index == top_row else 0
+        selected_end = bottom_column if line_index == bottom_row else line_length
+        if selected_end <= selected_start:
+            return content
+
+        wrapped_document = self.wrapped_document
+        start_offset = wrapped_document.location_to_offset((line_index, selected_start))
+        end_offset = wrapped_document.location_to_offset((line_index, selected_end))
+        if start_offset.y > y_offset or end_offset.y < y_offset:
+            return content
+
+        start_cell = start_offset.x if start_offset.y == y_offset else 0
+        end_cell = end_offset.x if end_offset.y == y_offset else content.cell_length
+        if not self.soft_wrap:
+            start_cell -= scroll_x
+            end_cell -= scroll_x
+        start_cell = max(0, min(start_cell, content.cell_length))
+        end_cell = max(start_cell, min(end_cell, content.cell_length))
+        if end_cell <= start_cell:
+            return content
+
+        selection_style = self._theme.selection_style
+        if selection_style is None or selection_style.bgcolor is None:
+            return content
+        selection_background = Style(bgcolor=selection_style.bgcolor)
+        selected = content.crop(start_cell, end_cell)
+        selected_segments = [
+            Segment(
+                segment.text,
+                (segment.style or Style.null()) + selection_background,
+                segment.control,
+            )
+            if segment.control is None
+            and segment.style is not None
+            and segment.style.bgcolor == card_background
+            else segment
+            for segment in selected._segments
+        ]
+        return Strip.join(
+            (
+                content.crop(0, start_cell),
+                Strip(selected_segments, selected.cell_length),
+                content.crop(end_cell),
+            )
+        )
 
     def _append_injected_highlights(
         self,
@@ -154,18 +298,16 @@ class CodeBlockHighlightMixin(_MixinBase):
         syntax_styles.update(
             {
                 "codeblock.content": Style(
-                    bgcolor=background_color.blend(foreground_color, 0.07).hex,
+                    bgcolor=background_color.blend(foreground_color, 0.08).hex,
                 ),
                 "codeblock.inline": Style(
-                    bgcolor=background_color.blend(foreground_color, 0.10).hex,
+                    bgcolor=background_color.blend(foreground_color, 0.13).hex,
                 ),
                 "codeblock.fence": Style(
-                    color=foreground_color.blend(background_color, 0.45).hex,
-                    dim=True,
+                    color=foreground_color.blend(background_color, 0.35).hex,
                 ),
                 "codeblock.delimiter": Style(
-                    color=foreground_color.blend(background_color, 0.45).hex,
-                    dim=True,
+                    color=foreground_color.blend(background_color, 0.35).hex,
                 ),
                 "codeblock.lang": Style(
                     color=app_theme.accent,
