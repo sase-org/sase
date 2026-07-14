@@ -95,8 +95,17 @@ sibling_repos:
             memory_line
         )
         assert (
-            "IMPORTANT REMINDER: Do NOT locate or clone another repo any other "
-            "way than by using `/sase_repo`!"
+            "This rule applies regardless of transport. Fetching a repository's "
+            "files or history over the web"
+        ) in memory_line
+        assert "raw.githubusercontent.com" in memory_line
+        assert "GitHub-API/`gh` file-content reads" in memory_line
+        assert (
+            "Web tools remain appropriate only for content a checkout does not contain"
+        ) in memory_line
+        assert (
+            "IMPORTANT REMINDER: Do NOT locate, clone, or web-fetch another "
+            "repo's contents any other way than by using `/sase_repo`!"
         ) in memory_line
         assert 'sase repo open <linked_repo> -r "<reason>"' not in memory
 

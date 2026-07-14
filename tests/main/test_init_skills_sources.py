@@ -75,7 +75,11 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase repo open sase-github",
                 "sase repo open dotdrop",
                 "sase repo open gh:pallets/click",
+                "sase repo open gh:steveyegge/beads",
                 "Use that printed path as the only path",
+                "Do not web-fetch",
+                "raw.githubusercontent.com",
+                "GitHub issue and PR discussions",
                 "sase repo list",
                 "sase repo log",
             ),
@@ -143,6 +147,18 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
         rendered = target.read_text(encoding="utf-8")
         for phrase in expected_phrases:
             assert phrase in rendered
+
+
+def test_sase_repo_skill_description_covers_web_fetches() -> None:
+    """The always-visible skill trigger closes the repository web-fetch loophole."""
+    src = get_sase_package_xprompts_dir() / "skills" / "sase_repo.md"
+    front_matter, _body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+
+    assert front_matter is not None
+    description = str(front_matter.get("description", ""))
+    assert "web-fetching a repo's files or history" in description
+    assert "raw.githubusercontent.com" in description
+    assert "GitHub API" in description
 
 
 @pytest.mark.parametrize("skill_name", ["sase_git_commit", "sase_hg_commit"])
