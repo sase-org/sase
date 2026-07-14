@@ -6,7 +6,6 @@ import pytest
 
 from sase.external_repos import (
     ExternalRepoRefError,
-    canonicalize_external_repo_ref,
     external_repo_clone_parts_from_name,
     external_repo_name_from_clone_parts,
     parse_external_repo_ref,
@@ -31,7 +30,6 @@ def test_external_provider_refs_canonicalize_and_round_trip(
 
     assert parsed.canonical_name == canonical
     assert parsed.clone_parts == clone_parts
-    assert canonicalize_external_repo_ref(value) == canonical
     assert external_repo_name_from_clone_parts(clone_parts) == canonical
 
 

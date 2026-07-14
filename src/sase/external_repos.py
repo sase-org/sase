@@ -76,19 +76,6 @@ def parse_external_repo_ref(
     return ExternalRepoRef(normalized_scheme, parts[0], parts[1])
 
 
-def canonicalize_external_repo_ref(
-    value: str,
-    *,
-    default_scheme: str = DEFAULT_EXTERNAL_REPO_SCHEME,
-) -> str:
-    """Return the canonical ``scheme:owner/repo`` form for *value*."""
-
-    return parse_external_repo_ref(
-        value,
-        default_scheme=default_scheme,
-    ).canonical_name
-
-
 def external_repo_clone_parts_from_name(name: str) -> tuple[str, ...]:
     """Map a canonical external display name to reversible clone components.
 
@@ -144,7 +131,6 @@ __all__ = [
     "EXTERNAL_PROJECTS_NAMESPACE",
     "ExternalRepoRef",
     "ExternalRepoRefError",
-    "canonicalize_external_repo_ref",
     "external_repo_clone_parts_from_name",
     "external_repo_name_from_clone_parts",
     "parse_external_repo_ref",
