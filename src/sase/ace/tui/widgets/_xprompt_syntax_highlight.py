@@ -6,6 +6,7 @@ import dataclasses
 from typing import TYPE_CHECKING
 
 from rich.style import Style
+from textual.color import Color
 from textual.widgets._text_area import TextAreaTheme
 
 from sase.ace.tui.widgets._jinja_highlight import (
@@ -21,6 +22,28 @@ if TYPE_CHECKING:
     from sase.xprompt.xprompt_inspect import XPromptSpan
 else:
     _MixinBase = object
+
+
+def _derive_argument_color(
+    base: str | None,
+    *,
+    foreground: str | None,
+    background: str,
+) -> str | None:
+    """Return a theme-adaptive sibling color for an xprompt argument."""
+    if not base:
+        return base
+
+    if foreground:
+        target = Color.parse(foreground)
+    else:
+        background_color = Color.parse(background)
+        target = (
+            Color(255, 255, 255)
+            if background_color.brightness < 0.5
+            else Color(0, 0, 0)
+        )
+    return Color.parse(base).blend(target, 0.40).hex
 
 
 class XPromptSyntaxHighlightMixin(_MixinBase):
@@ -85,18 +108,31 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         base = self._resolve_xprompt_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
+        background = app_theme.background or "#000000"
         syntax_styles.update(
             {
                 "xprompt.invocation": Style(
                     color=app_theme.success,
                     bold=True,
                 ),
-                "xprompt.invocation_arg": Style(color=app_theme.success),
+                "xprompt.invocation_arg": Style(
+                    color=_derive_argument_color(
+                        app_theme.success,
+                        foreground=app_theme.foreground,
+                        background=background,
+                    )
+                ),
                 "xprompt.directive": Style(
                     color=app_theme.warning,
                     bold=True,
                 ),
-                "xprompt.directive_arg": Style(color=app_theme.warning),
+                "xprompt.directive_arg": Style(
+                    color=_derive_argument_color(
+                        app_theme.warning,
+                        foreground=app_theme.foreground,
+                        background=background,
+                    )
+                ),
                 "xprompt.separator": Style(
                     color=app_theme.secondary,
                     dim=True,

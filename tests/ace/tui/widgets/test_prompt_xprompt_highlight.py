@@ -7,6 +7,7 @@ from rich.style import Style
 
 from sase.ace.tui.widgets._jinja_highlight import _MAX_OVERLAY_LINES
 from sase.ace.tui.widgets._vim_search import find_search_matches
+from sase.ace.tui.widgets._xprompt_syntax_highlight import _derive_argument_color
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 
 from ._completion_helpers import CompletionTestApp
@@ -33,6 +34,58 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
         ):
             assert name in names
             assert name in ta._theme.syntax_styles
+
+        styles = ta._theme.syntax_styles
+        assert styles["xprompt.invocation"].color == Color.parse(
+            app.current_theme.success
+        )
+        assert styles["xprompt.directive"].color == Color.parse(
+            app.current_theme.warning
+        )
+        assert (
+            styles["xprompt.invocation_arg"].color != styles["xprompt.invocation"].color
+        )
+        assert (
+            styles["xprompt.directive_arg"].color != styles["xprompt.directive"].color
+        )
+
+
+def test_derive_argument_color_is_theme_adaptive() -> None:
+    assert (
+        _derive_argument_color(
+            "#66800B",
+            foreground="#FFFCF0",
+            background="#100F0F",
+        )
+        == "#A3B166"
+    )
+    assert (
+        _derive_argument_color(
+            "#66800B",
+            foreground=None,
+            background="#FFFCF0",
+        )
+        == "#3D4C06"
+    )
+
+
+def test_derive_argument_color_preserves_missing_base() -> None:
+    assert (
+        _derive_argument_color(
+            "",
+            foreground="#FFFCF0",
+            background="#100F0F",
+        )
+        == ""
+    )
+    assert (
+        _derive_argument_color(
+            None,
+            foreground="#FFFCF0",
+            background="#100F0F",
+        )
+        is None
+    )
 
 
 async def test_xprompt_overlay_coexists_with_jinja_alt_and_search() -> None:
