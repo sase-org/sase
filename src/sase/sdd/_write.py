@@ -42,9 +42,6 @@ def write_sdd_files(
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
     prompts_dir = plans_dir / "prompts"
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-    plans_dir.mkdir(parents=True, exist_ok=True)
-
     prompt_path = prompts_dir / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
     prompt_link = sdd_link_path(sdd_dir, prompt_path)
@@ -52,21 +49,35 @@ def write_sdd_files(
 
     from sase.sdd.frontmatter import set_frontmatter_fields
 
+    plan_content: str | None = None
+    plan_source = Path(plan_file)
+    if plan_source.exists():
+        from sase.file_references import format_with_prettier
+        from sase.llm_provider._plan_utils import add_create_time_frontmatter
+        from sase.sdd.committed_plan_validation import validate_plan_for_commit
+
+        plan_content = plan_source.read_text(encoding="utf-8")
+        plan_content = format_with_prettier(plan_content)
+        plan_content = add_create_time_frontmatter(plan_content)
+        plan_content = set_frontmatter_fields(
+            plan_content, {"prompt": prompt_link, "tier": tier}
+        )
+        validate_plan_for_commit(
+            plan_content,
+            tier=tier,
+            path=plan_path,
+            yyyymm=yyyymm,
+        )
+
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    plans_dir.mkdir(parents=True, exist_ok=True)
     prompt_path.write_text(
         set_frontmatter_fields(prompt_content, {"plan": plan_link}),
         encoding="utf-8",
     )
 
-    plan_source = Path(plan_file)
-    if plan_source.exists():
-        from sase.file_references import format_with_prettier
-        from sase.llm_provider._plan_utils import add_create_time_frontmatter
-
-        content = plan_source.read_text(encoding="utf-8")
-        content = format_with_prettier(content)
-        content = add_create_time_frontmatter(content)
-        content = set_frontmatter_fields(content, {"prompt": prompt_link, "tier": tier})
-        plan_path.write_text(content, encoding="utf-8")
+    if plan_content is not None:
+        plan_path.write_text(plan_content, encoding="utf-8")
 
     return prompt_path, plan_path
 

@@ -308,19 +308,26 @@ def _archive_plan_for_approval(
                 commit=True,
                 push=False,
             )
-        plans_dir = sdd_store.kind_root("plans") / get_yyyymm()
-        plans_dir.mkdir(parents=True, exist_ok=True)
+        yyyymm = get_yyyymm()
+        plans_dir = sdd_store.kind_root("plans") / yyyymm
         src_plan = Path(notification.files[0])
         dest_plan = plans_dir / src_plan.name
         content = src_plan.read_text(encoding="utf-8")
         content = format_with_prettier(content)
+        from sase.sdd.committed_plan_validation import validate_plan_for_commit
         from sase.sdd.frontmatter import set_frontmatter_fields
 
         content = add_create_time_frontmatter(content)
-        dest_plan.write_text(
-            set_frontmatter_fields(content, {"tier": _plan_tier_for_action(action)}),
-            encoding="utf-8",
+        tier = _plan_tier_for_action(action)
+        content = set_frontmatter_fields(content, {"tier": tier})
+        validate_plan_for_commit(
+            content,
+            tier=tier,
+            path=dest_plan,
+            yyyymm=yyyymm,
         )
+        plans_dir.mkdir(parents=True, exist_ok=True)
+        dest_plan.write_text(content, encoding="utf-8")
         if not sdd_store.is_in_tree:
             artifacts_dir = resolve_plan_agent_artifacts_dir(notification.action_data)
             commit_sdd_store_files(

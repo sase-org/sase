@@ -253,6 +253,7 @@ check: _setup
     @tools/run_silent "lint (symvision)"   just _lint-symvision
     @tools/run_silent "lint (toobig)"      just _lint-toobig
     @tools/run_silent "SASE validation"     just validate
+    @tools/run_silent "committed plans"      just validate-committed-plans
     @tools/run_silent "test"               just test
 
 # Render the scripted ACE demo videos (GIF + MP4), stamp
@@ -363,6 +364,10 @@ docs-deploy-artifact-check:
 # Validate SASE initialization and SDD prompt/plan frontmatter links.
 validate: _setup
     {{ venv_bin }}/sase validate
+
+# Validate committed plans with the month-based schema cutover policy.
+validate-committed-plans: _setup
+    {{ venv_bin }}/python -m sase.scripts.validate_committed_plans
 
 # Report the status of the last fully-completed GitHub Actions workflow set.
 [positional-arguments]

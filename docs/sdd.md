@@ -198,6 +198,17 @@ valid example. `-j/--json` returns `schema_version`, `ok`, `tier`, `path`, the c
 expected schema; `-q/--quiet` suppresses successful human output. Exit status is 0 for valid plans, 1 for validation
 failures, and 2 for command-usage errors.
 
+### Committed Plan Validation Cutover
+
+Plans committed under a `YYYYMM` directory at or after `202608` must pass the complete tier-specific frontmatter schema.
+SASE applies this gate before its SDD writers archive or commit a plan, and CI runs `just validate-committed-plans`
+against the checked-out plans sidecar. The sweep reports diagnostics for every plan in one run and fails if any error is
+present.
+
+Month directories before `202608` retain the legacy compatibility check: each direct `YYYYMM/*.md` plan must declare a
+valid `tier: tale|epic`, but historical plans do not need `goal` or structured epic phases. Nested prompt snapshots and
+historical root-level scratch files are not part of the committed-plan sweep.
+
 ## CLI
 
 SDD's durable operations live on the repo and plan command groups:

@@ -475,17 +475,24 @@ def _archive_plan_for_approval(
                 push=False,
             )
         tier = "epic" if persisted_action == "epic" else "tale"
-        dest_dir = sdd_store.kind_root("plans") / get_yyyymm()
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        yyyymm = get_yyyymm()
+        dest_dir = sdd_store.kind_root("plans") / yyyymm
         src_plan = Path(notification.host_files[0])
         content = format_with_prettier(src_plan.read_text(encoding="utf-8"))
         dest = dest_dir / src_plan.name
+        from sase.sdd.committed_plan_validation import validate_plan_for_commit
         from sase.sdd.frontmatter import set_frontmatter_fields
 
         content = add_create_time_frontmatter(content)
-        dest.write_text(
-            set_frontmatter_fields(content, {"tier": tier}), encoding="utf-8"
+        content = set_frontmatter_fields(content, {"tier": tier})
+        validate_plan_for_commit(
+            content,
+            tier=tier,
+            path=dest,
+            yyyymm=yyyymm,
         )
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content, encoding="utf-8")
         if not sdd_store.is_in_tree:
             commit_sdd_store_files(
                 sdd_store,

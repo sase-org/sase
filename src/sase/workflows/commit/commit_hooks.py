@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -221,31 +220,31 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         not in_repo if store.is_in_tree else not plan_in_store and not plan_in_code_repo
     )
 
-    if should_copy:
-        from sase.sdd.files import get_yyyymm
+    from sase.sdd.files import get_yyyymm
 
-        yyyymm = _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
+    path_month = Path(plan_path).parent.name
+    yyyymm = (
+        path_month
+        if re.fullmatch(r"\d{6}", path_month)
+        else _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
+    )
+    plan_content = Path(plan_path).read_text(encoding="utf-8")
+
+    if should_copy:
         dest = os.path.join(
             store.kind_root("plans"), yyyymm, os.path.basename(plan_path)
         )
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        shutil.copy2(plan_path, dest)
         # Format the copied plan with prettier (safety net for
         # archives created before the plan_command_handler format step)
         from sase.file_references import format_with_prettier
 
-        raw = open(dest, encoding="utf-8").read()
-        formatted = format_with_prettier(raw)
-        if formatted != raw:
-            with open(dest, "w", encoding="utf-8") as f:
-                f.write(formatted)
+        plan_content = format_with_prettier(plan_content)
         plan_path = dest
         plan_in_code_repo = store.is_in_tree
 
     # Approved store-backed plans already received frontmatter when written.
     # Copied archives need the same normalization as in-tree plans.
     if store.is_in_tree or should_copy:
-        plan_content = open(plan_path, encoding="utf-8").read()
         if not plan_content.startswith("---\n"):
             from sase.llm_provider._plan_utils import add_create_time_frontmatter
 
@@ -255,16 +254,27 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         if reference_root:
             from sase.sdd.frontmatter import set_frontmatter_fields
 
-            from sase.sdd.plan_tiers import read_plan_tier
+            from sase.sdd.plan_tiers import read_plan_tier_from_content
 
-            fields = {"tier": read_plan_tier(Path(plan_path)) or "tale"}
+            fields = {"tier": read_plan_tier_from_content(plan_content) or "tale"}
             prompt_link = _infer_prompt_link(reference_root, plan_path)
             if prompt_link:
                 fields["prompt"] = prompt_link
             plan_content = set_frontmatter_fields(plan_content, fields)
 
-        with open(plan_path, "w", encoding="utf-8") as f:
-            f.write(plan_content)
+    from sase.sdd.committed_plan_validation import validate_plan_for_commit
+    from sase.sdd.plan_tiers import read_plan_tier_from_content
+
+    validate_plan_for_commit(
+        plan_content,
+        tier=read_plan_tier_from_content(plan_content),
+        path=plan_path,
+        yyyymm=yyyymm,
+    )
+
+    if store.is_in_tree or should_copy:
+        Path(plan_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(plan_path).write_text(plan_content, encoding="utf-8")
 
     plan_ref = format_sase_plan_tag_value(
         plan_path,

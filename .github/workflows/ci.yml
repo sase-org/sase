@@ -99,6 +99,8 @@ jobs:
         run: just lint
       - name: SASE validation
         run: just validate
+      - name: Validate committed plans
+        run: just validate-committed-plans
 
   fmt-md-check:
     runs-on: ubuntu-latest

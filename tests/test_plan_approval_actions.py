@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from sase.plan_approval_actions import resolve_plan_agent_artifacts_dir
+from sase.plan_approval_actions import (
+    PlanApprovalActionContext,
+    _archive_plan_for_approval,
+    resolve_plan_agent_artifacts_dir,
+)
+from tests.sdd_policy_helpers import patched_sdd_policy
 
 
 def test_resolve_plan_agent_artifacts_dir_from_project_file_and_timestamp(
@@ -26,3 +32,35 @@ def test_resolve_plan_agent_artifacts_dir_from_project_file_and_timestamp(
     )
 
     assert resolved == str(artifact_dir)
+
+
+def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plan = tmp_path / "plan.md"
+    plan.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(str(plan),),
+        host_action_data={"project_dir": str(workspace)},
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patched_sdd_policy("in_tree"),
+        patch("sase.sdd.files.get_yyyymm", return_value="202608"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda content: content,
+        ),
+    ):
+        saved = _archive_plan_for_approval(context, "tale")
+
+    assert saved is None
+    assert not (workspace / "sdd" / "plans" / "202608" / "plan.md").exists()

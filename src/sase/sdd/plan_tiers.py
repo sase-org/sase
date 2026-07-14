@@ -18,12 +18,8 @@ def normalize_plan_tier(value: object) -> str | None:
     return normalized if normalized in PLAN_TIERS else None
 
 
-def _read_plan_frontmatter(path: Path) -> tuple[dict[str, Any], str | None]:
-    """Read YAML frontmatter best-effort, returning a parse error if invalid."""
-    try:
-        content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return {}, str(exc)
+def _parse_plan_frontmatter(content: str) -> tuple[dict[str, Any], str | None]:
+    """Parse YAML frontmatter best-effort, returning a parse error if invalid."""
     if not content.startswith("---\n"):
         return {}, None
     end = content.find("\n---\n", 4)
@@ -38,12 +34,30 @@ def _read_plan_frontmatter(path: Path) -> tuple[dict[str, Any], str | None]:
     return dict(parsed), None
 
 
-def read_plan_tier(path: Path) -> str | None:
-    """Read a valid explicit plan-file tier, returning ``None`` otherwise."""
-    frontmatter, error = _read_plan_frontmatter(path)
+def _read_plan_frontmatter(path: Path) -> tuple[dict[str, Any], str | None]:
+    """Read YAML frontmatter best-effort, returning a parse error if invalid."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return {}, str(exc)
+    return _parse_plan_frontmatter(content)
+
+
+def read_plan_tier_from_content(content: str) -> str | None:
+    """Read a valid explicit plan-file tier from in-memory content."""
+    frontmatter, error = _parse_plan_frontmatter(content)
     if error is not None:
         return None
     return normalize_plan_tier(frontmatter.get("tier"))
+
+
+def read_plan_tier(path: Path) -> str | None:
+    """Read a valid explicit plan-file tier, returning ``None`` otherwise."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    return read_plan_tier_from_content(content)
 
 
 def classify_plan_file(path: Path, frontmatter: dict[str, Any] | None = None) -> str:

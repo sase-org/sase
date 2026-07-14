@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.sdd.committed_plan_validation import _CommittedPlanValidationError
 from sase.sdd.store import write_sdd_store_record
 from sase.workflows.commit.commit_hooks import handle_beads, handle_sase_plan
 from tests.sdd_policy_helpers import patched_sdd_policy
@@ -52,6 +53,32 @@ class TestHandleSasePlan:
         assert dest.exists()
         assert "tier: tale" in dest.read_text(encoding="utf-8")
         assert "SASE_PLAN=sdd/plans/202603/my_plan.md" in payload["message"]
+
+    def test_rejects_invalid_cutover_plan_before_copy(self, tmp_path: Path) -> None:
+        plan_file = tmp_path / "my_plan.md"
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        repo_dir = tmp_path / "repo"
+        repo_dir.mkdir()
+        payload: dict = {"message": "fix: bug"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patched_sdd_policy("in_tree"),
+            patch(_GET_REPO_ROOT_TARGET, return_value=str(repo_dir)),
+            patch("sase.sdd.files.get_yyyymm", return_value="202608"),
+            patch(
+                "sase.file_references.format_with_prettier",
+                side_effect=lambda content: content,
+            ),
+            pytest.raises(_CommittedPlanValidationError, match="required-missing"),
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        assert payload == {"message": "fix: bug"}
+        assert not (repo_dir / "sdd" / "plans" / "202608" / "my_plan.md").exists()
 
     def test_vc_true_in_repo_absolute_plan_uses_repo_relative_tag(
         self, tmp_path: Path
@@ -124,7 +151,10 @@ class TestHandleSasePlan:
         repo_dir = tmp_path / "repo"
         plan_file = repo_dir / ".sase" / "sdd" / "plans" / "202607" / "my_plan.md"
         plan_file.parent.mkdir(parents=True)
-        plan_file.write_text("---\nstatus: wip\n---\n# Plan\n", encoding="utf-8")
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
         write_sdd_store_record(
             repo_dir,
             {

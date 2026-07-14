@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.sdd.committed_plan_validation import _CommittedPlanValidationError
 from sase.sdd.files import (
     ensure_bare_git_sdd_initialized,
     ensure_sdd_initialized,
@@ -328,6 +329,23 @@ def test_write_sdd_files_uses_canonical_plan_directory_for_both_tiers() -> None:
 def test_write_sdd_files_rejects_unknown_plan_tier() -> None:
     with pytest.raises(ValueError, match="invalid SDD plan tier"):
         write_sdd_files(Path("/tmp/sdd"), "bad", "spec", "/tmp/plan.md", plan_tier="x")
+
+
+def test_write_sdd_files_rejects_invalid_cutover_plan_before_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.md"
+    source.write_text("---\ntier: tale\n---\n# Plan\n", encoding="utf-8")
+    sdd_dir = tmp_path / "sdd"
+
+    with (
+        patch("sase.sdd.files.get_yyyymm", return_value="202608"),
+        pytest.raises(_CommittedPlanValidationError, match="required-missing"),
+    ):
+        write_sdd_files(sdd_dir, "invalid", "# Prompt\n", str(source))
+
+    assert not (sdd_dir / "plans" / "202608" / "invalid.md").exists()
+    assert not (sdd_dir / "plans" / "202608" / "prompts" / "invalid.md").exists()
 
 
 def test_write_sdd_files_uses_sdd_relative_links() -> None:
