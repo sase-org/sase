@@ -53,7 +53,7 @@ def expand_embedded_workflows_in_query(
 
         write_used_xprompts(artifacts_dir, raw_query)
 
-    from sase.xprompt._fenced_blocks import fenced_block_ranges
+    from sase.xprompt._literal_zones import code_literal_ranges
     from sase.xprompt._parsing import (
         iter_xprompt_references,
         normalize_vcs_underscore_refs,
@@ -78,16 +78,16 @@ def expand_embedded_workflows_in_query(
     query = normalize_vcs_underscore_refs(query)
     segment_source_query = query
 
-    # Compute fenced code block ranges so we can skip references inside them.
-    fenced_ranges = fenced_block_ranges(query)
+    # Compute code-literal ranges so references inside them remain inert.
+    literal_ranges = code_literal_ranges(query)
 
     # Find all potential workflow references
     refs = iter_xprompt_references(query)
 
     # Process from last to first to preserve positions
     for ref in reversed(refs):
-        # Skip references inside fenced code blocks
-        if any(start <= ref.start < end for start, end in fenced_ranges):
+        # Skip references inside fenced or inline code.
+        if any(start <= ref.start < end for start, end in literal_ranges):
             continue
 
         # Skip if not a workflow
@@ -126,7 +126,7 @@ def expand_embedded_workflows_in_query(
             args,
             prompt=segment_source_query,
             reference_offset=ref.start,
-            fenced_ranges=fenced_ranges,
+            fenced_ranges=literal_ranges,
         )
 
         # Capture explicit args before applying defaults

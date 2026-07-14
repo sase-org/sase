@@ -9,8 +9,7 @@ from typing import Literal
 from jinja2 import TemplateSyntaxError, meta
 
 from ._directive_alt import _ALT_DIRECTIVE_RE
-from ._disabled_regions import disabled_region_ranges
-from ._fenced_blocks import fenced_block_ranges
+from ._literal_zones import code_literal_ranges, literal_zone_ranges
 from ._jinja import BUILTIN_RUNTIME_NAMES, RESERVED_GLOBAL_NAMES, get_jinja_env
 
 JinjaSpanKind = Literal[
@@ -304,16 +303,12 @@ def matching_delimiter_spans(
 
 
 def _mask_jinja_regions(text: str) -> str:
-    ranges = fenced_block_ranges(text) + _alt_jinja_overlap_ranges(text)
+    ranges = code_literal_ranges(text) + _alt_jinja_overlap_ranges(text)
     return _mask_ranges(text, ranges)
 
 
 def _mask_inert_regions(text: str) -> str:
-    ranges = (
-        fenced_block_ranges(text)
-        + disabled_region_ranges(text)
-        + _alt_jinja_overlap_ranges(text)
-    )
+    ranges = literal_zone_ranges(text) + _alt_jinja_overlap_ranges(text)
     return _mask_ranges(text, ranges)
 
 

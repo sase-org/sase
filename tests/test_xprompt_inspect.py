@@ -93,6 +93,18 @@ def test_tokenize_skips_fences_and_disabled_regions() -> None:
     assert _source_by_kind(text, "separator") == ["---"]
 
 
+def test_tokenize_skips_every_overlay_kind_inside_inline_code() -> None:
+    text = "`#hidden:arg %m:opus --- /sase_plan` #active:arg %m:sonnet /sase_plan"
+    known = frozenset({"sase_plan"})
+
+    assert _source_by_kind(text, "invocation", known_skills=known) == ["#active"]
+    assert _source_by_kind(text, "invocation_arg", known_skills=known) == [":arg"]
+    assert _source_by_kind(text, "directive", known_skills=known) == ["%m"]
+    assert _source_by_kind(text, "directive_arg", known_skills=known) == [":sonnet"]
+    assert _source_by_kind(text, "separator", known_skills=known) == []
+    assert _source_by_kind(text, "skill", known_skills=known) == ["/sase_plan"]
+
+
 def test_tokenize_rejects_heading_and_midword_markers() -> None:
     text = "# Heading\nword#foo word%wait"
 

@@ -21,8 +21,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ._directive_alt import _ALT_DIRECTIVE_RE
-from ._disabled_regions import disabled_region_ranges
-from ._fenced_blocks import fenced_block_ranges
+from ._literal_zones import literal_zone_ranges
 from ._parsing import find_matching_paren_for_args
 
 AltSpanKind = Literal["delimiter", "separator", "branch_name", "error"]
@@ -43,7 +42,7 @@ class AltSpan:
 def tokenize(text: str) -> list[AltSpan]:
     """Return alt fan-out spans, sorted by start offset.
 
-    Spans inside fenced code blocks or disabled xprompt regions are ignored.
+    Spans inside fenced blocks, inline code, or disabled regions are ignored.
     An unmatched opener yields a single ``error`` span over the opener.
     """
     if "%" not in text:
@@ -177,7 +176,7 @@ def _top_level_offsets(text: str, target: str) -> list[int]:
 
 def _mask_protected_regions(text: str) -> str:
     """Blank protected regions while preserving offsets and newlines."""
-    ranges = sorted([*fenced_block_ranges(text), *disabled_region_ranges(text)])
+    ranges = literal_zone_ranges(text)
     if not ranges:
         return text
     chars = list(text)

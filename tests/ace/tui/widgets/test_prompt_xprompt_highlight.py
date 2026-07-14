@@ -36,15 +36,17 @@ def _skill_entry(name: str = "sase_plan") -> XPromptAssistEntry:
 def _seed_entries(
     ta: PromptTextArea,
     entries: list[XPromptAssistEntry],
+    *,
+    project: str | None = None,
 ) -> None:
-    ta._xprompt_arg_assist_entries_by_project[None] = entries
+    ta._xprompt_arg_assist_entries_by_project[project] = entries
 
 
 async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
-        _seed_entries(ta, [_skill_entry()])
+        _seed_entries(ta, [_skill_entry()], project="sase")
         ta.load_text("#gh:sase %auto #pr:my_change %m:opus use /sase_plan\n---")
         ta._build_highlight_map()
 

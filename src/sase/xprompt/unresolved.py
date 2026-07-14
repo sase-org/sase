@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from difflib import get_close_matches
 
-from sase.xprompt._disabled_regions import disabled_region_ranges
-from sase.xprompt._fenced_blocks import fenced_block_ranges
+from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import (
     extract_known_project_vcs_ref,
     iter_xprompt_references,
@@ -29,7 +28,7 @@ def find_unresolved_reference_names(
         return ()
 
     prompt = normalize_vcs_underscore_refs(prompt)
-    ignored_ranges = fenced_block_ranges(prompt) + disabled_region_ranges(prompt)
+    ignored_ranges = literal_zone_ranges(prompt)
     known_names = _known_reference_names(extra_xprompts=extra_xprompts)
 
     unresolved: list[str] = []

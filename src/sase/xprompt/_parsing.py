@@ -193,15 +193,15 @@ def find_vcs_workflow_tag(prompt: str) -> str | None:
 def find_vcs_workflow_tag_span(prompt: str) -> tuple[int, int] | None:
     """Return the span of the first VCS workflow tag in *prompt*.
 
-    Tags inside fenced code blocks are quoted content, not workflow refs,
+    Tags inside fenced or inline code are quoted content, not workflow refs,
     and are skipped.
     """
-    from sase.xprompt._fenced_blocks import fenced_block_ranges
+    from sase.xprompt._literal_zones import code_literal_ranges
 
-    fenced = fenced_block_ranges(prompt)
+    literal = code_literal_ranges(prompt)
     for match in _get_embedded_vcs_tag_pattern().finditer(f"{prompt} "):
         start = match.start()
-        if any(fence_start <= start < fence_end for fence_start, fence_end in fenced):
+        if any(zone_start <= start < zone_end for zone_start, zone_end in literal):
             continue
         return start, match.end() - 1
     return None

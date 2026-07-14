@@ -146,6 +146,7 @@ def test_agent_bead_display_ignores_legacy_sibling_store(
         "sase.bead.workspace.resolve_primary_workspace",
         lambda: primary,
     )
+    monkeypatch.chdir(primary)
 
     assert format_agent_bead_display_for_name("sase-99") == "sase-99"
 

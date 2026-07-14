@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.tui.widgets._alt_syntax_highlight import AltSyntaxHighlightMixin
+from sase.ace.tui.widgets._codeblock_syntax_highlight import (
+    CodeBlockHighlightMixin,
+)
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
 from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
 from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
@@ -69,6 +72,7 @@ class PromptTextArea(
     PromptSearchMixin,
     PromptPreviewMixin,
     PromptJumpMixin,
+    CodeBlockHighlightMixin,
     JinjaHighlightMixin,
     FileCompletionMixin,
     PromptSoftCompletionMixin,

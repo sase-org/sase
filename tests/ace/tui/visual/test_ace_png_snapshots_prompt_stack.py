@@ -83,6 +83,28 @@ _XPROMPT_HIGHLIGHT_STACK = (
     "---\n"
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
+_CODEBLOCK_HIGHLIGHT_SOLO = (
+    "#gh:sase %auto inspect the parser; keep `#commit %m:opus` literal\n"
+    "```python\n"
+    "def normalize(value: str) -> str:\n"
+    "    # #literal and %wait:no stay inert here\n"
+    "    return value.strip().lower()\n"
+    "```"
+)
+_CODEBLOCK_HIGHLIGHT_STACK = (
+    "#gh:sase %auto review the Python transform\n"
+    "```python\n"
+    "def increment(value: int) -> int:\n"
+    "    return value + 1\n"
+    "```\n"
+    "---\n"
+    "%{%m:opus | %m:sonnet} #git:home verify the shell path\n"
+    "```bash\n"
+    "for file in src/*.py; do\n"
+    "  printf '%s\\n' \"$file\"\n"
+    "done\n"
+    "```"
+)
 
 _VISUAL_SKILL_ENTRIES = [
     XPromptAssistEntry(
@@ -326,6 +348,72 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
             "prompt_xprompt_highlight_stack_120x40",
             title="ACE prompt stack — xprompt highlighting",
         )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_codeblock_highlight_solo_dark_120x40",
+            "ACE prompt input — code highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_codeblock_highlight_solo_light_120x40",
+            "ACE prompt input — code highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_codeblock_highlight_solo_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _CODEBLOCK_HIGHLIGHT_SOLO)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_codeblock_highlight_stack_dark_120x40",
+            "ACE prompt stack — code highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_codeblock_highlight_stack_light_120x40",
+            "ACE prompt stack — code highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_codeblock_highlight_stack_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.expect_state("tab", "changespecs")
+        await _mount_prompt_bar(page, _CODEBLOCK_HIGHLIGHT_STACK)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 async def test_prompt_vim_cursor_insert_png_snapshot(

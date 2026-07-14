@@ -335,6 +335,34 @@ def test_xprompt_tokenizer_guard_limit_benchmark() -> None:
     )
 
 
+def test_xprompt_tokenizer_code_heavy_benchmark() -> None:
+    """Keep literal-zone scanning responsive for a large code-heavy prompt."""
+    code_line = (
+        "def transform(value): return {'value': value + 1}  # literal #hidden %auto\n"
+    )
+    code = (code_line * 1_000)[:50_000]
+    text = (
+        "```python\n"
+        f"{code}"
+        "```\n"
+        "Keep `#commit %m:opus` literal, then run #gh:sase %auto\n"
+    )
+    samples_ms: list[float] = []
+
+    for _ in range(100):
+        started = time.perf_counter()
+        xprompt_inspect.tokenize(text)
+        samples_ms.append((time.perf_counter() - started) * 1_000)
+
+    ordered = sorted(samples_ms)
+    p95_index = max(0, int(round(0.95 * (len(ordered) - 1))))
+    p95_ms = ordered[p95_index]
+    print("\nxprompt tokenizer (50 KB code-heavy prompt, 100 iterations)")
+    print("p50_ms  p95_ms  max_ms")
+    print(f"{statistics.median(ordered):>6.2f}  {p95_ms:>6.2f}  {ordered[-1]:>6.2f}")
+    assert p95_ms < 16.0
+
+
 async def test_full_baseline(
     _trace_env: tuple[Path, Path, Path], tmp_path: Path
 ) -> None:

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from sase.llm_provider.preprocessing import preprocess_prompt, preprocess_prompt_late
 from sase.xprompt._fenced_blocks import (
+    fenced_block_details,
     fenced_block_ranges,
     protect_fenced_blocks,
     unprotect_fenced_blocks,
@@ -85,6 +86,30 @@ def test_fenced_block_ranges_unclosed_fence_runs_to_end() -> None:
     start = len("before\n")
 
     assert fenced_block_ranges(prompt) == [(start, len(prompt))]
+
+
+def test_fenced_block_details_share_closed_fence_scanner_offsets() -> None:
+    prompt = "before\n  ~~~~ python title=demo\nprint('hi')\n ~~~~~  \nafter"
+
+    [details] = fenced_block_details(prompt)
+
+    assert prompt[slice(*details.opening_fence)] == "~~~~"
+    assert details.info_string is not None
+    assert prompt[slice(*details.info_string)] == "python title=demo"
+    assert prompt[slice(*details.content_range)] == "print('hi')\n"
+    assert details.closing_fence is not None
+    assert prompt[slice(*details.closing_fence)] == "~~~~~"
+    assert [details.block_range] == fenced_block_ranges(prompt)
+
+
+def test_fenced_block_details_expose_live_unclosed_content_to_eof() -> None:
+    prompt = "```py\nvalue = 1"
+
+    [details] = fenced_block_details(prompt)
+
+    assert details.closing_fence is None
+    assert details.content_range == (len("```py\n"), len(prompt))
+    assert details.block_range == (0, len(prompt))
 
 
 def _passthrough(x: str, **_kw: Any) -> str:

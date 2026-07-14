@@ -7,8 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal, TypedDict
 
-from sase.xprompt._disabled_regions import disabled_region_ranges
-from sase.xprompt._fenced_blocks import fenced_block_ranges
+from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import iter_xprompt_references, normalize_vcs_underscore_refs
 from sase.xprompt.loader import get_all_workflows, get_all_xprompts
 from sase.xprompt.models import XPrompt
@@ -46,7 +45,7 @@ def collect_used_xprompts(
         return []
 
     prompt = normalize_vcs_underscore_refs(prompt)
-    ignored_ranges = fenced_block_ranges(prompt) + disabled_region_ranges(prompt)
+    ignored_ranges = literal_zone_ranges(prompt)
 
     workflows = get_all_workflows()
     xprompts = get_all_xprompts()

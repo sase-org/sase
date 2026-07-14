@@ -10,6 +10,7 @@ literal pass-through text and are never part of launch processing.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 import re
 from dataclasses import dataclass
 from typing import Literal
@@ -19,12 +20,12 @@ from ._directive_types import (
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
 )
-from ._disabled_regions import disabled_region_ranges
-from ._fenced_blocks import fenced_block_ranges
+from ._literal_zones import literal_zone_ranges
 from ._parsing import find_matching_paren_for_args
 from ._parsing_references import (
     XPROMPT_REFERENCE_LEADING_CONTEXT,
-    iter_xprompt_references,
+    XPROMPT_REFERENCE_PATTERN,
+    xprompt_reference_from_match,
 )
 from .segment_separators import _SEGMENT_SEPARATOR_RE
 
@@ -61,7 +62,8 @@ def tokenize(
 ) -> list[XPromptSpan]:
     """Return recognized xprompt spans, sorted by source offset.
 
-    Fenced code blocks and ``%xprompts_enabled:false`` regions are excluded.
+    Fenced blocks, inline code, and ``%xprompts_enabled:false`` regions are
+    excluded.
     Unknown directives remain unstyled, matching launch parsing behavior.
     Slash-skill spans are emitted only for names supplied in *known_skills*.
     """
@@ -73,11 +75,14 @@ def tokenize(
     ):
         return []
 
-    protected = sorted([*fenced_block_ranges(text), *disabled_region_ranges(text)])
+    protected = literal_zone_ranges(text)
     spans: list[XPromptSpan] = []
 
     if "#" in text:
-        for reference in iter_xprompt_references(text):
+        for match in XPROMPT_REFERENCE_PATTERN.finditer(text):
+            if _overlaps_protected(match.start(), match.end(), protected):
+                continue
+            reference = xprompt_reference_from_match(text, match)
             if _overlaps_protected(reference.start, reference.end, protected):
                 continue
             argument_start = reference.end - len(reference.argument_source)
@@ -89,6 +94,8 @@ def tokenize(
 
     if "%" in text:
         for match in _DIRECTIVE_RE.finditer(text):
+            if _overlaps_protected(match.start(), match.end(), protected):
+                continue
             raw_name = match.group(1)
             name = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
             if name not in _KNOWN_DIRECTIVES:
@@ -121,10 +128,8 @@ def _overlaps_protected(
     end: int,
     protected_ranges: list[tuple[int, int]],
 ) -> bool:
-    return any(
-        start < protected_end and end > protected_start
-        for protected_start, protected_end in protected_ranges
-    )
+    candidate = bisect_left(protected_ranges, (end,)) - 1
+    return candidate >= 0 and protected_ranges[candidate][1] > start
 
 
 def _directive_end(text: str, match: re.Match[str]) -> int:

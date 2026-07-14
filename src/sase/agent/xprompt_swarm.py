@@ -19,10 +19,10 @@ from collections.abc import Iterator
 
 from sase.agent.multi_prompt import split_segments_protecting_fences
 from sase.xprompt._disabled_regions import (
-    disabled_region_ranges,
     protect_disabled_regions,
 )
-from sase.xprompt._fenced_blocks import fenced_block_ranges, protect_fenced_blocks
+from sase.xprompt._fenced_blocks import protect_fenced_blocks
+from sase.xprompt._literal_zones import literal_zone_ranges
 from sase.xprompt._parsing import (
     _DIRECTIVE_PREFIX_RE,
     extract_known_project_vcs_ref,
@@ -339,7 +339,7 @@ def _span_overlaps_ranges(start: int, end: int, ranges: list[tuple[int, int]]) -
 
 def _real_xprompt_references(segment: str) -> list[XPromptReference]:
     """Return lexical xprompt references in *segment*, excluding disabled examples."""
-    ignored_ranges = fenced_block_ranges(segment) + disabled_region_ranges(segment)
+    ignored_ranges = literal_zone_ranges(segment)
     return [
         ref
         for ref in iter_xprompt_references(segment)
