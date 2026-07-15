@@ -30,6 +30,8 @@ repos:
     - name: plans
       auto_clone: true
 
+    - name: research
+      description: Durable SASE research reports and generated media.
 xprompts:
   # keep-sorted start
 
