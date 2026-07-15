@@ -1,0 +1,355 @@
+"""Tracked-task execution and restart handling for SASE self-updates."""
+
+from __future__ import annotations
+
+import time
+from typing import TYPE_CHECKING, Any, Literal
+
+from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
+from sase.ace.tui.actions.task_actions import (
+    TrackedTaskCompletion,
+    TrackedTaskResult,
+)
+from sase.ace.tui.task_subprocess import TaskReporter
+from sase.dev_update.journal import append_dev_update_journal
+from sase.dev_update.models import DevUpdatePlan, DevUpdateResult
+from sase.main.update_types import CombinedUpdateResult
+from sase.uv_tool.errors import UvToolError
+from sase.uv_tool.render import PlannedPackage, UpdateSummary
+from sase.uv_tool.runner import run_uv
+
+from .plugins_browser_dev_update import (
+    DevUpdatePreview,
+    dev_update_failed,
+    dev_update_failure_message,
+    dev_update_success_message,
+)
+from .plugins_browser_sase_update_summary import (
+    SASE_UPDATE_NOOP_MESSAGE,
+    combined_sase_update_success_message,
+    log_combined_update_result,
+    log_update_summary,
+    managed_update_changed,
+    sase_update_success_message,
+)
+
+
+class SaseUpdateTaskMixin:
+    """Execute SASE updates through the shared tracked-task system."""
+
+    if TYPE_CHECKING:
+        _loading: bool
+        _uv_tool: object | None
+        app: Any
+        is_mounted: bool
+
+        def _notify(
+            self,
+            message: str,
+            *,
+            severity: Literal["information", "warning", "error"] = "information",
+        ) -> None: ...
+
+        def _run_sase_update_summary(
+            self, install: object | None, *, run_fn: Any = run_uv
+        ) -> tuple[UpdateSummary, float]: ...
+
+        def _run_planned_sase_update_summary(
+            self,
+            argv: tuple[str, ...],
+            packages: tuple[PlannedPackage, ...],
+            *,
+            run_fn: Any = run_uv,
+        ) -> tuple[UpdateSummary, float]: ...
+
+        def _execute_dev_update(
+            self, plan: DevUpdatePlan, *, run: Any = None
+        ) -> DevUpdateResult: ...
+
+        def _start_load(self, *, force: bool) -> None: ...
+
+    def _submit_sase_update_task(self) -> None:
+        """Run the self-update engine in the shared tracked-task system."""
+        install = self._uv_tool
+
+        def task(reporter: TaskReporter) -> TrackedTaskResult[UpdateSummary]:
+            try:
+                reporter.phase("Resolving sase update")
+                summary, elapsed = self._run_sase_update_summary(
+                    install,
+                    run_fn=reporter.uv_runner(),
+                )
+            except UvToolError as exc:
+                return TrackedTaskResult(
+                    success=False,
+                    message=str(exc),
+                    error=str(exc),
+                )
+            message = sase_update_success_message(summary, elapsed)
+            log_update_summary(reporter, summary, message)
+            return TrackedTaskResult(
+                success=True,
+                message=message,
+                payload=summary,
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        submit(
+            "sase-update",
+            "sase",
+            "",
+            task,
+            display_name="sase update",
+            dedup_key="sase-update",
+            duplicate_message="A sase update is already running.",
+            on_complete=self._on_sase_update_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+
+    def _on_sase_update_complete(
+        self, completion: TrackedTaskCompletion[UpdateSummary]
+    ) -> None:
+        """Toast the outcome and refresh installed/latest versions in place."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="sase update failed",
+            unchanged_message=SASE_UPDATE_NOOP_MESSAGE,
+            unchanged_severity="error",
+        )
+
+    def _submit_dev_update_task(
+        self,
+        plan: DevUpdatePlan,
+        *,
+        subject: str,
+        display_name: str,
+        dedup_key: str,
+        duplicate_message: str,
+    ) -> None:
+        """Run a dev-update plan in the shared tracked-task system."""
+
+        def task(reporter: TaskReporter) -> TrackedTaskResult[DevUpdateResult]:
+            start = time.monotonic()
+            reporter.phase("Fetching editable checkouts")
+            result = self._execute_dev_update(
+                plan,
+                run=dev_update_reporter_runner(reporter),
+            )
+            append_dev_update_journal(plan, result)
+            elapsed = max(0.0, time.monotonic() - start)
+            if dev_update_failed(result):
+                reason = dev_update_failure_message(result)
+                return TrackedTaskResult(
+                    success=False,
+                    message=reason,
+                    error=reason,
+                    payload=result,
+                )
+            message = dev_update_success_message(
+                result, subject=subject, elapsed=elapsed
+            )
+            reporter.log(message, stream="result")
+            return TrackedTaskResult(
+                success=True,
+                message=message,
+                payload=result,
+            )
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        submit(
+            "dev-update",
+            subject,
+            "",
+            task,
+            display_name=display_name,
+            dedup_key=dedup_key,
+            duplicate_message=duplicate_message,
+            on_complete=self._on_dev_update_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+
+    def _submit_combined_update_task(self, preview: DevUpdatePreview) -> None:
+        """Run editable and managed legs as one tracked comprehensive task."""
+        assert preview.plan is not None
+        plan = preview.plan
+
+        def task(reporter: TaskReporter) -> TrackedTaskResult[CombinedUpdateResult]:
+            start = time.monotonic()
+            reporter.phase("Checking editable SASE checkouts")
+            dev_result = self._execute_dev_update(
+                plan,
+                run=dev_update_reporter_runner(reporter),
+            )
+            append_dev_update_journal(plan, dev_result)
+            if dev_update_failed(dev_result):
+                reason = dev_update_failure_message(dev_result)
+                return TrackedTaskResult(
+                    success=False,
+                    message=reason,
+                    error=reason,
+                    payload=CombinedUpdateResult(
+                        dev_result=dev_result,
+                        managed_summary=None,
+                        elapsed=max(0.0, time.monotonic() - start),
+                    ),
+                )
+
+            try:
+                reporter.phase("Resolving managed SASE packages")
+                managed_summary, _managed_elapsed = (
+                    self._run_planned_sase_update_summary(
+                        preview.managed_argv,
+                        preview.managed_packages,
+                        run_fn=reporter.uv_runner(),
+                    )
+                )
+            except UvToolError as exc:
+                return TrackedTaskResult(
+                    success=False,
+                    message=str(exc),
+                    error=str(exc),
+                    payload=CombinedUpdateResult(
+                        dev_result=dev_result,
+                        managed_summary=None,
+                        elapsed=max(0.0, time.monotonic() - start),
+                    ),
+                )
+
+            result = CombinedUpdateResult(
+                dev_result=dev_result,
+                managed_summary=managed_summary,
+                elapsed=max(0.0, time.monotonic() - start),
+            )
+            message = combined_sase_update_success_message(result)
+            log_combined_update_result(reporter, result, message)
+            return TrackedTaskResult(success=True, message=message, payload=result)
+
+        submit = getattr(self.app, "_submit_tracked_task", None)
+        if submit is None:
+            return
+        submit(
+            "sase-update",
+            "sase",
+            "",
+            task,
+            display_name="sase update",
+            dedup_key="sase-update",
+            duplicate_message="A sase update is already running.",
+            on_complete=self._on_combined_update_complete,
+            reload_on_complete=False,
+            notify_on_complete=False,
+        )
+
+    def _on_dev_update_complete(
+        self, completion: TrackedTaskCompletion[DevUpdateResult]
+    ) -> None:
+        """Toast/restart after an editable-checkout update task."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="dev update failed",
+        )
+
+    def _on_combined_update_complete(
+        self, completion: TrackedTaskCompletion[CombinedUpdateResult]
+    ) -> None:
+        """Toast, receipt, and restart once for a comprehensive mixed update."""
+        self._handle_code_update_completion(
+            completion,
+            failure_prefix="sase update failed",
+            unchanged_message=SASE_UPDATE_NOOP_MESSAGE,
+            unchanged_severity="error",
+        )
+
+    def _handle_code_update_completion(
+        self,
+        completion: TrackedTaskCompletion[Any],
+        *,
+        failure_prefix: str,
+        unchanged_message: str | None = None,
+        unchanged_severity: Literal["information", "warning", "error"] = "information",
+    ) -> None:
+        """Common update completion handling: restart only after real changes."""
+        if completion.success:
+            if completion.payload is not None and managed_update_changed(
+                completion.payload
+            ):
+                receipt = build_update_receipt(completion.payload)
+                if receipt is not None:
+                    write_pending_update_toast(receipt)
+                self._restart_after_update(completion.message)
+                return
+            self._notify(
+                unchanged_message or completion.message,
+                severity=unchanged_severity,
+            )
+            if self.is_mounted and not self._loading:
+                self._start_load(force=False)
+        else:
+            detail = completion.error or completion.message
+            self._notify(f"{failure_prefix}: {detail}", severity="error")
+
+    def _restart_after_update(self, message: str) -> None:
+        """Notify briefly, then reuse the TUI + axe restart machinery."""
+        self._restart_after_update_when_ready(message, deferred=False)
+
+    def _restart_after_update_when_ready(self, message: str, *, deferred: bool) -> None:
+        """Restart after tracked background tasks have finished."""
+        running_tasks = running_background_tasks(self.app)
+        if running_tasks:
+            if not deferred:
+                count = len(running_tasks)
+                noun = "task" if count == 1 else "tasks"
+                verb = "finishes" if count == 1 else "finish"
+                self._notify(
+                    f"{message} - restart queued until {count} background "
+                    f"{noun} {verb}."
+                )
+            set_timer = getattr(self.app, "set_timer", None)
+            if callable(set_timer):
+                set_timer(
+                    1.0,
+                    lambda: self._restart_after_update_when_ready(
+                        message, deferred=True
+                    ),
+                )
+            return
+
+        self._notify(f"{message} — restarting ACE to load new code.")
+        restart = getattr(self.app, "_restart_tui", None)
+        if callable(restart):
+            restart(restart_axe=True)
+
+
+def dev_update_reporter_runner(reporter: TaskReporter) -> Any:
+    """Adapt a tracked task reporter to the dev-update command interface."""
+    from sase.dev_update.models import DevCommandResult
+
+    def _run(argv: Any, *, cwd: Any = None) -> DevCommandResult:
+        reporter.phase("Running " + " ".join(str(part) for part in argv[:2]))
+        completed = reporter.run(argv, cwd=cwd)
+        return DevCommandResult(
+            returncode=completed.returncode,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+
+    return _run
+
+
+def running_background_tasks(app: Any) -> list[Any]:
+    """Return tracked tasks that must finish before ACE can restart."""
+    task_queue = getattr(app, "_task_queue", None)
+    get_all = getattr(task_queue, "get_all", None)
+    if not callable(get_all):
+        return []
+    try:
+        tasks = get_all()
+    except Exception:  # noqa: BLE001 - restart checks must not break update flow.
+        return []
+    return [task for task in tasks if getattr(task, "status", None) == "running"]
