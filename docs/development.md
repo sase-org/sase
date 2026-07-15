@@ -88,21 +88,31 @@ pure-Rust SVG renderer that carries its own font database restricted to the bund
 rendering is stable and host-font-independent everywhere.
 
 Rasterization is not perfectly byte-identical across host operating systems, though: resvg anti-aliases a small, fixed
-set of pixels differently on macOS arm64 than on CI's Linux x86_64 — a drift of ~0.1-0.3% of pixels. Every lane (local
-`just test-visual`, the broad `just test` / `just test-cov` runs, `just check`, and CI, which all run through the
-`justfile`) therefore allows a small ratio-only drift tolerance by default: `SASE_VISUAL_PNG_MAX_DIFF_RATIO` is exported
-from the `justfile` at `0.01` (1%). That band absorbs cross-host anti-aliasing drift with headroom while still catching
-real regressions, which change orders of magnitude more pixels. Goldens are consequently regenerable on any host —
-accept intentional changes with the local one-liner above, review the changed PNGs as ordinary test data, then commit;
-no CI-artifact adoption ritual and no host-specific font setup is required.
+set of pixels differently on macOS arm64 than on CI's Linux x86_64. Every lane (local `just test-visual`, the broad
+`just test` / `just test-cov` runs, `just check`, and CI) therefore bounds expected drift along two dimensions:
+
+- `SASE_VISUAL_PNG_MAX_DIFF_RATIO=0.01` allows exact pixel differences across at most 1% of the image.
+- `SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD=8` classifies a pixel as material when its maximum visible channel distance
+  exceeds eight levels after alpha-aware compositing over black and white.
+- `SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS=0` permits no above-threshold pixels by default.
+
+Both the area and material limits must pass. This absorbs low-amplitude edge rasterization while ensuring that even a
+one-pixel high-contrast content or style change fails. Goldens remain regenerable on any host: accept intentional
+changes with the local one-liner above, review the changed PNGs as ordinary test data, then commit. The tolerance is
+only a comparison allowance; it never updates or implicitly accepts a golden.
 
 The renderer version is pinned exactly because it _defines_ the golden corpus. Bumping `resvg_py` is a deliberate
 regenerate-and-review event: change the pin, regenerate every golden, spot-check the diff, and commit the corpus churn
 in the same change.
 
-Override the default tolerance per run with `SASE_VISUAL_PNG_MAX_DIFF_RATIO=<ratio>` (use `0` to demand exact pixel
-equality, or a larger cap while measuring drift scale during a renderer bump) or per assertion with a `max_diff_pixels`
-/ `max_diff_ratio` kwarg.
+Use `SASE_VISUAL_PNG_MAX_DIFF_RATIO=0 just test-visual` to demand exact pixel equality. During a deliberate renderer
+investigation, override the area cap together with either `SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS` or
+`SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD`; otherwise the material guard remains active. Per-assertion equivalents are
+`max_diff_pixels`, `max_diff_ratio`, `max_material_diff_pixels`, and `material_diff_threshold`.
+
+Mismatch assertions, `summary.txt`, and `failure.json` report `material_diff_pixels`, `material_diff_ratio`, and
+`material_diff_threshold` alongside the active area and material limits. Inspect those fields to distinguish broad,
+low-amplitude renderer drift from a small material UI change before using any override.
 
 One accepted fidelity caveat: Fira Code ships no italic face and resvg does not synthesize oblique, so
 `font-style: italic` renders upright. This is uniform across every screen and host. Restoring visible italics would mean

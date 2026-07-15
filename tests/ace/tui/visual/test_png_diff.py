@@ -72,7 +72,12 @@ def _write_golden(tmp_path: Path, name: str, png: bytes) -> None:
 
 
 def _clear_png_tolerance_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", raising=False)
+    for name in (
+        "SASE_VISUAL_PNG_MAX_DIFF_RATIO",
+        "SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD",
+        "SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def test_relative_artifact_root_is_anchored_after_chdir(
@@ -105,15 +110,15 @@ def test_matching_png_passes(tmp_path: Path) -> None:
     ace_png_visual.assert_png("matching", png)
 
 
-def test_default_fails_on_one_pixel_diff(
+def test_default_exact_mode_fails_on_low_amplitude_pixel_diff(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_png_tolerance_env(monkeypatch)
     ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
+    expected_pixels = [(100, 100, 100, 255)] * 100
     actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
+    actual_pixels[0] = (101, 100, 100, 255)
     _write_golden(tmp_path, "strict.png", _png(*expected_pixels, size=(10, 10)))
 
     with pytest.raises(AssertionError, match="default"):
@@ -131,9 +136,9 @@ def test_github_actions_env_does_not_relax_default(
     monkeypatch.setenv("GITHUB_WORKFLOW", "visual-test")
     monkeypatch.setenv("GITHUB_RUN_ID", "123456")
     ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
+    expected_pixels = [(100, 100, 100, 255)] * 100
     actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
+    actual_pixels[0] = (101, 100, 100, 255)
     _write_golden(tmp_path, "ci_strict.png", _png(*expected_pixels, size=(10, 10)))
 
     with pytest.raises(AssertionError, match="default"):
@@ -147,14 +152,123 @@ def test_env_tolerance_allows_renderer_drift_without_artifacts(
     _clear_png_tolerance_env(monkeypatch)
     monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
     ace_png_visual = _fixture(tmp_path)
-    expected_pixels = [(255, 0, 0, 255)] * 100
+    expected_pixels = [(100, 100, 100, 255)] * 100
     actual_pixels = expected_pixels.copy()
-    actual_pixels[0] = (0, 0, 255, 255)
+    actual_pixels[0] = (108, 104, 96, 255)
     _write_golden(tmp_path, "env_tolerated.png", _png(*expected_pixels, size=(10, 10)))
 
     ace_png_visual.assert_png("env_tolerated", _png(*actual_pixels, size=(10, 10)))
 
     assert not (tmp_path / "artifacts").exists()
+
+
+def test_env_tolerance_rejects_high_contrast_pixel_below_ratio_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_png_tolerance_env(monkeypatch)
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "env_material_change.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    with pytest.raises(
+        AssertionError,
+        match="materially changed pixels: 1/100",
+    ):
+        ace_png_visual.assert_png(
+            "env_material_change",
+            _png(*actual_pixels, size=(10, 10)),
+        )
+
+
+def test_explicit_material_tolerance_allows_renderer_investigation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_png_tolerance_env(monkeypatch)
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0")
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "explicit_material_override.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    ace_png_visual.assert_png(
+        "explicit_material_override",
+        _png(*actual_pixels, size=(10, 10)),
+        max_diff_ratio=0.02,
+        max_material_diff_pixels=1,
+    )
+
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_env_material_tolerance_allows_renderer_investigation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_png_tolerance_env(monkeypatch)
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.02")
+    monkeypatch.setenv("SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS", "1")
+    ace_png_visual = _fixture(tmp_path)
+    expected_pixels = [(255, 0, 0, 255)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 255)
+    _write_golden(
+        tmp_path,
+        "env_material_override.png",
+        _png(*expected_pixels, size=(10, 10)),
+    )
+
+    ace_png_visual.assert_png(
+        "env_material_override",
+        _png(*actual_pixels, size=(10, 10)),
+    )
+
+    assert not (tmp_path / "artifacts").exists()
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "nan"),
+        ("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "-0.1"),
+        ("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "not-a-number"),
+        ("SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD", "-1"),
+        ("SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD", "256"),
+        ("SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD", "1.5"),
+        ("SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS", "-1"),
+        ("SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS", "1.5"),
+    ],
+)
+def test_invalid_tolerance_environment_configuration_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+) -> None:
+    _clear_png_tolerance_env(monkeypatch)
+    monkeypatch.setenv(name, value)
+    ace_png_visual = _fixture(tmp_path)
+    expected = _png((255, 0, 0, 255), size=(1, 1))
+    _write_golden(tmp_path, "invalid_env.png", expected)
+
+    with pytest.raises(ValueError, match=name):
+        ace_png_visual.assert_png(
+            "invalid_env",
+            _png((0, 0, 255, 255), size=(1, 1)),
+        )
 
 
 def test_explicit_strict_tolerance_overrides_env_default(
@@ -182,7 +296,11 @@ def test_explicit_strict_tolerance_overrides_env_default(
         )
 
 
-def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
+def test_mismatched_png_writes_failure_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_png_tolerance_env(monkeypatch)
     ace_png_visual = _fixture(tmp_path)
     expected = _png((255, 0, 0, 255), (0, 255, 0, 255), size=(2, 1))
     actual = _png((255, 0, 0, 255), (0, 0, 255, 255), size=(2, 1))
@@ -204,6 +322,13 @@ def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
     summary = (failure_dir / "summary.txt").read_text()
     assert "changed_pixels: 1" in summary
     assert "changed_ratio: 0.500000000000" in summary
+    assert "material_diff_pixels: 1" in summary
+    assert "material_diff_ratio: 0.500000000000" in summary
+    assert "material_diff_threshold: 8" in summary
+    assert "max_diff_pixels: 0" in summary
+    assert "max_diff_ratio: 0.0" in summary
+    assert "max_material_diff_pixels: 0" in summary
+    assert "tolerance_source: default" in summary
 
     record = json.loads((failure_dir / "failure.json").read_text())
     assert record["kind"] == "mismatch"
@@ -237,6 +362,13 @@ def test_mismatched_png_writes_failure_artifacts(tmp_path: Path) -> None:
     assert record["changed_pixels"] == 1
     assert record["total_pixels"] == 2
     assert record["changed_ratio"] == 0.5
+    assert record["material_diff_pixels"] == 1
+    assert record["material_diff_ratio"] == 0.5
+    assert record["material_diff_threshold"] == 8
+    assert record["max_diff_pixels"] == 0
+    assert record["max_diff_ratio"] == 0.0
+    assert record["max_material_diff_pixels"] == 0
+    assert record["tolerance_source"] == "default"
 
 
 def test_missing_png_golden_writes_actual_artifacts(tmp_path: Path) -> None:
@@ -337,7 +469,23 @@ def test_diff_pngs_handles_dimension_changes() -> None:
     assert summary.actual_size == (2, 1)
     assert summary.changed_pixels == 1
     assert summary.total_pixels == 2
+    assert summary.material_diff_pixels == 1
+    assert summary.material_diff_threshold == 8
     assert diff.startswith(b"\x89PNG")
+
+
+def test_material_diff_is_alpha_aware() -> None:
+    expected_pixels = [(255, 0, 0, 0)] * 100
+    actual_pixels = expected_pixels.copy()
+    actual_pixels[0] = (0, 0, 255, 0)
+
+    summary, _ = diff_pngs(
+        _png(*expected_pixels, size=(10, 10)),
+        _png(*actual_pixels, size=(10, 10)),
+    )
+
+    assert summary.changed_pixels == 1
+    assert summary.material_diff_pixels == 0
 
 
 def test_assert_page_png_rasterizes_page_svg(

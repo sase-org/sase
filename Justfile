@@ -20,12 +20,14 @@ workspace_sase_core_dir := "sase/repos/linked/sase-core"
 fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
 sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
 
-# Even with the bundled-font pin, resvg rasterizes a small, fixed set of pixels
-# differently across host OSes (macOS arm64 vs CI's Linux x86_64), so the golden
-# corpus drifts ~0.1-0.3% cross-platform. Allow that expected band by default in
-# every visual-bearing lane (test / test-visual / test-cov / check, plus CI which
-# runs `just test-visual`). Override by exporting a different value (0 = exact).
+# Even with the bundled-font pin, resvg has low-intensity cross-host edge drift.
+# Bound both its area (1%) and visible color distance (8 channel levels); no
+# above-ceiling pixels are accepted by default, so small high-contrast UI changes
+# still fail. These defaults cover every visual-bearing lane. Set the ratio to 0
+# for exact comparison, or override all three values for renderer investigations.
 export SASE_VISUAL_PNG_MAX_DIFF_RATIO := env_var_or_default("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.01")
+export SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD := env_var_or_default("SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD", "8")
+export SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS := env_var_or_default("SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS", "0")
 
 default:
     @just --list
