@@ -276,6 +276,120 @@ def test_split_init_creates_both_repos_before_writing_record(
     assert (clones["research"] / "README.md").is_file()
 
 
+def test_split_init_normalizes_legacy_https_clone_and_record_in_place(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git_env(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    clone = tmp_path / "research-clone"
+    clone.mkdir()
+    _git(clone, "init")
+    _git(
+        clone,
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/acme/widget--research.git",
+    )
+    local = clone / "local.md"
+    local.write_text("preserve this checkout\n", encoding="utf-8")
+    _git(clone, "add", "local.md")
+    _git(clone, "commit", "-m", "Local research commit")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=clone,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    write_sdd_store_record(
+        project,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "host": "github.com",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": "https://github.com/acme/widget--research.git",
+                },
+            },
+        },
+    )
+    captured: list[dict[str, object]] = []
+
+    def create_remote(
+        _primary: str,
+        _workspace: str,
+        options: dict[str, object],
+    ) -> dict[str, object]:
+        captured.append(options)
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/widget--research",
+            "remote_url": "git@github.com:acme/widget--research.git",
+            "discovery": "found",
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, _kind: str(clone),
+    )
+    monkeypatch.setattr("sase.sdd._store_link._pull_sdd_clone", lambda _root: True)
+    monkeypatch.setattr("sase.sdd._sidecar_init._seed_sidecars", lambda *_a, **_k: None)
+
+    outcome = initialize_sidecars(
+        project,
+        0,
+        (
+            SidecarInitSpec(
+                role="research",
+                repo="acme/widget--research",
+                remote_url="git@github.com:acme/widget--research.git",
+            ),
+        ),
+    )
+
+    assert captured[0]["sdd_remote_url"] == ("git@github.com:acme/widget--research.git")
+    assert local.read_text(encoding="utf-8") == "preserve this checkout\n"
+    assert (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=clone,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == head
+    )
+    assert (
+        subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=clone,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        == "git@github.com:acme/widget--research.git"
+    )
+    assert outcome.record is not None and outcome.record.research is not None
+    assert outcome.record.research.remote_url == (
+        "git@github.com:acme/widget--research.git"
+    )
+
+
 def test_split_init_cuts_over_changed_pinned_sidecar(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -575,6 +575,12 @@ files, where their `description` tells agents when to open them with `/sase_repo
 config layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted
 from generated instructions.
 
+The workspace provider owns sidecar transport. GitHub sidecars use canonical SSH origins on the primary repository's
+GitHub host (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git` when a port is configured). Rerun
+`sase repo init` to migrate legacy HTTPS URLs in the durable sidecar store record and normalize matching existing clones
+in place. Later `sase repo open` and auto-materialization calls apply the same in-place origin normalization to the
+sidecar clone they touch.
+
 Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
 compatibility entry when no matching explicit sidecar is configured. Research is config-declared per project and
 defaults to `<owner>/<project>--research`; `sase repo init` writes both managed entries. Set `disabled: true` on the

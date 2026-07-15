@@ -32,6 +32,15 @@ def _project_file(path: Path, primary_workspace_dir: Path) -> Path:
     return path
 
 
+def _set_github_origin(path: Path, remote: str) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", remote],
+        cwd=path,
+        check=True,
+    )
+
+
 def test_resolves_canonical_linked_repos_key(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     workspace = tmp_path / "sase_10"
@@ -94,6 +103,7 @@ def test_repos_linked_precedes_deprecated_aliases(tmp_path: Path) -> None:
 def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> None:
     primary = tmp_path / "sase"
     primary.mkdir()
+    _set_github_origin(primary, "https://github.com/sase-org/sase.git")
     project_file = _project_file(tmp_path / "project.sase", primary)
 
     resolution = resolve_linked_repos_for_project(
@@ -121,7 +131,7 @@ def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> Non
     assert repo.name == "research"
     assert repo.kind == "sidecar"
     assert repo.slug == "shared-research"
-    assert repo.remote_url == "https://github.com/sase-org/shared-research.git"
+    assert repo.remote_url == "git@github.com:sase-org/shared-research.git"
     assert repo.primary_dir == str((primary / "sase" / "repos" / "research").resolve())
     assert repo.workspace_dir == str(
         (tmp_path / "sase_4" / "sase" / "repos" / "research").resolve()
@@ -131,6 +141,7 @@ def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> Non
 def test_configured_sidecar_ignores_poisoned_store_remote(tmp_path: Path) -> None:
     primary = tmp_path / "widget"
     primary.mkdir()
+    _set_github_origin(primary, "https://github.com/acme/widget.git")
     project_file = _project_file(tmp_path / "project.sase", primary)
     write_sdd_store_record(
         primary,
@@ -165,13 +176,14 @@ def test_configured_sidecar_ignores_poisoned_store_remote(tmp_path: Path) -> Non
     assert resolution.warnings == ()
     assert len(resolution.repos) == 1
     assert resolution.repos[0].remote_url == (
-        "https://github.com/sase-org/sase--research.git"
+        "git@github.com:sase-org/sase--research.git"
     )
 
 
 def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) -> None:
     primary = tmp_path / "widget"
     primary.mkdir()
+    _set_github_origin(primary, "https://github.com/acme/widget.git")
     project_file = _project_file(tmp_path / "project.sase", primary)
     write_sdd_store_record(
         primary,
@@ -185,7 +197,7 @@ def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) ->
                 },
                 "research": {
                     "repo": "sase-org/sase--research",
-                    "remote_url": "git@github.com:sase-org/sase--research.git",
+                    "remote_url": "https://github.com/sase-org/sase--research.git",
                 },
             },
         },
@@ -258,7 +270,7 @@ def test_unpinned_configured_sidecar_ignores_stale_store_repo(
     repo = resolution.repos[0]
     assert repo.name == "research"
     assert repo.slug == "widget--research"
-    assert repo.remote_url == "https://github.com/acme/widget--research.git"
+    assert repo.remote_url == "git@github.com:acme/widget--research.git"
 
 
 def test_disabled_sidecar_suppresses_matching_implicit_default(
@@ -764,6 +776,7 @@ def test_sidecar_materialization_replaces_mismatched_workspace_origin(
             check=True,
         )
     (target / "stale.txt").write_text("wrong clone\n", encoding="utf-8")
+    commit_all(target, "Commit stale workspace content")
 
     result = materialize_linked_repo_workspace(
         primary_dir=str(primary),
@@ -782,6 +795,83 @@ def test_sidecar_materialization_replaces_mismatched_workspace_origin(
         check=True,
     ).stdout.strip()
     assert origin == str(expected_remote)
+
+
+def test_sidecar_materialization_normalizes_protocol_in_place(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workspace" / "sase" / "repos" / "research"
+    target.mkdir(parents=True)
+    _set_github_origin(
+        target,
+        "https://github.com/acme/widget--research.git",
+    )
+    local = target / "local.md"
+    local.write_text("preserve me\n", encoding="utf-8")
+    commit_all(target, "Local research commit")
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    for _ in range(2):
+        result = materialize_linked_repo_workspace(
+            primary_dir=str(target),
+            workspace_dir=str(target),
+            workspace_num=10,
+            expected_remote_url="git@github.com:acme/widget--research.git",
+        )
+        assert result == str(target.resolve())
+
+    assert local.read_text(encoding="utf-8") == "preserve me\n"
+    assert (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        == head
+    )
+    assert (
+        subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        == "git@github.com:acme/widget--research.git"
+    )
+
+
+def test_sidecar_materialization_preserves_dirty_mismatched_workspace(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "workspace" / "sase" / "repos" / "research"
+    target.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=target, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(tmp_path / "wrong.git")],
+        cwd=target,
+        check=True,
+    )
+    local = target / "local.md"
+    local.write_text("uncommitted research\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="has local changes"):
+        materialize_linked_repo_workspace(
+            primary_dir=str(tmp_path / "primary"),
+            workspace_dir=str(target),
+            workspace_num=10,
+            expected_remote_url=str(tmp_path / "expected.git"),
+        )
+
+    assert local.read_text(encoding="utf-8") == "uncommitted research\n"
 
 
 def test_sidecar_materialization_replaces_mismatched_primary_origin(

@@ -131,6 +131,18 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _mark_project(tmp_path)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/acme/widget.git",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
     config = {
         "is_sase_managed": True,
         "repos": {
@@ -158,7 +170,7 @@ def test_configured_sidecar_specs_preserve_pin_and_private_visibility(
 
     artifacts = next(spec for spec in specs if spec.role == "artifacts")
     assert artifacts.repo == "acme/shared-artifacts"
-    assert artifacts.remote_url == "https://github.com/acme/shared-artifacts.git"
+    assert artifacts.remote_url == "git@github.com:acme/shared-artifacts.git"
     assert artifacts.visibility == "private"
     assert artifacts.description == "Durable artifacts."
 

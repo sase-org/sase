@@ -439,7 +439,7 @@ def _configured_sidecar_specs(project_root: Path) -> tuple[SidecarInitSpec, ...]
         raw_repo = _entry_text(entry, "repo")
         repo: str | None = None
         if raw_repo:
-            repo = full_github_repo_name(primary, raw_repo) or raw_repo
+            repo = full_github_repo_name(primary, raw_repo, config=config) or raw_repo
         elif entry.get(_DEFAULT_LINKED_REPO_MARKER) is not True:
             resolved_repo = _entry_text(entry, _SIDECAR_REPO_REF_KEY)
             if "/" in resolved_repo:

@@ -18,6 +18,7 @@ import sys
 from typing import Any
 import uuid
 
+from sase._git_remote import git_remotes_match
 from sase._linked_repo_config import (
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
     DEFAULT_PLANS_DESCRIPTION,
@@ -581,25 +582,27 @@ def _materialize_remote_identified_sidecar(
 
     target = Path(workspace_dir).expanduser()
     source = Path(primary_dir).expanduser()
-    if target.is_dir() and _clone_origin_matches(target, expected_remote_url):
-        return str(target)
+    if target.is_dir():
+        origin = _git_origin_url(target)
+        if origin is not None and git_remotes_match(origin, expected_remote_url):
+            _set_clone_origin(target, origin, expected_remote_url)
+            return str(target)
+
+    if os.path.lexists(target):
+        if not (target / ".git").is_dir():
+            raise RuntimeError(
+                f"Sidecar path at {target} is not a Git clone; refusing to "
+                "replace it during remote cutover"
+            )
+        clean = _git_worktree_is_clean(target)
+        if clean is not True:
+            detail = "has local changes" if clean is False else "could not be inspected"
+            raise RuntimeError(
+                f"Sidecar clone at {target} {detail}; refusing to replace "
+                "it during remote cutover"
+            )
 
     if workspace_num <= 1:
-        if os.path.lexists(target):
-            if not (target / ".git").is_dir():
-                raise RuntimeError(
-                    f"Sidecar path at {target} is not a Git clone; refusing to "
-                    "replace it during remote cutover"
-                )
-            clean = _git_worktree_is_clean(target)
-            if clean is not True:
-                detail = (
-                    "has local changes" if clean is False else "could not be inspected"
-                )
-                raise RuntimeError(
-                    f"Sidecar clone at {target} {detail}; refusing to replace "
-                    "it during remote cutover"
-                )
         from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
         ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
@@ -610,7 +613,11 @@ def _materialize_remote_identified_sidecar(
     if source.is_dir() and _clone_origin_matches(source, expected_remote_url):
         from sase.workspace_provider.utils import ensure_git_clone_at
 
-        return ensure_git_clone_at(str(source), workspace_num, str(target))
+        checkout = Path(ensure_git_clone_at(str(source), workspace_num, str(target)))
+        origin = _git_origin_url(checkout)
+        if origin is not None:
+            _set_clone_origin(checkout, origin, expected_remote_url)
+        return str(checkout)
 
     from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
@@ -620,9 +627,24 @@ def _materialize_remote_identified_sidecar(
 
 def _clone_origin_matches(path: Path, expected_remote_url: str) -> bool:
     origin = _git_origin_url(path)
-    return origin is not None and _git_remote_identity(origin) == _git_remote_identity(
-        expected_remote_url
-    )
+    return origin is not None and git_remotes_match(origin, expected_remote_url)
+
+
+def _set_clone_origin(path: Path, current: str, expected: str) -> None:
+    if current.strip() == expected.strip():
+        return
+    try:
+        subprocess.run(
+            ["git", "remote", "set-url", "origin", expected],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(
+            f"could not normalize sidecar origin at {path} to {expected}"
+        ) from exc
 
 
 def _git_origin_url(path: Path) -> str | None:
@@ -655,22 +677,6 @@ def _git_worktree_is_clean(path: Path) -> bool | None:
     if result.returncode != 0:
         return None
     return not result.stdout.strip()
-
-
-def _git_remote_identity(url: str) -> str:
-    value = url.strip().rstrip("/")
-    if value.endswith(".git"):
-        value = value[: -len(".git")]
-    ssh_match = re.match(r"^[^@\s]+@([^:]+):(.+)$", value)
-    if ssh_match:
-        return f"{ssh_match.group(1).casefold()}/{ssh_match.group(2).strip('/')}"
-    url_match = re.match(
-        r"^[a-zA-Z][a-zA-Z0-9+.-]*://(?:[^@/]+@)?([^/:]+)(?::\d+)?/(.+)$",
-        value,
-    )
-    if url_match:
-        return f"{url_match.group(1).casefold()}/{url_match.group(2).strip('/')}"
-    return normalize_path(value)
 
 
 def _entry_text(entry: Mapping[str, Any], key: str) -> str:

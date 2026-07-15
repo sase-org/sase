@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import uuid
 
+from sase._git_remote import git_remotes_match
 from sase.sdd._store_types import (
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
@@ -50,6 +51,13 @@ def ensure_sidecar_sdd_clone(
                 )
                 return
             _set_sdd_origin(clone_dir, remote_url)
+            if (
+                strict
+                and (_git_remote_url(clone_dir) or "").strip() != remote_url.strip()
+            ):
+                raise SddMaterializationError(
+                    f"could not normalize SDD sidecar origin at {clone_dir}"
+                )
             _pull_sdd_clone(clone_dir)
             return
 
@@ -374,7 +382,7 @@ def _clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> boo
 
 def _set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
     current = _git_remote_url(workspace_sdd)
-    if current is not None and _same_git_remote(current, remote_url):
+    if current is not None and current.strip() == remote_url.strip():
         return
 
     from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
@@ -495,14 +503,7 @@ def _git_remote_url(path: Path) -> str | None:
 
 
 def _same_git_remote(left: str, right: str) -> bool:
-    return _normalize_git_remote(left) == _normalize_git_remote(right)
-
-
-def _normalize_git_remote(url: str) -> str:
-    trimmed = url.strip().rstrip("/")
-    if trimmed.endswith(".git"):
-        trimmed = trimmed[: -len(".git")]
-    return trimmed
+    return git_remotes_match(left, right)
 
 
 def _run_local_git(

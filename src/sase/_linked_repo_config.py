@@ -7,12 +7,13 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
-import re
 import subprocess
 from typing import Any
 from urllib.parse import urlparse
 
 import yaml  # type: ignore[import-untyped]
+
+from sase._git_remote import canonical_ssh_remote, parse_hosted_git_remote
 
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
@@ -40,6 +41,14 @@ class _SidecarRepoIdentity:
     slug: str
     repo: str
     remote_url: str | None
+
+
+@dataclass(frozen=True)
+class _GitHubRepoIdentity:
+    """GitHub host and repository identity selected by the primary origin."""
+
+    host: str
+    repo: str
 
 
 def resolution_config(
@@ -142,7 +151,7 @@ def merged_sidecar_entries_from_config(
     tokens_by_index: list[set[str]] = []
     for raw_entry in raw_entries:
         entry = dict(raw_entry)
-        tokens = _sidecar_entry_tokens(entry, primary_workspace_dir)
+        tokens = _sidecar_entry_tokens(entry, primary_workspace_dir, config)
         matched_index = next(
             (
                 index
@@ -157,13 +166,17 @@ def merged_sidecar_entries_from_config(
             continue
         merged[matched_index].update(entry)
         tokens_by_index[matched_index] = _sidecar_entry_tokens(
-            merged[matched_index], primary_workspace_dir
+            merged[matched_index], primary_workspace_dir, config
         )
 
     normalized: list[Mapping[str, Any]] = []
     primary = Path(primary_workspace_dir).expanduser().resolve(strict=False)
     for entry in merged:
-        identity = _sidecar_repo_identity(entry, primary_workspace_dir=str(primary))
+        identity = _sidecar_repo_identity(
+            entry,
+            primary_workspace_dir=str(primary),
+            config=config,
+        )
         normalized_entry = dict(entry)
         normalized_entry.setdefault("auto_clone", False)
         normalized_entry.setdefault("visibility", "public")
@@ -201,6 +214,7 @@ def _sidecar_repo_identity(
     entry: Mapping[str, Any],
     *,
     primary_workspace_dir: str,
+    config: Mapping[str, Any] | None = None,
 ) -> _SidecarRepoIdentity | None:
     """Resolve one configured sidecar's role, slug, repo ref, and remote URL."""
 
@@ -214,7 +228,7 @@ def _sidecar_repo_identity(
     configured_repo = entry.get("repo")
     repo = configured_repo.strip() if isinstance(configured_repo, str) else ""
     if not repo:
-        derived_repo = _derived_sidecar_repo(primary, role)
+        derived_repo = _derived_sidecar_repo(primary, role, config=config)
         if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True:
             repo = store_repo or derived_repo
         else:
@@ -228,18 +242,22 @@ def _sidecar_repo_identity(
     if not slug:
         return None
 
-    remote_url: str | None = None
+    stored_remote: str | None = None
     if (
         store_repo
-        and _repo_basename(store_repo) == slug
+        and _repo_refs_match(store_repo, repo)
         and store_remote is not None
         and _remote_url_identifies_repo(store_remote, store_repo)
     ):
-        remote_url = store_remote
-    if remote_url is None:
-        full_name = full_github_repo_name(primary, repo)
-        if full_name is not None:
-            remote_url = f"https://github.com/{full_name}.git"
+        stored_remote = store_remote
+
+    github = _github_repo_identity_from_origin(primary, config=config)
+    full_name = full_github_repo_name(primary, repo, config=config)
+    remote_url = (
+        canonical_ssh_remote(github.host, full_name)
+        if github is not None and full_name is not None
+        else stored_remote
+    )
 
     return _SidecarRepoIdentity(
         role=role,
@@ -369,11 +387,14 @@ def _json_safe_entry(entry: Mapping[str, Any]) -> dict[str, object]:
 
 
 def _sidecar_entry_tokens(
-    entry: Mapping[str, Any], primary_workspace_dir: str
+    entry: Mapping[str, Any],
+    primary_workspace_dir: str,
+    config: Mapping[str, Any],
 ) -> set[str]:
     identity = _sidecar_repo_identity(
         entry,
         primary_workspace_dir=primary_workspace_dir,
+        config=config,
     )
     if identity is None:
         return set()
@@ -397,8 +418,14 @@ def _store_sidecar_identity(primary: Path, role: str) -> tuple[str, str | None]:
     return sidecar.repo, sidecar.remote_url
 
 
-def _derived_sidecar_repo(primary: Path, role: str) -> str:
-    project = _github_repo_name_from_origin(primary)
+def _derived_sidecar_repo(
+    primary: Path,
+    role: str,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> str:
+    github = _github_repo_identity_from_origin(primary, config=config)
+    project = github.repo if github is not None else None
     project_slug = project.rsplit("/", 1)[-1] if project else primary.name
     slug = f"{project_slug}--{role}"
     if project and "/" in project:
@@ -407,20 +434,29 @@ def _derived_sidecar_repo(primary: Path, role: str) -> str:
     return slug
 
 
-def full_github_repo_name(primary: Path, repo: str) -> str | None:
+def full_github_repo_name(
+    primary: Path,
+    repo: str,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> str | None:
     cleaned = repo.strip().strip("/")
     if not cleaned:
         return None
     if "/" in cleaned:
         owner, slug = cleaned.split("/", 1)
         return f"{owner}/{slug}" if owner and slug and "/" not in slug else None
-    project = _github_repo_name_from_origin(primary)
-    if project is None or "/" not in project:
+    github = _github_repo_identity_from_origin(primary, config=config)
+    if github is None or "/" not in github.repo:
         return None
-    return f"{project.split('/', 1)[0]}/{cleaned}"
+    return f"{github.repo.split('/', 1)[0]}/{cleaned}"
 
 
-def _github_repo_name_from_origin(primary: Path) -> str | None:
+def _github_repo_identity_from_origin(
+    primary: Path,
+    *,
+    config: Mapping[str, Any] | None,
+) -> _GitHubRepoIdentity | None:
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
@@ -437,21 +473,40 @@ def _github_repo_name_from_origin(primary: Path) -> str | None:
     if not remote:
         return None
 
-    ssh_match = re.match(r"^[^@\s]+@github\.com:(.+)$", remote)
-    if ssh_match:
-        path = ssh_match.group(1)
-    else:
-        parsed = urlparse(remote)
-        if parsed.hostname != "github.com":
-            return None
-        path = parsed.path
-    cleaned = path.strip("/")
-    if cleaned.endswith(".git"):
-        cleaned = cleaned[: -len(".git")]
-    parts = cleaned.split("/")
+    parsed = parse_hosted_git_remote(remote)
+    if parsed is None or parsed.host not in _configured_github_hosts(config):
+        return None
+    parts = parsed.repo.split("/")
     if len(parts) != 2 or not all(parts):
         return None
-    return f"{parts[0]}/{parts[1]}"
+    return _GitHubRepoIdentity(parsed.host, f"{parts[0]}/{parts[1]}")
+
+
+def _configured_github_hosts(config: Mapping[str, Any] | None) -> frozenset[str]:
+    hosts = {"github.com"}
+    raw_hosts = config.get("github_hosts") if config is not None else None
+    values = (
+        raw_hosts
+        if isinstance(raw_hosts, Sequence) and not isinstance(raw_hosts, str)
+        else (raw_hosts,)
+    )
+    for value in values:
+        if value is None:
+            continue
+        raw = str(value).strip().casefold().rstrip("/")
+        if not raw:
+            continue
+        if "://" in raw:
+            parsed_url = urlparse(raw)
+            host = parsed_url.netloc.rsplit("@", 1)[-1]
+        elif "@" in raw and "/" in raw.partition(":")[2]:
+            parsed_remote = parse_hosted_git_remote(raw)
+            host = parsed_remote.host if parsed_remote is not None else ""
+        else:
+            host = raw.split("/", 1)[0].rsplit("@", 1)[-1]
+        if host:
+            hosts.add(host)
+    return frozenset(hosts)
 
 
 def _repo_basename(repo: str) -> str:
@@ -468,24 +523,35 @@ def _remote_url_identifies_repo(remote_url: str, repo: str) -> bool:
         return False
 
     remote = remote_url.strip().rstrip("/")
-    ssh_match = re.match(r"^[^@\s]+@[^:]+:(.+)$", remote)
-    if ssh_match:
-        remote_repo = ssh_match.group(1)
+    parsed = parse_hosted_git_remote(remote)
+    if parsed is not None:
+        remote_repo = parsed.repo
+        compare_basename = "/" not in expected
     else:
-        parsed = urlparse(remote)
-        if parsed.scheme and parsed.path:
-            remote_repo = parsed.path
-        elif "/" not in expected:
-            remote_repo = Path(remote).name
-        else:
-            return False
+        remote_repo = Path(remote).name
+        compare_basename = True
 
     normalized_remote = remote_repo.strip().strip("/")
     if normalized_remote.endswith(".git"):
         normalized_remote = normalized_remote[: -len(".git")]
-    if "/" not in expected:
+    if compare_basename:
         normalized_remote = normalized_remote.rsplit("/", 1)[-1]
+        expected = expected.rsplit("/", 1)[-1]
     return normalized_remote.casefold() == expected.casefold()
+
+
+def _repo_refs_match(left: str, right: str) -> bool:
+    def normalize(value: str) -> str:
+        normalized = value.strip().strip("/")
+        if normalized.endswith(".git"):
+            normalized = normalized[: -len(".git")]
+        return normalized.casefold()
+
+    normalized_left = normalize(left)
+    normalized_right = normalize(right)
+    if "/" in normalized_left and "/" in normalized_right:
+        return normalized_left == normalized_right
+    return _repo_basename(normalized_left) == _repo_basename(normalized_right)
 
 
 def _optional_entry_text(entry: Mapping[str, Any], key: str) -> str:

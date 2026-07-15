@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -16,6 +17,21 @@ from sase.workspace_provider.registry import (
     save_registry,
 )
 from sase.workspace_provider.store import WorkspaceStore
+
+
+def _set_github_origin(path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/acme/widget.git",
+        ],
+        cwd=path,
+        check=True,
+    )
 
 
 def _project_record(
@@ -126,6 +142,7 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     project = _project_record(tmp_path)
+    _set_github_origin(Path(project.workspace_dir or ""))
     config = {
         "repos": {
             "sidecar": [
@@ -157,7 +174,7 @@ def test_inventory_surfaces_configured_sidecar_role_and_slug(
     )
     assert sidecar.exists is False
     assert sidecar.source == "repos.sidecar config"
-    assert sidecar.remote_url == "https://github.com/acme/shared-research.git"
+    assert sidecar.remote_url == "git@github.com:acme/shared-research.git"
 
 
 def test_disabled_configured_sidecar_suppresses_store_record(
@@ -205,6 +222,7 @@ def test_pinned_sidecar_identity_overrides_stale_store_repo(
 ) -> None:
     project = _project_record(tmp_path)
     primary = Path(project.workspace_dir or "")
+    _set_github_origin(primary)
     write_sdd_store_record(
         primary,
         {
@@ -238,7 +256,7 @@ def test_pinned_sidecar_identity_overrides_stale_store_repo(
 
     research = next(record for record in inventory.records if record.name == "research")
     assert research.slug == "shared-research"
-    assert research.remote_url == "https://github.com/acme/shared-research.git"
+    assert research.remote_url == "git@github.com:acme/shared-research.git"
     assert research.source == "repos.sidecar config"
 
 
