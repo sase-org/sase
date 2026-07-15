@@ -571,9 +571,9 @@ Sidecar entries use their `name` as both the role and `sase/repos/<name>` clone 
 explicit unpinned entry uses that project-local derivation even when a legacy SDD store record names a different
 repository. Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or
 repository slug. Enabled sidecars that are not auto-cloned also appear by repository slug in generated agent instruction
-files, where their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later config
-layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted from
-generated instructions.
+files, where their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later
+config layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted
+from generated instructions.
 
 Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
 compatibility entry when no matching explicit sidecar is configured. Research is config-declared per project and
