@@ -84,6 +84,9 @@ def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path
             host_action_data={
                 "response_dir": str(response_dir),
                 "project_dir": str(workspace),
+                "agent_project_file": str(
+                    tmp_path / "projects" / "canonical" / "canonical.sase"
+                ),
                 "agent_cl_name": "demo",
             },
         ),
@@ -107,7 +110,7 @@ def test_headless_epic_approval_spawns_before_claiming_host_ownership(
         patch(
             "sase.bead.epic_launch.resolve_epic_launch_cwd",
             return_value=workspace,
-        ),
+        ) as resolve_cwd,
         patch(
             "sase.bead.epic_launch.spawn_detached_epic_launch",
             side_effect=spawn,
@@ -118,6 +121,10 @@ def test_headless_epic_approval_spawns_before_claiming_host_ownership(
     order.append("response")
     assert result.response_json["epic_launch_owner"] == "host"
     assert order == ["spawn", "response"]
+    resolve_cwd.assert_called_once_with(
+        str(workspace),
+        agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
+    )
     spawn_launch.assert_called_once()
     assert spawn_launch.call_args.kwargs["cwd"] == workspace
 
@@ -139,3 +146,22 @@ def test_headless_epic_spawn_failure_leaves_agent_fallback_unclaimed(
         result = execute_plan_approval_response(context, "epic")
 
     assert "epic_launch_owner" not in result.response_json
+
+
+def test_headless_epic_resolution_failure_leaves_agent_fallback_unclaimed(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, _workspace = _epic_context(tmp_path)
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            side_effect=ValueError("invalid project identity"),
+        ),
+        patch(
+            "sase.bead.epic_launch.spawn_detached_epic_launch",
+        ) as spawn_launch,
+    ):
+        result = execute_plan_approval_response(context, "epic")
+
+    assert "epic_launch_owner" not in result.response_json
+    spawn_launch.assert_not_called()

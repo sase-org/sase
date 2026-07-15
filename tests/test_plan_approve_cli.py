@@ -85,6 +85,7 @@ def _append_plan_notification(
     response_dir: Path,
     *,
     project_dir: Path | None = None,
+    agent_project_file: Path | None = None,
     agent_cl_name: str = "demo-cl",
     agent_name: str = "planner",
     agent_timestamp: str | None = _LIVE_AGENT_TS,
@@ -96,6 +97,8 @@ def _append_plan_notification(
     }
     if project_dir is not None:
         action_data["project_dir"] = str(project_dir)
+    if agent_project_file is not None:
+        action_data["agent_project_file"] = str(agent_project_file)
     if agent_timestamp:
         action_data["agent_timestamp"] = agent_timestamp
     append_notification(
@@ -203,11 +206,13 @@ def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
     plan = _plan_file(tmp_path)
     workspace = tmp_path / "workspace"
     workspace.mkdir()
+    agent_project_file = tmp_path / "projects" / "canonical" / "canonical.sase"
     _append_plan_notification(
         "abcdef12-plan",
         plan,
         response_dir,
         project_dir=workspace,
+        agent_project_file=agent_project_file,
     )
 
     def run_foreground(plan_file: str, *, cwd: Path) -> object:
@@ -219,7 +224,7 @@ def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
         patch(
             "sase.bead.epic_launch.resolve_epic_launch_cwd",
             return_value=workspace,
-        ),
+        ) as resolve_cwd,
         patch(
             "sase.bead.epic_launch.run_epic_launch_foreground",
             side_effect=run_foreground,
@@ -228,6 +233,10 @@ def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
         result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
 
     assert result.response_json["epic_launch_owner"] == "host"
+    resolve_cwd.assert_called_once_with(
+        str(workspace),
+        agent_project_file=str(agent_project_file),
+    )
     launch.assert_called_once_with(str(plan), cwd=workspace)
 
 

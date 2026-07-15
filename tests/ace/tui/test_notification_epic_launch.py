@@ -48,7 +48,7 @@ def test_tracked_epic_launch_streams_and_backfills_metadata(tmp_path: Path) -> N
             "sase.ace.tui.actions.agents._notification_epic_launch."
             "resolve_epic_launch_cwd",
             return_value=workspace,
-        ),
+        ) as resolve_cwd,
         patch(
             "sase.core.agent_artifact_index_lifecycle."
             "update_agent_artifact_index_for_marker_mutation",
@@ -82,6 +82,10 @@ def test_tracked_epic_launch_streams_and_backfills_metadata(tmp_path: Path) -> N
         )
         task_result = task_args[3](reporter)
     assert task_result.success is True
+    resolve_cwd.assert_called_once_with(
+        str(tmp_path / "workspace"),
+        agent_project_file=str(tmp_path / "demo.sase"),
+    )
     reporter.run.assert_called_once_with(
         ["sase", "bead", "work", str(plan), "--yes"],
         cwd=workspace,
@@ -123,3 +127,43 @@ def test_tracked_epic_launch_deduplicates_by_plan_path(tmp_path: Path) -> None:
 
     assert owned is True
     app._submit_tracked_task.assert_not_called()
+
+
+def test_tracked_epic_launch_reports_workspace_resolution_failure(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "epic.md"
+    notification = _notification(tmp_path, plan)
+    app = MagicMock()
+    app._task_queue.get_running_for_key.return_value = None
+    app._submit_tracked_task.return_value = SimpleNamespace(task_id="task")
+
+    with patch(
+        "sase.ace.tui.actions.agents._notification_epic_launch.resolve_epic_launch_cwd",
+        side_effect=ValueError("invalid project identity"),
+    ):
+        owned = submit_epic_launch_task(
+            app,
+            notification,
+            plan_file=str(plan),
+            phase_count=1,
+        )
+        task_args = app._submit_tracked_task.call_args.args
+        task_kwargs = app._submit_tracked_task.call_args.kwargs
+        reporter = MagicMock()
+        task_result = task_args[3](reporter)
+
+    assert owned is True
+    assert task_result.success is False
+    assert "invalid project identity" in task_result.message
+    reporter.run.assert_not_called()
+
+    task_kwargs["on_complete"](
+        SimpleNamespace(success=False, payload=None),
+    )
+    app.notify.assert_called_once_with(
+        f"See the Tasks tab for output. Resume with: sase bead work {plan} --yes",
+        title="Epic launch failed",
+        severity="error",
+        timeout=15,
+    )

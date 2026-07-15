@@ -401,6 +401,7 @@ def test_execute_mobile_epic_action_spawns_detached_host_launch(
     workspace.mkdir()
     plan_file = tmp_path / "plan.md"
     plan_file.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    agent_project_file = tmp_path / "projects" / "canonical" / "canonical.sase"
     row = _notification(
         "abcdef12-plan",
         "2026-05-06T13:00:00+00:00",
@@ -409,6 +410,7 @@ def test_execute_mobile_epic_action_spawns_detached_host_launch(
         action_data={
             "response_dir": str(response_dir),
             "project_dir": str(workspace),
+            "agent_project_file": str(agent_project_file),
         },
     )
 
@@ -422,7 +424,7 @@ def test_execute_mobile_epic_action_spawns_detached_host_launch(
         patch(
             "sase.bead.epic_launch.resolve_epic_launch_cwd",
             return_value=workspace,
-        ),
+        ) as resolve_cwd,
         patch("sase.bead.epic_launch.spawn_detached_epic_launch") as spawn_launch,
     ):
         resolve.return_value = SimpleNamespace(
@@ -435,6 +437,10 @@ def test_execute_mobile_epic_action_spawns_detached_host_launch(
 
     assert result.response_json["epic_launch_owner"] == "host"
     assert "saved_plan_path" not in result.response_json
+    resolve_cwd.assert_called_once_with(
+        str(workspace),
+        agent_project_file=str(agent_project_file),
+    )
     spawn_launch.assert_called_once()
     assert spawn_launch.call_args.kwargs["cwd"] == workspace
     assert not (workspace / "sdd" / "plans" / "202605" / "plan.md").exists()

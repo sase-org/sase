@@ -7,12 +7,15 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.bead.epic_launch import (
+    _run_detached_worker,
     build_epic_launch_argv,
     parse_epic_launch_output,
+    resolve_epic_launch_cwd,
     spawn_detached_epic_launch,
     update_epic_launch_metadata,
-    _run_detached_worker,
 )
 
 
@@ -31,6 +34,81 @@ def test_build_and_parse_epic_launch_contract() -> None:
     )
     assert parsed.epic_id == "sase-64"
     assert parsed.archived_plan_path == "/plans/202607/epic plan.md"
+
+
+def test_resolve_epic_launch_cwd_prefers_canonical_project_file(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "sase_10"
+    project_dir.mkdir()
+    project_file = (
+        tmp_path / "projects" / "gh_sase-org__sase" / "gh_sase-org__sase.sase"
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+
+    with (
+        patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(primary),
+        ) as get_workspace_directory,
+    ):
+        resolved = resolve_epic_launch_cwd(
+            project_dir,
+            agent_project_file=project_file,
+        )
+
+    assert resolved == primary
+    get_workspace_name.assert_not_called()
+    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
+
+
+@pytest.mark.parametrize("provider_name", ["sase", None])
+def test_resolve_epic_launch_cwd_canonicalizes_compatibility_fallback(
+    tmp_path: Path,
+    provider_name: str | None,
+) -> None:
+    project_dir = tmp_path / "sase_10"
+    primary = tmp_path / "primary"
+    primary.mkdir()
+
+    with (
+        patch(
+            "sase.workspace_provider.get_workspace_name",
+            return_value=provider_name,
+        ),
+        patch(
+            "sase.project_aliases.resolve_project_alias_ref",
+            return_value="gh_sase-org__sase",
+        ) as resolve_alias,
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(primary),
+        ) as get_workspace_directory,
+    ):
+        resolved = resolve_epic_launch_cwd(project_dir)
+
+    assert resolved == primary
+    resolve_alias.assert_called_once_with("sase")
+    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
+
+
+def test_resolve_epic_launch_cwd_rejects_invalid_project_file_identity(
+    tmp_path: Path,
+) -> None:
+    with (
+        patch("sase.workspace_provider.get_workspace_name") as get_workspace_name,
+        patch("sase.running_field.get_workspace_directory") as get_workspace_directory,
+        pytest.raises(ValueError, match="does not identify a valid SASE project"),
+    ):
+        resolve_epic_launch_cwd(
+            tmp_path / "sase_10",
+            agent_project_file="project.sase",
+        )
+
+    get_workspace_name.assert_not_called()
+    get_workspace_directory.assert_not_called()
 
 
 def test_spawn_detached_epic_launch_uses_worker_and_log(tmp_path: Path) -> None:

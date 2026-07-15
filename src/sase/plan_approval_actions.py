@@ -146,7 +146,12 @@ def execute_plan_approval_response(
                 try:
                     from sase.bead.epic_launch import resolve_epic_launch_cwd
 
-                    foreground_cwd = resolve_epic_launch_cwd(project_dir)
+                    foreground_cwd = resolve_epic_launch_cwd(
+                        project_dir,
+                        agent_project_file=notification.host_action_data.get(
+                            "agent_project_file"
+                        ),
+                    )
                 except Exception:
                     foreground_cwd = None
         if epic_launch_mode == "foreground" and foreground_cwd is not None:

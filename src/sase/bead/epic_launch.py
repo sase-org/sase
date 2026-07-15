@@ -52,14 +52,38 @@ def parse_epic_launch_output(output: str) -> _EpicLaunchOutput:
     )
 
 
-def resolve_epic_launch_cwd(project_dir: str | Path) -> Path:
-    """Resolve a notification's project workspace to its primary checkout."""
-    project_path = Path(project_dir).expanduser().resolve(strict=False)
-    from sase.workspace_provider import get_workspace_name
+def resolve_epic_launch_cwd(
+    project_dir: str | Path,
+    *,
+    agent_project_file: str | Path | None = None,
+) -> Path:
+    """Resolve an approved epic's canonical project to its primary checkout."""
+    project_file_value = (
+        str(agent_project_file).strip() if agent_project_file is not None else ""
+    )
+    if project_file_value:
+        project_name = Path(project_file_value).expanduser().parent.name
+        from sase.core.paths import is_valid_sase_project_name
 
-    project_name = get_workspace_name(str(project_path))
-    if not project_name:
-        project_name = re.sub(r"_\d+$", "", project_path.name)
+        if not is_valid_sase_project_name(project_name):
+            raise ValueError(
+                "agent project file does not identify a valid SASE project: "
+                f"{agent_project_file}"
+            )
+    else:
+        project_path = Path(project_dir).expanduser().resolve(strict=False)
+        try:
+            from sase.workspace_provider import get_workspace_name
+
+            discovered_name = get_workspace_name(str(project_path))
+        except Exception:
+            discovered_name = None
+        if not discovered_name:
+            discovered_name = re.sub(r"_\d+$", "", project_path.name)
+
+        from sase.project_aliases import resolve_project_alias_ref
+
+        project_name = resolve_project_alias_ref(discovered_name)
 
     from sase.running_field import get_workspace_directory
 

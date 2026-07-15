@@ -42,6 +42,7 @@ def submit_epic_launch_task(
     project_dir = notification.action_data.get("project_dir")
     if not project_dir:
         return False
+    agent_project_file = notification.action_data.get("agent_project_file")
 
     dedup_key = _epic_launch_dedup_key(plan_file)
     task_queue = getattr(app, "_task_queue", None)
@@ -57,7 +58,10 @@ def submit_epic_launch_task(
 
     def work(reporter: TaskReporter) -> TrackedTaskResult[_EpicLaunchTaskPayload]:
         try:
-            cwd = resolve_epic_launch_cwd(project_dir)
+            cwd = resolve_epic_launch_cwd(
+                project_dir,
+                agent_project_file=agent_project_file,
+            )
         except Exception as exc:
             message = f"Could not resolve the primary workspace: {exc}"
             return TrackedTaskResult(success=False, message=message, error=message)
@@ -107,9 +111,7 @@ def submit_epic_launch_task(
         )
 
     cl_name = notification.action_data.get("agent_cl_name") or Path(plan_file).stem
-    project_file = notification.action_data.get("agent_project_file") or str(
-        project_dir
-    )
+    project_file = agent_project_file or str(project_dir)
     try:
         task_info = submit(
             "epic-launch",
