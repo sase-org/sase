@@ -109,7 +109,7 @@ class ResponsivePlanSection:
 
     @staticmethod
     def _heading(*, width: int | None = None) -> Text:
-        text = Text()
+        text = Text(end="")
         if width is None:
             append_major_section_divider(text)
         else:
@@ -117,7 +117,6 @@ class ResponsivePlanSection:
             text.append("─" * min(50, max(1, width)) + "\n", style="dim")
             text.append("\n")
         text.append(f"{PLAN_SECTION_LABEL}\n", style=PLAN_SECTION_HEADING_STYLE)
-        text.append("\n")
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:

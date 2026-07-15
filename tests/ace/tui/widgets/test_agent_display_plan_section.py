@@ -147,6 +147,29 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     )
 
 
+@pytest.mark.parametrize(
+    "summary",
+    [_plan_summary(), _epic_summary()],
+    ids=["plan", "epic"],
+)
+@pytest.mark.parametrize("width", [32, 120], ids=["narrow", "wide"])
+def test_plan_heading_is_immediately_followed_by_goal(
+    summary: AssociatedPlanSummary,
+    width: int,
+) -> None:
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=summary),
+    )
+
+    assert "SASE PLAN\nGoal:" in header.plain
+    assert "SASE PLAN\n\nGoal:" not in header.plain
+
+    lines = _render_header(header, width=width)
+    heading_index = lines.index("SASE PLAN")
+    assert lines[heading_index + 1].startswith("Goal:")
+
+
 def test_plan_is_first_major_section_in_maximal_append_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
