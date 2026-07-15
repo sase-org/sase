@@ -29,9 +29,9 @@ The workspace provider selects an initial policy; a materialized store record su
 - `separate_repo` stores artifacts in a workspace-local `.sase/sdd/` clone backed by a provider-materialized sidecar
   repo.
 - `sidecar_repos` stores plans and beads in an auto-cloned `--plans` repo. Research uses the config-declared `research`
-  role, which can point multiple projects at one shared repository. Initialization prepares configured sidecars in its
-  current workspace; later workspaces clone research on demand. Monthly directories live directly at each sidecar root;
-  legacy single-root layouts remain readable for compatibility.
+  role, which derives each project's own `--research` repo unless a `repo:` pin says otherwise. Initialization prepares
+  configured sidecars in its current workspace; later workspaces clone research on demand. Monthly directories live
+  directly at each sidecar root; legacy single-root layouts remain readable for compatibility.
 
 Use `sase repo path plans` to print the plans root, or `sase repo path research --ensure` to materialize and print the
 research root. Launched agents receive `SASE_SDD_DIR` and per-kind `SASE_SDD_*_DIR` variables, so prompts and hooks
@@ -253,11 +253,11 @@ errors before filtering. JSON mode (`-j/--json`) and exit codes are unaffected b
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
 provider-selected store. On GitHub it finds or creates every enabled configured sidecar, deriving
-`<owner>/<repo>--plans` for the plans role and honoring explicit repository pins for roles such as shared research. It
-writes each repository's deterministic README and infographic asset, pushes generated drift, and only then records the
-split store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the
-command and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init repo`
-exposes the same flow and check/path flags, and `--path` checks the target repository's marker.
+`<owner>/<repo>--<role>` for unpinned roles such as plans and research and honoring explicit repository pins. It writes
+each repository's deterministic README and infographic asset, pushes generated drift, and only then records the split
+store. Provider errors fail setup instead of falling back to local storage. Missing or false markers make the command
+and `--check` successful no-ops before provider work; invalid local configuration fails safely. `sase init repo` exposes
+the same flow and check/path flags, and `--path` checks the target repository's marker.
 
 Before explicit initialization creates a missing GitHub sidecar, it asks a default-no question naming the role,
 repository, visibility, and host. Only `y` or `yes` approves. Blank input, any other answer, EOF, interruption, and

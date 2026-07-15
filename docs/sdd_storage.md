@@ -32,8 +32,8 @@ negative records are not policy and are retried at the next materialization atte
 ## Split Plans and Research Sidecars
 
 Initialized managed GitHub projects use a schema-version 2 store record with `storage: sidecar_repos`. For
-compatibility, the record identifies the plans and research roles and their resolved remotes; the research role can
-point at a shared config-declared repository. That record—not clone or remote existence—is the layout authority. Legacy
+compatibility, the record identifies the plans and research roles and their resolved remotes; an explicit `repo:` pin
+can point the research role at any repository. That record—not clone or remote existence—is the layout authority. Legacy
 records continue to use the single-root layout unchanged.
 
 The plans sidecar keeps monthly directories at its root (`<YYYYMM>/*.md` and `<YYYYMM>/prompts/*.md`) with `beads/`
@@ -56,11 +56,12 @@ loadable without allowing project or user config to override provider policy.
 
 ## GitHub Sidecar Repositories
 
-Managed GitHub projects initialize a public `<owner>/<repo>--plans` sidecar by default. Additional sidecars are declared
-under `repos.sidecar`; for example, a global `research` entry can pin `sase-org/sase--research` so every project shares
-one lazy research repository. Configured sidecars are prepared by initialization in the current workspace. In later
-workspaces, the plans clone is automatic and owns bead state, while research materializes on demand. The provider still
-supports `<owner>/<repo>--sdd` discovery and `sdd.repo.name` overrides for unmigrated legacy stores.
+Managed GitHub projects initialize public `<owner>/<repo>--plans` and `<owner>/<repo>--research` sidecars by default,
+writing both project-local `repos.sidecar` declarations when absent. Additional sidecars are declared under
+`repos.sidecar`, and any entry can pin `repo:` to override the derived `<owner>/<repo>--<name>` convention. Configured
+sidecars are prepared by initialization in the current workspace. In later workspaces, the plans clone is automatic and
+owns bead state, while research materializes on demand. The provider still supports `<owner>/<repo>--sdd` discovery and
+`sdd.repo.name` overrides for unmigrated legacy stores.
 
 Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase repo init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
