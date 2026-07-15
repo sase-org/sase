@@ -83,11 +83,11 @@ def test_inventory_collects_all_repo_kinds_and_sidecar_wins_overlap(
             "sidecars": {
                 "plans": {
                     "repo": "acme/widget--plans",
-                    "remote_url": "https://example.test/widget--plans.git",
+                    "remote_url": "git@example.test:acme/widget--plans.git",
                 },
                 "research": {
                     "repo": "acme/widget--research",
-                    "remote_url": "https://example.test/widget--research.git",
+                    "remote_url": "git@example.test:acme/widget--research.git",
                 },
             },
         },
@@ -191,11 +191,11 @@ def test_disabled_configured_sidecar_suppresses_store_record(
             "sidecars": {
                 "plans": {
                     "repo": "acme/widget--plans",
-                    "remote_url": "https://example.test/widget--plans.git",
+                    "remote_url": "git@example.test:acme/widget--plans.git",
                 },
                 "research": {
                     "repo": "acme/widget--research",
-                    "remote_url": "https://example.test/widget--research.git",
+                    "remote_url": "git@example.test:acme/widget--research.git",
                 },
             },
         },
@@ -231,11 +231,11 @@ def test_pinned_sidecar_identity_overrides_stale_store_repo(
             "sidecars": {
                 "plans": {
                     "repo": "acme/widget--plans",
-                    "remote_url": "https://example.test/widget--plans.git",
+                    "remote_url": "git@example.test:acme/widget--plans.git",
                 },
                 "research": {
                     "repo": "acme/widget--research",
-                    "remote_url": "https://example.test/widget--research.git",
+                    "remote_url": "git@example.test:acme/widget--research.git",
                 },
             },
         },
@@ -305,11 +305,11 @@ def test_inventory_joins_registered_workspace_clone_matrix(
             "sidecars": {
                 "plans": {
                     "repo": "acme/widget--plans",
-                    "remote_url": "https://example.test/widget--plans.git",
+                    "remote_url": "git@example.test:acme/widget--plans.git",
                 },
                 "research": {
                     "repo": "acme/widget--research",
-                    "remote_url": "https://example.test/widget--research.git",
+                    "remote_url": "git@example.test:acme/widget--research.git",
                 },
             },
         },

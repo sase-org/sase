@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 
@@ -305,24 +306,28 @@ def test_split_init_normalizes_legacy_https_clone_and_record_in_place(
         capture_output=True,
         text=True,
     ).stdout.strip()
-    write_sdd_store_record(
-        project,
-        {
-            "schema_version": 2,
-            "storage": "sidecar_repos",
-            "provider": "github",
-            "host": "github.com",
-            "sidecars": {
-                "plans": {
-                    "repo": "acme/widget--plans",
-                    "remote_url": "git@github.com:acme/widget--plans.git",
+    record_path = project / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir()
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": "sidecar_repos",
+                "provider": "github",
+                "host": "github.com",
+                "sidecars": {
+                    "plans": {
+                        "repo": "acme/widget--plans",
+                        "remote_url": "git@github.com:acme/widget--plans.git",
+                    },
+                    "research": {
+                        "repo": "acme/widget--research",
+                        "remote_url": "https://github.com/acme/widget--research.git",
+                    },
                 },
-                "research": {
-                    "repo": "acme/widget--research",
-                    "remote_url": "https://github.com/acme/widget--research.git",
-                },
-            },
-        },
+            }
+        ),
+        encoding="utf-8",
     )
     captured: list[dict[str, object]] = []
 
@@ -386,6 +391,10 @@ def test_split_init_normalizes_legacy_https_clone_and_record_in_place(
     )
     assert outcome.record is not None and outcome.record.research is not None
     assert outcome.record.research.remote_url == (
+        "git@github.com:acme/widget--research.git"
+    )
+    persisted = json.loads(record_path.read_text(encoding="utf-8"))
+    assert persisted["sidecars"]["research"]["remote_url"] == (
         "git@github.com:acme/widget--research.git"
     )
 

@@ -16,6 +16,10 @@ class _HostedGitRemote:
     repo: str
 
 
+class SidecarRemotePolicyError(ValueError):
+    """Raised when recorded sidecar metadata names a forbidden transport."""
+
+
 def parse_hosted_git_remote(value: str) -> _HostedGitRemote | None:
     """Parse scp-style and URL-style hosted Git remotes."""
 
@@ -85,3 +89,93 @@ def canonical_ssh_remote(host: str, repo: str) -> str:
     if ":" in normalized_host:
         return f"ssh://git@{normalized_host}/{normalized_repo}.git"
     return f"git@{normalized_host}:{normalized_repo}.git"
+
+
+def is_http_git_remote(value: str) -> bool:
+    """Return whether *value* is an HTTP(S) Git remote."""
+
+    return urlparse(value.strip()).scheme.casefold() in {"http", "https"}
+
+
+def enforce_sidecar_remote_policy(
+    remote_url: str,
+    *,
+    provider: str | None,
+    host: str | None,
+    repo: str,
+) -> str:
+    """Return an approved sidecar remote or reject forbidden HTTP(S).
+
+    GitHub HTTP(S) records can be migrated without network access because the
+    provider, host, and repository identity determine the exact SSH URL. Other
+    transports remain provider-owned; only HTTP(S) is categorically refused.
+    """
+
+    remote = remote_url.strip()
+    if not is_http_git_remote(remote):
+        return remote
+
+    parsed = parse_hosted_git_remote(remote)
+    provider_is_github = (provider or "").strip().casefold() == "github"
+    remote_is_github_dot_com = bool(parsed and parsed.host == "github.com")
+    if parsed is not None and (provider_is_github or remote_is_github_dot_com):
+        canonical_host = _host_authority(host) if host else parsed.host
+        if (
+            canonical_host
+            and _host_name(canonical_host) == _host_name(parsed.host)
+            and _repo_ref_matches(parsed.repo, repo)
+        ):
+            canonical_repo = repo if "/" in _normalize_repo_ref(repo) else parsed.repo
+            return canonical_ssh_remote(canonical_host, canonical_repo)
+
+    raise SidecarRemotePolicyError(
+        f"HTTP(S) sidecar remote {remote!r} is not allowed and could not be "
+        "canonicalized from its GitHub provider, host, and repository metadata. "
+        "Correct the recorded sidecar identity and rerun `sase repo init`; Git "
+        "was not invoked."
+    )
+
+
+def _host_authority(value: str) -> str:
+    """Normalize a configured host while retaining an explicit SSH port."""
+
+    raw = value.strip().casefold().rstrip("/")
+    if "://" in raw:
+        parsed = urlparse(raw)
+        if parsed.hostname is None:
+            return ""
+        try:
+            port = parsed.port
+        except ValueError:
+            return ""
+        return f"{parsed.hostname}:{port}" if port is not None else parsed.hostname
+    authority = raw.rsplit("@", 1)[-1].split("/", 1)[0]
+    return authority
+
+
+def _host_name(value: str) -> str:
+    """Return a host name without a transport-specific port."""
+
+    authority = _host_authority(value)
+    if authority.startswith("["):
+        closing = authority.find("]")
+        return authority[1:closing] if closing >= 0 else authority
+    name, separator, port = authority.rpartition(":")
+    return name if separator and port.isdigit() else authority
+
+
+def _normalize_repo_ref(value: str) -> str:
+    normalized = value.strip().strip("/")
+    if normalized.endswith(".git"):
+        normalized = normalized[: -len(".git")]
+    return normalized
+
+
+def _repo_ref_matches(remote_repo: str, recorded_repo: str) -> bool:
+    remote = _normalize_repo_ref(remote_repo).casefold()
+    recorded = _normalize_repo_ref(recorded_repo).casefold()
+    if not remote or not recorded:
+        return False
+    if "/" not in recorded:
+        return remote.rsplit("/", 1)[-1] == recorded
+    return remote == recorded

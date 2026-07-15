@@ -122,6 +122,69 @@ def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     assert research_exclude_lines.count("/sase/repos/") == 1
 
 
+def test_fresh_workspace_normalizes_legacy_https_record_before_clone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    record_path = primary / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    legacy_plans_remote = "https://github.com/acme/widget--plans.git"
+    canonical_plans_remote = "git@github.com:acme/widget--plans.git"
+    raw_record = {
+        "schema_version": 2,
+        "storage": "sidecar_repos",
+        "provider": "github",
+        "host": "github.com",
+        "sidecars": {
+            "plans": {
+                "repo": "acme/widget--plans",
+                "remote_url": legacy_plans_remote,
+            },
+            "research": {
+                "repo": "acme/widget--research",
+                "remote_url": "https://github.com/acme/widget--research.git",
+            },
+        },
+    }
+    record_path.write_text(json.dumps(raw_record), encoding="utf-8")
+    provider_patch(None)
+    clone_commands: list[list[str]] = []
+    clone_terminal_prompts: list[str | None] = []
+    from sase.sdd import _commit
+
+    original_run_sdd_git = _commit.run_sdd_git
+
+    def fake_clone(args: list[str], **kwargs):
+        if args and args[0] == "clone":
+            clone_commands.append(args)
+            clone_terminal_prompts.append(kwargs["env"].get("GIT_TERMINAL_PROMPT"))
+            target = Path(args[2])
+            target.mkdir(parents=True)
+            git(["init", "-q"], target)
+            git(["remote", "add", "origin", args[1]], target)
+            return subprocess.CompletedProcess(
+                args=args, returncode=0, stdout="", stderr=""
+            )
+        return original_run_sdd_git(args, **kwargs)
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", fake_clone)
+
+    ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    plans = workspace / "sase" / "repos" / "plans"
+    assert clone_commands == [["clone", canonical_plans_remote, str(plans)]]
+    assert clone_terminal_prompts == ["0"]
+    assert git(["remote", "get-url", "origin"], plans).stdout.strip() == (
+        canonical_plans_remote
+    )
+    assert legacy_plans_remote not in " ".join(clone_commands[0])
+    assert json.loads(record_path.read_text(encoding="utf-8")) == raw_record
+
+
 def test_nested_repo_inherits_owner_sdd_record_without_nested_sidecar(
     tmp_path: Path,
     provider_patch,
@@ -204,6 +267,42 @@ def test_moved_sidecar_clone_with_matching_remote_is_accepted(
     assert (moved_clone / "local-untracked.md").read_text(encoding="utf-8") == "keep\n"
     assert git(["remote", "get-url", "origin"], moved_clone).stdout.strip() == str(
         remote
+    )
+
+
+def test_retained_https_sidecar_clone_is_rewritten_without_losing_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    clone_dir.mkdir(parents=True)
+    git(["init", "-q"], clone_dir)
+    git(
+        [
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/acme/widget--plans.git",
+        ],
+        clone_dir,
+    )
+    local = clone_dir / "local-untracked.md"
+    local.write_text("preserve me\n", encoding="utf-8")
+    monkeypatch.setattr("sase.sdd._store_link._pull_sdd_clone", lambda _path: True)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._replace_workspace_sdd_clone",
+        lambda *_args: pytest.fail("matching HTTPS clone was replaced"),
+    )
+
+    ensure_sidecar_sdd_clone(
+        clone_dir,
+        "git@github.com:acme/widget--plans.git",
+        strict=True,
+    )
+
+    assert local.read_text(encoding="utf-8") == "preserve me\n"
+    assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == (
+        "git@github.com:acme/widget--plans.git"
     )
 
 
@@ -296,6 +395,43 @@ def test_sidecar_clone_failure_removes_partial_target_and_surfaces_diagnostic(
     ):
         ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 
+    assert not clone_dir.exists()
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_http_sidecar_remote_is_rejected_before_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    strict: bool,
+) -> None:
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    git_calls: list[list[str]] = []
+
+    def record_git(args: list[str], **_kwargs):
+        git_calls.append(args)
+        raise AssertionError("Git must not run for HTTP(S) sidecar remotes")
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", record_git)
+
+    if strict:
+        with pytest.raises(
+            SddMaterializationError,
+            match=r"refusing HTTP\(S\).*Git was not invoked",
+        ):
+            ensure_sidecar_sdd_clone(
+                clone_dir,
+                "https://example.test/acme/widget--plans.git",
+                strict=True,
+            )
+    else:
+        ensure_sidecar_sdd_clone(
+            clone_dir,
+            "http://example.test/acme/widget--plans.git",
+        )
+        assert "Git was not invoked" in caplog.text
+
+    assert git_calls == []
     assert not clone_dir.exists()
 
 

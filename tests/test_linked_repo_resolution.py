@@ -726,11 +726,11 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
             "sidecars": {
                 "plans": {
                     "repo": "owner/custom-plans",
-                    "remote_url": "https://example.com/custom-plans.git",
+                    "remote_url": "git@example.com:owner/custom-plans.git",
                 },
                 "research": {
                     "repo": "custom-research",
-                    "remote_url": "https://example.com/custom-research.git",
+                    "remote_url": "git@example.com:owner/custom-research.git",
                 },
             },
         },

@@ -213,11 +213,11 @@ def test_repo_path_preserves_legacy_sdd_layout_resolution(
                 "sidecars": {
                     "plans": {
                         "repo": "acme/demo--plans",
-                        "remote_url": "https://example.test/demo--plans.git",
+                        "remote_url": "git@example.test:acme/demo--plans.git",
                     },
                     "research": {
                         "repo": "acme/demo--research",
-                        "remote_url": "https://example.test/demo--research.git",
+                        "remote_url": "git@example.test:acme/demo--research.git",
                     },
                 },
             },

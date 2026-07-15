@@ -87,7 +87,7 @@ def test_enterprise_sidecar_preserves_host_and_port(tmp_path: Path) -> None:
     )
 
 
-def test_non_github_stored_sidecar_remote_is_preserved(tmp_path: Path) -> None:
+def test_non_http_custom_stored_sidecar_remote_is_preserved(tmp_path: Path) -> None:
     primary = tmp_path / "widget"
     primary.mkdir()
     _set_origin(primary, "https://gitlab.example/acme/widget.git")
@@ -98,7 +98,7 @@ def test_non_github_stored_sidecar_remote_is_preserved(tmp_path: Path) -> None:
         primary,
         _store_record(
             tmp_path,
-            "https://gitlab.example/acme/shared-research.git",
+            "git://gitlab.example/acme/shared-research.git",
         ),
     )
 
@@ -108,7 +108,7 @@ def test_non_github_stored_sidecar_remote_is_preserved(tmp_path: Path) -> None:
     )
 
     assert entries[0]["_sase_sidecar_remote_url"] == (
-        "https://gitlab.example/acme/shared-research.git"
+        "git://gitlab.example/acme/shared-research.git"
     )
 
     local_remote = tmp_path / "shared-research.git"

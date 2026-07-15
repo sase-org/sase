@@ -8,6 +8,10 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from sase._git_remote import (
+    SidecarRemotePolicyError,
+    enforce_sidecar_remote_policy,
+)
 from sase.sdd._store_types import (
     _DISCOVERY_VALUES,
     _STORAGE_VALUES,
@@ -135,13 +139,15 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     if discovery is not None and discovery not in _DISCOVERY_VALUES:
         raise _foreign_record_error(record_path)
 
-    plans, research = _sidecars_from_raw(raw)
+    provider = _optional_str(raw.get("provider"))
+    host = _optional_str(raw.get("host"))
+    plans, research = _sidecars_from_raw(raw, provider=provider, host=host)
     if discovery == "not_found":
         return SddStoreRecord(
             schema_version=schema_version_int,
             storage=cast(SddStorage, storage),
-            provider=_optional_str(raw.get("provider")),
-            host=_optional_str(raw.get("host")),
+            provider=provider,
+            host=host,
             repo=_optional_str(raw.get("repo")),
             remote_url=_optional_str(raw.get("remote_url")),
             discovery="not_found",
@@ -156,8 +162,8 @@ def _load_sdd_store_record(record_path: Path) -> SddStoreRecord | None:
     return SddStoreRecord(
         schema_version=schema_version_int,
         storage=cast(SddStorage, storage),
-        provider=_optional_str(raw.get("provider")),
-        host=_optional_str(raw.get("host")),
+        provider=provider,
+        host=host,
         repo=_optional_str(raw.get("repo")),
         remote_url=_optional_str(raw.get("remote_url")),
         discovery=_optional_str(raw.get("discovery")),
@@ -219,7 +225,9 @@ def _coerce_sdd_store_record(
             "SDD store record schema_version is newer than this sase build supports"
         )
 
-    plans, research = _sidecars_from_raw(raw)
+    provider = _optional_str(raw.get("provider"))
+    host = _optional_str(raw.get("host"))
+    plans, research = _sidecars_from_raw(raw, provider=provider, host=host)
     if storage == SDD_STORAGE_SIDECAR_REPOS:
         if schema_version_int < 2:
             raise ValueError("sidecar SDD store records require schema_version >= 2")
@@ -231,8 +239,8 @@ def _coerce_sdd_store_record(
     return SddStoreRecord(
         schema_version=schema_version_int,
         storage=cast(SddStorage, storage),
-        provider=_optional_str(raw.get("provider")),
-        host=_optional_str(raw.get("host")),
+        provider=provider,
+        host=host,
         repo=_optional_str(raw.get("repo")),
         remote_url=_optional_str(raw.get("remote_url")),
         discovery=cast(str, discovery),
@@ -261,6 +269,9 @@ def _record_to_json(record: SddStoreRecord) -> dict[str, Any]:
 
 def _sidecars_from_raw(
     raw: Mapping[str, Any],
+    *,
+    provider: str | None,
+    host: str | None,
 ) -> tuple[SddSidecar | None, SddSidecar | None]:
     sidecars = raw.get("sidecars")
     if not isinstance(sidecars, Mapping) and "sidecars" not in raw:
@@ -268,19 +279,43 @@ def _sidecars_from_raw(
     if not isinstance(sidecars, Mapping):
         return None, None
     return (
-        _coerce_sidecar(sidecars.get("plans")),
-        _coerce_sidecar(sidecars.get("research")),
+        _coerce_sidecar(
+            sidecars.get("plans"), provider=provider, host=host, kind="plans"
+        ),
+        _coerce_sidecar(
+            sidecars.get("research"),
+            provider=provider,
+            host=host,
+            kind="research",
+        ),
     )
 
 
-def _coerce_sidecar(value: object) -> SddSidecar | None:
+def _coerce_sidecar(
+    value: object,
+    *,
+    provider: str | None,
+    host: str | None,
+    kind: str,
+) -> SddSidecar | None:
     if not isinstance(value, Mapping):
         return None
     repo = _optional_str(value.get("repo"))
     remote_url = _optional_str(value.get("remote_url"))
     if repo is None or remote_url is None:
         return None
-    return SddSidecar(repo=repo, remote_url=remote_url)
+    try:
+        approved_remote = enforce_sidecar_remote_policy(
+            remote_url,
+            provider=provider,
+            host=host,
+            repo=repo,
+        )
+    except SidecarRemotePolicyError as exc:
+        raise SddMaterializationError(
+            f"Invalid {kind} SDD sidecar metadata: {exc}"
+        ) from exc
+    return SddSidecar(repo=repo, remote_url=approved_remote)
 
 
 def _sidecar_to_json(sidecar: SddSidecar | None) -> dict[str, str]:

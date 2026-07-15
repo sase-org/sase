@@ -127,6 +127,117 @@ def test_sidecar_record_round_trips_and_routes_kind_roots(
     assert resolve_sdd_kind_dir(workspace, 2, "research") == research
 
 
+def test_legacy_github_https_sidecars_resolve_to_ssh_without_rewriting_record(
+    tmp_path: Path,
+    provider_patch,
+) -> None:
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    workspace.mkdir()
+    record_path = primary / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    raw = {
+        "schema_version": 2,
+        "storage": "sidecar_repos",
+        "provider": "github",
+        "host": "github.com",
+        "sidecars": {
+            "plans": {
+                "repo": "owner/repo--plans",
+                "remote_url": "https://github.com/owner/repo--plans.git",
+            },
+            "research": {
+                "repo": "owner/repo--research",
+                "remote_url": "https://github.com/owner/repo--research.git",
+            },
+        },
+    }
+    record_path.write_text(json.dumps(raw), encoding="utf-8")
+    provider_patch(None)
+
+    record = read_sdd_store_record(primary)
+    store = resolve_sdd_store(workspace, 2)
+
+    assert record is not None and record.plans is not None
+    assert record.research is not None
+    assert record.plans.remote_url == "git@github.com:owner/repo--plans.git"
+    assert record.research.remote_url == "git@github.com:owner/repo--research.git"
+    assert store.remote_url == record.plans.remote_url
+    assert store.research_remote_url == record.research.remote_url
+    assert json.loads(record_path.read_text(encoding="utf-8")) == raw
+
+
+def test_legacy_github_enterprise_https_sidecars_use_configured_ssh_port(
+    tmp_path: Path,
+) -> None:
+    record = write_sdd_store_record(
+        tmp_path,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "host": "github.enterprise.test:2222",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": (
+                        "https://github.enterprise.test/acme/widget--plans.git"
+                    ),
+                },
+                "research": {
+                    "repo": "acme/widget--research",
+                    "remote_url": (
+                        "ssh://git@github.enterprise.test:2222/"
+                        "acme/widget--research.git"
+                    ),
+                },
+            },
+        },
+    )
+
+    assert record.plans is not None and record.research is not None
+    assert record.plans.remote_url == (
+        "ssh://git@github.enterprise.test:2222/acme/widget--plans.git"
+    )
+    assert record.research.remote_url == (
+        "ssh://git@github.enterprise.test:2222/acme/widget--research.git"
+    )
+
+
+def test_unresolved_http_sidecar_metadata_fails_resolution(tmp_path: Path) -> None:
+    record_path = tmp_path / ".sase" / "sdd-store.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "storage": "sidecar_repos",
+                "provider": "custom",
+                "host": "git.example.test",
+                "sidecars": {
+                    "plans": {
+                        "repo": "acme/widget--plans",
+                        "remote_url": (
+                            "https://git.example.test/acme/widget--plans.git"
+                        ),
+                    },
+                    "research": {
+                        "repo": "acme/widget--research",
+                        "remote_url": "git@git.example.test:acme/widget--research.git",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        SddMaterializationError,
+        match=r"Invalid plans SDD sidecar metadata.*Git was not invoked",
+    ):
+        read_sdd_store_record(tmp_path)
+
+
 def test_legacy_split_record_normalizes_and_rewrites_canonical_spellings(
     tmp_path: Path,
 ) -> None:

@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import uuid
 
-from sase._git_remote import git_remotes_match
+from sase._git_remote import git_remotes_match, is_http_git_remote
 from sase.sdd._store_types import (
     SDD_STORAGE_SEPARATE_REPO,
     SddMaterializationError,
@@ -281,6 +281,15 @@ def _clone_sdd_store(
     *,
     strict: bool = False,
 ) -> bool:
+    if is_http_git_remote(remote_url):
+        return _handle_failed_sdd_clone(
+            workspace_sdd,
+            f"refusing HTTP(S) SDD sidecar remote {remote_url!r}; "
+            "materialization requires an SSH or local Git remote and Git was "
+            "not invoked",
+            strict=strict,
+        )
+
     from sase.sdd._commit import (
         SddGitCommandTimeout,
         network_git_timeout,

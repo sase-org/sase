@@ -263,7 +263,10 @@ layouts.
 Configured linked repositories for a numbered checkout are cloned beneath that host checkout at
 `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch, SASE atomically removes the numbered
 checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars configured with `auto_clone: true`
-(normally `plans`) are then cloned directly from their recorded authoritative remotes. Other linked repositories and the
+(normally `plans`) are then cloned directly from their recorded authoritative remotes. Legacy GitHub HTTPS records are
+resolved to canonical SSH before the clone command runs; already-valid SSH and local remotes are preserved, while any
+remaining HTTP(S) metadata fails launch preparation before Git executes. The normalization is read-only, so rerunning
+`sase repo init` persists the migrated record but is not required for a safe launch. Other linked repositories and the
 `research` sidecar remain lazy unless configured for automatic cloning and can be materialized on demand through
 `/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
 `sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the per-clone `/sase/repos/` exclude

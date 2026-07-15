@@ -576,10 +576,12 @@ config layer to suppress a matching global entry or implicit fallback; disabled 
 from generated instructions.
 
 The workspace provider owns sidecar transport. GitHub sidecars use canonical SSH origins on the primary repository's
-GitHub host (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git` when a port is configured). Rerun
-`sase repo init` to migrate legacy HTTPS URLs in the durable sidecar store record and normalize matching existing clones
-in place. Later `sase repo open` and auto-materialization calls apply the same in-place origin normalization to the
-sidecar clone they touch.
+GitHub host (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git` when a port is configured). Read-only
+store resolution converts a legacy GitHub HTTPS record to that exact SSH form in memory, so inventory, launch-time
+auto-cloning, and on-demand materialization are safe immediately without rewriting the durable record. Matching retained
+HTTPS clones keep their checkout and local state while SASE rewrites `origin` in place. Any HTTP(S) sidecar remote that
+cannot be derived from consistent GitHub provider, host, and repository metadata fails materialization before Git runs.
+Rerun `sase repo init` to persist the migrated record; it is not required to make a launch safe.
 
 Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
 compatibility entry when no matching explicit sidecar is configured. Research is config-declared per project and
@@ -622,11 +624,12 @@ repos:
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
 workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree. The
-required `plans` sidecar is then cloned directly from its recorded remote; other linked repositories and sidecars remain
-lazy unless configured with `auto_clone: true`. Agents materialize lazy entries on demand through `/sase_repo`.
-`sase repo init` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
-`.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
-paths only for materialized entries:
+required `plans` sidecar is then cloned directly from the canonical SSH or local remote resolved from its recorded
+metadata; other linked repositories and sidecars remain lazy unless configured with `auto_clone: true`. Legacy GitHub
+HTTPS metadata is normalized before the clone command is built, and unresolved HTTP(S) metadata stops launch setup
+before Git executes. Agents materialize lazy entries on demand through `/sase_repo`. `sase repo init` manages the
+tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before materialization.
+SASE passes resolved metadata for all entries and exports per-repository paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |

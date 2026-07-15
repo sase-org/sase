@@ -48,9 +48,13 @@ beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its 
 Initialization clones, initializes, and pushes every configured sidecar in the workspace where it runs. After that,
 normal numbered-workspace preparation evicts the complete `sase/repos/` tree and clones plans directly from its recorded
 remote. A newly prepared workspace does not clone research until a consumer runs `sase repo path research --ensure` (or
-another operation explicitly ensures that kind). Each clone's `origin` is the configured sidecar remote.
-Pull-with-rebase applies when synchronizing a retained existing clone; a sidecar freshly cloned for launch is used
-without a redundant pull or rebase.
+another operation explicitly ensures that kind). GitHub HTTPS values in legacy records resolve in memory to canonical
+SSH (`git@host:owner/repo.git`, or `ssh://git@host:port/owner/repo.git`) before inventory, launch, retained-clone
+synchronization, or on-demand materialization consumes them. Each clone's `origin` is that resolved SSH or local remote;
+a retained matching HTTPS clone is rewritten in place without losing local state. Other HTTP(S) values fail before Git
+executes. This read-time normalization does not rewrite `.sase/sdd-store.json`; rerun `sase repo init` to persist the
+migration, but launches are safe without doing so. Pull-with-rebase applies when synchronizing a retained existing
+clone; a sidecar freshly cloned for launch is used without a redundant pull or rebase.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
 strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files
