@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
-from textual.widgets import ContentSwitcher, Input, OptionList, Static
-from textual.widgets.option_list import Option
+from textual.widgets import ContentSwitcher, OptionList, Static
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.core.paths import sase_projects_dir
@@ -25,8 +21,6 @@ from sase.main.project_handler import (
     set_project_aliases_locked,
     set_project_state_locked,
 )
-from sase.repo_inventory import collect_repo_inventory
-from sase.workspace_provider.inventory import collect_workspace_inventory
 
 from .base import FilterInput, OptionListNavigationMixin
 from .inventory_project_picker import (
@@ -35,13 +29,14 @@ from .inventory_project_picker import (
     InventoryProjectPickerResult,
 )
 from .project_management_actions import ProjectManagementActionsMixin
+from .project_inventory_counts import (
+    _ProjectCountsLoadResult,
+    _collect_project_inventory_counts,
+)
+from .project_list_controller import ProjectListControllerMixin
 from .project_management_rendering import (
     ProjectInventoryCounts,
     column_header_text,
-    detail_text,
-    hints_text,
-    record_label,
-    summary_text,
 )
 from .project_inventory_panes import (
     InventoryProjectFilterRequested,
@@ -66,90 +61,6 @@ _SUBTABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, tab.title(), "#FFAF5F") for tab in _SUBTAB_ORDER
 )
 _PendingForce = tuple[tuple[str, ...], str]
-
-
-@dataclass(frozen=True)
-class _ProjectCountsLoadResult:
-    counts: dict[str, ProjectInventoryCounts]
-    errors: tuple[str, ...] = ()
-
-
-def _collect_project_inventory_counts(
-    projects_root: Path,
-    project_records: Sequence[ProjectRecordWire],
-) -> _ProjectCountsLoadResult:
-    """Join Phase-3 repo/workspace inventories into per-project aggregates."""
-
-    project_keys = {record.project_name for record in project_records}
-    project_lookup: dict[str, str] = {}
-    for record in project_records:
-        for name in (
-            record.project_name,
-            effective_project_name(record),
-            *record.aliases,
-        ):
-            project_lookup.setdefault(name, record.project_name)
-
-    repo_kind_counts: dict[str, dict[str, int]] = {
-        key: {"primary": 0, "sidecar": 0, "linked": 0, "external": 0}
-        for key in project_keys
-    }
-    workspace_counts = dict.fromkeys(project_keys, 0)
-    claimed_workspace_counts = dict.fromkeys(project_keys, 0)
-    issue_messages: dict[str, list[str]] = {key: [] for key in project_keys}
-    errors: list[str] = []
-
-    try:
-        repo_inventory = collect_repo_inventory(
-            projects_root,
-            include_disabled=True,
-        )
-    except Exception as exc:
-        errors.append(f"repos unavailable: {exc}")
-    else:
-        for repo in repo_inventory.records:
-            if repo.project_key in repo_kind_counts:
-                repo_kind_counts[repo.project_key][repo.kind] += 1
-        for repo_issue in repo_inventory.issues:
-            key = project_lookup.get(repo_issue.project)
-            if key is not None:
-                issue_messages[key].append(f"Repo inventory: {repo_issue.message}")
-
-    try:
-        workspace_inventory = collect_workspace_inventory(
-            projects_root,
-            include_disabled=True,
-        )
-    except Exception as exc:
-        errors.append(f"workspaces unavailable: {exc}")
-    else:
-        for workspace in workspace_inventory.records:
-            if workspace.project_key not in workspace_counts:
-                continue
-            workspace_counts[workspace.project_key] += 1
-            if workspace.claimed:
-                claimed_workspace_counts[workspace.project_key] += 1
-        for workspace_issue in workspace_inventory.issues:
-            key = project_lookup.get(workspace_issue.project)
-            if key is not None:
-                issue_messages[key].append(
-                    f"Workspace inventory: {workspace_issue.message}"
-                )
-
-    counts: dict[str, ProjectInventoryCounts] = {}
-    for key in project_keys:
-        kinds = repo_kind_counts[key]
-        counts[key] = ProjectInventoryCounts(
-            repo_count=sum(kinds.values()),
-            primary_repo_count=kinds["primary"],
-            sidecar_repo_count=kinds["sidecar"],
-            linked_repo_count=kinds["linked"],
-            external_repo_count=kinds["external"],
-            workspace_count=workspace_counts[key],
-            claimed_workspace_count=claimed_workspace_counts[key],
-            issue_messages=tuple(issue_messages[key]),
-        )
-    return _ProjectCountsLoadResult(counts, tuple(errors))
 
 
 class _ProjectsFilterInput(FilterInput):
@@ -177,6 +88,7 @@ class _ProjectsFilterInput(FilterInput):
 
 class ProjectsPane(
     ProjectManagementActionsMixin,
+    ProjectListControllerMixin,
     OptionListNavigationMixin,
     Vertical,
 ):
@@ -408,194 +320,6 @@ class ProjectsPane(
             )
             self._update_summary()
 
-    def _apply_filters(self) -> None:
-        text_filter = self._text_filter.casefold().strip()
-        rows: list[ProjectRecordWire] = []
-        for record in self._records:
-            if text_filter:
-                haystack = " ".join(
-                    (
-                        record.project_name,
-                        effective_project_name(record),
-                        " ".join(record.aliases),
-                        record.state,
-                        record.vcs_kind or "",
-                        record.workspace_dir or "",
-                        " ".join(record.warnings),
-                        " ".join(record.parse_warnings),
-                    )
-                ).casefold()
-                if text_filter not in haystack:
-                    continue
-            rows.append(record)
-        self._filtered_records = rows
-
-    def _create_options(self, records: list[ProjectRecordWire]) -> list[Option]:
-        if not records:
-            message = (
-                "No projects match the current search"
-                if self._text_filter.strip()
-                else "No registered projects"
-            )
-            return [Option(Text(message, style="dim"), id="empty")]
-        return [
-            Option(self._record_label(record), id=record.project_name)
-            for record in records
-        ]
-
-    def _counts_for(self, record: ProjectRecordWire) -> ProjectInventoryCounts:
-        return self._inventory_counts.get(
-            record.project_name,
-            ProjectInventoryCounts(),
-        )
-
-    def _record_label(self, record: ProjectRecordWire) -> Text:
-        return record_label(
-            record,
-            self._marked_projects,
-            self._counts_for(record),
-        )
-
-    def _summary_text(self) -> Text:
-        return summary_text(
-            self._records,
-            self._text_filter,
-            self._status_message,
-            self._marked_projects,
-            inventory_loading=self._inventory_loading,
-            inventory_error=self._inventory_error,
-        )
-
-    def _hints_text(self) -> str:
-        return hints_text(self._marked_projects)
-
-    def _refresh_options(self, *, preferred_project: str | None = None) -> None:
-        try:
-            option_list = self.query_one(f"#{self._option_list_id}", OptionList)
-        except Exception:
-            return
-        if self._detail_debouncer is not None:
-            self._detail_debouncer.cancel()
-        current = preferred_project or self._selected_project_name()
-        self._syncing_options = True
-        try:
-            option_list.clear_options()
-            for option in self._create_options(self._filtered_records):
-                option_list.add_option(option)
-            if self._filtered_records:
-                index = 0
-                if current is not None:
-                    for i, record in enumerate(self._filtered_records):
-                        if record.project_name == current:
-                            index = i
-                            break
-                option_list.highlighted = index
-            else:
-                option_list.highlighted = None
-        finally:
-            self._syncing_options = False
-        self._update_summary()
-        self._update_detail()
-        self._refresh_hints()
-
-    def _update_summary(self) -> None:
-        try:
-            self.query_one("#projects-summary", Static).update(self._summary_text())
-        except Exception:
-            pass
-
-    def _refresh_hints(self) -> None:
-        try:
-            self.query_one("#projects-hints", Static).update(self._hints_text())
-        except Exception:
-            pass
-
-    def _selected_project_name(self) -> str | None:
-        record = self._selected_record()
-        return None if record is None else record.project_name
-
-    def _selected_record(self) -> ProjectRecordWire | None:
-        try:
-            option_list = self.query_one(f"#{self._option_list_id}", OptionList)
-        except Exception:
-            return None
-        highlighted = option_list.highlighted
-        if highlighted is None or not (0 <= highlighted < len(self._filtered_records)):
-            return None
-        return self._filtered_records[highlighted]
-
-    def _marked_records(self) -> list[ProjectRecordWire]:
-        return [
-            record
-            for record in self._records
-            if record.project_name in self._marked_projects
-        ]
-
-    def _records_for_names(
-        self, project_names: Sequence[str]
-    ) -> list[ProjectRecordWire]:
-        requested = set(project_names)
-        return [record for record in self._records if record.project_name in requested]
-
-    def _target_records(self) -> list[ProjectRecordWire]:
-        if self._marked_projects:
-            records = self._marked_records()
-            if records:
-                return records
-            self._marked_projects.clear()
-            self._pending_force = None
-            self._set_status("No marked projects remain")
-            self._refresh_options()
-            return []
-
-        record = self._selected_record()
-        if record is None:
-            self._set_status("No project selected")
-            return []
-        return [record]
-
-    def _prune_stale_marked_projects(self) -> None:
-        if not self._marked_projects:
-            return
-        live_projects = {record.project_name for record in self._records}
-        stale = self._marked_projects - live_projects
-        if stale:
-            self._marked_projects -= stale
-            if self._pending_force is not None:
-                project_names, state = self._pending_force
-                live_pending = tuple(
-                    project for project in project_names if project in live_projects
-                )
-                self._pending_force = (live_pending, state) if live_pending else None
-
-    def _advance_mark_selection(self, highlighted: int) -> str | None:
-        if not self._filtered_records:
-            return None
-        next_index = (highlighted + 1) % len(self._filtered_records)
-        return self._filtered_records[next_index].project_name
-
-    def _detail_text(self, record: ProjectRecordWire | None) -> Text:
-        counts = self._counts_for(record) if record is not None else None
-        return detail_text(record, self._marked_projects, counts)
-
-    def _update_detail(self) -> None:
-        try:
-            self.query_one("#projects-detail", Static).update(
-                self._detail_text(self._selected_record())
-            )
-        except Exception:
-            pass
-
-    def _schedule_detail_update(self) -> None:
-        if self._detail_debouncer is None:
-            self._update_detail()
-            return
-        self._detail_debouncer.schedule(self._update_detail)
-
-    def _set_status(self, message: str) -> None:
-        self._status_message = message
-        self._update_summary()
-
     def _set_project_state_locked(
         self,
         project: str,
@@ -618,26 +342,6 @@ class ProjectsPane(
             aliases,
             projects_root=self._projects_root,
         )
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id != "projects-filter":
-            return
-        self._text_filter = event.value
-        self._apply_filters()
-        self._refresh_options()
-
-    def on_input_submitted(self, _event: Input.Submitted) -> None:
-        self.query_one(f"#{self._option_list_id}", OptionList).focus()
-        self.action_default_project_action()
-
-    def on_option_list_option_highlighted(
-        self, _event: OptionList.OptionHighlighted
-    ) -> None:
-        if not self._syncing_options:
-            self._schedule_detail_update()
-
-    def on_option_list_option_selected(self, _event: OptionList.OptionSelected) -> None:
-        self.action_default_project_action()
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
@@ -729,43 +433,6 @@ class ProjectsPane(
 
     def action_show_project_workspaces(self) -> None:
         self._show_selected_project_inventory("workspaces")
-
-    def action_toggle_project_mark(self) -> None:
-        record = self._selected_record()
-        if record is None:
-            self._set_status("No project selected")
-            return
-
-        if record.project_name in self._marked_projects:
-            self._marked_projects.remove(record.project_name)
-        else:
-            self._marked_projects.add(record.project_name)
-
-        try:
-            option_list = self.query_one(f"#{self._option_list_id}", OptionList)
-            highlighted = option_list.highlighted
-        except Exception:
-            highlighted = None
-        preferred = (
-            self._advance_mark_selection(highlighted)
-            if highlighted is not None
-            else record.project_name
-        )
-        self._set_status(f"Marked {len(self._marked_projects)} project(s)")
-        self._refresh_options(preferred_project=preferred)
-
-    def action_clear_project_marks(self) -> None:
-        if not self._marked_projects:
-            self._set_status("No marks to clear")
-            self.notify("No marks to clear", severity="warning")
-            return
-
-        count = len(self._marked_projects)
-        self._marked_projects.clear()
-        self._pending_force = None
-        self._set_status(f"Cleared {count} mark(s)")
-        self._refresh_options()
-        self.notify(f"Cleared {count} mark(s)")
 
     def action_reload_projects(self) -> None:
         selected = self._selected_project_name()
