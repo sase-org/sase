@@ -275,7 +275,7 @@ Examples:
 
 ```bash
 sase run '#!sync'
-sase run '#gh:sase #!sase/toobig_split %auto'
+sase run '#gh:sase #!sase/refresh_docs %auto'
 ```
 
 During the compatibility window, top-level legacy invocations such as `sase run '#sync'` still run but emit a warning
@@ -890,7 +890,6 @@ The repo-level `xprompts/` directory also ships standalone YAML workflows that a
 | Reference                          | Inputs                           | Purpose                                        |
 | ---------------------------------- | -------------------------------- | ---------------------------------------------- |
 | `#!sase/fix_just`                  | none                             | Repair or validate `just` workflow issues      |
-| `#!sase/toobig_split`              | `limits`                         | Assist with Python file-size splitting         |
 | `#!sase/refresh_docs`              | `project`, `gh_ref`, `threshold` | Scheduled documentation refresh                |
 | `#!sase/audit_recent_bugs`         | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed bugs         |
 | `#!sase/audit_recent_improvements` | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed improvements |

@@ -31,7 +31,7 @@ def base_kwargs(tmp_path):
     return {
         "cl_name": "test-cl",
         "artifacts_timestamp": "20260425232621",
-        "workflow_name": "toobig_split",
+        "workflow_name": "refresh_docs",
         "success": True,
         "agent_hidden": False,
         "agent_name": None,
@@ -48,7 +48,7 @@ def base_kwargs(tmp_path):
         "video_paths": [],
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
-        "prompt": "#gh:sase #!sase/toobig_split %auto",
+        "prompt": "#gh:sase #!sase/refresh_docs %auto",
     }
 
 

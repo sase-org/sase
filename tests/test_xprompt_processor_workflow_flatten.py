@@ -206,8 +206,8 @@ def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
 ) -> None:
     """Test slow path: xprompt part + standalone workflow in same prompt.
 
-    When a prompt like '#gh:sase #toobig_split' is used, the fast path
-    fails because 'gh' (with colon arg 'sase #toobig_split') isn't in
+    When a prompt like '#gh:sase #batch_split' is used, the fast path
+    fails because 'gh' (with colon arg 'sase #batch_split') isn't in
     prompts. The slow path should scan all references and find the single
     standalone workflow.
     """
@@ -216,9 +216,9 @@ def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
         name="gh",
         steps=[WorkflowStep(name="main", prompt_part="GitHub setup: {{ 1 }}")],
     )
-    # toobig_split is a standalone workflow (no prompt_part)
-    toobig_wf = Workflow(
-        name="toobig_split",
+    # batch_split is a standalone workflow (no prompt_part)
+    batch_split_wf = Workflow(
+        name="batch_split",
         steps=[
             WorkflowStep(name="find_files", bash="echo files=[]"),
             WorkflowStep(name="split_file", agent="Split {{ file_path }}"),
@@ -226,13 +226,13 @@ def test_flatten_anonymous_workflow_slow_path_with_xprompt_and_workflow(
     )
     mock_get_all_prompts.return_value = {
         "gh": gh_wf,
-        "toobig_split": toobig_wf,
+        "batch_split": batch_split_wf,
     }
-    workflow = _make_anonymous_workflow("#gh:sase #toobig_split")
+    workflow = _make_anonymous_workflow("#gh:sase #batch_split")
     result = _flatten_anonymous_workflow(workflow)
     assert result is not None
     ref_wf, pos_args, named_args = result
-    assert ref_wf.name == "toobig_split"
+    assert ref_wf.name == "batch_split"
     assert pos_args == []
     assert named_args == {}
 
@@ -320,7 +320,7 @@ def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
 ) -> None:
     """Test slow path ignores workflow references inside fenced code blocks.
 
-    When a standalone workflow reference like #toobig_split appears inside
+    When a standalone workflow reference like #batch_split appears inside
     triple-backtick code blocks, it should not be detected as a real workflow
     reference, so the anonymous workflow should not be flattened.
     """
@@ -328,8 +328,8 @@ def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
         name="gh",
         steps=[WorkflowStep(name="main", prompt_part="GitHub: {{ 1 }}")],
     )
-    toobig_wf = Workflow(
-        name="toobig_split",
+    batch_split_wf = Workflow(
+        name="batch_split",
         steps=[
             WorkflowStep(name="find_files", bash="echo files=[]"),
             WorkflowStep(name="split_file", agent="Split {{ file_path }}"),
@@ -337,13 +337,13 @@ def test_flatten_anonymous_workflow_slow_path_ignores_fenced_code_blocks(
     )
     mock_get_all_prompts.return_value = {
         "gh": gh_wf,
-        "toobig_split": toobig_wf,
+        "batch_split": batch_split_wf,
     }
     prompt = (
-        "#gh:sase Some text about the toobig_split workflow.\n"
+        "#gh:sase Some text about the batch_split workflow.\n"
         "\n"
         "```\n"
-        "sase run '#gh:sase #!toobig_split(1000 850 666)'\n"
+        "sase run '#gh:sase #!batch_split(1000 850 666)'\n"
         "```\n"
     )
     workflow = _make_anonymous_workflow(prompt)

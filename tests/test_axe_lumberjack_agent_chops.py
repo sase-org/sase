@@ -546,15 +546,15 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
         interval=10,
         chops=[
             ChopConfig(
-                name="toobig_split",
+                name="agent_fanout",
                 description="",
-                agent="#!sase/toobig_split %auto",
+                agent="#!batch_split %auto",
             )
         ],
     )
     _record_chop_agent_launch(
         lumberjack_name="dedup_live_child",
-        chop_name="toobig_split",
+        chop_name="agent_fanout",
         run_id="shared-run",
         pid=88888,
         project_file="/tmp/projects/proj/proj.sase",
@@ -564,7 +564,7 @@ def test_agent_chop_live_durable_child_record_blocks_relaunch(
         cl_name="proj",
         timestamp="260101_120100",
         prompt="#split_file:src/sase/large_file.py",
-        prompt_hash_value=prompt_hash("#!sase/toobig_split %auto"),
+        prompt_hash_value=prompt_hash("#!batch_split %auto"),
     )
 
     lumberjack = Lumberjack("dedup_live_child", config, axe_config)

@@ -105,7 +105,6 @@ def test_disowned_agent_launcher_workflows_are_hidden() -> None:
         "audit_recent_bugs",
         "audit_recent_improvements",
         "refresh_docs",
-        "toobig_split",
     ):
         workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
         assert workflow is not None
