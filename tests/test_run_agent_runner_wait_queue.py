@@ -265,4 +265,6 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         run_agent_runner._STARTUP_CODE_IDENTITY,
         blocking_wait_occurred=True,
         killed=False,
+        prompt_file=str(tmp_path / "prompt.md"),
+        submitted_xprompt="%n(foo, reviewer)\nDo work",
     )

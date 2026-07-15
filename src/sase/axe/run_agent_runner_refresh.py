@@ -1,4 +1,9 @@
-"""Refresh a long-lived runner after its dependency wait crosses code updates."""
+"""Refresh a long-lived runner after its dependency wait crosses code updates.
+
+The exec replays ``sys.argv`` verbatim. Any future argv field that names a
+one-shot resource must therefore be re-materialized here before exec, just as
+the temporary prompt file is today.
+"""
 
 from __future__ import annotations
 
@@ -60,6 +65,8 @@ def refresh_runner_code_after_wait(
     *,
     blocking_wait_occurred: bool,
     killed: bool,
+    prompt_file: str,
+    submitted_xprompt: str,
 ) -> None:
     """Re-exec the runner when its editable source HEAD moved during a wait.
 
@@ -81,5 +88,28 @@ def refresh_runner_code_after_wait(
         f"{startup_identity} -> {current_identity}",
         flush=True,
     )
+    try:
+        Path(prompt_file).write_text(submitted_xprompt, encoding="utf-8")
+    except OSError as exc:
+        print(
+            "Warning: Skipping sase runner code refresh because the temporary "
+            f"prompt file could not be restored at {prompt_file}: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return
+
     os.environ[RUNNER_CODE_REFRESHED_ENV] = "1"
-    os.execv(sys.executable, [sys.executable, *sys.argv])
+    try:
+        os.execv(sys.executable, [sys.executable, *sys.argv])
+    except OSError as exc:
+        os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None)
+        try:
+            os.unlink(prompt_file)
+        except OSError:
+            pass
+        print(
+            f"Warning: Failed to refresh sase runner code; continuing: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )

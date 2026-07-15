@@ -5,6 +5,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
 from sase.axe.runner_args import parse_runner_bool_arg
 
 
@@ -52,11 +53,29 @@ def parse_runner_args(argv: Sequence[str]) -> _RunnerArgs:
     )
 
 
-def read_prompt_file(prompt_file: str) -> str:
-    """Read and unlink the temporary submitted prompt file."""
+def read_prompt_file(
+    prompt_file: str,
+    *,
+    refreshed_fallback_file: str | None = None,
+) -> str:
+    """Read and unlink the temporary submitted prompt file.
+
+    A refreshed runner may recover from a missing one-shot prompt file by
+    reading the persisted launch-boundary artifact. The artifact is never
+    unlinked.
+    """
     try:
-        with open(prompt_file, encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(prompt_file, encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            if (
+                RUNNER_CODE_REFRESHED_ENV not in os.environ
+                or refreshed_fallback_file is None
+            ):
+                raise
+            with open(refreshed_fallback_file, encoding="utf-8") as f:
+                return f.read()
     except Exception as e:
         print(f"Error reading prompt file: {e}", file=sys.stderr)
         sys.exit(1)

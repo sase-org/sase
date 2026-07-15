@@ -17,6 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sase.ace.hooks import format_duration
+from sase.artifacts import launch_artifacts_dir
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_phases import (
@@ -123,7 +124,19 @@ def main() -> None:
         artifacts_dir_getter=_signal_fallback_artifacts_dir,
     )
 
-    prompt = read_prompt_file(args.prompt_file)
+    refreshed_prompt_fallback: str | None = None
+    if RUNNER_CODE_REFRESHED_ENV in os.environ:
+        artifacts_project_name = (
+            "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
+        )
+        refreshed_prompt_fallback = os.path.join(
+            launch_artifacts_dir(artifacts_project_name, timestamp),
+            "submitted_xprompt.md",
+        )
+    prompt = read_prompt_file(
+        args.prompt_file,
+        refreshed_fallback_file=refreshed_prompt_fallback,
+    )
     submitted_xprompt = prompt
 
     init_telemetry()
@@ -264,6 +277,8 @@ def main() -> None:
                 _STARTUP_CODE_IDENTITY,
                 blocking_wait_occurred=blocking_wait_occurred,
                 killed=was_killed(),
+                prompt_file=args.prompt_file,
+                submitted_xprompt=submitted_xprompt,
             )
 
             if has_dependency_wait:

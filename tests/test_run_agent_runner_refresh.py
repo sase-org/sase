@@ -53,17 +53,28 @@ def test_source_code_identity_is_inert_without_git_metadata() -> None:
 
 
 def test_changed_identity_reexecs_original_argv(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
     old = "a" * 40
     new = "b" * 40
+    prompt_file = tmp_path / "submitted-prompt.md"
+    submitted_xprompt = "%n(fix)\nKeep this exact prompt\n"
+
+    def assert_exec_handoff(*_args: object) -> None:
+        assert prompt_file.read_text(encoding="utf-8") == submitted_xprompt
+        assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
+
     with (
         patch(
             "sase.axe.run_agent_runner_refresh.runner_code_identity",
             return_value=new,
         ),
-        patch("sase.axe.run_agent_runner_refresh.os.execv") as execv,
+        patch(
+            "sase.axe.run_agent_runner_refresh.os.execv",
+            side_effect=assert_exec_handoff,
+        ) as execv,
         patch.object(sys, "executable", "/venv/bin/python"),
         patch.object(sys, "argv", ["runner.py", "--workspace-num", "7"]),
     ):
@@ -71,6 +82,8 @@ def test_changed_identity_reexecs_original_argv(
             old,
             blocking_wait_occurred=True,
             killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt=submitted_xprompt,
         )
 
     execv.assert_called_once_with(
@@ -78,6 +91,63 @@ def test_changed_identity_reexecs_original_argv(
         ["/venv/bin/python", "runner.py", "--workspace-num", "7"],
     )
     assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
+
+
+def test_prompt_rewrite_failure_skips_refresh(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    prompt_file = tmp_path / "missing" / "prompt.md"
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch("sase.axe.run_agent_runner_refresh.os.execv") as execv,
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt="prompt",
+        )
+
+    execv.assert_not_called()
+    assert RUNNER_CODE_REFRESHED_ENV not in os.environ
+    assert "Skipping sase runner code refresh" in capsys.readouterr().err
+
+
+def test_exec_failure_continues_without_refresh_guard_or_prompt_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    prompt_file = tmp_path / "prompt.md"
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh.os.execv",
+            side_effect=OSError("exec failed"),
+        ),
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt="prompt",
+        )
+
+    assert RUNNER_CODE_REFRESHED_ENV not in os.environ
+    assert not prompt_file.exists()
+    assert "continuing: exec failed" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -109,6 +179,8 @@ def test_refresh_is_inert_without_all_preconditions(
             startup_identity,
             blocking_wait_occurred=blocked,
             killed=killed,
+            prompt_file="/tmp/prompt.md",
+            submitted_xprompt="prompt",
         )
 
     execv.assert_not_called()
@@ -129,6 +201,8 @@ def test_refreshed_guard_prevents_loop_and_is_not_inherited(
             "a" * 40,
             blocking_wait_occurred=True,
             killed=False,
+            prompt_file="/tmp/prompt.md",
+            submitted_xprompt="prompt",
         )
 
     current_identity.assert_not_called()
