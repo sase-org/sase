@@ -76,9 +76,6 @@ def read_prompt_file(
                 raise
             with open(refreshed_fallback_file, encoding="utf-8") as f:
                 return f.read()
-    except Exception as e:
-        print(f"Error reading prompt file: {e}", file=sys.stderr)
-        sys.exit(1)
     finally:
         try:
             os.unlink(prompt_file)

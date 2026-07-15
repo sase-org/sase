@@ -383,5 +383,5 @@ class TestRunStartedAtRecording:
         run_main(patches, tmp_path, is_home_mode=True)
 
         assert not (Path(artifacts_dir) / "running.json").exists()
-        assert setup_index_update.call_count == 2
+        assert setup_index_update.call_count == 3
         cleanup_index_update.assert_called_once_with(artifacts_dir)

@@ -38,10 +38,8 @@ def test_read_prompt_file_does_not_fall_back_without_refresh_guard(
     fallback_file.write_text("persisted prompt", encoding="utf-8")
     monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
 
-    with pytest.raises(SystemExit) as exc_info:
+    with pytest.raises(FileNotFoundError):
         read_prompt_file(
             str(tmp_path / "missing-prompt.md"),
             refreshed_fallback_file=str(fallback_file),
         )
-
-    assert exc_info.value.code == 1

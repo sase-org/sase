@@ -49,6 +49,7 @@ def extract_directives_and_write_meta(
     artifacts_dir: str,
     cl_name: str | None = None,
     *,
+    output_path: str | None = None,
     raw_resolved_prompt: str | None = None,
 ) -> AgentInfo:
     """Extract prompt directives and write agent_meta.json.
@@ -272,6 +273,8 @@ def extract_directives_and_write_meta(
             "pid": os.getpid(),
             "workspace_dir": workspace_dir,
         }
+        if output_path:
+            agent_meta["output_path"] = output_path
         if agent_name:
             agent_meta["name"] = agent_name
         if wait_names:

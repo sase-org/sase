@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
@@ -80,6 +81,21 @@ def _run_runner_with_wait_result(
     def finalize_runner_shutdown(**kwargs: object) -> None:
         shutdown_states.append(kwargs["state"])
 
+    def wait_for_dependencies_side_effect(
+        _wait_names: object,
+        wait_artifacts_dir: str,
+        _cl_name: object,
+        _timestamp: object,
+        agent_meta: dict[str, object],
+        **_kwargs: object,
+    ) -> object:
+        persisted_meta = json.loads(
+            (Path(wait_artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        assert persisted_meta["output_path"] == str(tmp_path / "output.log")
+        assert agent_meta["output_path"] == str(tmp_path / "output.log")
+        return wait_result
+
     with ExitStack() as stack:
         stack.enter_context(
             patch.object(
@@ -150,7 +166,7 @@ def _run_runner_with_wait_result(
             patch.object(
                 run_agent_runner,
                 "wait_for_dependencies",
-                return_value=wait_result,
+                side_effect=wait_for_dependencies_side_effect,
             )
         )
         refresh_runner_code_after_wait = stack.enter_context(

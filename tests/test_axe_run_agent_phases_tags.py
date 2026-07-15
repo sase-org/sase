@@ -14,6 +14,38 @@ from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_me
 from sase.llm_provider.temporary_override import set_temporary_override
 
 
+def test_extract_directives_persists_runner_output_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    output_path = tmp_path / "runner.log"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        info = extract_directives_and_write_meta(
+            "Do work",
+            str(workspace_dir),
+            str(artifacts_dir),
+            output_path=str(output_path),
+        )
+
+    assert info.meta["output_path"] == str(output_path)
+    persisted = json.loads((artifacts_dir / "agent_meta.json").read_text())
+    assert persisted["output_path"] == str(output_path)
+
+
 def test_extract_directives_persists_tag_with_atomic_helper(
     tmp_path: Path,
     monkeypatch,

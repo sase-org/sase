@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sase.ace.hooks import format_duration
-from sase.artifacts import launch_artifacts_dir
+from sase.artifacts import convert_timestamp_to_artifacts_format, launch_artifacts_dir
 from sase.axe.run_agent_exec import AgentExecContext, run_execution_loop
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_phases import (
@@ -110,40 +110,21 @@ def main() -> None:
     timestamp = args.timestamp
     update_target = args.update_target
     is_home_mode = args.is_home_mode
-    signal_fallback_artifacts_dir: str | None = None
 
-    def _signal_fallback_artifacts_dir() -> str | None:
-        return signal_fallback_artifacts_dir
-
-    install_workspace_release_sigterm_handler(
-        project_file=project_file,
-        workspace_num=workspace_num,
-        workflow_name=workflow_name,
-        cl_name=cl_name,
-        is_home_mode=is_home_mode,
-        artifacts_dir_getter=_signal_fallback_artifacts_dir,
+    # Parsing is the only operation that intentionally precedes error recording:
+    # malformed argv may not contain enough launch identity to locate artifacts.
+    # For valid argv, derive the artifact identity up front so even a failure while
+    # creating/seeding the directory has a best-effort destination for done.json.
+    project_name = (
+        "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
     )
+    artifacts_timestamp = convert_timestamp_to_artifacts_format(timestamp)
+    artifacts_dir = launch_artifacts_dir(project_name, timestamp)
+    current_artifacts_dir = artifacts_dir
+    signal_fallback_artifacts_dir: str | None = artifacts_dir
 
-    refreshed_prompt_fallback: str | None = None
-    if RUNNER_CODE_REFRESHED_ENV in os.environ:
-        artifacts_project_name = (
-            "home" if is_home_mode else os.path.basename(os.path.dirname(project_file))
-        )
-        refreshed_prompt_fallback = os.path.join(
-            launch_artifacts_dir(artifacts_project_name, timestamp),
-            "submitted_xprompt.md",
-        )
-    prompt = read_prompt_file(
-        args.prompt_file,
-        refreshed_fallback_file=refreshed_prompt_fallback,
-    )
-    submitted_xprompt = prompt
-
-    init_telemetry()
-    register_push_on_exit(
-        job="agent_runner", workflow=workflow_name, instance=timestamp
-    )
-
+    prompt = ""
+    submitted_xprompt = ""
     start_time = time.time()
     success = False
     duration = "0s"
@@ -160,41 +141,18 @@ def main() -> None:
     error_traceback_str: str | None = None
     run_started_at: str | None = None
     suppress_completion_notification = False
-
-    if RUNNER_CODE_REFRESHED_ENV not in os.environ:
-        print_agent_start_banner(
-            cl_name=cl_name,
-            workspace_dir=workspace_dir,
-            workflow_name=workflow_name,
-            prompt=prompt,
-        )
-
+    active_agent_started = False
     running_marker_path: str | None = None
 
-    project_name, artifacts_timestamp, artifacts_dir = setup_artifacts_directory(
-        timestamp=timestamp,
-        project_file=project_file,
-        cl_name=cl_name,
-        is_home_mode=is_home_mode,
-    )
-    signal_fallback_artifacts_dir = artifacts_dir
-    try:
-        write_submitted_xprompt_artifact(artifacts_dir, submitted_xprompt)
-    except OSError as e:
-        print(f"Warning: Failed to write submitted_xprompt.md: {e}", file=sys.stderr)
-
-    prompt, vcs_tag, raw_resolved_prompt = preprocess_prompt_xprompts(
-        prompt, artifacts_dir
-    )
-
-    # Defaults for agent metadata (populated later, but needed by error handler)
+    # Defaults for agent metadata (populated later, but needed by error handler).
     agent_name: str | None = None
     agent_model: str | None = None
     agent_llm_provider: str | None = None
     agent_vcs_provider: str | None = None
-    agent_hidden: bool = False
-    # Initialize current_artifacts_dir so it's always defined for cleanup
-    current_artifacts_dir = artifacts_dir
+    agent_hidden = False
+
+    def _signal_fallback_artifacts_dir() -> str | None:
+        return signal_fallback_artifacts_dir
 
     def _error_context() -> RunnerErrorContext:
         return RunnerErrorContext(
@@ -213,10 +171,73 @@ def main() -> None:
             agent_hidden=agent_hidden,
         )
 
-    retry_handoff = load_retry_handoff_from_env()
-
     try:
         try:
+            install_workspace_release_sigterm_handler(
+                project_file=project_file,
+                workspace_num=workspace_num,
+                workflow_name=workflow_name,
+                cl_name=cl_name,
+                is_home_mode=is_home_mode,
+                artifacts_dir_getter=_signal_fallback_artifacts_dir,
+            )
+
+            project_name, artifacts_timestamp, artifacts_dir = (
+                setup_artifacts_directory(
+                    timestamp=timestamp,
+                    project_file=project_file,
+                    cl_name=cl_name,
+                    is_home_mode=is_home_mode,
+                )
+            )
+            current_artifacts_dir = artifacts_dir
+            signal_fallback_artifacts_dir = artifacts_dir
+
+            # Persist the raw output location before any prompt processing or
+            # dependency wait. Later directive metadata replaces this seed, so
+            # the field is explicitly carried into the full metadata below.
+            write_agent_meta(
+                artifacts_dir,
+                {"pid": os.getpid(), "output_path": output_path},
+            )
+
+            refreshed_prompt_fallback: str | None = None
+            if RUNNER_CODE_REFRESHED_ENV in os.environ:
+                refreshed_prompt_fallback = os.path.join(
+                    artifacts_dir,
+                    "submitted_xprompt.md",
+                )
+            prompt = read_prompt_file(
+                args.prompt_file,
+                refreshed_fallback_file=refreshed_prompt_fallback,
+            )
+            submitted_xprompt = prompt
+            try:
+                write_submitted_xprompt_artifact(artifacts_dir, submitted_xprompt)
+            except OSError as e:
+                print(
+                    f"Warning: Failed to write submitted_xprompt.md: {e}",
+                    file=sys.stderr,
+                )
+
+            init_telemetry()
+            register_push_on_exit(
+                job="agent_runner", workflow=workflow_name, instance=timestamp
+            )
+
+            if RUNNER_CODE_REFRESHED_ENV not in os.environ:
+                print_agent_start_banner(
+                    cl_name=cl_name,
+                    workspace_dir=workspace_dir,
+                    workflow_name=workflow_name,
+                    prompt=prompt,
+                )
+
+            prompt, vcs_tag, raw_resolved_prompt = preprocess_prompt_xprompts(
+                prompt, artifacts_dir
+            )
+            retry_handoff = load_retry_handoff_from_env()
+
             deferred_workspace = bool(os.environ.get("SASE_AGENT_DEFERRED_WORKSPACE"))
 
             enter_agent_workspace(workspace_dir, workspace_num)
@@ -227,6 +248,7 @@ def main() -> None:
                 workspace_dir,
                 artifacts_dir,
                 cl_name=cl_name,
+                output_path=output_path,
                 raw_resolved_prompt=raw_resolved_prompt,
             )
             agent_name = info.name
@@ -234,7 +256,7 @@ def main() -> None:
             agent_llm_provider = info.llm_provider
             agent_vcs_provider = info.vcs_provider
             agent_hidden = info.hidden
-            agent_meta = info.meta
+            agent_meta = {**info.meta, "output_path": output_path}
 
             agent_meta = apply_retry_chain_to_meta(
                 retry_handoff=retry_handoff,
@@ -285,6 +307,7 @@ def main() -> None:
                 repeat_stop = detect_repeat_stop()
 
             if repeat_stop is not None:
+                active_agent_started = True
                 bump_spawn_telemetry(
                     agent_llm_provider=agent_llm_provider,
                     project_name=project_name,
@@ -324,6 +347,7 @@ def main() -> None:
                     claim=lambda: record_run_started_at(artifacts_dir, agent_meta),
                 )
 
+                active_agent_started = True
                 bump_spawn_telemetry(
                     agent_llm_provider=agent_llm_provider,
                     project_name=project_name,
@@ -490,6 +514,7 @@ def main() -> None:
             artifacts_dir=artifacts_dir,
             current_artifacts_dir=current_artifacts_dir,
             prompt=prompt,
+            active_agent_started=active_agent_started,
             completion_time=completion_time,
         )
         runtime = format_agent_run_runtime(

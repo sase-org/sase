@@ -99,6 +99,7 @@ def record_completion_metrics(
     artifacts_dir: str,
     current_artifacts_dir: str,
     prompt: str,
+    active_agent_started: bool = True,
     completion_time: datetime | None = None,
 ) -> None:
     """Record Prometheus run metrics, stop time, and structured run log."""
@@ -111,7 +112,8 @@ def record_completion_metrics(
     AGENT_RUN_DURATION.labels(llm_provider=provider, workflow=workflow_name).observe(
         duration_seconds
     )
-    AGENT_ACTIVE.labels(llm_provider=provider, project=project_name).dec()
+    if active_agent_started:
+        AGENT_ACTIVE.labels(llm_provider=provider, project=project_name).dec()
 
     record_stop_time(artifacts_dir, current_artifacts_dir, stopped_at=completion_time)
 
