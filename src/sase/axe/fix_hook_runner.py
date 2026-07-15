@@ -26,8 +26,10 @@ from sase.ace.hooks import (
     set_hook_suffix,
 )
 from sase.axe.runner_utils import (
+    build_no_proposal_error_summary,
     detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
+    publish_review_agent_env,
     read_agent_meta,
     write_done_marker,
     write_error_report,
@@ -128,6 +130,7 @@ def main() -> int:
     error_summary: str | None = None
     error_traceback_str: str | None = None
     submitted_xprompt: str | None = None
+    propose_result: dict[str, object] | None = None
     start_time = time.time()
 
     # Get the command to run (strip "!" prefix)
@@ -148,6 +151,11 @@ def main() -> int:
     # Write agent_meta.json early so Agents tab shows model/VCS/tag while running
     detect_write_and_persist_review_agent_meta(
         artifacts_dir, project_file, changespec_name
+    )
+    publish_review_agent_env(
+        artifacts_dir,
+        cl_name=changespec_name,
+        project_file=project_file,
     )
 
     try:
@@ -173,15 +181,11 @@ def main() -> int:
         submitted_xprompt = prompt_ref
         prompt = process_xprompt_references(prompt_ref)
 
-        # Expand embedded workflows (#propose from fix_hook.md)
-
+        # Expand embedded workflows (#propose from fix_hook.md). This also
+        # publishes #propose's SASE_COMMIT_METHOD before the agent is invoked.
         expanded_prompt, post_workflows = expand_embedded_workflows_in_query(
             prompt, artifacts_dir
         )
-
-        # Set SASE_ARTIFACTS_DIR before invoking the agent so commit-skill
-        # wrappers can write commit_result.json to the correct location.
-        os.environ["SASE_ARTIFACTS_DIR"] = artifacts_dir
 
         # Run the agent
         print("Running fix-hook agent...")
@@ -209,11 +213,6 @@ def main() -> int:
         display_command = contract_test_target_command(run_hook_command)
         who = f"fix-hook {history_ref} {display_command}"
 
-        # Inject remaining environment variables for post-steps.
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
-        os.environ["SASE_AGENT_CL_NAME"] = changespec_name
-        os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
-
         # Set chat path for post-commit entry (the chat file exists after the agent runs)
         chat_path = find_chat_by_timestamp(timestamp)
         if chat_path:
@@ -240,12 +239,13 @@ def main() -> int:
 
             # Always check for proposal_id (even if later steps failed)
             create_result = ewf_result.context.get("propose", {})
-            if isinstance(create_result, dict) and create_result.get("success") in (
-                True,
-                "true",
-            ):
-                proposal_id = create_result.get("proposal_id")
-                exit_code = 0
+            if isinstance(create_result, dict):
+                propose_result = dict(create_result)
+                if create_result.get("success") in (True, "true"):
+                    proposed_id = create_result.get("proposal_id")
+                    if proposed_id:
+                        proposal_id = proposed_id
+                        exit_code = 0
 
             # Prefer entry_id from _append_entry (correct entry ID like "6d")
             # over proposal_id from propose (which may be a PR URL or diff path)
@@ -290,6 +290,11 @@ def main() -> int:
         elapsed = time.time() - start_time
         duration = format_duration(int(elapsed))
         success = exit_code == 0 and proposal_id is not None
+        if not success and proposal_id is None and error_summary is None:
+            error_summary = build_no_proposal_error_summary(
+                artifacts_dir,
+                propose_result=propose_result,
+            )
 
         # Record workflow telemetry
         status = "passed" if success else "failed"

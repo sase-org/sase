@@ -7,7 +7,7 @@ import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
@@ -437,6 +437,83 @@ def detect_write_and_persist_review_agent_meta(
     if identity_suffix is None:
         identity_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
     update_agent_tag((AgentType.RUNNING, cl_name, identity_suffix), REVIEW_AGENT_TAG)
+
+
+def publish_review_agent_env(
+    artifacts_dir: str,
+    *,
+    cl_name: str,
+    project_file: str,
+) -> None:
+    """Publish the shared agent phase and ChangeSpec environment.
+
+    Standalone review runners do not pass through ``run_execution_loop``, so
+    they must publish this environment themselves before invoking a provider.
+    Embedded commit workflows remain responsible for publishing their own
+    ``SASE_COMMIT_METHOD`` during prompt expansion.
+    """
+    from sase.axe.run_agent_exec_markers import publish_phase_env
+
+    publish_phase_env(artifacts_dir)
+    os.environ["SASE_AGENT_CL_NAME"] = cl_name
+    os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
+
+
+def _commit_finalizer_verdict(artifacts_dir: str) -> str:
+    result_path = os.path.join(artifacts_dir, "commit_finalizer_result.json")
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            result = json.load(f)
+    except FileNotFoundError:
+        return "result unavailable"
+    except (json.JSONDecodeError, OSError):
+        return "result unreadable"
+
+    if not isinstance(result, dict):
+        return "result unreadable"
+
+    status = str(result.get("status") or "unknown")
+    reason = str(result.get("reason") or "").strip()
+    error = str(result.get("error") or "").strip()
+    verdict = f"{status} ({reason})" if reason else status
+    if error:
+        verdict = f"{verdict}: {error}"
+    return verdict
+
+
+def _propose_step_verdict(propose_result: Mapping[str, object]) -> str:
+    if not propose_result:
+        return "skipped"
+
+    success = propose_result.get("success")
+    succeeded = success is True or (
+        isinstance(success, str) and success.lower() == "true"
+    )
+    failed = success is False or (
+        isinstance(success, str) and success.lower() == "false"
+    )
+    if succeeded:
+        return "succeeded without a proposal ID"
+    if failed:
+        error = str(propose_result.get("error") or "").strip()
+        return f"failed ({error})" if error else "failed"
+
+    outcome = propose_result.get("outcome") or propose_result.get("status")
+    if outcome:
+        return str(outcome)
+    return "did not return a successful proposal"
+
+
+def build_no_proposal_error_summary(
+    artifacts_dir: str,
+    *,
+    propose_result: Mapping[str, object] | None = None,
+) -> str:
+    """Explain why an otherwise-completed review run produced no proposal."""
+    details = [f"commit finalizer: {_commit_finalizer_verdict(artifacts_dir)}"]
+    if propose_result is not None:
+        details.append(f"propose step: {_propose_step_verdict(propose_result)}")
+    return "Agent completed but no proposal was created — " + "; ".join(details)
 
 
 def write_done_marker(

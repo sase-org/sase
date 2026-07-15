@@ -22,8 +22,10 @@ from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
 from sase.ace.hooks import format_duration
 from sase.axe.runner_utils import (
+    build_no_proposal_error_summary,
     detect_write_and_persist_review_agent_meta,
     finalize_axe_runner,
+    publish_review_agent_env,
     read_agent_meta,
     write_done_marker,
     write_error_report,
@@ -105,6 +107,11 @@ def main() -> int:
     detect_write_and_persist_review_agent_meta(
         artifacts_dir, project_file, changespec_name
     )
+    publish_review_agent_env(
+        artifacts_dir,
+        cl_name=changespec_name,
+        project_file=project_file,
+    )
 
     # Read output_path from env var (set by starter.py)
     output_log_path = os.environ.get("SASE_AGENT_OUTPUT_PATH")
@@ -118,10 +125,6 @@ def main() -> int:
         # Build who identifier for proposal
         comments_ref = shorten_path(comments_file) if comments_file else "comments"
         who = f"crs ({comments_ref})"
-
-        # Set PR env vars so #propose post-steps can find the ChangeSpec.
-        os.environ["SASE_AGENT_CL_NAME"] = changespec_name
-        os.environ["SASE_AGENT_PROJECT_FILE"] = project_file
 
         # Run the CRS workflow with timestamp for consistent artifacts directory
         workflow = CrsWorkflow(
@@ -137,7 +140,6 @@ def main() -> int:
 
         if not workflow_succeeded:
             print("CRS workflow failed")
-            error_summary = "Workflow returned failure status (no exception raised)"
             exit_code = 1
         else:
             # Get proposal_id from workflow
@@ -157,6 +159,11 @@ def main() -> int:
         elapsed = time.time() - start_time
         duration = format_duration(int(elapsed))
         success = exit_code == 0 and proposal_id is not None
+        if not success and proposal_id is None and error_summary is None:
+            error_summary = build_no_proposal_error_summary(
+                artifacts_dir,
+                propose_result=(workflow.propose_result if workflow else None),
+            )
 
         # Record workflow telemetry
         status = "passed" if success else "failed"

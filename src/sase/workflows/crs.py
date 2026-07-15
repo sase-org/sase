@@ -138,6 +138,7 @@ class CrsWorkflow(BaseWorkflow):
         self.last_prompt: str | None = None
         self.submitted_xprompt: str | None = None
         self.proposal_id: str | None = None
+        self.propose_result: dict[str, object] | None = None
 
     @property
     def name(self) -> str:
@@ -238,9 +239,6 @@ class CrsWorkflow(BaseWorkflow):
             f.write(response_content)
         print_artifact_created(self.response_path)
 
-        # Inject remaining environment variables for post-steps.
-        os.environ["SASE_COMMIT_METHOD"] = "create_proposal"
-
         # Execute post-steps from embedded workflows (proposal creation via #propose)
         for ewf_result in post_workflows:
             ewf_result.context["_prompt"] = expanded_prompt
@@ -263,11 +261,10 @@ class CrsWorkflow(BaseWorkflow):
 
             # Extract proposal_id from the 'propose' step output
             create_result = ewf_result.context.get("propose", {})
-            if isinstance(create_result, dict) and create_result.get("success") in (
-                True,
-                "true",
-            ):
-                self.proposal_id = create_result.get("proposal_id")
+            if isinstance(create_result, dict):
+                self.propose_result = dict(create_result)
+                if create_result.get("success") in (True, "true"):
+                    self.proposal_id = create_result.get("proposal_id")
 
         print_status("Change request analysis complete!", "success")
 
