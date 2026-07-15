@@ -48,7 +48,13 @@ def test_plan_providerless_project_includes_store_config_and_ignore_actions(
     plan = plan_repo_init(_args(tmp_path))
 
     assert plan.has_changes is True
-    assert any(action.path.name == "sase.yml" for action in plan.actions)
+    config_action = next(
+        action for action in plan.actions if action.path.name == "sase.yml"
+    )
+    assert config_action.new_content is not None
+    assert "name: plans" in config_action.new_content
+    assert "name: research" in config_action.new_content
+    assert "plans and research sidecars" in plan.summary
     assert any(action.path.name == ".gitignore" for action in plan.actions)
     assert any(
         action.path.is_relative_to(tmp_path / ".sase" / "sdd")

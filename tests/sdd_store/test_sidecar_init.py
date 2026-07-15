@@ -354,3 +354,73 @@ def test_split_init_cuts_over_changed_pinned_sidecar(
     ).stdout.strip()
     assert origin == str(shared_remote)
     assert (clone / "README.md").is_file()
+
+
+def test_split_init_re_records_stale_research_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _git_env(monkeypatch)
+    project = tmp_path / "widget"
+    project.mkdir()
+    (project / ".git").mkdir()
+    research_remote = _bare_remote(tmp_path, "widget--research")
+    clone = tmp_path / "research-clone"
+    write_sdd_store_record(
+        project,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "host": "github.com",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:sase-org/sase--research.git",
+                },
+            },
+        },
+    )
+
+    def create_remote(
+        _primary: str, _workspace: str, options: dict[str, object]
+    ) -> dict[str, object]:
+        assert options["sdd_repo"] == "acme/widget--research"
+        assert options["sdd_remote_url"] == str(research_remote)
+        return {
+            "schema_version": 1,
+            "storage": "separate_repo",
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/widget--research",
+            "remote_url": str(research_remote),
+            "discovery": "found",
+        }
+
+    monkeypatch.setattr("sase.workspace_provider.create_sdd_remote", create_remote)
+    monkeypatch.setattr(
+        "sase.linked_repos.sidecar_repo_clone_dir",
+        lambda _workspace, _kind: str(clone),
+    )
+
+    outcome = initialize_sidecars(
+        project,
+        0,
+        (
+            SidecarInitSpec(
+                role="research",
+                repo="acme/widget--research",
+                remote_url=str(research_remote),
+            ),
+        ),
+    )
+
+    assert outcome.record is not None
+    assert outcome.record.plans is not None
+    assert outcome.record.plans.repo == "acme/widget--plans"
+    assert outcome.record.research is not None
+    assert outcome.record.research.repo == "acme/widget--research"
+    assert outcome.record.research.remote_url == str(research_remote)

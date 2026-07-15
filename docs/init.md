@@ -104,7 +104,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                        |
 | `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                          |
 | `sase init memory`                      | Compatibility alias for `sase memory init`.                                                 |
-| `sase repo init`                        | Initialize configured sidecars, the plans declaration, and `/sase/repos/` ignore rule.      |
+| `sase repo init`                        | Initialize configured sidecars, managed declarations, and `/sase/repos/` ignore rule.       |
 | `sase repo init --check`                | Report sidecar, project-config, generated-guide, and ignore-rule drift without writing.     |
 | `sase repo init --no-commit`            | Apply project config and ignore changes without committing or pushing them.                 |
 | `sase init repo`                        | Alias for `sase repo init`.                                                                 |
@@ -247,24 +247,32 @@ sase memory log --id <read-id>
 ## Repository Initialization
 
 `sase repo init` initializes every enabled `repos.sidecar` entry for the current managed project. It also adds the
-explicit project-local plans declaration when absent:
+explicit project-local plans and research declarations when absent:
 
 ```yaml
 repos:
   sidecar:
     - name: plans
       auto_clone: true
+    - name: research
+      description: Durable SASE research reports and generated media.
 ```
 
-An existing `plans` entry is preserved verbatim, including `disabled: true`. The write uses SASE's comment-preserving
-configuration editor. The same initializer adds `/sase/repos/` to the tracked root `.gitignore`; those two project-file
-changes use the normal commit/pull/push path unless `--no-commit` is supplied.
+An existing entry for either role is preserved verbatim, including `disabled: true`; disabling research is the
+project-local opt-out. The unpinned research entry derives `<owner>/<project>--research` from the primary GitHub
+repository. The write uses SASE's comment-preserving configuration editor. The same initializer adds `/sase/repos/` to
+the tracked root `.gitignore`; those two project-file changes use the normal commit/pull/push path unless `--no-commit`
+is supplied.
 
 For each enabled sidecar, provider discovery runs before materialization. A missing remote gets its own default-no
 prompt naming the visibility, provider, full repository name, and host. Only `y` or `yes` authorizes creation; `--yes`,
 blank answers, EOF, interruption, and non-interactive stdin cannot authorize it. The configured `repo:` pin and
 `visibility:` are passed to the provider, and initialization fails closed if the provider cannot honor the requested
 visibility.
+
+When non-interactive bare `sase init --yes` discovers a missing sidecar remote, it writes the project wiring, reports
+the missing repository, and leaves creation for a later interactive `sase repo init`. This keeps automated onboarding
+and post-commit hooks non-blocking without allowing `--yes` to authorize remote creation.
 
 Plans and research sidecars retain their illustrated README and directory-map templates. Custom sidecar roles receive a
 deterministic generic README using their configured description. Initialized guide files are committed and pushed in
@@ -285,8 +293,9 @@ fail safely. `sase init repo` delegates to the same repository initializer; `sas
 subcommand because its ignore-rule work is part of repository initialization.
 
 Built-in bare-git projects keep their provider-owned in-tree SDD layout. For those projects, `sase repo init` refreshes
-the existing generated SDD guides while still maintaining the plans declaration and repository ignore rule. Keep
-conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in [docs/sdd_storage.md](sdd_storage.md).
+the existing generated SDD guides while still maintaining the managed sidecar declarations and repository ignore rule.
+Keep conceptual SDD documentation in [docs/sdd.md](sdd.md) and storage-mode details in
+[docs/sdd_storage.md](sdd_storage.md).
 
 ## Skill Initialization
 

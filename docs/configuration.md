@@ -567,17 +567,19 @@ their per-repository `*_DIR` environment variables are not exported until the cl
 `auto_clone: true` are omitted from generated agent instructions because agents do not need to open them manually.
 
 Sidecar entries use their `name` as both the role and `sase/repos/<name>` clone directory. Their repository defaults to
-`<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or `owner/repo`.
-Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or repository slug.
-Enabled sidecars that are not auto-cloned also appear by repository slug in generated agent instruction files, where
-their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later config layer to
-suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted from generated
-instructions.
+`<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or `owner/repo`. An
+explicit unpinned entry uses that project-local derivation even when a legacy SDD store record names a different
+repository. Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or
+repository slug. Enabled sidecars that are not auto-cloned also appear by repository slug in generated agent instruction
+files, where their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later config
+layer to suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted from
+generated instructions.
 
 Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
-compatibility entry when no matching explicit sidecar is configured. Research is config-declared only; a global
-`repos.sidecar` entry can point every project at one shared repository. Set project-local `default_linked_repos: false`
-to disable the injected plans entry.
+compatibility entry when no matching explicit sidecar is configured. Research is config-declared per project and
+defaults to `<owner>/<project>--research`; `sase repo init` writes both managed entries. Set `disabled: true` on the
+project's research entry to opt out, or set project-local `default_linked_repos: false` to disable the injected plans
+entry.
 
 The deprecated `linked_repos` and `sibling_repos` keys are still accepted as aliases during the compatibility window.
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
@@ -593,7 +595,6 @@ repos:
     - name: plans
       auto_clone: true
     - name: research
-      repo: sase-org/sase--research
       description: Durable SASE research reports and generated media.
       visibility: public
 ```
@@ -1181,18 +1182,18 @@ sdd:
 | `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                              |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD under `sdd/`. Managed GitHub
-projects use a `--plans` sidecar cloned at `sase/repos/plans`; a config-declared research sidecar resolves at
-`sase/repos/research` and may be shared across projects. Unmigrated GitHub projects retain their provider-backed
-`.sase/sdd/` clone. Materialized layouts record metadata in the primary workspace's `.sase/sdd-store.json`. Providerless
-projects fall back to a primary-workspace `.sase/sdd/` store. The retired `sdd.storage` and `sdd.version_controlled`
-keys are ignored, stripped before validation, and reported by `sase doctor` for cleanup. See
-[SDD Storage](sdd_storage.md) and [Beads](beads.md).
+projects use a `--plans` sidecar cloned at `sase/repos/plans`; the project-local research sidecar resolves at
+`sase/repos/research` and defaults to `<owner>/<project>--research`. Unmigrated GitHub projects retain their
+provider-backed `.sase/sdd/` clone. Materialized layouts record metadata in the primary workspace's
+`.sase/sdd-store.json`. Providerless projects fall back to a primary-workspace `.sase/sdd/` store. The retired
+`sdd.storage` and `sdd.version_controlled` keys are ignored, stripped before validation, and reported by `sase doctor`
+for cleanup. See [SDD Storage](sdd_storage.md) and [Beads](beads.md).
 
 Initialized managed GitHub projects and migrated projects have a schema-version 2 `sidecar_repos` record. Their plans
 and beads resolve into the auto-cloned `--plans` repository, while research resolves through the configured `research`
-role. That role can pin a shared repository such as `sase-org/sase--research`. Initialization prepares configured
-sidecars in its current workspace; later workspaces clone research on demand. The legacy single-sidecar shape continues
-to resolve byte-for-byte as before.
+role. Initialization writes an unpinned per-project research entry, prepares configured sidecars in its current
+workspace, and re-records stale compatibility metadata with the derived repository. Later workspaces clone research on
+demand. The legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during first-use `#git:<project>`
 initialization, existing bare-repo registration, `#git`/workspace materialization, and the first in-tree SDD write.
@@ -1200,17 +1201,18 @@ Setup/materialization flows commit and push only those generated init paths with
 needed.
 
 For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase repo init` or its `sase init repo`
-alias initializes configured sidecars, then refreshes generated guides and the directory map. On GitHub it derives the
-plans remote as `<owner>/<repo>--plans` and honors each sidecar's optional `repo` pin, including a shared research
-remote. It initializes and pushes every enabled entry, then maintains the split store record. Existing legacy `--sdd`
-files remain untouched locally and in their remote, while normal SDD routing uses the configured sidecars. `--check`
-previews provider and generated-file work without writing. Missing or false management markers make both forms
-successful no-ops; invalid local marker configuration fails before provider calls or writes.
+alias writes the managed plans and research entries, initializes configured sidecars, then refreshes generated guides
+and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--plans` and `<owner>/<repo>--research`, while
+honoring optional explicit `repo` pins. It initializes and pushes every enabled entry, then maintains the split store
+record. Existing legacy `--sdd` files remain untouched locally and in their remote, while normal SDD routing uses the
+configured sidecars. `--check` previews provider and generated-file work without writing. Missing or false management
+markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or writes.
 
 Explicit initialization first performs authoritative provider discovery for every enabled sidecar. Each missing GitHub
 repository triggers a separate prompt naming its role and resolved repository; only `y` or `yes` authorizes that
 invocation to create it. The prompts are default-no and unavailable on non-interactive stdin. Bare `sase init --yes`
-bypasses only the coordinator prompt and cannot authorize repository creation; `--check` remains network-free.
+cannot authorize repository creation: it reports a missing remote and defers creation to an interactive `sase repo init`
+without failing automated onboarding. `--check` remains network-free.
 
 Source: `src/sase/default_config.yml`
 
@@ -1823,16 +1825,17 @@ no linked repositories are configured.
 ### `sase init repo`
 
 `sase init repo` is an alias for `sase repo init`. For targets marked `is_sase_managed: true` in their own `sase.yml`,
-it initializes configured sidecars, creates or refreshes generated README files, ensures the plans declaration, and
-maintains the root `/sase/repos/` ignore rule. Missing or false markers produce an informative successful no-op, while
-invalid local configuration fails before provider or filesystem work. `--path` always checks the target repository's
-marker. GitHub setup creates missing sidecars with their configured public/private visibility. Bare-git projects refresh
-generated files automatically during repository setup and first SDD writes; the explicit command remains useful for
-refreshes and `--check` audits.
+it initializes configured sidecars, creates or refreshes generated README files, ensures the managed plans and research
+declarations, and maintains the root `/sase/repos/` ignore rule. Missing or false markers produce an informative
+successful no-op, while invalid local configuration fails before provider or filesystem work. `--path` always checks the
+target repository's marker. GitHub setup creates missing sidecars with their configured public/private visibility.
+Bare-git projects refresh generated files automatically during repository setup and first SDD writes; the explicit
+command remains useful for refreshes and `--check` audits.
 
 When the GitHub sidecar is missing, this alias uses the same default-no repository-specific confirmation as
-`sase repo init`. Non-interactive stdin, EOF, interruption, and any answer other than `y`/`yes` return nonzero before
-creation or local mutation. Generic `--yes` approval never authorizes repository creation.
+`sase repo init`. EOF, interruption, and any answer other than `y`/`yes` return nonzero before remote creation. Generic
+`--yes` approval never authorizes repository creation; non-interactive bare onboarding instead reports the missing
+remote and defers its creation.
 
 | Flag          | Values | Default         | Description                                                        |
 | ------------- | ------ | --------------- | ------------------------------------------------------------------ |
@@ -1865,11 +1868,11 @@ before overwriting. `sase init skills` is a compatibility alias for `sase skill 
 
 ### `sase repo init`
 
-`sase repo init` declares the managed plans sidecar, initializes enabled configured sidecars, and ensures the project
-root `.gitignore` contains `/sase/repos/`, protecting host-scoped repository clones durably. `-c, --check` reports drift
-without writing, `-d, --diff` renders proposed full-file diffs, and `-C, --no-commit` writes project config and ignore
-changes without the normal project commit/pull/push sequence. `sase init repo` is an alias; bare `sase init` and
-`sase validate` include the same check for Git projects.
+`sase repo init` declares the managed plans and research sidecars, initializes enabled configured sidecars, and ensures
+the project root `.gitignore` contains `/sase/repos/`, protecting host-scoped repository clones durably. `-c, --check`
+reports drift without writing, `-d, --diff` renders proposed full-file diffs, and `-C, --no-commit` writes project
+config and ignore changes without the normal project commit/pull/push sequence. `sase init repo` is an alias; bare
+`sase init` and `sase validate` include the same check for Git projects.
 
 ### `sase workspace`
 

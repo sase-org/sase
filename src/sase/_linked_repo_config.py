@@ -214,7 +214,15 @@ def _sidecar_repo_identity(
     configured_repo = entry.get("repo")
     repo = configured_repo.strip() if isinstance(configured_repo, str) else ""
     if not repo:
-        repo = store_repo or _derived_sidecar_repo(primary, role)
+        derived_repo = _derived_sidecar_repo(primary, role)
+        if entry.get(_DEFAULT_LINKED_REPO_MARKER) is True:
+            repo = store_repo or derived_repo
+        else:
+            # An explicit config entry without a pin opts into the current
+            # project's owner/name convention.  A compatibility store record
+            # may describe an older shared sidecar and must not override that
+            # project-local identity.
+            repo = derived_repo
 
     slug = _repo_basename(repo)
     if not slug:

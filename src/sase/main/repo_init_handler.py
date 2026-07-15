@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, Any, TextIO
 
+from sase._linked_repo_config import DEFAULT_RESEARCH_DESCRIPTION
 from sase.config import ConfigEditError, set_key
 from sase.project_management import ProjectManagementStatus, project_management_status
 
@@ -33,6 +34,7 @@ class _ConfigUpdate:
     current_text: str
     updated_text: str
     error: str | None = None
+    added_roles: tuple[str, ...] = ()
 
     @property
     def changed(self) -> bool:
@@ -86,7 +88,7 @@ def run_repo_init(args: argparse.Namespace) -> int:
         render_plan_diff(preview_console(sys.stdout), plan)
 
     changed_project_paths: list[Path] = []
-    config_update = _explicit_plans_config_update(management.config_path)
+    config_update = _explicit_sidecar_config_update(management.config_path)
     if config_update.error is not None:
         print(f"error: {config_update.error}", file=sys.stderr)
         return 1
@@ -100,8 +102,9 @@ def run_repo_init(args: argparse.Namespace) -> int:
             )
             return 1
         changed_project_paths.append(config_update.path)
+        roles = " and ".join(config_update.added_roles)
         print(
-            f"{_COMMAND_LABEL}: updated {config_update.path} with repos.sidecar plans"
+            f"{_COMMAND_LABEL}: updated {config_update.path} with repos.sidecar {roles}"
         )
 
     try:
@@ -179,7 +182,7 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
     warnings: list[str] = []
     blockers: list[str] = []
 
-    config_update = _explicit_plans_config_update(management.config_path)
+    config_update = _explicit_sidecar_config_update(management.config_path)
     if config_update.error is not None:
         blockers.append(config_update.error)
     elif config_update.changed:
@@ -187,7 +190,7 @@ def plan_repo_init(args: argparse.Namespace) -> InitPlan:
             InitAction(
                 path=config_update.path,
                 operation="update" if config_update.path.exists() else "create",
-                detail="declare the managed plans sidecar",
+                detail=_sidecar_config_action_detail(config_update.added_roles),
                 new_content=config_update.updated_text,
             )
         )
@@ -222,21 +225,40 @@ def _run_configured_sidecars(args: argparse.Namespace, project_root: Path) -> in
 
     specs = _configured_sidecar_specs(project_root)
     authorizations: dict[str, bool] = {}
-    for role, preflight in preflight_sidecars(project_root, 1, specs).items():
+    preflights = preflight_sidecars(project_root, 1, specs)
+    for preflight in preflights.values():
         if preflight.status == "unavailable":
             detail = preflight.message or (
                 f"could not verify {preflight.provider} sidecar repository {preflight.repo}"
             )
             raise SddMaterializationError(detail)
-        if preflight.status == "not_found":
-            if not _confirm_sidecar_creation(args, preflight):
-                return 1
-            authorizations[role] = True
-        elif preflight.status != "found":
+        if preflight.status not in {"found", "not_found"}:
             raise SddMaterializationError(
                 "The workspace provider returned an invalid sidecar preflight "
                 "result. Update the provider plugin and rerun `sase repo init`."
             )
+
+    missing = [
+        preflight
+        for preflight in preflights.values()
+        if preflight.status == "not_found"
+    ]
+    stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
+    if missing and getattr(args, "onboarding", False) and not stdin.isatty():
+        for preflight in missing:
+            print(
+                f"warning: {preflight.provider} sidecar repository "
+                f"{preflight.repo} is missing; run `sase repo init` "
+                "interactively to create it",
+                file=sys.stderr,
+            )
+        return 0
+
+    for role, preflight in preflights.items():
+        if preflight.status == "not_found":
+            if not _confirm_sidecar_creation(args, preflight):
+                return 1
+            authorizations[role] = True
 
     outcome = initialize_sidecars(
         project_root,
@@ -440,7 +462,7 @@ def _entry_text(entry: Mapping[str, Any], key: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-def _explicit_plans_config_update(config_path: Path) -> _ConfigUpdate:
+def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
     try:
         current_text = (
             config_path.read_text(encoding="utf-8") if config_path.exists() else ""
@@ -480,21 +502,33 @@ def _explicit_plans_config_update(config_path: Path) -> _ConfigUpdate:
                 current_text,
                 f"{config_path}: repos.sidecar must be a YAML list",
             )
-        if sidecars is not None and any(
-            isinstance(entry, Mapping) and _entry_text(entry, "name") == "plans"
-            for entry in sidecars
-        ):
+        existing_roles = {
+            _entry_text(entry, "name")
+            for entry in sidecars or ()
+            if isinstance(entry, Mapping)
+        }
+        entries = {
+            "plans": CommentedMap((("name", "plans"), ("auto_clone", True))),
+            "research": CommentedMap(
+                (
+                    ("name", "research"),
+                    ("description", DEFAULT_RESEARCH_DESCRIPTION),
+                )
+            ),
+        }
+        added_roles = tuple(role for role in entries if role not in existing_roles)
+        if not added_roles:
             return _ConfigUpdate(config_path, current_text, current_text)
 
-        plans_entry = CommentedMap((("name", "plans"), ("auto_clone", True)))
+        new_entries = CommentedSeq(entries[role] for role in added_roles)
         if sidecars is None:
             updated_text = set_key(
                 current_text,
                 ("repos", "sidecar"),
-                CommentedSeq((plans_entry,)),
+                new_entries,
             )
         else:
-            sidecars.append(plans_entry)
+            sidecars.extend(new_entries)
             updated_text = dump_yaml(handler, data)
     except (ConfigEditError, OSError, ValueError) as exc:
         return _ConfigUpdate(
@@ -503,7 +537,18 @@ def _explicit_plans_config_update(config_path: Path) -> _ConfigUpdate:
             current_text,
             f"{config_path}: failed to update repos.sidecar: {exc}",
         )
-    return _ConfigUpdate(config_path, current_text, updated_text)
+    return _ConfigUpdate(
+        config_path,
+        current_text,
+        updated_text,
+        added_roles=added_roles,
+    )
+
+
+def _sidecar_config_action_detail(roles: tuple[str, ...]) -> str:
+    joined = " and ".join(roles)
+    suffix = "sidecar" if len(roles) == 1 else "sidecars"
+    return f"declare the managed {joined} {suffix}"
 
 
 def _repo_project_management(
@@ -573,7 +618,7 @@ def _summarize_repo_actions(actions: list[InitAction]) -> str:
     if any(action.path.name == "README.md" for action in actions):
         parts.append("refresh sidecar guide files")
     if any(action.path.name == "sase.yml" for action in actions):
-        parts.append("declare the plans sidecar")
+        parts.append("declare the plans and research sidecars")
     if any(action.path.name == ".gitignore" for action in actions):
         parts.append("update repository ignore rules")
     if not parts:

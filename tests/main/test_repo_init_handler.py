@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from io import StringIO
 from pathlib import Path
 import subprocess
 
@@ -67,7 +68,7 @@ def _outcome(path: Path, specs: tuple[SidecarInitSpec, ...]) -> _SidecarInitOutc
     )
 
 
-def test_repo_init_writes_plans_config_local_store_and_gitignore(
+def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -91,12 +92,14 @@ def test_repo_init_writes_plans_config_local_store_and_gitignore(
         "  sidecar:\n"
         "    - name: plans\n"
         "      auto_clone: true\n"
+        "    - name: research\n"
+        "      description: Durable SASE research reports and generated media.\n"
     )
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
     assert (store_root / "README.md").is_file()
 
 
-def test_bare_init_enable_management_also_writes_plans_entry(
+def test_bare_init_enable_management_also_writes_managed_sidecar_entries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -126,9 +129,11 @@ def test_bare_init_enable_management_also_writes_plans_entry(
     config = (tmp_path / "sase.yml").read_text(encoding="utf-8")
     assert "is_sase_managed: true" in config
     assert "name: plans" in config
+    assert "name: research" in config
+    assert "Durable SASE research reports and generated media." in config
 
 
-def test_repo_init_appends_plans_without_losing_sidecar_comments(
+def test_repo_init_appends_plans_without_losing_disabled_research_comments(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -157,6 +162,38 @@ def test_repo_init_appends_plans_without_losing_sidecar_comments(
     assert "# keep" in text
     assert "name: research # shared" in text
     assert text.count("name: plans") == 1
+    assert text.count("name: research") == 1
+    assert "Durable SASE research reports" not in text
+
+
+def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = (
+        "# keep\n"
+        "is_sase_managed: true\n"
+        "repos:\n"
+        "  sidecar:\n"
+        "    - name: plans # custom\n"
+        "      disabled: true\n"
+        "    - name: research # opted out\n"
+        "      disabled: true\n"
+    )
+    _mark_managed_project(tmp_path, config)
+    root = tmp_path / ".sase" / "sdd"
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "local",
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.materialize_sdd_store",
+        lambda *_args, **_kwargs: SddStore("local", root, root),
+    )
+
+    assert run_repo_init(_args(tmp_path)) == 0
+
+    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == config
 
 
 def test_repo_init_commits_only_owned_project_wiring(
@@ -335,6 +372,57 @@ def test_non_tty_and_yes_cannot_authorize_sidecar_creation(
 
     assert run_repo_init(args) == 1
     assert "interactive y/yes confirmation is required" in capsys.readouterr().err
+
+
+def test_noninteractive_bare_init_defers_missing_sidecar_creation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _mark_managed_project(tmp_path)
+    specs = (
+        SidecarInitSpec(role="plans"),
+        SidecarInitSpec(role="research"),
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._project_provider_sdd_policy",
+        lambda _root: "separate_repo",
+    )
+    monkeypatch.setattr(
+        "sase.main.repo_init_handler._configured_sidecar_specs",
+        lambda _root: specs,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.preflight_sidecars",
+        lambda *_args: {
+            "plans": _preflight("plans", status="found"),
+            "research": _preflight("research"),
+        },
+    )
+    monkeypatch.setattr(
+        "sase.sdd._sidecar_init.initialize_sidecars",
+        lambda *_args, **_kwargs: pytest.fail(
+            "onboarding must defer missing remote creation"
+        ),
+    )
+    args = argparse.Namespace(
+        all=False,
+        check=False,
+        diff=False,
+        enable_project_memory=False,
+        no_commit=True,
+        path=str(tmp_path),
+        yes=True,
+    )
+    spec = InitCommandSpec("repo", "Repos", plan_repo_init, run_repo_init)
+
+    assert run_init_onboarding(args, specs=(spec,), stdin=StringIO()) == 0
+
+    config = (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    stderr = capsys.readouterr().err
+    assert "name: research" in config
+    assert "acme/widget--research is missing" in stderr
+    assert "run `sase repo init` interactively" in stderr
 
 
 def test_existing_sidecar_initializes_without_creation_prompt(

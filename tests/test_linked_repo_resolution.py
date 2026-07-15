@@ -209,6 +209,58 @@ def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) ->
     )
 
 
+def test_unpinned_configured_sidecar_ignores_stale_store_repo(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=primary, check=True)
+    subprocess.run(
+        [
+            "git",
+            "remote",
+            "add",
+            "origin",
+            "git@github.com:acme/widget.git",
+        ],
+        cwd=primary,
+        check=True,
+    )
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:sase-org/sase--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={"repos": {"sidecar": [{"name": "research"}]}},
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert len(resolution.repos) == 1
+    repo = resolution.repos[0]
+    assert repo.name == "research"
+    assert repo.slug == "widget--research"
+    assert repo.remote_url == "https://github.com/acme/widget--research.git"
+
+
 def test_disabled_sidecar_suppresses_matching_implicit_default(
     tmp_path: Path,
 ) -> None:
@@ -648,9 +700,9 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     primary = tmp_path / "main"
     primary.mkdir()
 
-    assert sdd_sidecar_clone_dirname(primary, "main--plans") == "plans"
-    assert sdd_sidecar_clone_dirname(primary, "main--research") == "research"
-    assert sdd_sidecar_clone_dirname(primary, "core") is None
+    assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) == "plans"
+    assert sdd_sidecar_clone_dirname(primary, "main--research", config={}) == "research"
+    assert sdd_sidecar_clone_dirname(primary, "core", config={}) is None
 
     from sase.sdd.store import write_sdd_store_record
 
@@ -672,9 +724,11 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
         },
     )
 
-    assert sdd_sidecar_clone_dirname(primary, "custom-plans") == "plans"
-    assert sdd_sidecar_clone_dirname(primary, "custom-research") == "research"
-    assert sdd_sidecar_clone_dirname(primary, "main--plans") is None
+    assert sdd_sidecar_clone_dirname(primary, "custom-plans", config={}) == "plans"
+    assert (
+        sdd_sidecar_clone_dirname(primary, "custom-research", config={}) == "research"
+    )
+    assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) is None
 
     pinned_config = {
         "repos": {"sidecar": [{"name": "research", "repo": "owner/shared-research"}]}
