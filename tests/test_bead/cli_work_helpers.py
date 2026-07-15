@@ -56,7 +56,13 @@ def make_args(
     yes: bool = False,
     no_push: bool = False,
 ) -> Any:
-    return argparse.Namespace(id=epic_id, dry_run=dry_run, yes=yes, no_push=no_push)
+    return argparse.Namespace(
+        target=epic_id,
+        dry_run=dry_run,
+        json=False,
+        yes=yes,
+        no_push=no_push,
+    )
 
 
 def write_orphan_meta(home: Path, name: str, *, done: bool = False) -> Path:

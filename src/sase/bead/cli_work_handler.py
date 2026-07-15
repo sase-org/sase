@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
+import json
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -74,48 +77,138 @@ def _make_bead_work_timer(bead_id: str, *, dry_run: bool) -> Any:
 
 
 def handle_bead_work(args: argparse.Namespace) -> None:
-    import contextlib
-
     dry_run = bool(getattr(args, "dry_run", False))
     yes = bool(getattr(args, "yes", False))
     no_push = bool(getattr(args, "no_push", False))
+    json_output = bool(getattr(args, "json", False))
+    target = str(getattr(args, "target", getattr(args, "id", "")))
 
-    timer = _make_bead_work_timer(args.id, dry_run=dry_run)
+    from sase.bead.cli_work_from_plan import (
+        PlanFileWorkError,
+        is_plan_file_target,
+        work_from_plan_file,
+    )
+
+    if is_plan_file_target(target):
+        captured = io.StringIO()
+        output_context = (
+            contextlib.redirect_stdout(captured)
+            if json_output
+            else contextlib.nullcontext()
+        )
+        try:
+            with output_context:
+                result = work_from_plan_file(
+                    target,
+                    dry_run=dry_run,
+                    yes=yes or json_output,
+                    no_push=no_push,
+                    render=not json_output,
+                )
+        except PlanFileWorkError as exc:
+            if json_output:
+                payload: dict[str, object] = {
+                    "ok": False,
+                    "mode": "plan_file",
+                    "error": str(exc),
+                }
+                if exc.resume_command is not None:
+                    payload["resume_command"] = exc.resume_command
+                if exc.validation is not None:
+                    payload["diagnostics"] = [
+                        {
+                            "severity": diagnostic.severity.value,
+                            "code": diagnostic.code,
+                            "field_path": diagnostic.field_path,
+                            "message": diagnostic.message,
+                            "line": diagnostic.line,
+                        }
+                        for diagnostic in exc.validation.diagnostics
+                    ]
+                print(json.dumps(payload, sort_keys=True))
+            else:
+                print(f"Error: {exc}", file=sys.stderr)
+                if exc.resume_command is not None:
+                    print(
+                        f"Resume with:\n  {exc.resume_command}",
+                        file=sys.stderr,
+                    )
+            raise SystemExit(1) from exc
+        if json_output:
+            print(json.dumps(result.to_json(), sort_keys=True))
+        return
+
+    timer = _make_bead_work_timer(target, dry_run=dry_run)
     with timer, contextlib.ExitStack() as stack:
         with timer.stage("project_open"):
             proj = stack.enter_context(get_project())
         with timer.stage("initial_show"):
             try:
-                issue = proj.show(args.id)
+                issue = proj.show(target)
             except KeyError:
-                print(f"Error: issue not found: {args.id}", file=sys.stderr)
+                print(f"Error: issue not found: {target}", file=sys.stderr)
                 sys.exit(1)
         if issue.issue_type != IssueType.PLAN:
             print(
                 f"Error: is_ready_to_work only applies to plan beads "
-                f"(got {issue.issue_type.value} for {args.id})",
+                f"(got {issue.issue_type.value} for {target})",
                 file=sys.stderr,
             )
             sys.exit(1)
         if issue.tier == BeadTier.EPIC:
+            captured = io.StringIO()
+            output_context = (
+                contextlib.redirect_stdout(captured)
+                if json_output
+                else contextlib.nullcontext()
+            )
             try:
-                launch_epic_bead_work(
-                    proj,
-                    args.id,
-                    dry_run=dry_run,
-                    yes=yes,
-                    no_push=no_push,
-                    timer=timer,
-                )
+                with output_context:
+                    launched = launch_epic_bead_work(
+                        proj,
+                        target,
+                        dry_run=dry_run,
+                        yes=yes or json_output,
+                        no_push=no_push,
+                        timer=timer,
+                    )
             except BeadWorkError as exc:
-                print(f"Error: {exc}", file=sys.stderr)
+                if json_output:
+                    print(
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "mode": "bead_id",
+                                "epic_id": target,
+                                "error": str(exc),
+                            },
+                            sort_keys=True,
+                        )
+                    )
+                else:
+                    print(f"Error: {exc}", file=sys.stderr)
                 raise SystemExit(1) from exc
+            if json_output:
+                phase_ids = [phase.id for phase in proj.get_epic_children(target)]
+                print(
+                    json.dumps(
+                        {
+                            "ok": True,
+                            "mode": "bead_id",
+                            "dry_run": dry_run,
+                            "epic_id": target,
+                            "phase_bead_ids": phase_ids,
+                            "launched": launched,
+                        },
+                        sort_keys=True,
+                    )
+                )
             return
 
         tier = issue.tier.value if issue.tier else "missing tier"
         print(
             "Error: sase bead work only applies to epic plan beads "
-            f"(got {tier} for {args.id})",
+            f"(got {tier} for {target})",
             file=sys.stderr,
         )
         sys.exit(1)

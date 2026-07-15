@@ -9,7 +9,7 @@ import shlex
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -577,14 +577,12 @@ def _archive_plan_for_approval(
     if not notification.host_files:
         return None
     try:
-        from sase.file_references import format_with_prettier
-        from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.running_field import get_workspace_directory
         from sase.sdd.files import (
             commit_sdd_store_files,
             ensure_bare_git_sdd_initialized,
-            get_yyyymm,
         )
+        from sase.sdd.plan_archive import archive_plan_file
         from sase.sdd.store import materialize_sdd_store
 
         project_dir = notification.host_action_data.get("project_dir")
@@ -600,32 +598,21 @@ def _archive_plan_for_approval(
                 commit=True,
                 push=False,
             )
-        tier = "epic" if persisted_action == "epic" else "tale"
-        yyyymm = get_yyyymm()
-        dest_dir = sdd_store.kind_root("plans") / yyyymm
+        tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
         src_plan = Path(notification.host_files[0])
-        content = format_with_prettier(src_plan.read_text(encoding="utf-8"))
-        dest = dest_dir / src_plan.name
-        from sase.sdd.committed_plan_validation import validate_plan_for_commit
-        from sase.sdd.frontmatter import set_frontmatter_fields
-
-        content = add_create_time_frontmatter(content)
-        content = set_frontmatter_fields(content, {"tier": tier})
-        validate_plan_for_commit(
-            content,
+        archived = archive_plan_file(
+            src_plan,
+            sdd_store,
             tier=tier,
-            path=dest,
-            yyyymm=yyyymm,
+            preserve_existing=False,
         )
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        dest.write_text(content, encoding="utf-8")
         if not sdd_store.is_in_tree:
             commit_sdd_store_files(
                 sdd_store,
                 f"Archive approved plan {src_plan.stem}",
-                paths=[dest],
+                paths=[archived.path],
                 artifacts_dir=artifacts_dir,
             )
-        return str(dest)
+        return str(archived.path)
     except Exception:
         return None

@@ -1,0 +1,108 @@
+"""Shared preparation of plans entering the canonical SDD plan archive."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
+
+PlanTier = Literal["tale", "epic"]
+
+
+@dataclass(frozen=True)
+class _PlanArchiveResult:
+    """The canonical plan path and whether this call wrote it."""
+
+    path: Path
+    written: bool
+
+
+def plan_archive_destination(
+    source: Path,
+    store: SddStore,
+    *,
+    yyyymm: str | None = None,
+) -> Path:
+    """Return the canonical archive destination for *source*.
+
+    A plan already anywhere below the store's plans root is canonical and
+    retains its existing month. External plans are sharded into the current
+    ``YYYYMM`` directory.
+    """
+    source = source.expanduser().resolve(strict=False)
+    plans_root = store.kind_root("plans").expanduser().resolve(strict=False)
+    if _is_relative_to(source, plans_root):
+        return source
+
+    if yyyymm is None:
+        from sase.sdd.files import get_yyyymm
+
+        yyyymm = get_yyyymm()
+    return plans_root / yyyymm / source.name
+
+
+def archive_plan_file(
+    source: Path,
+    store: SddStore,
+    *,
+    tier: PlanTier,
+    yyyymm: str | None = None,
+    preserve_existing: bool = True,
+) -> _PlanArchiveResult:
+    """Prepare *source* and copy it into the canonical plan archive.
+
+    Formatting, create-time metadata, tier normalization, and committed-plan
+    validation are centralized here so approval surfaces and ``sase bead
+    work <plan-file>`` cannot drift. Plans already in the archive are a no-op.
+    With ``preserve_existing`` (the resumable command default), an existing
+    destination is also retained so its ``bead_id`` link is never overwritten
+    by a retry from the original planner artifact.
+
+    This helper only writes the file. Its caller owns commit and push policy.
+    """
+    from sase.sdd.files import get_yyyymm
+
+    source = source.expanduser().resolve(strict=False)
+    plans_root = store.kind_root("plans").expanduser().resolve(strict=False)
+    if _is_relative_to(source, plans_root):
+        return _PlanArchiveResult(path=source, written=False)
+
+    archive_month = yyyymm or get_yyyymm()
+    destination = plan_archive_destination(source, store, yyyymm=archive_month)
+    if preserve_existing and destination.is_file():
+        return _PlanArchiveResult(path=destination, written=False)
+
+    from sase.file_references import format_with_prettier
+    from sase.llm_provider._plan_utils import add_create_time_frontmatter
+    from sase.sdd.committed_plan_validation import validate_plan_for_commit
+    from sase.sdd.frontmatter import set_frontmatter_fields
+
+    content = format_with_prettier(source.read_text(encoding="utf-8"))
+    content = add_create_time_frontmatter(content)
+    content = set_frontmatter_fields(content, {"tier": tier})
+    validate_plan_for_commit(
+        content,
+        tier=tier,
+        path=destination,
+        yyyymm=archive_month,
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(content, encoding="utf-8")
+    return _PlanArchiveResult(path=destination, written=True)
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+__all__ = [
+    "archive_plan_file",
+    "plan_archive_destination",
+]

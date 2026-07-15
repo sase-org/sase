@@ -99,22 +99,26 @@ def _build_sdd_plan_ref(
 ) -> str:
     """Build the plan reference passed to a plan-container creation xprompt."""
     if sdd_plan_path and sdd_plan_path.exists():
-        if sdd_sidecar_storage:
-            return _workspace_relative_or_absolute(sdd_plan_path, workspace_dir)
-        if sdd_in_tree:
-            try:
-                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
-            except ValueError:
-                return sdd_plan_path.as_posix()
+        from sase.sdd.plan_refs import plan_ref_for_store
+        from sase.sdd.store import SddStorage, SddStore
 
-        try:
-            sdd_relative = sdd_plan_path.relative_to(sdd_dir)
-            return (Path(".sase") / "sdd" / sdd_relative).as_posix()
-        except ValueError:
-            try:
-                return sdd_plan_path.relative_to(Path(workspace_dir)).as_posix()
-            except ValueError:
-                return sdd_plan_path.as_posix()
+        storage: SddStorage = (
+            "sidecar_repos"
+            if sdd_sidecar_storage
+            else "in_tree"
+            if sdd_in_tree
+            else "local"
+        )
+        store = SddStore(
+            storage=storage,
+            sdd_dir=sdd_dir,
+            repo_root=Path(workspace_dir) if sdd_in_tree else sdd_dir,
+        )
+        return plan_ref_for_store(
+            sdd_plan_path,
+            store,
+            workspace_dir=Path(workspace_dir),
+        )
 
     from sase.sdd.files import get_yyyymm
 

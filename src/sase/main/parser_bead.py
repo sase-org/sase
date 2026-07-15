@@ -216,20 +216,43 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     # sase bead work
     bead_work_parser = bead_subparsers.add_parser(
         "work",
-        help="Launch agents for an epic plan bead",
+        help="Create or launch work for an epic plan",
+        description=(
+            "Launch an existing epic plan bead, or validate an epic Markdown "
+            "plan, archive it into the SDD store, create its bead DAG, and "
+            "launch its phase and land agents. Plan-file launches are "
+            "idempotent and resume from an existing bead_id link."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead work sase-64\n"
+            "  sase bead work ./epic_plan.md --dry-run\n"
+            "  sase bead work ./epic_plan.md --yes\n"
+            "  sase bead work ./epic_plan.md --json --yes"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    bead_work_parser.add_argument("id", help="Epic plan bead ID")
+    bead_work_parser.add_argument(
+        "target",
+        help="Epic bead ID, or path to a validated epic plan file",
+    )
     bead_work_parser.add_argument(
         "-n",
         "--dry-run",
         action="store_true",
-        help="Print the wave plan and rendered multi-prompt without mutating state or launching",
+        help="Validate and preview the wave plan without changing files, beads, or agents",
+    )
+    bead_work_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Print one machine-readable result object",
     )
     bead_work_parser.add_argument(
         "-P",
         "--no-push",
         action="store_true",
-        help="Commit launched bead state locally but skip the post-commit git push",
+        help="Commit plan and bead state locally but skip post-commit pushes",
     )
     bead_work_parser.add_argument(
         "-y",

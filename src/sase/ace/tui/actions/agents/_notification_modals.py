@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from ._notification_hitl_modal import handle_hitl as handle_hitl
 from ._notification_launch_approval import (
@@ -302,7 +302,7 @@ def _plan_approval_protocol_fields(
     return result.action, result.commit_plan, result.run_coder
 
 
-def _plan_tier_for_action(action: str) -> str:
+def _plan_tier_for_action(action: str) -> Literal["tale", "epic"]:
     return "epic" if action == "epic" else "tale"
 
 
@@ -317,15 +317,13 @@ def _archive_plan_for_approval(
         return None
 
     try:
-        from sase.file_references import format_with_prettier
-        from sase.llm_provider._plan_utils import add_create_time_frontmatter
         from sase.plan_approval_actions import resolve_plan_agent_artifacts_dir
         from sase.running_field import get_workspace_directory
         from sase.sdd.files import (
             commit_sdd_store_files,
             ensure_bare_git_sdd_initialized,
-            get_yyyymm,
         )
+        from sase.sdd.plan_archive import archive_plan_file
         from sase.sdd.store import materialize_sdd_store
 
         project_basename = os.path.basename(str(project_dir))
@@ -337,36 +335,24 @@ def _archive_plan_for_approval(
                 commit=True,
                 push=False,
             )
-        yyyymm = get_yyyymm()
-        plans_dir = sdd_store.kind_root("plans") / yyyymm
         src_plan = Path(notification.files[0])
-        dest_plan = plans_dir / src_plan.name
-        content = src_plan.read_text(encoding="utf-8")
-        content = format_with_prettier(content)
-        from sase.sdd.committed_plan_validation import validate_plan_for_commit
-        from sase.sdd.frontmatter import set_frontmatter_fields
-
-        content = add_create_time_frontmatter(content)
         tier = _plan_tier_for_action(action)
-        content = set_frontmatter_fields(content, {"tier": tier})
-        validate_plan_for_commit(
-            content,
+        archived = archive_plan_file(
+            src_plan,
+            sdd_store,
             tier=tier,
-            path=dest_plan,
-            yyyymm=yyyymm,
+            preserve_existing=False,
         )
-        plans_dir.mkdir(parents=True, exist_ok=True)
-        dest_plan.write_text(content, encoding="utf-8")
         if not sdd_store.is_in_tree:
             artifacts_dir = resolve_plan_agent_artifacts_dir(notification.action_data)
             commit_sdd_store_files(
                 sdd_store,
                 f"Archive approved plan {src_plan.stem}",
-                paths=[dest_plan],
+                paths=[archived.path],
                 push_after_commit="async",
                 artifacts_dir=artifacts_dir,
             )
-        return str(dest_plan)
+        return str(archived.path)
     except Exception:
         log.debug("Failed to archive approved plan", exc_info=True)
         return None
