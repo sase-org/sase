@@ -15,7 +15,7 @@ MemoryWritePolicy = Literal["overwrite", "create_if_missing"]
 class LinkedRepoMemoryEntry:
     name: str
     description: str
-    path: str
+    path: str | None = None
     auto_clone: bool = False
 
 

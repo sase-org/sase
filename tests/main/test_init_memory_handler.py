@@ -165,6 +165,93 @@ linked_repos:
     assert "project--research" not in memory
 
 
+def test_init_memory_renders_project_and_home_sidecars_with_expected_slugs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "sase"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+repos:
+  sidecar:
+    - name: research
+      description: Durable SASE research reports and generated media.
+    - name: reports
+      repo: example-org/custom-reports
+      description: Project reports.
+""",
+    )
+    write(
+        config_dir / "sase.yml",
+        """
+repos:
+  sidecar:
+    - name: notes
+      description: Home notes.
+""",
+    )
+
+    assert run_handler() == 0
+
+    project_memory = (project_root / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "memory" / "sase.md").read_text()
+    assert (
+        "- `sase--research`: Durable SASE research reports and generated media."
+        in project_memory
+    )
+    assert "- `custom-reports`: Project reports." in project_memory
+    assert "`notes`: Home notes." not in project_memory
+    assert "- `notes`: Home notes." in home_memory
+    assert "sase--research" not in home_memory
+    assert "custom-reports" not in home_memory
+
+
+def test_init_memory_skips_auto_cloned_and_disabled_sidecars_before_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+repos:
+  sidecar:
+    - auto_clone: true
+    - disabled: true
+    - name: artifacts
+      description: Lazy project artifacts.
+""",
+    )
+
+    assert run_handler() == 0
+
+    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    assert "- `project--artifacts`: Lazy project artifacts." in memory
+
+
 def test_init_memory_default_linked_repos_opt_out(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -567,5 +654,39 @@ linked_repos:
     assert run_handler() == 1
     err = capsys.readouterr().err
     assert "cannot generate project memory" in err
+    assert "field 'description'" in err
+    assert not (project_root / "memory").exists()
+
+
+def test_init_memory_reports_missing_sidecar_descriptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+repos:
+  sidecar:
+    - name: research
+""",
+    )
+
+    assert run_handler() == 1
+    err = capsys.readouterr().err
+    assert "cannot generate project memory" in err
+    assert "repos.sidecar[0] ('research')" in err
     assert "field 'description'" in err
     assert not (project_root / "memory").exists()

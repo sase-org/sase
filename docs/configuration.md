@@ -569,7 +569,10 @@ their per-repository `*_DIR` environment variables are not exported until the cl
 Sidecar entries use their `name` as both the role and `sase/repos/<name>` clone directory. Their repository defaults to
 `<project>--<name>` in the primary repository's GitHub organization; `repo` can pin a bare slug or `owner/repo`.
 Configured sidecars appear in `sase repo list` even before cloning and can be opened by role name or repository slug.
-Set `disabled: true` in a later config layer to suppress a matching global entry or implicit fallback.
+Enabled sidecars that are not auto-cloned also appear by repository slug in generated agent instruction files, where
+their `description` tells agents when to open them with `/sase_repo`. Set `disabled: true` in a later config layer to
+suppress a matching global entry or implicit fallback; disabled and auto-cloned sidecars are omitted from generated
+instructions.
 
 Managed projects (`is_sase_managed: true`) continue to receive a deterministic `<project>--plans` (`auto_clone: true`)
 compatibility entry when no matching explicit sidecar is configured. Research is config-declared only; a global
@@ -604,7 +607,7 @@ repos:
 | `repos.linked[].description`  | string         | required | Human-readable purpose used when generating agent memory for the linked repository. |
 | `repos.sidecar[].name`        | string         | required | Role name, clone directory, and primary CLI lookup key.                             |
 | `repos.sidecar[].repo`        | string         | derived  | Optional bare slug or `owner/repo` pin.                                             |
-| `repos.sidecar[].description` | string         | -        | Human-readable purpose shown in repository inventory.                               |
+| `repos.sidecar[].description` | string         | -        | Purpose shown in inventory; required in generated instructions for lazy entries.    |
 | `repos.sidecar[].auto_clone`  | boolean        | `false`  | Materialize the sidecar automatically before agent launch.                          |
 | `repos.sidecar[].visibility`  | public/private | `public` | Visibility used when creating the remote.                                           |
 | `repos.sidecar[].disabled`    | boolean        | `false`  | Disable the entry and suppress matching implicit sidecars.                          |

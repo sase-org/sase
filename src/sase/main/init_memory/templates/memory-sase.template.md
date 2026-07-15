@@ -15,7 +15,7 @@ directory as you!
 ## Repositories
 
 {% if linked_repo_entries %}
-Configured linked repositories for this context:
+Configured linked and sidecar repositories for this context:
 
 {{ linked_repo_entries }}
 

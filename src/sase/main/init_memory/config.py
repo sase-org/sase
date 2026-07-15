@@ -9,6 +9,7 @@ import re
 import subprocess
 from typing import Any
 
+from sase._linked_repo_config import REPOS_SIDECAR_CONFIG_KEY
 from sase.linked_repos import (
     LINKED_REPOS_CONFIG_KEY,
     REPOS_CONFIG_KEY,
@@ -160,6 +161,33 @@ def _linked_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
     return [], LINKED_REPOS_CONFIG_KEY
 
 
+def _sidecar_repos_raw(config: Mapping[str, Any]) -> tuple[Any, str]:
+    repos = config.get(REPOS_CONFIG_KEY)
+    source_key = f"{REPOS_CONFIG_KEY}.{REPOS_SIDECAR_CONFIG_KEY}"
+    if isinstance(repos, Mapping) and REPOS_SIDECAR_CONFIG_KEY in repos:
+        return repos.get(REPOS_SIDECAR_CONFIG_KEY, []), source_key
+    return [], source_key
+
+
+def _sidecar_memory_name(
+    item: Mapping[str, Any],
+    *,
+    role: str,
+    project_name: str | None,
+) -> tuple[str | None, str | None]:
+    configured_repo = item.get("repo")
+    if configured_repo is not None:
+        if not isinstance(configured_repo, str) or not configured_repo.strip():
+            return None, "field 'repo' must be a non-empty string"
+        slug = configured_repo.strip().rstrip("/").rsplit("/", 1)[-1]
+        if not slug:
+            return None, "field 'repo' must name a repository"
+        return slug, None
+
+    project = project_name.strip() if isinstance(project_name, str) else ""
+    return (f"{project}--{role}" if project else role), None
+
+
 def linked_entries_from_config(
     config_path: Path,
     *,
@@ -173,58 +201,110 @@ def linked_entries_from_config(
     config = loaded.config
 
     raw, source_key = _linked_repos_raw(config)
-    if raw is None:
-        return (), ()
-    if not isinstance(raw, list):
-        return (), (f"{config_path}: {source_key} must be a list",)
-
     entries: list[LinkedRepoMemoryEntry] = []
     errors: list[str] = []
-    for index, item in enumerate(raw):
-        prefix = f"{config_path}: {source_key}[{index}]"
-        if not isinstance(item, Mapping):
-            errors.append(f"{prefix} must be a mapping")
-            continue
+    if raw is not None:
+        if not isinstance(raw, list):
+            errors.append(f"{config_path}: {source_key} must be a list")
+        else:
+            for index, item in enumerate(raw):
+                prefix = f"{config_path}: {source_key}[{index}]"
+                if not isinstance(item, Mapping):
+                    errors.append(f"{prefix} must be a mapping")
+                    continue
 
-        name = item.get("name")
-        if not isinstance(name, str) or not name.strip():
-            errors.append(f"{prefix} is missing required string field 'name'")
-            continue
+                name = item.get("name")
+                if not isinstance(name, str) or not name.strip():
+                    errors.append(f"{prefix} is missing required string field 'name'")
+                    continue
 
-        description = item.get("description")
-        if not isinstance(description, str) or not description.strip():
-            errors.append(
-                f"{prefix} ({name.strip()!r}) is missing required string "
-                "field 'description'"
-            )
-            continue
+                description = item.get("description")
+                if not isinstance(description, str) or not description.strip():
+                    errors.append(
+                        f"{prefix} ({name.strip()!r}) is missing required string "
+                        "field 'description'"
+                    )
+                    continue
 
-        raw_path = item.get("path")
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            errors.append(
-                f"{prefix} ({name.strip()!r}) is missing required string field 'path'"
-            )
-            continue
+                raw_path = item.get("path")
+                if not isinstance(raw_path, str) or not raw_path.strip():
+                    errors.append(
+                        f"{prefix} ({name.strip()!r}) is missing required string "
+                        "field 'path'"
+                    )
+                    continue
 
-        path = raw_path.strip()
+                auto_clone = item.get("auto_clone", False)
+                if not isinstance(auto_clone, bool):
+                    errors.append(
+                        f"{prefix} ({name.strip()!r}) field 'auto_clone' must be "
+                        "a boolean"
+                    )
+                    continue
+                if auto_clone:
+                    continue
 
-        auto_clone = item.get("auto_clone", False)
-        if not isinstance(auto_clone, bool):
-            errors.append(
-                f"{prefix} ({name.strip()!r}) field 'auto_clone' must be a boolean"
-            )
-            continue
-        if auto_clone:
-            continue
+                entries.append(
+                    LinkedRepoMemoryEntry(
+                        name=name.strip(),
+                        description=" ".join(description.strip().split()),
+                        path=raw_path.strip(),
+                        auto_clone=auto_clone,
+                    )
+                )
 
-        entries.append(
-            LinkedRepoMemoryEntry(
-                name=name.strip(),
-                description=" ".join(description.strip().split()),
-                path=path,
-                auto_clone=auto_clone,
-            )
-        )
+    sidecar_raw, sidecar_source_key = _sidecar_repos_raw(config)
+    if sidecar_raw is not None:
+        if not isinstance(sidecar_raw, list):
+            errors.append(f"{config_path}: {sidecar_source_key} must be a list")
+        else:
+            for index, item in enumerate(sidecar_raw):
+                prefix = f"{config_path}: {sidecar_source_key}[{index}]"
+                if not isinstance(item, Mapping):
+                    errors.append(f"{prefix} must be a mapping")
+                    continue
+
+                auto_clone = item.get("auto_clone", False)
+                if not isinstance(auto_clone, bool):
+                    errors.append(f"{prefix} field 'auto_clone' must be a boolean")
+                    continue
+                disabled = item.get("disabled", False)
+                if not isinstance(disabled, bool):
+                    errors.append(f"{prefix} field 'disabled' must be a boolean")
+                    continue
+                if auto_clone or disabled:
+                    continue
+
+                role = item.get("name")
+                if not isinstance(role, str) or not role.strip():
+                    errors.append(f"{prefix} is missing required string field 'name'")
+                    continue
+                role = role.strip()
+
+                description = item.get("description")
+                if not isinstance(description, str) or not description.strip():
+                    errors.append(
+                        f"{prefix} ({role!r}) is missing required string field "
+                        "'description'"
+                    )
+                    continue
+
+                name, name_error = _sidecar_memory_name(
+                    item,
+                    role=role,
+                    project_name=project_name,
+                )
+                if name_error is not None or name is None:
+                    errors.append(f"{prefix} ({role!r}) {name_error}")
+                    continue
+
+                entries.append(
+                    LinkedRepoMemoryEntry(
+                        name=name,
+                        description=" ".join(description.strip().split()),
+                        auto_clone=auto_clone,
+                    )
+                )
 
     if errors:
         errors.insert(

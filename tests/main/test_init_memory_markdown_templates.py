@@ -141,6 +141,28 @@ def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
     assert chezmoi_home / "memory" / "sase.md" in deployed
 
 
+def test_default_sase_template_names_linked_and_sidecar_repositories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root, _home_root, _config_dir = _patch_roots(tmp_path, monkeypatch)
+    write(
+        project_root / "sase.yml",
+        """
+is_sase_managed: true
+linked_repos:
+  - name: core
+    path: ../core
+    description: Shared core.
+""",
+    )
+
+    assert run_handler() == 0
+
+    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    assert "Configured linked and sidecar repositories for this context:" in memory
+
+
 @pytest.mark.parametrize(
     ("key", "filename", "template", "expected_error"),
     [
