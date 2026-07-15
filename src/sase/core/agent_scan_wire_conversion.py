@@ -132,7 +132,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         workflow_dir_name=data["workflow_dir_name"],
         artifact_dir=data["artifact_dir"],
         timestamp=data["timestamp"],
-        agent_meta=AgentMetaWire(**agent_meta)
+        agent_meta=_agent_meta_from_dict(agent_meta)
         if isinstance(agent_meta, dict)
         else None,
         done=DoneMarkerWire(**done) if isinstance(done, dict) else None,
@@ -155,6 +155,15 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         raw_prompt_snippet=data.get("raw_prompt_snippet"),
         has_done_marker=bool(data.get("has_done_marker", False)),
     )
+
+
+def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
+    payload = dict(data)
+    raw_plan_committed = payload.get("plan_committed")
+    payload["plan_committed"] = (
+        raw_plan_committed if type(raw_plan_committed) is bool else None
+    )
+    return AgentMetaWire(**payload)
 
 
 def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:

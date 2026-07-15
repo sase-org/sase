@@ -464,6 +464,25 @@ def sync_planner_child_from_parent(
         child.diff_path = parent.diff_path
     if parent.extra_files and not child.extra_files:
         child.extra_files = list(parent.extra_files)
+    copy_missing_plan_metadata(child, parent)
+
+
+def copy_missing_plan_metadata(target: Agent, source: Agent) -> None:
+    """Backfill associated-plan state without replacing child-owned values."""
+    if target.archived_plan_path is None:
+        target.archived_plan_path = source.archived_plan_path
+    if target.sdd_plan_path is None:
+        target.sdd_plan_path = source.sdd_plan_path
+    if target.plan_committed is None:
+        target.plan_committed = source.plan_committed
+    if target.plan_action is None:
+        target.plan_action = source.plan_action
+    if target.plan_path is None:
+        target.plan_path = source.plan_path
+    if target.epic_bead_id is None:
+        target.epic_bead_id = source.epic_bead_id
+    if target.phase_bead_id is None:
+        target.phase_bead_id = source.phase_bead_id
 
 
 def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
@@ -478,6 +497,7 @@ def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
         parent.workspace_num = child.workspace_num
     if parent.workspace_dir is None and child.workspace_dir is not None:
         parent.workspace_dir = child.workspace_dir
+    copy_missing_plan_metadata(parent, child)
 
 
 def root_child_suffix(parent: Agent) -> str:
@@ -522,6 +542,10 @@ def ensure_synthetic_planner_children(
             response_path=parent.response_path,
             diff_path=parent.diff_path,
             extra_files=list(parent.extra_files),
+            plan_path=parent.plan_path,
+            archived_plan_path=parent.archived_plan_path,
+            sdd_plan_path=parent.sdd_plan_path,
+            plan_committed=parent.plan_committed,
             step_output=dict(parent.step_output) if parent.step_output else None,
             agent_name=planner_name,
             agent_family=family,
@@ -531,6 +555,9 @@ def ensure_synthetic_planner_children(
             vcs_provider=parent.vcs_provider,
             workspace_num=parent.workspace_num,
             workspace_dir=parent.workspace_dir,
+            plan_action=parent.plan_action,
+            epic_bead_id=parent.epic_bead_id,
+            phase_bead_id=parent.phase_bead_id,
         )
         planner.plan_times = list(parent.plan_times)
         planner.feedback_times = list(parent.feedback_times)

@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from datetime import datetime as DateTime
 from pathlib import Path
 from typing import Self
 
-from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.style import StyleType
 from rich.syntax import Syntax
-from rich.table import Table
 from rich.text import Span, Text
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
@@ -23,6 +20,7 @@ from ...models.agent import Agent
 from ...models.agent_bead import cached_bead_display
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
+from ._agent_plan_section import ResponsivePlanSection
 from ._file_path_hints import append_text_with_file_hints
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
@@ -39,11 +37,6 @@ _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
 _UNKNOWN_WAIT_AGENT_GLYPH = "?"
 _UNKNOWN_WAIT_AGENT_GLYPH_STYLE = "bold #FFAF5F"
 _WAITING_VALUE_STYLE = "#FF87D7"
-_PLAN_GOAL_LABEL = "Goal: "
-_PLAN_GOAL_LABEL_WIDTH = cell_len(_PLAN_GOAL_LABEL)
-_PLAN_GOAL_LABEL_STYLE = "bold #87D7FF"
-_PLAN_GOAL_MAX_WIDTH = 80
-_PLAN_GOAL_VALUE_STYLE = "italic #FFD787"
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
 # accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
 _WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
@@ -61,50 +54,23 @@ _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class _PlanGoalRow:
-    """Responsive plan-goal metadata row rendered from in-memory state."""
-
-    goal: str
-
-    def __rich_console__(
-        self,
-        console: Console,
-        options: ConsoleOptions,
-    ) -> RenderResult:
-        width = min(options.max_width, _PLAN_GOAL_MAX_WIDTH)
-        table = Table.grid(padding=0)
-        table.add_column(width=_PLAN_GOAL_LABEL_WIDTH, no_wrap=True)
-        table.add_column(overflow="fold")
-        table.add_row(
-            Text(_PLAN_GOAL_LABEL, style=_PLAN_GOAL_LABEL_STYLE),
-            Text(
-                self.goal,
-                style=_PLAN_GOAL_VALUE_STYLE,
-                overflow="fold",
-                no_wrap=False,
-            ),
-        )
-        yield from console.render(table, options.update_width(width))
-
-
 class _AgentHeaderRenderable:
-    """Mutable logical header with a retained responsive goal renderable."""
+    """Mutable logical header with a retained responsive plan section."""
 
-    __slots__ = ("_goal_end", "_goal_row", "_goal_start", "_text")
+    __slots__ = ("_plan_end", "_plan_section", "_plan_start", "_text")
 
     def __init__(
         self,
         text: Text,
-        goal_row: _PlanGoalRow,
+        plan_section: ResponsivePlanSection,
         *,
-        goal_start: int,
-        goal_end: int,
+        plan_start: int,
+        plan_end: int,
     ) -> None:
         self._text = text
-        self._goal_row = goal_row
-        self._goal_start = goal_start
-        self._goal_end = goal_end
+        self._plan_section = plan_section
+        self._plan_start = plan_start
+        self._plan_end = plan_end
 
     @property
     def plain(self) -> str:
@@ -113,7 +79,7 @@ class _AgentHeaderRenderable:
 
     @property
     def spans(self) -> list[Span]:
-        """Return logical text spans, including the goal label and value."""
+        """Return logical text spans, including the plan section fields."""
         return self._text.spans
 
     def append(
@@ -121,12 +87,12 @@ class _AgentHeaderRenderable:
         text: str | Text,
         style: StyleType | None = None,
     ) -> Self:
-        """Append content after the goal row without changing its placement."""
+        """Append content after the plan section without moving the section."""
         self._text.append(text, style=style)
         return self
 
     def append_text(self, text: Text) -> Self:
-        """Append styled Rich text after the goal row."""
+        """Append styled Rich text after the plan section."""
         self._text.append_text(text)
         return self
 
@@ -135,12 +101,12 @@ class _AgentHeaderRenderable:
         _console: Console,
         _options: ConsoleOptions,
     ) -> RenderResult:
-        prefix = self._text[: self._goal_start]
+        prefix = self._text[: self._plan_start]
         prefix.end = ""
         yield prefix
-        yield self._goal_row
+        yield self._plan_section
 
-        suffix = self._text[self._goal_end :]
+        suffix = self._text[self._plan_end :]
         suffix.end = self._text.end
         yield suffix
 
@@ -212,13 +178,6 @@ def build_header_text(
             header_text.append(f"{bead_display}\n", style="bold #FFAF00")
     else:
         header_text.append(f"{_UNASSIGNED_AGENT_NAME_DISPLAY}\n", style="dim")
-
-    plan_goal_range: tuple[int, int] | None = None
-    if summary is not None and summary.plan_goal:
-        goal_start = len(header_text)
-        header_text.append(_PLAN_GOAL_LABEL, style=_PLAN_GOAL_LABEL_STYLE)
-        header_text.append(f"{summary.plan_goal}\n", style=_PLAN_GOAL_VALUE_STYLE)
-        plan_goal_range = (goal_start, len(header_text))
 
     # Spawn-on-retry: render a retry-chain breadcrumb when the agent is
     # part of one (either a retry attempt or a parent that handed off).
@@ -477,6 +436,22 @@ def build_header_text(
             style="#D7D7FF",
         )
 
+    plan_section: ResponsivePlanSection | None = None
+    plan_section_range: tuple[int, int] | None = None
+    if summary is not None and summary.associated_plan is not None:
+        hint_number = None
+        if hint_state is not None:
+            hint_number = hint_state.hint_counter
+            hint_state.hint_mappings[hint_number] = summary.associated_plan.actual_path
+            hint_state.hint_counter += 1
+        plan_section = ResponsivePlanSection(
+            summary.associated_plan,
+            hint_number=hint_number,
+        )
+        plan_start = len(header_text)
+        header_text.append_text(plan_section.logical_text)
+        plan_section_range = (plan_start, len(header_text))
+
     append_agent_output_variables_section(header_text, agent)
 
     from ._agent_commits import append_agent_commits_section
@@ -561,14 +536,14 @@ def build_header_text(
     header_text.append("\u2500" * 50 + "\n", style="dim")
     header_text.append("\n")
 
-    if summary is not None and summary.plan_goal and plan_goal_range is not None:
-        goal_start, goal_end = plan_goal_range
+    if plan_section is not None and plan_section_range is not None:
+        plan_start, plan_end = plan_section_range
         return (
             _AgentHeaderRenderable(
                 header_text,
-                _PlanGoalRow(summary.plan_goal),
-                goal_start=goal_start,
-                goal_end=goal_end,
+                plan_section,
+                plan_start=plan_start,
+                plan_end=plan_end,
             ),
             error_tb_syntax,
         )

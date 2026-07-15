@@ -34,7 +34,7 @@ def _parse_plan_frontmatter(content: str) -> tuple[dict[str, Any], str | None]:
     return dict(parsed), None
 
 
-def _read_plan_frontmatter(path: Path) -> tuple[dict[str, Any], str | None]:
+def read_plan_frontmatter(path: Path) -> tuple[dict[str, Any], str | None]:
     """Read YAML frontmatter best-effort, returning a parse error if invalid."""
     try:
         content = path.read_text(encoding="utf-8")
@@ -60,31 +60,10 @@ def read_plan_tier(path: Path) -> str | None:
     return read_plan_tier_from_content(content)
 
 
-def _read_plan_goal_from_content(content: str) -> str | None:
-    """Read and normalize a displayable plan goal from in-memory content."""
-    frontmatter, error = _parse_plan_frontmatter(content)
-    if error is not None:
-        return None
-    raw_goal = frontmatter.get("goal")
-    if not isinstance(raw_goal, str):
-        return None
-    normalized = " ".join(raw_goal.split())
-    return normalized or None
-
-
-def read_plan_goal(path: Path) -> str | None:
-    """Read a displayable plan goal best-effort, returning ``None`` otherwise."""
-    try:
-        content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    return _read_plan_goal_from_content(content)
-
-
 def classify_plan_file(path: Path, frontmatter: dict[str, Any] | None = None) -> str:
     """Classify a canonical plan, falling back to tale for best-effort reads."""
     if frontmatter is None:
-        frontmatter, _ = _read_plan_frontmatter(path)
+        frontmatter, _ = read_plan_frontmatter(path)
     explicit = normalize_plan_tier(frontmatter.get("tier"))
     if explicit is not None:
         return explicit

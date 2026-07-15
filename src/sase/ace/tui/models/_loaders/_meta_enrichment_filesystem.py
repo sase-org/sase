@@ -19,6 +19,7 @@ from ._meta_enrichment_common import (
     parse_linked_repos,
     pending_question_status_from_marker,
     plan_enrichment_status,
+    refresh_agent_plan_path,
     string_output_variables,
     valid_meta_tag,
 )
@@ -50,15 +51,18 @@ def enrich_agent_from_meta(
     if isinstance(plan_path_data, dict):
         marker_plan_path = plan_path_data.get("plan_path")
         if isinstance(marker_plan_path, str) and marker_plan_path:
+            agent.archived_plan_path = marker_plan_path
             agent.plan_path = marker_plan_path
 
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     try:
         data = load_json_cached(meta_path)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
+        refresh_agent_plan_path(agent)
         return
 
     if not isinstance(data, dict):
+        refresh_agent_plan_path(agent)
         return
 
     if data.get("model"):
@@ -71,16 +75,12 @@ def enrich_agent_from_meta(
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):
         agent.workspace_dir = data["workspace_dir"]
-    direct_plan_path = next(
-        (
-            value
-            for value in (data.get("sdd_plan_path"), data.get("plan_path"))
-            if isinstance(value, str) and value
-        ),
-        None,
-    )
-    if direct_plan_path is not None:
-        agent.plan_path = direct_plan_path
+    raw_archived_plan_path = data.get("plan_path")
+    if isinstance(raw_archived_plan_path, str) and raw_archived_plan_path:
+        agent.archived_plan_path = raw_archived_plan_path
+    raw_sdd_plan_path = data.get("sdd_plan_path")
+    if isinstance(raw_sdd_plan_path, str) and raw_sdd_plan_path:
+        agent.sdd_plan_path = raw_sdd_plan_path
     raw_epic_bead_id = data.get("epic_bead_id")
     if isinstance(raw_epic_bead_id, str) and raw_epic_bead_id:
         agent.epic_bead_id = raw_epic_bead_id
@@ -115,6 +115,10 @@ def enrich_agent_from_meta(
     raw_plan_action = data.get("plan_action")
     if isinstance(raw_plan_action, str) and raw_plan_action:
         agent.plan_action = raw_plan_action
+    raw_plan_committed = data.get("plan_committed")
+    if type(raw_plan_committed) is bool:
+        agent.plan_committed = raw_plan_committed
+    refresh_agent_plan_path(agent)
     if apply_meta_approve and data.get("approve"):
         agent.approve = True
     if data.get("hidden"):

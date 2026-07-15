@@ -67,6 +67,9 @@ def plain_of(renderable: object) -> str:
         return str(renderable.code)
     if isinstance(renderable, Group):
         return "\n".join(plain_of(child) for child in renderable.renderables)
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return plain
     return str(renderable)
 
 

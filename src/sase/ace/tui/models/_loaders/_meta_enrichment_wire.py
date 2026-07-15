@@ -17,6 +17,7 @@ from ._meta_enrichment_common import (
     parse_linked_repos,
     pending_question_status_for_request_path,
     plan_enrichment_status,
+    refresh_agent_plan_path,
     wire_meta_has_wait_directive,
 )
 from ..agent import Agent
@@ -38,9 +39,11 @@ def enrich_agent_from_meta_wire(
     early-return when ``agent_meta.json`` is missing or unreadable).
     """
     if plan_path_marker:
+        agent.archived_plan_path = plan_path_marker
         agent.plan_path = plan_path_marker
 
     if meta is None:
+        refresh_agent_plan_path(agent)
         return
 
     agent.runner_slot_yielded = pending_question is not None
@@ -55,9 +58,10 @@ def enrich_agent_from_meta_wire(
         agent.vcs_provider = meta.vcs_provider
     if meta.workspace_dir:
         agent.workspace_dir = meta.workspace_dir
-    direct_plan_path = meta.sdd_plan_path or meta.plan_path
-    if direct_plan_path:
-        agent.plan_path = direct_plan_path
+    if meta.plan_path:
+        agent.archived_plan_path = meta.plan_path
+    if meta.sdd_plan_path:
+        agent.sdd_plan_path = meta.sdd_plan_path
     if meta.epic_bead_id:
         agent.epic_bead_id = meta.epic_bead_id
     if meta.phase_bead_id:
@@ -77,6 +81,9 @@ def enrich_agent_from_meta_wire(
         agent.approve = True
     if meta.plan_action:
         agent.plan_action = meta.plan_action
+    if meta.plan_committed is not None:
+        agent.plan_committed = meta.plan_committed
+    refresh_agent_plan_path(agent)
     if meta.approve:
         agent.approve = True
     if meta.hidden:

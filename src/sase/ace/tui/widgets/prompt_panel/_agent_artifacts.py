@@ -59,7 +59,7 @@ def append_agent_artifacts_section(
             text.append(f"[{hint_state.hint_counter}] ", style="bold #FFFF00")
             hint_state.hint_mappings[hint_state.hint_counter] = artifact.actual_path
             hint_state.hint_counter += 1
-        _append_path(text, artifact.display_path, exists=artifact.exists)
+        append_artifact_path(text, artifact.display_path, exists=artifact.exists)
         if not artifact.exists:
             text.append(" (missing)", style=_COLOR_MISSING_SUFFIX)
         text.append("\n")
@@ -150,7 +150,7 @@ def _artifact_icon(view_mode: str, *, exists: bool) -> tuple[str, str]:
     return icon, style
 
 
-def _append_path(text: Text, path: str, *, exists: bool = True) -> None:
+def append_artifact_path(text: Text, path: str, *, exists: bool = True) -> None:
     """Append a path with the DELTAS-style bold basename treatment."""
     path_style = _COLOR_PATH if exists else _COLOR_PATH_MISSING
     basename_style = _COLOR_BASENAME if exists else _COLOR_BASENAME_MISSING

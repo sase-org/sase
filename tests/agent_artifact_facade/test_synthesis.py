@@ -115,6 +115,29 @@ def test_committed_sdd_plan_is_single_default_plan_artifact(
     assert artifacts[0].workspace_dir == str(workspace)
 
 
+def test_plan_committed_requires_a_literal_boolean(tmp_path: Path) -> None:
+    artifacts_dir = agent_dir(tmp_path)
+    archived_plan = tmp_path / ".sase" / "plans" / "plan.md"
+    sdd_plan = tmp_path / "workspace" / "sdd" / "plans" / "plan.md"
+    for path in (archived_plan, sdd_plan):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# Plan\n", encoding="utf-8")
+    write_json(
+        artifacts_dir / "agent_meta.json",
+        {
+            "plan_path": str(archived_plan),
+            "sdd_plan_path": str(sdd_plan),
+            "plan_committed": "true",
+        },
+    )
+
+    artifacts = synthesize_default_agent_artifacts(artifacts_dir)
+
+    assert [(artifact.kind, artifact.path) for artifact in artifacts] == [
+        ("plan", str(archived_plan))
+    ]
+
+
 def test_agent_meta_chat_path_is_used_when_done_response_is_missing(
     tmp_path: Path,
 ) -> None:

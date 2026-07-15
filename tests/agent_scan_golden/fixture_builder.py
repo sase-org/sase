@@ -114,6 +114,7 @@ def _build_ace_run_running(root: Path) -> None:
             "approve": False,
             "plan": True,
             "plan_approved": False,
+            "plan_committed": False,
             "wait_for": ["bob", "carol"],
             "wait_duration": 3600.0,
         },
@@ -131,6 +132,7 @@ def _build_ace_run_done(root: Path) -> None:
             "vcs_provider": "github",
             "workspace_dir": "/tmp/workspaces/alpha_3",
             "stopped_at": "2026-04-27T12:05:00Z",
+            "plan_committed": True,
         },
     )
     _write_json(

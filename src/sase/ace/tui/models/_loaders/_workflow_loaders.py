@@ -316,6 +316,7 @@ def load_workflow_agents(
             diff_path=entry.diff_path,
             extra_files=extra_files,
             plan_path=plan_path,
+            archived_plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
             activity=entry.activity,

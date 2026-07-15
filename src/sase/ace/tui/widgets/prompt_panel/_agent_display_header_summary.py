@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -16,8 +17,11 @@ from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
 from sase.agent.bead_display import BeadIssueLookupSession
 
 from ...models.agent import Agent
+from ...models.agent_associated_plan import (
+    associated_plan_cache_key,
+    resolve_agent_associated_plan,
+)
 from ...models.agent_bead import BEAD_DISPLAY_CACHE_MISS, cached_bead_display
-from ...models.agent_plan_goal import resolve_agent_plan_goal
 from ._agent_display_state import DetailHeaderSummary
 from ._helpers import load_xprompts_used
 
@@ -28,6 +32,7 @@ class DetailHeaderSummaryCacheEntry:
 
     summary: DetailHeaderSummary
     cached_monotonic: float
+    associated_plan_key: tuple[object, ...]
 
 
 _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES = 256
@@ -55,6 +60,9 @@ def get_cached_detail_header_summary(
     entry = cache.get(agent.identity)
     if entry is None:
         return None
+    if entry.associated_plan_key != associated_plan_cache_key(agent):
+        del cache[agent.identity]
+        return None
     cache.move_to_end(agent.identity)
     return entry.summary
 
@@ -67,6 +75,9 @@ def should_refresh_detail_header_summary(
     cache = _detail_header_summary_cache(widget)
     entry = cache.get(agent.identity)
     if entry is None:
+        return True
+    if entry.associated_plan_key != associated_plan_cache_key(agent):
+        del cache[agent.identity]
         return True
     cache.move_to_end(agent.identity)
     return (time.monotonic() - entry.cached_monotonic) >= DIFF_CACHE_TTL_SECONDS
@@ -82,6 +93,7 @@ def cache_detail_header_summary(
     cache[agent.identity] = DetailHeaderSummaryCacheEntry(
         summary=summary,
         cached_monotonic=time.monotonic(),
+        associated_plan_key=associated_plan_cache_key(agent),
     )
     cache.move_to_end(agent.identity)
     while len(cache) > _DETAIL_HEADER_SUMMARY_CACHE_MAX_ENTRIES:
@@ -112,7 +124,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
             bead_display = cast(str | None, cached_display)
 
     with BeadIssueLookupSession() as lookup_session:
-        plan_goal = resolve_agent_plan_goal(
+        associated_plan = resolve_agent_associated_plan(
             agent,
             lookup_session=lookup_session,
         )
@@ -135,13 +147,22 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     if not linked_delta_groups:
         linked_delta_groups = agent_commit_linked_delta_groups(agent)
 
+    artifact_paths = agent_artifact_paths(agent)
+    if associated_plan is not None:
+        plan_path = Path(associated_plan.actual_path).resolve(strict=False)
+        artifact_paths = [
+            artifact
+            for artifact in artifact_paths
+            if Path(artifact.actual_path).resolve(strict=False) != plan_path
+        ]
+
     return DetailHeaderSummary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
-        plan_goal=plan_goal,
+        associated_plan=associated_plan,
         delta_entries=agent_delta_entries(agent),
         linked_delta_groups=linked_delta_groups,
-        artifact_paths=agent_artifact_paths(agent),
+        artifact_paths=artifact_paths,
         memory_reads=load_memory_reads_for_agent_context(agent),
         skill_uses=load_skill_uses_for_agent_context(agent),
         opened_workspaces=load_opened_workspaces_for_agent_context(agent),

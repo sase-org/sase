@@ -339,9 +339,14 @@ descendants.
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
-When ACE can resolve an agent's associated plan, the metadata panel shows its complete normalized goal directly below
-the agent name and optional bead. Long goals use hanging indentation and responsively wrap to the panel's available
-width, with each goal line capped at 80 terminal cells; the scrollable panel keeps every part of the goal reachable.
+When ACE knows an agent's associated plan, the metadata panel adds a `SASE PLAN` section after the ordinary agent fields
+and `Timestamps`. The section contains the complete normalized `Goal`, the effective user-facing `Tier` (`plan`, `epic`,
+or `none`), and the canonical `Path`. Pending proposals map authored `tier: tale` to `plan`; an explicitly uncommitted
+approval renders `none`. Committed paths are relative to the agent workspace (including SDD sidecars such as
+`sase/repos/plans/...`), while pending and uncommitted archives use `~/.sase/plans/...`. Long values use hanging
+indentation and responsive Unicode-aware folding, with goal lines capped at 80 terminal cells. In hint mode the `Path`
+row receives a numbered hint that opens the resolved file. Missing or damaged plans keep their known section and path
+visible with quiet unavailable or missing treatment.
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
@@ -1493,8 +1498,6 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`, inferred from phase, exact epic, or legacy `.land` names
-  - `Goal` — the associated plan's frontmatter goal, shown for root and child rows when a direct plan path or epic/phase
-    bead association resolves to a readable plan
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when runner admission completed, before workspace preparation for root agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
@@ -1504,6 +1507,11 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
+- **SASE PLAN**: Shown when direct planner/family metadata or an epic/phase bead associates the agent with a plan. Its
+  rows are `Goal`, effective `Tier` (`plan`, `epic`, or `none`), and canonical `Path`, in that order. Committed paths
+  are workspace-relative; pending or explicitly uncommitted paths use the home-shortened machine-local archive. The
+  values wrap without truncation in the normal panel and metadata zoom view, and the path participates in file hint
+  mode.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

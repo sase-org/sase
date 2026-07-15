@@ -144,6 +144,7 @@ class AgentMetaWire:
     plan: bool = False
     plan_approved: bool = False
     plan_action: str | None = None
+    plan_committed: bool | None = None
     wait_for: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None

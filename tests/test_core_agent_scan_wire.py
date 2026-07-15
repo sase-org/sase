@@ -24,7 +24,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 7
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 8
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -152,6 +152,43 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+
+
+def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
+    values = [True, False, None, "false"]
+    records = []
+    for index, value in enumerate(values):
+        meta = {"name": f"agent-{index}"}
+        if value is not None:
+            meta["plan_committed"] = value
+        records.append(
+            {
+                "project_name": "myproj",
+                "project_dir": "/tmp/projects/myproj",
+                "project_file": "/tmp/projects/myproj/myproj.sase",
+                "workflow_dir_name": "ace-run",
+                "artifact_dir": f"/tmp/projects/myproj/artifacts/ace-run/{index}",
+                "timestamp": str(index),
+                "agent_meta": meta,
+                "prompt_steps": [],
+                "has_done_marker": False,
+            }
+        )
+
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {},
+            "stats": {},
+            "records": records,
+        }
+    )
+
+    assert [
+        record.agent_meta.plan_committed  # type: ignore[union-attr]
+        for record in snapshot.records
+    ] == [True, False, None, None]
 
 
 def test_fixture_summary_matches_expectations() -> None:

@@ -121,10 +121,14 @@ class Agent:
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
 
-    # Canonical plan association for detail-header enrichment. Loaders resolve
-    # this with the same priority as agent-family attachment:
-    # sdd_plan_path -> plan_path -> plan_path.json -> done.json.
+    # Canonical plan association for detail-header enrichment. The source
+    # references are retained so approval changes can switch between the
+    # durable local archive and the committed SDD copy without re-reading
+    # marker files on the render path.
     plan_path: str | None = None
+    archived_plan_path: str | None = None
+    sdd_plan_path: str | None = None
+    plan_committed: bool | None = None
 
     # Explicit bead association metadata used by approved epic/phase work.
     # Agent names remain a supported fallback for older bead-work records.

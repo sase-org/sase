@@ -36,6 +36,7 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta.pid == 22222
     assert rec.agent_meta.plan is True
     assert rec.agent_meta.plan_approved is False
+    assert rec.agent_meta.plan_committed is False
     assert rec.agent_meta.wait_for == ["bob", "carol"]
     assert rec.agent_meta.wait_duration == 3600.0
     assert rec.agent_meta.workspace_dir == "/tmp/workspaces/alpha"

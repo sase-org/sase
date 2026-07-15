@@ -634,12 +634,13 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         )
 
 
-async def test_agents_plan_goal_metadata_png_snapshot(
+async def test_agents_sase_plan_metadata_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    plan_path = tmp_path / "plans" / "202607" / "agent_intent.md"
+    relative_plan_path = Path("sase/repos/plans/202607/agent intent metadata.md")
+    plan_path = tmp_path / relative_plan_path
     plan_path.parent.mkdir(parents=True)
     plan_path.write_text(
         "---\n"
@@ -660,7 +661,11 @@ async def test_agents_plan_goal_metadata_png_snapshot(
         start_time=datetime(2026, 7, 15, 9, 0, 0),
         raw_suffix="20260715090000",
         agent_name="visual.agent-intent",
-        plan_path=str(plan_path),
+        plan_path=relative_plan_path.as_posix(),
+        sdd_plan_path=relative_plan_path.as_posix(),
+        plan_committed=True,
+        plan_action="tale",
+        workspace_dir=str(tmp_path),
         llm_provider="codex",
         model="gpt-5",
     )
@@ -673,13 +678,17 @@ async def test_agents_plan_goal_metadata_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
+        assert_page_svg_contains(page, "SASE PLAN")
         assert_page_svg_contains(page, "Goal:")
+        assert_page_svg_contains(page, "Tier:")
+        assert_page_svg_contains(page, "Path:")
+        assert_page_svg_contains(page, "sase/repos/plans/202607")
         assert_page_svg_contains(page, "intended outcome")
         assert_page_svg_contains(page, "approved destination")
         ace_png_visual.assert_page_png(
             page,
             "agents_plan_goal_metadata_120x40",
-            title="ACE agents plan goal metadata",
+            title="ACE agents SASE plan metadata",
         )
 
 

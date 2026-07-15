@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.core.time import to_local
+from sase.core.agent_artifact_helpers import select_canonical_plan_path
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,
@@ -24,6 +25,16 @@ if TYPE_CHECKING:
 
 
 ACTIVE_ENRICHMENT_STATUSES = {"STARTING", "RUNNING"}
+
+
+def refresh_agent_plan_path(agent: Agent) -> None:
+    """Refresh the compatibility plan path from retained source metadata."""
+    agent.plan_path = select_canonical_plan_path(
+        archived_plan_path=agent.archived_plan_path or agent.plan_path,
+        sdd_plan_path=agent.sdd_plan_path,
+        plan_committed=agent.plan_committed,
+        plan_action=agent.plan_action,
+    )
 
 
 def parse_utc_to_local(iso_str: str) -> datetime:

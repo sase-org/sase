@@ -28,6 +28,8 @@ from .core_agent_scan_helpers import (
 def test_done_record_parses_done_marker(fixture_root: Path) -> None:
     snapshot = scan_agent_artifacts(fixture_root)
     rec = record_by_timestamp(snapshot, TS_ACE_RUN_DONE)
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.plan_committed is True
     assert rec.has_done_marker is True
     assert rec.done is not None
     assert rec.done.outcome == "completed"

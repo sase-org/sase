@@ -276,6 +276,11 @@ def _load_done_agent_for_dir(
                 if isinstance(data.get("plan_path"), str)
                 else None
             ),
+            archived_plan_path=(
+                data.get("plan_path")
+                if isinstance(data.get("plan_path"), str)
+                else None
+            ),
             step_output=data.get("step_output"),
             workspace_num=data.get("workspace_num"),
             workspace_dir=data.get("workspace_dir"),
@@ -454,6 +459,7 @@ def _build_done_agent_from_record(
         diff_path=done.diff_path,
         extra_files=extra_files,
         plan_path=done.plan_path,
+        archived_plan_path=done.plan_path,
         step_output=done.step_output,
         workspace_num=done.workspace_num,
         workspace_dir=done.workspace_dir,

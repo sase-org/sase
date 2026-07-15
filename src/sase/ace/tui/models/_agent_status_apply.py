@@ -15,6 +15,7 @@ from ._agent_status_family import (
     child_launch_time,
     children_by_parent_timestamp,
     copy_missing_display_metadata,
+    copy_missing_plan_metadata,
     done_handoff_status,
     ensure_synthetic_planner_children,
     feedback_child_progressed_past_review,
@@ -96,6 +97,12 @@ def apply_status_overrides(
 
     ensure_synthetic_planner_children(agents, all_agents, parent_by_suffix)
     children_by_parent = children_by_parent_timestamp(all_agents)
+    for parent_timestamp, children in children_by_parent.items():
+        parent = parent_by_suffix.get(parent_timestamp)
+        if parent is None:
+            continue
+        for child in children:
+            copy_missing_plan_metadata(child, parent)
     latest_child_launch_by_parent = latest_non_workflow_child_launch_by_parent(
         children_by_parent
     )

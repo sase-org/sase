@@ -82,6 +82,42 @@ def test_apply_status_overrides_completed_followup_plan_child_stays_done() -> No
     assert code_child.status == "WORKING PLAN"
 
 
+def test_apply_status_overrides_propagates_plan_metadata_to_family_children() -> None:
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 10, 0, 0),
+        raw_suffix="20260425100000",
+        role_suffix="--plan",
+        plan_path="sase/repos/plans/202607/plan.md",
+        archived_plan_path="/home/user/.sase/plans/202607/plan.md",
+        sdd_plan_path="sase/repos/plans/202607/plan.md",
+        plan_committed=True,
+        plan_action="tale",
+        epic_bead_id="sase-1",
+    )
+    child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_cl",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 25, 10, 5, 0),
+        parent_timestamp="20260425100000",
+        role_suffix="--code",
+    )
+
+    _apply_status_overrides([parent, child])
+
+    assert child.plan_path == parent.plan_path
+    assert child.archived_plan_path == parent.archived_plan_path
+    assert child.sdd_plan_path == parent.sdd_plan_path
+    assert child.plan_committed is True
+    assert child.plan_action == "tale"
+    assert child.epic_bead_id == "sase-1"
+
+
 def test_apply_status_overrides_active_epic_child_sets_epic_approved() -> None:
     """A DONE plan parent with an active .epic follow-up becomes EPIC APPROVED."""
     parent = Agent(

@@ -166,7 +166,7 @@ def test_feedback_plan_path_from_agent_meta_wire() -> None:
 
 
 def test_direct_plan_path_priority_from_agent_meta(tmp_path: Path) -> None:
-    """SDD metadata wins over archived metadata and the plan-path marker."""
+    """Committed metadata selects SDD while retaining both source paths."""
     (tmp_path / "plan_path.json").write_text(
         json.dumps({"plan_path": "/plans/marker.md"})
     )
@@ -175,6 +175,7 @@ def test_direct_plan_path_priority_from_agent_meta(tmp_path: Path) -> None:
             {
                 "plan_path": "/plans/archived.md",
                 "sdd_plan_path": "/plans/canonical.md",
+                "plan_committed": True,
                 "epic_bead_id": "sase-10",
                 "phase_bead_id": "sase-10.2",
             }
@@ -185,6 +186,9 @@ def test_direct_plan_path_priority_from_agent_meta(tmp_path: Path) -> None:
     enrich_agent_from_meta(agent, str(tmp_path))
 
     assert agent.plan_path == "/plans/canonical.md"
+    assert agent.archived_plan_path == "/plans/archived.md"
+    assert agent.sdd_plan_path == "/plans/canonical.md"
+    assert agent.plan_committed is True
     assert agent.epic_bead_id == "sase-10"
     assert agent.phase_bead_id == "sase-10.2"
 
@@ -198,6 +202,7 @@ def test_plan_path_marker_survives_missing_agent_meta(tmp_path: Path) -> None:
     enrich_agent_from_meta(agent, str(tmp_path))
 
     assert agent.plan_path == "/plans/marker.md"
+    assert agent.archived_plan_path == "/plans/marker.md"
 
 
 def test_direct_plan_path_priority_from_agent_meta_wire() -> None:
@@ -208,6 +213,7 @@ def test_direct_plan_path_priority_from_agent_meta_wire() -> None:
         AgentMetaWire(
             plan_path="/plans/archived.md",
             sdd_plan_path="/plans/canonical.md",
+            plan_committed=True,
             epic_bead_id="sase-10",
             phase_bead_id="sase-10.2",
         ),
@@ -216,8 +222,56 @@ def test_direct_plan_path_priority_from_agent_meta_wire() -> None:
     )
 
     assert agent.plan_path == "/plans/canonical.md"
+    assert agent.archived_plan_path == "/plans/archived.md"
+    assert agent.sdd_plan_path == "/plans/canonical.md"
+    assert agent.plan_committed is True
     assert agent.epic_bead_id == "sase-10"
     assert agent.phase_bead_id == "sase-10.2"
+
+
+def test_explicit_uncommitted_false_selects_archive_for_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    payload = {
+        "plan_path": "/plans/archived.md",
+        "sdd_plan_path": "/plans/canonical.md",
+        "plan_action": "tale",
+        "plan_committed": False,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(payload))
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(**payload),
+        None,
+    )
+
+    for agent in (filesystem_agent, wire_agent):
+        assert agent.plan_path == "/plans/archived.md"
+        assert agent.archived_plan_path == "/plans/archived.md"
+        assert agent.sdd_plan_path == "/plans/canonical.md"
+        assert agent.plan_committed is False
+
+
+def test_non_boolean_plan_committed_is_not_truthiness_coerced(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "plan_path": "/plans/archived.md",
+                "sdd_plan_path": "/plans/canonical.md",
+                "plan_committed": "false",
+            }
+        )
+    )
+    agent = make_agent()
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.plan_committed is None
+    assert agent.plan_path == "/plans/archived.md"
 
 
 def test_auto_epic_plan_after_submission_stays_running(tmp_path: Path) -> None:

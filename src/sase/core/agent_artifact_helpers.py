@@ -141,14 +141,44 @@ def selected_plan_path(
         agent_meta.get("sdd_plan_path"),
         done.get("sdd_plan_path"),
     )
-    plan_committed = _first_bool(
+    plan_committed = _first_strict_bool(
         agent_meta.get("plan_committed"),
         done.get("plan_committed"),
     )
+    plan_action = first_str(
+        agent_meta.get("plan_action"),
+        done.get("plan_action"),
+    )
 
-    if plan_committed is True:
+    return select_canonical_plan_path(
+        archived_plan_path=archived_plan_path,
+        sdd_plan_path=sdd_plan_path,
+        plan_committed=plan_committed,
+        plan_action=plan_action,
+    )
+
+
+def select_canonical_plan_path(
+    *,
+    archived_plan_path: str | None,
+    sdd_plan_path: str | None,
+    plan_committed: bool | None,
+    plan_action: str | None = None,
+) -> str | None:
+    """Choose one plan path from archived and canonical SDD references.
+
+    Explicit commit state is authoritative. ``plan_action`` remains a
+    compatibility signal for records written before ``plan_committed`` was
+    projected into agent snapshots.
+    """
+
+    effective_committed = plan_committed
+    if effective_committed is None and plan_action in {"commit", "tale", "epic"}:
+        effective_committed = True
+
+    if effective_committed is True:
         return sdd_plan_path or archived_plan_path
-    if plan_committed is False:
+    if effective_committed is False:
         return archived_plan_path or sdd_plan_path
 
     if not archived_plan_path:
@@ -178,16 +208,10 @@ def first_str(*values: Any) -> str | None:
     return None
 
 
-def _first_bool(*values: Any) -> bool | None:
+def _first_strict_bool(*values: Any) -> bool | None:
     for value in values:
-        if isinstance(value, bool):
+        if type(value) is bool:
             return value
-        if isinstance(value, str):
-            lowered = value.strip().lower()
-            if lowered == "true":
-                return True
-            if lowered == "false":
-                return False
     return None
 
 

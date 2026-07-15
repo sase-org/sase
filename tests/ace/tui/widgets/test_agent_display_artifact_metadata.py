@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
@@ -103,6 +104,7 @@ class TestAgentArtifactMetadata:
             workspace_dir=str(workspace),
             diff_path=str(diff_path),
         )
+        enrich_agent_from_meta(agent, str(artifacts_dir))
 
         header, _ = build_header_text(
             agent,
@@ -110,14 +112,15 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
+        assert header.plain.index("SASE PLAN") < header.plain.index("Deltas:\n")
         assert header.plain.index("Deltas:\n") < header.plain.index("Artifacts:\n")
         assert "DELTAS:" not in header.plain
         assert "ARTIFACTS:" not in header.plain
         assert "Artifacts: 2" not in header.plain
         assert "ARTIFACTS: 2" not in header.plain
         assert "(chat, image)" not in header.plain
-        assert "  ▤ ~/.sase/plans/202605/approved_plan.md\n" in header.plain
-        assert "~/.sase/plans/202605/approved_plan.md" in header.plain
+        assert "Path: ~/.sase/plans/202605/approved_plan.md" in header.plain
+        assert "  ▤ ~/.sase/plans/202605/approved_plan.md\n" not in header.plain
         assert explicit.path.replace(str(home), "~") in header.plain
         assert "chat.md" not in header.plain
         assert "image.png" in header.plain
@@ -172,6 +175,7 @@ class TestAgentArtifactMetadata:
             artifacts_dir=str(artifacts_dir),
             workspace_dir=str(workspace),
         )
+        enrich_agent_from_meta(agent, str(artifacts_dir))
 
         header, _ = build_header_text(
             agent,
@@ -179,7 +183,8 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
-        assert "~/.sase/plans/202605/plan.md" in header.plain
+        assert "SASE PLAN" in header.plain
+        assert "Path: ~/.sase/plans/202605/plan.md" in header.plain
         assert "sdd/plans/202605/plan.md" not in header.plain
 
     def test_committed_plan_uses_workspace_relative_path_and_hint_mapping(
@@ -210,11 +215,14 @@ class TestAgentArtifactMetadata:
             artifacts_dir=str(artifacts_dir),
             workspace_dir=str(workspace),
         )
+        enrich_agent_from_meta(agent, str(artifacts_dir))
         panel = FakePromptPanel()
 
         result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "Artifacts:\n  ▤ [1] sdd/plans/202605/plan.md\n" in plain
+        assert "SASE PLAN" in plain
+        assert "Path: [1] sdd/plans/202605/plan.md\n" in plain
+        assert "Artifacts:" not in plain
         assert "ARTIFACTS:" not in plain
         assert result.file_hints[1] == str(sdd_plan)
