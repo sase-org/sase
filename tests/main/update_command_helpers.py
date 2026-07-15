@@ -92,28 +92,35 @@ def _text(console: Console) -> str:
 
 
 def _versions(name: str) -> str | None:
-    return {"sase": "0.6.1", "sase-github": "0.4.0", "sase-telegram": "0.1.0"}.get(name)
+    return {
+        "sase": "0.6.1",
+        "sase-core-rs": "0.4.0",
+        "sase-github": "0.4.0",
+        "sase-telegram": "0.1.0",
+    }.get(name)
 
 
 def _record(
     name: str,
     *,
     role: str,
-    source_root: str,
+    source_root: str | None,
     display_version: str = "0.6.1+1.gaaaaaaaaa",
+    distribution_version: str = "0.6.1",
+    install_type: str = "editable",
 ) -> VersionPackageRecord:
     return VersionPackageRecord(
         name=name,
         role=role,  # type: ignore[arg-type]
         display_version=display_version,
-        distribution_version="0.6.1",
+        distribution_version=distribution_version,
         source_version="0.6.1",
         import_module=None,
         import_path=None,
         code_directory=None,
         source_root=source_root,
         distribution_location=None,
-        install_type="editable",
+        install_type=install_type,  # type: ignore[arg-type]
         git=None,
     )
 

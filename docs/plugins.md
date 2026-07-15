@@ -205,7 +205,9 @@ Axe restarted (pid 12345) to load the updated code.
   out a branch with an upstream, or rerun online; `sase update` never rebases, merges non-fast-forward, stashes, or
   discards local work.
 - **Mixed installs** update editable packages through the dev path and managed packages through uv in one run, with one
-  combined result.
+  combined result. This includes the common contributor layout where `sase` and every plugin are editable but
+  `sase-core-rs` remains a published wheel: the comprehensive update reconstructs the editable receipt and explicitly
+  re-resolves the compatible core wheel without replacing or dropping those editable sources.
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts axe when it is running so the
   daemon loads the new code. In the Admin Center Updates tab, SASE restarts ACE and axe through the same restart path as
   the `Q` restart action. No-op and failed updates do not restart anything.
@@ -236,6 +238,9 @@ those editable requirements from the receipt and upgrades each one in place from
   with a printed reason instead of being touched.
 - Actionable checkouts are advanced with `git merge --ff-only`, then reconciled into the environment — `uv tool install`
   for Python packages and `just rust-install-uv-tool` for the Rust core (`sase-core-rs`).
+- A wheel-installed `sase-core-rs` is reconciled as managed work even though it is a transitive dependency rather than a
+  top-level uv receipt requirement. Current or safely skipped editable checkouts stay visible in the plan but do not
+  block that core-wheel update.
 - After any changed update (managed or dev), `sase update` restarts the axe daemon so the new code is picked up by
   background work.
 
@@ -290,7 +295,8 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
   both commands reconstruct the **full** `--with` set from sase's `uv-receipt.toml` — faithfully preserving existing
   plugins, editable/dev installs, version specifiers, and extras — before re-running `uv tool install`. `update`
   additionally passes `--upgrade-package <name>` per target so only those plugins move while everything else is pinned;
-  this is why "update plugins" never silently bumps `sase` core (use `sase update` for that).
+  this is why "update plugins" never silently bumps `sase` core (use the comprehensive `sase update`, which also
+  re-resolves a managed core wheel in editable/dev mode, for that).
 - **Install method is required**, exactly as for `sase update`: the commands only work when sase was installed with
   `uv tool install sase`, and otherwise fail fast with an actionable message instead of touching the environment.
 - **Idempotent install.** Installing a plugin that is already injected prints "already installed" and points at

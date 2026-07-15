@@ -14,6 +14,7 @@ from sase.uv_tool.render import (
     render_update_dry_run,
     render_update_result,
     render_uv_tool_error,
+    summarize_planned_update,
     summarize_update,
 )
 from sase.uv_tool.runner import ChangeKind, parse_uv_output
@@ -85,6 +86,29 @@ def test_summarize_merges_receipt_and_change_set() -> None:
     assert summary.primary_updated is True
     assert [o.name for o in summary.updated_plugins] == ["sase-github"]
     assert [o.name for o in summary.already_current] == ["sase-telegram"]
+
+
+def test_summarize_planned_update_reports_transitive_core_transition() -> None:
+    summary = summarize_planned_update(
+        parse_uv_output(" - sase-core-rs==0.4.0\n + sase-core-rs==0.4.1"),
+        (
+            PlannedPackage(
+                name="sase-core-rs",
+                role="dependency",
+                current_version="0.4.0",
+            ),
+        ),
+    )
+
+    assert summary.outcomes == (
+        UpdateOutcome(
+            name="sase-core-rs",
+            role="dependency",
+            kind=ChangeKind.UPGRADED,
+            old_version="0.4.0",
+            new_version="0.4.1",
+        ),
+    )
 
 
 def test_summarize_dedupes_duplicate_dev_receipt_plugins() -> None:

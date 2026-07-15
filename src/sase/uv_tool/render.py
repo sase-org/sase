@@ -166,6 +166,56 @@ def summarize_update(
     return UpdateSummary(tuple(outcomes))
 
 
+def summarize_planned_update(
+    change_set: UvChangeSet,
+    packages: tuple[PlannedPackage, ...],
+) -> UpdateSummary:
+    """Merge a uv change set with an explicit managed target list.
+
+    Editable comprehensive updates do not have a managed primary requirement
+    to use as a summary anchor. Their planned targets (notably a transitive
+    ``sase-core-rs`` wheel) provide the stable order and unchanged versions.
+    """
+    outcomes: list[UpdateOutcome] = []
+    consumed: set[str] = set()
+    for package in packages:
+        change = change_set.get(package.name)
+        if change is None:
+            outcomes.append(
+                UpdateOutcome(
+                    name=package.name,
+                    role=package.role,
+                    kind=ChangeKind.UNCHANGED,
+                    new_version=package.current_version,
+                )
+            )
+        else:
+            outcomes.append(
+                UpdateOutcome(
+                    name=package.name,
+                    role=package.role,
+                    kind=change.kind,
+                    old_version=change.old_version,
+                    new_version=change.new_version,
+                )
+            )
+        consumed.add(normalize_distribution_name(package.name))
+
+    for change in change_set.changes:
+        if normalize_distribution_name(change.name) in consumed:
+            continue
+        outcomes.append(
+            UpdateOutcome(
+                name=change.name,
+                role="dependency",
+                kind=change.kind,
+                old_version=change.old_version,
+                new_version=change.new_version,
+            )
+        )
+    return UpdateSummary(tuple(outcomes))
+
+
 def _outcome_for(
     name: str,
     role: PackageRole,
@@ -414,4 +464,5 @@ __all__ = [
     "render_update_result",
     "render_uv_tool_error",
     "summarize_update",
+    "summarize_planned_update",
 ]

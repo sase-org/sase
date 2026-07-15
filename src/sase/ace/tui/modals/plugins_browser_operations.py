@@ -133,6 +133,22 @@ class PluginsBrowserOperationsMixin:
         return summarize(install)
 
     @staticmethod
+    def _run_planned_sase_update_summary(
+        argv: tuple[str, ...],
+        packages: tuple[Any, ...],
+        *,
+        run_fn: Any = None,
+    ) -> tuple[UpdateSummary, float]:
+        from . import plugins_browser_pane as pane_module
+
+        summarize = pane_module.run_planned_sase_update_summary
+        if run_fn is None:
+            return summarize(argv, packages)
+        if callable_accepts_keyword(summarize, "run_fn"):
+            return summarize(argv, packages, run_fn=run_fn)
+        return summarize(argv, packages)
+
+    @staticmethod
     def _make_sase_update_preview(
         receipt: object | None,
         *,

@@ -48,9 +48,9 @@ from sase.main.update_restart import (
 from sase.main.update_routing import (
     dev_route,
     installed_version,
+    managed_update_argv,
+    managed_update_packages,
     managed_summary_receipt,
-    planned_packages,
-    planned_packages_for_requirements,
     should_run_managed_update,
     try_load_receipt,
     update_mode,
@@ -78,7 +78,6 @@ from sase.mode_switch import (
     render_mode_switch_result,
 )
 from sase.mode_switch.models import SwitchPlan, TargetMode
-from sase.uv_tool.commands import build_upgrade_all
 from sase.uv_tool.detect import (
     NotUvToolInstall,
     UvToolInstall,
@@ -92,6 +91,7 @@ from sase.uv_tool.render import (
     render_update_result,
     render_uv_tool_error,
     summarize_update,
+    summarize_planned_update,
 )
 from sase.uv_tool.runner import run_uv
 from sase.version.inventory import (
@@ -301,7 +301,12 @@ def _handle_live_update(
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
-    argv = build_upgrade_all(color="never") if has_managed else []
+    argv = managed_update_argv(receipt, route, color="never") if has_managed else []
+    managed_packages = (
+        managed_update_packages(receipt, route, version_fn=version_fn)
+        if has_managed
+        else ()
+    )
 
     start = clock()
     dev_plan: DevUpdatePlan | None = None
@@ -365,9 +370,14 @@ def _handle_live_update(
                 change_set = run_fn(argv)
         except UvToolError as exc:
             return _fail(exc, as_json=as_json, err=err)
-        managed_summary = summarize_update(
-            change_set, managed_summary_receipt(receipt), current_version=version_fn
-        )
+        if route is not None:
+            managed_summary = summarize_planned_update(change_set, managed_packages)
+        else:
+            managed_summary = summarize_update(
+                change_set,
+                managed_summary_receipt(receipt),
+                current_version=version_fn,
+            )
 
     elapsed = max(0.0, clock() - start)
     changed = combined_changed(dev_result, managed_summary)
@@ -428,15 +438,11 @@ def _handle_dry_run(
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
-    argv = build_upgrade_all(color="never") if has_managed else []
+    argv = managed_update_argv(receipt, route, color="never") if has_managed else []
     packages = (
-        planned_packages(receipt, version_fn)
-        if mode == "managed"
-        else planned_packages_for_requirements(
-            route.managed_requirements if route is not None else (),
-            receipt=receipt,
-            version_fn=version_fn,
-        )
+        managed_update_packages(receipt, route, version_fn=version_fn)
+        if has_managed
+        else ()
     )
 
     dev_plan: DevUpdatePlan | None = None

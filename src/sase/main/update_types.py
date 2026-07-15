@@ -12,6 +12,7 @@ from sase.dev_update.models import DevCommandRunner
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
+from sase.uv_tool.render import UpdateSummary
 from sase.version.inventory import RuntimeVersionInventory, VersionPackageRecord
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
@@ -67,3 +68,20 @@ class DevRoute:
     records: tuple[VersionPackageRecord, ...]
     host_record: VersionPackageRecord
     managed_requirements: tuple[Requirement, ...]
+    managed_core_record: VersionPackageRecord | None = None
+
+
+@dataclass(frozen=True)
+class CombinedUpdateResult:
+    """Aggregate outcome for one comprehensive editable/managed update."""
+
+    dev_result: DevUpdateResult | None
+    managed_summary: UpdateSummary | None
+    elapsed: float
+
+    @property
+    def changed(self) -> bool:
+        return bool(
+            (self.dev_result is not None and self.dev_result.changed)
+            or (self.managed_summary is not None and self.managed_summary.changed)
+        )

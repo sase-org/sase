@@ -15,6 +15,7 @@ from sase.ace.update_receipt import (
 )
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult
 from sase.dev_update.models import RepoDiffStat
+from sase.main.update_types import CombinedUpdateResult
 from sase.plugins.operations import (
     InstallOutcome,
     InstallReady,
@@ -288,6 +289,31 @@ def test_build_managed_update_receipt_returns_none_for_no_updates() -> None:
     )
 
     assert build_update_receipt(summary, created_at=123.0) is None
+
+
+def test_build_combined_core_only_receipt_is_managed_dependency_transition() -> None:
+    result = CombinedUpdateResult(
+        dev_result=DevUpdateResult(changed=False, outcomes=()),
+        managed_summary=UpdateSummary(
+            outcomes=(
+                UpdateOutcome(
+                    "sase-core-rs",
+                    "dependency",
+                    ChangeKind.UPGRADED,
+                    old_version="0.4.0",
+                    new_version="0.4.1",
+                ),
+            )
+        ),
+        elapsed=0.2,
+    )
+
+    assert build_update_receipt(result, created_at=123.0) == UpdateToastReceipt(
+        kind="managed",
+        created_at=123.0,
+        primary=None,
+        dependency_count=1,
+    )
 
 
 def test_build_plugin_install_receipt_uses_added_package_version() -> None:

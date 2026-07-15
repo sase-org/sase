@@ -9,9 +9,16 @@ from pathlib import Path
 from sase.dev_update.execute import execute_dev_update, run_dev_update_command
 from sase.dev_update.models import DevCommandRunner, DevUpdatePlan, DevUpdateResult
 from sase.dev_update.plan import plan_dev_update
+from sase.main.update_routing import (
+    dev_route_from_inventory,
+    managed_update_argv,
+    managed_update_packages,
+)
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.render_common import humanize_duration
+from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.receipt import ToolReceipt
+from sase.uv_tool.render import PlannedPackage
 from sase.version._models import VersionPackageRecord
 from sase.version._utils import normalize_distribution_name
 from sase.version.inventory import collect_runtime_version_inventory
@@ -24,6 +31,8 @@ class DevUpdatePreview:
     plan: DevUpdatePlan | None
     subject: str
     error: str | None = None
+    managed_argv: tuple[str, ...] = ()
+    managed_packages: tuple[PlannedPackage, ...] = ()
 
 
 def make_sase_dev_update_preview(
@@ -36,21 +45,55 @@ def make_sase_dev_update_preview(
     A ``None`` plan means no editable runtime packages are installed, so callers
     should fall back to the managed ``uv tool upgrade sase`` path.
     """
-    records = _runtime_records()
-    editable = tuple(
-        record
-        for record in records
-        if record.install_type == "editable"
-        and record.role in {"host", "core", "plugin"}
-    )
+    inventory = collect_runtime_version_inventory(include_plugins=True)
+    records = inventory.packages
+    host: VersionPackageRecord | None
+    if receipt is not None:
+        route = dev_route_from_inventory(receipt, inventory)
+        if isinstance(route, UvToolError):
+            return DevUpdatePreview(plan=None, subject="sase", error=str(route))
+        if route is None:
+            return DevUpdatePreview(plan=None, subject="sase")
+        editable = route.records
+        host = route.host_record
+        versions = {
+            normalize_distribution_name(record.name): record.distribution_version
+            or record.display_version
+            for record in records
+        }
+        managed_argv = tuple(managed_update_argv(receipt, route, color="never"))
+        managed_packages = managed_update_packages(
+            receipt,
+            route,
+            version_fn=lambda name: versions.get(normalize_distribution_name(name)),
+        )
+    else:
+        editable = tuple(
+            record
+            for record in records
+            if record.install_type == "editable"
+            and record.role in {"host", "core", "plugin"}
+        )
+        host = _host_record(records)
+        managed_argv = ()
+        managed_packages = ()
     if not editable:
         return DevUpdatePreview(plan=None, subject="sase")
+    if host is None:
+        return DevUpdatePreview(
+            plan=None,
+            subject="sase",
+            error="Runtime inventory is missing the host `sase` package.",
+        )
     return _plan(
         editable,
         records=records,
         receipt=receipt,
         subject="sase",
         already_refreshed_roots=already_refreshed_roots,
+        host_record=host,
+        managed_argv=managed_argv,
+        managed_packages=managed_packages,
     )
 
 
@@ -213,8 +256,11 @@ def _plan(
     receipt: ToolReceipt | None,
     subject: str,
     already_refreshed_roots: Collection[str] = (),
+    host_record: VersionPackageRecord | None = None,
+    managed_argv: tuple[str, ...] = (),
+    managed_packages: tuple[PlannedPackage, ...] = (),
 ) -> DevUpdatePreview:
-    host = _host_record(records)
+    host = host_record or _host_record(records)
     if host is None:
         return DevUpdatePreview(
             plan=None,
@@ -230,7 +276,12 @@ def _plan(
         )
     except Exception as exc:  # noqa: BLE001 - update planning should toast clearly.
         return DevUpdatePreview(plan=None, subject=subject, error=str(exc))
-    return DevUpdatePreview(plan=plan, subject=subject)
+    return DevUpdatePreview(
+        plan=plan,
+        subject=subject,
+        managed_argv=managed_argv,
+        managed_packages=managed_packages,
+    )
 
 
 def _host_record(

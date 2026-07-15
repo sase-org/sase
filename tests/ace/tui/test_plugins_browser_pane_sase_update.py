@@ -13,6 +13,7 @@ from textual.widgets import Static
 from sase.ace import update_receipt
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals import plugins_browser_dev_update as pbdu
 from sase.ace.tui.modals import plugins_browser_sase_update as pbsu
 from sase.ace.tui.modals.plugin_action_confirm_modal import PluginActionConfirmModal
 from sase.ace.tui.task_queue import TaskInfo, TaskQueue
@@ -22,9 +23,13 @@ from sase.updates.incoming_commits import (
     IncomingCommits,
     RepoIncomingCommits,
 )
+from sase.uv_tool.errors import UvCommandFailedError
+from sase.uv_tool.receipt import parse_receipt
+from sase.uv_tool.render import PlannedPackage
 from sase.uv_tool.render import UpdateOutcome as SaseUpdateOutcome
 from sase.uv_tool.render import UpdateSummary
 from sase.uv_tool.runner import ChangeKind
+from sase.version.inventory import RuntimeVersionInventory
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
     _not_uv_tool,
@@ -68,6 +73,43 @@ def _multi_root_dev_plan() -> DevUpdatePlan:
             )
         )
     return replace(base, packages=tuple(packages), roots=tuple(roots))
+
+
+def _mixed_preview(plan: DevUpdatePlan) -> pbp._DevUpdatePreview:
+    return pbp._DevUpdatePreview(
+        plan=plan,
+        subject="sase",
+        managed_argv=(
+            "uv",
+            "tool",
+            "install",
+            "--editable",
+            "/repo/sase",
+            "--upgrade-package",
+            "sase-core-rs",
+        ),
+        managed_packages=(
+            PlannedPackage(
+                name="sase-core-rs",
+                role="dependency",
+                current_version="0.4.0",
+            ),
+        ),
+    )
+
+
+def _core_summary(*, changed: bool) -> UpdateSummary:
+    return UpdateSummary(
+        outcomes=(
+            SaseUpdateOutcome(
+                name="sase-core-rs",
+                role="dependency",
+                kind=ChangeKind.UPGRADED if changed else ChangeKind.UNCHANGED,
+                old_version="0.4.0" if changed else None,
+                new_version="0.4.1" if changed else "0.4.0",
+            ),
+        )
+    )
 
 
 def _task(
@@ -131,6 +173,66 @@ def test_restart_blockers_fail_open_when_queue_cannot_be_inspected() -> None:
         == []
     )
     assert pbsu._running_background_tasks(SimpleNamespace()) == []
+
+
+def test_sase_preview_carries_transitive_wheel_core_as_managed_work(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    host = _version_record("sase", role="host")
+    github = _version_record("sase-github", role="plugin")
+    telegram = _version_record("sase-telegram", role="plugin")
+    core = replace(
+        _version_record("sase-core-rs", role="core"),
+        display_version="0.4.0",
+        distribution_version="0.4.0",
+        source_version=None,
+        source_root=None,
+        install_type="wheel",
+    )
+    inventory = RuntimeVersionInventory(
+        executable="sase",
+        python_executable="/tool/bin/python",
+        python_version="3.14",
+        packages=(host, core, github, telegram),
+    )
+    receipt = parse_receipt(
+        """
+[tool]
+requirements = [
+    { name = "sase", editable = "/repo/sase" },
+    { name = "sase-github", editable = "/repo/sase-github" },
+    { name = "sase-telegram", editable = "/repo/sase-telegram" },
+]
+"""
+    )
+    seen: list[str] = []
+
+    def _plan(records: tuple[Any, ...], **_kwargs: Any) -> DevUpdatePlan:
+        seen.extend(record.name for record in records)
+        return _dev_plan(status="skipped")
+
+    monkeypatch.setattr(
+        pbdu, "collect_runtime_version_inventory", lambda **_kw: inventory
+    )
+    monkeypatch.setattr(pbdu, "plan_dev_update", _plan)
+    monkeypatch.setattr(
+        "sase.main.update_routing.write_editable_overrides",
+        lambda _requirements: tmp_path / "editable-overrides.txt",
+    )
+
+    preview = pbdu.make_sase_dev_update_preview(receipt)
+
+    assert preview.error is None
+    assert seen == ["sase", "sase-github", "sase-telegram"]
+    assert preview.managed_packages == (
+        PlannedPackage(
+            name="sase-core-rs",
+            role="dependency",
+            current_version="0.4.0",
+        ),
+    )
+    assert preview.managed_argv[-2:] == ("--upgrade-package", "sase-core-rs")
 
 
 async def test_updates_pane_sase_update_opens_preview_modal(
@@ -411,6 +513,189 @@ async def test_updates_pane_sase_update_dev_skipped_reason_is_error(
         assert page.app.screen.__class__.__name__ == "ConfigCenterModal"
         assert messages[0][1] == "error"
         assert "checkout has local changes" in messages[0][0]
+
+
+async def test_updates_pane_skipped_editables_with_wheel_core_open_mixed_preview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    preview = _mixed_preview(_dev_plan(status="skipped"))
+    monkeypatch.setattr(
+        pbp,
+        "_make_sase_dev_update_preview",
+        lambda _receipt: preview,
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        rendered = _render(modal._preview_renderable())
+        assert "skip sase-github: checkout has local changes" in rendered
+        assert "upgrade sase-core-rs from 0.4.0" in rendered
+        assert "--upgrade-package sase-core-rs" in rendered
+        assert messages == []
+
+
+async def test_updates_pane_mixed_core_only_success_restarts_once_and_receipts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _dev_plan(status="skipped")
+    preview = _mixed_preview(plan)
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", lambda _receipt: preview)
+    monkeypatch.setattr(
+        pbp,
+        "_execute_tui_dev_update",
+        lambda plan_arg: _dev_result(plan_arg, changed=False),
+    )
+    managed_calls: list[tuple[tuple[str, ...], tuple[PlannedPackage, ...]]] = []
+
+    def _fake_managed(
+        argv: tuple[str, ...], packages: tuple[PlannedPackage, ...]
+    ) -> tuple[UpdateSummary, float]:
+        managed_calls.append((argv, packages))
+        return _core_summary(changed=True), 0.2
+
+    monkeypatch.setattr(pbp, "run_planned_sase_update_summary", _fake_managed)
+    receipt_file = tmp_path / "pending_update_toast.json"
+    monkeypatch.setattr(update_receipt, "_PENDING_UPDATE_TOAST_FILE", receipt_file)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(managed_calls) and bool(restart_calls))
+        assert restart_calls == [True]
+        assert managed_calls == [(preview.managed_argv, preview.managed_packages)]
+        receipt = update_receipt.read_and_clear_pending_update_toast()
+        assert receipt is not None
+        assert receipt.kind == "managed"
+        assert receipt.primary is None
+        assert receipt.plugins == ()
+        assert receipt.dependency_count == 1
+
+
+async def test_updates_pane_mixed_true_noop_does_not_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _dev_plan(status="skipped")
+    preview = _mixed_preview(plan)
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", lambda _receipt: preview)
+    monkeypatch.setattr(
+        pbp,
+        "_execute_tui_dev_update",
+        lambda plan_arg: _dev_result(plan_arg, changed=False),
+    )
+    monkeypatch.setattr(
+        pbp,
+        "run_planned_sase_update_summary",
+        lambda _argv, _packages: (_core_summary(changed=False), 0.1),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(messages))
+        assert restart_calls == []
+        assert messages == [(pbsu._SASE_UPDATE_NOOP_MESSAGE, "error")]
+
+
+async def test_updates_pane_mixed_managed_failure_notifies_once_without_restart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    plan = _dev_plan(status="skipped")
+    preview = _mixed_preview(plan)
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", lambda _receipt: preview)
+    monkeypatch.setattr(
+        pbp,
+        "_execute_tui_dev_update",
+        lambda plan_arg: _dev_result(plan_arg, changed=False),
+    )
+
+    def _fail(argv: tuple[str, ...], _packages: tuple[PlannedPackage, ...]) -> None:
+        raise UvCommandFailedError(argv=argv, returncode=2, stderr="core conflict")
+
+    monkeypatch.setattr(pbp, "run_planned_sase_update_summary", _fail)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        restart_calls: list[bool] = []
+        monkeypatch.setattr(
+            page.app,
+            "_restart_tui",
+            lambda *, restart_axe: restart_calls.append(restart_axe),
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_confirm()
+
+        await page.wait_for(lambda _s: bool(messages))
+        assert restart_calls == []
+        assert len(messages) == 1
+        assert messages[0][1] == "error"
+        assert "sase update failed" in messages[0][0]
+        assert "core conflict" in messages[0][0]
+
+
+async def test_updates_pane_mixed_cancel_is_non_mutating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_editable_catalog())
+    preview = _mixed_preview(_dev_plan(status="skipped"))
+    monkeypatch.setattr(pbp, "_make_sase_dev_update_preview", lambda _receipt: preview)
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        submitted: list[int] = []
+        monkeypatch.setattr(
+            pane, "_submit_combined_update_task", lambda _preview: submitted.append(1)
+        )
+        pane.action_update_sase()
+        await page.expect_modal("PluginActionConfirmModal")
+        modal = page.app.screen
+        assert isinstance(modal, PluginActionConfirmModal)
+        modal.action_cancel()
+
+        await page.expect_modal("ConfigCenterModal")
+        assert submitted == []
 
 
 async def test_updates_pane_sase_update_managed_confirm_closes_admin_center(

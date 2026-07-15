@@ -16,6 +16,9 @@ using a **disposable stand-in tool** (``cowsay``) with a **stand-in plugin**
 * (c) ``uv tool upgrade <tool>`` re-resolves the **whole** environment — the
   primary *and* every ``--with`` plugin — in one shot (guards finding #3, the
   basis of ``sase update``).
+* (d) targeting a stale transitive dependency while reconstructing editable
+  primary/plugin requirements upgrades that dependency without losing either
+  editable source (the mixed comprehensive-update invariant).
 
 The harness is hermetic: ``UV_TOOL_DIR`` / ``UV_TOOL_BIN_DIR`` point at a
 ``tmp_path`` so installs land in a throwaway directory, never the user's real uv
@@ -38,6 +41,7 @@ import pytest
 
 from sase.uv_tool.commands import build_install, build_upgrade_packages
 from sase.uv_tool.errors import UvCommandFailedError
+from sase.uv_tool.overrides import write_editable_overrides
 from sase.uv_tool.receipt import load_receipt
 from sase.uv_tool.runner import ChangeKind, UvChangeSet, run_uv
 
@@ -58,6 +62,8 @@ PLUGIN = "six"
 OTHER_PLUGIN = "pyfiglet"
 OTHER_PLUGIN_PINNED = "pyfiglet==0.8.post1"
 SECOND_ADD = "iniconfig"  # a fresh plugin to inject in the preserve test.
+EDITABLE_PRIMARY = "editable-update-primary"
+EDITABLE_PLUGIN = "editable-update-plugin"
 
 
 @dataclass(frozen=True)
@@ -72,18 +78,21 @@ class UvToolEnv:
         """Path to the stand-in tool's ``uv-receipt.toml``."""
         return self.tool_dir / PRIMARY / "uv-receipt.toml"
 
+    def receipt_path_for(self, name: str) -> Path:
+        return self.tool_dir / name / "uv-receipt.toml"
+
     def run(self, argv: Sequence[str]) -> UvChangeSet:
         """Run a ``uv`` *argv* inside this isolated environment."""
         return run_uv(argv, run_fn=_runner(self.env))
 
-    def installed_versions(self) -> dict[str, str]:
+    def installed_versions(self, tool_name: str = PRIMARY) -> dict[str, str]:
         """Map each requirement in the current receipt to its resolved version.
 
         Reads the version actually on disk from the tool venv's
         ``*.dist-info`` directories, so assertions compare against ground truth
         rather than re-parsing uv's log.
         """
-        site = self.tool_dir / PRIMARY / "lib"
+        site = self.tool_dir / tool_name / "lib"
         versions: dict[str, str] = {}
         for dist_info in site.glob("python*/site-packages/*.dist-info"):
             name, _, version = dist_info.name.removesuffix(".dist-info").rpartition("-")
@@ -236,6 +245,82 @@ def test_tool_upgrade_bumps_injected_plugin(uv_env: UvToolEnv) -> None:
     )
 
 
+def test_editable_tool_upgrade_target_preserves_sources_and_bumps_dependency(
+    uv_env: UvToolEnv,
+    tmp_path: Path,
+) -> None:
+    """(d) A managed transitive target survives an all-editable receipt."""
+    primary = tmp_path / "editable-primary"
+    plugin = tmp_path / "editable-plugin"
+    _write_local_package(
+        primary,
+        EDITABLE_PRIMARY,
+        "0.1.0",
+        dependencies=("six>=1,<2",),
+        script_name="editable-update",
+    )
+    _write_local_package(plugin, EDITABLE_PLUGIN, "0.1.0")
+    _install_base(
+        uv_env,
+        [
+            "--editable",
+            str(primary),
+            "--with-editable",
+            str(plugin),
+        ],
+    )
+    python = uv_env.tool_dir / EDITABLE_PRIMARY / "bin" / "python"
+    try:
+        uv_env.run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--python",
+                str(python),
+                "six==1.16.0",
+                "--color",
+                "never",
+            ]
+        )
+        receipt = load_receipt(
+            uv_env.receipt_path_for(EDITABLE_PRIMARY),
+            primary_name=EDITABLE_PRIMARY,
+        )
+        overrides = write_editable_overrides(
+            receipt.requirements,
+            path=tmp_path / "editable-overrides.txt",
+        )
+        assert overrides is not None
+        before = uv_env.installed_versions(EDITABLE_PRIMARY)
+        changeset = uv_env.run(
+            build_upgrade_packages(
+                receipt,
+                [PLUGIN],
+                color="never",
+                overrides=str(overrides),
+            )
+        )
+    except UvCommandFailedError as exc:  # pragma: no cover - network dependent
+        pytest.skip(f"uv could not exercise editable dependency update: {exc}")
+
+    change = changeset.get(PLUGIN)
+    assert change is not None
+    assert change.kind is ChangeKind.UPGRADED
+    assert change.old_version == "1.16.0"
+    after = uv_env.installed_versions(EDITABLE_PRIMARY)
+    assert after[PLUGIN] != before[PLUGIN]
+    assert after[EDITABLE_PRIMARY] == before[EDITABLE_PRIMARY]
+    assert after[EDITABLE_PLUGIN] == before[EDITABLE_PLUGIN]
+
+    preserved = load_receipt(
+        uv_env.receipt_path_for(EDITABLE_PRIMARY),
+        primary_name=EDITABLE_PRIMARY,
+    )
+    assert preserved.primary.editable == str(primary)
+    assert preserved.deduped_injected_plugins()[0].editable == str(plugin)
+
+
 def test_uninstall_removes_throwaway_tool(uv_env: UvToolEnv) -> None:
     """The throwaway tool is fully removable — closes the install/upgrade loop."""
     _install_base(uv_env, [PRIMARY, "--with", PLUGIN])
@@ -284,12 +369,18 @@ def _write_local_package(
     version: str,
     *,
     dependencies: Sequence[str] = (),
+    script_name: str | None = None,
 ) -> None:
     path.mkdir()
     module = name.replace("-", "_")
     dependency_rows = "\n".join(f'    "{dependency}",' for dependency in dependencies)
     dependency_block = (
         f"dependencies = [\n{dependency_rows}\n]\n" if dependency_rows else ""
+    )
+    script_block = (
+        f'\n[project.scripts]\n{script_name} = "{module}:main"\n'
+        if script_name is not None
+        else ""
     )
     (path / "pyproject.toml").write_text(
         f"""\
@@ -301,12 +392,14 @@ build-backend = "hatchling.build"
 name = "{name}"
 version = "{version}"
 {dependency_block}
+{script_block}
 """,
         encoding="utf-8",
     )
     package_dir = path / module
     package_dir.mkdir()
-    (package_dir / "__init__.py").write_text("", encoding="utf-8")
+    body = "def main():\n    return 0\n" if script_name is not None else ""
+    (package_dir / "__init__.py").write_text(body, encoding="utf-8")
 
 
 def _run_uv_pip_compile(

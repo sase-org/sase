@@ -53,6 +53,7 @@ from sase.uv_tool.render import (
     render_update_result,
     render_uv_tool_error,
     summarize_update,
+    summarize_planned_update,
 )
 from sase.uv_tool.runner import (
     UV_TIMEOUT_SECONDS,
@@ -112,5 +113,6 @@ __all__ = [
     "run_uv",
     "sase_receipt_path",
     "summarize_update",
+    "summarize_planned_update",
     "write_editable_overrides",
 ]

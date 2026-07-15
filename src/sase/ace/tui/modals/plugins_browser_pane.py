@@ -79,6 +79,7 @@ from .plugins_browser_sase_update import (
     SaseUpdateActionsMixin,
     installed_version,
     load_receipt_for_summary,
+    run_planned_sase_update_summary as run_planned_sase_update_summary,
     run_sase_update_summary as run_sase_update_summary,
     sase_update_success_message,
 )
@@ -137,6 +138,7 @@ _uninstall_summary = uninstall_summary
 _installed_version = installed_version
 _load_receipt_for_summary = load_receipt_for_summary
 _run_sase_update_summary = run_sase_update_summary
+_run_planned_sase_update_summary = run_planned_sase_update_summary
 _sase_update_success_message = sase_update_success_message
 _IncomingCommitsConfig = IncomingCommitsConfig
 _fetch_incoming_commits = fetch_incoming_commits

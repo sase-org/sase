@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from sase.core.paths import sase_home
 from sase.dev_update.models import DevUpdateOutcome, DevUpdateResult, RepoDiffStat
+from sase.main.update_types import CombinedUpdateResult
 from sase.mode_switch.models import ModeSwitchResult
 from sase.plugins.operations import (
     InstallManyOutcome,
@@ -80,6 +81,8 @@ def build_update_receipt(
         return _build_managed_receipt(payload, created_at=timestamp)
     if isinstance(payload, DevUpdateResult):
         return _build_dev_receipt(payload, created_at=timestamp)
+    if isinstance(payload, CombinedUpdateResult):
+        return _build_combined_receipt(payload, created_at=timestamp)
     if isinstance(payload, ModeSwitchResult):
         return _build_mode_switch_receipt(payload, created_at=timestamp)
     if isinstance(payload, InstallOutcome):
@@ -229,6 +232,73 @@ def _build_dev_receipt(
         plugins=plugins,
         plugin_overflow=plugin_overflow,
         plugin_overflow_diffstat=plugin_overflow_diffstat,
+        dependency_count=dependency_count,
+    )
+
+
+def _build_combined_receipt(
+    result: CombinedUpdateResult, *, created_at: float
+) -> UpdateToastReceipt | None:
+    """Merge editable transitions with managed dependency transitions."""
+    dev_updated = (
+        tuple(
+            outcome
+            for outcome in result.dev_result.outcomes
+            if outcome.status == "updated"
+        )
+        if result.dev_result is not None
+        else ()
+    )
+    managed_updated = (
+        result.managed_summary.updated if result.managed_summary is not None else ()
+    )
+    primary = next(
+        (
+            _transition_from_dev_outcome(outcome)
+            for outcome in dev_updated
+            if normalize_distribution_name(outcome.record.name) == _PRIMARY_DIST_KEY
+        ),
+        None,
+    ) or next(
+        (
+            _transition_from_update_outcome(outcome)
+            for outcome in managed_updated
+            if outcome.role == "primary"
+        ),
+        None,
+    )
+    transitions = [
+        _transition_from_dev_outcome(outcome)
+        for outcome in dev_updated
+        if outcome.record.role == "plugin"
+    ]
+    transitions.extend(
+        _transition_from_update_outcome(outcome)
+        for outcome in managed_updated
+        if outcome.role == "plugin"
+    )
+    plugins, overflow, overflow_diffstat = _cap_plugin_transitions(transitions)
+    dependency_count = sum(
+        1
+        for outcome in dev_updated
+        if (
+            normalize_distribution_name(outcome.record.name) != _PRIMARY_DIST_KEY
+            and outcome.record.role != "plugin"
+        )
+    ) + sum(1 for outcome in managed_updated if outcome.role == "dependency")
+    if primary is None and not plugins and dependency_count == 0:
+        return None
+    return UpdateToastReceipt(
+        kind=(
+            "dev"
+            if result.dev_result is not None and result.dev_result.changed
+            else "managed"
+        ),
+        created_at=created_at,
+        primary=primary,
+        plugins=plugins,
+        plugin_overflow=overflow,
+        plugin_overflow_diffstat=overflow_diffstat,
         dependency_count=dependency_count,
     )
 
