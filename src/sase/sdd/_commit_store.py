@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
-from sase.sdd._git_contention import SddGitCommandError, run_sdd_git_write
+from sase.sdd._git_contention import (
+    SddGitCommandError,
+    run_sdd_git_write,
+    store_git_write_lock,
+)
 from sase.sdd._store_types import (
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -47,22 +51,24 @@ def commit_sdd_files(
     if not changed_files:
         return False
 
-    run_sdd_git_write(
-        ["add", "--"] + changed_files,
-        cwd=sdd_dir,
-        check=True,
-        capture_output=True,
-        op="sdd.add",
-    )
+    with store_git_write_lock(sdd_dir):
+        run_sdd_git_write(
+            ["add", "--"] + changed_files,
+            cwd=sdd_dir,
+            check=True,
+            capture_output=True,
+            op="sdd.add",
+        )
 
-    result = run_sdd_git(
-        ["diff", "--cached", "--quiet", "--"] + changed_files,
-        cwd=sdd_dir,
-        capture_output=True,
-        check=False,
-        op="sdd.diff_cached",
-    )
-    if result.returncode != 0:
+        result = run_sdd_git(
+            ["diff", "--cached", "--quiet", "--"] + changed_files,
+            cwd=sdd_dir,
+            capture_output=True,
+            check=False,
+            op="sdd.diff_cached",
+        )
+        if result.returncode == 0:
+            return False
         diff_path = _capture_staged_sdd_diff(
             sdd_dir,
             changed_files,
@@ -80,16 +86,15 @@ def commit_sdd_files(
             capture_output=True,
             op="sdd.commit",
         )
-        if record_commit_marker:
-            _record_sdd_commit_marker(
-                sdd_dir,
-                message=message,
-                artifacts_dir=artifacts_dir,
-                repo_name=repo_name,
-                diff_path=diff_path,
-            )
-        return True
-    return False
+    if record_commit_marker:
+        _record_sdd_commit_marker(
+            sdd_dir,
+            message=message,
+            artifacts_dir=artifacts_dir,
+            repo_name=repo_name,
+            diff_path=diff_path,
+        )
+    return True
 
 
 def sdd_commit_targets(

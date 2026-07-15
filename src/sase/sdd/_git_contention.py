@@ -1,6 +1,9 @@
-"""Retry helpers for transient git lock contention in SDD stores."""
+"""Serialization and retry helpers for git writes in SDD stores."""
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+import fcntl
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -11,6 +14,12 @@ from sase.sdd._git import run_sdd_git
 
 ENV_GIT_LOCK_RETRY_DELAYS = "SASE_SDD_GIT_LOCK_RETRY_DELAYS"
 DEFAULT_GIT_LOCK_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6, 3.2)
+ENV_STORE_WRITE_LOCK_TIMEOUT = "SASE_SDD_STORE_WRITE_LOCK_TIMEOUT"
+DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS = 10.0
+STORE_WRITE_LOCK_FILENAME = "sase-store-write.lock"
+_STORE_WRITE_LOCK_POLL_SECONDS = 0.05
+
+_logger = logging.getLogger(__name__)
 
 
 class SddGitCommandError(subprocess.CalledProcessError):
@@ -78,6 +87,42 @@ def run_sdd_git_write(
         retry_attempt += 1
 
 
+@contextmanager
+def store_git_write_lock(
+    repo_root: Path,
+    *,
+    timeout: float | None = None,
+) -> Iterator[bool]:
+    """Boundedly serialize a store-repo write transaction.
+
+    The context yields whether the lock was acquired. Acquisition deliberately
+    fails open after the timeout: transient git lock retries remain the final
+    safety net if a non-cooperating or long-running process holds the lock.
+    """
+    timeout_seconds = (
+        _store_write_lock_timeout() if timeout is None else max(0.0, timeout)
+    )
+    lock_path = _store_write_lock_path(repo_root)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        acquired = _acquire_store_write_lock(
+            lock_file.fileno(),
+            timeout=timeout_seconds,
+        )
+        if not acquired:
+            _logger.warning(
+                "Timed out after %.3fs waiting for SDD store write lock %s; "
+                "proceeding without it",
+                timeout_seconds,
+                lock_path,
+            )
+        try:
+            yield acquired
+        finally:
+            if acquired:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def _checked_result(
     result: subprocess.CompletedProcess[Any],
     *,
@@ -104,6 +149,46 @@ def _git_lock_retry_delays() -> tuple[float, ...]:
     if not delays or any(delay < 0 for delay in delays):
         return DEFAULT_GIT_LOCK_RETRY_DELAYS
     return delays
+
+
+def _store_write_lock_timeout() -> float:
+    raw = os.environ.get(ENV_STORE_WRITE_LOCK_TIMEOUT)
+    if raw is None:
+        return DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+    return timeout if timeout >= 0 else DEFAULT_STORE_WRITE_LOCK_TIMEOUT_SECONDS
+
+
+def _store_write_lock_path(repo_root: Path) -> Path:
+    result = run_sdd_git(
+        ["rev-parse", "--git-dir"],
+        cwd=repo_root,
+        op="sdd.store_write_lock.git_dir",
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    raw_git_dir = result.stdout.strip() if result.returncode == 0 else ".git"
+    git_dir = Path(raw_git_dir or ".git")
+    if not git_dir.is_absolute():
+        git_dir = repo_root / git_dir
+    return git_dir / STORE_WRITE_LOCK_FILENAME
+
+
+def _acquire_store_write_lock(fd: int, *, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(_STORE_WRITE_LOCK_POLL_SECONDS, remaining))
 
 
 def _stream_text(value: str | bytes | None) -> str:

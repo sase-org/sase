@@ -38,7 +38,7 @@ _INTEGRATION_MARKER = "sase-bead-sync.integration"
 
 def git_sync(beads_dir: Path) -> None:
     """Stage bead state in git (does not commit)."""
-    from sase.sdd._git_contention import run_sdd_git_write
+    from sase.sdd._git_contention import run_sdd_git_write, store_git_write_lock
 
     if not beads_dir.exists():
         return
@@ -48,13 +48,14 @@ def git_sync(beads_dir: Path) -> None:
     files = _list_bead_state_changes_silent(beads_dir, repo_root)
     if not files:
         return
-    run_sdd_git_write(
-        ["add", "--", *files],
-        cwd=repo_root,
-        capture_output=True,
-        check=False,
-        op="bead.git_sync.add",
-    )
+    with store_git_write_lock(repo_root):
+        run_sdd_git_write(
+            ["add", "--", *files],
+            cwd=repo_root,
+            capture_output=True,
+            check=False,
+            op="bead.git_sync.add",
+        )
 
 
 def commit_bead_work_launch(
@@ -70,6 +71,7 @@ def commit_bead_work_launch(
     staged bead-state change after adding the store.
     """
     from sase.sdd._git import run_sdd_git
+    from sase.sdd._git_contention import store_git_write_lock
 
     del title
     if not beads_dir.exists():
@@ -83,40 +85,43 @@ def commit_bead_work_launch(
     if not files:
         return False
 
-    _run_git_write_or_raise(
-        ["add", "--", *files],
-        cwd=repo_root,
-        action=f"stage {rel_beads}",
-        op="bead.work_launch.add",
-    )
-
-    diff_result = run_sdd_git(
-        ["diff", "--cached", "--quiet", "--", *files],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-        op="bead.work_launch.diff_cached",
-    )
-    if diff_result.returncode == 0:
-        return False
-    if diff_result.returncode != 1:
-        raise BeadWorkLaunchCommitError(
-            _format_git_failure(f"inspect staged changes for {rel_beads}", diff_result)
+    with store_git_write_lock(repo_root):
+        _run_git_write_or_raise(
+            ["add", "--", *files],
+            cwd=repo_root,
+            action=f"stage {rel_beads}",
+            op="bead.work_launch.add",
         )
 
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+        diff_result = run_sdd_git(
+            ["diff", "--cached", "--quiet", "--", *files],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            op="bead.work_launch.diff_cached",
+        )
+        if diff_result.returncode == 0:
+            return False
+        if diff_result.returncode != 1:
+            raise BeadWorkLaunchCommitError(
+                _format_git_failure(
+                    f"inspect staged changes for {rel_beads}", diff_result
+                )
+            )
 
-    message = apply_auto_commit_type_tag(
-        f"chore: mark bead work launched for {bead_id}",
-        "bead_work",
-    )
-    _run_git_write_or_raise(
-        ["commit", "-m", message, "--", *files],
-        cwd=repo_root,
-        action=f"commit {rel_beads}",
-        op="bead.work_launch.commit",
-    )
+        from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
+
+        message = apply_auto_commit_type_tag(
+            f"chore: mark bead work launched for {bead_id}",
+            "bead_work",
+        )
+        _run_git_write_or_raise(
+            ["commit", "-m", message, "--", *files],
+            cwd=repo_root,
+            action=f"commit {rel_beads}",
+            op="bead.work_launch.commit",
+        )
     return True
 
 

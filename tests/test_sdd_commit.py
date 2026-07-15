@@ -4,6 +4,7 @@ import json
 import subprocess
 import tempfile
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -12,7 +13,11 @@ import pytest
 
 from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files, _commit_sdd_spec
 from sase.sdd.files import commit_sdd_files, commit_sdd_store_files
-from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
+from sase.sdd._git_contention import (
+    ENV_GIT_LOCK_RETRY_DELAYS,
+    ENV_STORE_WRITE_LOCK_TIMEOUT,
+    store_git_write_lock,
+)
 from sase.sdd.store import SddStore
 
 
@@ -327,6 +332,60 @@ def test_commit_sdd_files_does_not_retry_non_lock_128(
 
     assert "pathspec" in str(exc_info.value).lower()
     sleep.assert_not_called()
+
+
+def test_commit_sdd_files_waits_for_store_write_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_test_git_repo(repo)
+    plan = repo / "plan.md"
+    plan.write_text("first\n", encoding="utf-8")
+    subprocess.run(["git", "add", "plan.md"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "initial"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    original_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    plan.write_text("second\n", encoding="utf-8")
+    monkeypatch.setenv(ENV_STORE_WRITE_LOCK_TIMEOUT, "1")
+    started = threading.Event()
+    finished = threading.Event()
+    results: list[bool] = []
+
+    def commit_in_thread() -> None:
+        started.set()
+        results.append(commit_sdd_files(repo, "Commit after store lock"))
+        finished.set()
+
+    with store_git_write_lock(repo) as acquired:
+        assert acquired is True
+        writer = threading.Thread(target=commit_in_thread)
+        writer.start()
+        assert started.wait(timeout=1)
+        time.sleep(0.05)
+        assert finished.is_set() is False
+        current_head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert current_head == original_head
+
+    writer.join(timeout=1)
+    assert writer.is_alive() is False
+    assert results == [True]
 
 
 def test_commit_sdd_files_passes_tempfile_to_m() -> None:

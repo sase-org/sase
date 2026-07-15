@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import threading
+from contextlib import contextmanager
 
 from sase.bead.sync import (
     commit_bead_work_launch,
@@ -373,3 +374,57 @@ def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path):
         for line in log_path.read_text(encoding="utf-8").splitlines()
     ]
     assert log_events[-1] == "completed"
+
+
+def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    lock_active = False
+    operations: list[tuple[str, bool, bool]] = []
+
+    @contextmanager
+    def probe_store_write_lock(repo_root):
+        nonlocal lock_active
+        assert repo_root == tmp_path.resolve()
+        assert lock_active is False
+        lock_active = True
+        try:
+            yield True
+        finally:
+            lock_active = False
+
+    def fake_git(repo_root, args, *, op, network=False):
+        del repo_root
+        operations.append((op, lock_active, network))
+        returncode = 1 if op == "bead.sync.ancestor" else 0
+        stdout = "upstream\n" if op == "bead.sync.upstream" else ""
+        return subprocess.CompletedProcess(
+            ["git", *args],
+            returncode=returncode,
+            stdout=stdout,
+            stderr="",
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        probe_store_write_lock,
+    )
+    monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
+    monkeypatch.setattr("sase.bead.sync.mark_bead_integration", lambda _repo: None)
+
+    outcome = run_managed_sync_worker(
+        tmp_path,
+        beads_dir,
+        log_path=tmp_path / "sync.log",
+    )
+
+    assert outcome.pushed is True
+    assert outcome.integrated is True
+    by_op = {op: (locked, network) for op, locked, network in operations}
+    assert by_op["bead.sync.fetch"] == (False, True)
+    assert by_op["bead.sync.upstream"] == (False, False)
+    assert by_op["bead.sync.ancestor"] == (False, False)
+    assert by_op["bead.sync.status"] == (True, False)
+    assert by_op["bead.sync.rebase"] == (True, False)
+    assert by_op["bead.sync.push"] == (False, True)

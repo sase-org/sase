@@ -36,6 +36,9 @@ def run_managed_sync_worker(
     lock_path = _git_dir(repo_root) / "sase-bead-sync.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        # Lock ordering is fixed: the worker-only sync lock is outer, and the
+        # store write lock used by all foreground writers is inner. Foreground
+        # writers never acquire this outer lock, so this order cannot deadlock.
         try:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -81,27 +84,16 @@ def _run_locked_sync(
             op="bead.sync.ancestor",
         )
         if already_integrated.returncode != 0:
-            dirty = _git(
-                repo_root,
-                ["status", "--porcelain"],
-                op="bead.sync.status",
-            )
-            if dirty.returncode != 0:
-                return _failure(log_path, "git status failed", dirty)
-            if dirty.stdout.strip():
-                return _failure(
+            from sase.sdd._git_contention import store_git_write_lock
+
+            with store_git_write_lock(repo_root):
+                integration_failure = _integrate_upstream(
+                    repo_root,
+                    beads_dir,
                     log_path,
-                    "bead store needs integration but has uncommitted changes",
                 )
-            rebased = _git(
-                repo_root,
-                ["rebase", "@{upstream}"],
-                op="bead.sync.rebase",
-            )
-            if rebased.returncode != 0:
-                repaired = _repair_rebase(repo_root, beads_dir, log_path)
-                if repaired is not None:
-                    return repaired
+            if integration_failure is not None:
+                return integration_failure
         integrated = True
         from sase.bead.sync import mark_bead_integration
 
@@ -118,6 +110,36 @@ def _run_locked_sync(
 
     _log(log_path, "completed", pushed=True, integrated=integrated)
     return _ManagedSyncOutcome(pushed=True, integrated=integrated)
+
+
+def _integrate_upstream(
+    repo_root: Path,
+    beads_dir: Path,
+    log_path: Path,
+) -> _ManagedSyncOutcome | None:
+    """Run the local status/rebase transaction while its write lock is held."""
+    dirty = _git(
+        repo_root,
+        ["status", "--porcelain"],
+        op="bead.sync.status",
+    )
+    if dirty.returncode != 0:
+        return _failure(log_path, "git status failed", dirty)
+    if dirty.stdout.strip():
+        return _failure(
+            log_path,
+            "bead store needs integration but has uncommitted changes",
+        )
+    rebased = _git(
+        repo_root,
+        ["rebase", "@{upstream}"],
+        op="bead.sync.rebase",
+    )
+    if rebased.returncode != 0:
+        repaired = _repair_rebase(repo_root, beads_dir, log_path)
+        if repaired is not None:
+            return repaired
+    return None
 
 
 def _repair_rebase(
