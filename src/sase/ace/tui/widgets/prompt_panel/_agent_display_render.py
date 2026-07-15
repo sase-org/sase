@@ -29,7 +29,7 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
-from ._agent_display_header import build_header_text
+from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     clear_detail_header_summary_cache,
     get_cached_detail_header_summary,
@@ -324,7 +324,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
     def _update_bash_python_display(
         self,
         agent: Agent,
-        header_text: Text,
+        header_text: AgentHeader,
         error_tb_syntax: Syntax | None = None,
     ) -> None:
         """Display bash command or python code with output.
@@ -377,7 +377,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
     def _update_parallel_display(
         self,
         agent: Agent,
-        header_text: Text,
+        header_text: AgentHeader,
         error_tb_syntax: Syntax | None = None,
     ) -> None:
         """Display output for a parallel workflow step (no prompt section).

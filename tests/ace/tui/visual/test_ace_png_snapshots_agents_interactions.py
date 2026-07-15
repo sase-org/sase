@@ -555,7 +555,8 @@ async def test_agents_plan_goal_metadata_png_snapshot(
         "tier: tale\n"
         "goal: >\n"
         "  Make the selected agent's intended outcome immediately legible while\n"
-        "  preserving fast keyboard navigation.\n"
+        "  preserving fast keyboard navigation through every metadata refresh\n"
+        "  without hiding the approved destination.\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -583,6 +584,7 @@ async def test_agents_plan_goal_metadata_png_snapshot(
 
         assert_page_svg_contains(page, "Goal:")
         assert_page_svg_contains(page, "intended outcome")
+        assert_page_svg_contains(page, "approved destination")
         ace_png_visual.assert_page_png(
             page,
             "agents_plan_goal_metadata_120x40",

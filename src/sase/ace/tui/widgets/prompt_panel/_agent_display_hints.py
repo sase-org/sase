@@ -14,7 +14,7 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
-from ._agent_display_header import build_header_text
+from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     build_detail_header_summary,
     cache_detail_header_summary,
@@ -31,7 +31,7 @@ from ._helpers import format_output
 
 def _render_reply_with_hints(
     agent: Agent,
-    target: Text,
+    target: AgentHeader,
     hint_counter: int,
     hint_mappings: dict[int, str],
     workspace_dir: str | None,

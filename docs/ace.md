@@ -339,6 +339,10 @@ descendants.
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
+When ACE can resolve an agent's associated plan, the metadata panel shows its complete normalized goal directly below
+the agent name and optional bead. Long goals use hanging indentation and responsively wrap to the panel's available
+width, with each goal line capped at 80 terminal cells; the scrollable panel keeps every part of the goal reachable.
+
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
 through the persistent artifact index when it is available.

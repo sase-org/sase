@@ -2,7 +2,9 @@
 
 import os
 import re
+from typing import Protocol
 
+from rich.style import StyleType
 from rich.text import Text
 
 
@@ -27,6 +29,14 @@ FILE_PATH_RE = re.compile(
     r")"
 )
 _FILE_PATH_RE = FILE_PATH_RE
+
+
+class _AppendableText(Protocol):
+    def append(
+        self,
+        text: str | Text,
+        style: StyleType | None = None,
+    ) -> object: ...
 
 
 def resolve_agent_workspace_dir(
@@ -96,7 +106,7 @@ def resolve_file_path(path: str, workspace_dir: str | None) -> str:
 
 
 def append_text_with_file_hints(
-    text: Text,
+    text: _AppendableText,
     content: str,
     hint_counter: int,
     hint_mappings: dict[int, str],

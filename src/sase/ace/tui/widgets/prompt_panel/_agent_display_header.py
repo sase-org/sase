@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime as DateTime
 from pathlib import Path
+from typing import Self
 
+from rich.cells import cell_len
+from rich.console import Console, ConsoleOptions, RenderResult
+from rich.style import StyleType
 from rich.syntax import Syntax
-from rich.text import Text
+from rich.table import Table
+from rich.text import Span, Text
 
 from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
@@ -33,7 +39,10 @@ _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
 _UNKNOWN_WAIT_AGENT_GLYPH = "?"
 _UNKNOWN_WAIT_AGENT_GLYPH_STYLE = "bold #FFAF5F"
 _WAITING_VALUE_STYLE = "#FF87D7"
-_PLAN_GOAL_MAX_CHARS = 72
+_PLAN_GOAL_LABEL = "Goal: "
+_PLAN_GOAL_LABEL_WIDTH = cell_len(_PLAN_GOAL_LABEL)
+_PLAN_GOAL_LABEL_STYLE = "bold #87D7FF"
+_PLAN_GOAL_MAX_WIDTH = 80
 _PLAN_GOAL_VALUE_STYLE = "italic #FFD787"
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
 # accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
@@ -52,6 +61,93 @@ _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class _PlanGoalRow:
+    """Responsive plan-goal metadata row rendered from in-memory state."""
+
+    goal: str
+
+    def __rich_console__(
+        self,
+        console: Console,
+        options: ConsoleOptions,
+    ) -> RenderResult:
+        width = min(options.max_width, _PLAN_GOAL_MAX_WIDTH)
+        table = Table.grid(padding=0)
+        table.add_column(width=_PLAN_GOAL_LABEL_WIDTH, no_wrap=True)
+        table.add_column(overflow="fold")
+        table.add_row(
+            Text(_PLAN_GOAL_LABEL, style=_PLAN_GOAL_LABEL_STYLE),
+            Text(
+                self.goal,
+                style=_PLAN_GOAL_VALUE_STYLE,
+                overflow="fold",
+                no_wrap=False,
+            ),
+        )
+        yield from console.render(table, options.update_width(width))
+
+
+class _AgentHeaderRenderable:
+    """Mutable logical header with a retained responsive goal renderable."""
+
+    __slots__ = ("_goal_end", "_goal_row", "_goal_start", "_text")
+
+    def __init__(
+        self,
+        text: Text,
+        goal_row: _PlanGoalRow,
+        *,
+        goal_start: int,
+        goal_end: int,
+    ) -> None:
+        self._text = text
+        self._goal_row = goal_row
+        self._goal_start = goal_start
+        self._goal_end = goal_end
+
+    @property
+    def plain(self) -> str:
+        """Return the complete logical header text for inspection and search."""
+        return self._text.plain
+
+    @property
+    def spans(self) -> list[Span]:
+        """Return logical text spans, including the goal label and value."""
+        return self._text.spans
+
+    def append(
+        self,
+        text: str | Text,
+        style: StyleType | None = None,
+    ) -> Self:
+        """Append content after the goal row without changing its placement."""
+        self._text.append(text, style=style)
+        return self
+
+    def append_text(self, text: Text) -> Self:
+        """Append styled Rich text after the goal row."""
+        self._text.append_text(text)
+        return self
+
+    def __rich_console__(
+        self,
+        _console: Console,
+        _options: ConsoleOptions,
+    ) -> RenderResult:
+        prefix = self._text[: self._goal_start]
+        prefix.end = ""
+        yield prefix
+        yield self._goal_row
+
+        suffix = self._text[self._goal_end :]
+        suffix.end = self._text.end
+        yield suffix
+
+
+AgentHeader = Text | _AgentHeaderRenderable
+
+
 def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     """Append the ``Auto:`` auto-approve kind field for autonomous agents."""
     if not agent.approve:
@@ -64,16 +160,6 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     text.append(f"{token}\n", style=style)
 
 
-def _truncate_plan_goal(goal: str) -> str:
-    """Soft-truncate a normalized plan goal at a stable word boundary."""
-    if len(goal) <= _PLAN_GOAL_MAX_CHARS:
-        return goal
-    boundary = goal.rfind(" ", 0, _PLAN_GOAL_MAX_CHARS + 1)
-    if boundary < (_PLAN_GOAL_MAX_CHARS // 2):
-        boundary = _PLAN_GOAL_MAX_CHARS
-    return f"{goal[:boundary].rstrip()}…"
-
-
 def build_header_text(
     agent: Agent,
     *,
@@ -82,7 +168,7 @@ def build_header_text(
     summary: DetailHeaderSummary | None = None,
     agent_status_buckets: Mapping[str, str] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
-) -> tuple[Text, Syntax | None]:
+) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
     Contains agent metadata (name, workspace, model, timestamps, etc.),
@@ -127,12 +213,12 @@ def build_header_text(
     else:
         header_text.append(f"{_UNASSIGNED_AGENT_NAME_DISPLAY}\n", style="dim")
 
+    plan_goal_range: tuple[int, int] | None = None
     if summary is not None and summary.plan_goal:
-        header_text.append("Goal: ", style="bold #87D7FF")
-        header_text.append(
-            f"{_truncate_plan_goal(summary.plan_goal)}\n",
-            style=_PLAN_GOAL_VALUE_STYLE,
-        )
+        goal_start = len(header_text)
+        header_text.append(_PLAN_GOAL_LABEL, style=_PLAN_GOAL_LABEL_STYLE)
+        header_text.append(f"{summary.plan_goal}\n", style=_PLAN_GOAL_VALUE_STYLE)
+        plan_goal_range = (goal_start, len(header_text))
 
     # Spawn-on-retry: render a retry-chain breadcrumb when the agent is
     # part of one (either a retry attempt or a parent that handed off).
@@ -475,4 +561,15 @@ def build_header_text(
     header_text.append("\u2500" * 50 + "\n", style="dim")
     header_text.append("\n")
 
+    if summary is not None and summary.plan_goal and plan_goal_range is not None:
+        goal_start, goal_end = plan_goal_range
+        return (
+            _AgentHeaderRenderable(
+                header_text,
+                _PlanGoalRow(summary.plan_goal),
+                goal_start=goal_start,
+                goal_end=goal_end,
+            ),
+            error_tb_syntax,
+        )
     return header_text, error_tb_syntax
