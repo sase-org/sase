@@ -24,7 +24,12 @@ from sase.linked_repos import (
     sdd_sidecar_clone_dirname,
     scrub_linked_repo_env,
 )
-from tests.sdd_store._helpers import clone, commit_all, init_bare_repo
+from tests.sdd_store._helpers import (
+    clone,
+    commit_all,
+    init_bare_repo,
+    init_git_identity,
+)
 
 
 def _project_file(path: Path, primary_workspace_dir: Path) -> Path:
@@ -34,6 +39,9 @@ def _project_file(path: Path, primary_workspace_dir: Path) -> Path:
 
 def _set_github_origin(path: Path, remote: str) -> None:
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    # Repositories that create commits own a local, non-signing identity so
+    # developer and CI Git configuration cannot change the test outcome.
+    init_git_identity(path)
     subprocess.run(
         ["git", "remote", "add", "origin", remote],
         cwd=path,

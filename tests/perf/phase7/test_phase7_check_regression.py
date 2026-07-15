@@ -10,15 +10,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from tests.perf.phase7_check_regression import (
     DEFAULT_BASELINE_PATH,
     _AnchorSpec,
+    _apply_notification_confirmation,
     _check_anchor,
     _extract_medians,
+    _needs_notification_confirmation,
     load_baseline,
+    run_floor_check,
 )
 
 
@@ -41,6 +45,52 @@ def _make_spec(
         must_beat_python=must_beat_python,
         rationale="test fixture",
     )
+
+
+def _write_notification_baseline(
+    path: Path,
+    *,
+    must_beat_python: bool,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "tolerance": {"rust_slowdown_factor": 1.4},
+                "anchors": [
+                    {
+                        "id": "notification_store.synthetic_5k.load",
+                        "surface": "notification_store",
+                        "workload": "synthetic_5k",
+                        "scenario": "load",
+                        "phase7b_python_median_s": 1.0e-4,
+                        "phase7b_rust_median_s": 1.0e-4,
+                        "must_beat_python": must_beat_python,
+                    }
+                ],
+            }
+        )
+    )
+
+
+def _notification_payload(
+    *, rust_us: float, python_us: float = 200.0
+) -> dict[str, Any]:
+    return {
+        "notification_store": {
+            "workloads": [
+                {
+                    "label": "synthetic_5k",
+                    "baseline": {
+                        "load": {"count": 5, "median_us": python_us},
+                    },
+                    "candidate": {
+                        "load": {"count": 5, "median_us": rust_us},
+                    },
+                }
+            ]
+        }
+    }
 
 
 class TestLoadBaseline:
@@ -182,6 +232,74 @@ class TestCheckAnchor:
         assert any("rust median unavailable" in f for f in result.failures)
         assert "scenario missing" in result.notes
 
+    def test_single_notification_outlier_passes_after_confirmation(self) -> None:
+        spec = _make_spec(
+            must_beat_python=False,
+            surface="notification_store",
+            workload="synthetic_5k",
+            scenario="notification_store_5k_load_snapshot",
+        )
+        initial = _check_anchor(
+            spec=spec,
+            rust_med=1.5e-4,
+            py_med=None,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+
+        assert _needs_notification_confirmation(initial)
+        result = _apply_notification_confirmation(
+            initial,
+            confirmation_rust_med=1.2e-4,
+        )
+
+        assert result.passed
+        assert result.current_rust_median_s == pytest.approx(1.5e-4)
+        assert result.confirmation_rust_median_s == pytest.approx(1.2e-4)
+        assert result.as_dict()["measurements"] == {
+            "initial_rust_median_s": pytest.approx(1.5e-4),
+            "confirmation_rust_median_s": pytest.approx(1.2e-4),
+        }
+
+    def test_sustained_notification_slowdown_fails_confirmation(self) -> None:
+        spec = _make_spec(
+            must_beat_python=False,
+            surface="notification_store",
+            workload="synthetic_5k",
+            scenario="notification_store_5k_load_snapshot",
+        )
+        initial = _check_anchor(
+            spec=spec,
+            rust_med=1.5e-4,
+            py_med=None,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+        result = _apply_notification_confirmation(
+            initial,
+            confirmation_rust_med=1.6e-4,
+        )
+
+        assert not result.passed
+        assert any("absolute floor confirmed" in failure for failure in result.failures)
+
+    def test_must_beat_python_failure_is_never_confirmation_eligible(self) -> None:
+        spec = _make_spec(
+            must_beat_python=True,
+            surface="notification_store",
+            workload="synthetic_5k",
+            scenario="notification_store_5k_load_snapshot",
+        )
+        result = _check_anchor(
+            spec=spec,
+            rust_med=1.5e-4,
+            py_med=1.0e-4,
+            rust_slowdown_factor=1.4,
+            notes=[],
+        )
+
+        assert not _needs_notification_confirmation(result)
+
 
 class TestExtractMedians:
     def test_returns_medians_when_present(self) -> None:
@@ -251,3 +369,71 @@ class TestExtractMedians:
         assert rust is None
         assert py is None
         assert any("surface" in n for n in notes)
+
+
+class TestRunFloorCheckConfirmation:
+    def test_outlier_runs_one_confirmation_and_reports_both_measurements(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        baseline = tmp_path / "baseline.json"
+        _write_notification_baseline(baseline, must_beat_python=False)
+        payloads = iter(
+            (
+                _notification_payload(rust_us=150.0),
+                _notification_payload(rust_us=120.0),
+            )
+        )
+        calls: list[set[str]] = []
+
+        def fake_harnesses(*, cfg, harnesses):  # type: ignore[no-untyped-def]
+            del cfg
+            calls.append(harnesses)
+            return next(payloads)
+
+        monkeypatch.setattr(
+            "tests.perf.phase7_check_regression._run_required_harnesses",
+            fake_harnesses,
+        )
+
+        ok, report, results = run_floor_check(baseline_path=baseline)
+
+        assert ok
+        assert calls == [{"notification_store"}, {"notification_store"}]
+        assert report["notification_confirmation"] == {
+            "performed": True,
+            "anchor_ids": ["notification_store.synthetic_5k.load"],
+            "sampling_runs": 5,
+            "max_additional_harness_runs": 1,
+        }
+        assert results[0].as_dict()["measurements"] == {
+            "initial_rust_median_s": pytest.approx(150.0e-6),
+            "confirmation_rust_median_s": pytest.approx(120.0e-6),
+        }
+
+    def test_must_beat_python_failure_is_not_retried(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        baseline = tmp_path / "baseline.json"
+        _write_notification_baseline(baseline, must_beat_python=True)
+        calls: list[set[str]] = []
+
+        def fake_harnesses(*, cfg, harnesses):  # type: ignore[no-untyped-def]
+            del cfg
+            calls.append(harnesses)
+            return _notification_payload(rust_us=150.0, python_us=100.0)
+
+        monkeypatch.setattr(
+            "tests.perf.phase7_check_regression._run_required_harnesses",
+            fake_harnesses,
+        )
+
+        ok, report, results = run_floor_check(baseline_path=baseline)
+
+        assert not ok
+        assert calls == [{"notification_store"}]
+        assert report["notification_confirmation"]["performed"] is False
+        assert results[0].confirmation_performed is False

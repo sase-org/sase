@@ -16,6 +16,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
@@ -37,6 +38,7 @@ async def test_config_center_logs_tab_png_snapshot(
         _, pane = await _open_logs_modal(page)
         assert "Launch & Fan-out Failures" in pane._last_detail_text.plain
         assert "provider exited before writing metadata" in pane._last_detail_text.plain
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -69,6 +71,7 @@ async def test_config_center_logs_tab_toasts_png_snapshot(
         )
         assert "This session" in pane._last_detail_text.plain
         assert "Workflow error" in pane._last_detail_text.plain
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

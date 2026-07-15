@@ -10,7 +10,13 @@ from sase.linked_repos import (
     clear_workspace_repos,
     materialize_linked_repo_workspace,
 )
-from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
+from tests.sdd_store._helpers import (
+    clone,
+    commit_all,
+    git,
+    init_bare_repo,
+    init_git_identity,
+)
 
 
 def test_clear_workspace_repos_renames_whole_tree_and_defers_delete(
@@ -188,6 +194,7 @@ def test_sidecar_materialization_uses_remote_not_divergent_primary(
 
     target.mkdir(parents=True)
     git(["init", "-q"], target)
+    init_git_identity(target)
     git(["remote", "add", "origin", str(wrong_remote)], target)
     (target / "stale.txt").write_text("wrong clone\n", encoding="utf-8")
     commit_all(target, "Commit stale workspace content")

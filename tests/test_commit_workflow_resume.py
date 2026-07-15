@@ -9,8 +9,17 @@ import pytest
 
 from sase.workflows.commit import checkpoint
 from sase.workflows.commit.workflow import CommitWorkflow, RunResult
+from tests._commit_workflow_fixtures import (
+    no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
+)
 
 _PROVIDER_TARGET = "sase.workflows.commit.workflow.get_vcs_provider"
+
+
+@pytest.fixture(autouse=True)
+def _no_commit_hooks(no_commit_hooks):  # type: ignore[no-untyped-def]  # noqa: F811
+    """Keep resume tracking independent of project hooks and shell PATH."""
+    yield
 
 
 @pytest.fixture
@@ -260,8 +269,14 @@ def test_resume_handles_pull_request_path(
 
 @patch(_PROVIDER_TARGET)
 def test_resume_is_idempotent_across_repeated_invocations(
-    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The shared fixture must prevent an ambient after-commit hook from trying
+    # to resolve an installed ``sase`` command during resume.
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
     provider = _make_provider(head_subject="fix: bug")
     mock_get.return_value = provider
 

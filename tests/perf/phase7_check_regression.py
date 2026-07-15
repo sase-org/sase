@@ -20,6 +20,11 @@ The script exits ``1`` if any anchor fails either check (or any anchor
 scenario is missing). It always writes a JSON report (path overridable
 via ``--report-path``) so CI can upload it on failure.
 
+Absolute-only notification anchors use five-sample medians and receive at
+most one confirmation measurement when the initial median exceeds its
+ceiling. This distinguishes a sustained regression from isolated hosted-runner
+contention without retrying the same-process ``must_beat_python`` checks.
+
 Local usage::
 
     just install
@@ -94,6 +99,8 @@ class AnchorResult:
     current_python_median_s: float | None
     rust_ceiling_s: float
     rust_slowdown_factor_used: float
+    confirmation_performed: bool = False
+    confirmation_rust_median_s: float | None = None
     failures: tuple[str, ...] = field(default_factory=tuple)
     notes: tuple[str, ...] = field(default_factory=tuple)
 
@@ -114,6 +121,16 @@ class AnchorResult:
             "current_python_median_s": self.current_python_median_s,
             "rust_ceiling_s": self.rust_ceiling_s,
             "rust_slowdown_factor_used": self.rust_slowdown_factor_used,
+            "confirmation_performed": self.confirmation_performed,
+            "confirmation_rust_median_s": self.confirmation_rust_median_s,
+            "measurements": {
+                "initial_rust_median_s": self.current_rust_median_s,
+                "confirmation_rust_median_s": (
+                    self.confirmation_rust_median_s
+                    if self.confirmation_performed
+                    else None
+                ),
+            },
             "passed": self.passed,
             "failures": list(self.failures),
             "notes": list(self.notes),
@@ -221,7 +238,9 @@ _DEFAULT_CONFIG = _HarnessConfig(
         "num_specs": 200,
         "transition_runs": 5,
     },
-    notification_store={"runs": 3, "warmup": 1, "count": 5_000},
+    # Five is still cheap enough for CI while making the median substantially
+    # less sensitive to one contended hosted-runner sample than the old three.
+    notification_store={"runs": 5, "warmup": 1, "count": 5_000},
 )
 
 # Smoke runs keep the workload labels compatible with the committed
@@ -441,6 +460,77 @@ def _check_anchor(
     )
 
 
+def _needs_notification_confirmation(result: AnchorResult) -> bool:
+    """Return whether *result* is eligible for the one bounded retry."""
+    return (
+        result.spec.surface == "notification_store"
+        and not result.spec.must_beat_python
+        and result.current_rust_median_s is not None
+        and any(failure.startswith("absolute floor:") for failure in result.failures)
+    )
+
+
+def _apply_notification_confirmation(
+    result: AnchorResult,
+    *,
+    confirmation_rust_med: float | None,
+    confirmation_notes: Sequence[str] = (),
+) -> AnchorResult:
+    """Resolve an initial notification floor failure with one confirmation."""
+    if not _needs_notification_confirmation(result):
+        raise ValueError(
+            f"anchor {result.spec.anchor_id!r} is not eligible for confirmation"
+        )
+
+    failures = [
+        failure
+        for failure in result.failures
+        if not failure.startswith("absolute floor:")
+    ]
+    notes = list(result.notes)
+    notes.extend(confirmation_notes)
+    initial_us = result.current_rust_median_s * 1e6
+    ceiling_us = result.rust_ceiling_s * 1e6
+    if confirmation_rust_med is None:
+        failures.append(
+            "absolute floor confirmation: rust median unavailable "
+            "(scenario missing or count=0)"
+        )
+        notes.append(
+            f"initial notification median {initial_us:.2f}us exceeded "
+            f"the {ceiling_us:.2f}us ceiling; confirmation was unavailable"
+        )
+    elif confirmation_rust_med > result.rust_ceiling_s:
+        confirmation_us = confirmation_rust_med * 1e6
+        failures.append(
+            f"absolute floor confirmed: initial rust median {initial_us:.2f}us "
+            f"and confirmation {confirmation_us:.2f}us exceed ceiling "
+            f"{ceiling_us:.2f}us"
+        )
+        notes.append(
+            "bounded notification confirmation reproduced the absolute-floor regression"
+        )
+    else:
+        confirmation_us = confirmation_rust_med * 1e6
+        notes.append(
+            f"initial notification median {initial_us:.2f}us exceeded the "
+            f"{ceiling_us:.2f}us ceiling; bounded confirmation recovered at "
+            f"{confirmation_us:.2f}us"
+        )
+
+    return AnchorResult(
+        spec=result.spec,
+        current_rust_median_s=result.current_rust_median_s,
+        current_python_median_s=result.current_python_median_s,
+        rust_ceiling_s=result.rust_ceiling_s,
+        rust_slowdown_factor_used=result.rust_slowdown_factor_used,
+        confirmation_performed=True,
+        confirmation_rust_median_s=confirmation_rust_med,
+        failures=tuple(failures),
+        notes=tuple(notes),
+    )
+
+
 # ---- public entry point ----------------------------------------------------
 
 
@@ -478,6 +568,38 @@ def run_floor_check(
             )
         )
 
+    # A single additional notification harness run confirms every eligible
+    # initial failure together. The confirmation is therefore bounded even if
+    # several notification anchors encounter the same whole-run contention.
+    confirmation_anchor_ids = [
+        result.spec.anchor_id
+        for result in results
+        if _needs_notification_confirmation(result)
+    ]
+    if confirmation_anchor_ids:
+        print("\n==== Phase 7 floor: confirm absolute notification failures ====")
+        confirmation_by_surface = _run_required_harnesses(
+            cfg=cfg,
+            harnesses={"notification_store"},
+        )
+        confirmed_results: list[AnchorResult] = []
+        for result in results:
+            if not _needs_notification_confirmation(result):
+                confirmed_results.append(result)
+                continue
+            rust_med, _py_med, notes = _extract_medians(
+                by_surface=confirmation_by_surface,
+                spec=result.spec,
+            )
+            confirmed_results.append(
+                _apply_notification_confirmation(
+                    result,
+                    confirmation_rust_med=rust_med,
+                    confirmation_notes=notes,
+                )
+            )
+        results = confirmed_results
+
     metadata = build_metadata(
         tool="phase7_check_regression",
         surface="phase7_floor_check",
@@ -489,6 +611,8 @@ def run_floor_check(
             "rust_slowdown_factor": factor,
             "smoke": smoke,
             "anchor_count": len(anchors),
+            "notification_sampling_runs": int(cfg.notification_store.get("runs", 0)),
+            "notification_confirmation_count": len(confirmation_anchor_ids),
         },
     )
 
@@ -500,6 +624,12 @@ def run_floor_check(
             "captured_at_phase": raw_baseline.get("captured_at_phase"),
             "git_sha_at_capture": raw_baseline.get("git_sha_at_capture"),
             "rust_slowdown_factor": factor,
+        },
+        "notification_confirmation": {
+            "performed": bool(confirmation_anchor_ids),
+            "anchor_ids": confirmation_anchor_ids,
+            "sampling_runs": int(cfg.notification_store.get("runs", 0)),
+            "max_additional_harness_runs": 1,
         },
         "ok": ok,
         "results": [r.as_dict() for r in results],
@@ -526,9 +656,16 @@ def _print_results(results: Sequence[AnchorResult], factor: float) -> None:
             else "n/a"
         )
         ceil_us = f"{r.rust_ceiling_s * 1e6:.2f}us"
+        confirmation = (
+            f" confirmation={r.confirmation_rust_median_s * 1e6:.2f}us"
+            if r.confirmation_performed and r.confirmation_rust_median_s is not None
+            else " confirmation=n/a"
+            if r.confirmation_performed
+            else ""
+        )
         print(
             f"  [{status}] {r.spec.anchor_id}: rust={rust_us} "
-            f"python={py_us} ceiling={ceil_us} "
+            f"python={py_us} ceiling={ceil_us}{confirmation} "
             f"must_beat_python={r.spec.must_beat_python}"
         )
         for note in r.notes:
