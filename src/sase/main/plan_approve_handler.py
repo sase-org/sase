@@ -138,6 +138,7 @@ def _approve_plan_from_cli(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         selected_member_ids=selected_member_ids,
+        epic_launch_mode="foreground",
     )
 
 

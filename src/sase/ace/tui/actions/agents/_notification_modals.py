@@ -196,9 +196,8 @@ def handle_plan_approval(
         # Write response file (for approve and reject with feedback). This is
         # the latency-sensitive part: blocked agent runners watch this file.
         plan_response_path = response_path / "plan_response.json"
-        response_data = _build_plan_approval_response(result)
-
         choice = _plan_approval_choice_for_status(result)
+        epic_phase_count = 0
         if choice in {"tale", "epic"}:
             from sase.plan_approval_actions import (
                 PlanApprovalValidationError,
@@ -206,7 +205,7 @@ def handle_plan_approval(
             )
 
             try:
-                require_plan_approval_validation(plan_file, choice)
+                validation = require_plan_approval_validation(plan_file, choice)
             except PlanApprovalValidationError as exc:
                 app.notify(  # type: ignore[attr-defined]
                     str(exc),
@@ -215,6 +214,24 @@ def handle_plan_approval(
                     timeout=15,
                 )
                 return
+            if choice == "epic" and validation.plan is not None:
+                epic_phase_count = len(validation.plan.phases)
+
+        host_owns_epic_launch = False
+        if choice == "epic":
+            from ._notification_epic_launch import submit_epic_launch_task
+
+            host_owns_epic_launch = submit_epic_launch_task(
+                app,
+                notification,
+                plan_file=plan_file,
+                phase_count=epic_phase_count,
+            )
+
+        response_data = _build_plan_approval_response(
+            result,
+            epic_launch_owner="host" if host_owns_epic_launch else None,
+        )
 
         try:
             write_workflow_action_response(
@@ -257,7 +274,11 @@ def handle_plan_approval(
     return True
 
 
-def _build_plan_approval_response(result: PlanApprovalResult) -> dict[str, object]:
+def _build_plan_approval_response(
+    result: PlanApprovalResult,
+    *,
+    epic_launch_owner: Literal["host"] | None = None,
+) -> dict[str, object]:
     """Build the JSON response for a plan approval modal result."""
     action, commit_plan, run_coder = _plan_approval_protocol_fields(result)
     response_data: dict[str, object] = {
@@ -273,6 +294,8 @@ def _build_plan_approval_response(result: PlanApprovalResult) -> dict[str, objec
         response_data["coder_model"] = result.coder_model
     if result.selected_member_ids is not None:
         response_data["selected_member_ids"] = list(result.selected_member_ids)
+    if action == "epic" and epic_launch_owner is not None:
+        response_data["epic_launch_owner"] = epic_launch_owner
     return response_data
 
 

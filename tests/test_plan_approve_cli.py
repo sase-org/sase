@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -193,6 +194,41 @@ def test_plan_approve_omitted_kind_uses_authored_epic_tier(tmp_path: Path) -> No
         "commit_plan": True,
         "run_coder": True,
     }
+
+
+def test_cli_epic_approval_runs_foreground_after_claiming_ownership(
+    tmp_path: Path,
+) -> None:
+    response_dir = _response_dir(tmp_path)
+    plan = _plan_file(tmp_path)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    _append_plan_notification(
+        "abcdef12-plan",
+        plan,
+        response_dir,
+        project_dir=workspace,
+    )
+
+    def run_foreground(plan_file: str, *, cwd: Path) -> object:
+        response = json.loads((response_dir / "plan_response.json").read_text())
+        assert response["epic_launch_owner"] == "host"
+        return subprocess.CompletedProcess([], 0)
+
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
+        ),
+        patch(
+            "sase.bead.epic_launch.run_epic_launch_foreground",
+            side_effect=run_foreground,
+        ) as launch,
+    ):
+        result = _approve_plan_from_cli(selector="abcdef12", kind="epic")
+
+    assert result.response_json["epic_launch_owner"] == "host"
+    launch.assert_called_once_with(str(plan), cwd=workspace)
 
 
 def test_failed_epic_gate_leaves_proposal_pending_and_retryable(

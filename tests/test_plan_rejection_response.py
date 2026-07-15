@@ -213,6 +213,81 @@ def test_tui_failed_epic_gate_keeps_response_unconsumed_until_fixed(
     assert response["action"] == "epic"
 
 
+def test_tui_epic_task_is_submitted_before_host_owner_response(
+    tmp_path: Path,
+) -> None:
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    Path(notification.files[0]).write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    notification.action_data["project_dir"] = str(tmp_path / "workspace")
+    plan_response_path = response_dir / "plan_response.json"
+    order: list[str] = []
+
+    def submit(*_args: object, **_kwargs: object) -> bool:
+        assert not plan_response_path.exists()
+        order.append("task")
+        return True
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._notification_navigation."
+            "find_agent_for_notification",
+            return_value=mock_agent,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._notification_epic_launch."
+            "submit_epic_launch_task",
+            side_effect=submit,
+        ),
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args.args[1]
+        on_dismiss(_plan_approval_result_for_choice("epic"))
+
+    order.append("response")
+    response = json.loads(plan_response_path.read_text(encoding="utf-8"))
+    assert order == ["task", "response"]
+    assert response["epic_launch_owner"] == "host"
+
+
+def test_tui_epic_submission_failure_preserves_agent_fallback(tmp_path: Path) -> None:
+    app, notification, response_dir, mock_agent = _make_approval_app_and_notification(
+        tmp_path
+    )
+    Path(notification.files[0]).write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    notification.action_data["project_dir"] = str(tmp_path / "workspace")
+
+    from sase.ace.tui.actions.agents._notification_modals import (
+        handle_plan_approval,
+    )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._notification_navigation."
+            "find_agent_for_notification",
+            return_value=mock_agent,
+        ),
+        patch(
+            "sase.ace.tui.actions.agents._notification_epic_launch."
+            "submit_epic_launch_task",
+            return_value=False,
+        ),
+    ):
+        handle_plan_approval(app, notification)
+        on_dismiss = app.push_screen.call_args.args[1]
+        on_dismiss(_plan_approval_result_for_choice("epic"))
+
+    response = json.loads(
+        (response_dir / "plan_response.json").read_text(encoding="utf-8")
+    )
+    assert "epic_launch_owner" not in response
+
+
 def test_approve_with_prompt_writes_prompt_and_sets_tale_status(
     tmp_path: Path,
 ) -> None:

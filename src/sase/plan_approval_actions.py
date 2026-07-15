@@ -28,6 +28,7 @@ from sase.sdd.plan_validate import (
 )
 
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
+EpicLaunchMode = Literal["detached", "foreground", "skip"]
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,7 @@ def execute_plan_approval_response(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     selected_member_ids: Sequence[str] | None = None,
+    epic_launch_mode: EpicLaunchMode = "detached",
 ) -> PlanApprovalActionResult:
     """Write the runner response for a resolved PlanApproval notification."""
     raw_response_dir = notification.host_action_data.get("response_dir")
@@ -129,9 +131,73 @@ def execute_plan_approval_response(
         selected_member_ids=selected_member_ids,
     )
     response_path = response_dir / "plan_response.json"
+    foreground_cwd: Path | None = None
+    if choice == "epic":
+        if epic_launch_mode not in {"detached", "foreground", "skip"}:
+            raise PlanApprovalActionError(
+                "invalid_request",
+                "epic_launch_mode",
+                f"unsupported epic launch mode: {epic_launch_mode}",
+            )
+        host_owns_launch = epic_launch_mode == "skip"
+        if not host_owns_launch:
+            project_dir = notification.host_action_data.get("project_dir")
+            if project_dir:
+                try:
+                    from sase.bead.epic_launch import resolve_epic_launch_cwd
+
+                    foreground_cwd = resolve_epic_launch_cwd(project_dir)
+                except Exception:
+                    foreground_cwd = None
+        if epic_launch_mode == "foreground" and foreground_cwd is not None:
+            host_owns_launch = True
+        elif epic_launch_mode == "detached" and foreground_cwd is not None:
+            try:
+                from sase.bead.epic_launch import spawn_detached_epic_launch
+
+                artifacts_dir = resolve_plan_agent_artifacts_dir(
+                    notification.host_action_data
+                )
+                log_root = Path(artifacts_dir) if artifacts_dir else response_dir
+                spawn_detached_epic_launch(
+                    notification.host_files[0],
+                    cwd=foreground_cwd,
+                    log_path=log_root / "epic_launch.log",
+                    artifacts_dir=artifacts_dir,
+                    cl_name=notification.host_action_data.get("agent_cl_name"),
+                )
+                host_owns_launch = True
+            except Exception:
+                host_owns_launch = False
+        if host_owns_launch:
+            response_json["epic_launch_owner"] = "host"
     _write_json_once(response_path, response_json, notification.id)
 
     run_plan_side_effects(notification, choice, response_path, response_json)
+    if choice == "epic" and epic_launch_mode == "foreground" and foreground_cwd:
+        try:
+            from sase.bead.epic_launch import run_epic_launch_foreground
+
+            completed = run_epic_launch_foreground(
+                notification.host_files[0],
+                cwd=foreground_cwd,
+            )
+        except OSError as exc:
+            raise PlanApprovalActionError(
+                "epic_launch_failed",
+                notification.host_files[0],
+                f"could not start epic launch: {exc}",
+            ) from exc
+        if completed.returncode != 0:
+            from sase.bead.epic_launch import build_epic_launch_argv
+
+            resume = shlex.join(build_epic_launch_argv(notification.host_files[0]))
+            raise PlanApprovalActionError(
+                "epic_launch_failed",
+                notification.host_files[0],
+                f"epic launch failed with exit code {completed.returncode}; "
+                f"resume with `{resume}`",
+            )
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file="plan_response.json",

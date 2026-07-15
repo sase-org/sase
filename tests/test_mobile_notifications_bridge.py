@@ -391,7 +391,7 @@ def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
     update_index.assert_called_once_with(response_dir.parent)
 
 
-def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
+def test_execute_mobile_epic_action_spawns_detached_host_launch(
     tmp_path: Path,
 ) -> None:
     response_dir = tmp_path / "agent" / "plan_approval"
@@ -420,11 +420,10 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
         patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
         patch("sase.notifications.mark_dismissed"),
         patch(
-            "sase.running_field.get_workspace_directory", return_value=str(workspace)
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
         ),
-        patched_sdd_policy("in_tree"),
-        patch("sase.sdd.files.get_yyyymm", return_value="202605"),
-        patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
+        patch("sase.bead.epic_launch.spawn_detached_epic_launch") as spawn_launch,
     ):
         resolve.return_value = SimpleNamespace(
             notification_id="abcdef12-plan",
@@ -434,15 +433,11 @@ def test_execute_mobile_plan_action_archives_vc_plan_initializes_sdd(
         )
         result = execute_mobile_plan_action("abcdef12", "epic")
 
-    saved = str(workspace / "sdd" / "plans" / "202605" / "plan.md")
-    assert result.response_json["saved_plan_path"] == saved
-    assert Path(saved).is_file()
-    assert "tier: epic" in Path(saved).read_text(encoding="utf-8")
-    ensure_sdd.assert_called_once_with(
-        str(workspace),
-        commit=True,
-        push=False,
-    )
+    assert result.response_json["epic_launch_owner"] == "host"
+    assert "saved_plan_path" not in result.response_json
+    spawn_launch.assert_called_once()
+    assert spawn_launch.call_args.kwargs["cwd"] == workspace
+    assert not (workspace / "sdd" / "plans" / "202605" / "plan.md").exists()
 
 
 def test_execute_mobile_epic_gate_keeps_action_pending_on_failure(

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.agent_family import active_roles_after, evaluate_plan_approval_transition
+from sase.bead.epic_launch import build_epic_launch_argv
 from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
 from sase.axe.run_agent_exec_custom_roles import spawn_custom_role_followup
 from sase.axe.run_agent_exec_plan import (
@@ -223,7 +224,7 @@ def _run_epic_launch_subprocess(
     plan_file: str,
 ) -> _EpicLaunchResult:
     """Stream the canonical epic command and parse its stable epic-id line."""
-    argv = ["sase", "bead", "work", plan_file, "--yes"]
+    argv = build_epic_launch_argv(plan_file)
     tail: deque[str] = deque(maxlen=_EPIC_OUTPUT_TAIL_LINES)
     epic_bead_id: str | None = None
     try:
@@ -260,7 +261,7 @@ def _notify_epic_launch_failure(
     output_tail: tuple[str, ...],
 ) -> None:
     """Best-effort error notification with a direct resume command."""
-    argv = ["sase", "bead", "work", plan_file, "--yes"]
+    argv = build_epic_launch_argv(plan_file)
     resume_command = shlex.join(argv)
     notes = [
         f"Epic launch failed for {Path(plan_file).name}",

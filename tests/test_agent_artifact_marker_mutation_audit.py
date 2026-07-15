@@ -132,6 +132,10 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
+    "src/sase/bead/epic_launch.py:update_epic_launch_metadata": Review(
+        mutation_calls=("write_text",),
+        lifecycle_calls=(_UPDATE_INDEX,),
+    ),
     "src/sase/axe/run_agent_directives.py:extract_directives_and_write_meta": Review(
         mutation_calls=("unlink",),
         delegated=DelegatedCoverage(
