@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +25,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -187,20 +187,22 @@ def _patch_commit_diff_display_paths(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _wait_for_commit_delta_summary(page: AcePage, agent: Agent) -> None:
     prompt_panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-    deadline = time.monotonic() + _COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS
-    while True:
-        await wait_for_visual_idle(page)
+
+    def _summary_ready() -> bool:
         summary = get_cached_detail_header_summary(prompt_panel, agent)
-        if (
+        return bool(
             summary is not None
             and summary.delta_entries
             and summary.linked_delta_groups
-        ):
-            return
-        if time.monotonic() >= deadline:
-            raise AssertionError("Timed out waiting for commit delta summary")
-        await page.pause()
-        await asyncio.sleep(0.05)
+        )
+
+    await wait_for_state(
+        page,
+        _summary_ready,
+        description="linked-repository commit delta summary",
+        timeout=_COMMIT_DELTA_SUMMARY_TIMEOUT_SECONDS,
+    )
+    await wait_for_visual_idle(page)
 
 
 async def test_agents_linked_repo_diff_file_panel_png_snapshot(

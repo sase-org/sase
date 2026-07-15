@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
@@ -21,6 +22,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -253,6 +256,23 @@ def _pin_zoom_file_header(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_display, "_read_static_file", _fixed_read)
 
 
+async def _wait_for_zoom_content(
+    page: AcePage,
+    sentinel: str,
+    *,
+    scroll_selector: str,
+) -> None:
+    """Wait for zoom content and its scheduled focus transfer to land."""
+    await wait_for_svg_contains(page, sentinel)
+    scroll = page.app.screen.query_one(scroll_selector, VerticalScroll)
+    await wait_for_state(
+        page,
+        lambda: scroll.has_focus,
+        description=f"zoom scroll focus on {scroll_selector}",
+    )
+    await wait_for_visual_idle(page)
+
+
 async def test_agents_file_zoom_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -269,8 +289,11 @@ async def test_agents_file_zoom_modal_png_snapshot(
         await wait_for_visual_idle(page)
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "build_zoom_summary",
+            scroll_selector="#zoom-file-scroll",
+        )
 
         ace_png_visual.assert_page_png(
             page,
@@ -295,8 +318,11 @@ async def test_agents_multi_file_zoom_modal_png_snapshot(
         await wait_for_visual_idle(page)
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "FILES (3)",
+            scroll_selector="#zoom-file-scroll",
+        )
 
         assert_page_svg_contains(page, "FILES (3)")
         assert_page_svg_contains(page, "review_notes.md")
@@ -324,14 +350,21 @@ async def test_agents_file_zoom_search_png_snapshot(
         await wait_for_visual_idle(page)
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "build_zoom_summary",
+            scroll_selector="#zoom-file-scroll",
+        )
         await page.press("slash", "s", "u", "m", "m", "a", "r", "y")
-        await page.pause()
-        await page.pause()
 
         command = page.app.screen.query_one("#zoom-search-command", Static)
-        assert "/summary" in command.render().plain
+        search_scroll = page.app.screen.query_one("#zoom-search-scroll", VerticalScroll)
+        await wait_for_state(
+            page,
+            lambda: "/summary" in command.render().plain and search_scroll.has_focus,
+            description="zoom search query and search-scroll focus",
+        )
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_file_zoom_search_120x40",
@@ -361,8 +394,11 @@ async def test_agents_context_zoom_modal_png_snapshot(
         await page.press("p")
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "SASE CONTEXT",
+            scroll_selector="#zoom-metadata-scroll",
+        )
 
         assert_page_svg_contains(page, "SASE CONTEXT")
         assert_page_svg_contains(page, "◇")
@@ -397,8 +433,11 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
         await page.press("p")
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "Xprompts:",
+            scroll_selector="#zoom-metadata-scroll",
+        )
 
         ace_png_visual.assert_page_png(
             page,
@@ -425,8 +464,11 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         await page.press("p")
         await page.press("z")
         await page.expect_modal("ZoomPanelModal")
-        await page.pause()
-        await page.pause()
+        await _wait_for_zoom_content(
+            page,
+            "ghost_deploy",
+            scroll_selector="#zoom-metadata-scroll",
+        )
 
         assert_page_svg_contains(page, "Wait:")
         assert_page_svg_contains(page, "coder")

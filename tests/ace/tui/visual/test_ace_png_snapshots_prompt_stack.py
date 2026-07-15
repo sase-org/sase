@@ -25,6 +25,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -144,6 +146,11 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
         PromptInputBar(initial_value=initial_value, id="prompt-input-bar")
     )
     bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+    await wait_for_state(
+        page,
+        lambda: bar.active_text_area().has_focus and len(bar._stack) > 0,
+        description="mounted prompt stack and active-pane focus",
+    )
     await wait_for_visual_idle(page)
     return bar
 
@@ -190,6 +197,11 @@ async def test_prompt_stack_active_upper_png_snapshot(
         # Focus the top pane so the accent border moves up and the bottom pane
         # dims — the mirror image of the default active-lower snapshot.
         bar.focus_item(0)
+        await wait_for_state(
+            page,
+            lambda: bar._stack.selected_index == 0 and bar.active_text_area().has_focus,
+            description="upper prompt pane focus",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -212,6 +224,7 @@ async def test_prompt_submit_choice_modal_png_snapshot(
 
         page.app.push_screen(PromptSubmitChoiceModal(prompt_count=2))
         await page.expect_modal("PromptSubmitChoiceModal")
+        await wait_for_svg_contains(page, "Launch all 2 prompts")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -260,6 +273,14 @@ async def test_prompt_stack_completion_panel_png_snapshot(
             selected_index=1,
             completion_kind="xprompt",
         )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="xprompt completion panel visibility",
+        )
+        await wait_for_svg_contains(page, "followup")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -282,9 +303,19 @@ async def test_prompt_stack_g_prefix_hints_png_snapshot(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         )
         indicator.set_count(2)
-        await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
+        bar = await _mount_prompt_bar(page, _TWO_PANE_PROMPT)
 
         await page.press("escape", "g")
+        text_area = bar.active_text_area()
+        await wait_for_state(
+            page,
+            lambda: (
+                text_area._vim_mode == "normal"
+                and text_area._pending_keys == "g"
+                and bar._g_prefix_hints_visible
+            ),
+            description="NORMAL-mode g-prefix hint panel",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -303,9 +334,19 @@ async def test_prompt_search_highlight_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.expect_state("tab", "changespecs")
-        await _mount_prompt_bar(page, _SEARCH_PROMPT)
+        bar = await _mount_prompt_bar(page, _SEARCH_PROMPT)
 
         await page.press("escape", "slash", "a", "l", "p", "h", "a")
+        text_area = bar.active_text_area()
+        await wait_for_state(
+            page,
+            lambda: (
+                text_area._search_active
+                and text_area._search_query == "alpha"
+                and bar._search_command_visible
+            ),
+            description="active alpha prompt search and highlights",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -432,6 +473,15 @@ async def test_prompt_vim_cursor_insert_png_snapshot(
         bar = await _mount_prompt_bar(page, _CURSOR_PROMPT)
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
+        await wait_for_state(
+            page,
+            lambda: (
+                text_area._vim_mode == "insert"
+                and text_area.cursor_location == (0, 9)
+                and text_area.has_focus
+            ),
+            description="INSERT-mode prompt cursor at fixture location",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -454,6 +504,15 @@ async def test_prompt_vim_cursor_normal_png_snapshot(
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
         text_area._enter_normal_mode()
+        await wait_for_state(
+            page,
+            lambda: (
+                text_area._vim_mode == "normal"
+                and text_area.cursor_location == (0, 9)
+                and text_area.has_focus
+            ),
+            description="NORMAL-mode prompt cursor at fixture location",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -476,6 +535,15 @@ async def test_prompt_vim_cursor_visual_png_snapshot(
         text_area = bar.active_text_area()
         text_area.cursor_location = (0, 9)
         text_area._enter_visual_mode("charwise")
+        await wait_for_state(
+            page,
+            lambda: (
+                text_area._vim_mode == "visual"
+                and text_area._visual_cursor == (0, 9)
+                and text_area.has_focus
+            ),
+            description="VISUAL-mode prompt cursor at fixture location",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

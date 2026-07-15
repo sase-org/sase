@@ -20,6 +20,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -45,10 +47,23 @@ async def test_config_center_workspaces_subtab_png_snapshot(
         await wait_for_startup(page)
         _, pane = await _open_projects_modal(page)
         workspace_pane = pane.query_one(WorkspaceInventoryPane)
-        await page.wait_for(lambda _s: not workspace_pane._loading)
+        await wait_for_state(
+            page,
+            lambda: not workspace_pane._loading,
+            description="workspace inventory load",
+        )
         pane._switch_to_subtab("workspaces")
         workspace_pane._update_detail()
         page.app.screen.refresh(layout=True)
+        await wait_for_state(
+            page,
+            lambda: (
+                pane._active_subtab == "workspaces"
+                and workspace_pane.query_one("#workspaces-list").has_focus
+            ),
+            description="workspace inventory sub-tab focus",
+        )
+        await wait_for_svg_contains(page, "Workspace")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

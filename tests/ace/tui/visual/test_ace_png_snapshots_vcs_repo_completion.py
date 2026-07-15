@@ -17,6 +17,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -58,6 +60,11 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
         PromptInputBar(initial_value=initial_value, id="prompt-input-bar")
     )
     bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+    await wait_for_state(
+        page,
+        lambda: bar.active_text_area().has_focus,
+        description="VCS repository prompt-bar focus",
+    )
     await wait_for_visual_idle(page)
     return bar
 
@@ -84,6 +91,14 @@ async def test_vcs_repo_completion_panel_png_snapshot(
             selected_index=0,
             completion_kind=VCS_REPO_COMPLETION_KIND,
         )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="VCS repository completion visibility",
+        )
+        await wait_for_svg_contains(page, "sase-core")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -110,6 +125,14 @@ async def test_vcs_repo_loading_panel_png_snapshot(
             selected_index=0,
             completion_kind=VCS_REPO_COMPLETION_KIND,
         )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="VCS repository loading completion visibility",
+        )
+        await wait_for_svg_contains(page, "fetching bbugyi200/ repositories")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -146,6 +169,14 @@ async def test_vcs_repo_error_panel_png_snapshot(
             selected_index=0,
             completion_kind=VCS_REPO_COMPLETION_KIND,
         )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="VCS repository error completion visibility",
+        )
+        await wait_for_svg_contains(page, "repo listing failed")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

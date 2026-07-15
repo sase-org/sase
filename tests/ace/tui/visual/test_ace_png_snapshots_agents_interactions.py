@@ -21,6 +21,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     visual_agents,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -141,6 +143,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._panel_group.focused_key == "chop"
         await page.press("H")
         await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
+        await wait_for_svg_contains(page, "▸ ")
         await wait_for_visual_idle(page)
 
         collapsed_widget = page.app.query_one("#agent-list-panel-1")
@@ -183,7 +186,11 @@ async def test_agents_unread_highlight_png_snapshot(
         from sase.ace.tui.widgets import AgentInfoPanel
 
         panel = page.app.query_one("#agent-info-panel", AgentInfoPanel)
-        assert panel._unread_count == 3, f"expected 3 unread, got {panel._unread_count}"
+        await wait_for_state(
+            page,
+            lambda: panel._unread_count == 3,
+            description="three unread completed agents",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -204,6 +211,7 @@ async def test_agents_neighbor_badge_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
+        await wait_for_svg_contains(page, "neighbors: ")
         await wait_for_visual_idle(page)
         neighbor_index = page.app._agent_neighbor_index()
         assert neighbor_index.neighbor_count(page.app.current_idx) == 2
@@ -231,6 +239,7 @@ async def test_agent_neighbor_modal_narrow_png_snapshot(
         await page.expect_state("agent_count", 3)
         page.app.action_start_sibling_mode()
         await page.expect_modal("AgentNeighborModal")
+        await wait_for_svg_contains(page, "Neighbors of visual.code.plan")
         await wait_for_visual_idle(page)
         modal = page.app.screen_stack[-1]
         assert modal.__class__.__name__ == "AgentNeighborModal"
@@ -300,12 +309,7 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
         # The direct private-state mutation above bypasses the normal action
         # path that refreshes the footer. Repaint it explicitly, then keep the
         # rendered-count poll as a cheap guard before taking the snapshot.
-        await page.wait_for(
-            lambda _s: (
-                "neighbors (2)"
-                in page.export_svg(title="neighbor settle").replace("&#160;", " ")
-            )
-        )
+        await wait_for_svg_contains(page, "neighbors (2)")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Descendants")
         assert_page_svg_contains(page, "visual.root.dismissed")
@@ -473,6 +477,7 @@ async def test_agents_auto_approve_icons_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
+        await wait_for_svg_contains(page, "⚡T ")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "⚡ ")
@@ -500,6 +505,7 @@ async def test_agents_auto_approve_workflow_child_alignment_png_snapshot(
         page.app._fold_manager.expand("20260509-100000-workflow")
         page.app._refilter_agents()
         await page.expect_state("agent_count", 4)
+        await wait_for_svg_contains(page, "⚡E ")
         await wait_for_visual_idle(page)
 
         svg_plain = page.export_svg(title="ACE auto child alignment").replace(
@@ -546,7 +552,6 @@ async def test_agents_auto_approve_metadata_png_snapshots(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 3)
-        await wait_for_visual_idle(page)
 
         for idx, (token, snapshot_name, title) in enumerate(
             (
@@ -557,8 +562,13 @@ async def test_agents_auto_approve_metadata_png_snapshots(
         ):
             if idx:
                 await page.press("j")
-                await wait_for_visual_idle(page)
-            assert page.app.current_idx == idx
+            await wait_for_state(
+                page,
+                lambda idx=idx: page.app.current_idx == idx,
+                description=f"selected auto-approve agent index {idx}",
+            )
+            await wait_for_svg_contains(page, token)
+            await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "Auto:")
             assert_page_svg_contains(page, token)
 
@@ -614,6 +624,7 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Xprompts:")
         await wait_for_visual_idle(page)
 
         svg = page.export_svg(title="ACE auto/xprompts metadata")
@@ -676,6 +687,7 @@ async def test_agents_sase_plan_metadata_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "SASE PLAN")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE PLAN")
@@ -745,6 +757,7 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Phases:")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE PLAN")
@@ -780,6 +793,7 @@ async def test_auto_approve_modal_png_snapshot(
 
         page.app.push_screen(AutoApproveModal("epic", agent_name="visual.code"))
         await page.expect_modal("AutoApproveModal")
+        await wait_for_svg_contains(page, "Auto-Approve")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Auto-Approve")
@@ -817,6 +831,7 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
 
         page.app.push_screen(AgentWorkspaceTmuxModal(_workspace_tmux_choices()))
         await page.expect_modal("AgentWorkspaceTmuxModal")
+        await wait_for_svg_contains(page, "Tmux Workspace")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Tmux Workspace")
@@ -884,6 +899,7 @@ async def test_wait_modal_png_snapshot(
             )
         )
         await page.expect_modal("WaitModal")
+        await wait_for_svg_contains(page, "visual.plan.revi")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Wait")

@@ -13,6 +13,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -50,6 +52,7 @@ async def test_preview_panel_xprompt_png_snapshot(
         await wait_for_startup(page)
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
+        await wait_for_svg_contains(page, "Review Checklist")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -96,6 +99,7 @@ async def test_preview_panel_file_png_snapshot(
         await wait_for_startup(page)
         page.app.push_screen(PreviewPanelModal(payload))
         await page.expect_modal("PreviewPanelModal")
+        await wait_for_svg_contains(page, "Prompt text area preview fixture")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -178,13 +182,15 @@ new file mode 100644
 
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
-        page.app.push_screen(CommitViewModal([spec, second_spec], initial_index=1))
+        modal = CommitViewModal([spec, second_spec], initial_index=1)
+        page.app.push_screen(modal)
         await page.expect_modal("CommitViewModal")
-        for _ in range(20):
-            modal = page.app.screen_stack[-1]
-            if isinstance(modal, CommitViewModal) and modal._diff_loaded:
-                break
-            await page.pause()
+        await wait_for_state(
+            page,
+            lambda: modal._diff_loaded,
+            description="commit-view diff to finish loading",
+        )
+        await wait_for_svg_contains(page, "navigate selected commits")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

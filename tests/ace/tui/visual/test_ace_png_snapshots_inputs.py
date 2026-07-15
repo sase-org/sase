@@ -9,7 +9,7 @@ core guidance with the optional section revealed). Goldens live in
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Button
+from textual.widgets import Button, Label
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_collection_modal import InputCollectionModal
@@ -19,6 +19,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -59,8 +61,15 @@ async def test_input_collection_modal_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         await page.expect_state("tab", "changespecs")
-        _push_modal(page)
+        modal = _push_modal(page)
         await page.expect_modal("InputCollectionModal")
+        await wait_for_svg_contains(page, "target service to refactor")
+        first_input = modal.query_one("#field-input-0", SingleLineVimTextArea)
+        await wait_for_state(
+            page,
+            lambda: first_input.has_focus,
+            description="first required prompt input focus",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -81,6 +90,13 @@ async def test_input_collection_modal_error_png_snapshot(
         await page.expect_state("tab", "changespecs")
         modal = _push_modal(page)
         await page.expect_modal("InputCollectionModal")
+        await wait_for_svg_contains(page, "target service to refactor")
+        first_input = modal.query_one("#field-input-0", SingleLineVimTextArea)
+        await wait_for_state(
+            page,
+            lambda: first_input.has_focus,
+            description="first required prompt input focus",
+        )
         await wait_for_visual_idle(page)
 
         modal.query_one("#field-input-0", SingleLineVimTextArea).text = "billing"
@@ -88,6 +104,16 @@ async def test_input_collection_modal_error_png_snapshot(
             "#field-input-1", SingleLineVimTextArea
         ).text = "three"  # invalid int
         modal.query_one("#toggle-optional", Button).press()
+        error = modal.query_one("#field-error-1", Label)
+        await wait_for_state(
+            page,
+            lambda: (
+                modal._optional_revealed
+                and error.display
+                and bool(error.render().plain)
+            ),
+            description="invalid retries guidance with optional inputs revealed",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

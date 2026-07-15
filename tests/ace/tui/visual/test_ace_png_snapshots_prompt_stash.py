@@ -14,6 +14,7 @@ the rows are deterministic regardless of when the suite runs.
 from __future__ import annotations
 
 import pytest
+from textual.widgets import OptionList
 
 import sase.ace.tui.modals.prompt_stash_row as prompt_stash_row
 from sase.ace.testing import AcePage
@@ -24,6 +25,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -106,6 +109,23 @@ def _stash_entries() -> list[PromptStashEntryWire]:
     ]
 
 
+async def _wait_for_stash_modal(
+    page: AcePage,
+    *,
+    list_id: str,
+    option_count: int,
+    sentinel: str,
+) -> None:
+    await wait_for_svg_contains(page, sentinel)
+    option_list = page.app.screen.query_one(list_id, OptionList)
+    await wait_for_state(
+        page,
+        lambda: option_list.has_focus and option_list.option_count == option_count,
+        description=f"{list_id} focus and {option_count} rendered rows",
+    )
+    await wait_for_visual_idle(page)
+
+
 async def test_stashed_prompts_indicator_badge_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -122,6 +142,11 @@ async def test_stashed_prompts_indicator_badge_png_snapshot(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         )
         indicator.set_count(3)
+        await wait_for_state(
+            page,
+            lambda: indicator.count == 3 and "3" in indicator.render().plain,
+            description="stashed-prompts indicator count",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -144,6 +169,12 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
         modal = StashedPromptsModal(_stash_entries())
         page.app.push_screen(modal)
         await page.expect_modal("StashedPromptsModal")
+        await _wait_for_stash_modal(
+            page,
+            list_id="#stashed-prompts-list",
+            option_count=5,
+            sentinel="Review Checklist",
+        )
 
         # Mark one row for pop (✓), one as pinned (📌), and one for deletion
         # (✗) so the marker/pin columns render alongside the plain rows.
@@ -151,6 +182,7 @@ async def test_stashed_prompts_restore_modal_png_snapshot(
         modal._pinned = {"cleanup"}
         modal._deleted = {"longpreview"}
         modal._refresh_rows()
+        await wait_for_svg_contains(page, "✓")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -195,7 +227,12 @@ async def test_stashed_prompts_bundle_preview_png_snapshot(
             )
         )
         await page.expect_modal("StashedPromptsModal")
-        await wait_for_visual_idle(page)
+        await _wait_for_stash_modal(
+            page,
+            list_id="#stashed-prompts-list",
+            option_count=2,
+            sentinel="First prompt",
+        )
 
         ace_png_visual.assert_page_png(
             page,
@@ -217,7 +254,12 @@ async def test_stashed_prompts_narrow_modal_png_snapshot(
         await wait_for_startup(page)
         page.app.push_screen(StashedPromptsModal(_stash_entries()))
         await page.expect_modal("StashedPromptsModal")
-        await wait_for_visual_idle(page)
+        await _wait_for_stash_modal(
+            page,
+            list_id="#stashed-prompts-list",
+            option_count=5,
+            sentinel="Stashed prompts (5)",
+        )
 
         ace_png_visual.assert_page_png(
             page,
@@ -246,7 +288,12 @@ async def test_update_pinned_stash_preview_png_snapshot(
         await wait_for_startup(page)
         page.app.push_screen(UpdatePinnedStashModal(pinned_entries))
         await page.expect_modal("UpdatePinnedStashModal")
-        await wait_for_visual_idle(page)
+        await _wait_for_stash_modal(
+            page,
+            list_id="#update-pinned-stash-list",
+            option_count=3,
+            sentinel="Update pinned prompt",
+        )
 
         ace_png_visual.assert_page_png(
             page,

@@ -14,6 +14,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -25,14 +26,15 @@ async def _wait_for_onboarding_plugins_refresh(
     page: AcePage,
     calls: list[bool],
 ) -> None:
-    await page.wait_for(
-        lambda _state: (
+    await wait_for_state(
+        page,
+        lambda: (
             bool(calls)
             and not page.app._agents_onboarding_plugins_refresh_scheduled
             and not page.app._agents_onboarding_plugins_refresh_running
-        )
+        ),
+        description="Agents onboarding plugin discovery to finish",
     )
-    await page.pause()
 
 
 async def test_agents_onboarding_png_snapshot(

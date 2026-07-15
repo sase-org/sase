@@ -17,6 +17,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -54,6 +55,7 @@ async def _open_agents_tab(page: AcePage, *, agent_count: int) -> None:
 async def _reload_finished_agent(page: AcePage) -> None:
     page.app._load_agents(full_history=True, source="visual_fakey_finished")
     await page.expect_state("agent_count", 1)
+    await wait_for_svg_contains(page, "DONE")
     await wait_for_visual_idle(page)
     assert_page_svg_contains(page, "DONE")
 
@@ -93,6 +95,8 @@ async def test_real_fakey_retry_countdown_png_snapshot(
 
             loaded = page.app._agents[0]
             assert (loaded.status, loaded.retry_status) == ("RETRYING", "retrying")
+            await wait_for_svg_contains(page, "RETRYING (9s)")
+            await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "RETRYING (9s)")
             assert_page_svg_contains(page, "Retries:")
             assert_page_svg_contains(page, "1/1")
@@ -165,6 +169,8 @@ async def test_real_fakey_running_fallback_png_snapshot(
                 loaded.using_fallback,
                 loaded.fallback_model,
             ) == ("RUNNING", 1, True, "fakey-small")
+            await wait_for_svg_contains(page, "fakey-small")
+            await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "RUNNING")
             assert_page_svg_contains(page, "↻1▸fakey")
             assert_page_svg_contains(page, "Fallback:")
@@ -242,6 +248,8 @@ async def test_real_fakey_completed_retry_chain_png_snapshot(
             "20260706115500",
             "20260706114500",
         )
+        await wait_for_svg_contains(page, "FAILED")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "FAILED")
         assert_page_svg_contains(page, "↳")
         assert_page_svg_contains(page, "↻1")

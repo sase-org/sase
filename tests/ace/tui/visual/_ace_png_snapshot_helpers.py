@@ -6,7 +6,7 @@ The underscore prefix keeps pytest from collecting this module.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 import hashlib
 from types import SimpleNamespace
@@ -570,6 +570,56 @@ async def wait_for_startup(page: AcePage) -> None:
             and page.app._agents_first_load_done
             and page.app._axe_first_load_done
         )
+    )
+
+
+def _svg_plain(page: AcePage, *, title: str) -> str:
+    return page.export_svg(title=title).replace("&#160;", " ")
+
+
+async def wait_for_state(
+    page: AcePage,
+    predicate: Callable[[], bool],
+    *,
+    description: str = "visual state predicate",
+    timeout: float = 5.0,
+) -> None:
+    """Wait until a semantic visual-state predicate becomes true.
+
+    Unlike :func:`wait_for_visual_idle`, this helper proves that the intended
+    UI state was reached. Frame convergence alone can accept a stable but
+    incorrect frame (for example, the screen behind a modal that has not
+    painted yet).
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+
+    while True:
+        await page.pause()
+        if predicate():
+            return
+        if loop.time() >= deadline:
+            last_frame = page.export_svg(title="ACE visual state timeout")
+            digest = hashlib.sha256(last_frame.encode()).hexdigest()[:12]
+            raise AssertionError(
+                f"Timed out after {timeout:.2f}s waiting for {description}; "
+                f"last_frame_digest={digest}; last_frame_svg={last_frame!r}"
+            )
+        await asyncio.sleep(min(0.01, max(0.0, deadline - loop.time())))
+
+
+async def wait_for_svg_contains(
+    page: AcePage,
+    text: str,
+    *,
+    timeout: float = 5.0,
+) -> None:
+    """Wait until the exported frame contains the expected text sentinel."""
+    await wait_for_state(
+        page,
+        lambda: text in _svg_plain(page, title="ACE visual sentinel probe"),
+        description=f"SVG sentinel {text!r}",
+        timeout=timeout,
     )
 
 

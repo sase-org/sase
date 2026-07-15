@@ -9,6 +9,8 @@ import pytest
 
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 
@@ -91,6 +93,22 @@ class _NeverStablePage(_ChangingPage):
         return f"frame-{self.export_count % 2}"
 
 
+class _SemanticPage(_ChangingPage):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ready = False
+
+    async def pause(self) -> None:
+        await super().pause()
+        if self.pause_count >= 3:
+            self.ready = True
+
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        del title, simplify
+        self.export_count += 1
+        return "<svg>expected sentinel</svg>" if self.ready else "<svg>shell</svg>"
+
+
 @pytest.mark.asyncio
 async def test_visual_idle_waits_for_worker_and_three_converged_frames() -> None:
     page = _DelayedPaintPage()
@@ -120,6 +138,40 @@ async def test_visual_idle_timeout_reports_recent_render_state() -> None:
         match=r"render convergence.*stable_frames=.*frame_digests=",
     ):
         await wait_for_visual_idle(cast(Any, page), timeout=0.04)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_state_polls_until_semantic_state_is_ready() -> None:
+    page = _SemanticPage()
+
+    await wait_for_state(
+        cast(Any, page),
+        lambda: page.ready,
+        description="semantic fixture readiness",
+        timeout=0.5,
+    )
+
+    assert page.pause_count == 3
+
+
+@pytest.mark.asyncio
+async def test_wait_for_svg_contains_polls_exported_frame() -> None:
+    page = _SemanticPage()
+
+    await wait_for_svg_contains(cast(Any, page), "expected sentinel", timeout=0.5)
+
+    assert page.ready
+
+
+@pytest.mark.asyncio
+async def test_wait_for_svg_contains_timeout_names_sentinel_and_last_frame() -> None:
+    page = _ChangingPage()
+
+    with pytest.raises(
+        AssertionError,
+        match=r"SVG sentinel 'missing'.*last_frame_digest=.*last_frame_svg=",
+    ):
+        await wait_for_svg_contains(cast(Any, page), "missing", timeout=0.02)
 
 
 def test_visual_idle_waits_for_short_timers_but_not_surface_lifetimes() -> None:

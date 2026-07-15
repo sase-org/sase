@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import pytest
 
 from sase.ace.testing import AcePage
@@ -16,6 +15,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -112,14 +113,14 @@ def _snippet_rows() -> list[UnifiedSaveLocation]:
 async def _open(page: AcePage, modal: UnifiedXPromptSaveModal) -> None:
     page.app.push_screen(modal)
     await page.expect_modal("UnifiedXPromptSaveModal")
+    await wait_for_svg_contains(page, "Destination")
+    name = modal.query_one("#unified-save-name")
+    await wait_for_state(
+        page,
+        lambda: name.has_focus and not modal._preview_tasks,
+        description="xprompt save name focus and preview load",
+    )
     await wait_for_visual_idle(page)
-    # Let the modal's mount/layout and cursor paints settle before the external
-    # terminal rasterizer captures incremental screen output.
-    page.app.refresh(layout=True, repaint=True)
-    page.app.screen.refresh(layout=True, repaint=True)
-    modal.refresh(layout=True, repaint=True)
-    await page.pause()
-    await asyncio.sleep(0.1)
 
 
 async def test_xprompt_save_create_png_snapshot(

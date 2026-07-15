@@ -16,7 +16,7 @@ from datetime import datetime, tzinfo
 from zoneinfo import ZoneInfo
 
 import pytest
-from textual.widgets import Input
+from textual.widgets import Input, Static
 
 import sase.ace.tui.modals.models_panel as models_panel
 from sase.ace.testing import AcePage
@@ -28,6 +28,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -405,10 +407,25 @@ async def test_models_panel_override_until_png_snapshots(
         modal = OverrideUntilModal(timezone=_EASTERN, clock=_time_modal_clock)
         page.app.push_screen(modal)
         await page.expect_modal("OverrideUntilModal")
-        await page.pause()
+        await wait_for_svg_contains(page, "Override Until")
+        field = modal.query_one("#override-until-input", Input)
         if value:
-            modal.query_one("#override-until-input", Input).value = value
-            await page.pause()
+            field.value = value
+        expected_class = {
+            "": "until-neutral",
+            "5pm": "until-valid",
+            "today 1pm": "until-error",
+        }[value]
+        preview = modal.query_one("#override-until-preview", Static)
+        await wait_for_state(
+            page,
+            lambda: (
+                field.has_focus
+                and field.value == value
+                and preview.has_class(expected_class)
+            ),
+            description=f"override-until {expected_class} preview",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)

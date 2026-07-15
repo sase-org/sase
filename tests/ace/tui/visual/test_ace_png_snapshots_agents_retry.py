@@ -18,6 +18,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     retry_agent,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -58,6 +59,8 @@ async def test_retry_countdown_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_agents_tab(page, agent_count=1)
 
+        await wait_for_svg_contains(page, "RETRYING (9s)")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RETRYING (9s)")
         assert_page_svg_contains(page, "Retries:")
         assert_page_svg_contains(page, "1/3")
@@ -90,6 +93,8 @@ async def test_running_fallback_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_agents_tab(page, agent_count=1)
 
+        await wait_for_svg_contains(page, "claude-sonnet-4-5")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RUNNING")
         assert_page_svg_contains(page, "↻2▸sonnet")
         assert_page_svg_contains(page, "Fallback:")
@@ -148,6 +153,8 @@ async def test_completed_retry_chain_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_agents_tab(page, agent_count=3)
 
+        await wait_for_svg_contains(page, "(RETRIED)")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "(RETRIED)")
         assert_page_svg_contains(page, "↳")
         assert_page_svg_contains(page, "↻1")
@@ -181,6 +188,8 @@ async def test_retries_exhausted_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_agents_tab(page, agent_count=1)
 
+        await wait_for_svg_contains(page, "3/3")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "FAILED")
         assert_page_svg_contains(page, "Retries:")
         assert_page_svg_contains(page, "3/3")
@@ -230,6 +239,8 @@ async def test_selected_retry_metadata_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await _open_agents_tab(page, agent_count=1)
 
+        await wait_for_svg_contains(page, "Attempt 1")
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "Retries:")
         assert_page_svg_contains(page, "1/3")
         assert_page_svg_contains(page, "Attempt 1")

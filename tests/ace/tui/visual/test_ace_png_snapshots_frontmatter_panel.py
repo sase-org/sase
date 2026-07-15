@@ -10,9 +10,8 @@ tab so the full ``styles.tcss`` styling applies exactly as it does at runtime.
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.input_item_modal import InputItemModal
@@ -25,6 +24,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -72,8 +73,28 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
         PromptInputBar(initial_value=initial_value, id="prompt-input-bar")
     )
     bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
+    await wait_for_state(
+        page,
+        lambda: bar.active_text_area().has_focus,
+        description="mounted frontmatter prompt-bar focus",
+    )
     await wait_for_visual_idle(page)
     return bar
+
+
+async def _focus_frontmatter_panel(
+    page: AcePage,
+    bar: PromptInputBar,
+) -> FrontmatterPanel:
+    bar.focus_frontmatter_panel()
+    panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+    await wait_for_state(
+        page,
+        lambda: panel.has_focus and not panel.has_class("hidden"),
+        description="visible, focused frontmatter panel",
+    )
+    await wait_for_visual_idle(page)
+    return panel
 
 
 async def test_frontmatter_panel_populated_png_snapshot(
@@ -88,8 +109,7 @@ async def test_frontmatter_panel_populated_png_snapshot(
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
 
         # Focus the panel so its accent border + selected row are pinned too.
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
+        await _focus_frontmatter_panel(page, bar)
 
         ace_png_visual.assert_page_png(
             page,
@@ -110,8 +130,7 @@ async def test_frontmatter_panel_empty_png_snapshot(
         bar = await _mount_prompt_bar(page, "")
 
         # An empty prompt + g= shows the just-triggered empty-state guidance.
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
+        await _focus_frontmatter_panel(page, bar)
 
         ace_png_visual.assert_page_png(
             page,
@@ -132,8 +151,7 @@ async def test_frontmatter_panel_error_png_snapshot(
         bar = await _mount_prompt_bar(page, _ERROR_PROMPT)
 
         # An invalid input type drives the ⟨! N⟩ chip + the inline red message.
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
+        await _focus_frontmatter_panel(page, bar)
 
         ace_png_visual.assert_page_png(
             page,
@@ -151,11 +169,15 @@ async def test_frontmatter_panel_cell_edit_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
-        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel = await _focus_frontmatter_panel(page, bar)
         panel._select_nav(("input", "service"))
         panel._edit_selected()
+        editor = panel.query_one("#frontmatter-inline")
+        await wait_for_state(
+            page,
+            lambda: panel._edit_mode == "cell" and editor.has_focus,
+            description="frontmatter input cell editor",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -174,11 +196,20 @@ async def test_frontmatter_panel_ghost_row_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
-        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel = await _focus_frontmatter_panel(page, bar)
         panel._select_nav(("field", "input"))
         panel._add_item_at_selection()
+        editor = panel.query_one("#frontmatter-inline")
+        await wait_for_state(
+            page,
+            lambda: (
+                panel._cell_edit is not None
+                and panel._cell_edit.field == "input"
+                and panel._cell_edit.ghost
+                and editor.has_focus
+            ),
+            description="frontmatter input ghost-row editor",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -197,14 +228,22 @@ async def test_frontmatter_panel_raw_diagnostics_png_snapshot(
     async with AcePage(query='"visual"', changespecs=changespecs()) as page:
         await wait_for_startup(page)
         bar = await _mount_prompt_bar(page, _POPULATED_PROMPT)
-        bar.focus_frontmatter_panel()
-        await wait_for_visual_idle(page)
-        panel = bar.query_one("#frontmatter-panel", FrontmatterPanel)
+        panel = await _focus_frontmatter_panel(page, bar)
         panel._begin_raw()
+        generation = panel._raw_diagnostics_generation
         panel.query_one(
             "#frontmatter-raw", VimTextArea
         ).text = "---\ninput:\n  service: wordd\n---"
-        await asyncio.sleep(0.25)
+        feedback = panel.query_one("#frontmatter-feedback", Static)
+        await wait_for_state(
+            page,
+            lambda: (
+                panel._raw_diagnostics_generation > generation
+                and not feedback.has_class("hidden")
+                and bool(feedback.render().plain)
+            ),
+            description="frontmatter raw validation diagnostic",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -237,6 +276,7 @@ async def test_frontmatter_input_item_modal_png_snapshot(
         )
         page.app.push_screen(modal)
         await page.expect_modal("InputItemModal")
+        await wait_for_svg_contains(page, "how many times to retry")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -271,6 +311,7 @@ async def test_frontmatter_xprompt_item_modal_png_snapshot(
         )
         page.app.push_screen(modal)
         await page.expect_modal("XPromptItemModal")
+        await wait_for_svg_contains(page, "team review rules")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

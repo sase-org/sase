@@ -20,6 +20,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -31,12 +32,24 @@ async def _open_edit_modal(page: AcePage, path: str) -> ConfigEditModal:
     """Open the Config edit modal for the leaf at *path*."""
     _, pane = await _open_config_modal(page)
     pane._do_jump(path)
-    await page.wait_for(lambda _s: pane._selected_path == path)
+    await wait_for_state(
+        page,
+        lambda: pane._selected_path == path,
+        description=f"Config Center selection {path!r}",
+    )
     pane.action_edit_field()
     await page.expect_modal("ConfigEditModal")
     modal = page.app.screen
     assert isinstance(modal, ConfigEditModal)
-    await page.wait_for(lambda _s: bool(modal.query("#config-edit-scope")))
+    await wait_for_state(
+        page,
+        lambda: (
+            modal._stage == "edit"
+            and bool(modal.query("#config-edit-scope"))
+            and (modal._editor_kind in ("bool", "enum") or modal.focused is not None)
+        ),
+        description=f"Config edit controls and focus for {path!r}",
+    )
     return modal
 
 
@@ -79,7 +92,11 @@ async def test_config_center_edit_preview_png_snapshot(
         modal = await _open_edit_modal(page, "timezone")
         modal.query_one("#config-edit-input", SingleLineVimTextArea).text = "UTC"
         modal.action_confirm()  # plan -> preview
-        await page.wait_for(lambda _s: modal._plan is not None)
+        await wait_for_state(
+            page,
+            lambda: modal._plan is not None and modal._stage == "preview",
+            description="Config edit preview plan",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -106,7 +123,11 @@ async def test_config_center_edit_normal_mode_png_snapshot(
         editor = modal.query_one("#config-edit-input", SingleLineVimTextArea)
         editor.focus()
         await page.press("escape")  # INSERT -> NORMAL
-        await page.wait_for(lambda _s: editor._vim_mode == "normal")
+        await wait_for_state(
+            page,
+            lambda: editor._vim_mode == "normal" and editor.has_focus,
+            description="Config edit NORMAL-mode focus",
+        )
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
