@@ -8,8 +8,17 @@ from pathlib import Path
 import pytest
 
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+from tests.ace.tui.visual.renderer_env import assert_renderer_environment
 
 _FIXED_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _require_pinned_renderer_environment(request: pytest.FixtureRequest) -> None:
+    """Fail once before snapshots run when the renderer fingerprint is skewed."""
+    assert_renderer_environment(
+        update=bool(request.config.getoption("--sase-update-visual-snapshots"))
+    )
 
 
 @pytest.fixture(autouse=True)
