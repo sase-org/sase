@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from ....hint_types import EditHooksResult, ViewFilesResult
@@ -18,6 +20,51 @@ from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 from ..clipboard import copy_to_system_clipboard
 from ._types import HintMixinBase
+
+
+@dataclass(frozen=True)
+class _ViewRequest:
+    """Immutable destination intent captured from one submitted view action."""
+
+    files: tuple[str, ...]
+    open_in_editor: bool
+    copy_to_clipboard: bool
+    user_input: str
+    changespec_name: str
+    commit_specs: tuple[CommitViewSpec, ...]
+
+
+@dataclass(frozen=True)
+class _MaterializedReports:
+    files: tuple[str, ...]
+    failed_paths: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _PreparedViewRequest:
+    request: _ViewRequest
+    report_items: tuple[tuple[str, SlowToolCallReportSpec], ...]
+
+
+def _write_selected_tool_call_reports(
+    files: tuple[str, ...],
+    report_items: tuple[tuple[str, SlowToolCallReportSpec], ...],
+) -> _MaterializedReports:
+    """Materialize selected reports without touching Textual application state."""
+    reports = dict(report_items)
+    materialized: list[str] = []
+    failed: list[str] = []
+    for file_path in files:
+        spec = reports.get(file_path)
+        if spec is None:
+            materialized.append(file_path)
+            continue
+        report_path = write_tool_call_report(spec)
+        if report_path is None:
+            failed.append(file_path)
+            continue
+        materialized.append(report_path)
+    return _MaterializedReports(tuple(materialized), tuple(failed))
 
 
 def _expand_view_hint_part(part: str) -> list[int]:
@@ -75,7 +122,12 @@ class InputProcessingMixin(HintMixinBase):
         self._remove_hint_input_bar()
 
         if event.mode == "view":
-            self._process_view_input(event.value)
+            prepared = self._prepare_view_input(event.value)
+            if prepared is not None:
+                self.run_worker(  # type: ignore[attr-defined]
+                    self._finish_view_request(prepared),
+                    group="hint-view-request",
+                )
         elif event.mode == "hooks":
             self._process_hooks_input(event.value)
         elif event.mode == "failed_hooks":
@@ -116,10 +168,16 @@ class InputProcessingMixin(HintMixinBase):
         else:
             self._refresh_display()  # type: ignore[attr-defined]
 
-    def _process_view_input(self, user_input: str) -> None:
+    async def _process_view_input(self, user_input: str) -> None:
         """Process view files input."""
+        prepared = self._prepare_view_input(user_input)
+        if prepared is not None:
+            await self._finish_view_request(prepared)
+
+    def _prepare_view_input(self, user_input: str) -> _PreparedViewRequest | None:
+        """Validate and snapshot one submitted view request on the UI thread."""
         if not user_input:
-            return
+            return None
 
         commit_views = getattr(self, "_hint_commit_views", {})
         valid_hints = set(self._hint_mappings) | set(commit_views)
@@ -132,45 +190,88 @@ class InputProcessingMixin(HintMixinBase):
                 f"Invalid hints: {', '.join(str(h) for h in invalid_hints)}",
                 severity="warning",
             )
-            return
+            return None
 
         commit_hint_nums = [hint for hint in selected_hints if hint in commit_views]
+        commit_specs = tuple(commit_views[hint] for hint in commit_hint_nums)
         files = self._files_for_view_hints(
             hint for hint in selected_hints if hint in self._hint_mappings
         )
 
         if not files and not commit_hint_nums:
             self.notify("No valid files selected", severity="warning")  # type: ignore[attr-defined]
-            return
+            return None
 
         if open_in_editor and commit_hint_nums:
             files = self._prepend_commit_diff_paths(commit_hint_nums, files)
             if not files:
                 self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
-                return
+                return None
 
-        if copy_to_clipboard and commit_hint_nums:
-            self._copy_commit_selection_to_clipboard(commit_hint_nums, files)
+        if commit_specs and not open_in_editor and not copy_to_clipboard:
+            self._open_commit_view(commit_specs)
+
+        request = _ViewRequest(
+            files=tuple(files),
+            open_in_editor=open_in_editor,
+            copy_to_clipboard=copy_to_clipboard,
+            user_input=user_input,
+            changespec_name=self._hint_changespec_name,
+            commit_specs=commit_specs,
+        )
+        reports: dict[str, SlowToolCallReportSpec] = getattr(
+            self, "_hint_tool_call_reports", {}
+        )
+        selected_reports = tuple(
+            (file_path, reports[file_path])
+            for file_path in request.files
+            if file_path in reports
+        )
+        return _PreparedViewRequest(request, selected_reports)
+
+    async def _finish_view_request(self, prepared: _PreparedViewRequest) -> None:
+        """Materialize a captured request off-thread, then route its UI action."""
+        request = prepared.request
+        if prepared.report_items:
+            outcome = await asyncio.to_thread(
+                _write_selected_tool_call_reports,
+                request.files,
+                prepared.report_items,
+            )
+        else:
+            outcome = _MaterializedReports(request.files, ())
+
+        # The request remains valid across navigation, but no UI effects should
+        # be dispatched after the application has begun shutting down.
+        if not bool(getattr(self, "is_running", True)):
             return
 
-        if commit_hint_nums and not open_in_editor:
-            self._open_commit_hint(commit_hint_nums)
+        for failed_path in outcome.failed_paths:
+            self.notify(  # type: ignore[attr-defined]
+                f"Failed to build tool-call report: {failed_path}",
+                severity="error",
+            )
 
-        files = self._materialize_tool_call_reports(files)
+        files = list(outcome.files)
         if not files:
-            if not commit_hint_nums:
+            if request.copy_to_clipboard and request.commit_specs:
+                self._copy_commit_specs_to_clipboard(request.commit_specs, files)
+            elif not request.commit_specs:
                 self.notify("No selected files could be opened", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if copy_to_clipboard:
-            self._copy_files_to_clipboard(files)  # type: ignore[attr-defined]
-        elif open_in_editor:
+        if request.copy_to_clipboard:
+            if request.commit_specs:
+                self._copy_commit_specs_to_clipboard(request.commit_specs, files)
+            else:
+                self._copy_files_to_clipboard(files)  # type: ignore[attr-defined]
+        elif request.open_in_editor:
             result = ViewFilesResult(
                 files=files,
                 open_in_editor=True,
                 copy_to_clipboard=False,
-                user_input=user_input,
-                changespec_name=self._hint_changespec_name,
+                user_input=request.user_input,
+                changespec_name=request.changespec_name,
             )
             self._open_files_in_editor(result)  # type: ignore[attr-defined]
         else:
@@ -229,10 +330,17 @@ class InputProcessingMixin(HintMixinBase):
         files: list[str],
     ) -> None:
         commit_views = getattr(self, "_hint_commit_views", {})
-        shas = [
-            commit_views[hint_num].short_sha or commit_views[hint_num].sha
-            for hint_num in commit_hint_nums
-        ]
+        self._copy_commit_specs_to_clipboard(
+            tuple(commit_views[hint_num] for hint_num in commit_hint_nums),
+            files,
+        )
+
+    def _copy_commit_specs_to_clipboard(
+        self,
+        commit_specs: Sequence[CommitViewSpec],
+        files: list[str],
+    ) -> None:
+        shas = [spec.short_sha or spec.sha for spec in commit_specs]
         shas = [sha for sha in shas if sha]
         if not files:
             content = " ".join(shas)
@@ -251,29 +359,6 @@ class InputProcessingMixin(HintMixinBase):
             self.notify("Copied commit SHA(s) and path(s) to clipboard")  # type: ignore[attr-defined]
         else:
             self.notify("Failed to copy to clipboard", severity="error")  # type: ignore[attr-defined]
-
-    def _materialize_tool_call_reports(self, files: list[str]) -> list[str]:
-        reports: dict[str, SlowToolCallReportSpec] = getattr(
-            self, "_hint_tool_call_reports", {}
-        )
-        if not reports:
-            return files
-
-        materialized: list[str] = []
-        for file_path in files:
-            spec = reports.get(file_path)
-            if spec is None:
-                materialized.append(file_path)
-                continue
-            report_path = write_tool_call_report(spec)
-            if report_path is None:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Failed to build tool-call report: {file_path}",
-                    severity="error",
-                )
-                continue
-            materialized.append(report_path)
-        return materialized
 
     def _process_hooks_input(self, user_input: str) -> None:
         """Process edit hooks input."""

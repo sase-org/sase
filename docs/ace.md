@@ -1551,7 +1551,9 @@ row:
   or `wait` (the post-call record has not arrived yet).
 - The tool name, optionally followed by a compact target (such as the file path the tool acted on) and the call's
   duration.
-- A short, length-bounded preview of the call result on the next line, when the collector captured one.
+- A short preview of the call result on the next line, when the collector captured one. Command-output previews keep a
+  marked suffix with at least the final 50 logical lines; the character budget is soft so unusually wide trailing lines
+  remain complete. Other preview types remain head-oriented.
 
 The panel header shows the total call count, the failure count, the interrupted count, and a timestamp for the most
 recent reload. While a background reload is in flight (because the artifact changed on disk), `(refreshing...)` appears

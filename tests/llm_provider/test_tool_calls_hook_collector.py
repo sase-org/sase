@@ -193,15 +193,18 @@ def test_pre_tool_use_truncates_large_input(artifacts_dir: Path) -> None:
 
 
 def test_post_tool_use_truncates_large_stdout(artifacts_dir: Path) -> None:
-    huge = "y" * (_PREVIEW_LIMIT + 1024)
+    huge = "".join(f"stdout-line-{index:03d}-{'y' * 24}\n" for index in range(80))
     append_claude_hook_tool_call_event(
         _post_payload(tool_response={"stdout": huge, "exit_code": 0, "success": True})
     )
 
     record = _read_records(artifacts_dir / "tool_calls.jsonl")[0]
     stdout_preview = record["tool_response_summary"]["stdout_preview"]
-    assert len(stdout_preview) <= _PREVIEW_LIMIT + 80
-    assert "truncated" in stdout_preview
+    assert stdout_preview.startswith("...[truncated ")
+    assert "from the beginning" in stdout_preview.splitlines()[0]
+    assert "stdout-line-000" not in stdout_preview
+    assert "stdout-line-079" in stdout_preview
+    assert len(stdout_preview.splitlines()[1:]) >= 50
 
 
 def test_missing_artifacts_dir_noops_writer() -> None:

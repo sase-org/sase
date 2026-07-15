@@ -12,6 +12,8 @@ from typing import Any
 _SCHEMA_VERSION = 2
 _HOOK_SCHEMA_VERSION = 3
 _PREVIEW_LIMIT = 512
+_COMMAND_OUTPUT_PREVIEW_LIMIT = _PREVIEW_LIMIT
+_COMMAND_OUTPUT_MIN_TAIL_LINES = 50
 _SUBAGENT_OUTPUT_LIMIT = 64 * 1024
 _MAX_KEYS = 20
 _SUBAGENT_TOOL_STATS_FIELDS = (
@@ -54,6 +56,9 @@ _SECRET_ASSIGNMENT_RE = re.compile(
     re.IGNORECASE,
 )
 _SECRET_NAME_PARTS = ("TOKEN", "KEY", "SECRET", "PASSWORD", "PASS", "AUTH")
+_TAIL_TRUNCATION_MARKER_RE = re.compile(
+    r"^\.\.\.\[truncated \d+ chars(?: and \d+ lines)? from the beginning\]\n"
+)
 
 
 def _summarize_tool_input(tool_name: str | None, tool_input: Any) -> dict[str, Any]:
@@ -166,9 +171,11 @@ def _summarize_structured_response(
         for key in ("stdout", "stderr"):
             value = tool_response.get(key)
             if isinstance(value, str) and value:
-                summary[f"{key}_preview"] = _preview_text(value)
+                summary[f"{key}_preview"] = _tail_command_output(value)
         if "output" in tool_response:
-            summary["output_preview"] = _preview_text(tool_response.get("output"))
+            summary["output_preview"] = _tail_command_output(
+                tool_response.get("output")
+            )
         return summary
     if tool_name in {"Read", "WebFetch", "WebSearch"}:
         summary = _pick_fields(tool_response, ("success", "isImage"))
@@ -196,7 +203,11 @@ def _summarize_structured_response(
         value = tool_response.get(key)
         text = _text_content(value) if key in {"content", "result"} else value
         if isinstance(text, str) and text:
-            summary[f"{key}_preview"] = _preview_text(text)
+            summary[f"{key}_preview"] = (
+                _tail_command_output(text)
+                if key in {"stdout", "stderr", "output"}
+                else _preview_text(text)
+            )
             if key == "content" and isinstance(value, list):
                 summary["content_full"] = _preview_text(
                     text,
@@ -399,6 +410,63 @@ def _preview_text(value: Any, limit: int = _PREVIEW_LIMIT) -> str:
     return text[:limit] + f"...[truncated {len(text) - limit} chars]"
 
 
+def _tail_command_output(
+    value: Any,
+    limit: int = _COMMAND_OUTPUT_PREVIEW_LIMIT,
+    min_lines: int = _COMMAND_OUTPUT_MIN_TAIL_LINES,
+) -> str:
+    """Return normalized command output with a bounded, line-safe suffix.
+
+    ``limit`` is a soft character budget. When its boundary falls inside the
+    final ``min_lines`` logical lines, the retained suffix expands to the start
+    of the earliest required line. Consequently, unusually wide trailing lines
+    may make the result larger than the nominal budget.
+    """
+    text = value if isinstance(value, str) else str(value)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if len(text) <= limit or _TAIL_TRUNCATION_MARKER_RE.match(text):
+        return text
+
+    retain_from = _command_output_tail_start(text, limit, min_lines)
+    if retain_from <= 0:
+        return text
+
+    omitted_lines = (
+        text[:retain_from].count("\n")
+        if text[retain_from - 1 : retain_from] == "\n"
+        else None
+    )
+    marker = _command_output_omission_marker(retain_from, omitted_lines)
+    return f"{marker}\n{text[retain_from:]}"
+
+
+def _command_output_tail_start(text: str, limit: int, min_lines: int) -> int:
+    """Return the prefix length that can be omitted from normalized output."""
+    if len(text) <= limit:
+        return 0
+
+    character_boundary = len(text) - limit
+    lines = text.splitlines(keepends=True)
+    if len(lines) <= min_lines:
+        line_boundary = 0
+    else:
+        line_boundary = sum(len(line) for line in lines[:-min_lines])
+    return min(character_boundary, line_boundary)
+
+
+def _command_output_omission_marker(
+    omitted_chars: int,
+    omitted_lines: int | None = None,
+) -> str:
+    """Format a fence-safe, directional command-output omission marker."""
+    if omitted_lines is None:
+        line_detail = ""
+    else:
+        unit = "line" if omitted_lines == 1 else "lines"
+        line_detail = f" and {omitted_lines} {unit}"
+    return f"...[truncated {omitted_chars} chars{line_detail} from the beginning]"
+
+
 def _redact_command(command: str) -> str:
     return _SECRET_ASSIGNMENT_RE.sub(
         _redact_assignment_match,
@@ -486,9 +554,13 @@ class ToolCallDurationTracker:
 SCHEMA_VERSION = _SCHEMA_VERSION
 HOOK_SCHEMA_VERSION = _HOOK_SCHEMA_VERSION
 PREVIEW_LIMIT = _PREVIEW_LIMIT
+COMMAND_OUTPUT_MIN_TAIL_LINES = _COMMAND_OUTPUT_MIN_TAIL_LINES
+COMMAND_OUTPUT_PREVIEW_LIMIT = _COMMAND_OUTPUT_PREVIEW_LIMIT
 TOOL_CALL_RECORD_OPTIONAL_FIELDS = _TOOL_CALL_RECORD_OPTIONAL_FIELDS
 TOOL_CALL_RECORD_REQUIRED_FIELDS = _TOOL_CALL_RECORD_REQUIRED_FIELDS
 base_stream_tool_call_record = _base_stream_tool_call_record
+command_output_omission_marker = _command_output_omission_marker
+command_output_tail_start = _command_output_tail_start
 derive_user_result_status = _derive_user_result_status
 preview_text = _preview_text
 result_envelope_indicates_error = _result_envelope_indicates_error
@@ -496,3 +568,4 @@ result_envelope_is_interrupted = _result_envelope_is_interrupted
 string_or_none = _string_or_none
 summarize_tool_input = _summarize_tool_input
 summarize_tool_response = _summarize_tool_response
+tail_command_output = _tail_command_output

@@ -15,6 +15,12 @@ from typing import Any
 
 from sase.core.paths import ensure_sase_directory, sase_subdir
 from sase.core.time import get_timezone
+from sase.llm_provider._tool_call_common import (
+    COMMAND_OUTPUT_MIN_TAIL_LINES,
+    command_output_omission_marker,
+    command_output_tail_start,
+    tail_command_output,
+)
 
 from ._entry import ToolCallEntry, is_subagent_tool_call
 from .slow import format_long_duration
@@ -23,6 +29,7 @@ _REPORT_SUBDIR = "tool_call_reports"
 _REPORT_KEEP_COUNT = 50
 _MAX_TRANSCRIPT_BYTES = 16 * 1024 * 1024
 _MAX_RECOVERED_OUTPUT_CHARS = 64 * 1024
+_RECOVERED_OUTPUT_SEPARATOR = "\n\n---\n\n"
 
 _OUTPUT_KEYS = (
     "exit_code",
@@ -32,6 +39,9 @@ _OUTPUT_KEYS = (
     "content_preview",
     "result_preview",
     "preview",
+)
+_COMMAND_OUTPUT_PREVIEW_KEYS = frozenset(
+    {"stderr_preview", "stdout_preview", "output_preview"}
 )
 _TEXT_RESULT_KEYS = (
     "stderr",
@@ -44,6 +54,10 @@ _TEXT_RESULT_KEYS = (
     "tool_result",
     "tool_response",
     "response",
+)
+_HEAD_TRUNCATION_MARKER_RE = re.compile(
+    r"\.\.\.\[truncated \d+ chars\]\s*$",
+    re.IGNORECASE,
 )
 
 
@@ -61,6 +75,46 @@ class SlowToolCallReportSpec:
 class _TranscriptRecovery:
     text: str | None
     note: str
+
+
+@dataclass
+class _RecoveredOutputTail:
+    """Incrementally retain only the useful tail of recovered result text."""
+
+    text: str = ""
+    omitted_chars: int = 0
+    omitted_lines: int = 0
+    omission_is_line_aligned: bool = False
+
+    def append(self, value: str) -> None:
+        normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+        combined = (
+            f"{self.text}{_RECOVERED_OUTPUT_SEPARATOR}{normalized}"
+            if self.text
+            else normalized
+        )
+        retain_from = command_output_tail_start(
+            combined,
+            _MAX_RECOVERED_OUTPUT_CHARS,
+            COMMAND_OUTPUT_MIN_TAIL_LINES,
+        )
+        if retain_from > 0:
+            omitted = combined[:retain_from]
+            self.omitted_chars += retain_from
+            self.omitted_lines += omitted.count("\n")
+            self.omission_is_line_aligned = omitted.endswith("\n")
+            combined = combined[retain_from:]
+        self.text = combined
+
+    def render(self) -> str:
+        if self.omitted_chars == 0:
+            return self.text
+        omitted_lines = self.omitted_lines if self.omission_is_line_aligned else None
+        marker = command_output_omission_marker(
+            self.omitted_chars,
+            omitted_lines,
+        )
+        return f"{marker}\n{self.text}"
 
 
 def tool_call_report_path(entry: ToolCallEntry) -> str:
@@ -187,9 +241,8 @@ def _recover_tool_call_output(entry: ToolCallEntry) -> _TranscriptRecovery:
             "Not recovered: transcript exceeds the 16 MiB scan cap.",
         )
 
-    parts: list[str] = []
+    recovered = _RecoveredOutputTail()
     seen: set[str] = set()
-    recovered_chars = 0
     try:
         with path.open("r", encoding="utf-8", errors="replace") as handle:
             for line in handle:
@@ -206,29 +259,23 @@ def _recover_tool_call_output(entry: ToolCallEntry) -> _TranscriptRecovery:
                         if not text or text in seen:
                             continue
                         seen.add(text)
-                        parts.append(text)
-                        recovered_chars += len(text)
-                        if recovered_chars > _MAX_RECOVERED_OUTPUT_CHARS * 2:
-                            break
-                    if recovered_chars > _MAX_RECOVERED_OUTPUT_CHARS * 2:
-                        break
+                        recovered.append(text)
     except OSError:
         return _TranscriptRecovery(None, "Not recovered: transcript read failed.")
 
-    if not parts:
+    if not recovered.text:
         return _TranscriptRecovery(
             None,
             "Not recovered: no matching result text found in transcript.",
         )
 
-    text = "\n\n---\n\n".join(parts)
-    if len(text) > _MAX_RECOVERED_OUTPUT_CHARS:
-        remaining = len(text) - _MAX_RECOVERED_OUTPUT_CHARS
-        text = (
-            text[:_MAX_RECOVERED_OUTPUT_CHARS] + f"\n...[truncated {remaining} chars]"
+    if recovered.omitted_chars:
+        return _TranscriptRecovery(
+            recovered.render(),
+            "Recovered from transcript; output from the beginning was omitted "
+            "while the tail was preserved (64 KiB soft cap).",
         )
-        return _TranscriptRecovery(text, "Recovered and capped at 64 KiB.")
-    return _TranscriptRecovery(text, "Recovered from transcript.")
+    return _TranscriptRecovery(recovered.text, "Recovered from transcript.")
 
 
 def _metadata_lines(spec: SlowToolCallReportSpec) -> list[str]:
@@ -341,7 +388,9 @@ def _error_values(entry: ToolCallEntry) -> list[str]:
 
 def _recorded_output_lines(entry: ToolCallEntry) -> list[str]:
     lines: list[str] = []
-    truncated = False
+    head_truncated = False
+    tail_truncated = False
+    other_truncated = False
     for key in _OUTPUT_KEYS:
         if key not in entry.tool_response_summary:
             continue
@@ -349,12 +398,36 @@ def _recorded_output_lines(entry: ToolCallEntry) -> list[str]:
         if value in (None, ""):
             continue
         text = value if isinstance(value, str) else _json_dumps(value)
-        truncated = truncated or _looks_truncated(text)
+        field_head_truncated = _looks_head_truncated(text)
+        if (
+            key in _COMMAND_OUTPUT_PREVIEW_KEYS
+            and isinstance(value, str)
+            and not field_head_truncated
+        ):
+            text = tail_command_output(text, _MAX_RECOVERED_OUTPUT_CHARS)
+        head_truncated = head_truncated or field_head_truncated
+        tail_truncated = tail_truncated or _looks_tail_truncated(text)
+        other_truncated = other_truncated or (
+            _looks_truncated(text)
+            and not field_head_truncated
+            and not _looks_tail_truncated(text)
+        )
         lines.extend((f"### {key}", "", _fenced(text, "text"), ""))
 
     if not lines:
         return ["No recorded output summary fields were available."]
-    if truncated:
+    if head_truncated:
+        lines.append(
+            "Note: one or more recorded fields were truncated at the end by "
+            "the tool-call recorder. Their missing tails cannot be recovered "
+            "without a transcript."
+        )
+    if tail_truncated:
+        lines.append(
+            "Note: one or more recorded command-output fields omit content "
+            "from the beginning and preserve the captured tail."
+        )
+    if other_truncated:
         lines.append(
             "Note: one or more recorded fields include truncation markers from "
             "the tool-call recorder."
@@ -491,6 +564,17 @@ def _fenced(value: str, language: str) -> str:
 def _looks_truncated(value: str) -> bool:
     lowered = value.lower()
     return "...[" in value or "truncated" in lowered
+
+
+def _looks_head_truncated(value: str) -> bool:
+    return _HEAD_TRUNCATION_MARKER_RE.search(value) is not None
+
+
+def _looks_tail_truncated(value: str) -> bool:
+    first_line, _, _ = value.partition("\n")
+    return first_line.startswith("...[truncated ") and first_line.endswith(
+        " from the beginning]"
+    )
 
 
 def _is_subagent_entry(entry: ToolCallEntry) -> bool:

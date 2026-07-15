@@ -135,7 +135,25 @@ def test_report_builder_surfaces_truncation_note() -> None:
     report = report_mod._build_tool_call_report(_spec(entry))
 
     assert "stdout_preview" in report
-    assert "truncation markers" in report
+    assert "truncated at the end" in report
+    assert "missing tails cannot be recovered" in report
+
+
+def test_report_builder_tail_caps_oversized_recorded_command_output() -> None:
+    output = "".join(f"recorded-line-{index:04d}-{'x' * 80}\n" for index in range(900))
+    output += "FINAL RECORDED FAILURE\n"
+    entry = _entry(
+        transcript_path=None,
+        tool_response_summary={"output_preview": output},
+    )
+
+    report = report_mod._build_tool_call_report(_spec(entry))
+    recorded = report.split("## Recorded Output", 1)[1].split("## Full Output", 1)[0]
+
+    assert "from the beginning" in recorded
+    assert "recorded-line-0000" not in recorded
+    assert "FINAL RECORDED FAILURE" in recorded
+    assert "preserve the captured tail" in recorded
 
 
 def test_report_builder_renders_subagent_metadata_and_captured_output() -> None:
@@ -255,6 +273,58 @@ def test_transcript_recovery_found(tmp_path: Path) -> None:
 
     assert recovery.text == "full failed output"
     assert recovery.note == "Recovered from transcript."
+
+
+def test_transcript_recovery_preserves_large_output_tail(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.jsonl"
+    output_lines = [f"transcript-line-{index:04d}-{'x' * 80}" for index in range(900)]
+    output_lines.append("FINAL TRANSCRIPT FAILURE")
+    output = "\n".join(output_lines) + "\n"
+    transcript.write_text(
+        json.dumps({"tool_use_id": "call_1", "output": output}) + "\n",
+        encoding="utf-8",
+    )
+
+    recovery = report_mod._recover_tool_call_output(
+        _entry(transcript_path=str(transcript))
+    )
+
+    assert recovery.text is not None
+    assert recovery.text.startswith("...[truncated ")
+    assert "from the beginning" in recovery.text.splitlines()[0]
+    assert "transcript-line-0000" not in recovery.text
+    assert "FINAL TRANSCRIPT FAILURE" in recovery.text
+    assert all(line in recovery.text for line in output_lines[-50:])
+    assert "beginning was omitted" in recovery.note
+    assert "tail was preserved" in recovery.note
+
+
+def test_transcript_recovery_keeps_later_matching_fragments(tmp_path: Path) -> None:
+    transcript = tmp_path / "transcript.jsonl"
+    early_output = "".join(
+        f"early-line-{index:04d}-{'x' * 80}\n" for index in range(900)
+    )
+    transcript.write_text(
+        json.dumps({"tool_use_id": "call_1", "output": early_output})
+        + "\n"
+        + json.dumps(
+            {
+                "tool_use_id": "call_1",
+                "output": "LATE MATCHING FRAGMENT\nFINAL SENTINEL\n",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    recovery = report_mod._recover_tool_call_output(
+        _entry(transcript_path=str(transcript))
+    )
+
+    assert recovery.text is not None
+    assert "early-line-0000" not in recovery.text
+    assert "LATE MATCHING FRAGMENT" in recovery.text
+    assert recovery.text.endswith("FINAL SENTINEL\n")
 
 
 def test_transcript_recovery_degrades_for_absent_missing_and_oversized(

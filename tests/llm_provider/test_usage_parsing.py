@@ -259,6 +259,34 @@ def test_normalize_codex_tool_call_event_tolerates_malformed_arguments() -> None
     assert record["tool_input_summary"] == {}
 
 
+def test_normalize_codex_command_keeps_tail_without_transcript() -> None:
+    """Preview-only Codex command rows retain the final diagnostic lines."""
+    output = "".join(f"pytest-line-{index:03d}-{'x' * 24}\n" for index in range(80))
+    output += "FAILED tests/test_tail.py::test_final_sentinel\n"
+
+    record = _normalize_codex_tool_call_event(
+        {
+            "type": "item.completed",
+            "item": {
+                "id": "item_long_command",
+                "type": "command_execution",
+                "command": "just check",
+                "aggregated_output": output,
+                "exit_code": 1,
+                "status": "failed",
+            },
+        }
+    )
+
+    assert record is not None
+    preview = record["tool_response_summary"]["output_preview"]
+    assert preview.startswith("...[truncated ")
+    assert "from the beginning" in preview.splitlines()[0]
+    assert "pytest-line-000" not in preview
+    assert "pytest-line-079" in preview
+    assert "FAILED tests/test_tail.py::test_final_sentinel" in preview
+
+
 def test_normalize_codex_tool_call_event_handles_current_stream_fixtures() -> None:
     """Codex command/file events normalize into shared ToolUse/ToolResult rows."""
     stream_events = [

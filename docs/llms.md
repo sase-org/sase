@@ -406,9 +406,12 @@ Older Codex stream shapes that only expose a completed `function_call` item rema
 rows. Those records can show the tool name and compact input target, but they do not invent response summaries,
 durations, or failure details that Codex did not emit.
 
-Codex tool-call summaries use the same bounded and redacted artifact helpers as the other providers. Set
-`SASE_TOOL_LOG_FULL=1` only for explicit debugging sessions when raw tool input or output is needed in the local
-artifact.
+Codex tool-call summaries use the same bounded and redacted artifact helpers as the other providers. Textual command
+output (`stdout`, `stderr`, and combined `output`) uses a tail-oriented soft character budget: when truncation is
+needed, the summary marks how much was omitted from the beginning and retains at least the final 50 complete logical
+lines. Exceptionally wide trailing lines can therefore make a summary larger than the nominal budget. Command input,
+paths, errors, read/web content, and subagent final messages remain head-oriented. Set `SASE_TOOL_LOG_FULL=1` only for
+explicit debugging sessions when raw tool input or output is needed in the local artifact.
 
 ### Timer Display
 
