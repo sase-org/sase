@@ -14,6 +14,7 @@ from sase.xprompt._literal_zones import (
     literal_zone_ranges,
 )
 from sase.xprompt.directives import extract_prompt_directives
+from sase.xprompt.loader import load_xprompts_from_internal
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.processor import process_xprompt_references
 
@@ -127,3 +128,46 @@ def test_backtick_colon_argument_still_expands_normally() -> None:
     )
 
     assert result == "Value: two words"
+
+
+def test_typed_xprompt_input_renders_inside_inline_code() -> None:
+    xprompt = XPrompt(
+        name="show_path",
+        content="Open `{{ file_path }}`.",
+        inputs=[InputArg(name="file_path", type=InputType.PATH)],
+    )
+
+    result = process_xprompt_references(
+        "#show_path:src/example.py",
+        extra_xprompts={"show_path": xprompt},
+    )
+
+    assert result == "Open `src/example.py`."
+
+
+def test_rendered_value_does_not_activate_neighboring_inline_xprompt() -> None:
+    wrapper = XPrompt(
+        name="wrapper",
+        content="Keep `{{ value }} #child` literal.",
+        inputs=[InputArg(name="value", type=InputType.WORD)],
+    )
+    child = XPrompt(name="child", content="expanded")
+
+    result = process_xprompt_references(
+        "#wrapper:rendered",
+        extra_xprompts={"wrapper": wrapper, "child": child},
+    )
+
+    assert result == "Keep `rendered #child` literal."
+
+
+def test_packaged_split_file_renders_colon_path_inside_inline_code() -> None:
+    split_file = load_xprompts_from_internal()["split_file"]
+
+    result = process_xprompt_references(
+        "#split_file:src/sase/ace/tui/modals/projects_pane.py",
+        extra_xprompts={"split_file": split_file},
+    )
+
+    assert "`src/sase/ace/tui/modals/projects_pane.py`" in result
+    assert "{{ file_path }}" not in result

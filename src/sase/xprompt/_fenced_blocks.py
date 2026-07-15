@@ -116,6 +116,28 @@ def _line_ranges(text: str) -> Iterator[tuple[int, int, str]]:
         start = end
 
 
+def _protect_ranges(
+    text: str,
+    blocks: list[str],
+    ranges: list[tuple[int, int]],
+) -> str:
+    """Replace *ranges* with placeholders backed by ``blocks``."""
+    if not ranges:
+        return text
+
+    protected_parts: list[str] = []
+    cursor = 0
+    for start, end in ranges:
+        idx = len(blocks)
+        blocks.append(text[start:end])
+        protected_parts.append(text[cursor:start])
+        protected_parts.append(f"{_PLACEHOLDER_PREFIX}{idx}{_PLACEHOLDER_SUFFIX}")
+        cursor = end
+
+    protected_parts.append(text[cursor:])
+    return "".join(protected_parts)
+
+
 def protect_fenced_blocks(text: str, blocks: list[str]) -> str:
     """Replace fenced and inline code with null-byte placeholders.
 
@@ -134,21 +156,12 @@ def protect_fenced_blocks(text: str, blocks: list[str]) -> str:
 
     from ._literal_zones import code_literal_ranges
 
-    ranges = code_literal_ranges(text)
-    if not ranges:
-        return text
+    return _protect_ranges(text, blocks, code_literal_ranges(text))
 
-    protected_parts: list[str] = []
-    cursor = 0
-    for start, end in ranges:
-        idx = len(blocks)
-        blocks.append(text[start:end])
-        protected_parts.append(text[cursor:start])
-        protected_parts.append(f"{_PLACEHOLDER_PREFIX}{idx}{_PLACEHOLDER_SUFFIX}")
-        cursor = end
 
-    protected_parts.append(text[cursor:])
-    return "".join(protected_parts)
+def protect_fenced_blocks_only(text: str, blocks: list[str]) -> str:
+    """Replace fenced code blocks, but not inline code, with placeholders."""
+    return _protect_ranges(text, blocks, fenced_block_ranges(text))
 
 
 def fenced_block_ranges(text: str) -> list[tuple[int, int]]:
@@ -243,5 +256,6 @@ __all__ = [
     "fenced_block_details",
     "fenced_block_ranges",
     "protect_fenced_blocks",
+    "protect_fenced_blocks_only",
     "unprotect_fenced_blocks",
 ]

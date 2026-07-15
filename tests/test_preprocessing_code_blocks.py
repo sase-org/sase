@@ -8,6 +8,7 @@ from sase.xprompt._fenced_blocks import (
     fenced_block_details,
     fenced_block_ranges,
     protect_fenced_blocks,
+    protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
 from sase.xprompt.directives import PromptDirectives
@@ -60,6 +61,16 @@ class TestProtectFencedBlocks:
 
         assert blocks == ["~~~ text\ninside\n~~~"]
         assert protected == "before\n\x00XPF_0\x00\nafter\n"
+
+    def test_fence_only_protection_leaves_inline_code_visible(self) -> None:
+        blocks: list[str] = []
+        prompt = "before `#inline`\n```\n#fenced\n```\nafter"
+
+        protected = protect_fenced_blocks_only(prompt, blocks)
+
+        assert blocks == ["```\n#fenced\n```"]
+        assert "`#inline`" in protected
+        assert "#fenced" not in protected
 
 
 class TestUnprotectFencedBlocks:

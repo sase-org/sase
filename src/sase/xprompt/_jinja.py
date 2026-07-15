@@ -8,7 +8,11 @@ from jinja2 import BaseLoader, Environment, StrictUndefined, TemplateError
 from sase.output import print_status
 
 from ._exceptions import XPromptArgumentError
-from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
+from ._fenced_blocks import (
+    protect_fenced_blocks,
+    protect_fenced_blocks_only,
+    unprotect_fenced_blocks,
+)
 from .models import UNSET, XPrompt, XPromptValidationError
 
 # Lazy-initialized Jinja2 environment
@@ -287,7 +291,7 @@ def substitute_placeholders(
     based on the content.
     """
     fenced_blocks: list[str] = []
-    content = protect_fenced_blocks(content, fenced_blocks)
+    content = protect_fenced_blocks_only(content, fenced_blocks)
 
     if is_jinja2_template(content):
         result = _render_jinja2_template(
