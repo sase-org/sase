@@ -14,6 +14,7 @@ from sase.core.time import get_timezone
 from sase.main.plan_candidates import visible_pending_plan_notifications
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
+from sase.project_display_names import project_display_name_for
 
 _HISTORY_LIMIT = 10
 _PLAN_STATUSES = ("approved", "proposed", "rejected")
@@ -693,6 +694,8 @@ def _base_table() -> Any:
 
 
 def _agent_project(agent: str, project: str) -> str:
+    if project != "-":
+        project = project_display_name_for(project)
     if agent == "-" and project == "-":
         return "-"
     if agent == "-":

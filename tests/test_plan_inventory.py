@@ -75,12 +75,13 @@ def _append_plan_notification(
     agent_name: str = "planner",
     agent_timestamp: str | None = _LIVE_AGENT_TS,
     agent_root_timestamp: str | None = None,
+    project_dir: str = "/work/demo-project",
 ) -> None:
     action_data = {
         "agent_name": agent_name,
         "llm_provider": "anthropic",
         "model": "claude-sonnet",
-        "project_dir": "/work/demo-project",
+        "project_dir": project_dir,
         "response_dir": str(response_dir),
     }
     if agent_cl_name:
@@ -773,6 +774,106 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
     assert "Plan path" in output
     assert "12345678" in output
     assert "planner / demo-project" in output
+
+
+def test_render_plan_inventory_uses_project_display_names_only_in_dashboard(
+    tmp_path: Path,
+) -> None:
+    proposed_plan = _archived_plan("proposed-display.md", minutes_ago=5)
+    explicit_plan = _archived_plan("approved-explicit-display.md", minutes_ago=4)
+    fallback_plan = _archived_plan("approved-fallback-display.md", minutes_ago=3)
+    response_dir = _response_dir(tmp_path, "proposed-display")
+    _append_plan_notification(
+        "12345678-plan-notification",
+        proposed_plan,
+        response_dir,
+        minutes_ago=5,
+        project_dir="/work/gh_sase-org__sase",
+    )
+    _write_agent_meta(
+        "artifact-container",
+        "workflow-plan",
+        "20260613130000",
+        {
+            "plan_approved": True,
+            "plan_path": str(explicit_plan),
+            "name": "explicit-agent",
+            "project": "gh_bobs-org__bob-cli",
+        },
+        minutes_ago=2,
+    )
+    _write_agent_meta(
+        "gh_sase-org__sase",
+        "workflow-plan",
+        "20260613140000",
+        {
+            "plan_approved": True,
+            "plan_path": str(fallback_plan),
+            "name": "fallback-agent",
+        },
+        minutes_ago=1,
+    )
+    display_names = {
+        "gh_sase-org__sase": "sase",
+        "gh_bobs-org__bob-cli": "bob-cli",
+    }
+
+    with (
+        patch(
+            "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+            return_value=(_live_agent(),),
+        ),
+        patch.object(
+            plan_inventory_module,
+            "project_display_name_for",
+            side_effect=lambda key: display_names.get(key, key),
+        ),
+    ):
+        inventory = build_plan_inventory()
+        payload = plan_inventory_to_json(inventory)
+        buffer = io.StringIO()
+        render_plan_inventory(
+            inventory,
+            console=Console(
+                file=buffer,
+                force_terminal=False,
+                color_system=None,
+                width=160,
+            ),
+        )
+
+    output = buffer.getvalue()
+    assert "planner / sase" in output
+    assert "explicit-agent / bob-cli" in output
+    assert "fallback-agent / sase" in output
+    assert "gh_sase-org__sase" not in output
+    assert "gh_bobs-org__bob-cli" not in output
+    assert payload["proposed"][0]["project"] == "gh_sase-org__sase"
+    assert {row["agent"]: row["project"] for row in payload["approved"]} == {
+        "explicit-agent": "gh_bobs-org__bob-cli",
+        "fallback-agent": "gh_sase-org__sase",
+    }
+
+
+def test_agent_project_display_name_fallback_and_sentinels() -> None:
+    display_names = {"gh_sase-org__sase": "sase"}
+
+    with patch.object(
+        plan_inventory_module,
+        "project_display_name_for",
+        side_effect=lambda key: display_names.get(key, key),
+    ) as display_name_for:
+        assert plan_inventory_module._agent_project(
+            "planner", "gh_unknown__legacy"
+        ) == ("planner / gh_unknown__legacy")
+        assert plan_inventory_module._agent_project("-", "gh_sase-org__sase") == "sase"
+        assert plan_inventory_module._agent_project("planner", "-") == "planner"
+        assert plan_inventory_module._agent_project("-", "-") == "-"
+
+    assert [call.args[0] for call in display_name_for.call_args_list] == [
+        "gh_unknown__legacy",
+        "gh_sase-org__sase",
+    ]
 
 
 def test_render_plan_inventory_filters_panels_and_consolidates_filters() -> None:
