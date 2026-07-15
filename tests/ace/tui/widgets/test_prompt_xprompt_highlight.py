@@ -47,7 +47,7 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
         _seed_entries(ta, [_skill_entry()], project="sase")
-        ta.load_text("#gh:sase %auto #pr:my_change %m:opus use /sase_plan\n---")
+        ta.load_text("#git:sase %auto #pr:my_change %m:opus use /sase_plan\n---")
         ta._build_highlight_map()
 
         names = _highlight_names(ta)
