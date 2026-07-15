@@ -165,6 +165,61 @@ def test_feedback_plan_path_from_agent_meta_wire() -> None:
     assert agent.feedback_plan_paths == {expected: plan_path}
 
 
+def test_direct_plan_path_priority_from_agent_meta(tmp_path: Path) -> None:
+    """SDD metadata wins over archived metadata and the plan-path marker."""
+    (tmp_path / "plan_path.json").write_text(
+        json.dumps({"plan_path": "/plans/marker.md"})
+    )
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "plan_path": "/plans/archived.md",
+                "sdd_plan_path": "/plans/canonical.md",
+                "epic_bead_id": "sase-10",
+                "phase_bead_id": "sase-10.2",
+            }
+        )
+    )
+    agent = make_agent()
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.plan_path == "/plans/canonical.md"
+    assert agent.epic_bead_id == "sase-10"
+    assert agent.phase_bead_id == "sase-10.2"
+
+
+def test_plan_path_marker_survives_missing_agent_meta(tmp_path: Path) -> None:
+    (tmp_path / "plan_path.json").write_text(
+        json.dumps({"plan_path": "/plans/marker.md"})
+    )
+    agent = make_agent()
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.plan_path == "/plans/marker.md"
+
+
+def test_direct_plan_path_priority_from_agent_meta_wire() -> None:
+    agent = make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(
+            plan_path="/plans/archived.md",
+            sdd_plan_path="/plans/canonical.md",
+            epic_bead_id="sase-10",
+            phase_bead_id="sase-10.2",
+        ),
+        None,
+        plan_path_marker="/plans/marker.md",
+    )
+
+    assert agent.plan_path == "/plans/canonical.md"
+    assert agent.epic_bead_id == "sase-10"
+    assert agent.phase_bead_id == "sase-10.2"
+
+
 def test_auto_epic_plan_after_submission_stays_running(tmp_path: Path) -> None:
     """Auto-epic plans do not require manual review after submission."""
     meta = {

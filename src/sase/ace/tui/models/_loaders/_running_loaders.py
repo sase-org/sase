@@ -234,7 +234,13 @@ def load_running_home_agents_from_snapshot(
             workspace_dir=running.workspace_dir,
         )
         enrich_agent_from_meta_wire(
-            agent, record.agent_meta, record.waiting, record.pending_question
+            agent,
+            record.agent_meta,
+            record.waiting,
+            record.pending_question,
+            plan_path_marker=(
+                record.plan_path.plan_path if record.plan_path is not None else None
+            ),
         )
         enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
         agents.append(agent)

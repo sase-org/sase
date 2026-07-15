@@ -33,6 +33,8 @@ _UNASSIGNED_AGENT_NAME_DISPLAY = "unassigned"
 _UNKNOWN_WAIT_AGENT_GLYPH = "?"
 _UNKNOWN_WAIT_AGENT_GLYPH_STYLE = "bold #FFAF5F"
 _WAITING_VALUE_STYLE = "#FF87D7"
+_PLAN_GOAL_MAX_CHARS = 72
+_PLAN_GOAL_VALUE_STYLE = "italic #FFD787"
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror agent-row status
 # accents in ``_agent_list_render_agent.py`` / ``models.agent_status``.
 _WAIT_STATUS_BADGES: dict[str, tuple[str, str]] = {
@@ -60,6 +62,16 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     )
     text.append("Auto: ", style="bold #87D7FF")
     text.append(f"{token}\n", style=style)
+
+
+def _truncate_plan_goal(goal: str) -> str:
+    """Soft-truncate a normalized plan goal at a stable word boundary."""
+    if len(goal) <= _PLAN_GOAL_MAX_CHARS:
+        return goal
+    boundary = goal.rfind(" ", 0, _PLAN_GOAL_MAX_CHARS + 1)
+    if boundary < (_PLAN_GOAL_MAX_CHARS // 2):
+        boundary = _PLAN_GOAL_MAX_CHARS
+    return f"{goal[:boundary].rstrip()}…"
 
 
 def build_header_text(
@@ -114,6 +126,13 @@ def build_header_text(
             header_text.append(f"{bead_display}\n", style="bold #FFAF00")
     else:
         header_text.append(f"{_UNASSIGNED_AGENT_NAME_DISPLAY}\n", style="dim")
+
+    if summary is not None and summary.plan_goal:
+        header_text.append("Goal: ", style="bold #87D7FF")
+        header_text.append(
+            f"{_truncate_plan_goal(summary.plan_goal)}\n",
+            style=_PLAN_GOAL_VALUE_STYLE,
+        )
 
     # Spawn-on-retry: render a retry-chain breadcrumb when the agent is
     # part of one (either a retry attempt or a parent that handed off).

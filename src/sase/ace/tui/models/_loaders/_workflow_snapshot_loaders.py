@@ -190,6 +190,7 @@ def load_workflow_agents_from_snapshot(
                 pass
 
         extra_files: list[str] = []
+        plan_path: str | None = None
         record = record_by_dir.get(entry.artifacts_dir or "")
         if record is not None and record.plan_path is not None:
             plan_path = record.plan_path.plan_path
@@ -211,6 +212,7 @@ def load_workflow_agents_from_snapshot(
             artifacts_dir=entry.artifacts_dir,
             diff_path=entry.diff_path,
             extra_files=extra_files,
+            plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
             activity=entry.activity,
@@ -220,7 +222,11 @@ def load_workflow_agents_from_snapshot(
         )
         if record is not None:
             enrich_agent_from_meta_wire(
-                agent, record.agent_meta, record.waiting, record.pending_question
+                agent,
+                record.agent_meta,
+                record.waiting,
+                record.pending_question,
+                plan_path_marker=plan_path,
             )
         else:
             enrich_agent_from_meta(agent, entry.artifacts_dir)

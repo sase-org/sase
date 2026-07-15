@@ -55,6 +55,25 @@ def test_bundle_round_trip_preserves_agent_tag() -> None:
     assert restored.tag == "backend"
 
 
+def test_bundle_round_trip_preserves_plan_association() -> None:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2025, 6, 15, 10, 30, 0),
+        plan_path="/tmp/plan.md",
+        epic_bead_id="sase-1",
+        phase_bead_id="sase-1.2",
+    )
+
+    restored = Agent.from_bundle_dict(agent.to_bundle_dict())
+
+    assert restored.plan_path == "/tmp/plan.md"
+    assert restored.epic_bead_id == "sase-1"
+    assert restored.phase_bead_id == "sase-1.2"
+
+
 def test_bundle_round_trip_linked_repos() -> None:
     """Linked repo metadata is stored as JSON-native dicts and restored."""
     linked_repos = (

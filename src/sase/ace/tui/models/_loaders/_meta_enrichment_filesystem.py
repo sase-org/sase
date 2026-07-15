@@ -40,6 +40,18 @@ def enrich_agent_from_meta(
     if not artifacts_dir:
         return
 
+    # The marker is lower priority than direct agent metadata but higher than
+    # a done-marker path already placed on the model by completed loaders.
+    plan_path_marker = Path(artifacts_dir) / "plan_path.json"
+    try:
+        plan_path_data = load_json_cached(plan_path_marker)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        plan_path_data = None
+    if isinstance(plan_path_data, dict):
+        marker_plan_path = plan_path_data.get("plan_path")
+        if isinstance(marker_plan_path, str) and marker_plan_path:
+            agent.plan_path = marker_plan_path
+
     meta_path = Path(artifacts_dir) / "agent_meta.json"
     try:
         data = load_json_cached(meta_path)
@@ -59,6 +71,22 @@ def enrich_agent_from_meta(
         agent.vcs_provider = data["vcs_provider"]
     if data.get("workspace_dir"):
         agent.workspace_dir = data["workspace_dir"]
+    direct_plan_path = next(
+        (
+            value
+            for value in (data.get("sdd_plan_path"), data.get("plan_path"))
+            if isinstance(value, str) and value
+        ),
+        None,
+    )
+    if direct_plan_path is not None:
+        agent.plan_path = direct_plan_path
+    raw_epic_bead_id = data.get("epic_bead_id")
+    if isinstance(raw_epic_bead_id, str) and raw_epic_bead_id:
+        agent.epic_bead_id = raw_epic_bead_id
+    raw_phase_bead_id = data.get("phase_bead_id")
+    if isinstance(raw_phase_bead_id, str) and raw_phase_bead_id:
+        agent.phase_bead_id = raw_phase_bead_id
     if "linked_repos" in data:
         agent.linked_repos = parse_linked_repos(data.get("linked_repos"))
     commit_diff_path = data.get("commit_diff_path")

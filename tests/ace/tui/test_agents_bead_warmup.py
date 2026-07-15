@@ -197,7 +197,7 @@ def test_warm_confirmed_bead_displays_dedupes_lookups_by_cache_key(
         calls.append(candidate_id)
         return Issue(id=candidate_id, title="", description="")
 
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", counting_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", counting_lookup)
 
     # a1 and a2 share a candidate + project + workspace, so one cache key; a3 is
     # a distinct candidate. Two unique keys → two bead-store lookups total.
@@ -215,7 +215,7 @@ def test_warm_confirmed_bead_displays_omits_missing_and_non_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda candidate_id, **_: None,
     )
 
@@ -235,7 +235,7 @@ def test_warm_confirmed_bead_displays_reports_deleted_confirmed_candidate(
     assert key is not None
     _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3 - stale description")
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda candidate_id, **_: None,
     )
 
@@ -252,7 +252,7 @@ def test_warm_confirmed_bead_displays_omits_unchanged_expired_confirmation(
     key = _bead_display_cache_key(agent)
     assert key is not None
     _BEAD_DISPLAY_CACHE._entries[key] = (-1.0, "sase-x.3")
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", _confirmed_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", _confirmed_lookup)
 
     results = warm_confirmed_bead_displays([agent])
 
@@ -386,7 +386,7 @@ async def test_run_confirms_applies_and_clears_running(
     app._agents_with_children = [agent]
     app._bead_warmup_scan_scheduled = True
 
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", _confirmed_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", _confirmed_lookup)
 
     await app._run_bead_confirmation_warmup()
 
@@ -406,7 +406,7 @@ async def test_run_missing_candidate_stays_silent(
     app._agents_with_children = [agent]
 
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda candidate_id, **_: None,
     )
 
@@ -424,7 +424,7 @@ async def test_run_rearms_when_pending(monkeypatch: pytest.MonkeyPatch) -> None:
     app._agents_with_children = [agent]
     app._bead_warmup_scan_pending = True
 
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", _confirmed_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", _confirmed_lookup)
 
     await app._run_bead_confirmation_warmup()
 

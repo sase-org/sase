@@ -43,7 +43,7 @@ def clear_bead_display_cache() -> Iterator[None]:
 def confirm_bead(agent: Agent, monkeypatch: pytest.MonkeyPatch) -> None:
     """Warm the confirmation cache so rows render the bead glyph."""
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda candidate_id, **_: Issue(id=candidate_id, title="", description=""),
     )
     resolve_bead_display(agent)

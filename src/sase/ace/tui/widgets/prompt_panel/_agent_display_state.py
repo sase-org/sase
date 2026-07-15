@@ -58,6 +58,7 @@ class DetailHeaderSummary:
 
     xprompts_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
+    plan_goal: str | None = None
     delta_entries: list[DeltaEntry] | None = None
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     artifact_paths: list[AgentArtifactPath] | None = None

@@ -1488,6 +1488,8 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`, inferred from phase, exact epic, or legacy `.land` names
+  - `Goal` — the associated plan's frontmatter goal, shown for root and child rows when a direct plan path or epic/phase
+    bead association resolves to a readable plan
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when runner admission completed, before workspace preparation for root agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)

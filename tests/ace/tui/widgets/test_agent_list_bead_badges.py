@@ -118,7 +118,7 @@ class TestAgentListBeadBadge:
         def fail_lookup(candidate_id: str, **_: object) -> object:
             raise AssertionError("row formatting must not touch bead storage")
 
-        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+        monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", fail_lookup)
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
@@ -129,7 +129,7 @@ class TestAgentListBeadBadge:
     ) -> None:
         agent = make_agent(agent_name="sase-x.3")
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda candidate_id, **_: None,
         )
         resolve_bead_display(agent)
@@ -144,7 +144,7 @@ class TestAgentListBeadBadge:
         agent = make_agent(agent_name="sase-x.3")
         _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda candidate_id, **_: None,
         )
 

@@ -27,6 +27,8 @@ def enrich_agent_from_meta_wire(
     meta: AgentMetaWire | None,
     waiting: WaitingMarkerWire | None,
     pending_question: PendingQuestionMarkerWire | None = None,
+    *,
+    plan_path_marker: str | None = None,
 ) -> None:
     """Snapshot-aware mirror of :func:`enrich_agent_from_meta`.
 
@@ -35,6 +37,9 @@ def enrich_agent_from_meta_wire(
     *meta* is ``None`` the function is a no-op (matching the original's
     early-return when ``agent_meta.json`` is missing or unreadable).
     """
+    if plan_path_marker:
+        agent.plan_path = plan_path_marker
+
     if meta is None:
         return
 
@@ -48,6 +53,13 @@ def enrich_agent_from_meta_wire(
         agent.vcs_provider = meta.vcs_provider
     if meta.workspace_dir:
         agent.workspace_dir = meta.workspace_dir
+    direct_plan_path = meta.sdd_plan_path or meta.plan_path
+    if direct_plan_path:
+        agent.plan_path = direct_plan_path
+    if meta.epic_bead_id:
+        agent.epic_bead_id = meta.epic_bead_id
+    if meta.phase_bead_id:
+        agent.phase_bead_id = meta.phase_bead_id
     agent.linked_repos = parse_linked_repos(meta.linked_repos)
     if not agent.diff_path and meta.commit_diff_path:
         agent.diff_path = meta.commit_diff_path

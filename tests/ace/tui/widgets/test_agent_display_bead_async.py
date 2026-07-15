@@ -88,7 +88,7 @@ def test_cold_bead_display_schedules_worker_without_lookup(
     def fail_lookup(bead_id: str, **_: object) -> Issue | None:
         raise AssertionError("cold header render must not touch bead storage")
 
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", fail_lookup)
 
     panel.update_display(agent)
 
@@ -108,7 +108,7 @@ def test_successful_bead_worker_rerenders_cached_description(
     _set_context(panel, agent, current=True)
 
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: Issue(
             id=bead_id,
             title="Phase title",
@@ -139,7 +139,7 @@ def test_expired_bead_display_renders_stale_while_worker_revalidates(
     panel = _BeadPanel()
     _set_context(panel, agent, current=True)
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: Issue(
             id=bead_id,
             title="Phase title",
@@ -170,7 +170,7 @@ def test_deleted_bead_worker_discards_cached_summary_before_rerender(
         DetailHeaderSummary(bead_display="sase-x.3 - stale description"),
     )
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: None,
     )
 
@@ -197,7 +197,7 @@ def test_missing_bead_worker_stays_silent_and_does_not_reschedule(
     _set_context(panel, agent, current=True)
 
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: None,
     )
 
@@ -229,7 +229,7 @@ def test_stale_bead_worker_result_is_ignored(
     _set_context(panel, agent, current=False)
 
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: Issue(
             id=bead_id,
             title="Phase title",

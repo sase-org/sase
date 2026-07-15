@@ -121,6 +121,16 @@ class Agent:
     # Additional file paths (plans, etc.) for multi-file panel display
     extra_files: list[str] = field(default_factory=list)
 
+    # Canonical plan association for detail-header enrichment. Loaders resolve
+    # this with the same priority as agent-family attachment:
+    # sdd_plan_path -> plan_path -> plan_path.json -> done.json.
+    plan_path: str | None = None
+
+    # Explicit bead association metadata used by approved epic/phase work.
+    # Agent names remain a supported fallback for older bead-work records.
+    epic_bead_id: str | None = None
+    phase_bead_id: str | None = None
+
     # Bug URL for agents with associated bug IDs
     bug: str | None = None
 

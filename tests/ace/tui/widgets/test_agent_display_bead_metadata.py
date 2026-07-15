@@ -47,7 +47,7 @@ def _clear_bead_display_cache() -> Iterator[None]:
 def _confirm(agent, issue: Issue, monkeypatch: pytest.MonkeyPatch) -> None:
     """Warm the confirmation cache with *issue* for *agent*."""
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: issue,
     )
     resolve_bead_display(agent)
@@ -279,7 +279,7 @@ class TestConfirmedBeadMetadata:
                 description="",
             )
 
-        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
+        monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", lookup)
 
         resolve_bead_display(agent)
         header, _ = _full_header(agent)
@@ -363,7 +363,7 @@ class TestConfirmedBeadMetadata:
         agent = make_agent(agent_name="sase-x.3")
         _install_expired_cache(agent, "sase-x.3 - First line", monkeypatch)
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda bead_id, **_: Issue(
                 id=bead_id,
                 title="Phase title",
@@ -383,7 +383,7 @@ class TestConfirmedBeadMetadata:
         agent = make_agent(agent_name="sase-x.3")
         _install_expired_cache(agent, "sase-x.3 - stale description", monkeypatch)
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda bead_id, **_: None,
         )
 
@@ -410,7 +410,7 @@ class TestUnconfirmedBeadMetadata:
         def fail_lookup(bead_id: str, **_: object) -> Issue | None:
             raise AssertionError("cheap header must not touch bead storage")
 
-        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+        monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", fail_lookup)
 
         header, _ = build_header_text(agent, cheap=True)
 
@@ -425,7 +425,7 @@ class TestUnconfirmedBeadMetadata:
         def fail_lookup(bead_id: str, **_: object) -> Issue | None:
             raise AssertionError("cold full header must not touch bead storage")
 
-        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+        monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", fail_lookup)
 
         header, _ = _full_header(agent)
 
@@ -438,7 +438,7 @@ class TestUnconfirmedBeadMetadata:
         agent = make_agent(agent_name="sase-x.3")
 
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda bead_id, **_: None,
         )
 
@@ -479,7 +479,7 @@ class TestUnconfirmedBeadMetadata:
                 description=f"{project_name} description",
             )
 
-        monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", lookup)
+        monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", lookup)
 
         assert resolve_bead_display(alpha) == "shared-1.2 - alpha description"
         assert cached_bead_display(beta) is BEAD_DISPLAY_CACHE_MISS

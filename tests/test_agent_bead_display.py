@@ -28,7 +28,7 @@ def test_non_bead_agent_name_does_not_touch_bead_storage(
     def fail_lookup(bead_id: str, *, project_name: str | None = None) -> None:
         raise AssertionError("non-bead agent names must not touch bead storage")
 
-    monkeypatch.setattr("sase.agent.bead_display._lookup_bead_issue", fail_lookup)
+    monkeypatch.setattr("sase.agent.bead_display.lookup_bead_issue", fail_lookup)
 
     assert format_agent_bead_display_for_name("aij.2") is None
 
@@ -37,7 +37,7 @@ def test_require_existing_returns_none_for_missing_bead(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: None,
     )
 
@@ -52,7 +52,7 @@ def test_require_existing_confirms_via_lookup_even_without_description(
     from sase.bead.model import Issue
 
     monkeypatch.setattr(
-        "sase.agent.bead_display._lookup_bead_issue",
+        "sase.agent.bead_display.lookup_bead_issue",
         lambda bead_id, **_: Issue(id=bead_id, title="", description=""),
     )
 

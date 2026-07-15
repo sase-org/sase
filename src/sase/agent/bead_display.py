@@ -107,7 +107,7 @@ def derive_agent_bead_id_from_name(agent_name: str | None) -> str | None:
     return None
 
 
-def _lookup_bead_issue(
+def lookup_bead_issue(
     bead_id: str,
     *,
     project_name: str | None = None,
@@ -347,7 +347,7 @@ def format_agent_bead_display_for_name(
 
     issue: Issue | None = None
     if include_description or require_existing:
-        issue = _lookup_bead_issue(
+        issue = lookup_bead_issue(
             bead_id,
             project_name=project_name,
             workspace_dir=workspace_dir,

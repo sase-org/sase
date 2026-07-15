@@ -543,6 +543,53 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         )
 
 
+async def test_agents_plan_goal_metadata_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "plans" / "202607" / "agent_intent.md"
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: tale\n"
+        "goal: >\n"
+        "  Make the selected agent's intended outcome immediately legible while\n"
+        "  preserving fast keyboard navigation.\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-agent-intent",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 15, 9, 0, 0),
+        raw_suffix="20260715090000",
+        agent_name="visual.agent-intent",
+        plan_path=str(plan_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Goal:")
+        assert_page_svg_contains(page, "intended outcome")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_plan_goal_metadata_120x40",
+            title="ACE agents plan goal metadata",
+        )
+
+
 async def test_auto_approve_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

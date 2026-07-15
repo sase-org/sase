@@ -288,11 +288,13 @@ def load_workflow_agents(
 
         # Read plan_path from plan_path.json if available in artifacts
         extra_files: list[str] = []
+        plan_path: str | None = None
         if entry.artifacts_dir:
             plan_path_file = Path(entry.artifacts_dir) / "plan_path.json"
             try:
                 plan_data = load_json_cached(plan_path_file)
-                plan_path = plan_data.get("plan_path")
+                raw_plan_path = plan_data.get("plan_path")
+                plan_path = raw_plan_path if isinstance(raw_plan_path, str) else None
                 if plan_path:
                     extra_files = [plan_path]
             except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -313,6 +315,7 @@ def load_workflow_agents(
             artifacts_dir=entry.artifacts_dir,
             diff_path=entry.diff_path,
             extra_files=extra_files,
+            plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
             activity=entry.activity,

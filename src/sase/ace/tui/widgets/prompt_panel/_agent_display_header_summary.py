@@ -13,9 +13,11 @@ from sase.ace.tui.tools import (
     supports_slow_tool_sources,
 )
 from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
+from sase.agent.bead_display import BeadIssueLookupSession
 
 from ...models.agent import Agent
 from ...models.agent_bead import BEAD_DISPLAY_CACHE_MISS, cached_bead_display
+from ...models.agent_plan_goal import resolve_agent_plan_goal
 from ._agent_display_state import DetailHeaderSummary
 from ._helpers import load_xprompts_used
 
@@ -109,6 +111,12 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         if cached_display is not BEAD_DISPLAY_CACHE_MISS:
             bead_display = cast(str | None, cached_display)
 
+    with BeadIssueLookupSession() as lookup_session:
+        plan_goal = resolve_agent_plan_goal(
+            agent,
+            lookup_session=lookup_session,
+        )
+
     slow_tool_sources = None
     if supports_slow_tool_sources(agent):
         slow_tool_sources = build_slow_tool_sources(agent)
@@ -130,6 +138,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     return DetailHeaderSummary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
+        plan_goal=plan_goal,
         delta_entries=agent_delta_entries(agent),
         linked_delta_groups=linked_delta_groups,
         artifact_paths=agent_artifact_paths(agent),

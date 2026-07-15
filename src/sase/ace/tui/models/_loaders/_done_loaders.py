@@ -264,6 +264,11 @@ def _load_done_agent_for_dir(
             response_path=data.get("response_path"),
             diff_path=data.get("diff_path"),
             extra_files=extra_files,
+            plan_path=(
+                data.get("plan_path")
+                if isinstance(data.get("plan_path"), str)
+                else None
+            ),
             step_output=data.get("step_output"),
             workspace_num=data.get("workspace_num"),
             workspace_dir=data.get("workspace_dir"),
@@ -435,6 +440,7 @@ def _build_done_agent_from_record(
         response_path=done.response_path,
         diff_path=done.diff_path,
         extra_files=extra_files,
+        plan_path=done.plan_path,
         step_output=done.step_output,
         workspace_num=done.workspace_num,
         workspace_dir=done.workspace_dir,
@@ -459,7 +465,13 @@ def _build_done_agent_from_record(
         agent.retry_error_category = done.retry_error_category
 
     enrich_agent_from_meta_wire(
-        agent, record.agent_meta, record.waiting, record.pending_question
+        agent,
+        record.agent_meta,
+        record.waiting,
+        record.pending_question,
+        plan_path_marker=(
+            record.plan_path.plan_path if record.plan_path is not None else None
+        ),
     )
     enrich_agent_from_prompt_markers_wire(agent, record.prompt_steps)
     _enrich_missing_commit_metadata(agent, record.artifact_dir)

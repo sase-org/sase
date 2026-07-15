@@ -258,7 +258,7 @@ def test_render_key_changes_when_confirmed_bead_state_changes(
         k_cold = _bead_key(a)
 
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda candidate_id, **_: Issue(id=candidate_id, title="", description=""),
         )
         resolve_bead_display(a)
@@ -439,7 +439,7 @@ def test_render_key_unchanged_when_unconfirmed_candidate_resolves_missing(
         k_cold = _bead_key(a)
 
         monkeypatch.setattr(
-            "sase.agent.bead_display._lookup_bead_issue",
+            "sase.agent.bead_display.lookup_bead_issue",
             lambda candidate_id, **_: None,
         )
         resolve_bead_display(a)
