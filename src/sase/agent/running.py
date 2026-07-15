@@ -472,6 +472,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
                 remove_waiting=True,
             )
             _record_dismissal(cl_name, timestamp)
+            _dismiss_agent_notifications(cl_name, timestamp)
             return _KillResult(
                 True,
                 f"Agent '{name}' was not running; cleaned up stale state",
@@ -518,6 +519,7 @@ def kill_named_agent(name: str, *, exact_name: bool = False) -> _KillResult:
             )
 
     _record_dismissal(cl_name, timestamp)
+    _dismiss_agent_notifications(cl_name, timestamp)
 
     return _KillResult(
         True,
@@ -658,6 +660,22 @@ def _record_dismissal(cl_name: str | None, raw_suffix: str) -> None:
             if save_dismissed_agents(dismissed):
                 sync_dismissed_agent_artifact_index(dismissed, added={identity})
     except Exception:
+        pass
+
+
+def _dismiss_agent_notifications(cl_name: str | None, raw_suffix: str) -> None:
+    """Best-effort notification cleanup after a successful named-agent kill."""
+    if not cl_name:
+        return
+    try:
+        from sase.notifications import dismiss_notifications_matching_agents
+
+        dismiss_notifications_matching_agents(
+            [{"cl_name": cl_name, "raw_suffix": raw_suffix}]
+        )
+    except Exception:
+        # The process is already dead (or confirmed stale), so notification
+        # storage failures must not turn the successful kill into an error.
         pass
 
 

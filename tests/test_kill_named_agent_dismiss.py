@@ -1,11 +1,10 @@
-"""Tests for the dismissed-agents-index write in :func:`kill_named_agent`.
+"""Tests for named-agent kill persistence and notification cleanup.
 
 When the user kills an agent via the Telegram "Kill" button, gchat, or
 ``sase agent kill``, the agent ought to disappear from ``sase ace``'s
 agents tab the same way an ``x`` press in the TUI does. The kill path
 must therefore add the agent's identity to ``~/.sase/dismissed_agents.json``
-so the loader filters out the eventual ``done.json`` with
-``outcome="failed"``.
+and dismiss matching notifications after successful live or stale cleanup.
 """
 
 from __future__ import annotations
@@ -22,13 +21,18 @@ import pytest
 
 from sase.agent.names._common import NamedAgent
 from sase.agent.running import kill_named_agent
+from sase.notifications import (
+    Notification,
+    append_notification,
+    load_notifications,
+)
 
 
 @pytest.fixture(autouse=True)
 def _isolated_dismissed_index(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[Path]:
-    """Redirect the dismissed-agents JSON to a per-test path.
+    """Redirect named-kill persistence to per-test paths.
 
     ``sase.ace.dismissed_agents._DISMISSED_AGENTS_FILE`` is bound at import
     time, so tests must override it explicitly to avoid clobbering the real
@@ -38,7 +42,18 @@ def _isolated_dismissed_index(
 
     isolated = tmp_path / "dismissed_agents.json"
     monkeypatch.setattr(mod, "_DISMISSED_AGENTS_FILE", isolated)
+    from sase.notifications import store
+
+    notifications_dir = tmp_path / "notifications"
+    monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(notifications_dir))
+    monkeypatch.setattr(
+        store,
+        "NOTIFICATIONS_FILE",
+        str(notifications_dir / "notifications.jsonl"),
+    )
+    store._invalidate_load_cache()
     yield isolated
+    store._invalidate_load_cache()
 
 
 def _setup_home_agent(home: Path, *, with_cl_name: bool = False) -> Path:
@@ -120,6 +135,78 @@ def _successful_user_kill(status: str = "killed") -> SimpleNamespace:
 
 def _patch_home(home: Path) -> AbstractContextManager[object]:
     return patch("pathlib.Path.home", return_value=home)
+
+
+def _append_question(
+    *,
+    notification_id: str,
+    cl_name: str,
+    child_timestamp: str,
+    root_timestamp: str,
+    response_dir: Path | None = None,
+) -> None:
+    action_data = {
+        "agent_cl_name": cl_name,
+        "agent_timestamp": child_timestamp,
+        "agent_root_timestamp": root_timestamp,
+    }
+    if response_dir is not None:
+        action_data["response_dir"] = str(response_dir)
+    append_notification(
+        Notification(
+            id=notification_id,
+            timestamp="2026-07-15T10:00:00-04:00",
+            sender="question",
+            action="UserQuestion",
+            action_data=action_data,
+        )
+    )
+
+
+def _notifications_by_id() -> dict[str, Notification]:
+    return {n.id: n for n in load_notifications(include_dismissed=True)}
+
+
+def test_kill_named_root_dismisses_child_question_only(tmp_path: Path) -> None:
+    artifacts_dir, _ = _setup_nonhome_agent(tmp_path)
+    response_dir = tmp_path / "question-response"
+    response_dir.mkdir()
+    _append_question(
+        notification_id="matching-question",
+        cl_name="feature_x",
+        child_timestamp="20260510130001",
+        root_timestamp="20260510130000",
+        response_dir=response_dir,
+    )
+    _append_question(
+        notification_id="unrelated-question",
+        cl_name="feature_x",
+        child_timestamp="20260510130002",
+        root_timestamp="20260510139999",
+    )
+    found = NamedAgent(
+        name="my_agent",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
+        patch("sase.running_field.release_workspace"),
+    ):
+        result = kill_named_agent("my_agent")
+
+    notifications = _notifications_by_id()
+    assert result.success is True
+    assert notifications["matching-question"].dismissed is True
+    assert notifications["unrelated-question"].dismissed is False
+    assert not (response_dir / "question_response.json").exists()
 
 
 def test_kill_named_agent_writes_dismissal_for_nonhome_uses_claim_cl_name(
@@ -292,6 +379,12 @@ def test_kill_named_agent_cleans_up_and_dismisses_when_pid_missing(
     (artifacts_dir / "waiting.json").write_text(
         json.dumps({"cl_name": "feature_x"}), encoding="utf-8"
     )
+    _append_question(
+        notification_id="stale-question",
+        cl_name="feature_x",
+        child_timestamp="20260510140001",
+        root_timestamp="20260510140000",
+    )
 
     found = NamedAgent(
         name="my_agent",
@@ -320,6 +413,71 @@ def test_kill_named_agent_cleans_up_and_dismisses_when_pid_missing(
 
     assert _isolated_dismissed_index.exists()
     assert (AgentType.RUNNING, "feature_x", "20260510140000") in load_dismissed_agents()
+    assert _notifications_by_id()["stale-question"].dismissed is True
+
+
+def test_kill_named_agent_permission_denied_keeps_question_active(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _setup_nonhome_agent(tmp_path)
+    _append_question(
+        notification_id="live-question",
+        cl_name="feature_x",
+        child_timestamp="20260510130001",
+        root_timestamp="20260510130000",
+    )
+    found = NamedAgent(
+        name="my_agent",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=SimpleNamespace(
+                success=False,
+                status="permission_denied",
+            ),
+        ),
+    ):
+        result = kill_named_agent("my_agent")
+
+    assert result.success is False
+    assert result.reason == "permission_denied"
+    assert _notifications_by_id()["live-question"].dismissed is False
+
+
+def test_kill_named_agent_notification_failure_does_not_flip_success(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir, _ = _setup_nonhome_agent(tmp_path)
+    found = NamedAgent(
+        name="my_agent",
+        artifacts_dir=str(artifacts_dir),
+        is_done=False,
+        outcome=None,
+    )
+
+    with (
+        _patch_home(tmp_path),
+        patch("sase.agent.running.find_named_agent", return_value=found),
+        patch(
+            "sase.agent.running.request_user_kill",
+            return_value=_successful_user_kill(),
+        ),
+        patch("sase.running_field.release_workspace"),
+        patch(
+            "sase.notifications.dismiss_notifications_matching_agents",
+            side_effect=ValueError("invalid notification row"),
+        ),
+    ):
+        result = kill_named_agent("my_agent")
+
+    assert result.success is True
 
 
 def test_kill_named_agent_uses_live_meta_pid_for_waiting_home_agent(
@@ -520,6 +678,12 @@ def test_kill_named_agent_dismissal_is_idempotent(
         is_done=False,
         outcome=None,
     )
+    _append_question(
+        notification_id="question",
+        cl_name=cl_name,
+        child_timestamp=f"{ts}-child",
+        root_timestamp=ts,
+    )
 
     with (
         _patch_home(tmp_path),
@@ -541,3 +705,6 @@ def test_kill_named_agent_dismissal_is_idempotent(
         ident for ident in dismissed if ident == (AgentType.RUNNING, cl_name, ts)
     ]
     assert len(matching) == 1
+    notifications = _notifications_by_id()
+    assert list(notifications) == ["question"]
+    assert notifications["question"].dismissed is True

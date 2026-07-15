@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.notifications import Notification, append_notification, load_notifications
 
 from tests._agent_cleanup_task_helpers import (
     TrackedTaskRecorderMixin,
@@ -529,6 +532,101 @@ def test_do_kill_agent_hook_persistence_runs_async() -> None:
     ):
         run_tracked_task(app, app.tracked_tasks[0])
         mock_persist_hook.assert_called_once_with(agent)
+
+
+def test_ace_root_only_kill_cleanup_dismisses_child_question(
+    tmp_path: Path,
+) -> None:
+    """A focused root cleanup reaches a child-routed question via the backend."""
+    from sase.ace.tui.actions.agents._kill_transactions import (
+        persist_single_kill_transaction,
+    )
+    from sase.core.agent_cleanup_wire import (
+        AgentCleanupNotificationDismissIntentWire,
+        AgentCleanupSideEffectsWire,
+    )
+
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="my_feature",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        pid=12345,
+        raw_suffix="20260715100000",
+    )
+    plan = _cleanup_plan(root, action="kill")
+    identity = plan.selected_identities[0]
+    plan = replace(
+        plan,
+        side_effects=AgentCleanupSideEffectsWire(
+            dismissed_index_additions=(identity,),
+            notification_dismiss_candidates=(
+                AgentCleanupNotificationDismissIntentWire(
+                    identity=identity,
+                    cl_name=root.cl_name,
+                    raw_suffix=root.raw_suffix,
+                ),
+            ),
+        ),
+    )
+    response_dir = tmp_path / "response"
+    response_dir.mkdir()
+    notifications_dir = tmp_path / "notifications"
+
+    with (
+        patch(
+            "sase.notifications.store.NOTIFICATIONS_DIR",
+            str(notifications_dir),
+        ),
+        patch(
+            "sase.notifications.store.NOTIFICATIONS_FILE",
+            str(notifications_dir / "notifications.jsonl"),
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=False),
+    ):
+        append_notification(
+            Notification(
+                id="question",
+                timestamp="2026-07-15T10:00:00-04:00",
+                sender="question",
+                action="UserQuestion",
+                action_data={
+                    "agent_cl_name": root.cl_name,
+                    "agent_timestamp": "20260715100001",
+                    "agent_root_timestamp": root.raw_suffix or "",
+                    "response_dir": str(response_dir),
+                },
+            )
+        )
+        append_notification(
+            Notification(
+                id="unrelated",
+                timestamp="2026-07-15T10:00:01-04:00",
+                sender="question",
+                action="UserQuestion",
+                action_data={
+                    "agent_cl_name": root.cl_name,
+                    "agent_timestamp": "20260715100002",
+                    "agent_root_timestamp": "20260715999999",
+                },
+            )
+        )
+
+        persist_single_kill_transaction(
+            root,
+            "running",
+            [root],
+            {root.identity},
+            plan,
+            [root],
+        )
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+
+    assert by_id["question"].dismissed is True
+    assert by_id["unrelated"].dismissed is False
+    assert not (response_dir / "question_response.json").exists()
 
 
 def test_run_kill_persistence_does_not_refresh_on_success() -> None:
