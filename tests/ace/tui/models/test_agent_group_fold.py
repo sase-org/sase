@@ -128,3 +128,22 @@ def test_reconcile_prunes_only_active_layout_scopes() -> None:
     assert split.is_collapsed(("Done",)) is False
     assert AgentPanelFoldScope("old", merged=False) not in registry._registries
     assert merged.is_collapsed(("Done",)) is True
+
+
+def test_snapshot_restore_replaces_registry_identities_and_state() -> None:
+    source = AgentGroupFoldRegistry()
+    source.for_panel(None).collapse(("Done",))
+    source.for_panel("chop", merged=True).collapse(("sase", "agent"))
+    snapshot = source.snapshot()
+
+    target = AgentGroupFoldRegistry()
+    old = target.for_panel(None)
+    target.for_panel("stale").collapse(("old",))
+    target.restore(snapshot)
+
+    restored = target.for_panel(None)
+    assert restored is not old
+    assert restored.version > 0
+    assert restored.is_collapsed(("Done",))
+    assert target.for_panel("chop", merged=True).is_collapsed(("sase", "agent"))
+    assert AgentPanelFoldScope("stale") not in target._registries

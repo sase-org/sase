@@ -112,6 +112,15 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if hasattr(self, "_nav_stops_cache"):
             self._nav_stops_cache = None
 
+    def _snap_focus_after_agents_fold_restore(self) -> None:
+        """Re-anchor once after restored folds hide the selected agent row."""
+        if not getattr(self, "_agents_fold_restore_needs_focus_snap", False):
+            return
+        self._agents_fold_restore_needs_focus_snap = False  # type: ignore[attr-defined]
+        snap = getattr(self, "_snap_focus_after_group_fold_change", None)
+        if callable(snap):
+            snap()
+
     def _agent_panel_index(self) -> AgentPanelIndex:
         """Memoized :class:`AgentPanelIndex` keyed on the agents-list ref.
 
@@ -378,6 +387,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if callable(prune):
             prune()
         self._sync_panel_group()
+        self._snap_focus_after_agents_fold_restore()
 
         affected_keys = affected_panel_keys(
             diff,
@@ -465,6 +475,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             # Drop any marks pointing at identities that no longer exist.
             self._prune_stale_marked_agents()  # type: ignore[attr-defined]
             self._sync_panel_group()
+            self._snap_focus_after_agents_fold_restore()
             jump_hints = (
                 dict(self._entry_jump_index_to_hint)
                 if self._entry_jump_mode_active

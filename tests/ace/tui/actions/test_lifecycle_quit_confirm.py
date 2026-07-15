@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any
 
@@ -26,6 +27,23 @@ class _QuitApp(LifecycleMixin):
 
     def _do_quit(self) -> None:
         self.did_quit = True
+
+
+class _FlushQuitApp(_QuitApp):
+    def __init__(self, task_queue: TaskQueue | None = None) -> None:
+        super().__init__(task_queue)
+        self.exit_events: list[str] = []
+        self.scheduled: list[asyncio.Task[None]] = []
+
+    async def _flush_agents_fold_state(self) -> None:
+        self.exit_events.append("flush")
+
+    def _do_quit(self) -> None:
+        self.exit_events.append("quit")
+        super()._do_quit()
+
+    def call_later(self, callback: Any) -> None:
+        self.scheduled.append(asyncio.create_task(callback()))
 
 
 def _task(
@@ -108,3 +126,24 @@ async def test_action_quit_without_running_tasks_quits_without_modal() -> None:
     assert app.did_quit is True
     assert app.pushed == []
     assert app.killed_task_ids == []
+
+
+@pytest.mark.asyncio
+async def test_ordinary_quit_flushes_fold_state_before_exit() -> None:
+    app = _FlushQuitApp()
+
+    await app.action_quit()
+
+    assert app.exit_events == ["flush", "quit"]
+
+
+@pytest.mark.asyncio
+async def test_confirmed_quit_flushes_fold_state_before_exit() -> None:
+    app = _FlushQuitApp(_queue(_task("run-sync", "sync")))
+
+    await app.action_quit()
+    _, callback = app.pushed[0]
+    callback(True)
+    await asyncio.gather(*app.scheduled)
+
+    assert app.exit_events == ["flush", "quit"]

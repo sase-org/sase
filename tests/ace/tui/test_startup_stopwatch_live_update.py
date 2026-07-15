@@ -103,8 +103,8 @@ def test_read_last_selection_name_delegates_to_loader() -> None:
         assert mixin._read_last_selection_name() is None
 
 
-def test_start_post_mount_background_loads_schedules_both_once() -> None:
-    """Startup launcher should schedule agent and axe startup paths once."""
+def test_start_post_mount_background_loads_schedules_all_once() -> None:
+    """Startup launcher schedules fold, agent, and axe paths independently."""
     app = AceApp()
     scheduled: list[object] = []
 
@@ -118,6 +118,7 @@ def test_start_post_mount_background_loads_schedules_both_once() -> None:
 
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
+    assert scheduled.count(app._run_agents_fold_state_load) == 1
     assert app._post_mount_background_loads_started is True
 
 
@@ -133,6 +134,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
             self.agent_release = asyncio.Event()
             self.agent_done = asyncio.Event()
             self.axe_done = asyncio.Event()
+            self.fold_started = asyncio.Event()
+            self.fold_release = asyncio.Event()
+            self.fold_done = asyncio.Event()
             self.tasks: list[asyncio.Task[None]] = []
 
         async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
@@ -145,6 +149,14 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
 
         async def _run_axe_startup_init(self) -> None:
             self.axe_done.set()
+
+        async def _run_agents_fold_state_load(self) -> None:
+            self.fold_started.set()
+            await self.fold_release.wait()
+            self.fold_done.set()
+
+        def _schedule_agents_fold_state_load(self) -> None:
+            self.run_worker(self._run_agents_fold_state_load)
 
         def _schedule_dismissed_index_startup_sync(self) -> None:
             pass
@@ -161,9 +173,12 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
 
     await asyncio.wait_for(harness.agent_started.wait(), timeout=0.2)
     await asyncio.wait_for(harness.axe_done.wait(), timeout=0.2)
+    await asyncio.wait_for(harness.fold_started.wait(), timeout=0.2)
     assert not harness.agent_done.is_set()
+    assert not harness.fold_done.is_set()
 
     harness.agent_release.set()
+    harness.fold_release.set()
     await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
 
 

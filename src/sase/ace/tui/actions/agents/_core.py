@@ -8,6 +8,7 @@ from ._approve import AgentApproveMixin
 from ._changespec_navigation import AgentChangespecNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
+from ._fold_persistence import AgentFoldPersistenceMixin
 from ._folding import AgentFoldingMixin
 from ._grouping import AgentGroupingMixin
 from ._kill_action import AgentKillMixin
@@ -51,6 +52,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 
 class AgentsMixinCore(
     AgentApproveMixin,
+    AgentFoldPersistenceMixin,
     AgentFoldingMixin,
     AgentGroupingMixin,
     AgentKillMixin,

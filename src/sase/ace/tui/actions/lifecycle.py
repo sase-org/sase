@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
@@ -188,21 +189,57 @@ class LifecycleMixin:
                 if task.status == "running"
             ]
             if not running:
-                self._do_quit()
+                await self._begin_controlled_exit()
                 return
 
             def _on_confirm(confirmed: bool | None) -> None:
                 if not confirmed:
                     return
                 self._kill_all_running_tasks()
-                self._do_quit()
+                self._request_controlled_exit()
 
             self.push_screen(  # type: ignore[attr-defined]
                 QuitConfirmModal(running),
                 callback=_on_confirm,
             )
             return
-        self._do_quit()
+        await self._begin_controlled_exit()
+
+    async def _flush_then_do_quit(self) -> None:
+        """Drain best-effort async persistence, then run synchronous cleanup."""
+        try:
+            flush_folds = getattr(self, "_flush_agents_fold_state", None)
+            if callable(flush_folds):
+                await flush_folds()
+        except Exception:
+            # Persistence can never trap the user in the TUI.
+            pass
+        finally:
+            self._do_quit()
+
+    async def _begin_controlled_exit(self) -> None:
+        """Start the shared flush-and-exit sequence at most once."""
+        if getattr(self, "_controlled_exit_started", False):
+            return
+        self._controlled_exit_started = True  # type: ignore[attr-defined]
+        await self._flush_then_do_quit()
+
+    def _request_controlled_exit(self) -> None:
+        """Schedule the shared async exit sequence from a sync callback."""
+        if getattr(self, "_controlled_exit_started", False):
+            return
+        self._controlled_exit_started = True  # type: ignore[attr-defined]
+        if not callable(getattr(self, "_flush_agents_fold_state", None)):
+            self._do_quit()
+            return
+        call_later = getattr(self, "call_later", None)
+        if callable(call_later):
+            call_later(self._flush_then_do_quit)
+            return
+        try:
+            asyncio.get_running_loop().create_task(self._flush_then_do_quit())
+        except RuntimeError:
+            self._do_quit()
 
     def _do_quit(self) -> None:
         """Run the quit cleanup sequence and exit."""

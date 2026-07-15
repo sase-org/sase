@@ -246,6 +246,18 @@ def finalize_agent_list(
             ``_restore_focus_after_removal`` so focus lands on the
             agent visually below the removed one.
     """
+    # A fast post-first-paint fold-state load gets one chance to become the
+    # baseline before the first real Agents projection reconciles and renders.
+    # This is a pure in-memory import; the loader's file/JSON work ran in its
+    # independent worker and never gates this boundary.
+    install_fold_state = getattr(
+        app,
+        "_maybe_install_agents_fold_state_before_finalize",
+        None,
+    )
+    if callable(install_fold_state):
+        install_fold_state()
+
     if save_unfiltered:
         # Save unfiltered list (with children) for bundle/dismiss operations
         # that need to find child steps even when fold state is COLLAPSED.

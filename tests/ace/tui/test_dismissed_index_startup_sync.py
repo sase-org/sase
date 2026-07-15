@@ -99,6 +99,9 @@ async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None
         async def _run_axe_startup_init(self) -> None:
             self.events.append("axe-start")
 
+        def _schedule_agents_fold_state_load(self) -> None:
+            self.events.append("fold-load-scheduled")
+
         async def _run_dismissed_index_startup_sync(self) -> None:
             self.events.append("dismissed-start")
             self.dismissed_done.set()

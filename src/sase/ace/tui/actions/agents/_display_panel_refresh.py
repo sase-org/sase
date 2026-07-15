@@ -48,7 +48,12 @@ class PanelRefreshMixin:
         )
         collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         if collapsed_keys is not None:
+            before = len(collapsed_keys)
             collapsed_keys.intersection_update(self._panel_group.panel_keys)
+            if len(collapsed_keys) != before:
+                schedule = getattr(self, "_agents_fold_state_changed", None)
+                if callable(schedule):
+                    schedule()
 
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_key = self._panel_group.focused_key

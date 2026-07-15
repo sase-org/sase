@@ -67,17 +67,34 @@ def reconcile_panel_fold_registries(
 
     registry_owner = getattr(owner, "_group_fold_registry", None)
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
+    panel_state_changed = False
+    collapsed_panels = getattr(owner, "_collapsed_panel_keys", None)
+    if not merged and collapsed_panels is not None:
+        known_panels = {scope.panel_key for scope in known_by_scope if not scope.merged}
+        before = len(collapsed_panels)
+        collapsed_panels.intersection_update(known_panels)
+        panel_state_changed = len(collapsed_panels) != before
     if isinstance(registry_owner, AgentGroupFoldRegistry):
-        registry_owner.reconcile_layout(known_by_scope, merged=merged)
+        group_state_changed = registry_owner.reconcile_layout(
+            known_by_scope, merged=merged
+        )
+        if panel_state_changed or group_state_changed:
+            schedule = getattr(owner, "_agents_fold_state_changed", None)
+            if callable(schedule):
+                schedule()
         return
 
     # Compatibility for focused tests/embedders that still expose one plain
     # registry: retain the historical cross-panel union behavior there.
     clear_unknown = getattr(registry_owner, "clear_unknown", None)
     if callable(clear_unknown):
-        clear_unknown(
+        changed = clear_unknown(
             key
             for scope, keys in known_by_scope.items()
             if scope.merged == merged
             for key in cast("Iterable[GroupKey]", keys)
         )
+        if panel_state_changed or changed:
+            schedule = getattr(owner, "_agents_fold_state_changed", None)
+            if callable(schedule):
+                schedule()

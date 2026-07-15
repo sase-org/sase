@@ -38,6 +38,13 @@ class StartupLoadsMixin:
         if self._post_mount_background_loads_started:
             return
         self._post_mount_background_loads_started = True
+        # Independent, non-gating one-shot: its worker performs both bounded
+        # file I/O and JSON decoding off-thread. Agents/AXE startup proceeds
+        # immediately whether this is fast, slow, missing, or malformed.
+        try:
+            self._schedule_agents_fold_state_load()
+        except Exception:
+            log.exception("Failed to start Agents fold state load")
         dismissed_index_callback = self._schedule_dismissed_index_startup_sync
         try:
             self._agents_refresh_pending_callbacks.append(dismissed_index_callback)

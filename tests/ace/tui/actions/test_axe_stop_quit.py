@@ -155,6 +155,30 @@ async def test_stop_axe_and_quit_uses_robust_stop_when_status_is_stale(
 
 
 @pytest.mark.asyncio
+async def test_stop_axe_and_quit_routes_through_controlled_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        axe_actions,
+        "_stop_axe_daemon_result",
+        lambda **_kwargs: AxeStopResult(),
+    )
+    app = _StopQuitApp()
+    controlled_exit_calls = 0
+
+    async def fake_begin_controlled_exit() -> None:
+        nonlocal controlled_exit_calls
+        controlled_exit_calls += 1
+
+    app._begin_controlled_exit = fake_begin_controlled_exit  # type: ignore[attr-defined]
+
+    await _run_stop_quit_worker(app)
+
+    assert controlled_exit_calls == 1
+    assert app.did_quit is False
+
+
+@pytest.mark.asyncio
 async def test_stop_axe_and_quit_still_quits_when_stop_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -222,6 +246,23 @@ def test_restart_tui_sets_exit_action_kills_tasks_and_quits(
     assert app.stall_watchdog_stops == 1
     assert app.did_quit is True
     assert order == ["watchdog", "kill-tasks", "quit"]
+
+
+@pytest.mark.parametrize("restart_axe", [False, True])
+def test_restart_tui_routes_through_controlled_exit(restart_axe: bool) -> None:
+    app = _StopQuitApp()
+    controlled_exit_calls = 0
+
+    def fake_request_controlled_exit() -> None:
+        nonlocal controlled_exit_calls
+        controlled_exit_calls += 1
+
+    app._request_controlled_exit = fake_request_controlled_exit  # type: ignore[attr-defined]
+
+    app._restart_tui(restart_axe=restart_axe)
+
+    assert controlled_exit_calls == 1
+    assert app.did_quit is False
 
 
 def test_restart_tui_still_quits_when_task_kill_raises() -> None:

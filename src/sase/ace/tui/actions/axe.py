@@ -214,7 +214,11 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         except Exception:
             pass
         finally:
-            self._do_quit()  # type: ignore[attr-defined]
+            begin_exit = getattr(self, "_begin_controlled_exit", None)
+            if callable(begin_exit):
+                await begin_exit()
+            else:
+                self._do_quit()  # type: ignore[attr-defined]
 
     def _restart_tui(self, *, restart_axe: bool) -> None:
         """Quit this TUI and ask the command handler to re-exec it."""
@@ -248,7 +252,11 @@ class AxeMixin(AxeBgCmdMixin, AxeChopRunMixin, AxeDisplayMixin):
         except Exception:
             pass
         finally:
-            self._do_quit()  # type: ignore[attr-defined]
+            request_exit = getattr(self, "_request_controlled_exit", None)
+            if callable(request_exit):
+                request_exit()
+            else:
+                self._do_quit()  # type: ignore[attr-defined]
 
     def action_clear_axe_output(self) -> None:
         """Clear the output log for the current view."""

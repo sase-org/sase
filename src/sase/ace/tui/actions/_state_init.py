@@ -31,8 +31,10 @@ if TYPE_CHECKING:
     from ..models import Agent
     from ..models.agent import AgentType
     from ..models.agent_loader import AgentLoadState
+    from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
     from ..tools.report import SlowToolCallReportSpec
     from ..widgets.prompt_panel._agent_display_state import CommitViewSpec
+    from .agents._fold_persistence import AgentFoldIntent
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
     from sase.core.query_corpus_facade import QueryCorpus
@@ -83,6 +85,7 @@ class StateInitMixin:
         self._auto_start_axe = auto_start_axe
         self._restart_axe = restart_axe
         self.exit_action = AceExitAction.QUIT
+        self._controlled_exit_started = False
         # Set during on_mount to suppress reactive-watcher cold loads that
         # would otherwise duplicate work the mount body already performs.
         self._mounting = False
@@ -432,10 +435,25 @@ class StateInitMixin:
 
         self._agent_panels_grouped: bool = False
         self._panel_group: AgentPanelGroup = AgentPanelGroup()
-        # Session-only whole-panel collapse state. This is intentionally
-        # independent of the group/workflow fold registries so expanding a
-        # panel restores its in-panel folds exactly as they were.
+        # Whole-panel collapse state is independent of the group/workflow fold
+        # registries so expanding a panel restores its in-panel folds exactly
+        # as they were. The fields below drive a one-shot post-first-paint load,
+        # pre-load mutation journal, and latest-generation off-thread writer.
         self._collapsed_panel_keys: set[PanelKey] = set()
+        self._agents_fold_state_load_started = False
+        self._agents_fold_state_load_resolved = False
+        self._agents_fold_state_loaded_snapshot: AgentsFoldStateSnapshot | None = None
+        self._agents_fold_state_merged = False
+        self._agents_fold_state_intents: list[AgentFoldIntent] = []
+        self._agents_fold_state_save_requested = False
+        self._agents_fold_state_save_generation = 0
+        self._agents_fold_state_completed_generation = 0
+        self._agents_fold_state_save_pending: (
+            tuple[int, AgentsFoldStateSnapshot] | None
+        ) = None
+        self._agents_fold_state_save_task: asyncio.Task[None] | None = None
+        self._agents_fold_state_load_worker: Worker[Any] | None = None
+        self._agents_fold_restore_needs_focus_snap = False
 
         # j/k navigation caches (Phase 2 of jk_navigation_reliability):
         # ``_panel_navigation_stops`` and ``panel_key_per_agent`` are

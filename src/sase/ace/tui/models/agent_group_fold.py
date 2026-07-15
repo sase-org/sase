@@ -46,6 +46,14 @@ class AgentPanelFoldScope:
     merged: bool = False
 
 
+@dataclass(frozen=True)
+class AgentPanelFoldSnapshot:
+    """Immutable collapse state for one rendered Agents-panel tree."""
+
+    scope: AgentPanelFoldScope
+    collapsed: frozenset[GroupKey]
+
+
 @dataclass
 class AgentGroupFoldRegistry:
     """Own one ordinary fold registry for every Agents panel scope.
@@ -79,21 +87,48 @@ class AgentGroupFoldRegistry:
         known_by_scope: Mapping[AgentPanelFoldScope, Iterable[GroupKey]],
         *,
         merged: bool,
-    ) -> None:
+    ) -> bool:
         """Prune stale folds independently for the active panel layout.
 
         Scopes from other grouping modes live in other owners, while scopes
         from the inactive split/merged layout remain untouched here.  Active
         scopes whose panels disappeared are removed entirely.
         """
+        changed = False
         active_scopes = {scope for scope in known_by_scope if scope.merged == merged}
         for scope in list(self._registries):
             if scope.merged == merged and scope not in active_scopes:
+                if self._registries[scope].collapsed:
+                    changed = True
                 del self._registries[scope]
         for scope in active_scopes:
-            self.for_panel(scope.panel_key, merged=scope.merged).clear_unknown(
+            if self.for_panel(scope.panel_key, merged=scope.merged).clear_unknown(
                 known_by_scope[scope]
-            )
+            ):
+                changed = True
+        return changed
+
+    def snapshot(self) -> tuple[AgentPanelFoldSnapshot, ...]:
+        """Return immutable, non-empty per-panel collapse snapshots."""
+        return tuple(
+            AgentPanelFoldSnapshot(scope=scope, collapsed=registry.snapshot())
+            for scope, registry in self._registries.items()
+            if registry.collapsed
+        )
+
+    def restore(self, snapshots: Iterable[AgentPanelFoldSnapshot]) -> None:
+        """Replace all panel registries from persistence snapshots.
+
+        New :class:`GroupFoldRegistry` objects are allocated even when the
+        logical state happens to match. Their identities therefore invalidate
+        cache signatures that include ``id(registry)``.
+        """
+        restored: dict[AgentPanelFoldScope, GroupFoldRegistry] = {}
+        for snapshot in snapshots:
+            registry = GroupFoldRegistry()
+            registry.restore(snapshot.collapsed)
+            restored[snapshot.scope] = registry
+        self._registries = restored
 
     def layout_version_signature(
         self,
@@ -136,8 +171,8 @@ class AgentGroupFoldRegistry:
     def expand_keys(self, keys: Iterable[GroupKey]) -> bool:
         return self.for_panel(None).expand_keys(keys)
 
-    def clear_unknown(self, known: Iterable[GroupKey]) -> None:
-        self.for_panel(None).clear_unknown(known)
+    def clear_unknown(self, known: Iterable[GroupKey]) -> bool:
+        return self.for_panel(None).clear_unknown(known)
 
 
 def enumerate_panel_group_keys(
@@ -173,6 +208,7 @@ def enumerate_panel_group_keys(
 
 __all__ = [
     "AgentGroupFoldRegistry",
+    "AgentPanelFoldSnapshot",
     "AgentPanelFoldScope",
     "GroupFoldRegistry",
     "GroupKey",

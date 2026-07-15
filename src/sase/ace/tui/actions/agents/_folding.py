@@ -36,6 +36,26 @@ class AgentFoldingMixin:
     _current_group_key: tuple[str, ...] | None
     _collapsed_panel_keys: set[PanelKey]
 
+    def _persist_group_fold_change(
+        self,
+        group_key: GroupKey,
+        *,
+        collapsed: bool,
+    ) -> None:
+        record = getattr(self, "_record_agents_group_fold_change", None)
+        if callable(record):
+            record(group_key, collapsed=collapsed)
+
+    def _persist_panel_fold_change(
+        self,
+        panel_key: PanelKey,
+        *,
+        collapsed: bool,
+    ) -> None:
+        record = getattr(self, "_record_agents_panel_fold_change", None)
+        if callable(record):
+            record(panel_key, collapsed=collapsed)
+
     def _get_workflow_key_for_agent(self, agent: Agent) -> str | None:
         """Get the fold state key for an agent (workflow parent or child).
 
@@ -190,6 +210,7 @@ class AgentFoldingMixin:
                     # that is now disabled.
                     self._reanchor_after_banner_expansion(group_key)
                     self._refilter_agents()  # type: ignore[attr-defined]
+                    self._persist_group_fold_change(group_key, collapsed=False)
                 return
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -302,9 +323,11 @@ class AgentFoldingMixin:
                     if registry.collapse(parent_key):
                         self._current_group_key = parent_key
                         self._refilter_agents()  # type: ignore[attr-defined]
+                        self._persist_group_fold_change(parent_key, collapsed=True)
                     return
                 if registry.collapse(cur_key):
                     self._refilter_agents()  # type: ignore[attr-defined]
+                    self._persist_group_fold_change(cur_key, collapsed=True)
                 return
 
             # Agent focus, no per-workflow step left → collapse the
@@ -316,6 +339,7 @@ class AgentFoldingMixin:
                 self._current_group_key = target
                 self._snap_focus_after_group_fold_change()
                 self._refilter_agents()  # type: ignore[attr-defined]
+                self._persist_group_fold_change(target, collapsed=True)
             return
 
         # Non-agents tabs: preserve original per-workflow behavior.
@@ -370,6 +394,7 @@ class AgentFoldingMixin:
             self.current_idx = global_indices[0]
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        self._persist_panel_fold_change(focused_key, collapsed=True)
 
     def _expand_focused_panel(self) -> None:
         """Expand the focused tag panel and select its first rendered row."""
@@ -395,6 +420,7 @@ class AgentFoldingMixin:
         self.current_attempt_number = None
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        self._persist_panel_fold_change(focused_key, collapsed=False)
 
     def _focused_axe_lumberjack_name(self) -> str | None:
         """Return the lumberjack name for the focused AXE row, if any.

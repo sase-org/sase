@@ -70,7 +70,25 @@ class GroupFoldRegistry:
                 changed = True
         return changed
 
-    def clear_unknown(self, known: Iterable[GroupKey]) -> None:
+    def snapshot(self) -> frozenset[GroupKey]:
+        """Return an immutable copy of the collapsed-key set."""
+        return frozenset(self.collapsed)
+
+    def restore(self, collapsed: Iterable[GroupKey]) -> bool:
+        """Replace collapse state from an immutable persistence snapshot.
+
+        A changed restore replaces the backing set and advances ``version`` so
+        render/navigation caches never mistake restored state for the prior
+        session-local registry contents.
+        """
+        restored = set(collapsed)
+        if restored == self.collapsed:
+            return False
+        self.collapsed = restored
+        self.version += 1
+        return True
+
+    def clear_unknown(self, known: Iterable[GroupKey]) -> bool:
         """Drop collapsed-set entries not in *known*.
 
         Called once per refresh so groups whose last member disappeared
@@ -82,3 +100,5 @@ class GroupFoldRegistry:
         self.collapsed.intersection_update(known_set)
         if len(self.collapsed) != before:
             self.version += 1
+            return True
+        return False
