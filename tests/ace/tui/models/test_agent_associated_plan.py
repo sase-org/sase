@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from dataclasses import FrozenInstanceError
 import os
 from pathlib import Path
 
 import pytest
 
 import sase.ace.tui.models.agent_associated_plan as plan_model
-from sase.ace.tui.models.agent_associated_plan import resolve_agent_associated_plan
+from sase.ace.tui.models.agent_associated_plan import (
+    AssociatedPlanPhaseSummary,
+    resolve_agent_associated_plan,
+)
 from sase.agent.bead_display import BeadIssueLookupSession
-from sase.bead.model import Issue, IssueType
+from sase.bead.model import BeadTier, Issue, IssueType
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -28,6 +32,36 @@ def _write_plan(path: Path, goal: str, *, tier: str = "tale") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"---\ntier: {tier}\ngoal: {goal!r}\n---\n# Plan\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_epic(path: Path, goal: str = "Deliver every authored phase") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Epic phase metadata\n"
+        f"goal: {goal!r}\n"
+        "phases:\n"
+        "  - id: core\n"
+        "    title: Canonical phase summaries\n"
+        "    depends_on: []\n"
+        "    description: Normalize the authoritative validator payload.\n"
+        "  - id: docs\n"
+        "    title: Independent documentation\n"
+        "    depends_on: []\n"
+        "  - id: render\n"
+        "    title: Responsive roadmap\n"
+        "    depends_on: [core, docs]\n"
+        "    model: codex/gpt-5.6-sol\n"
+        "  - id: verify\n"
+        "    title: End-to-end verification\n"
+        "    depends_on: [render]\n"
+        "---\n"
+        "# Plan\n\n"
+        "Implement it.\n",
         encoding="utf-8",
     )
     return path
@@ -66,6 +100,58 @@ def test_pending_epic_maps_to_epic(tmp_path: Path) -> None:
     assert summary is not None
     assert summary.authored_tier == "epic"
     assert summary.effective_tier == "epic"
+
+
+def test_valid_epic_exposes_immutable_normalized_authored_phases(
+    tmp_path: Path,
+) -> None:
+    plan = _write_epic(tmp_path / "epic.md")
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(plan),
+            plan_path=str(plan),
+            plan_committed=False,
+            plan_action="epic",
+        )
+    )
+
+    assert summary is not None
+    assert summary.authored_tier == "epic"
+    assert summary.effective_tier == "none"
+    assert summary.phase_availability == "available"
+    assert summary.phases == (
+        AssociatedPlanPhaseSummary(
+            id="core",
+            title="Canonical phase summaries",
+            depends_on=(),
+            description="Normalize the authoritative validator payload.",
+            model=None,
+        ),
+        AssociatedPlanPhaseSummary(
+            id="docs",
+            title="Independent documentation",
+            depends_on=(),
+            description=None,
+            model=None,
+        ),
+        AssociatedPlanPhaseSummary(
+            id="render",
+            title="Responsive roadmap",
+            depends_on=("core", "docs"),
+            description=None,
+            model="codex/gpt-5.6-sol",
+        ),
+        AssociatedPlanPhaseSummary(
+            id="verify",
+            title="End-to-end verification",
+            depends_on=("render",),
+            description=None,
+            model=None,
+        ),
+    )
+    with pytest.raises(FrozenInstanceError):
+        summary.phases[0].title = "changed"  # type: ignore[misc]
 
 
 def test_explicit_uncommitted_approval_wins_and_selects_archive(
@@ -184,6 +270,38 @@ def test_phase_bead_resolves_parent_design(tmp_path: Path, monkeypatch) -> None:
     assert summary.goal == "Complete the epic"
 
 
+def test_bead_tier_preserves_known_epic_fallback_on_association_cache_hit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic = Issue(
+        id="sase-1",
+        title="Epic",
+        issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
+        design="plans/missing.md",
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda _agent, bead_id, **_kwargs: epic if bead_id == epic.id else None,
+    )
+    agent = make_agent(agent_name="sase-1", workspace_dir=str(tmp_path))
+
+    first = resolve_agent_associated_plan(agent)
+    assert first is not None
+    assert first.phase_availability == "unavailable"
+
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda *_args, **_kwargs: pytest.fail("association cache was not reused"),
+    )
+    cached = resolve_agent_associated_plan(agent)
+    assert cached is not None
+    assert cached.phase_availability == "unavailable"
+
+
 def test_known_missing_plan_keeps_path_and_unavailable_metadata(
     tmp_path: Path,
 ) -> None:
@@ -199,6 +317,25 @@ def test_known_missing_plan_keeps_path_and_unavailable_metadata(
     assert not summary.exists
     assert not summary.readable
     assert not summary.frontmatter_readable
+    assert summary.phase_availability == "not-applicable"
+    assert summary.phases == ()
+
+
+def test_known_missing_epic_has_unavailable_phase_summary(tmp_path: Path) -> None:
+    missing = tmp_path / "missing epic.md"
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(missing),
+            plan_path=str(missing),
+            plan_action="epic",
+        )
+    )
+
+    assert summary is not None
+    assert summary.effective_tier == "epic"
+    assert summary.phase_availability == "unavailable"
+    assert summary.phases == ()
 
 
 def test_damaged_frontmatter_keeps_readable_plan_association(tmp_path: Path) -> None:
@@ -217,20 +354,105 @@ def test_damaged_frontmatter_keeps_readable_plan_association(tmp_path: Path) -> 
     assert summary.effective_tier is None
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        "---\ntier: [epic\n---\n# Plan\n",
+        "---\n- epic\n---\n# Plan\n",
+        (
+            "---\ntier: epic\ntitle: Invalid epic\ngoal: Retain the goal\n"
+            "phases:\n  - id: core\n    title: Valid first phase\n"
+            "    depends_on: []\n  - id: later\n"
+            "    title: Missing dependencies\n"
+            "---\n# Plan\n"
+        ),
+    ],
+)
+def test_invalid_known_epic_never_leaks_partial_phases(
+    tmp_path: Path,
+    content: str,
+) -> None:
+    plan = tmp_path / "invalid epic.md"
+    plan.write_text(content, encoding="utf-8")
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(plan),
+            plan_path=str(plan),
+            plan_action="epic",
+        )
+    )
+
+    assert summary is not None
+    assert summary.phase_availability == "unavailable"
+    assert summary.phases == ()
+
+
+def test_unreadable_known_epic_never_attempts_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _write_epic(tmp_path / "unreadable.md")
+    monkeypatch.setattr(plan_model.os, "access", lambda *_args: False)
+    monkeypatch.setattr(
+        plan_model,
+        "validate_plan",
+        lambda *_args: pytest.fail("unreadable plans must not be validated"),
+    )
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(plan),
+            plan_path=str(plan),
+            plan_action="epic",
+        )
+    )
+
+    assert summary is not None
+    assert summary.exists
+    assert not summary.readable
+    assert summary.phase_availability == "unavailable"
+    assert summary.phases == ()
+
+
+def test_readable_tale_never_renders_phases_even_with_epic_runtime_context(
+    tmp_path: Path,
+) -> None:
+    plan = _write_plan(tmp_path / "tale.md", "Keep the compact tale")
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(plan),
+            plan_path=str(plan),
+            plan_action="epic",
+        )
+    )
+
+    assert summary is not None
+    assert summary.effective_tier == "epic"
+    assert summary.authored_tier == "tale"
+    assert summary.phase_availability == "not-applicable"
+    assert summary.phases == ()
+
+
 def test_frontmatter_cache_reuses_parse_until_mtime_changes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = _write_plan(tmp_path / "cached.md", "First goal")
     agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
-    real_reader = plan_model.read_plan_frontmatter
+    real_reader = Path.read_text
     reads: list[Path] = []
 
-    def read(path: Path) -> tuple[dict[str, object], str | None]:
+    def read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
         reads.append(path)
-        return real_reader(path)
+        return real_reader(path, encoding=encoding, errors=errors)
 
-    monkeypatch.setattr(plan_model, "read_plan_frontmatter", read)
+    monkeypatch.setattr(Path, "read_text", read)
 
     assert resolve_agent_associated_plan(agent).goal == "First goal"  # type: ignore[union-attr]
     assert resolve_agent_associated_plan(agent).goal == "First goal"  # type: ignore[union-attr]
@@ -248,6 +470,45 @@ def test_frontmatter_cache_reuses_parse_until_mtime_changes(
     assert updated.goal == "Second goal"
     assert updated.effective_tier == "epic"
     assert reads == [plan.resolve(), plan.resolve()]
+
+
+def test_epic_phase_cache_reuses_validation_until_signature_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _write_epic(tmp_path / "cached epic.md")
+    agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+    real_validator = plan_model.validate_plan
+    validations: list[str] = []
+
+    def validate(content: str, tier: str):  # type: ignore[no-untyped-def]
+        validations.append(content)
+        return real_validator(content, tier)
+
+    monkeypatch.setattr(plan_model, "validate_plan", validate)
+
+    first = resolve_agent_associated_plan(agent)
+    cached = resolve_agent_associated_plan(agent)
+    assert first is not None
+    assert cached is not None
+    assert cached.phases == first.phases
+    assert len(validations) == 1
+
+    previous_mtime = plan.stat().st_mtime_ns
+    updated_content = plan.read_text(encoding="utf-8").replace(
+        "Responsive roadmap",
+        "Responsive phase roadmap",
+    )
+    plan.write_text(updated_content, encoding="utf-8")
+    os.utime(
+        plan,
+        ns=(plan.stat().st_atime_ns, max(plan.stat().st_mtime_ns, previous_mtime + 1)),
+    )
+
+    updated = resolve_agent_associated_plan(agent)
+    assert updated is not None
+    assert updated.phases[2].title == "Responsive phase roadmap"
+    assert len(validations) == 2
 
 
 def test_returns_none_without_plan_or_bead_association() -> None:

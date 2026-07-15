@@ -339,14 +339,22 @@ descendants.
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
-When ACE knows an agent's associated plan, the metadata panel adds a `SASE PLAN` section after the ordinary agent fields
-and `Timestamps`. The section contains the complete normalized `Goal`, the effective user-facing `Tier` (`plan`, `epic`,
-or `none`), and the canonical `Path`. Pending proposals map authored `tier: tale` to `plan`; an explicitly uncommitted
-approval renders `none`. Committed paths are relative to the agent workspace (including SDD sidecars such as
-`sase/repos/plans/...`), while pending and uncommitted archives use `~/.sase/plans/...`. Long values use hanging
-indentation and responsive Unicode-aware folding, with goal lines capped at 80 terminal cells. In hint mode the `Path`
-row receives a numbered hint that opens the resolved file. Missing or damaged plans keep their known section and path
-visible with quiet unavailable or missing treatment.
+When ACE knows an agent's associated plan, the metadata panel adds `SASE PLAN` as the first major section after all
+ordinary agent fields and `Timestamps`; model and xprompt usage remain ordinary metadata above it. The section starts
+with the complete normalized `Goal`, effective user-facing `Tier` (`plan`, `epic`, or `none`), and canonical `Path`.
+Pending proposals map authored `tier: tale` to `plan`; an explicitly uncommitted approval renders `none`. Committed
+paths are relative to the agent workspace (including SDD sidecars such as `sase/repos/plans/...`), while pending and
+uncommitted archives use `~/.sase/plans/...`.
+
+Validated authored epics add a phase roadmap beneath those three rows. `Phases` gives the complete phase count, and each
+entry shows its one-based authored order, title, canonical ID, `no dependencies` or `after <id>, ...`, plus an authored
+phase model when present. Optional descriptions get their own hanging-indented line. The order and diamond glyph
+describe static plan structure, not execution state or live bead progress. Tales retain the compact three-row form. Long
+goals, titles, IDs, dependency lists, models, and descriptions use hanging indentation and responsive Unicode-aware
+folding without ellipses; the section caps content at 80 terminal cells on wide panels and reflows to the normal
+metadata panel or metadata zoom width. In hint mode only `Path` receives a numbered file hint. Missing or damaged plans
+keep their known section and path visible; when epic context is known, strict validation failure renders one quiet
+`Phases: unavailable` state rather than partial phase data.
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
@@ -1510,8 +1518,11 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 - **SASE PLAN**: Shown when direct planner/family metadata or an epic/phase bead associates the agent with a plan. Its
   rows are `Goal`, effective `Tier` (`plan`, `epic`, or `none`), and canonical `Path`, in that order. Committed paths
   are workspace-relative; pending or explicitly uncommitted paths use the home-shortened machine-local archive. The
-  values wrap without truncation in the normal panel and metadata zoom view, and the path participates in file hint
-  mode.
+  section is the first major section after ordinary metadata. Valid epics then show every phase in authored order with
+  its title, ID, dependency IDs, optional model, and optional description; these are static roadmap ordinals, not
+  progress indicators. Every value wraps without truncation in the normal panel and metadata zoom view, and only the
+  path participates in file hint mode. Invalid known epics show `Phases: unavailable` without leaking partial entries;
+  tales do not show a phase block.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

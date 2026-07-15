@@ -692,6 +692,75 @@ async def test_agents_sase_plan_metadata_png_snapshot(
         )
 
 
+async def test_agents_epic_phase_roadmap_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    relative_plan_path = Path("sase/repos/plans/202607/epic phase roadmap.md")
+    plan_path = tmp_path / relative_plan_path
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Epic phase roadmap\n"
+        "goal: Show every validated phase in a responsive roadmap\n"
+        "phases:\n"
+        "  - id: core\n"
+        "    title: Planner and safety checks\n"
+        "    depends_on: []\n"
+        "    description: Establish the normalized phase model.\n"
+        "  - id: render\n"
+        "    title: Responsive phase renderer\n"
+        "    depends_on: [core]\n"
+        "    model: codex/gpt-5.6-sol\n"
+        "  - id: verify\n"
+        "    title: Visual verification\n"
+        "    depends_on: [core, render]\n"
+        "---\n"
+        "# Plan\n\n"
+        "Implement and verify the roadmap.\n",
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-epic-roadmap",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 15, 10, 0, 0),
+        raw_suffix="20260715100000",
+        agent_name="visual.epic-roadmap",
+        plan_path=relative_plan_path.as_posix(),
+        sdd_plan_path=relative_plan_path.as_posix(),
+        plan_committed=True,
+        plan_action="epic",
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "SASE PLAN")
+        assert_page_svg_contains(page, "Phases:")
+        assert_page_svg_contains(page, "Planner and safety checks")
+        assert_page_svg_contains(page, "no dependencies")
+        assert_page_svg_contains(page, "after core")
+        assert_page_svg_contains(page, "codex/gpt-5.6-sol")
+        assert_page_svg_contains(page, "after core, render")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_epic_phase_roadmap_120x40",
+            title="ACE agents epic phase roadmap",
+        )
+
+
 async def test_auto_approve_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

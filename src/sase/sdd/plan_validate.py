@@ -52,7 +52,7 @@ class PlanFrontmatterFieldSpec:
 
 
 @dataclass(frozen=True)
-class _ValidatedPlanPhase:
+class ValidatedPlanPhase:
     """Normalized epic-phase data returned by the Rust validator."""
 
     id: str
@@ -70,7 +70,7 @@ class _ValidatedPlan:
     goal: str
     model: str | None
     title: str | None
-    phases: tuple[_ValidatedPlanPhase, ...]
+    phases: tuple[ValidatedPlanPhase, ...]
     changespec: str | None
     bug_id: int | None
 
@@ -182,8 +182,8 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
     )
 
 
-def _validated_phase_from_dict(payload: dict[str, Any]) -> _ValidatedPlanPhase:
-    return _ValidatedPlanPhase(
+def _validated_phase_from_dict(payload: dict[str, Any]) -> ValidatedPlanPhase:
+    return ValidatedPlanPhase(
         id=str(payload["id"]),
         title=str(payload["title"]),
         depends_on=tuple(str(item) for item in payload["depends_on"]),
@@ -221,6 +221,7 @@ __all__ = [
     "PlanDiagnosticSeverity",
     "PlanFrontmatterFieldSpec",
     "PlanValidationResult",
+    "ValidatedPlanPhase",
     "plan_frontmatter_schema",
     "validate_plan",
     "validate_plan_file",

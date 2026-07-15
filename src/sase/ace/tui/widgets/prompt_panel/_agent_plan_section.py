@@ -6,10 +6,14 @@ from dataclasses import dataclass
 
 from rich.cells import cell_len
 from rich.console import Console, ConsoleOptions, RenderResult
+from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
-from ...models.agent_associated_plan import AssociatedPlanSummary
+from ...models.agent_associated_plan import (
+    AssociatedPlanPhaseSummary,
+    AssociatedPlanSummary,
+)
 from ._agent_artifacts import append_artifact_path
 from ._helpers import append_major_section_divider
 
@@ -21,6 +25,15 @@ PLAN_GOAL_VALUE_STYLE = "italic #FFD787"
 PLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 PLAN_UNAVAILABLE_STYLE = "dim italic #878787"
 PLAN_MISSING_SUFFIX_STYLE = "dim italic #FF8787"
+PLAN_PHASES_LABEL_STYLE = "bold #87D7AF"
+PLAN_PHASE_COUNT_STYLE = "#AFAFD7"
+PLAN_PHASE_ORDINAL_STYLE = "dim #8787AF"
+PLAN_PHASE_GLYPH_STYLE = "#AF87FF"
+PLAN_PHASE_TITLE_STYLE = "bold #D7D7FF"
+PLAN_PHASE_ID_STYLE = "bold #5FD7D7"
+PLAN_PHASE_DEPENDENCY_STYLE = "dim #AFAFAF"
+PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
+PLAN_PHASE_DESCRIPTION_STYLE = "italic #AFAFAF"
 PLAN_TIER_STYLES = {
     "plan": "bold #5FD7FF",
     "epic": "bold #AF87FF",
@@ -43,6 +56,12 @@ class ResponsivePlanSection:
             text.append(label, style=PLAN_FIELD_LABEL_STYLE)
             text.append_text(value)
             text.append("\n")
+        if self.summary.phase_availability != "not-applicable":
+            text.append_text(self._phases_heading())
+            text.append("\n")
+        if self.summary.phase_availability == "available":
+            for ordinal, phase in enumerate(self.summary.phases, start=1):
+                text.append_text(self._logical_phase(ordinal, phase))
         return text
 
     def __rich_console__(
@@ -60,6 +79,33 @@ class ResponsivePlanSection:
             value.no_wrap = False
             table.add_row(Text(label, style=PLAN_FIELD_LABEL_STYLE), value)
         yield from console.render(table, options.update_width(width))
+        if self.summary.phase_availability == "not-applicable":
+            return
+
+        render_options = options.update_width(width)
+        yield from console.render(self._phases_heading(), render_options)
+        if self.summary.phase_availability != "available":
+            return
+
+        for ordinal, phase in enumerate(self.summary.phases, start=1):
+            title_table = self._phase_title_table(ordinal, phase)
+            yield from console.render(title_table, render_options)
+            yield from console.render(
+                self._indented_phase_line(self._phase_metadata(phase)),
+                render_options,
+            )
+            if phase.description:
+                yield from console.render(
+                    self._indented_phase_line(
+                        Text(
+                            phase.description,
+                            style=PLAN_PHASE_DESCRIPTION_STYLE,
+                            overflow="fold",
+                            no_wrap=False,
+                        )
+                    ),
+                    render_options,
+                )
 
     @staticmethod
     def _heading(*, width: int | None = None) -> Text:
@@ -104,3 +150,76 @@ class ResponsivePlanSection:
         if not self.summary.exists:
             text.append(" (missing)", style=PLAN_MISSING_SUFFIX_STYLE)
         return text
+
+    def _phases_heading(self) -> Text:
+        text = Text()
+        text.append("Phases: ", style=PLAN_PHASES_LABEL_STYLE)
+        if self.summary.phase_availability == "available":
+            text.append(str(len(self.summary.phases)), style=PLAN_PHASE_COUNT_STYLE)
+        else:
+            text.append("unavailable", style=PLAN_UNAVAILABLE_STYLE)
+        return text
+
+    @staticmethod
+    def _logical_phase(
+        ordinal: int,
+        phase: AssociatedPlanPhaseSummary,
+    ) -> Text:
+        text = Text()
+        text.append(f"  {ordinal} ", style=PLAN_PHASE_ORDINAL_STYLE)
+        text.append("◆ ", style=PLAN_PHASE_GLYPH_STYLE)
+        text.append(phase.title, style=PLAN_PHASE_TITLE_STYLE)
+        text.append("\n")
+        text.append("    ")
+        text.append_text(ResponsivePlanSection._phase_metadata(phase))
+        text.append("\n")
+        if phase.description:
+            text.append("    ")
+            text.append(phase.description, style=PLAN_PHASE_DESCRIPTION_STYLE)
+            text.append("\n")
+        return text
+
+    @staticmethod
+    def _phase_title_table(
+        ordinal: int,
+        phase: AssociatedPlanPhaseSummary,
+    ) -> Table:
+        ordinal_text = f"  {ordinal} "
+        title = Text(
+            phase.title,
+            style=PLAN_PHASE_TITLE_STYLE,
+            overflow="fold",
+            no_wrap=False,
+        )
+        table = Table.grid(padding=0)
+        table.add_column(width=cell_len(ordinal_text), no_wrap=True)
+        table.add_column(width=cell_len("◆ "), no_wrap=True)
+        table.add_column(overflow="fold")
+        table.add_row(
+            Text(ordinal_text, style=PLAN_PHASE_ORDINAL_STYLE),
+            Text("◆ ", style=PLAN_PHASE_GLYPH_STYLE),
+            title,
+        )
+        return table
+
+    @staticmethod
+    def _phase_metadata(phase: AssociatedPlanPhaseSummary) -> Text:
+        text = Text(phase.id, style=PLAN_PHASE_ID_STYLE)
+        text.append(" · ", style=PLAN_PHASE_DEPENDENCY_STYLE)
+        if phase.depends_on:
+            text.append(
+                f"after {', '.join(phase.depends_on)}",
+                style=PLAN_PHASE_DEPENDENCY_STYLE,
+            )
+        else:
+            text.append("no dependencies", style=PLAN_PHASE_DEPENDENCY_STYLE)
+        if phase.model:
+            text.append(" · model ", style=PLAN_PHASE_DEPENDENCY_STYLE)
+            text.append(phase.model, style=PLAN_PHASE_MODEL_STYLE)
+        text.overflow = "fold"
+        text.no_wrap = False
+        return text
+
+    @staticmethod
+    def _indented_phase_line(text: Text) -> Padding:
+        return Padding(text, (0, 0, 0, 4), expand=False)

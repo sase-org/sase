@@ -15,10 +15,11 @@ from sase.agent.bead_display import (
     derive_agent_bead_id_from_name,
     lookup_bead_issue,
 )
-from sase.bead.model import Issue
+from sase.bead.model import BeadTier, Issue, IssueType
 from sase.core.agent_artifact_helpers import select_canonical_plan_path
 from sase.core.paths import shorten_path
-from sase.sdd.plan_tiers import normalize_plan_tier, read_plan_frontmatter
+from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
+from sase.sdd.plan_validate import ValidatedPlanPhase, validate_plan
 
 from .agent import Agent
 
@@ -29,8 +30,24 @@ _CACHE_MISS: Final = object()
 
 AssociatedPlanTier = Literal["plan", "epic", "none"]
 AuthoredPlanTier = Literal["tale", "epic"]
+AssociatedPlanPhaseAvailability = Literal[
+    "not-applicable",
+    "available",
+    "unavailable",
+]
 PlanAssociationCacheKey = tuple[str, str, str | None, str | None, int]
 PlanFileSignature = tuple[int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class AssociatedPlanPhaseSummary:
+    """Immutable normalized epic phase consumed by the render path."""
+
+    id: str
+    title: str
+    depends_on: tuple[str, ...]
+    description: str | None
+    model: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +63,8 @@ class AssociatedPlanSummary:
     exists: bool
     readable: bool
     frontmatter_readable: bool
+    phase_availability: AssociatedPlanPhaseAvailability
+    phases: tuple[AssociatedPlanPhaseSummary, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +74,8 @@ class _PlanFileMetadata:
     exists: bool
     readable: bool
     frontmatter_readable: bool
+    phase_availability: AssociatedPlanPhaseAvailability
+    phases: tuple[AssociatedPlanPhaseSummary, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +83,12 @@ class _PlanFileCacheEntry:
     signature: PlanFileSignature | None
     metadata: _PlanFileMetadata
     expires_at: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedPlanAssociation:
+    path: Path | None
+    known_epic: bool = False
 
 
 class _PlanFileCache:
@@ -110,15 +137,62 @@ class _PlanFileCache:
     @staticmethod
     def _load(path: Path, *, exists: bool) -> _PlanFileMetadata:
         if not exists:
-            return _PlanFileMetadata(None, None, False, False, False)
+            return _PlanFileMetadata(
+                None,
+                None,
+                False,
+                False,
+                False,
+                "unavailable",
+                (),
+            )
 
         readable = os.access(path, os.R_OK)
         if not readable:
-            return _PlanFileMetadata(None, None, True, False, False)
+            return _PlanFileMetadata(
+                None,
+                None,
+                True,
+                False,
+                False,
+                "unavailable",
+                (),
+            )
 
-        frontmatter, error = read_plan_frontmatter(path)
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            return _PlanFileMetadata(
+                None,
+                None,
+                True,
+                False,
+                False,
+                "unavailable",
+                (),
+            )
+        except UnicodeDecodeError:
+            return _PlanFileMetadata(
+                None,
+                None,
+                True,
+                True,
+                False,
+                "unavailable",
+                (),
+            )
+
+        frontmatter, error = parse_plan_frontmatter(content)
         if error is not None:
-            return _PlanFileMetadata(None, None, True, True, False)
+            return _PlanFileMetadata(
+                None,
+                None,
+                True,
+                True,
+                False,
+                "unavailable",
+                (),
+            )
 
         raw_goal = frontmatter.get("goal")
         goal = " ".join(raw_goal.split()) if isinstance(raw_goal, str) else None
@@ -128,12 +202,28 @@ class _PlanFileCache:
             authored_tier = "tale"
         elif normalized_tier == "epic":
             authored_tier = "epic"
+
+        phase_availability: AssociatedPlanPhaseAvailability = "not-applicable"
+        phases: tuple[AssociatedPlanPhaseSummary, ...] = ()
+        if authored_tier == "epic":
+            phase_availability = "unavailable"
+            try:
+                validation = validate_plan(content, "epic")
+            except Exception:
+                validation = None
+            if validation is not None and validation.ok and validation.plan is not None:
+                phases = tuple(
+                    _phase_summary(phase) for phase in validation.plan.phases
+                )
+                phase_availability = "available"
         return _PlanFileMetadata(
             goal=goal or None,
             authored_tier=authored_tier,
             exists=True,
             readable=True,
             frontmatter_readable=True,
+            phase_availability=phase_availability,
+            phases=phases,
         )
 
     def clear(self) -> None:
@@ -147,27 +237,35 @@ class _PlanAssociationCache:
     def __init__(self, *, max_entries: int = _CACHE_MAX_ENTRIES) -> None:
         self._max_entries = max_entries
         self._entries: OrderedDict[
-            PlanAssociationCacheKey, tuple[float, Path | None]
+            PlanAssociationCacheKey, tuple[float, _ResolvedPlanAssociation]
         ] = OrderedDict()
         self._lock = RLock()
 
-    def get(self, key: PlanAssociationCacheKey) -> Path | None | object:
+    def get(self, key: PlanAssociationCacheKey) -> _ResolvedPlanAssociation | object:
         now = monotonic()
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
                 return _CACHE_MISS
-            expires_at, path = entry
+            expires_at, association = entry
             if expires_at <= now:
                 del self._entries[key]
                 return _CACHE_MISS
             self._entries.move_to_end(key)
-            return path
+            return association
 
-    def set(self, key: PlanAssociationCacheKey, path: Path | None) -> None:
-        ttl = _NEGATIVE_TTL_SECONDS if path is None else _ASSOCIATION_TTL_SECONDS
+    def set(
+        self,
+        key: PlanAssociationCacheKey,
+        association: _ResolvedPlanAssociation,
+    ) -> None:
+        ttl = (
+            _NEGATIVE_TTL_SECONDS
+            if association.path is None
+            else _ASSOCIATION_TTL_SECONDS
+        )
         with self._lock:
-            self._entries[key] = (monotonic() + ttl, path)
+            self._entries[key] = (monotonic() + ttl, association)
             self._entries.move_to_end(key)
             while len(self._entries) > self._max_entries:
                 self._entries.popitem(last=False)
@@ -223,6 +321,7 @@ def resolve_agent_associated_plan(
 
     source = "direct"
     plan_path: Path | None
+    known_epic = False
     if reference:
         plan_path = _resolve_cached_reference(agent, source, reference)
     else:
@@ -235,26 +334,34 @@ def resolve_agent_associated_plan(
         if cached is _CACHE_MISS:
             if lookup_session is None:
                 with BeadIssueLookupSession() as owned_session:
-                    plan_path = _resolve_bead_plan_path(
+                    association = _resolve_bead_plan_association(
                         agent,
                         bead_id,
                         lookup_session=owned_session,
                     )
             else:
-                plan_path = _resolve_bead_plan_path(
+                association = _resolve_bead_plan_association(
                     agent,
                     bead_id,
                     lookup_session=lookup_session,
                 )
-            _PLAN_ASSOCIATION_CACHE.set(key, plan_path)
+            _PLAN_ASSOCIATION_CACHE.set(key, association)
         else:
-            plan_path = cached if isinstance(cached, Path) else None
+            assert isinstance(cached, _ResolvedPlanAssociation)
+            association = cached
+        plan_path = association.path
+        known_epic = association.known_epic
 
     if plan_path is None:
         return None
 
     metadata = _PLAN_FILE_CACHE.get(plan_path)
     committed = _effective_commit_state(agent)
+    phase_availability = _phase_availability(
+        agent,
+        metadata,
+        known_epic=known_epic,
+    )
     return AssociatedPlanSummary(
         goal=metadata.goal,
         authored_tier=metadata.authored_tier,
@@ -269,7 +376,39 @@ def resolve_agent_associated_plan(
         exists=metadata.exists,
         readable=metadata.readable,
         frontmatter_readable=metadata.frontmatter_readable,
+        phase_availability=phase_availability,
+        phases=(metadata.phases if phase_availability == "available" else ()),
     )
+
+
+def _phase_summary(phase: ValidatedPlanPhase) -> AssociatedPlanPhaseSummary:
+    return AssociatedPlanPhaseSummary(
+        id=phase.id,
+        title=phase.title,
+        depends_on=phase.depends_on,
+        description=phase.description,
+        model=phase.model,
+    )
+
+
+def _phase_availability(
+    agent: Agent,
+    metadata: _PlanFileMetadata,
+    *,
+    known_epic: bool,
+) -> AssociatedPlanPhaseAvailability:
+    if metadata.authored_tier == "tale":
+        return "not-applicable"
+    if metadata.authored_tier == "epic":
+        return metadata.phase_availability
+    if (
+        known_epic
+        or agent.plan_action == "epic"
+        or agent.epic_bead_id
+        or agent.phase_bead_id
+    ):
+        return "unavailable"
+    return "not-applicable"
 
 
 def _resolve_cached_reference(agent: Agent, source: str, reference: str) -> Path:
@@ -277,10 +416,11 @@ def _resolve_cached_reference(agent: Agent, source: str, reference: str) -> Path
     cached = _PLAN_ASSOCIATION_CACHE.get(key)
     if cached is _CACHE_MISS:
         path = _resolve_plan_reference(reference, agent)
-        _PLAN_ASSOCIATION_CACHE.set(key, path)
+        _PLAN_ASSOCIATION_CACHE.set(key, _ResolvedPlanAssociation(path))
         return path
-    assert isinstance(cached, Path)
-    return cached
+    assert isinstance(cached, _ResolvedPlanAssociation)
+    assert cached.path is not None
+    return cached.path
 
 
 def _effective_commit_state(agent: Agent) -> bool | None:
@@ -310,23 +450,28 @@ def _effective_tier(
     return None
 
 
-def _resolve_bead_plan_path(
+def _resolve_bead_plan_association(
     agent: Agent,
     bead_id: str,
     *,
     lookup_session: BeadIssueLookupSession,
-) -> Path | None:
+) -> _ResolvedPlanAssociation:
     issue = _lookup_issue(agent, bead_id, lookup_session=lookup_session)
     if issue is None:
-        return None
+        return _ResolvedPlanAssociation(None)
+    known_epic = issue.issue_type is IssueType.PHASE or issue.tier is BeadTier.EPIC
     design = issue.design.strip()
     if not design and issue.parent_id:
         parent = _lookup_issue(agent, issue.parent_id, lookup_session=lookup_session)
         if parent is not None:
             design = parent.design.strip()
+            known_epic = known_epic or parent.tier is BeadTier.EPIC
     if not design:
-        return None
-    return _resolve_plan_reference(design, agent)
+        return _ResolvedPlanAssociation(None, known_epic=known_epic)
+    return _ResolvedPlanAssociation(
+        _resolve_plan_reference(design, agent),
+        known_epic=known_epic,
+    )
 
 
 def _lookup_issue(
