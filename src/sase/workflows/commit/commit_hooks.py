@@ -6,8 +6,9 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
@@ -16,6 +17,9 @@ from sase.workflows.commit.plan_paths import (
     format_sase_plan_tag_value,
     is_sase_plan_in_repo,
 )
+
+if TYPE_CHECKING:
+    from sase.sdd.store import SddStore
 
 
 def _extract_yyyymm_from_plan(plan_path: str) -> str | None:
@@ -184,34 +188,114 @@ def _infer_prompt_link(reference_root: str, plan_path: str) -> str | None:
         return os.path.relpath(prompt, reference_root).replace(os.sep, "/")
 
 
+def _store_owning_plan_path(
+    plan_path: Path,
+    code_repo_root: str,
+) -> SddStore | None:
+    """Return the external SDD clone that directly owns *plan_path*."""
+
+    plan_repo_root = _get_repo_root(str(plan_path.parent))
+    if not plan_repo_root:
+        return None
+
+    plan_root = Path(plan_repo_root).expanduser().resolve(strict=False)
+    code_root = (
+        Path(code_repo_root).expanduser().resolve(strict=False)
+        if code_repo_root
+        else None
+    )
+    if code_root is not None and plan_root == code_root:
+        return None
+    try:
+        relative_plan = plan_path.resolve(strict=False).relative_to(plan_root)
+    except ValueError:
+        return None
+
+    from sase.sdd._paths import looks_like_sdd_root
+    from sase.sdd._store_types import (
+        SDD_STORAGE_SEPARATE_REPO,
+        SDD_STORAGE_SIDECAR_REPOS,
+        SddStore,
+    )
+
+    if not looks_like_sdd_root(plan_root):
+        return None
+    storage = (
+        SDD_STORAGE_SIDECAR_REPOS
+        if relative_plan.parts and re.fullmatch(r"\d{6}", relative_plan.parts[0])
+        else SDD_STORAGE_SEPARATE_REPO
+    )
+    return SddStore(
+        storage=storage,
+        sdd_dir=plan_root,
+        repo_root=plan_root,
+    )
+
+
+def _is_local_plan_archive(plan_path: Path) -> bool:
+    from sase.core.paths import sase_subdir
+
+    archive_root = sase_subdir("plans").resolve(strict=False)
+    return plan_path.resolve(strict=False).is_relative_to(archive_root)
+
+
+def _launch_owning_store(cwd: str) -> SddStore:
+    """Resolve the host workspace's SDD store for an archive-only plan."""
+
+    from sase.sdd.store import resolve_sdd_store
+
+    try:
+        from sase.workspace_provider.marker import find_marker_from_cwd
+
+        found = find_marker_from_cwd(cwd)
+    except Exception:
+        found = None
+    if found is None:
+        return resolve_sdd_store(cwd, 1)
+
+    checkout_dir, marker = found
+    store = resolve_sdd_store(checkout_dir, marker.workspace_num or 1)
+    if store.is_in_tree:
+        store = replace(store, repo_root=Path(checkout_dir))
+    return store
+
+
 def handle_sase_plan(payload: dict, cwd: str) -> None:
     """Append PLAN= to commit message and mark plan as done."""
-    plan_path = os.environ.get("SASE_PLAN", "")
-    if not plan_path:
+    raw_plan_path = os.environ.get("SASE_PLAN", "")
+    if not raw_plan_path:
         return
 
     from sase.sdd.store import resolve_sdd_store
 
-    store = resolve_sdd_store(cwd, 1)
-
     # Determine repo root
     repo_root = _get_repo_root(cwd)
-    in_repo = is_sase_plan_in_repo(plan_path, repo_root)
+    plan = Path(raw_plan_path).expanduser()
+    if not plan.is_absolute() and repo_root:
+        plan = Path(repo_root) / plan
+    archive_only = _is_local_plan_archive(plan)
 
     # If plan file doesn't exist at the expected path, try the ~/.sase/plans/ archive
-    if not os.path.isfile(plan_path):
+    if not plan.is_file():
         from sase.core.paths import find_sharded_file
 
-        archive_fallback = find_sharded_file("plans", os.path.basename(plan_path))
+        archive_fallback = find_sharded_file("plans", plan.name)
         if archive_fallback is not None:
-            plan_path = archive_fallback
-            in_repo = False
+            plan = Path(archive_fallback)
+            archive_only = True
         else:
             return  # truly missing
 
-    if not os.path.isabs(plan_path) and repo_root:
-        plan_path = os.path.join(repo_root, plan_path)
+    plan_path = str(plan.resolve(strict=False))
+    owning_store = _store_owning_plan_path(Path(plan_path), repo_root)
+    if owning_store is not None:
+        store = owning_store
+    elif archive_only:
+        store = _launch_owning_store(cwd)
+    else:
+        store = resolve_sdd_store(cwd, 1)
 
+    in_repo = is_sase_plan_in_repo(plan_path, repo_root)
     plan_in_store = is_sase_plan_in_repo(plan_path, store.sdd_dir)
     # A nested store is physically under the workspace but belongs to its own
     # repository, so it must not be staged with the code commit.
@@ -240,7 +324,10 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
 
         plan_content = format_with_prettier(plan_content)
         plan_path = dest
-        plan_in_code_repo = store.is_in_tree
+        plan_in_code_repo = store.is_in_tree and is_sase_plan_in_repo(
+            plan_path,
+            repo_root,
+        )
 
     # Approved store-backed plans already received frontmatter when written.
     # Copied archives need the same normalization as in-tree plans.
@@ -302,7 +389,7 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     # copied archive this ensures the initial sidecar commit contains
     # ``status: done``; for an existing sidecar plan it avoids leaving the
     # completion change dirty and unpushed in the SDD clone.
-    if not store.is_in_tree and (should_copy or plan_in_store):
+    if (not plan_in_code_repo) and (should_copy or plan_in_store):
         from sase.sdd.files import commit_sdd_store_files
 
         action = "Add" if should_copy else "Complete"

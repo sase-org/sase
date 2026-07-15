@@ -1,5 +1,7 @@
 """Tests for CommitWorkflow plan and bead hooks."""
 
+import json
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -12,6 +14,16 @@ from tests.sdd_policy_helpers import patched_sdd_policy
 
 _CONFIG_TARGET = "sase.workflows.commit.commit_hooks.load_merged_config"
 _GET_REPO_ROOT_TARGET = "sase.workflows.commit.commit_hooks._get_repo_root"
+
+
+def _init_git_repo(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "-q"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -193,6 +205,110 @@ class TestHandleSasePlan:
         assert mock_commit.call_args.kwargs == {"paths": [str(plan_file)]}
         assert committed_contents == [plan_file.read_text(encoding="utf-8")]
         assert "status: done" in committed_contents[0]
+
+    def test_plan_in_different_sdd_clone_uses_owning_store(
+        self, tmp_path: Path
+    ) -> None:
+        """A linked-repo commit never copies a host plan into its own store."""
+        code_repo = tmp_path / "linked-repo"
+        _init_git_repo(code_repo)
+        cwd_store = code_repo / ".sase" / "sdd"
+        cwd_store.mkdir(parents=True)
+        write_sdd_store_record(
+            code_repo,
+            {
+                "storage": "separate_repo",
+                "provider": "github",
+                "repo": "owner/linked-repo--sdd",
+                "remote_url": "git@example.com:owner/linked-repo--sdd.git",
+                "discovery": "found",
+            },
+        )
+
+        owning_store = tmp_path / "host-plans"
+        _init_git_repo(owning_store)
+        plan_file = owning_store / "202607" / "my_plan.md"
+        plan_file.parent.mkdir()
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        payload: dict = {"message": "fix: linked code"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+        ):
+            handle_sase_plan(payload, str(code_repo))
+
+        assert "_plan_path" not in payload
+        assert payload["message"].endswith("SASE_PLAN=202607/my_plan.md")
+        assert "status: done" in plan_file.read_text(encoding="utf-8")
+        assert not (cwd_store / "plans" / "202607" / "my_plan.md").exists()
+        mock_commit.assert_called_once()
+        store_arg, message = mock_commit.call_args.args
+        assert store_arg.sdd_dir == owning_store
+        assert message == "Complete SDD plan for my_plan"
+        assert mock_commit.call_args.kwargs == {"paths": [str(plan_file)]}
+
+    def test_archive_plan_from_linked_repo_routes_to_host_store(
+        self, tmp_path: Path
+    ) -> None:
+        host = tmp_path / "host"
+        linked_repo = host / "sase" / "repos" / "linked" / "foreign"
+        _init_git_repo(linked_repo)
+        host_store = host / ".sase" / "sdd"
+        host_store.mkdir(parents=True)
+        write_sdd_store_record(
+            host,
+            {
+                "storage": "separate_repo",
+                "provider": "github",
+                "repo": "owner/host--sdd",
+                "remote_url": "git@example.com:owner/host--sdd.git",
+                "discovery": "found",
+            },
+        )
+        (host / ".sase" / "checkout.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "project_name": "host",
+                    "project_key": "host-key",
+                    "workspace_num": 2,
+                    "primary_workspace_dir": str(host),
+                    "registry_path": str(tmp_path / "registry.json"),
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        sase_home = tmp_path / "sase-home"
+        archive_plan = sase_home / "plans" / "202607" / "my_plan.md"
+        archive_plan.parent.mkdir(parents=True)
+        archive_plan.write_text("# Plan\nstatus: wip\n", encoding="utf-8")
+        payload: dict = {"message": "fix: linked code"}
+
+        with (
+            patch.dict(
+                "os.environ",
+                {"SASE_HOME": str(sase_home), "SASE_PLAN": str(archive_plan)},
+            ),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+        ):
+            handle_sase_plan(payload, str(linked_repo))
+
+        dest = host_store / "plans" / "202607" / "my_plan.md"
+        assert dest.exists()
+        assert "status: done" in dest.read_text(encoding="utf-8")
+        assert "_plan_path" not in payload
+        assert payload["message"].endswith("SASE_PLAN=plans/202607/my_plan.md")
+        assert not (linked_repo / ".sase" / "sdd").exists()
+        mock_commit.assert_called_once()
+        store_arg, message = mock_commit.call_args.args
+        assert store_arg.sdd_dir == host_store
+        assert message == "Add SDD plan for my_plan"
+        assert mock_commit.call_args.kwargs == {"paths": [str(dest)]}
 
     def test_archive_fallback_vc_true_copies(self, tmp_path: Path) -> None:
         """Archive fallback + version_controlled=True: copies into YYYYMM subdir."""

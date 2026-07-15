@@ -201,9 +201,10 @@ def materialize_sdd_store(
 ) -> SddStore:
     """Materialize the provider-selected store or fail without a local fallback.
 
-    ``sdd_creation_authorized`` is an explicit-init guard. Omitting it preserves
-    provider-owned behavior for other materialization consumers; passing a
-    boolean requires providers to honor that per-invocation authorization.
+    Remote-backed stores require ``is_sase_managed: true`` in the target
+    repository's ``sase.yml``. ``sdd_creation_authorized`` is the additional
+    explicit-init guard: omitting it authorizes creation for a managed repo,
+    while ``False`` still permits discovery but must prevent remote creation.
     """
 
     store, _created = _materialize_sdd_store(
@@ -279,6 +280,13 @@ def _materialize_sdd_store(
     ).expanduser()
     record = read_sdd_store_record(primary)
 
+    creation_authorized: bool | None = None
+    if _is_remote_backed_record(record):
+        creation_authorized = _sdd_creation_authorized(
+            primary,
+            requested=sdd_creation_authorized,
+        )
+
     if _is_sidecar_record(record):
         ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
         return resolve_sdd_store(workspace, workspace_num), False
@@ -295,6 +303,12 @@ def _materialize_sdd_store(
     )
     if policy != SDD_STORAGE_SEPARATE_REPO and not _is_materialized_record(record):
         return resolve_sdd_store(workspace, workspace_num), False
+
+    if creation_authorized is None:
+        creation_authorized = _sdd_creation_authorized(
+            primary,
+            requested=sdd_creation_authorized,
+        )
 
     with materialization_lock(primary):
         record = read_sdd_store_record(primary)
@@ -329,7 +343,7 @@ def _materialize_sdd_store(
                         else None
                     ),
                     staging=staging,
-                    sdd_creation_authorized=sdd_creation_authorized,
+                    sdd_creation_authorized=creation_authorized,
                 )
                 normalized = normalize_sdd_store_record(result)
                 created = bool(result.get("created"))
@@ -532,6 +546,35 @@ def _is_sidecar_record(record: SddStoreRecord | None) -> bool:
     )
 
 
+def _is_remote_backed_record(record: SddStoreRecord | None) -> bool:
+    return bool(
+        _is_materialized_record(record)
+        and record is not None
+        and record.storage in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS}
+    )
+
+
+def _sdd_creation_authorized(
+    primary: Path,
+    *,
+    requested: bool | None,
+) -> bool:
+    """Require repository-local management before any remote SDD use."""
+
+    from sase.project_management import project_management_status
+
+    management = project_management_status(primary / "sase.yml")
+    if management.error is not None:
+        raise SddMaterializationError(management.error)
+    if not management.is_sase_managed:
+        raise SddMaterializationError(
+            "SDD materialization refused: repository is not SASE-managed; set "
+            "is_sase_managed: true in the target repository's sase.yml to "
+            "enable it"
+        )
+    return requested is not False
+
+
 def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:
     vcs_name = _detect_vcs_name(workspace_dir)
     if not vcs_name:
@@ -572,7 +615,7 @@ def _provider_materialization_result(
     policy: SddStorage | None,
     existing_record: SddStoreRecord | None,
     staging: Path,
-    sdd_creation_authorized: bool | None,
+    sdd_creation_authorized: bool,
 ) -> dict[str, Any]:
     options = _provider_options(
         workspace,
@@ -585,10 +628,9 @@ def _provider_materialization_result(
             "workspace_num": workspace_num,
             "staging_dir": str(staging),
             "create": True,
+            "sdd_creation_authorized": sdd_creation_authorized,
         }
     )
-    if sdd_creation_authorized is not None:
-        options["sdd_creation_authorized"] = sdd_creation_authorized
 
     try:
         from sase.workspace_provider import materialize_sdd_store as dispatch

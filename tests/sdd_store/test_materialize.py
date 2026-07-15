@@ -35,6 +35,7 @@ class _FakeSeparateRepoProvider:
         self.remote = remote
         self.error = error
         self.calls = 0
+        self.options: list[dict[str, object]] = []
 
     @hookimpl
     def ws_get_workflow_metadata(self) -> WorkflowMetadata | None:
@@ -56,6 +57,7 @@ class _FakeSeparateRepoProvider:
     ) -> dict[str, object] | None:
         del primary_workspace_dir, workspace_dir
         self.calls += 1
+        self.options.append(dict(options))
         if self.error:
             raise RuntimeError(self.error)
         staging = Path(str(options["staging_dir"]))
@@ -170,6 +172,14 @@ def _install_provider(
     monkeypatch.setattr("sase.vcs_provider.detect_vcs", lambda _cwd: "fake")
 
 
+def _mark_managed(primary: Path) -> None:
+    primary.mkdir(parents=True, exist_ok=True)
+    (primary / "sase.yml").write_text(
+        "is_sase_managed: true\n",
+        encoding="utf-8",
+    )
+
+
 def _remote_with_files(tmp_path: Path, files: dict[str, str]) -> Path:
     remote = tmp_path / "sidecar.git"
     seed = tmp_path / "seed"
@@ -222,6 +232,45 @@ def test_preflight_fails_closed_when_provider_hook_is_unavailable(
     assert not (primary / ".sase").exists()
 
 
+def test_unmanaged_repo_refuses_materialization_before_provider_create(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    primary.mkdir()
+    remote = tmp_path / "sidecar.git"
+    init_bare_repo(remote)
+    provider = _FakeSeparateRepoProvider(remote)
+    _install_provider(monkeypatch, provider)
+
+    with pytest.raises(
+        SddMaterializationError,
+        match=r"is_sase_managed: true.*target repository's sase.yml",
+    ):
+        materialize_sdd_store(primary, 1)
+
+    assert provider.calls == 0
+    assert not (primary / ".sase").exists()
+
+
+def test_explicit_init_denial_is_forwarded_for_managed_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "repo"
+    _mark_managed(primary)
+    remote = tmp_path / "sidecar.git"
+    init_bare_repo(remote)
+    provider = _FakeSeparateRepoProvider(remote)
+    _install_provider(monkeypatch, provider)
+
+    materialize_sdd_store(primary, 1, sdd_creation_authorized=False)
+
+    assert provider.calls == 1
+    assert provider.options[0]["create"] is True
+    assert provider.options[0]["sdd_creation_authorized"] is False
+
+
 def test_materialization_bootstraps_primary_and_numbered_workspace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -230,6 +279,7 @@ def test_materialization_bootstraps_primary_and_numbered_workspace(
     workspace = tmp_path / "repo_2"
     primary.mkdir()
     workspace.mkdir()
+    _mark_managed(primary)
     remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
@@ -240,6 +290,8 @@ def test_materialization_bootstraps_primary_and_numbered_workspace(
     assert outcome.created is True
     assert outcome.store.storage == SDD_STORAGE_SEPARATE_REPO
     assert provider.calls == 1
+    assert provider.options[0]["create"] is True
+    assert provider.options[0]["sdd_creation_authorized"] is True
     assert (primary / ".sase" / "sdd" / ".git").is_dir()
     assert (workspace / ".sase" / "sdd" / ".git").is_dir()
     assert (workspace / ".sase" / "sdd" / "README.md").is_file()
@@ -257,6 +309,7 @@ def test_existing_positive_clone_remains_usable_offline(
     workspace = tmp_path / "repo_2"
     primary.mkdir()
     workspace.mkdir()
+    _mark_managed(primary)
     remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
@@ -287,7 +340,7 @@ def test_existing_positive_clone_adopts_new_legacy_artifacts_without_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
-    primary.mkdir()
+    _mark_managed(primary)
     remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
@@ -323,7 +376,7 @@ def test_old_negative_record_is_retried_and_replaced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
-    primary.mkdir()
+    _mark_managed(primary)
     record_path = primary / ".sase" / "sdd-store.json"
     record_path.parent.mkdir(parents=True)
     record_path.write_text(
@@ -402,7 +455,7 @@ def test_first_materialization_fails_closed_without_positive_provider_result(
     provider_error: str | None,
 ) -> None:
     primary = tmp_path / "repo"
-    primary.mkdir()
+    _mark_managed(primary)
     if provider_error is None:
         provider: object = _MetadataOnlyProvider()
     else:
@@ -422,6 +475,7 @@ def test_local_and_in_tree_artifacts_are_imported_without_deleting_in_tree(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
+    _mark_managed(primary)
     local_note = primary / ".sase" / "sdd" / "research" / "local.md"
     tree_note = primary / "sdd" / "plans" / "202607" / "tree.md"
     local_note.parent.mkdir(parents=True)
@@ -448,6 +502,7 @@ def test_materialization_recovers_from_concurrent_sidecar_push(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
+    _mark_managed(primary)
     legacy = primary / ".sase" / "sdd" / "research" / "local.md"
     legacy.parent.mkdir(parents=True)
     legacy.write_text("local\n", encoding="utf-8")
@@ -474,6 +529,7 @@ def test_mismatched_local_git_repo_is_imported_via_staging(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
+    _mark_managed(primary)
     local = primary / ".sase" / "sdd"
     local.mkdir(parents=True)
     git(["init", "-b", "main"], local)
@@ -498,6 +554,7 @@ def test_conflict_aborts_and_preserves_legacy_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
+    _mark_managed(primary)
     legacy = primary / ".sase" / "sdd" / "research" / "note.md"
     legacy.parent.mkdir(parents=True)
     legacy.write_text("legacy\n", encoding="utf-8")
@@ -519,6 +576,7 @@ def test_versioned_stale_clone_defers_overlap_and_skips_runtime_metadata(
     _install_provider(monkeypatch, _FakeSeparateRepoProvider(remote))
 
     primary = tmp_path / "repo"
+    _mark_managed(primary)
     local = primary / ".sase" / "sdd"
     # A stale sidecar clone whose origin is the pre-rename URL, so it is not
     # recognized as the sidecar and is inspected as a legacy source.
@@ -552,7 +610,7 @@ def test_materialization_is_idempotent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     primary = tmp_path / "repo"
-    primary.mkdir()
+    _mark_managed(primary)
     remote = tmp_path / "sidecar.git"
     init_bare_repo(remote)
     provider = _FakeSeparateRepoProvider(remote)
