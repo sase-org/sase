@@ -43,8 +43,8 @@ reference notes that agents read only when relevant.
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 63
-- Approx. tokens: 892
+- Lines: 69
+- Approx. tokens: 1063
 
 ### `memory/gotchas.md`
 
@@ -67,8 +67,8 @@ reference notes that agents read only when relevant.
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 37
-- Approx. tokens: 530
+- Lines: 38
+- Approx. tokens: 551
 
 ### `memory/cli_rules.md`
 
@@ -118,8 +118,8 @@ reference notes that agents read only when relevant.
 - Total notes: 10
 - Short notes: 5
 - Long notes: 5
-- Total lines: 464
-- Total approx. tokens: 6714
+- Total lines: 471
+- Total approx. tokens: 6906
 
 ## Commands
 

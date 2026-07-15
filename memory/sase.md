@@ -17,11 +17,12 @@ directory as you!
 
 ## Repositories
 
-Configured linked repositories for this context:
+Configured linked and sidecar repositories for this context:
 
 - `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
+- `sase--research`: Durable SASE research reports and generated media.
 
 When you need to read or modify files in any repository other than your own workspace checkout, agents MUST use your
 `/sase_repo` skill first. This includes configured linked repos and sidecars, another SASE project's repo, and any

@@ -56,6 +56,14 @@ An agent hood is a group of agents that are all named with the same `<name>.` pr
 `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the same `foo` agent hood. The agent `foo`, if it exists, is also
 considered part of the `foo` agent hood.
 
+**Agent Instruction Files (aka agents.md files)**  
+An agent instruction file is a `.md` file that an agent CLI reads automatically when working in a directory that
+contains it. For example, the `AGENTS.md` file is the name of the agent instruction file that is supported by codex.
+sase supports one agent instruction file per supported agent CLI (ex: `CLAUDE.md` for claude, `GEMINI.md` for
+antigravity, etc...). The `sase init` command, which is run automatically as a sase post-commit hook, initializes the
+top-level agent instruction files using memories in the memory/ directory and ensures that all agent instruction files
+in the same directory contain the same contents.
+
 **Agent Neighbors**  
 An agent neighbor is any agent that is in the same agent hood as another agent. For example, agents named `foo`,
 `foo.baz`, and `foo.bar.1` are all neighbors of each other because they are all in the same `foo` agent hood.
@@ -71,8 +79,7 @@ Workflow entries can have python/bash children as well as agent children. Agents
 more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
 them, respectively.
 
-**Projects, Repos, and Workspaces**
-
+**Projects, Repos, and Workspaces**  
 A **project** is a named unit of work registered with SASE. A project is created only when a new VCS xprompt argument
 resolves to a valid project: `#git:<name>` accepts any valid project name, while `#gh:<org>/<repo>` requires an existing
 GitHub repository. Its ProjectSpec is `~/.sase/projects/<name>/<name>.sase`. Projects have exactly two user-facing
@@ -83,12 +90,6 @@ directories are not repos. A **workspace** is a numbered clone of a project's pr
 store and tracked in that project's `registry.json`. Each SASE agent claims exactly one workspace until completion.
 Linked-repo clones materialized for a workspace are repo checkouts, not additional workspaces.
 
-**Xprompt swarm**
-
-An xprompt whose body contains top-level `---` segment separators outside fenced blocks and fans out into one agent per
-segment at launch. Literal user prompts can also use `---`, but those are generic multi-agent prompts rather than
-xprompt swarms.
-
 **Root Agent/Workflow Entry**  
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
 
@@ -98,6 +99,11 @@ Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md o
 
 **xprompt Part**  
 .md file → single `prompt_part` step with the file's content.
+
+**xprompt Swarm**  
+An xprompt whose body contains top-level `---` segment separators outside fenced blocks and fans out into one agent per
+segment at launch. Literal user prompts can also use `---`, but those are generic multi-agent prompts rather than
+xprompt swarms.
 
 **xprompt Workflow**  
 .yml file → multiple steps (`prompt_part`, `python`, `bash`, etc.).
@@ -146,11 +152,12 @@ directory as you!
 
 #### Repositories
 
-Configured linked repositories for this context:
+Configured linked and sidecar repositories for this context:
 
 - `sase-github`: GitHub VCS and workspace provider plugin for repository, issue, and PR workflows.
 - `sase-telegram`: Telegram integration plugin for chat-driven SASE workflows and notifications.
 - `sase-nvim`: Neovim integration plugin for SASE syntax, completion, and editor support.
+- `sase--research`: Durable SASE research reports and generated media.
 
 When you need to read or modify files in any repository other than your own workspace checkout, agents MUST use your
 `/sase_repo` skill first. This includes configured linked repos and sidecars, another SASE project's repo, and any
