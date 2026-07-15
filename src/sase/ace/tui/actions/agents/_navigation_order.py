@@ -8,6 +8,7 @@ from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent_panels import PanelKey
 
 
 def rendered_panel_slice(owner: Any, key: Any) -> tuple[list[int], list[Agent]]:
@@ -79,6 +80,8 @@ class AgentNavigationOrderMixin:
                 if entry.kind == "agent" and entry.agent_idx is not None
             ]
         focused_key = panel_group.focused_key
+        if focused_key in getattr(self, "_collapsed_panel_keys", set()):
+            return []
         registry = panel_fold_registry(self, focused_key)
         global_indices, panel_agents = rendered_panel_slice(self, focused_key)
         tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
@@ -126,6 +129,10 @@ class AgentNavigationOrderMixin:
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
         panel_group = getattr(self, "_panel_group", None)
         registry = focused_panel_fold_registry(self)
+        focused_key = panel_group.focused_key if panel_group is not None else None
+        focused_panel_collapsed = panel_group is not None and focused_key in getattr(
+            self, "_collapsed_panel_keys", set()
+        )
 
         fold_version = registry.version if registry is not None else 0
         cached = getattr(self, "_nav_stops_cache", None)
@@ -138,10 +145,13 @@ class AgentNavigationOrderMixin:
             and cached[3] == fold_version
             and cached[4] is mode
             and cached[5] == merge_tag_panels
+            and cached[6] == focused_panel_collapsed
         ):
-            return cached[6]
+            return cached[7]
 
-        if panel_group is None:
+        if focused_panel_collapsed:
+            stops: list[tuple[str, int | tuple[str, ...]]] = []
+        elif panel_group is None:
             global_indices = [
                 i
                 for i, agent in enumerate(self._agents)
@@ -149,7 +159,7 @@ class AgentNavigationOrderMixin:
             ]
             panel_agents = [self._agents[i] for i in global_indices]
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
-            stops: list[tuple[str, int | tuple[str, ...]]] = []
+            stops = []
             for entry in tree:
                 if entry.kind == "group" and entry.group is not None:
                     if entry.group.is_collapsed:
@@ -157,7 +167,6 @@ class AgentNavigationOrderMixin:
                 elif entry.kind == "agent" and entry.agent_idx is not None:
                     stops.append(("agent", global_indices[entry.agent_idx]))
         else:
-            focused_key = panel_group.focused_key
             global_indices, panel_agents = rendered_panel_slice(self, focused_key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)
             stops = []
@@ -178,6 +187,7 @@ class AgentNavigationOrderMixin:
             fold_version,
             mode,
             merge_tag_panels,
+            focused_panel_collapsed,
             stops,
             agent_positions,
             banner_positions,
@@ -190,8 +200,8 @@ class AgentNavigationOrderMixin:
         """Return reverse maps for the focused panel's selectable stops."""
         stops = self._panel_navigation_stops()
         cached = getattr(self, "_nav_stops_cache", None)
-        if cached is not None and len(cached) >= 9 and cached[6] is stops:
-            return cached[7], cached[8]
+        if cached is not None and len(cached) >= 10 and cached[7] is stops:
+            return cached[8], cached[9]
         return AgentNavigationOrderMixin._navigation_stop_maps(stops)
 
     def _capture_focused_visible_pos(self) -> int | None:
@@ -314,8 +324,11 @@ class AgentNavigationOrderMixin:
 
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         visible: dict[int, int | None] = {}
+        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
 
         for key in panel_group.panel_keys:
+            if key in collapsed_keys:
+                continue
             registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)

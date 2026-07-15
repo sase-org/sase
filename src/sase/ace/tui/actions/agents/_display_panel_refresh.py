@@ -33,6 +33,7 @@ class PanelRefreshMixin:
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
+    _collapsed_panel_keys: set[PanelKey]
 
     def _sync_panel_group(self) -> None:
         """Recompute :attr:`_panel_group` from the current :attr:`_agents`."""
@@ -45,6 +46,9 @@ class PanelRefreshMixin:
             prev_focused,
             merge_tag_panels=merge_tag_panels,
         )
+        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
+        if collapsed_keys is not None:
+            collapsed_keys.intersection_update(self._panel_group.panel_keys)
 
         keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
         focused_key = self._panel_group.focused_key
@@ -142,10 +146,10 @@ class PanelRefreshMixin:
         current_group_key = self._current_group_key
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
-            fold_registry = panel_fold_registry(self, key)
             wid = panel_widget_id(idx)
             try:
                 widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
@@ -159,11 +163,13 @@ class PanelRefreshMixin:
             global_to_local = slot.global_to_local
 
             counts = agent_panel_counts(panel_agents, unread)
+            panel_collapsed = key in collapsed_keys
             widget.border_title = agent_panel_border_title(
                 key,
                 len(panel_agents),
                 merge_tag_panels=merge_tag_panels,
                 counts=counts,
+                collapsed=panel_collapsed,
             )
             if idx == 0:
                 widget.remove_class("agent-panel-separated")
@@ -200,20 +206,29 @@ class PanelRefreshMixin:
                     for gi in global_indices
                 ]
 
-            widget.update_list(
-                panel_agents,
-                local_idx,
-                fold_counts=fold_counts,
-                marked_agents=marked,
-                unread_agents=unread,
-                jump_hints=local_jump_hints,
-                banner_jump_hints=local_banner_hints,
-                current_attempt_number=attempt_number if idx == focused_idx else None,
-                fold_registry=fold_registry,
-                current_group_key=current_group_key if idx == focused_idx else None,
-                grouping_mode=grouping_mode,
-                tag_labels=local_tag_labels,
-            )
+            if panel_collapsed:
+                widget.add_class("-collapsed-panel")
+                widget.render_collapsed()
+            else:
+                widget.remove_class("-collapsed-panel")
+                widget.update_list(
+                    panel_agents,
+                    local_idx,
+                    fold_counts=fold_counts,
+                    marked_agents=marked,
+                    unread_agents=unread,
+                    jump_hints=local_jump_hints,
+                    banner_jump_hints=local_banner_hints,
+                    current_attempt_number=(
+                        attempt_number if idx == focused_idx else None
+                    ),
+                    fold_registry=panel_fold_registry(self, key),
+                    current_group_key=(
+                        current_group_key if idx == focused_idx else None
+                    ),
+                    grouping_mode=grouping_mode,
+                    tag_labels=local_tag_labels,
+                )
 
             if idx == focused_idx:
                 widget.add_class("-focused-panel")
@@ -270,10 +285,10 @@ class PanelRefreshMixin:
         current_group_key = self._current_group_key
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
 
         ordered_widgets: list[AgentList] = []
         for idx, key in enumerate(panel_keys):
-            fold_registry = panel_fold_registry(self, key)
             wid = panel_widget_id(idx)
             try:
                 widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
@@ -291,6 +306,12 @@ class PanelRefreshMixin:
             else:
                 widget.remove_class("-focused-panel")
 
+            panel_collapsed = key in collapsed_keys
+            if panel_collapsed:
+                widget.add_class("-collapsed-panel")
+            else:
+                widget.remove_class("-collapsed-panel")
+
             if key not in affected_keys:
                 continue
 
@@ -305,6 +326,7 @@ class PanelRefreshMixin:
                 len(panel_agents),
                 merge_tag_panels=merge_tag_panels,
                 counts=counts,
+                collapsed=panel_collapsed,
             )
 
             local_idx = -1
@@ -337,20 +359,27 @@ class PanelRefreshMixin:
                     for gi in global_indices
                 ]
 
-            widget.update_list(
-                panel_agents,
-                local_idx,
-                fold_counts=fold_counts,
-                marked_agents=marked,
-                unread_agents=unread,
-                jump_hints=local_jump_hints,
-                banner_jump_hints=local_banner_hints,
-                current_attempt_number=attempt_number if idx == focused_idx else None,
-                fold_registry=fold_registry,
-                current_group_key=current_group_key if idx == focused_idx else None,
-                grouping_mode=grouping_mode,
-                tag_labels=local_tag_labels,
-            )
+            if panel_collapsed:
+                widget.render_collapsed()
+            else:
+                widget.update_list(
+                    panel_agents,
+                    local_idx,
+                    fold_counts=fold_counts,
+                    marked_agents=marked,
+                    unread_agents=unread,
+                    jump_hints=local_jump_hints,
+                    banner_jump_hints=local_banner_hints,
+                    current_attempt_number=(
+                        attempt_number if idx == focused_idx else None
+                    ),
+                    fold_registry=panel_fold_registry(self, key),
+                    current_group_key=(
+                        current_group_key if idx == focused_idx else None
+                    ),
+                    grouping_mode=grouping_mode,
+                    tag_labels=local_tag_labels,
+                )
 
         self._apply_panel_heights(container, ordered_widgets)
         self._focus_focused_panel_widget()
@@ -368,7 +397,20 @@ class PanelRefreshMixin:
 
         border_rows = 2
         option_counts = [max(0, int(getattr(w, "option_count", 0))) for w in widgets]
-        natural_heights = [count + border_rows for count in option_counts]
+        panel_keys = getattr(self._panel_group, "panel_keys", [])
+        if len(panel_keys) == len(widgets):
+            collapsed_keys: set[PanelKey] = getattr(
+                self, "_collapsed_panel_keys", set()
+            )
+            collapsed = [key in collapsed_keys for key in panel_keys]
+        else:
+            collapsed = [
+                bool(getattr(widget, "_panel_collapsed", False)) for widget in widgets
+            ]
+        natural_heights = [
+            border_rows if collapsed[idx] else count + border_rows
+            for idx, count in enumerate(option_counts)
+        ]
         separator_rows = max(0, len(widgets) - 1)
         total_natural = sum(natural_heights) + separator_rows
 
@@ -382,29 +424,44 @@ class PanelRefreshMixin:
             return Scalar(weight, Unit.FRACTION, Unit.HEIGHT)
 
         if total_natural <= container_height:
+            filler_idx = next(
+                (idx for idx, is_collapsed in enumerate(collapsed) if not is_collapsed),
+                None,
+            )
             for idx, (widget, natural) in enumerate(
                 zip(widgets, natural_heights, strict=True)
             ):
-                if idx == 0:
+                if idx == filler_idx:
                     widget.styles.height = Scalar(1.0, Unit.FRACTION, Unit.HEIGHT)
                 else:
                     widget.styles.height = cell_height(float(natural))
             return
 
         content_budget = max(0, container_height - separator_rows)
-        min_heights = [border_rows + min(count, 2) for count in option_counts]
+        min_heights = [
+            border_rows if collapsed[idx] else border_rows + min(count, 2)
+            for idx, count in enumerate(option_counts)
+        ]
         if content_budget < sum(min_heights):
             for idx, widget in enumerate(widgets):
-                widget.styles.height = fraction_height(idx)
+                widget.styles.height = (
+                    cell_height(float(border_rows))
+                    if collapsed[idx]
+                    else fraction_height(idx)
+                )
             return
 
-        fixed_heights: dict[int, float] = {}
-        panel_keys = getattr(self._panel_group, "panel_keys", [])
+        fixed_heights: dict[int, float] = {
+            idx: float(border_rows)
+            for idx, is_collapsed in enumerate(collapsed)
+            if is_collapsed
+        }
         first_panel_is_untagged = (
             not getattr(self, "_agent_panels_grouped", False)
             and len(panel_keys) == len(widgets)
             and bool(panel_keys)
             and panel_keys[0] is None
+            and not collapsed[0]
         )
         if first_panel_is_untagged:
             half_budget = content_budget / 2.0
@@ -493,11 +550,12 @@ class PanelRefreshMixin:
                 local_idx = -1
                 if 0 <= self.current_idx < len(self._agents):
                     local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
-                widget.update_highlight(
-                    local_idx,
-                    self.current_attempt_number,
-                    group_key=self._current_group_key,
-                )
+                if focused_key not in getattr(self, "_collapsed_panel_keys", set()):
+                    widget.update_highlight(
+                        local_idx,
+                        self.current_attempt_number,
+                        group_key=self._current_group_key,
+                    )
                 widget.add_class("-focused-panel")
                 focused_widget = widget
             else:

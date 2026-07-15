@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -71,6 +72,96 @@ def _done_agents() -> list[Agent]:
             tag="visual",
         ),
     ]
+
+
+def _panel_collapse_agents() -> list[Agent]:
+    """Three panels where ``#chop`` owns the widest rendered rows."""
+    project_file = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 7, 15, 10, 0, 0)
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-home",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=started,
+            raw_suffix="20260715-100000-home",
+            agent_name="home",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-collapse-primary-with-a-deliberately-wide-row",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=started,
+            raw_suffix="20260715-100100-chop-primary",
+            agent_name="visual.collapse.primary.with.a.deliberately.wide.row",
+            tag="chop",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-collapse-secondary-with-another-wide-row",
+            project_file=project_file,
+            status="WAITING",
+            start_time=started,
+            raw_suffix="20260715-100200-chop-secondary",
+            agent_name="visual.collapse.secondary.with.another.wide.row",
+            tag="chop",
+        ),
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-keep",
+            project_file=project_file,
+            status="DONE",
+            start_time=started,
+            stop_time=datetime(2026, 7, 15, 10, 4, 0),
+            raw_suffix="20260715-100300-keep",
+            agent_name="keep",
+            tag="keep",
+        ),
+    ]
+
+
+async def test_agents_collapsed_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_panel_collapse_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+
+        container = page.app.query_one("#agent-list-container")
+        expanded_width = container.size.width
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "chop"
+        await page.press("H")
+        await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
+        await wait_for_visual_idle(page)
+
+        collapsed_widget = page.app.query_one("#agent-list-panel-1")
+        assert collapsed_widget.option_count == 0
+        assert collapsed_widget.styles.height is not None
+        assert collapsed_widget.styles.height.value == 2.0
+        requested_widths = [
+            widget._requested_width for widget in container.query("AgentList")
+        ]
+        assert container.size.width < expanded_width, requested_widths
+        assert (
+            Text.from_markup(collapsed_widget.border_title).plain
+            == "▸ #chop · 2 [R1 W1]"
+        )
+        assert_page_svg_contains(page, "▸ ")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_collapsed_panel_120x40",
+            title="ACE agents collapsed panel",
+        )
 
 
 async def test_agents_unread_highlight_png_snapshot(

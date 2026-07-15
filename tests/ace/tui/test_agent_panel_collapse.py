@@ -1,0 +1,217 @@
+"""Whole-panel collapse behavior on the Agents tab."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from sase.ace.tui.actions.agents._display_panel_refresh import PanelRefreshMixin
+from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
+from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
+from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
+from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
+from sase.ace.tui.actions.navigation._entry_jump_mode import EntryJumpModeMixin
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
+from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
+from sase.ace.tui.models.fold_state import FoldStateManager
+
+
+class _StubApp(
+    AgentFoldingMixin,
+    AgentPanelNavigationMixin,
+    AgentNavigationOrderMixin,
+    PanelRefreshMixin,
+):
+    def __init__(
+        self,
+        agents: list[Agent],
+        *,
+        focused_key: str | None = None,
+        merged: bool = False,
+    ) -> None:
+        self.current_tab = "agents"
+        self.current_idx = 0
+        self.current_attempt_number: int | None = 7
+        self._agents = agents
+        self._fold_manager = FoldStateManager()
+        self._fold_counts: dict[str, tuple[int, int]] = {}
+        self._group_fold_registry = AgentGroupFoldRegistry()
+        self._grouping_mode = GroupingMode.STANDARD
+        self._agent_panels_grouped = merged
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            focused_key,
+            merge_tag_panels=merged,
+        )
+        self._collapsed_panel_keys: set[str | None] = set()
+        self._current_group_key: tuple[str, ...] | None = None
+        self._nav_stops_cache: tuple[Any, ...] | None = None
+        self._panel_index_cache: tuple[Any, bool, Any] | None = None
+        self.refresh_calls: list[bool] = []
+        self.notifications: list[str] = []
+
+    def _agent_panel_index(self) -> Any:
+        cached = self._panel_index_cache
+        if (
+            cached is not None
+            and cached[0] is self._agents
+            and cached[1] == self._agent_panels_grouped
+        ):
+            return cached[2]
+        index = build_agent_panel_index(
+            self._agents,
+            dismissable_statuses=(),
+            merge_tag_panels=self._agent_panels_grouped,
+        )
+        self._panel_index_cache = (
+            self._agents,
+            self._agent_panels_grouped,
+            index,
+        )
+        return index
+
+    def _panel_keys_per_agent(self) -> list[str | None]:
+        return panel_key_per_agent(
+            self._agents,
+            merge_tag_panels=self._agent_panels_grouped,
+        )
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        self._nav_stops_cache = None
+        self._panel_index_cache = None
+
+    def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
+        self.refresh_calls.append(list_changed)
+
+    def _refresh_focused_agent_panel(self, *, old_focused_idx: int | None) -> None:
+        del old_focused_idx
+        self._refresh_agents_display(list_changed=False)
+
+    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+        return False
+
+    def notify(self, message: str, **_kwargs: Any) -> None:
+        self.notifications.append(message)
+
+
+def _agent(*, name: str, project: str, tag: str | None) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=name,
+        project_file=f"/r/{project}/project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 15, 12, 0, 0),
+        raw_suffix=name,
+        agent_name=name,
+        tag=tag,
+    )
+
+
+def _multi_panel_agents() -> list[Agent]:
+    return [
+        _agent(name="untagged", project="home", tag=None),
+        _agent(name="raw-first", project="zeta", tag="alpha"),
+        _agent(name="render-first", project="alpha", tag="alpha"),
+        _agent(name="beta", project="beta", tag="beta"),
+    ]
+
+
+def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app.current_idx = 2
+    app._current_group_key = ("stale",)
+    registry = app._group_fold_registry.for_panel("alpha")
+    registry.collapse(("zeta",))
+
+    app.action_hooks_or_collapse_all()
+
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app.current_idx == 1
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._panel_navigation_stops() == []
+    assert app._agents_visible_order() == []
+    assert app.refresh_calls == [True]
+
+    app.action_expand_all_folds()
+
+    assert app._collapsed_panel_keys == set()
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx].agent_name == "render-first"
+    assert registry.is_collapsed(("zeta",)) is True
+    assert app.refresh_calls == [True, True]
+
+
+def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
+    single = _StubApp([_agent(name="only", project="one", tag=None)])
+    single.action_hooks_or_collapse_all()
+    assert single._collapsed_panel_keys == set()
+    assert single.refresh_calls == []
+
+    merged = _StubApp(_multi_panel_agents(), merged=True)
+    merged.action_hooks_or_collapse_all()
+    assert merged._collapsed_panel_keys == set()
+    assert merged.refresh_calls == []
+
+    split = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    split.action_hooks_or_collapse_all()
+    split.action_hooks_or_collapse_all()
+    assert split.refresh_calls == [True]
+    split.action_expand_all_folds()
+    split.action_expand_all_folds()
+    assert split.refresh_calls == [True, True]
+
+
+def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key=None)
+    app._collapsed_panel_keys.add("alpha")
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 1
+    assert app._current_group_key is None
+    assert app.refresh_calls == [False]
+
+    prior = (app.current_idx, app._current_group_key)
+    BasicNavigationMixin._navigate_agents_panel(app, 1)
+    BasicNavigationMixin._navigate_agents_panel(app, -1)
+    assert (app.current_idx, app._current_group_key) == prior
+
+    app.action_expand_all_folds()
+    assert app.current_idx == 2
+    assert app._collapsed_panel_keys == set()
+    assert app.refresh_calls == [False, True]
+
+
+def test_hidden_panel_rows_are_omitted_from_cross_panel_consumers() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app._collapsed_panel_keys.add("alpha")
+
+    visible = app._visible_agent_panel_indices()
+    targets = EntryJumpModeMixin._jump_candidate_targets(app)
+
+    assert 1 not in visible
+    assert 2 not in visible
+    assert ("agent", 1) not in targets
+    assert ("agent", 2) not in targets
+    assert ("agent", 0) in targets
+    assert ("agent", 3) in targets
+
+
+def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app._collapsed_panel_keys.update({"alpha", "beta"})
+    app._agents = [agent for agent in app._agents if agent.tag != "beta"]
+    app._invalidate_agent_panel_cache()
+
+    app._sync_panel_group()
+
+    assert app._collapsed_panel_keys == {"alpha"}
+    app.action_toggle_agent_panel_grouping()
+    assert app._collapsed_panel_keys == set()
+    assert app._agent_panels_grouped is True
+    assert app.refresh_calls == [True]

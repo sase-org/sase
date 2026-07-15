@@ -15,6 +15,10 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_panel_titles import (
+    AgentPanelCounts,
+    agent_panel_border_title,
+)
 from sase.ace.tui.actions.agents._display_panels import (
     _PANEL_COUNT_STYLE,
     _PANEL_METRIC_STYLES,
@@ -121,6 +125,17 @@ def _title_text(widget: _ListWidget) -> Text:
     title = widget.border_title
     assert isinstance(title, Text)
     return title
+
+
+def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        collapsed=True,
+    )
+
+    assert title.plain == "▸ #chop · 3 [R1 W2]"
 
 
 def _assert_title_span(

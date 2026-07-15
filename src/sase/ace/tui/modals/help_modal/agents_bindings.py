@@ -31,7 +31,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.focus_next_agent_panel)} / {d(a.focus_prev_agent_panel)}",
-                    "Cycle focus across tag panels",
+                    "Cycle panels incl. collapsed",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
                 (
@@ -95,7 +95,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Group / Workflow Folding",
+            "Panel / Group / Workflow Folding",
             [
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
@@ -103,7 +103,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
-                    "Expand/collapse one level (all; Tools: full/compact)",
+                    "Panel expand/collapse; Tools",
                 ),
             ],
         ),

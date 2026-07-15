@@ -216,6 +216,7 @@ def build_list(
     message so the container can resize.
     """
     widget._programmatic_update = True
+    widget._panel_collapsed = False
     widget._agents = agents
     widget.clear_options()
     widget._row_entries = []

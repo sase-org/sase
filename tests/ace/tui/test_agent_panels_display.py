@@ -37,6 +37,8 @@ class _ListWidget:
         self.last_local_idx: int | None = None
         self.last_tag_labels: list[str | None] | None = None
         self.last_fold_registry: object | None = None
+        self.render_collapsed_calls = 0
+        self._panel_collapsed = False
 
     def update_list(
         self, agents: list[Agent], local_idx: int | None = None, **kwargs: Any
@@ -46,6 +48,12 @@ class _ListWidget:
         self.last_local_idx = local_idx
         self.last_tag_labels = kwargs.get("tag_labels")
         self.last_fold_registry = kwargs.get("fold_registry")
+        self._panel_collapsed = False
+
+    def render_collapsed(self) -> None:
+        self.render_collapsed_calls += 1
+        self.option_count = 0
+        self._panel_collapsed = True
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
         return
@@ -104,6 +112,7 @@ class _FakeApp(AgentDisplayMixin):
             focused_key,
             merge_tag_panels=agent_panels_grouped,
         )
+        self._collapsed_panel_keys: set[str | None] = set()
 
         from sase.ace.tui.actions.agents._display import _panel_widget_id
 
@@ -196,6 +205,26 @@ def test_panel_separator_class_tracks_panel_position() -> None:
     assert "agent-panel-separated" not in main._classes
     assert "agent-panel-separated" in apple._classes
     assert "agent-panel-separated" in banana._classes
+
+
+def test_collapsed_first_panel_is_fixed_and_next_expanded_panel_fills() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[8, 4, 6], container_height=30)
+    app._collapsed_panel_keys.add(None)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+    assert main.render_collapsed_calls == 1
+    assert main.styles.height.unit is Unit.CELLS
+    assert main.styles.height.value == 2.0
+    assert "-collapsed-panel" in main._classes
+    assert apple.styles.height.unit is Unit.FRACTION
+    assert apple.styles.height.value == 1.0
+    assert banana.styles.height.unit is Unit.CELLS
+    assert banana.styles.height.value == 8.0
 
 
 def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:

@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any
 
+from rich.text import Text
 from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
@@ -119,6 +120,7 @@ class AgentList(OptionList, inherit_bindings=False):
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
         self._target_width: int = 0
         self._requested_width: int = 0
+        self._panel_collapsed: bool = False
         # Per-agent tier-guide gutter styles, captured during ``update_list``
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.
@@ -225,6 +227,34 @@ class AgentList(OptionList, inherit_bindings=False):
                 tag_labels=tag_labels,
                 now=now,
             )
+
+    def render_collapsed(self) -> None:
+        """Render this panel as a title-only border strip."""
+        self._programmatic_update = True
+        try:
+            self.clear_options()
+            self._agents = []
+            self._row_entries = []
+            self._banner_at_row = {}
+            self._row_render_ctx = {}
+            self._row_tier_styles = {}
+            self._row_by_agent_attempt = {}
+            self._row_by_agent_idx = {}
+            self._banner_row_by_key = {}
+            self._target_width = 0
+            self._panel_collapsed = True
+
+            title = self.border_title
+            title_width = (
+                title.cell_len
+                if isinstance(title, Text)
+                else Text.from_markup(str(title or "")).cell_len
+            )
+            requested_width = title_width + 4
+            self._requested_width = requested_width
+            self.post_message(self.WidthChanged(requested_width))
+        finally:
+            self._programmatic_update = False
 
     def _compute_tier_styles(
         self,

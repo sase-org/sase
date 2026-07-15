@@ -174,6 +174,9 @@ class AgentPanelNavigationMixin:
         if self.current_tab != "agents":
             return
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
+        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
+        if collapsed_keys is not None:
+            collapsed_keys.clear()
         self._current_group_key = None  # type: ignore[attr-defined]
         self.current_attempt_number = None  # type: ignore[attr-defined]
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]

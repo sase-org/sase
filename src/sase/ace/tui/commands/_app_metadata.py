@@ -101,7 +101,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "hooks_or_collapse_all",
-        "Toggle hooks / collapse all / compact tools detail",
+        "Collapse focused agent panel / all folds / compact tools detail",
         "Folding",
         ALL_TABS,
         (),
@@ -115,7 +115,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "expand_all_folds",
-        "Expand all folds / full tools detail",
+        "Expand focused agent panel / all folds / full tools detail",
         "Folding",
         ALL_TABS,
         (),

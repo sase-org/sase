@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from rich.text import Text
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -79,3 +80,27 @@ def test_agent_left_panel_width_clamps_aggregated_panel_request() -> None:
     app.on_agent_list_width_changed(AgentList.WidthChanged(_MIN_AGENT_LIST_WIDTH))
 
     assert app.container.styles.width == _MAX_AGENT_LIST_WIDTH
+
+
+def test_collapsed_agent_list_requests_only_title_width() -> None:
+    widget = AgentList()
+    title = Text("▸ #finished · 12 [D12]")
+    title.stylize("bold red", 2, 11)
+    widget.border_title = title
+
+    widget.render_collapsed()
+
+    assert widget._panel_collapsed is True
+    assert widget.option_count == 0
+    assert widget._requested_width == title.cell_len + 4
+
+
+def test_collapsing_widest_panel_drops_aggregated_width() -> None:
+    formerly_wide = _FakeAgentList(132)
+    remaining = _FakeAgentList(78)
+    app = _FakeApp([formerly_wide, remaining])
+    formerly_wide._requested_width = 28
+
+    app.on_agent_list_width_changed(AgentList.WidthChanged(28))
+
+    assert app.container.styles.width == 78

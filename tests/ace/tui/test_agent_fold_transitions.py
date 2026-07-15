@@ -4,8 +4,8 @@ Covers the boundary between the per-group :class:`AgentGroupFoldRegistry`
 and the existing per-workflow :class:`FoldStateManager`: ``l`` expands
 the focused group (or runs per-workflow expansion when an agent is
 focused inside an already-expanded chain); ``h`` collapses the focused
-workflow first, then the focused group; ``L``/``H`` advance or retreat
-the currently visible tree one layer at a time.
+workflow first, then the focused group. Whole-panel ``L``/``H`` behavior
+is covered separately in ``test_agent_panel_collapse.py``.
 """
 
 from __future__ import annotations
@@ -212,145 +212,6 @@ def test_l_expands_running_parent_with_family_child() -> None:
     assert app.refilter_calls == 1
 
 
-def test_capital_l_expands_every_group() -> None:
-    """Both panels' L1 banners visible-and-collapsed → one ``L`` expands them all.
-
-    L0 banners (``projA``, ``projB``) are already expanded, so the first
-    ``L`` press only steps the visible L1 banners up.  With this single-
-    L1-per-panel fixture there is nothing else under either banner to
-    step, so the registry empties out in one press.
-    """
-    a = _agent(cl_name="cl-a", project="projA")
-    b = _agent(cl_name="cl-b", project="projB")
-    app = _StubApp([a, b])
-    app._group_fold_registry.collapse(("projA", "cl-a"))
-    app._group_fold_registry.collapse(("projB", "cl-b"))
-
-    app.action_expand_all_folds()
-    assert app._group_fold_registry.collapsed == set()
-    assert app._current_group_key is None
-
-
-def test_capital_h_collapses_deepest_visible_group_and_workflow() -> None:
-    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
-    app = _StubApp([parent])
-    app._fold_manager.expand("ts1")
-    app._fold_manager.expand("ts1")  # FULLY_EXPANDED
-
-    # First H: workflow steps one notch (FULLY_EXPANDED → EXPANDED) and
-    # the deepest expanded visible banner level collapses in the same press.
-    app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-    assert ("proj",) not in app._group_fold_registry.collapsed
-    assert ("proj", "demo") in app._group_fold_registry.collapsed
-
-    # Second H: the L1 banner is collapsed and the workflow agent is
-    # hidden, so the next deepest expanded visible level is L0.
-    app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-    assert ("proj",) in app._group_fold_registry.collapsed
-
-    # Third H: only the L0 banner is visible (already collapsed) and
-    # the workflow agent is hidden, so nothing changes — single-level
-    # semantics don't reach into hidden state.
-    app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-
-
-def test_capital_l_peels_one_level_per_press() -> None:
-    """Successive ``L`` presses peel outward one layer at a time."""
-    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
-    app = _StubApp([parent])
-    l0 = ("proj",)
-    l1 = ("proj", "demo")
-    app._group_fold_registry.collapse(l0)
-    app._group_fold_registry.collapse(l1)
-
-    # First L: only L0 visible → expand L0; L1 stays collapsed.
-    app.action_expand_all_folds()
-    assert app._group_fold_registry.is_collapsed(l0) is False
-    assert app._group_fold_registry.is_collapsed(l1) is True
-    assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
-
-    # Second L: L1 now visible → expand L1; workflow still COLLAPSED.
-    app.action_expand_all_folds()
-    assert app._group_fold_registry.is_collapsed(l1) is False
-    assert app._fold_manager.get("ts1") == FoldLevel.COLLAPSED
-
-    # Third L: workflow now visible → step COLLAPSED → EXPANDED.
-    app.action_expand_all_folds()
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-
-    # Fourth L: EXPANDED → FULLY_EXPANDED.
-    app.action_expand_all_folds()
-    assert app._fold_manager.get("ts1") == FoldLevel.FULLY_EXPANDED
-
-
-def test_capital_h_collapses_only_deepest_visible_group_level() -> None:
-    """One ``H`` press collapses L2 banners while leaving L0/L1 expanded."""
-    a = _agent(agent_name="coder.claude")
-    b = _agent(agent_name="coder.codex")
-    app = _StubApp([a, b])
-    l0 = ("proj",)
-    l1 = ("proj", "demo")
-    l2 = ("proj", "demo", "coder")
-
-    app.action_hooks_or_collapse_all()
-    assert app._group_fold_registry.is_collapsed(l2) is True
-    assert app._group_fold_registry.is_collapsed(l1) is False
-    assert app._group_fold_registry.is_collapsed(l0) is False
-    assert app._current_group_key == l2
-
-
-def test_capital_h_collapses_next_deepest_group_level() -> None:
-    """When L2 is already collapsed, ``H`` collapses visible L1 banners."""
-    a = _agent(agent_name="coder.claude")
-    b = _agent(agent_name="coder.codex")
-    app = _StubApp([a, b])
-    l0 = ("proj",)
-    l1 = ("proj", "demo")
-    l2 = ("proj", "demo", "coder")
-    app._group_fold_registry.collapse(l2)
-
-    app.action_hooks_or_collapse_all()
-    assert app._group_fold_registry.is_collapsed(l2) is True
-    assert app._group_fold_registry.is_collapsed(l1) is True
-    assert app._group_fold_registry.is_collapsed(l0) is False
-    assert app._current_group_key == l1
-
-
-def test_capital_h_peels_one_level_per_press() -> None:
-    """Successive ``H`` presses collapse L1, then L0, while visible
-    workflow folds still step once on the first press.
-    """
-    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
-    app = _StubApp([parent])
-    app._fold_manager.expand("ts1")
-    app._fold_manager.expand("ts1")  # FULLY_EXPANDED
-
-    app.action_hooks_or_collapse_all()
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-    assert ("proj",) not in app._group_fold_registry.collapsed
-    assert ("proj", "demo") in app._group_fold_registry.collapsed
-
-    app.action_hooks_or_collapse_all()
-    # Workflow stays at EXPANDED — its row is hidden behind the collapsed L1.
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-    assert ("proj",) in app._group_fold_registry.collapsed
-
-
-def test_capital_h_does_not_step_invisible_workflows() -> None:
-    """Workflow folds hidden behind a collapsed banner are not stepped by ``H``."""
-    parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
-    app = _StubApp([parent])
-    app._fold_manager.expand("ts1")  # EXPANDED
-    app._group_fold_registry.collapse(("proj",))
-
-    app.action_hooks_or_collapse_all()
-    # ``H`` saw only the collapsed L0 banner — workflow state untouched.
-    assert app._fold_manager.get("ts1") == FoldLevel.EXPANDED
-
-
 def test_per_workflow_h_runs_before_group_collapse() -> None:
     """Per-workflow ``h`` beats group collapse for an expanded workflow."""
     parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
@@ -401,18 +262,3 @@ def test_equal_status_group_keys_fold_independently_between_panels() -> None:
     app.action_expand_or_layout()
     assert tagged_done.is_collapsed(("Done",)) is False
     assert split_done.is_collapsed(("Done",)) is True
-
-
-def test_capital_h_collapses_each_panels_deepest_visible_level() -> None:
-    deep_a = _agent(agent_name="coder.claude")
-    deep_b = _agent(agent_name="coder.codex")
-    shallow = _agent(cl_name="other", project="tagged", tag="research")
-    app = _StubApp([deep_a, deep_b, shallow])
-
-    app.action_hooks_or_collapse_all()
-
-    untagged_registry = app._group_fold_registry.for_panel(None)
-    tagged_registry = app._group_fold_registry.for_panel("research")
-    assert untagged_registry.is_collapsed(("proj", "demo", "coder")) is True
-    assert tagged_registry.is_collapsed(("tagged", "other")) is True
-    assert tagged_registry.is_collapsed(("tagged",)) is False

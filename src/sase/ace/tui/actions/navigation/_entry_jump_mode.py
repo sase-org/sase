@@ -152,8 +152,11 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
+        collapsed_keys: set[str | None] = getattr(self, "_collapsed_panel_keys", set())
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
+            if key in collapsed_keys:
+                continue
             registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
             tree = build_agent_tree(panel_agents, fold_registry=registry, mode=mode)

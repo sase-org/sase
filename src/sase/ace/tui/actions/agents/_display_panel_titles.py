@@ -101,9 +101,12 @@ def agent_panel_border_title(
     *,
     merge_tag_panels: bool = False,
     counts: AgentPanelCounts | None = None,
+    collapsed: bool = False,
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
+    if collapsed:
+        title.append("▸ ", style=_PANEL_COUNT_STYLE)
     if merge_tag_panels:
         title.append("All agents", style="bold #AFFFFF")
     elif key is None:

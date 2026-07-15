@@ -428,10 +428,14 @@ class StateInitMixin:
         # Tag-driven side-panel collection.  Initialized empty (untagged
         # main pane only); rebuilt by ``_load_agents`` whenever the
         # agent set changes.
-        from ..models.agent_panels import AgentPanelGroup
+        from ..models.agent_panels import AgentPanelGroup, PanelKey
 
         self._agent_panels_grouped: bool = False
         self._panel_group: AgentPanelGroup = AgentPanelGroup()
+        # Session-only whole-panel collapse state. This is intentionally
+        # independent of the group/workflow fold registries so expanding a
+        # panel restores its in-panel folds exactly as they were.
+        self._collapsed_panel_keys: set[PanelKey] = set()
 
         # j/k navigation caches (Phase 2 of jk_navigation_reliability):
         # ``_panel_navigation_stops`` and ``panel_key_per_agent`` are

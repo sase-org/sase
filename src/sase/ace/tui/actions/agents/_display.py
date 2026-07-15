@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panel_index import AgentPanelIndex
-    from ...models.agent_panels import AgentPanelGroup
+    from ...models.agent_panels import AgentPanelGroup, PanelKey
 
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
@@ -85,6 +85,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     _current_group_key: tuple[str, ...] | None
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
+    _collapsed_panel_keys: set[PanelKey]
 
     # Countdown for refresh
     _countdown_remaining: int

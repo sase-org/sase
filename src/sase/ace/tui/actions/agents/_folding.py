@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_group_fold import AgentGroupFoldRegistry, GroupKey
     from ...models.agent_groups import GroupingMode
+    from ...models.agent_panels import PanelKey
     from ...models.fold_state import FoldStateManager
     from ...models.group_fold import GroupFoldRegistry
 
@@ -26,12 +27,14 @@ class AgentFoldingMixin:
 
     current_tab: TabName
     current_idx: int
+    current_attempt_number: int | None
     _agents: list[Agent]
     _fold_manager: FoldStateManager
     _fold_counts: dict[str, tuple[int, int]]
     _group_fold_registry: AgentGroupFoldRegistry
     _grouping_mode: GroupingMode
     _current_group_key: tuple[str, ...] | None
+    _collapsed_panel_keys: set[PanelKey]
 
     def _get_workflow_key_for_agent(self, agent: Agent) -> str | None:
         """Get the fold state key for an agent (workflow parent or child).
@@ -47,14 +50,6 @@ class AgentFoldingMixin:
         if not agent.is_child_row and agent.raw_suffix in self._fold_counts:
             return agent.raw_suffix
         return None
-
-    def _get_all_workflow_keys(self) -> list[str]:
-        """Get all foldable workflow keys from current fold counts.
-
-        Returns:
-            List of workflow raw_suffix strings.
-        """
-        return list(self._fold_counts.keys())
 
     def _active_grouping_mode(self) -> GroupingMode:
         """Return the active grouping mode, defaulting to STANDARD.
@@ -76,17 +71,6 @@ class AgentFoldingMixin:
         panel_key = panel_group.focused_key if panel_group is not None else None
         global_indices, panel_agents = rendered_panel_slice(self, panel_key)
         return global_indices, panel_agents, panel_fold_registry(self, panel_key)
-
-    def _rendered_panel_fold_contexts(
-        self,
-    ) -> list[tuple[list[int], list[Agent], GroupFoldRegistry]]:
-        """Return render-order panel slices paired with their fold registries."""
-        panel_group = getattr(self, "_panel_group", None)
-        panel_keys = panel_group.panel_keys if panel_group is not None else [None]
-        return [
-            (*rendered_panel_slice(self, key), panel_fold_registry(self, key))
-            for key in panel_keys
-        ]
 
     def _focused_group_keys(self) -> tuple[GroupKey | None, GroupKey | None]:
         """Return ``(deep_key | None, l0_key | None)`` for the focused agent.
@@ -356,154 +340,61 @@ class AgentFoldingMixin:
         if self._fold_manager.collapse(key):
             self._refilter_agents()  # type: ignore[attr-defined]
 
-    def _get_focused_panel_workflow_keys(self) -> list[str]:
-        """Get workflow keys for agents currently visible.
-
-        Returns:
-            List of unique workflow raw_suffix strings.
-        """
-        seen: set[str] = set()
-        keys: list[str] = []
-        for agent in self._agents:
-            key = self._get_workflow_key_for_agent(agent)
-            if key and key not in seen:
-                seen.add(key)
-                keys.append(key)
-        return keys
-
-    def _expand_all_folds(self) -> None:
-        """Advance the visible tree by one level (``L`` action).
-
-        On the agents tab: walk the snapshot of currently-visible
-        entries and apply a single-level expand to each — collapsed
-        banners become expanded, and visible workflow folds step one
-        notch toward ``FULLY_EXPANDED``.  Rows that become visible *as
-        a result of* this press are not stepped; the next ``L`` press
-        picks them up.  Repeated presses peel one layer at a time.
-        """
-        if self.current_tab == "agents":
-            from ...models.agent_groups import build_agent_tree
-            from ...models.fold_state import FoldLevel
-
-            snapshots = [
-                (
-                    panel_agents,
-                    registry,
-                    build_agent_tree(
-                        panel_agents,
-                        fold_registry=registry,
-                        mode=self._active_grouping_mode(),
-                    ),
-                )
-                for _global_indices, panel_agents, registry in (
-                    self._rendered_panel_fold_contexts()
-                )
-            ]
-            changed = False
-            seen_wf_keys: set[str] = set()
-            for panel_agents, registry, entries in snapshots:
-                for entry in entries:
-                    if entry.kind == "group" and entry.group is not None:
-                        if entry.group.is_collapsed:
-                            if registry.expand(entry.group.group_key):
-                                changed = True
-                    elif entry.kind == "agent" and entry.agent_idx is not None:
-                        agent = panel_agents[entry.agent_idx]
-                        wf_key = self._get_workflow_key_for_agent(agent)
-                        if wf_key is None or wf_key in seen_wf_keys:
-                            continue
-                        seen_wf_keys.add(wf_key)
-                        if self._fold_manager.get(
-                            wf_key
-                        ) != FoldLevel.FULLY_EXPANDED and self._fold_manager.expand(
-                            wf_key
-                        ):
-                            changed = True
-            if changed:
-                self._snap_focus_after_group_fold_change()
-                self._refilter_agents()  # type: ignore[attr-defined]
+    def _collapse_focused_panel(self) -> None:
+        """Collapse the focused tag panel while retaining its detail context."""
+        if self.current_tab != "agents":
+            return
+        panel_group = getattr(self, "_panel_group", None)
+        if (
+            panel_group is None
+            or getattr(self, "_agent_panels_grouped", False)
+            or len(panel_group.panel_keys) <= 1
+        ):
             return
 
-        keys = self._get_focused_panel_workflow_keys()
-        if not keys:
+        collapsed_keys: set[PanelKey] | None = getattr(
+            self, "_collapsed_panel_keys", None
+        )
+        if collapsed_keys is None:
+            collapsed_keys = set()
+            self._collapsed_panel_keys = collapsed_keys
+        focused_key = panel_group.focused_key
+        if focused_key in collapsed_keys:
             return
 
-        if self._fold_manager.expand_all(keys):
-            self._refilter_agents()  # type: ignore[attr-defined]
+        collapsed_keys.add(focused_key)
+        self._current_group_key = None
+        self.current_attempt_number = None
+        global_indices, _panel_agents = rendered_panel_slice(self, focused_key)
+        if global_indices:
+            self.current_idx = global_indices[0]
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
-    def _collapse_all_folds(self) -> None:
-        """Retreat the visible tree by one level (``H`` action).
-
-        On the agents tab: walk the snapshot of currently-visible
-        entries and apply a single-level collapse to each visible
-        workflow fold.  Group banners collapse only at the deepest
-        currently-expanded visible level.  Rows hidden behind a
-        collapsed banner are not stepped (snapshot-at-start rule).
-        Repeated presses peel one layer at a time.
-        """
-        if self.current_tab == "agents":
-            from ...models.agent_groups import build_agent_tree
-            from ...models.fold_state import FoldLevel
-
-            snapshots = [
-                (
-                    panel_agents,
-                    registry,
-                    build_agent_tree(
-                        panel_agents,
-                        fold_registry=registry,
-                        mode=self._active_grouping_mode(),
-                    ),
-                )
-                for _global_indices, panel_agents, registry in (
-                    self._rendered_panel_fold_contexts()
-                )
-            ]
-            changed = False
-            seen_wf_keys: set[str] = set()
-            for panel_agents, registry, entries in snapshots:
-                for entry in entries:
-                    if entry.kind != "agent" or entry.agent_idx is None:
-                        continue
-                    agent = panel_agents[entry.agent_idx]
-                    wf_key = self._get_workflow_key_for_agent(agent)
-                    if wf_key is None or wf_key in seen_wf_keys:
-                        continue
-                    seen_wf_keys.add(wf_key)
-                    if self._fold_manager.get(
-                        wf_key
-                    ) != FoldLevel.COLLAPSED and self._fold_manager.collapse(wf_key):
-                        changed = True
-
-                deepest_expanded_group_level = max(
-                    (
-                        entry.group.level
-                        for entry in entries
-                        if entry.kind == "group"
-                        and entry.group is not None
-                        and not entry.group.is_collapsed
-                    ),
-                    default=None,
-                )
-                for entry in entries:
-                    if entry.kind != "group" or entry.group is None:
-                        continue
-                    if entry.group.level != deepest_expanded_group_level:
-                        continue
-                    if not entry.group.is_collapsed:
-                        if registry.collapse(entry.group.group_key):
-                            changed = True
-            if changed:
-                self._snap_focus_after_group_fold_change()
-                self._refilter_agents()  # type: ignore[attr-defined]
+    def _expand_focused_panel(self) -> None:
+        """Expand the focused tag panel and select its first rendered row."""
+        if self.current_tab != "agents":
+            return
+        panel_group = getattr(self, "_panel_group", None)
+        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        if panel_group is None or panel_group.focused_key not in collapsed_keys:
             return
 
-        keys = self._get_focused_panel_workflow_keys()
-        if not keys:
-            return
-
-        if self._fold_manager.collapse_all(keys):
-            self._refilter_agents()  # type: ignore[attr-defined]
+        focused_key = panel_group.focused_key
+        collapsed_keys.discard(focused_key)
+        stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
+        if stops:
+            self._focus_panel_navigation_stop(stops[0])  # type: ignore[attr-defined]
+        else:
+            self._current_group_key = None
+            keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+            self._snap_current_idx_to_focused_panel(  # type: ignore[attr-defined]
+                keys_per_agent,
+                focused_key,
+            )
+        self.current_attempt_number = None
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
 
     def _focused_axe_lumberjack_name(self) -> str | None:
         """Return the lumberjack name for the focused AXE row, if any.
@@ -659,11 +550,11 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_hooks_or_collapse_all(self) -> None:
-        """Collapse all folds on agents/axe tab, collapse all ChangeSpec groups on ChangeSpecs tab."""
+        """Collapse an agent panel or all folds/groups on the other tabs."""
         if self._route_tools_detail_level("min"):
             return
         if self.current_tab == "agents":
-            self._collapse_all_folds()
+            self._collapse_focused_panel()
         elif self.current_tab == "axe":
             self._collapse_all_axe_folds()
         elif self.current_tab == "changespecs":
@@ -671,11 +562,11 @@ class AgentFoldingMixin:
                 self._refresh_display()  # type: ignore[attr-defined]
 
     def action_expand_all_folds(self) -> None:
-        """Expand all workflow folds (agents/axe tab); ChangeSpecs tab expands all ChangeSpec groups."""
+        """Expand an agent panel or all folds/groups on the other tabs."""
         if self._route_tools_detail_level("max"):
             return
         if self.current_tab == "agents":
-            self._expand_all_folds()
+            self._expand_focused_panel()
         elif self.current_tab == "axe":
             self._expand_all_axe_folds()
         elif self.current_tab == "changespecs":
