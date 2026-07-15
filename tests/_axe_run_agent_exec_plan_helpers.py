@@ -2,8 +2,10 @@
 
 import json
 from contextlib import contextmanager
+from pathlib import Path
 from unittest.mock import patch
 
+from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec import AgentExecContext, LoopState
 
 
@@ -52,6 +54,18 @@ def make_state(tmp_path) -> LoopState:
     )
 
 
+def _fake_write_sdd_spec(
+    sdd_dir: Path,
+    plan_name: str,
+    _prompt_content: str,
+    *,
+    plans_root: Path | None = None,
+) -> tuple[Path, Path]:
+    root = plans_root or sdd_dir / "plans"
+    plan_dir = root / "202603"
+    return plan_dir / "prompts" / f"{plan_name}.md", plan_dir / f"{plan_name}.md"
+
+
 PLAN_PATCHES = {
     "sase.axe.run_agent_exec_plan.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_plan.update_meta_suffix": None,
@@ -71,8 +85,9 @@ PLAN_PATCHES = {
     ),
     "sase.axe.run_agent_exec_plan_accept.promote_to_workflow": None,
     "sase.axe.run_agent_exec_plan_accept._commit_sdd_files": None,
-    "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic": (
-        lambda **_kwargs: "sase-1"
+    "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec": None,
+    "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess": (
+        lambda **_kwargs: accept_mod._EpicLaunchResult(0, "sase-1", ())
     ),
     "sase.axe.run_agent_exec_questions.normalize_handoff_interruption_state": None,
     "sase.axe.run_agent_exec_questions.update_meta_suffix": None,
@@ -93,6 +108,7 @@ PLAN_PATCHES = {
     "sase.sdd.beads.ensure_beads_initialized": None,
     "sase.sdd.files.ensure_bare_git_sdd_initialized": None,
     "sase.sdd.files.write_sdd_files": None,
+    "sase.sdd.files.write_sdd_spec": _fake_write_sdd_spec,
     "sase.sdd.files.expand_prompt_for_spec": lambda p: p,
     "sase.sdd.files.commit_sdd_files": None,
 }

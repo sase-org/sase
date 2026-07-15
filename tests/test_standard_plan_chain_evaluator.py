@@ -39,9 +39,10 @@ def test_standard_plan_chain_definition_exposes_current_protocol_choices() -> No
     assert run_choice.goto_role == "code"
     epic_choice = next(choice for choice in plan_gate.choices if choice.id == "epic")
     assert epic_choice.goto_role is None
-    assert epic_choice.terminal == "completed"
-    assert epic_choice.side_effect_ids[-2:] == (
-        "create_epic_beads",
+    assert epic_choice.terminal == "epic_approved"
+    assert epic_choice.side_effect_ids == (
+        "write_sdd_spec",
+        "commit_sdd_spec",
         "launch_epic_work",
     )
     assert completion_event.terminal is True
@@ -145,8 +146,12 @@ def test_plan_approval_transition_selects_standard_roles() -> None:
     assert feedback.target_role == "feedback"
     assert feedback.suffix_template == "--plan-@"
     assert epic.target_role == "plan"
-    assert epic.terminal_outcome == "completed"
-    assert "create_epic_beads" in epic.side_effect_ids
+    assert epic.terminal_outcome == "epic_approved"
+    assert epic.side_effect_ids == (
+        "write_sdd_spec",
+        "commit_sdd_spec",
+        "launch_epic_work",
+    )
 
 
 def test_questions_transition_preserves_interrupted_role_suffix_sequence() -> None:

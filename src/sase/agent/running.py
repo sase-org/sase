@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.agent.user_kill import request_user_kill
 from sase.agent.names import find_named_agent, is_process_alive
 from sase.core.agent_scan_wire import (
@@ -272,7 +273,12 @@ def _done_info_from_record(
     outcome = done.outcome or "completed"
     if outcome == "noop":
         return None
-    status = "FAILED" if outcome == "failed" else "DONE"
+    if outcome == "epic_approved":
+        status = EPIC_APPROVED_STATUS
+    elif outcome in {"failed", "epic_launch_failed"}:
+        status = "FAILED"
+    else:
+        status = "DONE"
 
     started_at = _parse_started_at(record.timestamp)
     duration = "?"

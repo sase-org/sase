@@ -1,6 +1,7 @@
 """Tests for approved plan follow-up actions."""
 
 import os
+from io import StringIO
 from unittest.mock import call, patch
 
 import pytest
@@ -24,6 +25,41 @@ def patch_plan_deps():
         yield mocks
 
 
+def test_epic_fallback_streams_canonical_bead_work_command(tmp_path) -> None:
+    fake_process = type(
+        "FakeProcess",
+        (),
+        {
+            "stdout": StringIO("launching\nEpic: sase-9\n"),
+            "wait": lambda self: 0,
+        },
+    )()
+    plan_file = str(tmp_path / "epic plan.md")
+
+    with patch(
+        "sase.axe.run_agent_exec_plan_accept.subprocess.Popen",
+        return_value=fake_process,
+    ) as popen:
+        result = accept_mod._run_epic_launch_subprocess(
+            workspace_dir=str(tmp_path),
+            plan_file=plan_file,
+        )
+
+    popen.assert_called_once_with(
+        ["sase", "bead", "work", plan_file, "--yes"],
+        cwd=str(tmp_path),
+        stdout=accept_mod.subprocess.PIPE,
+        stderr=accept_mod.subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    assert result == accept_mod._EpicLaunchResult(
+        0,
+        "sase-9",
+        ("launching", "Epic: sase-9"),
+    )
+
+
 @pytest.mark.usefixtures("patch_plan_deps")
 class TestPlanFollowupApprovals:
     """Verify plan approval follow-up actions and metadata."""
@@ -42,7 +78,7 @@ class TestPlanFollowupApprovals:
                 return_value=approval,
             ),
             patch(
-                "sase.sdd.files.write_sdd_files",
+                "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
         ):
@@ -67,7 +103,7 @@ class TestPlanFollowupApprovals:
                 "sase.llm_provider._plan_utils.handle_plan_approval",
                 return_value=approval,
             ),
-            patch("sase.sdd.files.write_sdd_files") as write_sdd,
+            patch("sase.sdd.files.write_sdd_spec") as write_sdd,
             pytest.raises(PlanApprovalValidationError),
         ):
             handle_plan_marker({"plan_file": str(plan)}, ctx, state)
@@ -151,8 +187,8 @@ class TestPlanFollowupApprovals:
         assert commit_kwargs
         assert all(kwargs["push_after_commit"] is True for kwargs in commit_kwargs)
 
-    def test_epic_force_sdd_commit(self, tmp_path) -> None:
-        """Epic approvals commit SDD files even with stale false flags."""
+    def test_epic_commits_only_spec_even_with_stale_false_flags(self, tmp_path) -> None:
+        """Epic approvals commit the prompt snapshot, never the plan file."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         plan_file = str(tmp_path / "plan.md")
@@ -170,17 +206,79 @@ class TestPlanFollowupApprovals:
                 return_value=approval,
             ),
             patch(
-                "sase.sdd.files.write_sdd_files",
+                "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
             ),
-            patch(
-                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files"
-            ) as mock_commit,
+            patch("sase.sdd.files.write_sdd_files") as write_plan,
+            patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_spec") as commit,
         ):
             handle_plan_marker({"plan_file": plan_file}, ctx, state)
 
-        mock_commit.assert_called_once()
-        assert mock_commit.call_args.kwargs["plan_tier"] == "epic"
+        commit.assert_called_once_with(str(tmp_path), "plan")
+        write_plan.assert_not_called()
+
+    def test_host_owned_epic_finishes_without_agent_side_launch(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
+        approval = PlanApprovalResult(
+            action="epic",
+            plan_file=plan_file,
+            epic_launch_owner="host",
+        )
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_spec",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess"
+            ) as launch,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert outcome == "epic_approved"
+        launch.assert_not_called()
+
+    def test_epic_fallback_failure_is_a_graceful_terminal_outcome(
+        self, tmp_path
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        plan_file = str(tmp_path / "plan.md")
+        (tmp_path / "plan.md").write_text(VALID_EPIC_PLAN)
+        approval = PlanApprovalResult(action="epic", plan_file=plan_file)
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.files.write_sdd_spec",
+                return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
+                return_value=accept_mod._EpicLaunchResult(2, None, ("boom",)),
+            ),
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._notify_epic_launch_failure"
+            ) as notify_failure,
+        ):
+            outcome = handle_plan_marker({"plan_file": plan_file}, ctx, state)
+
+        assert outcome == "epic_launch_failed"
+        notify_failure.assert_called_once_with(ctx, plan_file, ("boom",))
+        assert call(state.current_artifacts_dir, "epic_launch_error", "boom") in (
+            accept_mod.update_meta_field.call_args_list
+        )
 
     def test_approve_no_coder_commit_true_returns_plan_committed(
         self, tmp_path
@@ -400,7 +498,7 @@ class TestPlanFollowupApprovals:
                 return_value=approval,
             ),
             patch(
-                "sase.sdd.files.write_sdd_files",
+                "sase.sdd.files.write_sdd_spec",
                 return_value=(tmp_path / "spec.md", tmp_path / "epic.md"),
             ),
         ):
@@ -633,8 +731,10 @@ class TestPlanFollowupApprovals:
             accept_mod.update_meta_field.call_args_list
         )
 
-    def test_epic_commit_failure_aborts_before_bead_creation(self, tmp_path) -> None:
-        """An uncommitted epic plan never enters deterministic bead creation."""
+    def test_epic_spec_commit_failure_still_runs_canonical_fallback(
+        self, tmp_path
+    ) -> None:
+        """A prompt-snapshot failure cannot orphan an approved epic plan."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         archived_plan = tmp_path / "archive" / "epic_plan.md"
@@ -656,22 +756,26 @@ class TestPlanFollowupApprovals:
                 return_value=approval,
             ),
             patch(
-                "sase.sdd.files.write_sdd_files",
+                "sase.sdd.files.write_sdd_spec",
                 return_value=(
                     tmp_path / "sdd" / "plans" / "202605" / "prompts" / "epic_plan.md",
                     sdd_plan,
                 ),
             ),
             patch(
-                "sase.axe.run_agent_exec_plan_accept._commit_sdd_files",
+                "sase.axe.run_agent_exec_plan_accept._commit_sdd_spec",
                 return_value=False,
             ),
             patch(
-                "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic"
-            ) as create_epic,
-            pytest.raises(RuntimeError, match="could not be committed"),
+                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
+                return_value=accept_mod._EpicLaunchResult(0, "sase-8", ()),
+            ) as launch,
         ):
-            handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
+            outcome = handle_plan_marker({"plan_file": str(archived_plan)}, ctx, state)
 
-        create_epic.assert_not_called()
+        assert outcome == "epic_approved"
+        launch.assert_called_once_with(
+            workspace_dir=str(tmp_path),
+            plan_file=str(archived_plan),
+        )
         assert state.current_prompt == "original prompt"

@@ -20,6 +20,7 @@ from sase.sdd.files import (
     update_spec_with_qa,
     write_sdd_readme,
     write_sdd_files,
+    write_sdd_spec,
 )
 from sase.sdd._commit import commit_bare_git_sdd_init_paths
 from sase.sdd._paths import get_yyyymm
@@ -244,6 +245,23 @@ def test_write_sdd_files_supports_flat_sidecar_plans_root(tmp_path: Path) -> Non
     plan_fm, _, _ = parse_frontmatter(plan.read_text(encoding="utf-8"))
     assert prompt_fm["plan"] == f"{get_yyyymm()}/flat_plan.md"
     assert plan_fm["prompt"] == f"{get_yyyymm()}/prompts/flat_plan.md"
+
+
+def test_write_sdd_spec_does_not_write_plan(tmp_path: Path) -> None:
+    sdd_dir = tmp_path / "sdd"
+
+    with patch("sase.sdd.files.get_yyyymm", return_value="202607"):
+        prompt_path, plan_path = write_sdd_spec(
+            sdd_dir,
+            "host_owned_epic",
+            "# Planner prompt\n",
+        )
+
+    assert prompt_path.is_file()
+    assert not plan_path.exists()
+    prompt_fm, body, _ = parse_frontmatter(prompt_path.read_text(encoding="utf-8"))
+    assert prompt_fm["plan"] == "sdd/plans/202607/host_owned_epic.md"
+    assert body == "# Planner prompt\n"
 
 
 def test_write_sdd_files_missing_plan() -> None:

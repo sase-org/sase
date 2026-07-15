@@ -15,10 +15,11 @@ def commit_sdd_files_for_exec_plan(
     plan_name: str,
     *,
     plan_tier: str = "tale",
+    include_plan: bool = True,
     logger: logging.Logger,
     subprocess_run: Callable[..., Any],
 ) -> bool:
-    """Commit SDD prompt and plan files via ``sase commit`` before launching the epic agent.
+    """Commit an SDD prompt and, by default, its plan via ``sase commit``.
 
     The ``#gh`` workflow pre-step runs ``git checkout . && git clean -fd`` which
     wipes uncommitted files.  Committing (and pushing) the SDD files first
@@ -51,13 +52,18 @@ def commit_sdd_files_for_exec_plan(
                     plan_found = find_sdd_file(resolved, "plans", fname)
         except Exception:
             pass
-    files = [str(f) for f in (prompt_found, plan_found) if f is not None]
+    candidates = (prompt_found, plan_found) if include_plan else (prompt_found,)
+    files = [str(f) for f in candidates if f is not None]
     if not files:
         return True
     from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
     message = apply_auto_commit_type_tag(
-        f"chore: Add SDD prompt and plan for {plan_name}",
+        (
+            f"chore: Add SDD prompt and plan for {plan_name}"
+            if include_plan
+            else f"chore: Add SDD prompt for {plan_name}"
+        ),
         "sdd",
     )
     # -M / --message-file expects a file path, not a raw string.
@@ -85,75 +91,6 @@ def commit_sdd_files_for_exec_plan(
         )
         return False
     return True
-
-
-def _build_sdd_plan_ref(
-    *,
-    sdd_plan_path: Path | None,
-    sdd_dir: Path,
-    workspace_dir: str,
-    sdd_plan_name: str | None,
-    sdd_in_tree: bool,
-    sdd_sidecar_storage: bool = False,
-    fallback_plan_file: str,
-) -> str:
-    """Build the plan reference passed to a plan-container creation xprompt."""
-    if sdd_plan_path and sdd_plan_path.exists():
-        from sase.sdd.plan_refs import plan_ref_for_store
-        from sase.sdd.store import SddStorage, SddStore
-
-        storage: SddStorage = (
-            "sidecar_repos"
-            if sdd_sidecar_storage
-            else "in_tree"
-            if sdd_in_tree
-            else "local"
-        )
-        store = SddStore(
-            storage=storage,
-            sdd_dir=sdd_dir,
-            repo_root=Path(workspace_dir) if sdd_in_tree else sdd_dir,
-        )
-        return plan_ref_for_store(
-            sdd_plan_path,
-            store,
-            workspace_dir=Path(workspace_dir),
-        )
-
-    from sase.sdd.files import get_yyyymm
-
-    yyyymm = get_yyyymm()
-    if sdd_plan_name and sdd_sidecar_storage:
-        return _workspace_relative_or_absolute(
-            sdd_dir / yyyymm / f"{sdd_plan_name}.md", workspace_dir
-        )
-    if sdd_plan_name and not sdd_in_tree:
-        return f".sase/sdd/plans/{yyyymm}/{sdd_plan_name}.md"
-    if sdd_plan_name:
-        return f"sdd/plans/{yyyymm}/{sdd_plan_name}.md"
-    return fallback_plan_file
-
-
-def build_epic_plan_ref(
-    *,
-    sdd_plan_path: Path | None,
-    sdd_dir: Path,
-    workspace_dir: str,
-    sdd_plan_name: str | None,
-    sdd_in_tree: bool,
-    sdd_sidecar_storage: bool = False,
-    fallback_plan_file: str,
-) -> str:
-    """Build the plan reference passed to the epic-creation xprompt."""
-    return _build_sdd_plan_ref(
-        sdd_plan_path=sdd_plan_path,
-        sdd_dir=sdd_dir,
-        workspace_dir=workspace_dir,
-        sdd_plan_name=sdd_plan_name,
-        sdd_in_tree=sdd_in_tree,
-        sdd_sidecar_storage=sdd_sidecar_storage,
-        fallback_plan_file=fallback_plan_file,
-    )
 
 
 def plan_tier_for_action(action: str) -> str:

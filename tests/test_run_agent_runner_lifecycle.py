@@ -60,6 +60,8 @@ def _state(**overrides: object) -> RunnerShutdownState:
         ({"exec_outcome": "failed_retried"}, False, False, False, False),
         ({"exec_outcome": "plan_rejected"}, False, False, False, False),
         ({"exec_outcome": "plan_committed"}, False, False, False, False),
+        ({"exec_outcome": "epic_approved"}, False, False, False, False),
+        ({"exec_outcome": "epic_launch_failed"}, False, False, False, False),
         ({}, True, False, False, False),
         ({}, False, True, False, False),
         ({}, False, False, True, False),

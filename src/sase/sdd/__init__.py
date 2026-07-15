@@ -24,6 +24,7 @@ from sase.sdd.files import (
     update_spec_with_qa,
     write_sdd_readme,
     write_sdd_files,
+    write_sdd_spec,
 )
 from sase.sdd.store import (
     SddInitOutcome,
@@ -64,6 +65,7 @@ __all__ = [
     "update_spec_with_qa",
     "write_sdd_readme",
     "write_sdd_files",
+    "write_sdd_spec",
     "SddInitOutcome",
     "SddSidecar",
     "SddStore",

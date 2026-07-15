@@ -254,7 +254,7 @@ def _accepted_role_and_suffix(
     if action == "feedback":
         return "feedback", None, f"{PLAN_CHAIN_PLAN_SUFFIX}-@", None
     if action == "epic":
-        return "plan", PLAN_CHAIN_PLAN_SUFFIX, None, "completed"
+        return "plan", PLAN_CHAIN_PLAN_SUFFIX, None, "epic_approved"
     if action == "approve" and not run_coder:
         return "commit", PLAN_CHAIN_COMMIT_SUFFIX, None, "plan_committed"
     return "code", PLAN_CHAIN_CODER_SUFFIX, None, None
@@ -270,9 +270,8 @@ def _transition_side_effect_ids(
         return ("record_feedback", "replan")
     if action == "epic":
         return (
-            "write_sdd",
-            "commit_sdd",
-            "create_epic_beads",
+            "write_sdd_spec",
+            "commit_sdd_spec",
             "launch_epic_work",
         )
     effects = ["write_sdd"]

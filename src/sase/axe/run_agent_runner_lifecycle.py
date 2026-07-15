@@ -16,6 +16,8 @@ _NON_HOLD_FAILURE_OUTCOMES = {
     "failed_retried",
     "plan_rejected",
     "plan_committed",
+    "epic_approved",
+    "epic_launch_failed",
 }
 
 

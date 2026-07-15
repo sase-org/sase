@@ -469,9 +469,8 @@ def finalize_loop(
     video_paths: list[str] = []
     step_output: dict[str, Any] | None = None
 
-    if state.loop_outcome == "completed":
-        assert result is not None
-        response_content = result.response_text or ""
+    if state.loop_outcome == "completed" and result is not None:
+        response_content = getattr(result, "response_text", "") or ""
     else:
         response_content = ""
 
@@ -578,7 +577,7 @@ def finalize_loop(
         write_done_marker_and_update_index(ctx.artifacts_dir, done_marker)
 
     return AgentExecResult(
-        success=state.loop_outcome == "completed",
+        success=state.loop_outcome in {"completed", "epic_approved"},
         outcome=state.loop_outcome,
         saved_path=saved_path,
         diff_path=diff_path,

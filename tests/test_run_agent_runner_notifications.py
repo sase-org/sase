@@ -214,6 +214,10 @@ def test_plan_rejected_classifies_as_runner_success():
     assert classify_exec_success(success=False, outcome="plan_rejected") is True
 
 
+def test_epic_approved_classifies_as_runner_success():
+    assert classify_exec_success(success=False, outcome="epic_approved") is True
+
+
 def test_real_failure_stays_runner_failure():
     assert classify_exec_success(success=False, outcome="killed") is False
 

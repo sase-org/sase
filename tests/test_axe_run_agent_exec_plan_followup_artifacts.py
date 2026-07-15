@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
@@ -30,10 +31,10 @@ def test_handle_plan_marker_records_host_side_epic_kickoff(
         patch("sase.axe.run_agent_exec_plan._write_plan_path_artifact"),
         patch("sase.axe.run_agent_exec_plan.update_step_marker_chat_path"),
         patch("sase.axe.run_agent_exec_plan_accept.promote_to_workflow"),
-        patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_files"),
+        patch("sase.axe.run_agent_exec_plan_accept._commit_sdd_spec"),
         patch(
-            "sase.axe.run_agent_exec_plan_accept._create_and_launch_approved_epic",
-            return_value="sase-7",
+            "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess",
+            return_value=accept_mod._EpicLaunchResult(0, "sase-7", ()),
         ),
         patch(
             "sase.llm_provider._plan_utils.handle_plan_approval",
@@ -45,7 +46,7 @@ def test_handle_plan_marker_records_host_side_epic_kickoff(
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.beads.ensure_beads_initialized"),
         patch(
-            "sase.sdd.files.write_sdd_files",
+            "sase.sdd.files.write_sdd_spec",
             return_value=(tmp_path / "spec.md", tmp_path / "plan.md"),
         ),
         patch("sase.sdd.files.expand_prompt_for_spec", side_effect=lambda p: p),

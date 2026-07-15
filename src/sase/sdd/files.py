@@ -66,6 +66,7 @@ from sase.sdd._write import (
     update_prompt_with_qa,
     update_spec_with_qa,
     write_sdd_files as _write_sdd_files,
+    write_sdd_spec as _write_sdd_spec,
 )
 
 _SddExpectedTextFile = SddExpectedTextFile
@@ -149,6 +150,23 @@ def write_sdd_files(
     )
 
 
+def write_sdd_spec(
+    sdd_dir: Path,
+    plan_name: str,
+    prompt_content: str,
+    *,
+    plans_root: Path | None = None,
+) -> tuple[Path, Path]:
+    """Write only a prompt snapshot and return its expected plan path."""
+    return _write_sdd_spec(
+        sdd_dir,
+        plan_name,
+        prompt_content,
+        plans_root=plans_root,
+        yyyymm=get_yyyymm(),
+    )
+
+
 __all__ = [
     "SDD_SIDECAR_DIRECTORY_MAP_FILENAMES",
     "SDD_SIDECAR_KINDS",
@@ -182,6 +200,7 @@ __all__ = [
     "update_spec_with_qa",
     "write_sdd_files",
     "write_sdd_readme",
+    "write_sdd_spec",
     "_SddExpectedBytesFile",
     "_SddExpectedTextFile",
     "_SddInitAction",

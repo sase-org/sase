@@ -17,6 +17,36 @@ def sdd_link_path(sdd_dir: Path, path: Path) -> str:
     return relative
 
 
+def write_sdd_spec(
+    sdd_dir: Path,
+    plan_name: str,
+    prompt_content: str,
+    *,
+    plans_root: Path | None = None,
+    yyyymm: str | None = None,
+) -> tuple[Path, Path]:
+    """Write only the prompt snapshot for a future canonical plan.
+
+    Returns ``(prompt_path, plan_path)`` so callers can record the canonical
+    plan destination without taking ownership of writing the plan itself.
+    """
+    yyyymm = get_yyyymm() if yyyymm is None else yyyymm
+    plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
+    prompts_dir = plans_dir / "prompts"
+    prompt_path = prompts_dir / f"{plan_name}.md"
+    plan_path = plans_dir / f"{plan_name}.md"
+    plan_link = sdd_link_path(sdd_dir, plan_path)
+
+    from sase.sdd.frontmatter import set_frontmatter_fields
+
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    prompt_path.write_text(
+        set_frontmatter_fields(prompt_content, {"plan": plan_link}),
+        encoding="utf-8",
+    )
+    return prompt_path, plan_path
+
+
 def write_sdd_files(
     sdd_dir: Path,
     plan_name: str,
@@ -41,11 +71,9 @@ def write_sdd_files(
 
     yyyymm = get_yyyymm() if yyyymm is None else yyyymm
     plans_dir = (sdd_dir / "plans" if plans_root is None else plans_root) / yyyymm
-    prompts_dir = plans_dir / "prompts"
-    prompt_path = prompts_dir / f"{plan_name}.md"
+    prompt_path = plans_dir / "prompts" / f"{plan_name}.md"
     plan_path = plans_dir / f"{plan_name}.md"
     prompt_link = sdd_link_path(sdd_dir, prompt_path)
-    plan_link = sdd_link_path(sdd_dir, plan_path)
 
     from sase.sdd.frontmatter import set_frontmatter_fields
 
@@ -69,11 +97,12 @@ def write_sdd_files(
             yyyymm=yyyymm,
         )
 
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-    plans_dir.mkdir(parents=True, exist_ok=True)
-    prompt_path.write_text(
-        set_frontmatter_fields(prompt_content, {"plan": plan_link}),
-        encoding="utf-8",
+    prompt_path, plan_path = write_sdd_spec(
+        sdd_dir,
+        plan_name,
+        prompt_content,
+        plans_root=plans_root,
+        yyyymm=yyyymm,
     )
 
     if plan_content is not None:

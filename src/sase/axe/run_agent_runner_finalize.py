@@ -31,10 +31,10 @@ from sase.telemetry.metrics import (
 def classify_exec_success(*, success: bool, outcome: str) -> bool:
     """Map execution-loop outcomes to runner success semantics.
 
-    Plan-rejected runs are reported as success because the user explicitly
-    chose to abort — the runner itself didn't fail.
+    Plan-rejected and epic-approved runs are terminal user decisions rather
+    than runner failures.
     """
-    return success or outcome == "plan_rejected"
+    return success or outcome in {"plan_rejected", "epic_approved"}
 
 
 def write_error_done_marker(

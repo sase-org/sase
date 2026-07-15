@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from sase.plan_approval_choices import (
     default_member_ids_from_request_data,
@@ -33,6 +34,7 @@ class PlanApprovalResult:
     coder_model: str | None = None
     selected_member_ids: tuple[str, ...] | None = field(default=None, compare=False)
     auto_approved: bool = field(default=False, compare=False)
+    epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
 
 
 def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResult:
@@ -352,6 +354,10 @@ def handle_plan_approval(
                         response_data,
                         request_data,
                     )
+                    raw_epic_launch_owner = response_data.get("epic_launch_owner")
+                    epic_launch_owner: Literal["host"] | None = None
+                    if action == "epic" and raw_epic_launch_owner == "host":
+                        epic_launch_owner = "host"
                     # Backward compat: old "commit" action maps to
                     # approve with run_coder=False
                     if action == "commit":
@@ -365,6 +371,7 @@ def handle_plan_approval(
                         coder_prompt=coder_prompt,
                         coder_model=coder_model,
                         selected_member_ids=selected_member_ids,
+                        epic_launch_owner=epic_launch_owner,
                     )
                 # Rejection with feedback: return result so caller
                 # can spawn a replanner agent with the feedback.

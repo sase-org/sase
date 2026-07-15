@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import shlex
 import subprocess
+from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,7 +23,6 @@ from sase.axe.run_agent_exec_plan import (
 )
 from sase.axe.run_agent_exec_plan_artifacts import get_embedded_workflow_refs
 from sase.axe.run_agent_exec_plan_sdd import (
-    build_epic_plan_ref,
     build_saved_plan_ref,
     commit_sdd_files_for_exec_plan,
     plan_tier_for_action,
@@ -48,6 +50,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_EPIC_ID_LINE = re.compile(r"^Epic:\s+(\S+)\s*$")
+_EPIC_OUTPUT_TAIL_LINES = 40
+
 
 def _saved_chat_suffixes(state: LoopState) -> tuple[str, ...]:
     return tuple(suffix for suffix, _path in state.saved_chat_paths if suffix)
@@ -72,6 +77,18 @@ def _commit_sdd_files(
         workspace_dir,
         plan_name,
         plan_tier=plan_tier,
+        logger=logger,
+        subprocess_run=subprocess.run,
+    )
+
+
+def _commit_sdd_spec(workspace_dir: str, plan_name: str) -> bool:
+    """Commit only the planner-owned prompt snapshot for an epic."""
+    return commit_sdd_files_for_exec_plan(
+        workspace_dir,
+        plan_name,
+        plan_tier="epic",
+        include_plan=False,
         logger=logger,
         subprocess_run=subprocess.run,
     )
@@ -193,78 +210,82 @@ def _plan_followup_base_meta(base_meta: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in base_meta.items() if key != "reasoning_effort"}
 
 
-def _create_and_launch_approved_epic(
+@dataclass(frozen=True)
+class _EpicLaunchResult:
+    returncode: int
+    epic_bead_id: str | None
+    output_tail: tuple[str, ...]
+
+
+def _run_epic_launch_subprocess(
     *,
+    workspace_dir: str,
+    plan_file: str,
+) -> _EpicLaunchResult:
+    """Stream the canonical epic command and parse its stable epic-id line."""
+    argv = ["sase", "bead", "work", plan_file, "--yes"]
+    tail: deque[str] = deque(maxlen=_EPIC_OUTPUT_TAIL_LINES)
+    epic_bead_id: str | None = None
+    try:
+        process = subprocess.Popen(
+            argv,
+            cwd=workspace_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except OSError as exc:
+        message = f"{type(exc).__name__}: {exc}"
+        return _EpicLaunchResult(-1, None, (message,))
+
+    if process.stdout is not None:
+        for raw_line in process.stdout:
+            print(raw_line, end="", flush=True)
+            line = raw_line.rstrip("\r\n")
+            tail.append(line)
+            match = _EPIC_ID_LINE.fullmatch(line)
+            if match is not None:
+                epic_bead_id = match.group(1)
+    returncode = process.wait()
+    if returncode == 0 and epic_bead_id is None:
+        tail.append("epic launch completed without the required 'Epic: <id>' line")
+        returncode = 1
+    return _EpicLaunchResult(returncode, epic_bead_id, tuple(tail))
+
+
+def _notify_epic_launch_failure(
     ctx: AgentExecContext,
-    sdd_plan_path: Path,
-    sdd_plan_name: str,
-    sdd_dir: Path,
-    sdd_store: Any,
-    sdd_in_tree: bool,
-    sdd_sidecar_storage: bool,
-    fallback_plan_file: str,
-) -> str:
-    """Create deterministic epic beads and invoke the bead-work launcher."""
-    from sase.bead.cli_common import resolve_beads_location
-    from sase.bead.cli_work_handler import launch_epic_bead_work
-    from sase.bead.epic_from_plan import create_and_launch_epic_from_plan
-    from sase.bead.project import BeadProject
-    from sase.sdd.beads import ensure_beads_initialized
-    from sase.sdd.files import commit_sdd_store_files
+    plan_file: str,
+    output_tail: tuple[str, ...],
+) -> None:
+    """Best-effort error notification with a direct resume command."""
+    argv = ["sase", "bead", "work", plan_file, "--yes"]
+    resume_command = shlex.join(argv)
+    notes = [
+        f"Epic launch failed for {Path(plan_file).name}",
+        f"Resume with: {resume_command}",
+    ]
+    if output_tail:
+        notes.append(f"Last output: {output_tail[-1]}")
+    try:
+        from sase.notifications.senders import notify_workflow_complete
 
-    ensure_beads_initialized(ctx.workspace_dir, ctx.workspace_num)
-    location = resolve_beads_location(
-        Path(ctx.workspace_dir),
-        require_existing=True,
-        materialize=True,
-    )
-    if location is None:
-        raise RuntimeError(
-            "approved epic plan was committed, but its bead store could not be resolved"
+        notify_workflow_complete(
+            sender="user-agent",
+            cl_name=ctx.cl_name,
+            success=False,
+            notes=notes,
+            action="ViewErrorReport",
+            action_data={
+                "error_report_path": ctx.output_path,
+                "cl_name": ctx.cl_name,
+                **({"agent_name": ctx.agent_name} if ctx.agent_name else {}),
+            },
+            extra_files=[ctx.output_path] if Path(ctx.output_path).is_file() else None,
         )
-
-    plan_ref = build_epic_plan_ref(
-        sdd_plan_path=sdd_plan_path,
-        sdd_dir=sdd_dir,
-        workspace_dir=ctx.workspace_dir,
-        sdd_plan_name=sdd_plan_name,
-        sdd_in_tree=sdd_in_tree,
-        sdd_sidecar_storage=sdd_sidecar_storage,
-        fallback_plan_file=fallback_plan_file,
-    )
-
-    def commit_plan_link(plan_path: Path) -> bool:
-        if sdd_in_tree:
-            return _commit_sdd_files(
-                ctx.workspace_dir,
-                sdd_plan_name,
-                plan_tier="epic",
-            )
-        return commit_sdd_store_files(
-            sdd_store,
-            f"Link approved epic plan to its bead: {sdd_plan_name}",
-            paths=[plan_path],
-            push_after_commit=True,
-        )
-
-    with BeadProject(
-        location.root,
-        beads_dirname=location.beads_dirname,
-    ) as proj:
-        result = create_and_launch_epic_from_plan(
-            proj,
-            plan_path=sdd_plan_path,
-            plan_ref=plan_ref,
-            commit_plan_update=commit_plan_link,
-            launch_work=lambda project, epic_id: launch_epic_bead_work(
-                project,
-                epic_id,
-                dry_run=False,
-                yes=True,
-                no_push=False,
-            ),
-        )
-    return result.epic.id
+    except Exception:
+        logger.warning("Failed to send epic-launch error notification", exc_info=True)
 
 
 def handle_accepted_plan(
@@ -318,17 +339,22 @@ def handle_accepted_plan(
         ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     )
 
-    # Write SDD files (spec + plan) to project
+    # The planner always owns its prompt snapshot. For epics, the canonical
+    # ``sase bead work`` command exclusively owns the plan file itself.
     from sase.sdd.files import (
         commit_sdd_store_files,
         ensure_bare_git_sdd_initialized,
         expand_prompt_for_spec,
         write_sdd_files,
+        write_sdd_spec,
     )
     from sase.sdd.store import materialize_sdd_store
 
+    is_epic = plan_result.action == "epic"
+    sdd_store: Any | None = None
     sdd_plan_name: str | None = None
     sdd_plan_path: Path | None = None
+    sdd_prompt_path_obj: Path | None = None
     sdd_commit_paths: list[Path] = []
     sdd_in_tree = True  # safe default (in-tree path is the no-op path)
     sdd_sidecar_storage = False
@@ -352,16 +378,25 @@ def handle_accepted_plan(
                 "Spec prompt expansion failed, using raw prompt", exc_info=True
             )
             expanded = state.current_prompt
-        plan_tier = plan_tier_for_action(plan_result.action)
-        sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
-            sdd_dir,
-            sdd_plan_name,
-            expanded,
-            plan_result.plan_file,
-            plan_tier=plan_tier,
-            plans_root=sdd_store.kind_root("plans"),
-        )
-        sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
+        if is_epic:
+            sdd_prompt_path_obj, sdd_plan_path = write_sdd_spec(
+                sdd_dir,
+                sdd_plan_name,
+                expanded,
+                plans_root=sdd_store.kind_root("plans"),
+            )
+            sdd_commit_paths = [sdd_prompt_path_obj]
+        else:
+            plan_tier = plan_tier_for_action(plan_result.action)
+            sdd_prompt_path_obj, sdd_plan_path = write_sdd_files(
+                sdd_dir,
+                sdd_plan_name,
+                expanded,
+                plan_result.plan_file,
+                plan_tier=plan_tier,
+                plans_root=sdd_store.kind_root("plans"),
+            )
+            sdd_commit_paths = [sdd_prompt_path_obj, sdd_plan_path]
         state.sdd_spec_path = str(sdd_prompt_path_obj)
         record_workflow_metadata(
             state.current_artifacts_dir,
@@ -370,77 +405,97 @@ def handle_accepted_plan(
                 "sdd_plan_path": str(sdd_plan_path),
             },
         )
-        if not sdd_in_tree:
-            commit_sdd_store_files(
-                sdd_store,
-                f"Add SDD files for {sdd_plan_name}",
-                paths=sdd_commit_paths,
-                push_after_commit=True,
-            )
     except Exception:
         logger.warning("SDD file generation failed", exc_info=True)
 
-    # Unified SDD commit: epics always need committed files (the #gh
-    # pre-step wipes uncommitted files); other actions respect commit_plan.
-    should_commit = plan_result.commit_plan if plan_result.action != "epic" else True
+    # Epic prompt snapshots are committed independently so they cannot race
+    # the host command's plan archive/link commits.
+    should_commit = plan_result.commit_plan if not is_epic else True
     required_sdd_commit_succeeded = True
-    if should_commit and sdd_plan_name:
+    if should_commit and sdd_plan_name and sdd_prompt_path_obj is not None:
         if sdd_in_tree:
-            plan_tier = plan_tier_for_action(plan_result.action)
-            required_sdd_commit_succeeded = _commit_sdd_files(
-                ctx.workspace_dir,
-                sdd_plan_name,
-                plan_tier=plan_tier,
+            required_sdd_commit_succeeded = (
+                _commit_sdd_spec(ctx.workspace_dir, sdd_plan_name)
+                if is_epic
+                else _commit_sdd_files(
+                    ctx.workspace_dir,
+                    sdd_plan_name,
+                    plan_tier=plan_tier_for_action(plan_result.action),
+                )
             )
-        else:
-            commit_sdd_store_files(
+        elif sdd_store is not None:
+            required_sdd_commit_succeeded = commit_sdd_store_files(
                 sdd_store,
-                f"Add SDD files for {sdd_plan_name}",
+                (
+                    f"Add SDD prompt for {sdd_plan_name}"
+                    if is_epic
+                    else f"Add SDD files for {sdd_plan_name}"
+                ),
                 paths=sdd_commit_paths,
                 push_after_commit=True,
             )
+        else:
+            required_sdd_commit_succeeded = False
     elif should_commit:
         required_sdd_commit_succeeded = False
     plan_committed = bool(
-        should_commit
+        not is_epic
+        and should_commit
         and sdd_plan_path is not None
         and sdd_plan_path.exists()
         and required_sdd_commit_succeeded
     )
-    update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
+    if not is_epic:
+        update_meta_field(state.current_artifacts_dir, "plan_committed", plan_committed)
 
     if not plan_result.run_coder and plan_result.action != "epic":
         return "plan_committed"
 
     if plan_result.action == "epic":
-        if not plan_committed or sdd_plan_path is None or sdd_plan_name is None:
-            raise RuntimeError(
-                "approved epic plan could not be committed to the SDD store; "
-                "deterministic bead creation was not started"
+        if not required_sdd_commit_succeeded:
+            logger.warning(
+                "Approved epic prompt snapshot could not be committed; "
+                "continuing with the canonical plan launch"
             )
 
-        epic_bead_id = _create_and_launch_approved_epic(
-            ctx=ctx,
-            sdd_plan_path=sdd_plan_path,
-            sdd_plan_name=sdd_plan_name,
-            sdd_dir=sdd_dir,
-            sdd_store=sdd_store,
-            sdd_in_tree=sdd_in_tree,
-            sdd_sidecar_storage=sdd_sidecar_storage,
-            fallback_plan_file=plan_result.plan_file,
-        )
+        if getattr(plan_result, "epic_launch_owner", None) == "host":
+            return "epic_approved"
 
-        update_meta_field(
-            state.current_artifacts_dir,
-            "epic_started_at",
-            datetime.now(UTC).isoformat(),
+        launch_result = _run_epic_launch_subprocess(
+            workspace_dir=ctx.workspace_dir,
+            plan_file=plan_result.plan_file,
+        )
+        if launch_result.returncode == 0 and launch_result.epic_bead_id is not None:
+            update_meta_field(state.current_artifacts_dir, "plan_committed", True)
+            update_meta_field(
+                state.current_artifacts_dir,
+                "epic_started_at",
+                datetime.now(UTC).isoformat(),
+            )
+            update_meta_field(
+                state.current_artifacts_dir,
+                "epic_bead_id",
+                launch_result.epic_bead_id,
+            )
+            return "epic_approved"
+
+        tail_text = "\n".join(launch_result.output_tail) or "(no output)"
+        logger.error(
+            "Epic launch failed with exit code %d. Output tail:\n%s",
+            launch_result.returncode,
+            tail_text,
         )
         update_meta_field(
             state.current_artifacts_dir,
-            "epic_bead_id",
-            epic_bead_id,
+            "epic_launch_error",
+            launch_result.output_tail[-1]
+            if launch_result.output_tail
+            else f"exit code {launch_result.returncode}",
         )
-        return "completed"
+        _notify_epic_launch_failure(
+            ctx, plan_result.plan_file, launch_result.output_tail
+        )
+        return "epic_launch_failed"
 
     # VCS workflow tag prefix for coder follow-up agents
     vcs_prefix = ctx.vcs_tag or ""

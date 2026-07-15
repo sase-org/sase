@@ -1,5 +1,6 @@
 """Tests for shared plan utilities (_plan_utils.py)."""
 
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -405,6 +406,42 @@ def test_handle_plan_approval_commit(
     # Session directory lives under a YYYYMM shard of plan_approval/.
     assert captured_response_dir["dir"].parent.parent == sase_home / "plan_approval"
     assert captured_response_dir["dir"].name == session_id
+
+
+def test_handle_plan_approval_reads_host_epic_launch_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan_file = str(tmp_path / "epic.md")
+    Path(plan_file).write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+
+    def _fake_notify(**kwargs: object) -> None:
+        response_dir = Path(str(kwargs["response_dir"]))
+        (response_dir / "plan_response.json").write_text(
+            json.dumps(
+                {"action": "epic", "epic_launch_owner": "host"},
+            ),
+            encoding="utf-8",
+        )
+
+    with (
+        patch(
+            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+            return_value=None,
+        ),
+        patch(
+            "sase.notifications.senders.notify_plan_approval",
+            side_effect=_fake_notify,
+        ),
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+    ):
+        result = handle_plan_approval(plan_file, "host-owned-epic")
+
+    assert result is not None
+    assert result.action == "epic"
+    assert result.epic_launch_owner == "host"
 
 
 def test_handle_plan_approval_passes_agent_root_timestamp(

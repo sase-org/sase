@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.run_agent_exec import (
     AgentExecContext,
     LoopState,
@@ -15,6 +17,39 @@ from sase.axe.run_agent_exec import (
 from sase.axe.run_agent_exec_retry import RetryTracker
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
+
+
+@pytest.mark.parametrize("outcome", ["completed", "epic_approved"])
+def test_finalize_loop_handles_killed_iteration_without_result(
+    tmp_path: Path,
+    outcome: str,
+) -> None:
+    """A killed plan iteration never crashes finalization when result is None."""
+    ctx = make_exec_ctx(tmp_path, is_home_mode=True, project_name="home")
+    state = LoopState(
+        current_prompt="prompt",
+        current_role_suffix="--plan",
+        current_artifacts_dir=ctx.artifacts_dir,
+        loop_outcome=outcome,
+        sdd_spec_path=None,
+        original_prompt="prompt",
+    )
+
+    with (
+        patch(
+            "sase.axe.run_agent_exec_finalize.save_chat_history",
+            return_value=str(tmp_path / "chat.md"),
+        ),
+        patch(
+            "sase.axe.image_attachments.collect_agent_markdown_paths",
+            return_value=[],
+        ),
+        patch("sase.axe.image_attachments.collect_agent_image_paths", return_value=[]),
+    ):
+        result = _finalize_loop(ctx, state, RetryTracker(retry_cfg=None), None)
+
+    assert result.success is True
+    assert result.outcome == outcome
 
 
 def test_publish_phase_env_sets_both_vars_to_phase(tmp_path: Path, monkeypatch) -> None:

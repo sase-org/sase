@@ -19,7 +19,7 @@ from sase.plan_chain import (
 )
 
 STANDARD_PLAN_CHAIN_ID = "standard_plan_chain"
-STANDARD_PLAN_CHAIN_VERSION = 1
+STANDARD_PLAN_CHAIN_VERSION = 2
 
 type HandoffEventKind = Literal[
     "plan_submitted",
@@ -115,9 +115,8 @@ def _choice_side_effects(choice: str) -> tuple[str, ...]:
         return ("write_sdd", "commit_sdd")
     if choice == "epic":
         return (
-            "write_sdd",
-            "commit_sdd",
-            "create_epic_beads",
+            "write_sdd_spec",
+            "commit_sdd_spec",
             "launch_epic_work",
         )
     if choice in {"approve", "run"}:
@@ -139,7 +138,7 @@ def standard_plan_chain_definition() -> _FamilyDefinition:
             terminal=(
                 "plan_rejected"
                 if choice == "reject"
-                else "completed"
+                else "epic_approved"
                 if choice == "epic"
                 else None
             ),

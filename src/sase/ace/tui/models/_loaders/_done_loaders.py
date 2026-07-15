@@ -13,6 +13,7 @@ from concurrent.futures import CancelledError
 from pathlib import Path
 from typing import Any
 
+from sase.agent.status_buckets import EPIC_APPROVED_STATUS
 from sase.core.agent_scan_wire import (
     DONE_WORKFLOW_DIR_NAMES,
     DONE_WORKFLOW_DIR_PREFIXES,
@@ -216,15 +217,17 @@ def _load_done_agent_for_dir(
         outcome = data.get("outcome", "completed")
         if outcome == "noop":
             return None
-        if outcome == "failed":
+        if outcome in {"failed", "epic_launch_failed"}:
             # Spawn-on-retry: a failed parent that handed off to a child
             # displays as "FAILED (RETRIED)" so the user can distinguish a
             # terminal failure with a downstream retry from a dead-end one.
-            if data.get("retried_as_timestamp"):
+            if outcome == "failed" and data.get("retried_as_timestamp"):
                 status = "FAILED (RETRIED)"
             else:
                 status = "FAILED"
-            error_message = data.get("error")
+            error_message = data.get("error") or (
+                "Epic launch failed" if outcome == "epic_launch_failed" else None
+            )
             error_traceback = data.get("traceback")
         elif outcome == "stopped" or data.get("repeat_stopped"):
             # Repeat-chain STOP: the slot was skipped by a predecessor's STOP
@@ -240,6 +243,10 @@ def _load_done_agent_for_dir(
             error_traceback = None
         elif outcome == "plan_rejected":
             status = "PLAN REJECTED"
+            error_message = None
+            error_traceback = None
+        elif outcome == "epic_approved":
+            status = EPIC_APPROVED_STATUS
             error_message = None
             error_traceback = None
         else:
@@ -398,12 +405,14 @@ def _build_done_agent_from_record(
     outcome = done.outcome or "completed"
     if outcome == "noop":
         return None
-    if outcome == "failed":
-        if done.retried_as_timestamp:
+    if outcome in {"failed", "epic_launch_failed"}:
+        if outcome == "failed" and done.retried_as_timestamp:
             status = "FAILED (RETRIED)"
         else:
             status = "FAILED"
-        error_message = done.error
+        error_message = done.error or (
+            "Epic launch failed" if outcome == "epic_launch_failed" else None
+        )
         error_traceback = done.traceback
     elif outcome == "stopped" or done.repeat_stopped:
         # Repeat-chain STOP: skipped by a predecessor's STOP output variable.
@@ -416,6 +425,10 @@ def _build_done_agent_from_record(
         error_traceback = None
     elif outcome == "plan_rejected":
         status = "PLAN REJECTED"
+        error_message = None
+        error_traceback = None
+    elif outcome == "epic_approved":
+        status = EPIC_APPROVED_STATUS
         error_message = None
         error_traceback = None
     else:
