@@ -15,6 +15,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintSta
 from sase.ace.tui.widgets.prompt_panel._agent_slow_tools import (
     append_slow_tool_calls_section,
 )
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_logical_section_is_compact,
+    assert_rendered_section_is_compact,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -87,6 +91,9 @@ def test_slow_tools_section_renders_summary_and_completed_row() -> None:
     assert "✔ Bash" in plain
     assert "just test" in plain
     assert "1m 32s" in plain
+    heading = "SLOW TOOL CALLS · ≥20s · 1 call"
+    assert_logical_section_is_compact(text, heading, "  14:00:00")
+    assert_rendered_section_is_compact(text, heading, "  14:00:00")
 
 
 def test_slow_tools_section_uses_custom_threshold_label_and_filter() -> None:

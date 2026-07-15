@@ -33,7 +33,7 @@ from ._agent_context_common import (
     truncate_display,
 )
 from ._agent_display_state import HeaderHintState
-from ._helpers import append_major_section_divider
+from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 _COLOR_TOOL_NAME = "bold"
@@ -97,9 +97,9 @@ def append_slow_tool_calls_section(
         summary_parts.append(count_phrase(source_count, "agent"))
 
     append_major_section_divider(text)
-    text.append("SLOW TOOL CALLS", style=_COLOR_HEADER)
-    text.append(f" \u00b7 {' · '.join(summary_parts)}\n", style=COLOR_SUMMARY)
-    text.append("\n")
+    heading = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
+    heading.append(f" \u00b7 {' · '.join(summary_parts)}", style=COLOR_SUMMARY)
+    append_section_heading(text, heading)
 
     visible = _select_visible_slow_tool_calls(slow_calls)
     hint_marker_width = _hint_marker_width(visible, hint_state)

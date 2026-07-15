@@ -13,6 +13,10 @@ from tests.ace.tui.widgets._agent_display_helpers import (
     make_artifact_agent,
     plain_of,
 )
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_logical_section_is_compact,
+    assert_rendered_section_is_compact,
+)
 
 
 class TestAgentXPromptRendering:
@@ -27,6 +31,22 @@ class TestAgentXPromptRendering:
         assert "Launch from @src/raw.py" in plain
         assert "AGENT PROMPT" in plain
         assert "AGENT CHAT" in plain
+        rendered = panel.captured[-1]
+        assert_rendered_section_is_compact(
+            rendered,
+            "AGENT XPROMPT",
+            "Launch from @src/raw.py",
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "AGENT PROMPT",
+            "Expanded prompt body",
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "AGENT CHAT",
+            "Final response body",
+        )
 
     def test_failed_agent_renders_raw_xprompt(self, tmp_path: Path) -> None:
         panel = FakePromptPanel()
@@ -160,6 +180,11 @@ class TestAgentXPromptRendering:
         assert "AGENT (0)" in plain
         assert "AGENT (bar)" in plain
         assert "QUESTIONS" not in plain
+        assert_rendered_section_is_compact(
+            panel.captured[-1],
+            "AGENT REPLY",
+            "─── AGENT (0)",
+        )
 
     def test_hint_mode_custom_family_reply_dividers_include_member_ids(
         self,
@@ -186,6 +211,34 @@ class TestAgentXPromptRendering:
         assert "AGENT (0)" in plain
         assert "AGENT (bar)" in plain
         assert "QUESTIONS" not in plain
+        assert_logical_section_is_compact(
+            panel.captured[-1],
+            "AGENT REPLY",
+            "─── AGENT (0)",
+        )
+
+    def test_running_reply_placeholders_are_compact(self, tmp_path: Path) -> None:
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(tmp_path, status="RUNNING")
+
+        panel.update_display(agent)
+        assert_rendered_section_is_compact(
+            panel.captured[-1],
+            "AGENT REPLY",
+            "Waiting for agent response...",
+        )
+
+        panel.update_display_with_hints(agent)
+        assert_logical_section_is_compact(
+            panel.captured[-1],
+            "AGENT REPLY",
+            "Waiting for agent response...",
+        )
+        assert_rendered_section_is_compact(
+            panel.captured[-1],
+            "AGENT REPLY",
+            "Waiting for agent response...",
+        )
 
     def test_hint_mode_renders_raw_xprompt_for_terminal_agent(
         self,
@@ -202,10 +255,31 @@ class TestAgentXPromptRendering:
 
         result = panel.update_display_with_hints(agent)
 
-        plain = plain_of(panel.captured[-1])
+        rendered = panel.captured[-1]
+        plain = plain_of(rendered)
         assert "AGENT XPROMPT" in plain
         assert "[1] @src/raw.py" in plain
         assert result.file_hints[1] == str(workspace_dir / "src/raw.py")
+        assert_logical_section_is_compact(
+            rendered,
+            "AGENT XPROMPT",
+            "Launch from [1] @src/raw.py",
+        )
+        assert_logical_section_is_compact(
+            rendered,
+            "AGENT PROMPT",
+            "Expanded prompt body",
+        )
+        assert_logical_section_is_compact(
+            rendered,
+            "AGENT CHAT",
+            "Final response body",
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "AGENT CHAT",
+            "Final response body",
+        )
 
     def test_hint_mode_renders_timestamp_file_hints_before_body_hints(
         self,

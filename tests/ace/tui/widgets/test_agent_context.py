@@ -17,6 +17,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_context import (
 )
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_logical_section_is_compact,
+    assert_rendered_section_is_compact,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -109,6 +113,8 @@ def test_memory_only_context_omits_empty_skills_lane() -> None:
     assert "▸ SKILLS" not in plain
     assert "▸ WORKSPACES" not in plain
     assert "none recorded" not in plain
+    assert_logical_section_is_compact(text, "SASE CONTEXT", "▸ MEMORY")
+    assert_rendered_section_is_compact(text, "SASE CONTEXT", "▸ MEMORY")
 
 
 def test_skills_only_context_omits_empty_memory_lane() -> None:

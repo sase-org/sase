@@ -22,6 +22,7 @@ from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_model_field,
+    append_section_heading,
     project_display_label,
 )
 from ._workflow_steps import format_workflow_steps_rich
@@ -39,8 +40,7 @@ def build_workflow_detail_renderable(
     header_text = Text()
 
     # Header - WORKFLOW DETAILS
-    header_text.append("WORKFLOW DETAILS\n", style="bold #D7AF5F underline")
-    header_text.append("\n")
+    append_section_heading(header_text, "WORKFLOW DETAILS")
 
     # Workflow name (stored in workflow field)
     header_text.append("Workflow: ", style="bold #87D7FF")
@@ -143,11 +143,10 @@ def build_workflow_detail_renderable(
     meta_fields = snapshot.meta_fields
     if meta_fields:
         header_text.append("\n")
-        header_text.append(
-            f"{WORKFLOW_VARIABLES_SECTION_LABEL}\n",
-            style="bold #D7AF5F underline",
+        append_section_heading(
+            header_text,
+            WORKFLOW_VARIABLES_SECTION_LABEL,
         )
-        header_text.append("\n")
         for name, value in meta_fields:
             header_text.append(f"{name}: ", style="bold #87D7FF")
             header_text.append(f"{value}\n", style="#5FD75F")
@@ -156,7 +155,7 @@ def build_workflow_detail_renderable(
     inputs = snapshot.inputs
     if inputs:
         header_text.append("\n")
-        header_text.append("INPUTS\n", style="bold #D7AF5F underline")
+        append_section_heading(header_text, "INPUTS")
         for key, value in inputs.items():
             header_text.append(f"  {key}: ", style="bold #87D7FF")
             if isinstance(value, str):
@@ -180,8 +179,7 @@ def build_workflow_detail_renderable(
     steps_header.append("\n")
     steps_header.append("─" * 50 + "\n", style="dim")
     steps_header.append("\n")
-    steps_header.append("WORKFLOW STEPS\n", style="bold #D7AF5F underline")
-    steps_header.append("\n")
+    append_section_heading(steps_header, "WORKFLOW STEPS")
 
     # Load and format workflow steps from workflow_state.json
     steps_rich = workflow_steps_rich_from_snapshot(snapshot)
@@ -202,8 +200,7 @@ def build_workflow_detail_renderable(
         prompt_header.append("\n")
         prompt_header.append("─" * 50 + "\n", style="dim")
         prompt_header.append("\n")
-        prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
-        prompt_header.append("\n")
+        append_section_heading(prompt_header, "AGENT PROMPT")
         renderables.append(prompt_header)
         renderables.append(lazy_renderable(prompt_content, "markdown"))
 

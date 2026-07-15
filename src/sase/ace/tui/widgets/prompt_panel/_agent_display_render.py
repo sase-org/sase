@@ -35,7 +35,7 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
-from ._helpers import format_output
+from ._helpers import append_section_heading, format_output
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
 _HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...]]
@@ -150,16 +150,14 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
             raw_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
-            header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
-            header_text.append("\n")
+            append_section_heading(header_text, "AGENT XPROMPT")
             header_text.append(f"{raw_xprompt}\n")
             header_text.append("\n")
             header_text.append("\u2500" * 50 + "\n", style="dim")
             header_text.append("\n")
 
         # AGENT PROMPT section
-        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
+        append_section_heading(header_text, "AGENT PROMPT")
 
         # Get and display prompt content
         prompt_content = get_prompt_content(agent)
@@ -177,8 +175,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 reply_header.append("\n")
                 reply_header.append("\u2500" * 50 + "\n", style="dim")
                 reply_header.append("\n")
-                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
-                reply_header.append("\n")
+                append_section_heading(reply_header, "AGENT REPLY")
                 renderables.append(reply_header)
 
                 # Main agent's phase
@@ -211,8 +208,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 reply_header.append("\n")
                 reply_header.append("\u2500" * 50 + "\n", style="dim")
                 reply_header.append("\n")
-                reply_header.append("AGENT CHAT\n", style="bold #D7AF5F underline")
-                reply_header.append("\n")
+                append_section_heading(reply_header, "AGENT CHAT")
 
                 response_content = agent.get_response_content()
 
@@ -275,8 +271,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 reply_header.append("\n")
                 reply_header.append("\u2500" * 50 + "\n", style="dim")
                 reply_header.append("\n")
-                reply_header.append("AGENT REPLY\n", style="bold #D7AF5F underline")
-                reply_header.append("\n")
+                append_section_heading(reply_header, "AGENT REPLY")
 
                 live_reply = agent.get_live_reply_content()
                 chunks = agent.get_timestamped_reply_chunks()
@@ -342,8 +337,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             syntax_lang = "python"
 
         # Show source header
-        header_text.append(f"{source_label}\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
+        append_section_heading(header_text, source_label)
 
         source_content: object
         if agent.step_source:
@@ -356,8 +350,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         output_header.append("\n")
         output_header.append("\u2500" * 50 + "\n", style="dim")
         output_header.append("\n")
-        output_header.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
-        output_header.append("\n")
+        append_section_heading(output_header, "STEP OUTPUT")
 
         renderables: list[Any] = [header_text]
         if error_tb_syntax:
@@ -387,8 +380,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             header_text: The Text object with header content to append to.
             error_tb_syntax: Optional traceback Syntax renderable.
         """
-        header_text.append("STEP OUTPUT\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
+        append_section_heading(header_text, "STEP OUTPUT")
 
         renderables: list[Any] = [header_text]
         if error_tb_syntax:

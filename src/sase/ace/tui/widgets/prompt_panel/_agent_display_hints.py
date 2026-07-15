@@ -26,7 +26,7 @@ from ._file_path_hints import (
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
 )
-from ._helpers import format_output
+from ._helpers import append_section_heading, format_output
 
 
 def _render_reply_with_hints(
@@ -159,8 +159,7 @@ class AgentHintsDisplayMixin:
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
             raw_xprompt = humanize_vcs_refs_in_text(raw_xprompt)
-            header_text.append("AGENT XPROMPT\n", style="bold #D7AF5F underline")
-            header_text.append("\n")
+            append_section_heading(header_text, "AGENT XPROMPT")
             hint_counter = append_text_with_file_hints(
                 header_text,
                 raw_xprompt + "\n",
@@ -173,8 +172,7 @@ class AgentHintsDisplayMixin:
             header_text.append("\n")
 
         # AGENT PROMPT section (with file path hints, Text instead of Syntax)
-        header_text.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
-        header_text.append("\n")
+        append_section_heading(header_text, "AGENT PROMPT")
 
         prompt_content = get_prompt_content(agent)
         if prompt_content:
@@ -192,8 +190,7 @@ class AgentHintsDisplayMixin:
                 header_text.append("\n")
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
-                header_text.append("AGENT REPLY\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
+                append_section_heading(header_text, "AGENT REPLY")
 
                 # Main agent's phase
                 header_text.append_text(
@@ -241,8 +238,7 @@ class AgentHintsDisplayMixin:
                 header_text.append("\n")
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
-                header_text.append("AGENT CHAT\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
+                append_section_heading(header_text, "AGENT CHAT")
 
                 chunks = agent.get_timestamped_reply_chunks()
                 if chunks:
@@ -275,8 +271,7 @@ class AgentHintsDisplayMixin:
                 header_text.append("\n")
                 header_text.append("\u2500" * 50 + "\n", style="dim")
                 header_text.append("\n")
-                header_text.append("AGENT REPLY\n", style="bold #D7AF5F underline")
-                header_text.append("\n")
+                append_section_heading(header_text, "AGENT REPLY")
 
                 live_reply = agent.get_live_reply_content()
                 chunks = agent.get_timestamped_reply_chunks()

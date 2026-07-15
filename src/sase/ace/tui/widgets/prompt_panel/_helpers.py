@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from rich.style import StyleType
 from rich.text import Text
 
 from sase.llm_provider.model_label import append_model_field as append_model_field
@@ -82,6 +83,7 @@ COMMIT_META_KEYS = frozenset(
 )
 WORKFLOW_VARIABLES_SECTION_LABEL = "WORKFLOW VARIABLES"
 _MAJOR_SECTION_RULE = "\u2500" * 50
+PROMPT_PANEL_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 
 
 def append_major_section_divider(text: Text) -> None:
@@ -89,6 +91,27 @@ def append_major_section_divider(text: Text) -> None:
     text.append("\n")
     text.append(_MAJOR_SECTION_RULE + "\n", style="dim")
     text.append("\n")
+
+
+def append_section_heading(
+    text: Any,
+    heading: str | Text,
+    *,
+    style: StyleType = PROMPT_PANEL_SECTION_HEADING_STYLE,
+) -> None:
+    """Append one prompt-panel heading followed by exactly one line ending.
+
+    ``Text`` renderables add their ``end`` value when Rich renders them inside a
+    ``Group``.  Standalone heading chunks already contain the explicit newline
+    appended here, so suppress that implicit ending to keep the first content
+    row directly beneath the heading.
+    """
+    if isinstance(heading, Text):
+        text.append_text(heading)
+    else:
+        text.append(heading, style=style)
+    text.append("\n")
+    text.end = ""
 
 
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:

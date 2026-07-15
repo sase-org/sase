@@ -26,6 +26,7 @@ from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_major_section_divider,
     append_model_field,
+    append_section_heading,
     extract_meta_fields,
     project_display_label,
     should_render_agent_detail_model,
@@ -81,6 +82,16 @@ class _AgentHeaderRenderable:
     def spans(self) -> list[Span]:
         """Return logical text spans, including the plan section fields."""
         return self._text.spans
+
+    @property
+    def end(self) -> str:
+        """Return the Rich line ending applied after this header renderable."""
+        return self._text.end
+
+    @end.setter
+    def end(self, value: str) -> None:
+        """Set the Rich line ending applied after this header renderable."""
+        self._text.end = value
 
     def append(
         self,
@@ -477,11 +488,10 @@ def build_header_text(
     # Meta fields from step output
     if meta_fields:
         append_major_section_divider(header_text)
-        header_text.append(
-            f"{WORKFLOW_VARIABLES_SECTION_LABEL}\n",
-            style="bold #D7AF5F underline",
+        append_section_heading(
+            header_text,
+            WORKFLOW_VARIABLES_SECTION_LABEL,
         )
-        header_text.append("\n")
         for name, value in meta_fields:
             header_text.append(f"{name}: ", style="bold #87D7FF")
             header_text.append(f"{value}\n", style="#5FD75F")

@@ -29,6 +29,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_xprompts import (
     _COLOR_PART,
     _COLOR_WORKFLOW,
 )
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_rendered_section_is_compact,
+)
 
 
 # --- _should_show_commits_drawers Tests ---
@@ -351,6 +354,11 @@ def test_parallel_step_does_not_show_agent_prompt(tmp_path: Path) -> None:
         header_str = str(header_text)
         assert "STEP OUTPUT" in header_str
         assert "AGENT PROMPT" not in header_str
+        assert_rendered_section_is_compact(
+            rendered,
+            "STEP OUTPUT",
+            "parallel output data",
+        )
 
 
 def test_parallel_step_no_output_shows_placeholder() -> None:
@@ -378,6 +386,42 @@ def test_parallel_step_no_output_shows_placeholder() -> None:
         assert "STEP OUTPUT" in header_str
         assert "No output available." in header_str
         assert "AGENT PROMPT" not in header_str
+        assert_rendered_section_is_compact(
+            rendered,
+            "STEP OUTPUT",
+            "No output available.",
+        )
+
+
+def test_bash_and_python_step_sections_are_compact() -> None:
+    cases = (
+        ("bash", "BASH COMMAND", "echo compact", {"_data": "done"}, "echo"),
+        ("python", "PYTHON CODE", None, None, "No source available."),
+    )
+    for step_type, source_heading, source, output, first_source in cases:
+        agent = _make_agent(
+            parent_workflow="demo",
+            step_name=f"{step_type}-step",
+            step_type=step_type,
+            step_output=output,
+        )
+        agent.step_source = source
+        panel = AgentPromptPanel.__new__(AgentPromptPanel)
+
+        with patch.object(panel, "update") as mock_update:
+            panel.update_display(agent)
+
+        rendered = mock_update.call_args.args[0]
+        assert_rendered_section_is_compact(
+            rendered,
+            source_heading,
+            first_source,
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "STEP OUTPUT",
+            "done" if output else "No output available.",
+        )
 
 
 async def test_update_display_expands_prompt_for_done_workflow_without_diff() -> None:

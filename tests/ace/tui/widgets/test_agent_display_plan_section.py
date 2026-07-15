@@ -143,7 +143,7 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     assert_span_covers(header, "SASE PLAN", "bold #D7AF5F underline")
     assert_span_covers(header, "Goal: ", "bold #87D7FF")
     assert_span_covers(
-        header, "Make agent intent immediately legible.", "italic #FFD787"
+        header, "Make agent intent immediately legible.", "italic #D7D7FF"
     )
 
 

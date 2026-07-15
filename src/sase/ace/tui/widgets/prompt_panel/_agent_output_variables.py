@@ -19,7 +19,7 @@ from ._agent_context_common import (
     count_phrase,
     format_role_column,
 )
-from ._helpers import append_major_section_divider
+from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
 _COLOR_KEY = "bold #87D7FF"
@@ -40,14 +40,13 @@ def append_agent_output_variables_section(text: Text, agent: Agent) -> None:
         return
 
     append_major_section_divider(text)
-    text.append("OUTPUT VARIABLES", style=_COLOR_HEADER)
+    heading = Text("OUTPUT VARIABLES", style=_COLOR_HEADER)
     if len(contributors) > 1:
-        text.append(
+        heading.append(
             f" \u00b7 {count_phrase(len(contributors), 'agent')}",
             style=COLOR_SUMMARY,
         )
-    text.append("\n")
-    text.append("\n")
+    append_section_heading(text, heading)
 
     if len(contributors) == 1:
         _append_flat_variables(text, contributors[0].output_variables)

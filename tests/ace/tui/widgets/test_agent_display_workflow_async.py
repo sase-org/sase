@@ -24,6 +24,9 @@ from sase.ace.tui.widgets.prompt_panel._workflow_display import (
     _load_workflow_detail_snapshot,
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_types import WorkflowDetailSnapshot
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_rendered_section_is_compact,
+)
 
 
 def _make_agent(**overrides: object) -> Agent:
@@ -144,6 +147,19 @@ def test_workflow_snapshot_render_reads_state_once_and_uses_parsed_data(
     assert "INPUTS" in plain
     assert 'task: "fix"' in plain
     assert "Step 1/1" in plain
+    rendered = panel.captured[-1]
+    assert_rendered_section_is_compact(
+        rendered,
+        "WORKFLOW DETAILS",
+        "Workflow: demo_workflow",
+    )
+    assert_rendered_section_is_compact(
+        rendered,
+        "WORKFLOW VARIABLES",
+        "Result: ok",
+    )
+    assert_rendered_section_is_compact(rendered, "INPUTS", '  task: "fix"')
+    assert_rendered_section_is_compact(rendered, "WORKFLOW STEPS", "  Step 1/1")
 
 
 def test_workflow_snapshot_omits_workflow_variables_header_when_no_meta_fields(
@@ -230,6 +246,29 @@ def test_workflow_snapshot_renders_prompt_markers_and_embedded_meta_in_order(
     assert plain.index("#deploy(env=prod)") < plain.index("prep")
     assert plain.index("prep") < plain.index("cleanup")
     assert plain.index("AGENT PROMPT") < plain.index("early prompt")
+    assert_rendered_section_is_compact(
+        renderable,
+        "AGENT PROMPT",
+        "early prompt",
+    )
+
+
+def test_empty_workflow_steps_placeholder_is_compact() -> None:
+    renderable = _build_workflow_detail_renderable(
+        _make_agent(),
+        _workflow_snapshot(),
+    )
+
+    assert_rendered_section_is_compact(
+        renderable,
+        "WORKFLOW DETAILS",
+        "Workflow: demo_workflow",
+    )
+    assert_rendered_section_is_compact(
+        renderable,
+        "WORKFLOW STEPS",
+        "No workflow state found.",
+    )
 
 
 def test_workflow_detail_uses_custom_slow_tool_threshold() -> None:

@@ -19,6 +19,8 @@ from sase.core.agent_scan_wire import AgentMetaWire
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_dim_divider_before,
+    assert_logical_section_is_compact,
+    assert_rendered_section_is_compact,
 )
 
 
@@ -96,6 +98,10 @@ def test_output_variables_section_orders_before_artifacts_and_workflow_variables
     assert plain.index("OUTPUT VARIABLES\n") < plain.index("Artifacts:\n")
     assert plain.index("OUTPUT VARIABLES\n") < plain.index("WORKFLOW VARIABLES\n")
     assert_dim_divider_before(header, "OUTPUT VARIABLES\n")
+    assert_logical_section_is_compact(header, "OUTPUT VARIABLES", "a_notes:")
+    assert_logical_section_is_compact(header, "WORKFLOW VARIABLES", "Result:")
+    assert_rendered_section_is_compact(header, "OUTPUT VARIABLES", "a_notes:")
+    assert_rendered_section_is_compact(header, "WORKFLOW VARIABLES", "Result:")
 
 
 def test_filesystem_and_wire_output_variables_render_identically(

@@ -18,6 +18,7 @@ from ._agent_display_content import (
     render_attempt_divider,
     render_timestamp_divider,
 )
+from ._helpers import append_section_heading
 
 
 def should_render_merged(agent: Agent, attempt_view_mode: str) -> bool:
@@ -97,8 +98,7 @@ class AgentAttemptDisplayMixin:
         renderables.append(divider)
 
         prompt_header = Text()
-        prompt_header.append("AGENT PROMPT\n", style="bold #D7AF5F underline")
-        prompt_header.append("\n")
+        append_section_heading(prompt_header, "AGENT PROMPT")
         renderables.append(prompt_header)
         prompt_content = get_prompt_content(agent)
         if prompt_content:
@@ -112,11 +112,10 @@ class AgentAttemptDisplayMixin:
         reply_header.append("\n")
         reply_header.append("─" * 50 + "\n", style="dim")
         reply_header.append("\n")
-        reply_header.append(
-            f"ATTEMPT {record.attempt_number} REPLY\n",
-            style="bold #D7AF5F underline",
+        append_section_heading(
+            reply_header,
+            f"ATTEMPT {record.attempt_number} REPLY",
         )
-        reply_header.append("\n")
         renderables.append(reply_header)
 
         chunks = record.get_timestamped_reply_chunks()
@@ -173,8 +172,11 @@ def render_attempt_banner(record: AttemptRecord, *, total: int) -> Text:
     if record.used_fallback and record.model:
         banner.append(f"Fallback model: {record.model}\n", style="dim #FF8700")
     banner.append("\n")
-    banner.append("ATTEMPT ERROR\n", style="bold #FF5F5F underline")
-    banner.append("\n")
+    append_section_heading(
+        banner,
+        "ATTEMPT ERROR",
+        style="bold #FF5F5F underline",
+    )
     return banner
 
 

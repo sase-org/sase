@@ -15,6 +15,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_display import (
     AgentDisplayMixin,
     _render_attempt_banner,
 )
+from tests.ace.tui.widgets._agent_display_metadata_helpers import (
+    assert_rendered_section_is_compact,
+)
 
 
 def _make_record(
@@ -85,6 +88,21 @@ def test_render_attempt_pinned_emits_error_and_prompt_and_reply() -> None:
         assert "Viewing Attempt 1 of 1" in plain
         assert "ZeroDivisionError" in plain
         assert "partial reply from attempt 1" in plain
+        assert_rendered_section_is_compact(
+            rendered,
+            "ATTEMPT ERROR",
+            "Traceback (most recent call last):",
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "AGENT PROMPT",
+            "No prompt file found.",
+        )
+        assert_rendered_section_is_compact(
+            rendered,
+            "ATTEMPT 1 REPLY",
+            "partial reply from attempt 1",
+        )
 
 
 def test_render_attempt_pinned_missing_attempt_shows_error() -> None:
@@ -124,6 +142,11 @@ def test_render_attempt_pinned_handles_missing_reply_file() -> None:
     assert isinstance(rendered, Group)
     plain = _concat_plain(rendered)
     assert "no partial reply captured" in plain
+    assert_rendered_section_is_compact(
+        rendered,
+        "ATTEMPT 1 REPLY",
+        "(no partial reply captured)",
+    )
 
 
 def test_attempt_banner_labels_attempt_of_total() -> None:
