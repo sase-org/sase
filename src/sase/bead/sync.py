@@ -38,6 +38,8 @@ _INTEGRATION_MARKER = "sase-bead-sync.integration"
 
 def git_sync(beads_dir: Path) -> None:
     """Stage bead state in git (does not commit)."""
+    from sase.sdd._git_contention import run_sdd_git_write
+
     if not beads_dir.exists():
         return
     repo_root = _find_git_root(beads_dir)
@@ -46,11 +48,12 @@ def git_sync(beads_dir: Path) -> None:
     files = _list_bead_state_changes_silent(beads_dir, repo_root)
     if not files:
         return
-    subprocess.run(
-        ["git", "add", "--", *files],
+    run_sdd_git_write(
+        ["add", "--", *files],
         cwd=repo_root,
         capture_output=True,
         check=False,
+        op="bead.git_sync.add",
     )
 
 
@@ -66,6 +69,8 @@ def commit_bead_work_launch(
     Returns False for benign no-op cases: no git repo, no bead state, or no
     staged bead-state change after adding the store.
     """
+    from sase.sdd._git import run_sdd_git
+
     del title
     if not beads_dir.exists():
         return False
@@ -78,18 +83,20 @@ def commit_bead_work_launch(
     if not files:
         return False
 
-    _run_git_or_raise(
-        ["git", "add", "--", *files],
+    _run_git_write_or_raise(
+        ["add", "--", *files],
         cwd=repo_root,
         action=f"stage {rel_beads}",
+        op="bead.work_launch.add",
     )
 
-    diff_result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", *files],
+    diff_result = run_sdd_git(
+        ["diff", "--cached", "--quiet", "--", *files],
         cwd=repo_root,
         capture_output=True,
         text=True,
         check=False,
+        op="bead.work_launch.diff_cached",
     )
     if diff_result.returncode == 0:
         return False
@@ -104,10 +111,11 @@ def commit_bead_work_launch(
         f"chore: mark bead work launched for {bead_id}",
         "bead_work",
     )
-    _run_git_or_raise(
-        ["git", "commit", "-m", message, "--", *files],
+    _run_git_write_or_raise(
+        ["commit", "-m", message, "--", *files],
         cwd=repo_root,
         action=f"commit {rel_beads}",
+        op="bead.work_launch.commit",
     )
     return True
 
@@ -157,12 +165,15 @@ def rebuild_from_jsonl(beads_dir: Path) -> bool:
 
 def _find_git_root(path: Path) -> Path | None:
     """Find the git root directory from a given path."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
+    from sase.sdd._git import run_sdd_git
+
+    result = run_sdd_git(
+        ["rev-parse", "--show-toplevel"],
         cwd=path if path.is_dir() else path.parent,
         capture_output=True,
         text=True,
         check=False,
+        op="bead.find_git_root",
     )
     if result.returncode == 0:
         return Path(result.stdout.strip())
@@ -179,10 +190,11 @@ def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
     files matched by ``.gitignore`` (so ``beads.db`` and its SQLite sidecars
     are never returned).
     """
+    from sase.sdd._git import run_sdd_git
+
     rel_beads = _relative_pathspec(beads_dir, repo_root)
-    result = subprocess.run(
+    result = run_sdd_git(
         [
-            "git",
             "ls-files",
             "--modified",
             "--others",
@@ -195,6 +207,7 @@ def _list_bead_state_changes(beads_dir: Path, repo_root: Path) -> list[str]:
         cwd=repo_root,
         capture_output=True,
         check=False,
+        op="bead.changed_files",
     )
     if result.returncode != 0:
         detail = result.stderr.decode(errors="replace").strip()
@@ -230,13 +243,22 @@ def _list_bead_state_changes_silent(beads_dir: Path, repo_root: Path) -> list[st
         return []
 
 
-def _run_git_or_raise(command: list[str], *, cwd: Path, action: str) -> None:
-    result = subprocess.run(
-        command,
+def _run_git_write_or_raise(
+    args: list[str],
+    *,
+    cwd: Path,
+    action: str,
+    op: str,
+) -> None:
+    from sase.sdd._git_contention import run_sdd_git_write
+
+    result = run_sdd_git_write(
+        args,
         cwd=cwd,
         capture_output=True,
         text=True,
         check=False,
+        op=op,
     )
     if result.returncode != 0:
         raise BeadWorkLaunchCommitError(_format_git_failure(action, result))

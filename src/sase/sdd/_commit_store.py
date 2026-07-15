@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 from sase.sdd._git import SddGitCommandTimeout, run_sdd_git
+from sase.sdd._git_contention import SddGitCommandError, run_sdd_git_write
 from sase.sdd._store_types import (
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -39,11 +40,14 @@ def commit_sdd_files(
         return False
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
-    changed_files = changed_sdd_files(sdd_dir, pathspecs)
+    try:
+        changed_files = changed_sdd_files(sdd_dir, pathspecs)
+    except subprocess.CalledProcessError as exc:
+        raise SddGitCommandError.from_error(exc) from exc
     if not changed_files:
         return False
 
-    run_sdd_git(
+    run_sdd_git_write(
         ["add", "--"] + changed_files,
         cwd=sdd_dir,
         check=True,
@@ -69,7 +73,7 @@ def commit_sdd_files(
         )
 
         message = apply_auto_commit_tags_with_runtime(message, auto_commit_type)
-        run_sdd_git(
+        run_sdd_git_write(
             ["commit", "-m", message, "--"] + changed_files,
             cwd=sdd_dir,
             check=True,

@@ -33,6 +33,7 @@ def run_sdd_git(
     capture_output: bool,
     text: bool = False,
     env: Mapping[str, str] | None = None,
+    always_log: bool = False,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a bounded git command with SDD telemetry."""
     timeout_seconds = timeout if timeout is not None else _local_git_timeout()
@@ -80,7 +81,7 @@ def run_sdd_git(
         raise
 
     duration_ms = (time.perf_counter() - start) * 1000.0
-    if _should_log_git_operation(args, duration_ms, result.returncode):
+    if always_log or _should_log_git_operation(args, duration_ms, result.returncode):
         _log_git_operation(
             op=op,
             cmd=cmd,

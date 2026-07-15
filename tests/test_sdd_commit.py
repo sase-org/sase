@@ -3,6 +3,7 @@
 import json
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ import pytest
 
 from sase.axe.run_agent_exec_plan_accept import _commit_sdd_files, _commit_sdd_spec
 from sase.sdd.files import commit_sdd_files, commit_sdd_store_files
+from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
 from sase.sdd.store import SddStore
 
 
@@ -271,6 +273,60 @@ def test_commit_sdd_files_not_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
         commit_sdd_files(sdd_dir, "Should not error")
+
+
+def test_commit_sdd_files_retries_transient_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_test_git_repo(repo)
+    (repo / "plan.md").write_text("plan\n", encoding="utf-8")
+    lock_path = repo / ".git/index.lock"
+    lock_path.touch()
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.01,0.02,0.04,0.08")
+    release = threading.Timer(0.03, lambda: lock_path.unlink(missing_ok=True))
+    release.start()
+
+    try:
+        assert commit_sdd_files(repo, "Commit after contention") is True
+    finally:
+        release.cancel()
+        lock_path.unlink(missing_ok=True)
+
+
+def test_commit_sdd_files_surfaces_stderr_when_index_lock_retry_exhausted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_test_git_repo(repo)
+    (repo / "plan.md").write_text("plan\n", encoding="utf-8")
+    (repo / ".git/index.lock").touch()
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.001,0.001")
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        commit_sdd_files(repo, "Fail after contention")
+
+    message = str(exc_info.value)
+    assert "Unable to create" in message
+    assert "index.lock" in message
+
+
+def test_commit_sdd_files_does_not_retry_non_lock_128(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_test_git_repo(repo)
+    sleep = MagicMock()
+    monkeypatch.setattr("sase.sdd._git_contention.time.sleep", sleep)
+
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        commit_sdd_files(repo, "Invalid pathspec", paths=[":(invalid)"])
+
+    assert "pathspec" in str(exc_info.value).lower()
+    sleep.assert_not_called()
 
 
 def test_commit_sdd_files_passes_tempfile_to_m() -> None:

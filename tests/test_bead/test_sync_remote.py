@@ -4,11 +4,76 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 
-from sase.bead.sync import push_bead_work_launch
+from sase.bead.sync import (
+    commit_bead_work_launch,
+    git_sync,
+    push_bead_work_launch,
+)
 from sase.bead.sync_worker import run_managed_sync_worker
+from sase.sdd._git_contention import ENV_GIT_LOCK_RETRY_DELAYS
 
 from .sync_test_helpers import configure_git_identity, init_git_repo
+
+
+def test_git_sync_retries_transient_index_lock(tmp_path, monkeypatch):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    state_file = beads_dir / "issues.jsonl"
+    state_file.write_text('{"id":"test"}\n', encoding="utf-8")
+    lock_path = tmp_path / ".git/index.lock"
+    lock_path.touch()
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.01,0.02,0.04,0.08")
+    release = threading.Timer(0.03, lambda: lock_path.unlink(missing_ok=True))
+    release.start()
+
+    try:
+        git_sync(beads_dir)
+    finally:
+        release.cancel()
+        lock_path.unlink(missing_ok=True)
+
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert staged == ["sdd/beads/issues.jsonl"]
+
+
+def test_commit_bead_work_launch_retries_transient_index_lock(
+    tmp_path,
+    monkeypatch,
+):
+    init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    (beads_dir / "issues.jsonl").write_text(
+        '{"id":"test"}\n',
+        encoding="utf-8",
+    )
+    lock_path = tmp_path / ".git/index.lock"
+    lock_path.touch()
+    monkeypatch.setenv(ENV_GIT_LOCK_RETRY_DELAYS, "0.01,0.02,0.04,0.08")
+    release = threading.Timer(0.03, lambda: lock_path.unlink(missing_ok=True))
+    release.start()
+
+    try:
+        committed = commit_bead_work_launch(
+            beads_dir,
+            "sase-1",
+            "Test epic",
+            kind="epic",
+        )
+    finally:
+        release.cancel()
+        lock_path.unlink(missing_ok=True)
+
+    assert committed is True
 
 
 def test_push_bead_work_launch_skips_when_no_remote(tmp_path):
