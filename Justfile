@@ -13,8 +13,12 @@ prettier_bin := "node_modules/.bin/prettier"
 # provide the workspace-matched linked checkout via
 # SASE_LINKED_REPO_SASE_CORE_DIR. Keep the legacy SASE_SIBLING_REPO_SASE_CORE_DIR
 # and SASE_SIBLING_REPO_CORE_DIR variables as compatibility fallbacks for older
-# launch environments.
-sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", "../sase-core"))))
+# launch environments. Without those variables, numbered workspaces keep linked
+# repos under sase/repos/linked, while primary and older development layouts use
+# the sibling ../sase-core checkout.
+workspace_sase_core_dir := "sase/repos/linked/sase-core"
+fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
+sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
 
 # Even with the bundled-font pin, resvg rasterizes a small, fixed set of pixels
 # differently across host OSes (macOS arm64 vs CI's Linux x86_64), so the golden

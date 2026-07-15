@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -20,10 +21,16 @@ def _clean_sase_core_env(env_vars: dict[str, str]) -> dict[str, str]:
     return env
 
 
-def _evaluate_sase_core_dir(env_vars: dict[str, str]) -> str:
+@pytest.fixture
+def isolated_justfile_root(tmp_path: Path) -> Path:
+    shutil.copyfile(ROOT / "Justfile", tmp_path / "Justfile")
+    return tmp_path
+
+
+def _evaluate_sase_core_dir(env_vars: dict[str, str], *, root: Path) -> str:
     result = subprocess.run(
-        ["just", "--justfile", str(ROOT / "Justfile"), "--evaluate", "sase_core_dir"],
-        cwd=ROOT,
+        ["just", "--justfile", str(root / "Justfile"), "--evaluate", "sase_core_dir"],
+        cwd=root,
         env=_clean_sase_core_env(env_vars),
         check=True,
         capture_output=True,
@@ -63,13 +70,33 @@ def _evaluate_sase_core_dir(env_vars: dict[str, str]) -> str:
             {"SASE_SIBLING_REPO_CORE_DIR": "/tmp/sibling-sase-core"},
             "/tmp/sibling-sase-core",
         ),
-        ({}, "../sase-core"),
     ],
 )
 def test_justfile_sase_core_dir_precedence(
-    env_vars: dict[str, str], expected: str
+    isolated_justfile_root: Path, env_vars: dict[str, str], expected: str
 ) -> None:
-    assert _evaluate_sase_core_dir(env_vars) == expected
+    workspace_core = isolated_justfile_root / "sase/repos/linked/sase-core"
+    workspace_core.mkdir(parents=True)
+
+    assert _evaluate_sase_core_dir(env_vars, root=isolated_justfile_root) == expected
+
+
+def test_justfile_prefers_workspace_local_sase_core(
+    isolated_justfile_root: Path,
+) -> None:
+    workspace_core = isolated_justfile_root / "sase/repos/linked/sase-core"
+    workspace_core.mkdir(parents=True)
+
+    assert (
+        _evaluate_sase_core_dir({}, root=isolated_justfile_root)
+        == "sase/repos/linked/sase-core"
+    )
+
+
+def test_justfile_preserves_sibling_sase_core_fallback(
+    isolated_justfile_root: Path,
+) -> None:
+    assert _evaluate_sase_core_dir({}, root=isolated_justfile_root) == "../sase-core"
 
 
 def test_justfile_preserves_absolute_venv_dir_override() -> None:
