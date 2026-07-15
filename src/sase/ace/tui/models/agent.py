@@ -245,6 +245,11 @@ class Agent:
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
 
+    # True while this row's own pending_question.json marker exists. Root rows
+    # with this flag have yielded their runner slot; family status propagation
+    # must not be used as a substitute because a child question remains exempt.
+    runner_slot_yielded: bool = False
+
     # Explicit artifacts directory path (for workflow steps loaded from marker files)
     artifacts_dir: str | None = None
 

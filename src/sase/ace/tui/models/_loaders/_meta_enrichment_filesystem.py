@@ -283,14 +283,14 @@ def enrich_agent_from_meta(
 
     # Check for pending_question.json to set QUESTION/ANSWERED status. The
     # marker is written by handle_questions_flow() before the response-wait
-    # poll loop and cleared on every exit path, so its presence is the
-    # authoritative signal that the agent is currently blocked on user input,
-    # independent of the notification's dismissed/read state. When the user has
-    # already written question_response.json (but the runner has not yet
-    # consumed it and cleared the marker) the transient ANSWERED status shows
-    # instead of QUESTION.
+    # poll loop and retained until a root has reacquired its runner slot. Its
+    # presence is therefore the authoritative slot-yield signal, independent of
+    # the notification's dismissed/read state. A simultaneous waiting marker
+    # wins after the answer because the root is queued to resume.
     pending_question_path = Path(artifacts_dir) / "pending_question.json"
-    if pending_question_path.exists() and agent.status in ACTIVE_ENRICHMENT_STATUSES:
+    pending_question_exists = pending_question_path.exists()
+    agent.runner_slot_yielded = pending_question_exists
+    if pending_question_exists and agent.status in ACTIVE_ENRICHMENT_STATUSES:
         agent.status = pending_question_status_from_marker(pending_question_path)
 
     # Set plan review / approval statuses for agents whose agent_meta carries

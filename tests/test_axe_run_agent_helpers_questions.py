@@ -5,7 +5,15 @@ import os
 import threading
 import time
 
+import pytest
+
+from sase.axe import run_agent_wait
 from sase.axe.run_agent_helpers import handle_questions_flow
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    WorkflowStateWire,
+)
 
 
 def _run_questions_flow(
@@ -14,6 +22,7 @@ def _run_questions_flow(
     *,
     kill_after=None,
     send_response_after=None,
+    reacquire_runner_slot=None,
 ):
     """Run handle_questions_flow with stubs and return (result, marker_during_poll)."""
     marker_path = os.path.join(str(artifacts_dir), "pending_question.json")
@@ -30,8 +39,9 @@ def _run_questions_flow(
                 marker_seen["payload"] = {}
         if send_response_after is not None:
             session_id = marker_seen.get("payload", {}).get("session_id")
-            if session_id:
-                response_dir = os.path.expanduser(f"~/.sase/user_question/{session_id}")
+            request_path = marker_seen.get("payload", {}).get("request_path")
+            if session_id and isinstance(request_path, str):
+                response_dir = os.path.dirname(request_path)
                 with open(
                     os.path.join(response_dir, "question_response.json"),
                     "w",
@@ -44,7 +54,12 @@ def _run_questions_flow(
     helper_thread = threading.Thread(target=_respond_or_kill)
     helper_thread.start()
     try:
-        result = handle_questions_flow(questions, str(artifacts_dir))
+        result = handle_questions_flow(
+            questions,
+            str(artifacts_dir),
+            reacquire_runner_slot=reacquire_runner_slot,
+            run_started_at="original-start",
+        )
     finally:
         helper_thread.join()
     return result, marker_seen.get("payload")
@@ -131,6 +146,111 @@ def test_pending_question_marker_updates_artifact_index_on_create_and_delete(
 
     assert result is not None
     assert calls == [str(tmp_path), str(tmp_path)]
+
+
+def test_answer_keeps_question_marker_until_runner_slot_claim(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active", lambda: False
+    )
+    monkeypatch.setattr("sase.main.plan_approve_handler.get_tmux_prefix", lambda: "")
+    monkeypatch.setattr("sase.main.plan_approve_handler.ring_tmux_bell", lambda: None)
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda title, body: None,
+    )
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_user_question", lambda **kwargs: None
+    )
+    marker_path = tmp_path / "pending_question.json"
+    observations: list[bool] = []
+
+    def reacquire(claim):
+        observations.append(marker_path.exists())
+        assert claim() == "original-start"
+        observations.append(marker_path.exists())
+        return "original-start"
+
+    result, _marker = _run_questions_flow(
+        tmp_path,
+        [{"question": "do thing?", "options": []}],
+        send_response_after={"answers": [], "global_note": ""},
+        reacquire_runner_slot=reacquire,
+    )
+
+    assert result is not None
+    assert observations == [True, False]
+    assert not marker_path.exists()
+
+
+def test_kill_while_answered_question_is_queued_cleans_both_markers(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.is_auto_approve_active", lambda: False
+    )
+    monkeypatch.setattr("sase.main.plan_approve_handler.get_tmux_prefix", lambda: "")
+    monkeypatch.setattr("sase.main.plan_approve_handler.ring_tmux_bell", lambda: None)
+    monkeypatch.setattr(
+        "sase.main.plan_approve_handler.send_desktop_notification",
+        lambda title, body: None,
+    )
+    monkeypatch.setattr(
+        "sase.notifications.senders.notify_user_question", lambda **kwargs: None
+    )
+    running_record = AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir=str(tmp_path / "project"),
+        project_file=str(tmp_path / "project" / "proj.gp"),
+        workflow_dir_name="ace-run",
+        artifact_dir=str(tmp_path / "running"),
+        timestamp="20260712115959",
+        agent_meta=AgentMetaWire(
+            pid=200,
+            run_started_at="2026-07-12T11:59:59Z",
+        ),
+        workflow_state=WorkflowStateWire(appears_as_agent=True),
+    )
+    kill_checks = iter((False, True))
+    monkeypatch.setattr(
+        run_agent_wait,
+        "_scan_runner_slot_records",
+        lambda: [running_record],
+    )
+    monkeypatch.setattr(run_agent_wait, "is_process_alive", lambda *args: True)
+    monkeypatch.setattr(run_agent_wait, "get_max_running_agents", lambda: 1)
+    monkeypatch.setattr(
+        run_agent_wait,
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda path: None,
+    )
+    monkeypatch.setattr(
+        run_agent_wait,
+        "was_killed",
+        lambda: next(kill_checks, True),
+    )
+    monkeypatch.setattr(run_agent_wait, "_RUNNER_SLOT_POLL_INTERVAL", 0)
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    def reacquire(claim):
+        return run_agent_wait.wait_for_runner_slot(
+            str(tmp_path),
+            "proj",
+            "20260712120000",
+            {"pid": 100, "run_started_at": "original-start"},
+            wait_runners=None,
+            claim=claim,
+        )
+
+    with pytest.raises(SystemExit, match="143"):
+        _run_questions_flow(
+            tmp_path,
+            [{"question": "do thing?", "options": []}],
+            send_response_after={"answers": [], "global_note": ""},
+            reacquire_runner_slot=reacquire,
+        )
+
+    assert not (tmp_path / "pending_question.json").exists()
+    assert not (tmp_path / "waiting.json").exists()
 
 
 def test_questions_flow_passes_agent_root_timestamp(tmp_path, monkeypatch):

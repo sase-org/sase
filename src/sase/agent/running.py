@@ -74,6 +74,9 @@ class RunningAgentInfo:
     started_at: datetime | None = None
     duration_seconds: int | None = None
     artifacts_dir: str | None = None
+    # Exact scheduler occupancy from the source scan record. ``None`` preserves
+    # compatibility for integrations that construct this lightweight type.
+    holds_runner_slot: bool | None = None
 
 
 _DONE_AGENTS_CAP_PER_PROJECT = 50
@@ -134,6 +137,16 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
 def _active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if record.waiting is not None:
         return "WAITING"
+    pending_question = record.pending_question
+    if pending_question is not None:
+        request_path = pending_question.request_path
+        if request_path:
+            try:
+                if Path(request_path).with_name("question_response.json").exists():
+                    return "ANSWERED"
+            except OSError:
+                pass
+        return "QUESTION"
     meta = record.agent_meta
     if meta is not None and (meta.run_started_at or meta.wait_completed_at):
         return "RUNNING"
@@ -226,6 +239,7 @@ def _running_info_from_running_record(
         started_at=started_at,
         duration_seconds=duration_seconds,
         artifacts_dir=record.artifact_dir,
+        holds_runner_slot=bool(meta.run_started_at) and record.pending_question is None,
     )
 
 

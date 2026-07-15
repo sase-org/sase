@@ -185,7 +185,18 @@ def agent_list_entries(
 ) -> list[AgentListEntry]:
     """Return rich agent list entries for active and optionally recent agents."""
     agents = list_all_agents() if include_recent else list_running_agents()
-    runner_slots_in_use = sum(1 for agent in agents if agent.status == "RUNNING")
+    # The listing layer has already filtered to live root user agents and
+    # carries exact source-record occupancy. The status fallback preserves
+    # compatibility for integrations that construct RunningAgentInfo directly.
+    runner_slots_in_use = sum(
+        1
+        for agent in agents
+        if (
+            agent.holds_runner_slot
+            if agent.holds_runner_slot is not None
+            else agent.status == "RUNNING"
+        )
+    )
     now = datetime.now(get_timezone())
     child_summaries = _children_by_parent_timestamp(project=project) if agents else {}
     entries: list[AgentListEntry] = []
@@ -208,7 +219,13 @@ def _attach_runner_slot_context(
     runner_slots_in_use: int,
 ) -> list[AgentListEntry]:
     waiters = sorted(
-        (entry for entry in entries if entry.wait.slot_requested_at),
+        (
+            entry
+            for entry in entries
+            if entry.wait.slot_requested_at
+            and entry.wait.wait_runners is not None
+            and runner_slots_in_use <= entry.wait.wait_runners
+        ),
         key=lambda entry: (
             _parse_iso_datetime(entry.wait.slot_requested_at)
             or datetime.max.replace(tzinfo=get_timezone()),
@@ -411,7 +428,11 @@ def _derive_status(
     derived = status or "RUNNING"
     if waiting is not None and derived in _ACTIVE_OR_PRE_ACTIVE_STATUSES:
         derived = "WAITING"
-    if pending_question is not None and derived in _ACTIVE_OR_PRE_ACTIVE_STATUSES:
+    if (
+        waiting is None
+        and pending_question is not None
+        and derived in _ACTIVE_OR_PRE_ACTIVE_STATUSES
+    ):
         derived = _pending_question_status(pending_question.request_path)
     if meta is not None and meta.plan and derived in _ACTIVE_OR_PRE_ACTIVE_STATUSES:
         plan_status = _plan_status(meta)

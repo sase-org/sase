@@ -94,3 +94,30 @@ def test_refresh_runner_slot_context_excludes_children_and_non_ace_rows() -> Non
     refresh_runner_slot_context([child, axe, waiter])
 
     assert waiter.runner_slots_in_use == 0
+
+
+def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
+    running = _agent(
+        "running",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+    )
+    paused = _agent(
+        "paused",
+        status="QUESTION",
+        run_start_time=datetime(2026, 7, 12, 11, 58),
+        runner_slot_yielded=True,
+    )
+    answered_waiter = _agent(
+        "answered",
+        status="WAITING",
+        run_start_time=datetime(2026, 7, 12, 11, 57),
+        runner_slot_yielded=True,
+        wait_runners=1,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    refresh_runner_slot_context([running, paused, answered_waiter])
+
+    assert answered_waiter.runner_slots_in_use == 1
+    assert answered_waiter.runner_slot_queue_position == 1

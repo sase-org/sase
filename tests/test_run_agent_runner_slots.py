@@ -11,6 +11,7 @@ from sase.axe import run_agent_wait
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
+    PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
 )
@@ -52,6 +53,11 @@ def _record(path: Path, *, started: bool = False) -> AgentArtifactRecordWire:
             else None
         ),
         workflow_state=WorkflowStateWire(appears_as_agent=True),
+        pending_question=(
+            PendingQuestionMarkerWire(session_id="question")
+            if (path / "pending_question.json").exists()
+            else None
+        ),
     )
 
 
@@ -253,3 +259,74 @@ def test_child_agent_is_exempt_from_scanning_and_queueing(tmp_path: Path) -> Non
     assert started_at == "started"
     scan.assert_not_called()
     assert not (child / "waiting.json").exists()
+
+
+def test_answered_root_reacquires_after_yield_without_oversubscribing(
+    tmp_path: Path,
+) -> None:
+    paused = _artifact(tmp_path, "20260712120000", 100)
+    newcomer = _artifact(tmp_path, "20260712120001", 101)
+    (paused / "pending_question.json").write_text(
+        json.dumps({"session_id": "question"})
+    )
+    newcomer_started = False
+
+    def scan() -> list[AgentArtifactRecordWire]:
+        return [
+            _record(paused, started=True),
+            _record(newcomer, started=newcomer_started),
+        ]
+
+    with (
+        patch.object(run_agent_wait, "_scan_runner_slot_records", side_effect=scan),
+        patch.object(run_agent_wait, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        admitted, parked = run_agent_wait._try_claim_runner_slot(
+            artifacts_dir=str(newcomer),
+            cl_name="cl",
+            timestamp=newcomer.name,
+            directive_threshold=None,
+            claim=lambda: "newcomer-started",
+        )
+        assert admitted == "newcomer-started"
+        assert not parked
+        newcomer_started = True
+
+        resumed, parked = run_agent_wait._try_claim_runner_slot(
+            artifacts_dir=str(paused),
+            cl_name="cl",
+            timestamp=paused.name,
+            directive_threshold=None,
+            claim=lambda: "resumed",
+        )
+        assert resumed is None
+        assert parked
+        assert (paused / "pending_question.json").exists()
+        queued = json.loads((paused / "waiting.json").read_text())
+        assert queued["wait_runners"] == 0
+        assert queued["wait_runners_explicit"] is False
+
+        newcomer_started = False
+
+        def claim_resume() -> str:
+            (paused / "pending_question.json").unlink()
+            return "resumed"
+
+        resumed, parked = run_agent_wait._try_claim_runner_slot(
+            artifacts_dir=str(paused),
+            cl_name="cl",
+            timestamp=paused.name,
+            directive_threshold=None,
+            claim=claim_resume,
+        )
+
+    assert resumed == "resumed"
+    assert not parked
+    assert not (paused / "pending_question.json").exists()
+    assert not (paused / "waiting.json").exists()

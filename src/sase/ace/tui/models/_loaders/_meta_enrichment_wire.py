@@ -43,6 +43,8 @@ def enrich_agent_from_meta_wire(
     if meta is None:
         return
 
+    agent.runner_slot_yielded = pending_question is not None
+
     if meta.model:
         agent.model = meta.model
     if meta.llm_provider:
@@ -184,8 +186,9 @@ def enrich_agent_from_meta_wire(
         agent.wait_until = meta.wait_until
 
     # pending_question.json: marker presence flips active rows to QUESTION, or
-    # ANSWERED once the user's question_response.json has landed but the runner
-    # has not yet consumed it (mirrors the filesystem helper).
+    # ANSWERED once the user's question_response.json has landed. A simultaneous
+    # waiting marker wins because it means the answered root is queued to
+    # reacquire its runner slot before resuming.
     if pending_question is not None and agent.status in ACTIVE_ENRICHMENT_STATUSES:
         agent.status = pending_question_status_for_request_path(
             pending_question.request_path

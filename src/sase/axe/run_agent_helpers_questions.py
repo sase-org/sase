@@ -6,6 +6,7 @@ import json
 import os
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -16,11 +17,34 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.core.paths import sase_subdir
 from sase.main.qa_prompt import build_qa_round, merge_qa_for_prompt
 
+RunnerSlotReacquirer = Callable[[Callable[[], str]], str]
+
+
+def _remove_pending_question_marker(
+    artifacts_dir: str,
+    *,
+    claimed_at: str | None = None,
+    strict: bool = False,
+) -> str:
+    """Remove the question pause marker and return a slot-claim timestamp."""
+    marker_path = os.path.join(artifacts_dir, "pending_question.json")
+    try:
+        os.unlink(marker_path)
+        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    except OSError:
+        if strict:
+            raise
+    return claimed_at or datetime.now(UTC).isoformat()
+
 
 def handle_questions_flow(
-    questions: list[dict[str, Any]], artifacts_dir: str
+    questions: list[dict[str, Any]],
+    artifacts_dir: str,
+    *,
+    reacquire_runner_slot: RunnerSlotReacquirer | None = None,
+    run_started_at: str | None = None,
 ) -> dict[str, Any] | None:
-    """Handle the questions notification and polling flow."""
+    """Handle the questions notification, pause, and slot reacquisition flow."""
     from sase.main.plan_approve_handler import (
         get_tmux_prefix,
         is_auto_approve_active,
@@ -79,6 +103,7 @@ def handle_questions_flow(
     ring_tmux_bell()
 
     pending_marker_path = os.path.join(artifacts_dir, "pending_question.json")
+    marker_written = False
     try:
         marker_payload = {
             "session_id": session_id,
@@ -88,6 +113,7 @@ def handle_questions_flow(
         with open(pending_marker_path, "w", encoding="utf-8") as f:
             json.dump(marker_payload, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+        marker_written = True
     except OSError:
         pass
 
@@ -105,14 +131,18 @@ def handle_questions_flow(
                         response["_question_request_path"] = request_path
                         response["_question_response_path"] = response_path
                         response["_question_session_id"] = session_id
+                    if marker_written and reacquire_runner_slot is not None:
+                        reacquire_runner_slot(
+                            lambda: _remove_pending_question_marker(
+                                artifacts_dir,
+                                claimed_at=run_started_at,
+                                strict=True,
+                            )
+                        )
                     return response
                 except (json.JSONDecodeError, OSError):
                     pass
 
             time.sleep(0.5)
     finally:
-        try:
-            os.unlink(pending_marker_path)
-            update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-        except OSError:
-            pass
+        _remove_pending_question_marker(artifacts_dir)

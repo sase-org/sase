@@ -60,6 +60,7 @@ def _counts_as_running_root(agent: Agent) -> bool:
         and agent.pid is not None
         and agent.run_start_time is not None
         and agent.stop_time is None
+        and not agent.runner_slot_yielded
         and agent.status not in {"DONE", "FAILED", "FAILED (RETRIED)"}
     )
 

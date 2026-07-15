@@ -9,6 +9,7 @@ The implementation is split by responsibility:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import create_artifacts_directory
@@ -152,10 +153,19 @@ def create_followup_artifacts(
 
 
 def handle_questions_flow(
-    questions: list[dict[str, Any]], artifacts_dir: str
+    questions: list[dict[str, Any]],
+    artifacts_dir: str,
+    *,
+    reacquire_runner_slot: Callable[[Callable[[], str]], str] | None = None,
+    run_started_at: str | None = None,
 ) -> dict[str, Any] | None:
     _sync_patchable_dependencies()
-    return _questions.handle_questions_flow(questions, artifacts_dir)
+    return _questions.handle_questions_flow(
+        questions,
+        artifacts_dir,
+        reacquire_runner_slot=reacquire_runner_slot,
+        run_started_at=run_started_at,
+    )
 
 
 def build_qa_round(

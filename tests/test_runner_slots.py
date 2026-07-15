@@ -5,6 +5,7 @@ from __future__ import annotations
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
+    PendingQuestionMarkerWire,
     WaitingMarkerWire,
     WorkflowStateWire,
 )
@@ -26,6 +27,7 @@ def _record(
     parent_timestamp: str | None = None,
     appears_as_agent: bool = True,
     done: bool = False,
+    pending_question: bool = False,
 ) -> AgentArtifactRecordWire:
     return AgentArtifactRecordWire(
         project_name="proj",
@@ -49,6 +51,11 @@ def _record(
         ),
         workflow_state=WorkflowStateWire(appears_as_agent=appears_as_agent),
         has_done_marker=done,
+        pending_question=(
+            PendingQuestionMarkerWire(session_id="question")
+            if pending_question
+            else None
+        ),
     )
 
 
@@ -66,6 +73,21 @@ def test_running_count_uses_live_started_roots_only() -> None:
         running_root_agent_count(records, lambda record: record.agent_meta.pid != 6)
         == 1
     )  # type: ignore[union-attr]
+
+
+def test_question_paused_root_yields_until_pause_marker_is_removed() -> None:
+    records = [
+        _record("/ordinary", pid=1, run_started=True),
+        _record("/question", pid=2, run_started=True, pending_question=True),
+    ]
+
+    assert running_root_agent_count(records, lambda _record: True) == 1
+
+    resumed = [
+        _record("/ordinary", pid=1, run_started=True),
+        _record("/question", pid=2, run_started=True),
+    ]
+    assert running_root_agent_count(resumed, lambda _record: True) == 2
 
 
 def test_live_waiter_queue_is_fifo_and_filters_stale_processes() -> None:

@@ -141,9 +141,36 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
     assert first.wait.wait_runners == 9
     assert first.wait.runner_slots_in_use == 7
     assert first.wait.runner_slot_queue_position == 1
-    assert first.wait.runner_slot_queue_size == 2
+    assert first.wait.runner_slot_queue_size == 1
     assert second.wait.wait_runners_explicit is True
-    assert second.wait.runner_slot_queue_position == 2
+    assert second.wait.runner_slot_queue_position is None
+    assert second.wait.runner_slot_queue_size == 1
+
+
+def test_answered_question_runner_wait_has_waiting_precedence(tmp_path) -> None:
+    request_path = tmp_path / "question_request.json"
+    request_path.write_text("{}")
+    (tmp_path / "question_response.json").write_text("{}")
+    entry = _build_agent_list_entry(
+        _agent(status="RUNNING"),
+        record=_record(
+            agent_meta=AgentMetaWire(run_started_at="2026-07-09T12:00:00Z"),
+            pending_question=PendingQuestionMarkerWire(
+                session_id="q1", request_path=str(request_path)
+            ),
+            waiting=WaitingMarkerWire(
+                wait_runners=0,
+                slot_requested_at="2026-07-09T12:05:00Z",
+            ),
+        ),
+    )
+
+    assert entry.status == "WAITING"
+    assert entry.wait.wait_runners == 0
+    assert entry.wait.slot_requested_at == "2026-07-09T12:05:00Z"
+
+    (entry,) = _attach_runner_slot_context([entry], 0)
+    assert entry.wait.runner_slot_queue_position == 1
 
 
 def test_plan_marker_becomes_actionable_plan_ready() -> None:
@@ -202,13 +229,13 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
             ),
         ),
     )
-    (entry,) = _attach_runner_slot_context([entry], 3)
+    (entry,) = _attach_runner_slot_context([entry], 0)
 
     payload = _agent_to_json(entry)
 
     assert payload["wait_runners"] == 0
     assert payload["wait_runners_explicit"] is True
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
-    assert payload["runner_slots_in_use"] == 3
+    assert payload["runner_slots_in_use"] == 0
     assert payload["runner_slot_queue_position"] == 1
     assert payload["runner_slot_queue_size"] == 1

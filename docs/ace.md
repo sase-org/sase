@@ -1373,11 +1373,12 @@ active (the agent is still running or awaiting input) and completed (the agent h
 | **RETRYING**       | Orange       | Agent hit a retryable error and is in a countdown before retrying   |
 
 `QUESTION` status survives notification dismissal. While an agent is waiting for an answer it writes a
-`pending_question.json` marker into its run directory and removes the marker once it resumes (whether the user replied,
-the agent was killed, or it crashed). Any `RUNNING` row whose run directory contains the marker is shown as `QUESTION`,
-so the "waiting on you" status keeps appearing even after you dismiss the matching question notification from the inbox.
-The `,n` shortcut (jump to the open question) reads the marker directly when no unread notification is left, so it can
-still reopen the question modal.
+`pending_question.json` marker into its run directory and temporarily yields its root runner slot. The marker remains
+until the agent reacquires capacity after an answer, or until the agent is killed or crashes. If capacity is full after
+the answer, the row becomes a normal runner-slot `WAITING` row before follow-up work resumes. Any otherwise-active row
+whose own run directory contains an unanswered marker is shown as `QUESTION`, so the "waiting on you" status keeps
+appearing even after you dismiss the matching question notification from the inbox. The `,n` shortcut (jump to the open
+question) reads the marker directly when no unread notification is left, so it can still reopen the question modal.
 
 `QUESTION` also propagates up agent families. When a completed row recorded a question (`questions_times` is non-empty)
 but has neither a persisted `question_response_path` nor a later follow-up child, the parent workflow row inherits

@@ -36,6 +36,7 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
+from sase.axe.run_agent_wait import wait_for_runner_slot
 from sase.axe.runner_utils import reset_killed
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
@@ -203,6 +204,19 @@ def handle_questions_marker(
     response = handle_questions_flow(
         event.payload.get("questions", []),
         state.current_artifacts_dir,
+        reacquire_runner_slot=lambda claim: wait_for_runner_slot(
+            state.current_artifacts_dir,
+            ctx.cl_name,
+            Path(state.current_artifacts_dir).name,
+            base_meta,
+            wait_runners=None,
+            claim=claim,
+        ),
+        run_started_at=(
+            base_meta.get("run_started_at")
+            if isinstance(base_meta.get("run_started_at"), str)
+            else None
+        ),
     )
     if response is None:
         return "killed"

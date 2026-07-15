@@ -202,11 +202,10 @@ class PendingQuestionMarkerWire:
     """Compact projection of ``pending_question.json``.
 
     The marker is written by ``handle_questions_flow()`` immediately
-    before the response-wait poll loop begins and removed on every loop
-    exit path (response, kill, exception). Its presence is the
-    authoritative signal that the agent is currently blocked on user
-    input, independent of the corresponding ``UserQuestion``
-    notification's dismissed/read state.
+    before the response-wait poll loop begins. After a response it remains
+    present until the root reacquires a runner slot; kill and exception paths
+    remove it during cleanup. Its presence is the authoritative signal that
+    the root has yielded capacity, independent of notification state.
     """
 
     session_id: str | None = None

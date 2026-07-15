@@ -1180,6 +1180,16 @@ Without an explicit `runners=`, the global `max_running_agents` config limits co
 uncounted until those prerequisites resolve. Child agents, workflow Python/bash steps, and axe ChangeSpec runners do not
 consume these slots.
 
+A root agent that pauses at `QUESTION` temporarily yields its slot while waiting for the user's answer. Answering does
+not bypass the cap: before follow-up work resumes, the root reacquires capacity through the same locked FIFO gate using
+the current global `max_running_agents` limit. If the cap is full, the answered root appears as a normal runner-slot
+`WAITING` row until admitted. Its original `%wait(runners=N)` threshold governed initial admission and is not reapplied
+to this resume.
+
+This temporary question yield does not make `%wait(runners=0)` exclusive. A drain-barrier launch may enter during the
+pause, and other work may still enter after that barrier is admitted whenever its own threshold permits; the answered
+root then waits for capacity like any other eligible launch.
+
 Absolute time waits cannot be combined with duration waits or with each other.
 
 The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or `%wait(time=<value>)`. Every positional

@@ -26,7 +26,12 @@ from sase.agent.running import (
     list_all_agents,
     list_running_agents,
 )
-from sase.core.agent_scan_wire import AgentArtifactRecordWire, AgentMetaWire
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentMetaWire,
+    PendingQuestionMarkerWire,
+    WaitingMarkerWire,
+)
 from tests.agent_scan_golden.fixture_builder import (
     TS_ACE_RUN_DONE,
     TS_ACE_RUN_FAILED,
@@ -200,6 +205,30 @@ def test_active_status_for_record_reports_wait_completed_as_running() -> None:
     )
 
     assert _active_status_for_record(record) == "RUNNING"
+
+
+def test_active_status_for_answered_question_queued_on_runner_slot(
+    tmp_path: Path,
+) -> None:
+    request_path = tmp_path / "question_request.json"
+    request_path.write_text("{}")
+    (tmp_path / "question_response.json").write_text("{}")
+    record = AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir="/tmp/proj",
+        project_file="/tmp/proj/proj.gp",
+        workflow_dir_name="ace-run",
+        artifact_dir="/tmp/proj/artifacts/ace-run/20260513120000",
+        timestamp="20260513120000",
+        agent_meta=AgentMetaWire(run_started_at="2026-05-13T16:00:00Z"),
+        pending_question=PendingQuestionMarkerWire(request_path=str(request_path)),
+        waiting=WaitingMarkerWire(
+            wait_runners=0,
+            slot_requested_at="2026-05-13T16:05:00Z",
+        ),
+    )
+
+    assert _active_status_for_record(record) == "WAITING"
 
 
 def test_list_all_agents_includes_done_and_failed(tmp_path: Path) -> None:

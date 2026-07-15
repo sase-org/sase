@@ -1074,7 +1074,9 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 
 The global cap on concurrently running root user agents across all projects. Agents that reach the runner-slot gate
 after the cap is full remain in the standard `WAITING` state until admitted. Child agents, workflow Python/bash steps,
-and axe ChangeSpec runners are excluded; axe runners continue to use their separate `axe.max_*_runners` limits.
+and axe ChangeSpec runners are excluded; axe runners continue to use their separate `axe.max_*_runners` limits. An
+unanswered root `QUESTION` temporarily yields its slot. After the user answers, that root must reacquire against the
+current cap before follow-up work resumes and may therefore appear as a runner-slot `WAITING` row.
 
 ```yaml
 max_running_agents: 10

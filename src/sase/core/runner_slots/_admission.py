@@ -36,13 +36,20 @@ def running_root_agent_count(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
 ) -> int:
-    """Count live root user agents that have passed the slot gate."""
+    """Count live admitted roots that currently hold a runner slot.
+
+    ``pending_question.json`` is the authoritative marker for a root that has
+    temporarily yielded its slot while awaiting a user answer.  The marker is
+    retained if an answer is ready but the root is queued to reacquire capacity,
+    and removed only by its successful locked claim.
+    """
     return sum(
         1
         for record in records
         if is_root_user_agent_record(record)
         and record.agent_meta is not None
         and bool(record.agent_meta.run_started_at)
+        and record.pending_question is None
         and is_live(record)
     )
 
