@@ -7,7 +7,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from rich.console import Console
 
@@ -180,6 +180,7 @@ def work_from_plan_file(
         workspace_dir=workspace_dir,
         plan_path=archived_path,
         no_push=no_push,
+        push_after_commit=False,
         message=f"Archive approved plan {source_path.stem}",
     ):
         raise _error_with_resume(
@@ -195,6 +196,7 @@ def work_from_plan_file(
     if existing_epic_id is not None:
         return _resume_linked_epic(
             location,
+            store=store,
             archived_path=archived_path,
             epic_id=existing_epic_id,
             authored_phase_ids=phase_ids,
@@ -214,13 +216,18 @@ def work_from_plan_file(
         workspace_dir=workspace_dir,
     )
     launched_names: tuple[str, ...] = ()
+    plan_link_commit_calls = 0
 
     def commit_plan_link(path: Path) -> bool:
+        nonlocal plan_link_commit_calls
+        is_rollback = plan_link_commit_calls > 0
+        plan_link_commit_calls += 1
         return _commit_plan_file(
             store,
             workspace_dir=workspace_dir,
             plan_path=path,
             no_push=no_push,
+            push_after_commit=is_rollback,
             message=f"Link approved epic plan to its bead: {path.stem}",
         )
 
@@ -238,6 +245,7 @@ def work_from_plan_file(
             dry_run=False,
             yes=yes,
             no_push=no_push,
+            defer_push=True,
         )
 
     try:
@@ -251,10 +259,12 @@ def work_from_plan_file(
                 plan_ref=plan_ref,
                 commit_plan_update=commit_plan_link,
                 launch_work=launch_created_epic,
+                rollback_push_after_commit=False if no_push else None,
             )
     except Exception as exc:
         raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
 
+    _push_store_after_launch(store, no_push=no_push)
     result = _PlanFileWorkResult(
         archived_plan_path=archived_path,
         authored_phase_ids=phase_ids,
@@ -307,9 +317,11 @@ def _commit_plan_file(
     workspace_dir: Path,
     plan_path: Path,
     no_push: bool,
+    push_after_commit: bool | Literal["async"] | None,
     message: str,
 ) -> bool:
-    if store.is_in_tree and not no_push:
+    effective_push = False if no_push else push_after_commit
+    if store.is_in_tree and effective_push is not False:
         from sase.axe.run_agent_exec_plan_sdd import commit_sdd_files_for_exec_plan
 
         return commit_sdd_files_for_exec_plan(
@@ -329,8 +341,19 @@ def _commit_plan_file(
         commit_store,
         message,
         paths=[plan_path],
-        push_after_commit=False if no_push else True,
+        push_after_commit=effective_push,
     )
+
+
+def _push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
+    if no_push:
+        return
+    from sase.sdd._commit_store import push_sdd_store_after_commit
+
+    try:
+        push_sdd_store_after_commit(store, push_after_commit="async")
+    except Exception:
+        _logger.warning("Failed to start deferred SDD store push", exc_info=True)
 
 
 def _linked_bead_id_if_present(plan_path: Path) -> str | None:
@@ -374,6 +397,7 @@ def _require_linked_epic(
 def _resume_linked_epic(
     location: Any,
     *,
+    store: SddStore,
     archived_path: Path,
     epic_id: str,
     authored_phase_ids: tuple[str, ...],
@@ -416,6 +440,7 @@ def _resume_linked_epic(
                 dry_run=False,
                 yes=yes,
                 no_push=no_push,
+                defer_push=True,
             )
     except PlanFileWorkError:
         raise
@@ -424,6 +449,8 @@ def _resume_linked_epic(
     except Exception as exc:
         raise _error_with_resume(str(exc), archived_path, no_push=no_push) from exc
 
+    if launched:
+        _push_store_after_launch(store, no_push=no_push)
     result = _PlanFileWorkResult(
         archived_plan_path=archived_path,
         authored_phase_ids=authored_phase_ids,

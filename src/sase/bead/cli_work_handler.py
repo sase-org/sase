@@ -221,6 +221,7 @@ def launch_epic_bead_work(
     dry_run: bool,
     yes: bool,
     no_push: bool,
+    defer_push: bool = False,
     timer: LaunchTimingRecorder | None = None,
 ) -> bool:
     """Run the epic bead-work path, returning whether agents were launched.
@@ -238,6 +239,7 @@ def launch_epic_bead_work(
                 dry_run=dry_run,
                 yes=yes,
                 no_push=no_push,
+                defer_push=defer_push,
                 timer=owned_timer,
             )
 
@@ -339,7 +341,11 @@ def launch_epic_bead_work(
             )
         except (KeyError, ValueError) as e:
             rollback_work_launch(
-                proj, epic_id, claimed, unmark_ready=marked_ready_this_run
+                proj,
+                epic_id,
+                claimed,
+                unmark_ready=marked_ready_this_run,
+                no_push=no_push,
             )
             raise BeadWorkError(f"pre-claim failed for epic {epic_id}: {e}") from e
 
@@ -359,6 +365,7 @@ def launch_epic_bead_work(
             epic_id,
             claimed,
             unmark_ready=marked_ready_this_run,
+            no_push=no_push,
             launched_pids=launched_pids,
             launched_results=launched_results,
         )
@@ -378,7 +385,7 @@ def launch_epic_bead_work(
             epic_id,
             issue.title,
             kind="epic",
-            no_push=no_push,
+            no_push=no_push or defer_push,
             timer=timer,
         )
     except BeadWorkLaunchCommitError as exc:

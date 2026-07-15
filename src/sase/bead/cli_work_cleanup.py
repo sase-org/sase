@@ -46,6 +46,7 @@ def rollback_work_launch(
     claimed: list[tuple[str, Status, str]],
     *,
     unmark_ready: bool,
+    no_push: bool = False,
     launched_pids: list[int] | None = None,
     launched_results: list[AgentLaunchResult] | None = None,
 ) -> None:
@@ -81,7 +82,11 @@ def rollback_work_launch(
                 f"Warning: failed to roll back is_ready_to_work on {epic_id}: {exc}",
                 file=sys.stderr,
             )
-    auto_commit_bead_store(f"chore(beads): rollback work launch {epic_id}")
+    message = f"chore(beads): rollback work launch {epic_id}"
+    if no_push:
+        auto_commit_bead_store(message, push_after_commit=False)
+    else:
+        auto_commit_bead_store(message)
 
 
 class ForcedReuseCleanupError(RuntimeError):

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from sase.bead.cli_common import auto_commit_bead_store
 from sase.bead.cli_work_handler import BeadWorkError
@@ -35,6 +36,7 @@ def create_and_launch_epic_from_plan(
     plan_ref: str,
     commit_plan_update: PlanUpdateCommitter,
     launch_work: EpicWorkLauncher,
+    rollback_push_after_commit: bool | Literal["async"] | None = None,
 ) -> _EpicFromPlanResult:
     """Create an epic DAG, link the plan, and launch ``sase bead work``.
 
@@ -150,6 +152,7 @@ def create_and_launch_epic_from_plan(
             original_content=original_content,
             plan_link_written=plan_link_written,
             commit_plan_update=commit_plan_update,
+            rollback_push_after_commit=rollback_push_after_commit,
         )
         detail = str(exc)
         if rollback_errors:
@@ -172,14 +175,20 @@ def _rollback_epic_creation(
     original_content: str,
     plan_link_written: bool,
     commit_plan_update: PlanUpdateCommitter,
+    rollback_push_after_commit: bool | Literal["async"] | None,
 ) -> list[str]:
     errors: list[str] = []
     if epic is not None:
         try:
             proj.remove(epic.id)
-            auto_commit_bead_store(
-                f"chore(beads): rollback deterministic epic creation {epic.id}"
-            )
+            message = f"chore(beads): rollback deterministic epic creation {epic.id}"
+            if rollback_push_after_commit is None:
+                auto_commit_bead_store(message)
+            else:
+                auto_commit_bead_store(
+                    message,
+                    push_after_commit=rollback_push_after_commit,
+                )
         except Exception as exc:  # noqa: BLE001 - rollback is best effort
             errors.append(f"could not remove epic {epic.id}: {exc}")
 

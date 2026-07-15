@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import logging
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from sase.bead.model import Status
 from sase.bead.project import (
@@ -382,7 +382,11 @@ def resolved_beads_location_is_usable(location: _BeadsLocation) -> bool:
         return False
 
 
-def auto_commit_bead_store(message: str) -> None:
+def auto_commit_bead_store(
+    message: str,
+    *,
+    push_after_commit: bool | Literal["async"] | None = None,
+) -> None:
     """Best-effort commit/push for non-in-tree SDD bead store mutations."""
     try:
         from sase.sdd.files import commit_sdd_store_files
@@ -396,12 +400,21 @@ def auto_commit_bead_store(message: str) -> None:
             sdd_dir=location.root,
             repo_root=location.root,
         )
-        commit_sdd_store_files(
-            store,
-            message,
-            auto_commit_type="beads",
-            paths=[location.beads_dir],
-        )
+        if push_after_commit is None:
+            commit_sdd_store_files(
+                store,
+                message,
+                auto_commit_type="beads",
+                paths=[location.beads_dir],
+            )
+        else:
+            commit_sdd_store_files(
+                store,
+                message,
+                auto_commit_type="beads",
+                paths=[location.beads_dir],
+                push_after_commit=push_after_commit,
+            )
     except Exception:
         _logger.warning(
             "Failed to auto-commit SDD bead store changes",

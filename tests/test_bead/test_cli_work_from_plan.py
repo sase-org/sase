@@ -159,6 +159,85 @@ def test_plan_file_mode_uses_sidecar_store(
         )
 
 
+@pytest.mark.parametrize(
+    ("no_push", "expected_pushes"),
+    [(False, ["async"]), (True, [])],
+)
+def test_plan_file_success_defers_one_store_push_until_launch_finishes(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    no_push: bool,
+    expected_pushes: list[str],
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    events: list[tuple[str, object]] = []
+
+    def commit_store(
+        _store: SddStore,
+        message: str,
+        *,
+        paths: list[Path],
+        push_after_commit: bool,
+    ) -> bool:
+        del paths
+        events.append(("commit", (message, push_after_commit)))
+        return True
+
+    def launch(_project: BeadProject, _epic_id: str, **kwargs: object) -> bool:
+        events.append(("launch", (kwargs["no_push"], kwargs["defer_push"])))
+        return True
+
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit_store)
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        launch,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        lambda _store, *, push_after_commit: events.append(("push", push_after_commit)),
+    )
+
+    work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=no_push,
+        render=False,
+    )
+
+    commit_events = [value for kind, value in events if kind == "commit"]
+    assert len(commit_events) == 2
+    assert all(
+        push_after_commit is False for _message, push_after_commit in commit_events
+    )
+    assert ("launch", (no_push, True)) in events
+    assert [value for kind, value in events if kind == "push"] == expected_pushes
+    if expected_pushes:
+        assert events[-1] == ("push", "async")
+
+
 def test_plan_file_resume_reuses_linked_epic(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -187,6 +266,11 @@ def test_plan_file_resume_reuses_linked_epic(
         "sase.bead.cli_work_handler.launch_epic_bead_work",
         lambda _project, epic_id, **_kwargs: not launches.append(epic_id),
     )
+    pushes: list[str] = []
+    monkeypatch.setattr(
+        "sase.sdd._commit_store.push_sdd_store_after_commit",
+        lambda _store, *, push_after_commit: pushes.append(push_after_commit),
+    )
 
     result = work_from_plan_file(
         str(plan),
@@ -200,6 +284,7 @@ def test_plan_file_resume_reuses_linked_epic(
     assert result.resumed is True
     assert result.phase_bead_ids == (core.id, cli.id, verify.id)
     assert launches == [epic.id]
+    assert pushes == ["async"]
     with BeadProject(project_dir) as project:
         assert len(project.list_issues()) == 4
 
@@ -295,6 +380,86 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
         archived.read_text(encoding="utf-8")
     )
     assert "bead_id" not in frontmatter
+
+
+@pytest.mark.parametrize(
+    ("no_push", "expected_commit_pushes", "expected_rollback_push"),
+    [
+        (False, [False, False, True], None),
+        (True, [False, False, False], False),
+    ],
+)
+def test_plan_file_rollback_keeps_best_effort_push_unless_disabled(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    no_push: bool,
+    expected_commit_pushes: list[bool],
+    expected_rollback_push: bool | None,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    sidecar = tmp_path / "plans-sidecar"
+    with BeadProject.init(sidecar, beads_dirname="beads"):
+        pass
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    commit_pushes: list[bool] = []
+
+    def commit_store(
+        _store: SddStore,
+        _message: str,
+        *,
+        paths: list[Path],
+        push_after_commit: bool,
+    ) -> bool:
+        del paths
+        commit_pushes.append(push_after_commit)
+        return True
+
+    rollback_pushes: list[bool | None] = []
+
+    def auto_commit(_message: str, **kwargs: bool) -> None:
+        rollback_pushes.append(kwargs.get("push_after_commit"))
+
+    monkeypatch.setattr("sase.sdd.files.commit_sdd_store_files", commit_store)
+    monkeypatch.setattr(
+        "sase.bead.epic_from_plan.auto_commit_bead_store",
+        auto_commit,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            BeadWorkError("agent launch failed")
+        ),
+    )
+
+    with pytest.raises(PlanFileWorkError, match="agent launch failed"):
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=no_push,
+            render=False,
+        )
+
+    assert commit_pushes == expected_commit_pushes
+    assert rollback_pushes == [expected_rollback_push]
 
 
 def test_plan_file_dry_run_is_pure_and_previews_waves(

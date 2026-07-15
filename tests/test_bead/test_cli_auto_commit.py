@@ -284,6 +284,26 @@ def test_rollback_work_launch_auto_commits_cleanup() -> None:
     auto_commit.assert_called_once_with("chore(beads): rollback work launch epic-1")
 
 
+def test_rollback_work_launch_suppresses_push_when_requested() -> None:
+    from sase.bead.cli_work_cleanup import rollback_work_launch
+
+    proj = MagicMock()
+
+    with patch("sase.bead.cli_work_cleanup.auto_commit_bead_store") as auto_commit:
+        rollback_work_launch(
+            proj,
+            "epic-1",
+            [],
+            unmark_ready=False,
+            no_push=True,
+        )
+
+    auto_commit.assert_called_once_with(
+        "chore(beads): rollback work launch epic-1",
+        push_after_commit=False,
+    )
+
+
 def _create_issue(project_dir: Path, title: str) -> Issue:
     with BeadProject(project_dir) as proj:
         return proj.create(title, IssueType.PLAN)
