@@ -10,6 +10,7 @@ from sase.linked_repos import (
     clear_workspace_repos,
     materialize_linked_repo_workspace,
 )
+from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
 
 def test_clear_workspace_repos_renames_whole_tree_and_defers_delete(
@@ -159,3 +160,55 @@ def test_materialize_creates_fresh_linked_clone(
         ".sase/",
         "/sase/repos/",
     ]
+
+
+def test_sidecar_materialization_uses_remote_not_divergent_primary(
+    tmp_path: Path,
+) -> None:
+    remote = tmp_path / "research.git"
+    primary = tmp_path / "primary-research"
+    remote_seed = tmp_path / "remote-seed"
+    target = tmp_path / "workspace" / "sase" / "repos" / "research"
+    wrong_remote = tmp_path / "wrong.git"
+    init_bare_repo(remote)
+    clone(remote, primary)
+    readme = primary / "README.md"
+    readme.write_text("initial\n", encoding="utf-8")
+    commit_all(primary, "Initialize research")
+    git(["push", "-u", "origin", "main"], primary)
+    clone(remote, remote_seed)
+
+    readme.write_text("durable primary only\n", encoding="utf-8")
+    commit_all(primary, "Unpushed durable-primary research")
+    primary_only_head = git(["rev-parse", "HEAD"], primary).stdout.strip()
+    (remote_seed / "README.md").write_text("authoritative remote\n", encoding="utf-8")
+    commit_all(remote_seed, "Advance research remote incompatibly")
+    git(["push"], remote_seed)
+    remote_head = git(["rev-parse", "HEAD"], remote_seed).stdout.strip()
+
+    target.mkdir(parents=True)
+    git(["init", "-q"], target)
+    git(["remote", "add", "origin", str(wrong_remote)], target)
+    (target / "stale.txt").write_text("wrong clone\n", encoding="utf-8")
+    commit_all(target, "Commit stale workspace content")
+
+    result = materialize_linked_repo_workspace(
+        primary_dir=str(primary),
+        workspace_dir=str(target),
+        workspace_num=10,
+        expected_remote_url=str(remote),
+    )
+
+    assert result == str(target.resolve())
+    assert not (target / "stale.txt").exists()
+    assert (target / "README.md").read_text(encoding="utf-8") == (
+        "authoritative remote\n"
+    )
+    assert git(["rev-parse", "HEAD"], target).stdout.strip() == remote_head
+    assert (
+        primary_only_head not in git(["rev-list", "--all"], target).stdout.splitlines()
+    )
+    assert git(["status", "--porcelain"], target).stdout == ""
+    assert not (target / ".git" / "rebase-merge").exists()
+    assert not (target / ".git" / "rebase-apply").exists()
+    assert git(["remote", "get-url", "origin"], target).stdout.strip() == str(remote)

@@ -46,9 +46,11 @@ beside them. The research sidecar likewise keeps `<YYYYMM>/` directories at its 
 | `research` | `<workspace>/sase/repos/research`    |
 
 Initialization clones, initializes, and pushes every configured sidecar in the workspace where it runs. After that,
-normal workspace preparation automatically clones and synchronizes plans; a newly prepared workspace does not clone
-research until a consumer runs `sase repo path research --ensure` (or another operation explicitly ensures that kind).
-Each clone's `origin` is the configured sidecar remote, and refresh uses pull-with-rebase semantics.
+normal numbered-workspace preparation evicts the complete `sase/repos/` tree and clones plans directly from its recorded
+remote. A newly prepared workspace does not clone research until a consumer runs `sase repo path research --ensure` (or
+another operation explicitly ensures that kind). Each clone's `origin` is the configured sidecar remote.
+Pull-with-rebase applies when synchronizing a retained existing clone; a sidecar freshly cloned for launch is used
+without a redundant pull or rebase.
 
 The retired `sdd.storage` and `sdd.version_controlled` configuration keys no longer select a mode. SASE ignores and
 strips them before schema validation, and `sase doctor` reports where to remove them. This keeps old configuration files

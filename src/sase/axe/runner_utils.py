@@ -211,6 +211,36 @@ def prepare_workspace(
     return True
 
 
+def prepare_launch_workspace_repos(
+    workspace_dir: str,
+    workspace_num: int,
+) -> frozenset[str]:
+    """Evict launch-scoped repos and strictly recreate required sidecars.
+
+    The returned paths identify sidecars proven to have been freshly cloned by
+    this launch, so later linked-repo setup can reuse them without another
+    materialization or synchronization pass.
+    """
+    from sase.linked_repos import clear_workspace_repos
+
+    clear_workspace_repos(workspace_dir, workspace_num)
+
+    from sase.sdd.store import ensure_workspace_sdd_clone
+
+    ensure_workspace_sdd_clone(
+        workspace_dir,
+        workspace_num,
+        strict=workspace_num > 1,
+    )
+
+    if workspace_num <= 1:
+        return frozenset()
+    plans = Path(workspace_dir).expanduser() / "sase" / "repos" / "plans"
+    if not (plans / ".git").is_dir():
+        return frozenset()
+    return frozenset({str(plans.resolve())})
+
+
 def all_steps_hidden(artifacts_dir: str) -> bool:
     """Check if every step that actually ran in a workflow was hidden.
 

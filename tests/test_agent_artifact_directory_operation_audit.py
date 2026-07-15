@@ -96,6 +96,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directories."
         ),
     ),
+    "src/sase/sdd/_store_link.py:_handle_failed_sdd_clone": DirOpReview(
+        exemption=(
+            "Removes only partial output from a failed sidecar git clone at its "
+            "workspace-local repository target, not an agent artifact directory."
+        ),
+    ),
     "src/sase/sdd/_store_link.py:_replace_workspace_sdd_clone": DirOpReview(
         exemption=(
             "Removes only the recovery copy left after atomically replacing a "

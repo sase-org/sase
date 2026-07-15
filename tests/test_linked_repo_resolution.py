@@ -759,44 +759,6 @@ def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
     )
 
 
-def test_sidecar_materialization_replaces_mismatched_workspace_origin(
-    tmp_path: Path,
-) -> None:
-    primary = tmp_path / "primary-sidecar"
-    target = tmp_path / "workspace" / "sase" / "repos" / "research"
-    expected_remote = tmp_path / "expected.git"
-    wrong_remote = tmp_path / "wrong.git"
-    primary.mkdir()
-    target.mkdir(parents=True)
-    for path, remote in ((primary, expected_remote), (target, wrong_remote)):
-        subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-        subprocess.run(
-            ["git", "remote", "add", "origin", str(remote)],
-            cwd=path,
-            check=True,
-        )
-    (target / "stale.txt").write_text("wrong clone\n", encoding="utf-8")
-    commit_all(target, "Commit stale workspace content")
-
-    result = materialize_linked_repo_workspace(
-        primary_dir=str(primary),
-        workspace_dir=str(target),
-        workspace_num=10,
-        expected_remote_url=str(expected_remote),
-    )
-
-    assert result == str(target.resolve())
-    assert not (target / "stale.txt").exists()
-    origin = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        cwd=target,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-    assert origin == str(expected_remote)
-
-
 def test_sidecar_materialization_normalizes_protocol_in_place(
     tmp_path: Path,
 ) -> None:

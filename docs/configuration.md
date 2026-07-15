@@ -621,12 +621,12 @@ repos:
 
 Workspace numbers `0` and `1` use the linked repo's primary checkout. Higher workspace numbers use
 `<host_workspace>/sase/repos/linked/<linked_repo>`, naturally namespaced by host project and workspace number. Agent and
-workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree.
-Sidecars with `auto_clone: true` are re-created from matching durable primary-checkout clones when available, with a
-network fallback; agents materialize other linked repos and sidecars on demand through `/sase_repo`. `sase repo init`
-manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in `.git/info/exclude` before
-materialization. SASE passes resolved metadata for all entries and exports per-repository paths only for materialized
-entries:
+workflow launch preparation atomically removes the numbered checkout's entire `<host_workspace>/sase/repos/` tree. The
+required `plans` sidecar is then cloned directly from its recorded remote; other linked repositories and sidecars remain
+lazy unless configured with `auto_clone: true`. Agents materialize lazy entries on demand through `/sase_repo`.
+`sase repo init` manages the tracked `/sase/repos/` ignore rule, while SASE also installs the rule in
+`.git/info/exclude` before materialization. SASE passes resolved metadata for all entries and exports per-repository
+paths only for materialized entries:
 
 | Variable                                  | Description                                      |
 | ----------------------------------------- | ------------------------------------------------ |

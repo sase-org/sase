@@ -14,6 +14,7 @@ from typing import Any
 from sase.axe.runner_utils import (
     all_steps_hidden,
     install_sigterm_handler,
+    prepare_launch_workspace_repos,
     prepare_workspace,
     was_killed,
 )
@@ -44,12 +45,7 @@ def _prepare_workflow_workspace(
     ):
         return False
 
-    from sase.linked_repos import clear_workspace_repos
-
-    clear_workspace_repos(workspace_dir, workspace_num)
-    from sase.sdd.store import ensure_workspace_sdd_clone
-
-    ensure_workspace_sdd_clone(workspace_dir, workspace_num)
+    prepare_launch_workspace_repos(workspace_dir, workspace_num)
     return True
 
 

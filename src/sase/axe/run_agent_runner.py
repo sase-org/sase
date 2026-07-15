@@ -326,7 +326,7 @@ def main() -> None:
                         artifacts_timestamp,
                     )
 
-                prepare_workspace_if_needed(
+                fresh_sidecar_paths = prepare_workspace_if_needed(
                     workspace_dir=workspace_dir,
                     workspace_num=workspace_num,
                     cl_name=cl_name,
@@ -348,6 +348,7 @@ def main() -> None:
                         prepare_linked_repo_workspaces_if_needed(
                             resolution=linked_repo_resolution,
                             cl_name=cl_name,
+                            fresh_sidecar_paths=fresh_sidecar_paths,
                         )
                 elif update_target and not is_home_mode and retry_handoff is None:
                     linked_repo_resolution = refresh_linked_repos_for_workspace(
@@ -360,6 +361,7 @@ def main() -> None:
                     prepare_linked_repo_workspaces_if_needed(
                         resolution=linked_repo_resolution,
                         cl_name=cl_name,
+                        fresh_sidecar_paths=fresh_sidecar_paths,
                     )
 
                 if is_home_mode:

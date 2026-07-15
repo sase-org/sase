@@ -38,6 +38,8 @@ def _resolution(
     workspace_dir: str = "/repos/sase-core_7",
     workspace_num: int = 7,
     auto_clone: bool = True,
+    kind: str = "linked",
+    remote_url: str | None = None,
 ) -> LinkedRepoResolution:
     return LinkedRepoResolution(
         repos=(
@@ -48,6 +50,8 @@ def _resolution(
                 workspace_dir=workspace_dir,
                 workspace_num=workspace_num,
                 auto_clone=auto_clone,
+                kind=kind,
+                remote_url=remote_url,
             ),
         )
     )
@@ -205,15 +209,17 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
     assert (tmp_path / "workflow_state.json").is_file()
 
 
-def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
+def test_prepare_workspace_if_needed_invokes_strict_sdd_clone_after_clear() -> None:
     calls: list[tuple[str, object]] = []
 
     def prepare_workspace(*args: object, **kwargs: object) -> bool:
         calls.append(("prepare", args))
         return True
 
-    def ensure_workspace_sdd_clone(workspace_dir: str, workspace_num: int) -> None:
-        calls.append(("clone", (workspace_dir, workspace_num)))
+    def ensure_workspace_sdd_clone(
+        workspace_dir: str, workspace_num: int, *, strict: bool = False
+    ) -> None:
+        calls.append(("clone", (workspace_dir, workspace_num, strict)))
 
     def clear_workspace_repos(workspace_dir: str, workspace_num: int) -> None:
         calls.append(("clear", (workspace_dir, workspace_num)))
@@ -245,7 +251,7 @@ def test_prepare_workspace_if_needed_invokes_sdd_clone_after_prepare() -> None:
     assert calls == [
         ("prepare", ("/tmp/workspace", "feature", "main")),
         ("clear", ("/tmp/workspace", 7)),
-        ("clone", ("/tmp/workspace", 7)),
+        ("clone", ("/tmp/workspace", 7, True)),
     ]
 
 
@@ -503,6 +509,106 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel() -> None
             {"backup_suffix": "linked-core"},
         )
     ]
+
+
+def test_prepare_linked_repo_workspaces_reuses_fresh_launch_sidecar(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    (plans / ".git").mkdir(parents=True)
+    resolution = _resolution(
+        name="plans",
+        primary_dir=str(tmp_path / "primary" / "sase" / "repos" / "plans"),
+        workspace_dir=str(plans),
+        kind="sidecar",
+        remote_url="git@example.test:owner/project--plans.git",
+    )
+
+    with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            side_effect=AssertionError("fresh plans sidecar was cloned again"),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=AssertionError("fresh plans sidecar was prepared again"),
+        ),
+        patch("sase.linked_repos.apply_linked_repo_env") as apply_env,
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=resolution,
+            cl_name="feature",
+            fresh_sidecar_paths=frozenset({str(plans.resolve())}),
+        )
+
+    apply_env.assert_called_once_with(os.environ, resolution)
+
+
+def test_prepare_linked_repo_workspaces_skips_prep_for_new_sidecar(
+    tmp_path: Path,
+) -> None:
+    research = tmp_path / "workspace" / "sase" / "repos" / "research"
+    resolution = _resolution(
+        name="research",
+        primary_dir=str(tmp_path / "primary" / "sase" / "repos" / "research"),
+        workspace_dir=str(research),
+        kind="sidecar",
+        remote_url="git@example.test:owner/project--research.git",
+    )
+
+    def materialize(**_kwargs: object) -> str:
+        (research / ".git").mkdir(parents=True)
+        return str(research)
+
+    with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            side_effect=materialize,
+        ) as materialize_sidecar,
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=AssertionError("new research sidecar was prepared again"),
+        ),
+        patch("sase.linked_repos.apply_linked_repo_env"),
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=resolution,
+            cl_name="feature",
+        )
+
+    materialize_sidecar.assert_called_once()
+
+
+def test_prepare_linked_repo_workspaces_prepares_retained_sidecar(
+    tmp_path: Path,
+) -> None:
+    research = tmp_path / "workspace" / "sase" / "repos" / "research"
+    (research / ".git").mkdir(parents=True)
+    resolution = _resolution(
+        name="research",
+        primary_dir=str(tmp_path / "primary" / "sase" / "repos" / "research"),
+        workspace_dir=str(research),
+        kind="sidecar",
+        remote_url="git@example.test:owner/project--research.git",
+    )
+
+    with (
+        patch(
+            "sase.linked_repos.materialize_linked_repo_workspace",
+            return_value=str(research),
+        ),
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            return_value=True,
+        ) as prepare,
+        patch("sase.linked_repos.apply_linked_repo_env"),
+    ):
+        prepare_linked_repo_workspaces_if_needed(
+            resolution=resolution,
+            cl_name="feature",
+        )
+
+    prepare.assert_called_once()
 
 
 def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:

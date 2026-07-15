@@ -171,7 +171,9 @@ def test_workflow_workspace_prep_recreates_sidecar_after_teardown() -> None:
         ),
         patch(
             "sase.sdd.store.ensure_workspace_sdd_clone",
-            side_effect=lambda _workspace, _num: calls.append("clone"),
+            side_effect=lambda _workspace, _num, *, strict: calls.append(
+                f"clone-strict-{strict}"
+            ),
         ),
     ):
         result = _prepare_workflow_workspace(
@@ -183,7 +185,7 @@ def test_workflow_workspace_prep_recreates_sidecar_after_teardown() -> None:
         )
 
     assert result is True
-    assert calls == ["prepare", "clear", "clone"]
+    assert calls == ["prepare", "clear", "clone-strict-True"]
 
 
 def test_workflow_workspace_prep_does_not_clear_after_failure() -> None:

@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import shutil
+import subprocess
 
 import pytest
 
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
+from sase.sdd._store_types import SddMaterializationError
 from sase.sdd.store import (
     _write_sdd_store_record,
     ensure_sdd_kind_clone,
@@ -205,93 +207,96 @@ def test_moved_sidecar_clone_with_matching_remote_is_accepted(
     )
 
 
-def test_sidecar_clone_uses_matching_local_source_and_refreshes_from_origin(
+def test_sidecar_clone_uses_authoritative_remote_not_durable_primary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     remote = tmp_path / "plans.git"
     seed = tmp_path / "seed"
-    local_source = tmp_path / "primary" / "sase" / "repos" / "plans"
+    durable_primary = tmp_path / "primary" / "sase" / "repos" / "plans"
     clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
     init_bare_repo(remote)
     clone(remote, seed)
-    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    readme = seed / "README.md"
+    readme.write_text("initial\n", encoding="utf-8")
     commit_all(seed, "Initialize plans")
     git(["push", "-u", "origin", "main"], seed)
-    clone(remote, local_source)
-    (seed / "fresh.md").write_text("fresh\n", encoding="utf-8")
-    commit_all(seed, "Add fresh plan")
+    clone(remote, durable_primary)
+
+    (durable_primary / "README.md").write_text(
+        "durable primary only\n", encoding="utf-8"
+    )
+    commit_all(durable_primary, "Unpushed durable-primary change")
+    primary_only_head = git(["rev-parse", "HEAD"], durable_primary).stdout.strip()
+
+    readme.write_text("authoritative remote\n", encoding="utf-8")
+    commit_all(seed, "Advance authoritative remote incompatibly")
     git(["push"], seed)
+    remote_head = git(["rev-parse", "HEAD"], seed).stdout.strip()
+    clone_commands: list[list[str]] = []
+    clone_terminal_prompts: list[str | None] = []
+    from sase.sdd import _commit
+
+    original_run_sdd_git = _commit.run_sdd_git
+
+    def record_git(args: list[str], **kwargs):
+        if args and args[0] == "clone":
+            clone_commands.append(args)
+            clone_terminal_prompts.append(kwargs["env"].get("GIT_TERMINAL_PROMPT"))
+        return original_run_sdd_git(args, **kwargs)
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", record_git)
     monkeypatch.setattr(
-        "sase.sdd._store_link._clone_sdd_store",
-        lambda *_args: pytest.fail("matching local source fell back to remote clone"),
+        "sase.sdd._store_link._clone_sdd_store_from_primary",
+        lambda *_args: pytest.fail("durable primary seeded fresh sidecar"),
     )
 
-    ensure_sidecar_sdd_clone(
-        clone_dir,
-        str(remote),
-        local_source=local_source,
-        strict=True,
-    )
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
 
-    assert (clone_dir / "fresh.md").read_text(encoding="utf-8") == "fresh\n"
+    assert clone_commands == [["clone", str(remote), str(clone_dir)]]
+    assert clone_terminal_prompts == ["0"]
+    assert git(["rev-parse", "HEAD"], clone_dir).stdout.strip() == remote_head
+    assert git(["rev-parse", "@{upstream}"], clone_dir).stdout.strip() == remote_head
+    assert (clone_dir / "README.md").read_text(encoding="utf-8") == (
+        "authoritative remote\n"
+    )
+    assert git(["status", "--porcelain"], clone_dir).stdout == ""
+    assert (
+        primary_only_head
+        not in git(["rev-list", "--all"], clone_dir).stdout.splitlines()
+    )
+    assert not (clone_dir / ".git" / "rebase-merge").exists()
+    assert not (clone_dir / ".git" / "rebase-apply").exists()
     assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
 
 
-def test_sidecar_clone_skips_mismatched_local_source(
+def test_sidecar_clone_failure_removes_partial_target_and_surfaces_diagnostic(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    remote = tmp_path / "plans.git"
-    other_remote = tmp_path / "other.git"
-    seed = tmp_path / "seed"
-    local_source = tmp_path / "primary-plans"
-    clone_dir = tmp_path / "workspace-plans"
-    init_bare_repo(remote)
-    init_bare_repo(other_remote)
-    clone(remote, seed)
-    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
-    commit_all(seed, "Initialize plans")
-    git(["push", "-u", "origin", "main"], seed)
-    clone(other_remote, local_source)
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+
+    def failed_clone(*_args, **_kwargs):
+        clone_dir.mkdir(parents=True)
+        (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=["git", "clone"],
+            returncode=128,
+            stdout="",
+            stderr="authentication failed for plans remote",
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", failed_clone)
     monkeypatch.setattr(
         "sase.sdd._store_link._clone_sdd_store_from_primary",
-        lambda *_args: pytest.fail("mismatched local source was trusted"),
+        lambda *_args: pytest.fail("clone failure used a local fallback"),
     )
 
-    ensure_sidecar_sdd_clone(
-        clone_dir,
-        str(remote),
-        local_source=local_source,
-        strict=True,
-    )
+    with pytest.raises(
+        SddMaterializationError, match="authentication failed for plans remote"
+    ):
+        ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 
-    assert (clone_dir / "README.md").read_text(encoding="utf-8") == "# Plans\n"
-    assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
-
-
-def test_sidecar_clone_falls_back_to_remote_when_local_source_is_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    remote = tmp_path / "plans.git"
-    seed = tmp_path / "seed"
-    clone_dir = tmp_path / "workspace-plans"
-    init_bare_repo(remote)
-    clone(remote, seed)
-    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
-    commit_all(seed, "Initialize plans")
-    git(["push", "-u", "origin", "main"], seed)
-    monkeypatch.setattr(
-        "sase.sdd._store_link._clone_sdd_store_from_primary",
-        lambda *_args: pytest.fail("missing local source was used"),
-    )
-
-    ensure_sidecar_sdd_clone(
-        clone_dir,
-        str(remote),
-        local_source=tmp_path / "missing-primary-plans",
-        strict=True,
-    )
-
-    assert (clone_dir / "README.md").is_file()
+    assert not clone_dir.exists()
 
 
 def test_ensure_workspace_sdd_clone_in_tree_noop(

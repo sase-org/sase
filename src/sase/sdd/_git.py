@@ -1,5 +1,6 @@
 """Bounded git command execution for SDD operations."""
 
+from collections.abc import Mapping
 import logging
 import os
 import subprocess
@@ -31,6 +32,7 @@ def run_sdd_git(
     check: bool,
     capture_output: bool,
     text: bool = False,
+    env: Mapping[str, str] | None = None,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a bounded git command with SDD telemetry."""
     timeout_seconds = timeout if timeout is not None else _local_git_timeout()
@@ -44,6 +46,7 @@ def run_sdd_git(
             capture_output=capture_output,
             text=text,
             timeout=timeout_seconds,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         duration_ms = (time.perf_counter() - start) * 1000.0

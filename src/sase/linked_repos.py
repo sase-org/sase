@@ -68,7 +68,7 @@ from sase._linked_repo_markers import (
 )
 
 # Host-scoped linked and sidecar clones are launch-scoped in numbered
-# workspaces. Their primary-checkout counterparts remain durable local sources.
+# workspaces. Sidecars created there are cloned from their recorded remotes.
 SIDECAR_REPO_CLONES_SUBDIR = ("sase", "repos")
 LINKED_REPO_CLONES_SUBDIR = ("sase", "repos", "linked")
 EXTERNAL_REPO_CLONES_SUBDIR = ("sase", "repos", "external")
@@ -581,7 +581,6 @@ def _materialize_remote_identified_sidecar(
     """Materialize a sidecar, replacing stale clones of another remote."""
 
     target = Path(workspace_dir).expanduser()
-    source = Path(primary_dir).expanduser()
     if target.is_dir():
         origin = _git_origin_url(target)
         if origin is not None and git_remotes_match(origin, expected_remote_url):
@@ -610,24 +609,11 @@ def _materialize_remote_identified_sidecar(
 
     if os.path.lexists(target):
         _remove_path(target)
-    if source.is_dir() and _clone_origin_matches(source, expected_remote_url):
-        from sase.workspace_provider.utils import ensure_git_clone_at
-
-        checkout = Path(ensure_git_clone_at(str(source), workspace_num, str(target)))
-        origin = _git_origin_url(checkout)
-        if origin is not None:
-            _set_clone_origin(checkout, origin, expected_remote_url)
-        return str(checkout)
 
     from sase.sdd._store_link import ensure_sidecar_sdd_clone
 
     ensure_sidecar_sdd_clone(target, expected_remote_url, strict=True)
     return str(target)
-
-
-def _clone_origin_matches(path: Path, expected_remote_url: str) -> bool:
-    origin = _git_origin_url(path)
-    return origin is not None and git_remotes_match(origin, expected_remote_url)
 
 
 def _set_clone_origin(path: Path, current: str, expected: str) -> None:

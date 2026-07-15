@@ -24,7 +24,7 @@ from sase.axe.run_agent_retry_spawn import (
     ENV_RETRY_OF_TIMESTAMP,
     RetryHandoff,
 )
-from sase.axe.runner_utils import prepare_workspace
+from sase.axe.runner_utils import prepare_launch_workspace_repos, prepare_workspace
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -48,10 +48,10 @@ def prepare_workspace_if_needed(
     project_name: str,
     is_home_mode: bool,
     retry_handoff: object | None,
-) -> None:
+) -> frozenset[str]:
     """Prepare a non-home workspace unless this runner must preserve it."""
     if not update_target or is_home_mode:
-        return
+        return frozenset()
 
     if retry_handoff is not None:
         print(
@@ -59,7 +59,7 @@ def prepare_workspace_if_needed(
             "parent's in-progress edits preserved ==="
         )
         print()
-        return
+        return frozenset()
 
     print("=== Preparing Workspace ===")
     if not prepare_workspace(
@@ -70,20 +70,17 @@ def prepare_workspace_if_needed(
         project_basename=project_name,
     ):
         raise RuntimeError("Failed to prepare workspace")
-    from sase.linked_repos import clear_workspace_repos
-
-    clear_workspace_repos(workspace_dir, workspace_num)
-    from sase.sdd.store import ensure_workspace_sdd_clone
-
-    ensure_workspace_sdd_clone(workspace_dir, workspace_num)
+    fresh_sidecars = prepare_launch_workspace_repos(workspace_dir, workspace_num)
     print("===========================")
     print()
+    return fresh_sidecars
 
 
 def prepare_linked_repo_workspaces_if_needed(
     *,
     resolution: "LinkedRepoResolution",
     cl_name: str,
+    fresh_sidecar_paths: frozenset[str] = frozenset(),
 ) -> None:
     """Materialize and prepare host-scoped linked repo workspaces for a launch."""
     repos = [
@@ -100,9 +97,17 @@ def prepare_linked_repo_workspaces_if_needed(
 
     print("=== Preparing Linked Repo Workspaces ===")
     for repo in repos:
+        name = repo.name
+        normalized_workspace = str(Path(repo.workspace_dir).expanduser().resolve())
+        if repo.kind == "sidecar" and normalized_workspace in fresh_sidecar_paths:
+            print(f"Using freshly cloned sidecar {name}: {repo.workspace_dir}")
+            continue
+
         from sase.linked_repos import materialize_linked_repo_workspace
 
-        name = repo.name
+        sidecar_was_missing = repo.kind == "sidecar" and not os.path.lexists(
+            repo.workspace_dir
+        )
         try:
             workspace_dir = materialize_linked_repo_workspace(
                 primary_dir=repo.primary_dir,
@@ -117,6 +122,9 @@ def prepare_linked_repo_workspaces_if_needed(
                 f"Failed to materialize linked repo {name!r} workspace: "
                 f"{repo.workspace_dir}: {exc}"
             ) from exc
+        if sidecar_was_missing:
+            print(f"Using freshly cloned sidecar {name}: {workspace_dir}")
+            continue
         print(f"Preparing linked repo {name}: {workspace_dir}")
         if not prepare_workspace(
             workspace_dir,

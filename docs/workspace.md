@@ -263,9 +263,9 @@ layouts.
 Configured linked repositories for a numbered checkout are cloned beneath that host checkout at
 `sase/repos/linked/<linked_repo>`. Before every agent or workflow launch, SASE atomically removes the numbered
 checkout's entire `sase/repos/` tree and deletes it in the background. Sidecars configured with `auto_clone: true`
-(normally `plans`) are then re-created from the durable primary-checkout clone when it matches the recorded remote, with
-a network-clone fallback, and refreshed from origin. Other linked repositories and the `research` sidecar are re-created
-on demand through `/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
+(normally `plans`) are then cloned directly from their recorded authoritative remotes. Other linked repositories and the
+`research` sidecar remain lazy unless configured for automatic cloning and can be materialized on demand through
+`/sase_repo`. External repos are also cloned on demand below `sase/repos/external/projects/` or
 `sase/repos/external/<scheme>/`. SASE protects the whole tree immediately with the per-clone `/sase/repos/` exclude
 rule; run `sase repo init` to add the same rule durably to the tracked root `.gitignore`. Use `--check` to report drift,
 `--diff` to preview it, or `--no-commit` to write the rule without the normal project commit/push sequence.

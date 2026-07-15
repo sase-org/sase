@@ -27,7 +27,6 @@ def ensure_sidecar_sdd_clone(
     clone_dir: Path,
     remote_url: str,
     *,
-    local_source: Path | None = None,
     strict: bool = False,
 ) -> None:
     """Ensure a split-store sidecar clone exists and tracks its real remote."""
@@ -61,22 +60,7 @@ def ensure_sidecar_sdd_clone(
             _pull_sdd_clone(clone_dir)
             return
 
-        cloned = False
-        if local_source is not None:
-            local_source = local_source.expanduser()
-            origin = _git_remote_url(local_source)
-            if (
-                (local_source / ".git").is_dir()
-                and origin is not None
-                and _same_git_remote(origin, remote_url)
-            ):
-                cloned = _clone_sdd_store_from_primary(local_source, clone_dir)
-                if cloned:
-                    _set_sdd_origin(clone_dir, remote_url)
-                    _pull_sdd_clone(clone_dir)
-
-        if not cloned:
-            cloned = _clone_sdd_store(remote_url, clone_dir)
+        cloned = _clone_sdd_store(remote_url, clone_dir, strict=strict)
         if not cloned and strict:
             raise SddMaterializationError(
                 f"could not create SDD sidecar clone at {clone_dir}"
@@ -291,7 +275,12 @@ def _pull_sdd_clone(workspace_sdd: Path) -> bool:
     return False
 
 
-def _clone_sdd_store(remote_url: str, workspace_sdd: Path) -> bool:
+def _clone_sdd_store(
+    remote_url: str,
+    workspace_sdd: Path,
+    *,
+    strict: bool = False,
+) -> bool:
     from sase.sdd._commit import (
         SddGitCommandTimeout,
         network_git_timeout,
@@ -299,6 +288,8 @@ def _clone_sdd_store(remote_url: str, workspace_sdd: Path) -> bool:
     )
 
     try:
+        clone_env = os.environ.copy()
+        clone_env["GIT_TERMINAL_PROMPT"] = "0"
         result = run_sdd_git(
             ["clone", remote_url, str(workspace_sdd)],
             cwd=workspace_sdd.parent,
@@ -307,27 +298,60 @@ def _clone_sdd_store(remote_url: str, workspace_sdd: Path) -> bool:
             check=False,
             capture_output=True,
             text=True,
+            env=clone_env,
         )
-    except SddGitCommandTimeout:
-        _logger.warning("Timed out cloning SDD store %s", remote_url)
-        return False
-    except Exception:
-        _logger.warning(
-            "Failed to clone SDD store %s into %s",
-            remote_url,
+    except SddGitCommandTimeout as exc:
+        return _handle_failed_sdd_clone(
             workspace_sdd,
-            exc_info=True,
+            f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
+            strict=strict,
+            cause=exc,
         )
-        return False
+    except Exception as exc:
+        return _handle_failed_sdd_clone(
+            workspace_sdd,
+            f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+            f"{str(exc) or type(exc).__name__}",
+            strict=strict,
+            cause=exc,
+        )
     if result.returncode == 0:
         return True
     detail = (result.stderr or result.stdout or "").strip()
-    _logger.warning(
-        "Failed to clone SDD store %s into %s: %s",
-        remote_url,
+    return _handle_failed_sdd_clone(
         workspace_sdd,
-        detail or f"git clone exited {result.returncode}",
+        f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+        f"{detail or f'git clone exited {result.returncode}'}",
+        strict=strict,
     )
+
+
+def _handle_failed_sdd_clone(
+    workspace_sdd: Path,
+    message: str,
+    *,
+    strict: bool,
+    cause: Exception | None = None,
+) -> bool:
+    """Remove partial clone output and optionally fail the setup transaction."""
+
+    try:
+        if workspace_sdd.is_dir() and not workspace_sdd.is_symlink():
+            shutil.rmtree(workspace_sdd)
+        else:
+            workspace_sdd.unlink(missing_ok=True)
+    except OSError:
+        _logger.warning(
+            "Failed to clean partial SDD clone at %s",
+            workspace_sdd,
+            exc_info=True,
+        )
+    if strict:
+        error = SddMaterializationError(message)
+        if cause is not None:
+            raise error from cause
+        raise error
+    _logger.warning(message, exc_info=cause is not None)
     return False
 
 
