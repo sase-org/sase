@@ -101,6 +101,7 @@ def resolve_init_project_inventory() -> InitProjectInventory:
             sase_projects_dir(),
             "enabled",
             include_home=False,
+            projects_only=True,
         )
     except Exception as exc:  # pragma: no cover - facade failures are rare
         return InitProjectInventory(
@@ -111,7 +112,8 @@ def resolve_init_project_inventory() -> InitProjectInventory:
     targets = tuple(
         _target_for_record(record)
         for record in sorted(records, key=_record_sort_key)
-        if record.state == "enabled"
+        if record.is_project
+        and record.state == "enabled"
         and record.project_name != "home"
         and not record.system_managed
     )

@@ -22,6 +22,7 @@ def _record(
     system_managed: bool = False,
     workspace_exists: bool = True,
     project_file_exists: bool = True,
+    is_project: bool = True,
     warnings: list[str] | None = None,
     parse_warnings: list[str] | None = None,
 ) -> ProjectRecordWire:
@@ -49,6 +50,7 @@ def _record(
         warnings=warnings or [],
         parse_warnings=parse_warnings or [],
         display_name=display_name,
+        is_project=is_project,
     )
 
 
@@ -63,11 +65,14 @@ def test_inventory_selects_and_sorts_active_main_projects(
         _record(tmp_path, "sibling", state="sibling"),
         _record(tmp_path, "home"),
         _record(tmp_path, "managed", system_managed=True),
+        _record(tmp_path, "skill-use-telemetry", is_project=False),
     ]
-    calls: list[tuple[object, object, object]] = []
+    calls: list[tuple[object, object, object, object]] = []
 
-    def fake_list(root, states, *, include_home):  # type: ignore[no-untyped-def]
-        calls.append((root, states, include_home))
+    def fake_list(  # type: ignore[no-untyped-def]
+        root, states, *, include_home, projects_only
+    ):
+        calls.append((root, states, include_home, projects_only))
         return records
 
     monkeypatch.setattr(init_project_scope, "list_project_records", fake_list)
@@ -79,7 +84,7 @@ def test_inventory_selects_and_sorts_active_main_projects(
 
     assert inventory.error is None
     assert [target.project_name for target in inventory.targets] == ["zeta", "beta"]
-    assert calls == [(tmp_path / "projects", "enabled", False)]
+    assert calls == [(tmp_path / "projects", "enabled", False, True)]
 
 
 def test_inventory_preserves_warnings_and_unavailable_targets(
