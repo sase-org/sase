@@ -64,12 +64,16 @@ The result is a clean, self-contained document showing exactly what the agent wa
 
 ### Artifact Persistence
 
-The plan file produced by the agent is:
+The approved plan artifact is:
 
 1. Annotated with a `create_time` frontmatter field
 2. Given a required `tier: tale|epic` frontmatter value and written to `<plans-root>/{YYYYMM}/{plan_name}.md`, where
    `{YYYYMM}` is derived from the current date. Its prompt snapshot is written beside it at
    `<plans-root>/{YYYYMM}/prompts/{plan_name}.md`.
+
+For tales, the agent runner promotes the plan and prompt snapshot together. For epics, the runner writes and commits
+only the prompt snapshot; the canonical `sase bead work <plan-file>` command owns archiving and linking the plan itself.
+This keeps host approval and the finishing planner agent from writing the same plan concurrently.
 
 Prompt snapshots, plans, and research notes are organized into `YYYYMM` subdirectories (for example, `202603/`) based on
 the creation date. Prompt snapshots are nested under each plan month at `<plans-root>/<YYYYMM>/prompts/`. This keeps
@@ -78,7 +82,8 @@ with `sase repo path plans` or `SASE_SDD_PLANS_DIR`; historical top-level `promp
 readable for compatibility.
 
 Planning artifacts may also carry a `status` field (set to `done` when work completes) and a `bead_id` field linking to
-the bead issue tracker.
+the bead issue tracker. For an epic, `sase bead work <plan-file>` writes `bead_id` after it creates the epic and phase
+beads. Re-running the command sees that link and resumes the existing epic instead of creating duplicates.
 
 When `sase plan propose` submits a plan for approval, it touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
 flips the agent into the `PLAN` status immediately rather than waiting for the next auto-refresh tick. The pulse file is
@@ -87,11 +92,18 @@ consumed by the inotify-based artifact watcher and is harmless when no TUI is op
 Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists pending PlanApproval notifications,
 recent approvals, and inferred rejected archived proposals. `sase plan approve <id-prefix>` defaults to the tier
 authored in the plan; `--kind tale|epic` explicitly overrides it. The selected target schema is validated before the
-response, SDD copy, or notification dismissal, and failures leave the proposal pending. A passing approval tells the
-runner to commit the promoted plan under the matching SDD tier before launching the follow-up. `--kind approve` runs the
-coder without committing an SDD plan, while `--kind commit` records the approved plan in SDD without launching a coder.
-`sase plan reject <id-prefix>` writes the same no-feedback rejection response as the TUI, then attempts to dismiss and
-user-kill the matching planner row when it can be found.
+response, SDD copy, or notification dismissal, and failures leave the proposal pending.
+
+Tale approval promotes the plan and launches its coder through the agent runner. Epic approval instead delegates the
+plan to `sase bead work <plan-file> --yes`: the ACE TUI submits a tracked background task before recording host
+ownership, the CLI runs it in the foreground, and headless callers spawn a detached worker with a completion log and
+notification. The command's live output is visible in the TUI Tasks tab. If a surface cannot submit or claim the launch,
+the planner agent runs the same command as a subprocess, so the approval is not orphaned. In either case the planner
+finishes with `EPIC APPROVED` rather than failing after the handoff.
+
+`--kind approve` runs the coder without committing an SDD plan, while `--kind commit` records the approved plan in SDD
+without launching a coder. `sase plan reject <id-prefix>` writes the same no-feedback rejection response as the TUI,
+then attempts to dismiss and user-kill the matching planner row when it can be found.
 
 To recall prior artifacts, `sase plan search [QUERY]` searches plans, prompt snapshots, and research in the resolved SDD
 store (the `repo` source, surfaced first) plus the machine-local `~/.sase/plans/` archive. The query is optional — omit
@@ -228,7 +240,8 @@ historical root-level scratch files are not part of the committed-plan sweep.
 
 ## CLI
 
-SDD's durable operations live on the repo and plan command groups:
+SDD's durable operations live primarily on the repo and plan command groups; executable epic handoff uses the bead
+command group:
 
 | Command                    | Purpose                                                                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -240,6 +253,7 @@ SDD's durable operations live on the repo and plan command groups:
 | `sase plan links validate` | Validate links; `-j/--json`, `-q/--quiet`, `-s/--strict`, and `-W/--show-warnings` tune output |
 | `sase plan search`         | Search or browse tale, epic, prompt, and research artifacts                                    |
 | `sase plan validate`       | Validate one plan path with required `-t/--tier`; supports `-j/--json` and `-q/--quiet`        |
+| `sase bead work PLAN_FILE` | Validate, archive, link, and launch an epic plan; `-n/--dry-run` previews without mutation     |
 
 The link subcommands accept `-p/--path`, which may point at an SDD root or a project root. Bare `sase plan links`
 defaults to `sase plan links list`. Validation treats unpaired or ambiguous historical files as warnings by default and
@@ -274,7 +288,8 @@ manual refreshes and `--check` drift audits.
 
 ## Bead Integration
 
-SDD initializes the [bead issue tracker](beads.md) automatically when an epic agent spawns:
+`sase bead work <plan-file>` initializes the [bead issue tracker](beads.md) automatically when its resolved store does
+not have one yet:
 
 - **In-tree mode**: Beads are stored in `sdd/beads/` at the project root.
 - **Local mode**: Beads are stored in `.sase/sdd/beads/`; `.sase/sdd/` is a standalone git repo.
@@ -286,15 +301,16 @@ Plan-like beads carry a `tier` value:
 - `plan` for ordinary non-epic implementation plans.
 - `epic` for executable multi-phase plans.
 
-For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. Each phase of the epic gets its
-own bead whose ID appears in commit messages, creating a traceable chain from epic to phase to commit. For smaller
-plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative to the
-repository that owns the plan: `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md` for
-local or legacy separate-repo stores. In a split `--plans` repository, it is `<YYYYMM>/<name>.md`.
+For larger efforts, epic files carry `bead_id` and `tier: epic` in their frontmatter. The command validates the epic,
+archives it into the resolved plans store, creates the epic and phase beads, wires the authored dependencies, commits
+the `bead_id` link, and launches the shared bead-work schedule. Each phase bead's ID appears in commit messages,
+creating a traceable chain from epic to phase to commit. A stale `bead_id` whose bead is missing is reported with a
+remedy instead of silently creating a second epic.
 
-When the plan approval flow launches an epic agent, SASE passes the epic-creation xprompt a plan reference that all
-workspaces can resolve. Agents can also build paths from the kind-specific root, for example
-`$SASE_SDD_PLANS_DIR/{YYYYMM}/{name}.md`.
+For smaller plans, commit messages include a `SASE_PLAN=<path>` tag pointing back to the plan file. The path is relative
+to the repository that owns the plan: `sdd/plans/<YYYYMM>/<name>.md` for in-tree storage and `plans/<YYYYMM>/<name>.md`
+for local or legacy separate-repo stores. In a split `--plans` repository, it is `<YYYYMM>/<name>.md`. Agents can also
+build paths from the kind-specific root, for example `$SASE_SDD_PLANS_DIR/{YYYYMM}/{name}.md`.
 
 ## Configuration
 

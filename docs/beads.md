@@ -46,6 +46,8 @@ sase bead blocked                                       # Show blocked issues
 sase bead sync                                          # Export and stage JSONL in git
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
+sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
+sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
 sase bead work beads-001                                # Launch agents for an epic plan bead
 ```
 
@@ -297,19 +299,34 @@ extension is importable and exposes the representative bead CLI binding used by 
 
 Display a quick-start guide with common command examples.
 
-### `sase bead work <id>`
+### `sase bead work <target>`
 
-Run an entire epic-tier plan end-to-end by launching one agent per phase plus a final land agent.
+Create or resume an epic from a validated Markdown plan, or launch an existing epic-tier plan bead. A target is treated
+as a plan file when it ends in `.md`, contains a path separator, or names an existing file; other targets are bead IDs.
+Both modes use the same launcher to run one agent per open phase plus a final land agent.
 
-Approving a validated Epic plan performs this kickoff automatically. SASE creates the epic plan bead from the plan's
-`title`, `goal`, top-level `model`, and optional ChangeSpec metadata; writes its `bead_id` back to the committed plan;
-creates phase beads in `phases[]` order; wires every `depends_on` edge; then invokes the same launch path as
-`sase bead work <id> --yes`. A missing phase description becomes a deterministic pointer to the plan and phase ID.
-Failures before a complete launch remove the new epic and its children and restore the plan link. Partial agent launches
-are terminated by the normal bead-work rollback before that creation rollback runs. A failure committing bead state
-after all agents started is reported without deleting the live agents or their beads.
+Plan-file mode is the canonical epic-approval entry point. It:
 
-For epic-tier plans, the command:
+1. Validates the file against the epic plan schema and reports the complete diagnostics on failure.
+2. Resolves the project's SDD and bead stores, initializing the bead store when needed.
+3. Archives the plan under the resolved `{YYYYMM}/` plans directory and commits it.
+4. Resumes the linked epic when the archived plan already has a valid `bead_id`.
+5. Otherwise creates the epic plan bead from the plan's `title`, `goal`, top-level `model`, and optional ChangeSpec
+   metadata; creates phase beads in `phases[]` order; wires every `depends_on` edge; and commits the new `bead_id` link.
+6. Invokes the existing bead-ID launch path.
+
+A missing phase description becomes a deterministic pointer to the plan and phase ID. A linked `bead_id` that no longer
+exists fails with instructions to remove the stale link or restore the bead store. Failures before a complete launch
+remove the newly-created epic and children and restore the plan link. Partial agent launches are terminated by the
+normal bead-work rollback before that creation rollback runs. A failure committing bead state after all agents started
+is reported without deleting the live agents or their beads. Every plan-file failure after archiving prints the exact
+`sase bead work ... --yes` command to resume.
+
+`--dry-run` plan-file mode validates and resolves the stores, previews the archive destination, authored beads, and
+dependency waves, and does not write files, create beads, reserve names, or launch agents. `--json` prints one stable
+object for scripting; successful human output always ends with a grep-friendly `Epic: <id>` line used by approval hosts.
+
+Once an epic bead exists, the shared launch path:
 
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
    `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
@@ -336,11 +353,12 @@ For epic-tier plans, the command:
    follow-up work continues. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work`
    after a killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
 
-| Flag            | Description                                                                       |
-| --------------- | --------------------------------------------------------------------------------- |
-| `-n, --dry-run` | Print the wave plan and rendered multi-prompt without mutating state or launching |
-| `-P, --no-push` | Commit launched bead state locally but skip the post-commit `git push`            |
-| `-y, --yes`     | Skip the launch confirmation prompt                                               |
+| Flag            | Description                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `-n, --dry-run` | Validate and preview plan archiving, bead creation, and waves without mutation or launch |
+| `-j, --json`    | Print one machine-readable result object; also skips interactive confirmation            |
+| `-P, --no-push` | Commit plan and bead state locally but skip post-commit pushes                           |
+| `-y, --yes`     | Skip the launch confirmation prompt                                                      |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
 matching tag overrides the built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so spawned
@@ -431,6 +449,12 @@ applies.
 ### Plan Approval Flow
 
 The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal approval saves to the resolved
-SDD `plans/` directory with `tier: tale`. Epic saves there with `tier: epic`, deterministically creates an `epic`-tier
-plan bead plus ordered phase beads, wires their dependencies, and launches the bead-work schedule. No epic-creation
-agent is spawned.
+SDD `plans/` directory with `tier: tale`. Epic approval first submits a deduplicated tracked task that runs
+`sase bead work <plan-file> --yes` from the project's primary workspace, then records that the host owns the launch in
+the planner response. The Tasks tab shows live command output and provides kill support; success back-fills the epic ID
+and committed plan path into planner metadata. If task submission fails, the response omits host ownership and the
+planner runs the same canonical command as a subprocess.
+
+`sase plan approve --kind epic` runs the command in the foreground. Headless approval callers use a detached worker with
+a launch log and completion notification by default. The planner writes its prompt snapshot, finishes as
+`EPIC APPROVED`, and does not race the command for ownership of the epic plan file.
