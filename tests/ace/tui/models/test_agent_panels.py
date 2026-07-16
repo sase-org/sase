@@ -61,6 +61,71 @@ def test_mixed_agents_keep_untagged_panel_first() -> None:
     assert group.focused_key is None
 
 
+def test_collapsed_middle_panel_moves_after_expanded_panels() -> None:
+    agents = [
+        _agent(suffix="u"),
+        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tag="beta"),
+        _agent(suffix="g", tag="gamma"),
+    ]
+
+    group = AgentPanelGroup.from_agents(
+        agents,
+        collapsed_panel_keys={"beta"},
+    )
+
+    assert group.panel_keys == [None, "alpha", "gamma", "beta"]
+
+
+def test_multiple_collapsed_panels_keep_canonical_order() -> None:
+    agents = [
+        _agent(suffix="u"),
+        _agent(suffix="g", tag="gamma"),
+        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tag="beta"),
+    ]
+
+    group = AgentPanelGroup.from_agents(
+        agents,
+        collapsed_panel_keys={"gamma", "alpha"},
+    )
+
+    assert group.panel_keys == [None, "beta", "alpha", "gamma"]
+
+
+def test_collapsed_untagged_panel_moves_after_expanded_tag_panels() -> None:
+    agents = [
+        _agent(suffix="u"),
+        _agent(suffix="b", tag="beta"),
+        _agent(suffix="a", tag="alpha"),
+    ]
+
+    group = AgentPanelGroup.from_agents(
+        agents,
+        collapsed_panel_keys={None},
+    )
+
+    assert group.panel_keys == ["alpha", "beta", None]
+
+
+def test_collapsed_last_partition_preserves_focused_panel_key() -> None:
+    agents = [
+        _agent(suffix="a", tag="alpha"),
+        _agent(suffix="b", tag="beta"),
+        _agent(suffix="g", tag="gamma"),
+    ]
+
+    group = AgentPanelGroup.from_agents(
+        agents,
+        focused_key="beta",
+        collapsed_panel_keys={"beta"},
+    )
+
+    assert group.panel_keys == ["alpha", "gamma", "beta"]
+    assert group.focused_idx == 2
+    assert group.focused_key == "beta"
+
+
 def test_empty_agents_keep_untagged_fallback_panel() -> None:
     group = AgentPanelGroup.from_agents([])
 
@@ -149,6 +214,7 @@ def test_merged_panels_use_one_panel_but_preserve_effective_tags() -> None:
         agents,
         focused_key="review",
         merge_tag_panels=True,
+        collapsed_panel_keys={None, "fix"},
     )
 
     assert group.panel_keys == [None]

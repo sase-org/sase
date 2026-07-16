@@ -85,6 +85,8 @@ class _StubApp(
 
     def _refresh_agents_display(self, *, list_changed: bool = False) -> None:
         self.refresh_calls.append(list_changed)
+        if list_changed:
+            self._sync_panel_group()
 
     def _refresh_focused_agent_panel(self, *, old_focused_idx: int | None) -> None:
         del old_focused_idx
@@ -132,6 +134,9 @@ def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
     assert app.current_idx == 1
     assert app.current_attempt_number is None
     assert app._current_group_key is None
+    assert app._panel_group.panel_keys == [None, "beta", "alpha"]
+    assert app._panel_group.focused_key == "alpha"
+    assert app._panel_group.focused_idx == 2
     assert app._panel_navigation_stops() == []
     assert app._agents_visible_order() == []
     assert app.refresh_calls == [True]
@@ -141,6 +146,9 @@ def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
     assert app._collapsed_panel_keys == set()
     assert app.current_idx == 2
     assert app._agents[app.current_idx].agent_name == "render-first"
+    assert app._panel_group.panel_keys == [None, "alpha", "beta"]
+    assert app._panel_group.focused_key == "alpha"
+    assert app._panel_group.focused_idx == 1
     assert registry.is_collapsed(("zeta",)) is True
     assert app.refresh_calls == [True, True]
 
@@ -168,13 +176,19 @@ def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
 def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
     app = _StubApp(_multi_panel_agents(), focused_key=None)
     app._collapsed_panel_keys.add("alpha")
+    app._sync_panel_group()
+
+    app.action_focus_next_agent_panel()
+
+    assert app._panel_group.focused_key == "beta"
+    assert app.current_idx == 3
 
     app.action_focus_next_agent_panel()
 
     assert app._panel_group.focused_key == "alpha"
     assert app.current_idx == 1
     assert app._current_group_key is None
-    assert app.refresh_calls == [False]
+    assert app.refresh_calls == [False, False]
 
     prior = (app.current_idx, app._current_group_key)
     BasicNavigationMixin._navigate_agents_panel(app, 1)
@@ -184,7 +198,21 @@ def test_panel_switch_lands_on_collapsed_panel_and_l_reanchors() -> None:
     app.action_expand_all_folds()
     assert app.current_idx == 2
     assert app._collapsed_panel_keys == set()
-    assert app.refresh_calls == [False, True]
+    assert app._panel_group.panel_keys == [None, "alpha", "beta"]
+    assert app.refresh_calls == [False, False, True]
+
+
+def test_restored_collapsed_panels_sort_on_panel_sync() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="beta")
+
+    # Fold persistence installs this set before the established refilter/full
+    # refresh path synchronizes the rendered panel collection.
+    app._collapsed_panel_keys.update({"alpha", None})
+    app._sync_panel_group()
+
+    assert app._panel_group.panel_keys == ["beta", None, "alpha"]
+    assert app._panel_group.focused_key == "beta"
+    assert app._panel_group.focused_idx == 0
 
 
 def test_hidden_panel_rows_are_omitted_from_cross_panel_consumers() -> None:

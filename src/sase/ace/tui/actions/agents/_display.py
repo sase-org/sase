@@ -246,6 +246,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             return False
 
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        collapsed_panel_keys = getattr(self, "_collapsed_panel_keys", ())
         if not self._agent_display_widgets_have_previous_rows(previous_agents):
             return False
 
@@ -254,6 +255,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             panel_keys_for_display(
                 previous_agents,
                 merge_tag_panels=merge_tag_panels,
+                collapsed_panel_keys=collapsed_panel_keys,
             )
             != old_panel_keys
         ):
@@ -263,6 +265,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         next_panel_keys = panel_keys_for_display(
             self._agents,
             merge_tag_panels=merge_tag_panels,
+            collapsed_panel_keys=collapsed_panel_keys,
         )
         if next_panel_keys != old_panel_keys:
             self._record_display_full_rebuild_fallback("panel_membership_change")

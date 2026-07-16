@@ -142,7 +142,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         await wait_for_svg_contains(page, "▸ ")
         await wait_for_visual_idle(page)
 
-        collapsed_widget = page.app.query_one("#agent-list-panel-1")
+        assert page.app._panel_group.panel_keys[-1] == "chop"
+        collapsed_widget = page.app.query_one("#agent-list-panel-2")
         assert collapsed_widget.option_count == 0
         assert collapsed_widget.styles.height is not None
         assert collapsed_widget.styles.height.value == 2.0

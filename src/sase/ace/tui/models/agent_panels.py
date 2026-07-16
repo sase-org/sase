@@ -1,6 +1,7 @@
 """Panel-collection model for the Agents tab.
 
-Each Agents-tab panel renders a tag-bucket of agents:
+Each Agents-tab panel renders a tag-bucket of agents.  Panels have a canonical
+base order:
 
 * The untagged panel (key ``None``) appears first only when at least one
   visible agent is effectively untagged, or when the agent list is empty.
@@ -8,12 +9,18 @@ Each Agents-tab panel renders a tag-bucket of agents:
   Their order matches the order the user used to see as tag-level banners
   in the old three-level tree.
 
+Split-panel rendering applies one additional stable partition to that base
+order: expanded panels precede collapsed panels.  Both partitions retain the
+canonical order, so panel layout is deterministic rather than depending on
+collapse time or set iteration order.
+
 Workflow children inherit their parent's tag so they appear in the
 parent's panel even if the child has no tag of its own.
 """
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import cast
 
@@ -116,11 +123,12 @@ def agents_for_panel(
 
 @dataclass
 class AgentPanelGroup:
-    """Mutable holder for the panel set + focused panel.
+    """Mutable holder for the rendered panel order + focused panel.
 
     The focused panel is identified by *key*, not index, so a refresh
-    that adds or removes tag panels does not silently shift focus to a
-    different panel.
+    that adds, removes, collapses, or expands tag panels does not silently
+    shift focus to a different panel.  In split mode ``panel_keys`` is the
+    canonical base order stably partitioned with collapsed panels last.
     """
 
     panel_keys: list[PanelKey] = field(default_factory=lambda: [None])
@@ -133,17 +141,25 @@ class AgentPanelGroup:
         focused_key: PanelKey = None,
         *,
         merge_tag_panels: bool = False,
+        collapsed_panel_keys: Collection[PanelKey] = (),
     ) -> AgentPanelGroup:
         """Build a fresh panel group from *agents*, preserving focus when possible.
 
         If ``focused_key`` is no longer present in the new panel set
         (e.g. its tag's last agent was dismissed), focus falls back to
-        the first available panel.
+        the first available panel.  Split-panel keys retain their canonical
+        order within expanded and collapsed partitions, with collapsed panels
+        rendered last.
         """
         if merge_tag_panels:
             return cls(panel_keys=[None], focused_idx=0)
 
         keys = _panel_keys_for(agents)
+        if collapsed_panel_keys:
+            collapsed = set(collapsed_panel_keys)
+            keys = [key for key in keys if key not in collapsed] + [
+                key for key in keys if key in collapsed
+            ]
         try:
             idx = keys.index(focused_key)
         except ValueError:

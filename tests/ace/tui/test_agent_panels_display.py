@@ -207,24 +207,26 @@ def test_panel_separator_class_tracks_panel_position() -> None:
     assert "agent-panel-separated" in banana._classes
 
 
-def test_collapsed_first_panel_is_fixed_and_next_expanded_panel_fills() -> None:
+def test_collapsed_untagged_panel_moves_last_and_stays_fixed() -> None:
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[8, 4, 6], container_height=30)
     app._collapsed_panel_keys.add(None)
+    app._sync_panel_group()
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
-    assert main.render_collapsed_calls == 1
-    assert main.styles.height.unit is Unit.CELLS
-    assert main.styles.height.value == 2.0
-    assert "-collapsed-panel" in main._classes
+    apple = app._panel_widgets["agent-list-panel"]
+    banana = app._panel_widgets["agent-list-panel-1"]
+    untagged = app._panel_widgets["agent-list-panel-2"]
+    assert app._panel_group.panel_keys == ["apple", "banana", None]
     assert apple.styles.height.unit is Unit.FRACTION
     assert apple.styles.height.value == 1.0
     assert banana.styles.height.unit is Unit.CELLS
-    assert banana.styles.height.value == 8.0
+    assert banana.styles.height.value == 6.0
+    assert untagged.render_collapsed_calls == 1
+    assert untagged.styles.height.unit is Unit.CELLS
+    assert untagged.styles.height.value == 2.0
+    assert "-collapsed-panel" in untagged._classes
 
 
 def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:

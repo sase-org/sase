@@ -64,6 +64,7 @@ class AgentReviveStateMixin:
                 self._agents,
                 target_panel_key,
                 merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                collapsed_panel_keys=getattr(self, "_collapsed_panel_keys", ()),
             )
         except Exception:
             pass

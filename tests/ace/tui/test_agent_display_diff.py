@@ -65,6 +65,7 @@ class _DisplayDiffApp(AgentDisplayMixin):
         monkeypatch: Any,
         *,
         merge_tag_panels: bool = False,
+        collapsed_panel_keys: set[str | None] | None = None,
     ) -> None:
         self._agents = list(agents)
         self._fold_counts: dict[str, tuple[int, int]] = {}
@@ -85,9 +86,11 @@ class _DisplayDiffApp(AgentDisplayMixin):
         self._grouping_mode = GroupingMode.STANDARD
         self._current_group_key = None
         self._agent_panels_grouped = merge_tag_panels
+        self._collapsed_panel_keys = set(collapsed_panel_keys or ())
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             merge_tag_panels=merge_tag_panels,
+            collapsed_panel_keys=self._collapsed_panel_keys,
         )
         self._agents_first_load_done = True
         self._agents_refresh_active_source = "delta"
@@ -334,6 +337,33 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert "row_patch" in _display_costs(app)
     assert "display_full_rebuild" not in _display_costs(app)
     assert app._agent_detail_debouncer.is_pending
+
+
+def test_collapsed_last_panel_order_still_allows_incremental_row_patch(
+    monkeypatch: Any,
+) -> None:
+    apple = _agent("apple", tag="apple", suffix="a1", status="RUNNING")
+    banana = _agent("banana", tag="banana", suffix="b1")
+    cherry = _agent("cherry", tag="cherry", suffix="c1")
+    updated_apple = replace(apple, status="DONE")
+    app = _DisplayDiffApp(
+        [apple, banana, cherry],
+        monkeypatch,
+        collapsed_panel_keys={"banana"},
+    )
+
+    assert app._panel_group.panel_keys == ["apple", "cherry", "banana"]
+
+    app._agents = [updated_apple, banana, cherry]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[apple, banana, cherry],
+        defer_detail=True,
+    )
+
+    assert app._panel_group.panel_keys == ["apple", "cherry", "banana"]
+    assert app.full_rebuilds == 0
+    assert "row_patch" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
 
 
 def test_single_panel_addition_rebuilds_only_affected_panel(monkeypatch: Any) -> None:

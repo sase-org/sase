@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -94,12 +95,14 @@ def panel_keys_for_display(
     agents: list[Agent],
     *,
     merge_tag_panels: bool,
+    collapsed_panel_keys: Collection[PanelKey] = (),
 ) -> tuple[PanelKey, ...]:
     """Return the rendered panel-key collection for *agents*."""
     return tuple(
         AgentPanelGroup.from_agents(
             agents,
             merge_tag_panels=merge_tag_panels,
+            collapsed_panel_keys=collapsed_panel_keys,
         ).panel_keys
     )
 

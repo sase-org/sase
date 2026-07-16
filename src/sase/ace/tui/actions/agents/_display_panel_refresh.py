@@ -41,12 +41,13 @@ class PanelRefreshMixin:
 
         prev_focused = self._panel_group.focused_key
         merge_tag_panels = getattr(self, "_agent_panels_grouped", False)
+        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             prev_focused,
             merge_tag_panels=merge_tag_panels,
+            collapsed_panel_keys=collapsed_keys or (),
         )
-        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         if collapsed_keys is not None:
             before = len(collapsed_keys)
             collapsed_keys.intersection_update(self._panel_group.panel_keys)
