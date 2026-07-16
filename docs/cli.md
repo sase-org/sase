@@ -98,7 +98,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase plan reject`                           | Reject one pending plan by ID or prefix, then attempt planner cleanup when found.                           | [XPrompt directives](xprompt.md#plan-directive)              |
 | `sase plan search`                           | Search resolved-store SDD plans and the machine-local plan archive by literal text and metadata.            | [SDD](sdd.md#how-sdd-works)                                  |
 | `sase plan validate`                         | Validate one explicit plan path against a required `tale` or `epic` schema, with human or JSON diagnostics. | [SDD](sdd.md#plan-frontmatter-schema-and-validation)         |
-| `sase launch request`                        | Register an agent-requested launch for approval; no agent spawns until it is approved.                      | [Agent Families](agent_families.md#agent-initiated-launches) |
+| `sase launch request`                        | Register a launch gate; agent callers wait for a deterministic terminal JSON outcome.                       | [Agent Families](agent_families.md#agent-initiated-launches) |
 | `sase launch approve` / `reject`             | Resolve a pending launch request by request id, notification id, or unique prefix.                          | [Agent Families](agent_families.md#agent-initiated-launches) |
 | `sase questions`                             | Ask structured user questions from the questions skill path.                                                | [XPrompt directives](xprompt.md#directives)                  |
 

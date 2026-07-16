@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
+
+from sase.main.launch_handler import handle_launch_command
 from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import help_subcommand_rows, parser_for
 
@@ -72,3 +80,40 @@ def test_launch_public_long_options_have_short_aliases() -> None:
             assert short_options, f"sase launch {subcommand} " + "/".join(
                 public_long_options
             )
+
+
+def test_agent_launch_request_waits_and_prints_terminal_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    request = SimpleNamespace(request_id="launch-1")
+    outcome = SimpleNamespace(
+        to_dict=lambda: {
+            "status": "feedback",
+            "request_id": "launch-1",
+            "message": "Launch rejected with feedback",
+        }
+    )
+    args = argparse.Namespace(
+        launch_subcommand="request",
+        output="json",
+    )
+
+    with (
+        patch(
+            "sase.main.launch_handler._create_request_from_cli", return_value=request
+        ),
+        patch(
+            "sase.agent.launch_request.running_agent_context_requires_launch_approval",
+            return_value=True,
+        ),
+        patch(
+            "sase.agent.launch_request.wait_for_launch_approval",
+            return_value=outcome,
+        ) as wait,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_launch_command(args)
+
+    assert exc_info.value.code == 0
+    wait.assert_called_once_with(request)
+    assert json.loads(capsys.readouterr().out)["status"] == "feedback"

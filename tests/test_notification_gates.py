@@ -299,3 +299,10 @@ def test_raw_notify_creation_preserves_silent(
         )
     assert excinfo.value.code == 0
     assert load_notifications(include_dismissed=True)[0].silent is True
+
+
+def test_launch_adapter_rejects_unregistered_command_shape(gate_home: Path) -> None:
+    del gate_home
+    with pytest.raises(GateError) as exc_info:
+        create_gate(_gate_spec(kind="launch"))
+    assert exc_info.value.code == "invalid_launch_choices"

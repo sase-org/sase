@@ -1,5 +1,6 @@
 """Launch ``sase run`` prompts as detached background agents."""
 
+import json
 import sys
 
 from sase.agent.launcher import launch_agents_from_cwd
@@ -40,8 +41,10 @@ def launch_query(query: str) -> None:
 
     from sase.agent.launch_request import (
         LaunchRequestError,
+        cancel_launch_approval_request,
         create_launch_approval_request_from_prompt,
         running_agent_context_requires_launch_approval,
+        wait_for_launch_approval,
     )
 
     if running_agent_context_requires_launch_approval():
@@ -54,8 +57,16 @@ def launch_query(query: str) -> None:
         except LaunchRequestError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(f"Launch approval requested: {request.request_id}")
-        print(f"Response: {request.response_path}")
+        try:
+            outcome = wait_for_launch_approval(request)
+        except KeyboardInterrupt:
+            try:
+                cancel_launch_approval_request(request)
+            except LaunchRequestError:
+                pass
+            print("Launch request cancelled", file=sys.stderr)
+            sys.exit(130)
+        print(json.dumps(outcome.to_dict(), sort_keys=True))
         sys.exit(0)
 
     try:

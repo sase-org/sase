@@ -101,7 +101,8 @@ from tests.main.init_skills_handler_helpers import make_args
             "sase_run",
             (
                 "sase launch request",
-                "launch_response.json",
+                '"status": "approved"',
+                "do not poll request files yourself",
                 "%n(parent, reviewer)",
                 "Do not run `sase run`",
                 "#git:home",

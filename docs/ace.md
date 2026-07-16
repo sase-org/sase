@@ -1739,7 +1739,9 @@ they are not selected at the plan gate.
 Launches requested by a running agent (see [Agent-initiated launches](agent_families.md#agent-initiated-launches))
 arrive as priority notifications with a `LaunchApproval` action. Selecting one opens the launch approval modal, which
 renders the request's human-readable preview (`launch_preview.md`): press `a` to approve, `r` to reject, and `q` or
-`Esc` to cancel. The CLI equivalents are `sase launch approve <selector>` and `sase launch reject <selector>`.
+`Esc` to cancel. ACE resolves the same hash-verified command bundle used by mobile and remote callbacks, while retaining
+legacy launch-request fallback. The CLI equivalents are `sase launch approve <selector>` and
+`sase launch reject <selector>`.
 
 ## Linked Chats in Multi-Step Workflows
 

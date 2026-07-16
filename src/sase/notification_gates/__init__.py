@@ -14,6 +14,7 @@ from sase.notification_gates.paths import (
     GateBundlePaths,
     ResolvedGateBundle,
     bundle_paths,
+    resolve_action_bundle,
     resolve_notification_bundle,
 )
 from sase.notification_gates.poller import (
@@ -52,6 +53,7 @@ __all__ = [
     "poll_gate",
     "refresh_gate_after_edit",
     "registered_gate_kinds",
+    "resolve_action_bundle",
     "resolve_notification_bundle",
     "wait_for_gate",
 ]

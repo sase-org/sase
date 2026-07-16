@@ -79,7 +79,9 @@ sase launch request -f launch_request.json -o json
 ```
 
 The request may contain `%n(parent, suffix)` in its prompt, so the approved launch joins an existing family with any
-valid suffix. `launch_preview.md` shows the resolved launch plan before approval.
+valid suffix. `launch_preview.md` shows the resolved launch plan before approval. Inside an agent, the request command
+waits mechanically and returns one JSON outcome for approval, rejection, feedback, dispatch failure, cancellation, or
+timeout; the agent does not poll response files.
 
 Approve or reject from ACE, or use:
 
@@ -88,9 +90,10 @@ sase launch approve <selector>
 sase launch reject <selector> [-f <feedback>]
 ```
 
-The selector may be a request ID, notification ID, or unique notification prefix. Approval revalidates and replans the
-stored prompt in its original working directory before dispatch. Responses are write-once, and a multi-slot launch is
-all-or-nothing.
+The selector may be a request ID, notification ID, or unique notification prefix. Approval verifies the neutral request
+bundle, revalidates and replans the stored prompt in its original working directory, and records host dispatch status in
+the write-once response. A multi-slot launch is all-or-nothing. In-flight requests from the legacy launch-request layout
+remain answerable during the compatibility window.
 
 For the complete request schema, preview behavior, slot limits, and dispatch rules, see
 [Launch Approval](ace.md#launch-approval) and `sase launch request --help`.

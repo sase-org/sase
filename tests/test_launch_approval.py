@@ -20,7 +20,11 @@ from sase.agent.launch_preview import (
     build_launch_preview_request,
     write_launch_preview_files,
 )
-from sase.agent.launch_request import create_launch_approval_request
+from sase.agent.launch_request import (
+    cancel_launch_approval_request,
+    create_launch_approval_request,
+    wait_for_launch_approval,
+)
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import plan_fake_fanout
 from sase.integrations.mobile_notifications import execute_mobile_launch_action
@@ -376,14 +380,28 @@ def test_create_launch_request_writes_preview_and_notification(
         source_surface="agent_skill",
     )
 
-    written = json.loads(result.request_path.read_text(encoding="utf-8"))
-    assert written["request_id"] == result.request_id
+    envelope = json.loads(result.request_path.read_text(encoding="utf-8"))
+    written = envelope["payload"]
+    assert envelope["request_id"] == result.request_id
+    assert envelope["kind"] == "launch"
+    assert envelope["continuation_mode"] == "wait_for_launch"
     assert written["source_surface"] == "agent_skill"
     assert written["launch_request"]["reason"] == "Need reviewer follow-up"
     assert written["dispatch"] == {
         "cwd": str(tmp_path),
         "prompt": "%n(foo, reviewer)\nDo work",
     }
+    assert {choice["id"] for choice in envelope["choices"]} == {
+        "approve",
+        "reject",
+        "feedback",
+    }
+    assert all(
+        (result.response_dir / choice["command"]["argv"][0]).is_file()
+        for choice in envelope["choices"]
+    )
+    assert result.request_path.name == "request.json"
+    assert result.response_path.name == "response.json"
     assert result.preview_path.read_text(encoding="utf-8").startswith(
         "# Launch Preview\n"
     )
@@ -394,6 +412,158 @@ def test_create_launch_request_writes_preview_and_notification(
     assert len(notifications) == 1
     assert notifications[0].action == "LaunchApproval"
     assert notifications[0].action_data["request_id"] == result.request_id
+    assert notifications[0].action_data["request_path"] == str(result.request_path)
+    assert notifications[0].action_data["response_path"] == str(result.response_path)
+
+
+def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+    feedback_request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "reason": "Need follow-up",
+            "max_slots": 1,
+        }
+    )
+    context = LaunchApprovalActionContext(
+        id=feedback_request.notification_id,
+        host_files=(str(feedback_request.preview_path),),
+        host_action_data={
+            "request_id": feedback_request.request_id,
+            "request_kind": "launch",
+            "response_dir": str(feedback_request.response_dir),
+        },
+    )
+
+    action = execute_launch_approval_response(
+        context, "feedback", feedback="Use a smaller fanout"
+    )
+    outcome = wait_for_launch_approval(feedback_request, poll_interval=0.001)
+
+    assert action.response_file == "response.json"
+    assert action.response_json["choice_id"] == "feedback"
+    assert action.response_json["result"] == {
+        "action": "reject",
+        "feedback": "Use a smaller fanout",
+    }
+    assert outcome.status == "feedback"
+    assert outcome.response == action.response_json
+    with pytest.raises(LaunchApprovalActionError) as duplicate:
+        execute_launch_approval_response(
+            context, "feedback", feedback="Use a smaller fanout"
+        )
+    assert duplicate.value.code == "conflict_already_handled"
+
+    cancelled_request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do different work",
+            "reason": "Need a second follow-up",
+            "max_slots": 1,
+        }
+    )
+    cancel_launch_approval_request(cancelled_request)
+    cancelled = wait_for_launch_approval(cancelled_request, poll_interval=0.001)
+    assert cancelled.status == "cancelled"
+
+
+def test_neutral_launch_approval_dispatch_failure_is_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    launch_cwd = tmp_path / "workspace"
+    launch_cwd.mkdir()
+    monkeypatch.chdir(launch_cwd)
+    request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "reason": "Need dispatch coverage",
+            "max_slots": 1,
+        }
+    )
+    context = LaunchApprovalActionContext(
+        id=request.notification_id,
+        host_files=(str(request.preview_path),),
+        host_action_data={
+            "request_id": request.request_id,
+            "request_kind": "launch",
+            "response_dir": str(request.response_dir),
+        },
+    )
+    monkeypatch.chdir(tmp_path)
+    launch_cwd.rmdir()
+
+    with pytest.raises(LaunchApprovalActionError) as exc_info:
+        execute_launch_approval_response(context, "approve")
+
+    assert exc_info.value.code == "dispatch_failed"
+    outcome = wait_for_launch_approval(request, poll_interval=0.001)
+    assert outcome.status == "dispatch_failed"
+    assert "does not exist" in outcome.message
+    assert outcome.response["result"]["dispatch_status"] == "failed"
+
+
+def test_mobile_and_tui_resolve_neutral_launch_bundles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+    mobile_request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do mobile work",
+            "reason": "Need mobile approval",
+            "max_slots": 1,
+        }
+    )
+
+    mobile = execute_mobile_launch_action(
+        mobile_request.notification_id[:8],
+        "feedback",
+        feedback="Narrow the mobile launch",
+    )
+
+    assert mobile.response_file == "response.json"
+    assert mobile.response_json["choice_id"] == "feedback"
+    assert mobile.response_json["result"]["feedback"] == "Narrow the mobile launch"
+
+    tui_request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do TUI work",
+            "reason": "Need TUI approval",
+            "max_slots": 1,
+        }
+    )
+    from sase.notifications.store import load_notifications
+
+    notification = next(
+        row
+        for row in load_notifications(include_dismissed=False)
+        if row.id == tui_request.notification_id
+    )
+    app = _TuiLaunchApprovalApp()
+    _drive_tui_launch_approval(
+        app,
+        notification,
+        LaunchApprovalResult(action="reject"),
+    )
+
+    response = json.loads(tui_request.response_path.read_text(encoding="utf-8"))
+    assert response["choice_id"] == "reject"
+    assert response["result"] == {"action": "reject"}
+    assert app.notifications == [
+        ("Rejecting launch...", None),
+        ("Launch rejected", None),
+    ]
 
 
 def test_approve_launch_response_dispatches_stored_request(

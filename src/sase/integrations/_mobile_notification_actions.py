@@ -216,20 +216,6 @@ def execute_mobile_launch_action(
 ) -> MobilePlanActionResult:
     """Write a launch approval response and dismiss the notification."""
     notification = _resolve_action_notification(prefix, "LaunchApproval")
-    response_dir = Path(
-        notification.host_action_data.get("response_dir", "")
-    ).expanduser()
-    if not response_dir.is_dir():
-        raise MobilePlanActionError(
-            "invalid_request", "response_dir", "response_dir is missing"
-        )
-    if not (response_dir / "launch_request.json").is_file():
-        raise MobilePlanActionError(
-            "conflict_already_handled",
-            notification.id,
-            "launch request was already consumed",
-        )
-
     try:
         action_result = execute_launch_approval_response(
             LaunchApprovalActionContext(

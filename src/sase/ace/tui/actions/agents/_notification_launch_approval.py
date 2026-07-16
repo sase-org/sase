@@ -48,14 +48,14 @@ def handle_launch_approval(app: object, notification: Notification) -> bool:
     """Show the launch approval modal for a pending launch request."""
     from ...modals import LaunchApprovalModal, LaunchApprovalResult
 
-    response_dir = notification.action_data.get("response_dir")
-    if not response_dir:
-        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+    from sase.notification_gates.paths import resolve_notification_bundle
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None:
+        app.notify("No launch request in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
-    response_path = Path(response_dir).expanduser()
-    request_path = response_path / "launch_request.json"
-    if not request_path.exists():
+    if not bundle.request.exists():
         app.notify("Launch approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
         return False
 
@@ -187,8 +187,6 @@ def _read_launch_approval_task_metadata(
     action: str,
 ) -> _LaunchApprovalTaskMetadata:
     """Read optional launch metadata inside the worker, never on keypress."""
-    import json
-
     request_id = str(notification.action_data.get("request_id") or notification.id)
     response_dir = notification.action_data.get("response_dir")
     display_name = f"{action} launch {request_id}"
@@ -197,13 +195,11 @@ def _read_launch_approval_task_metadata(
     if not response_dir:
         return _LaunchApprovalTaskMetadata(display_name, cl_name, project_file)
 
-    request_path = Path(response_dir).expanduser() / "launch_request.json"
+    from sase.agent.launch_request import LaunchRequestError, read_launch_request
+
     try:
-        with request_path.open(encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return _LaunchApprovalTaskMetadata(display_name, cl_name, project_file)
-    if not isinstance(data, dict):
+        data = read_launch_request(Path(response_dir).expanduser())
+    except LaunchRequestError:
         return _LaunchApprovalTaskMetadata(display_name, cl_name, project_file)
 
     workspace = _first_launch_workspace(data)

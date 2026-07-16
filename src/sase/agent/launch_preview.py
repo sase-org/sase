@@ -40,6 +40,7 @@ def build_launch_preview_request(
     slot_contexts: Mapping[int, LaunchExecutionContext] | None = None,
     slot_extra_env: Mapping[int, Mapping[str, str]] | None = None,
     slot_planned_names: Mapping[int, str | None] | None = None,
+    response_file: str = LAUNCH_RESPONSE_FILE,
 ) -> dict[str, Any]:
     """Build a deterministic launch preview/request payload.
 
@@ -90,7 +91,7 @@ def build_launch_preview_request(
         "created_at_unix": created,
         "source_surface": source_surface,
         "all_or_nothing": True,
-        "response_file": LAUNCH_RESPONSE_FILE,
+        "response_file": response_file,
         "submitted_prompt_snippet": (
             None if submitted_prompt is None else _prompt_snippet(submitted_prompt)
         ),
@@ -128,7 +129,7 @@ def write_launch_preview_files(
         json.dumps(dict(request), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    preview_path.write_text(_render_launch_preview_markdown(request), encoding="utf-8")
+    preview_path.write_text(render_launch_preview_markdown(request), encoding="utf-8")
     if response_path.exists():
         response_path.unlink()
     return {
@@ -139,7 +140,7 @@ def write_launch_preview_files(
     }
 
 
-def _render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
+def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
     """Render a human-readable launch preview with complete prompts."""
     slots = [slot for slot in request.get("slots", []) if isinstance(slot, Mapping)]
     declared_slot_count = int(request.get("slot_count") or 0)
@@ -296,5 +297,6 @@ __all__ = [
     "LAUNCH_REQUEST_FILE",
     "LAUNCH_RESPONSE_FILE",
     "build_launch_preview_request",
+    "render_launch_preview_markdown",
     "write_launch_preview_files",
 ]

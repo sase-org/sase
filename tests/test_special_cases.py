@@ -1,5 +1,6 @@
 """Tests for special case handling in sase run command."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -194,6 +195,13 @@ def test_launch_query_from_agent_context_requests_approval(
         request_id="launch-test",
         response_path=Path("/tmp/launch_response.json"),
     )
+    outcome = SimpleNamespace(
+        to_dict=lambda: {
+            "status": "rejected",
+            "request_id": "launch-test",
+            "message": "Launch rejected",
+        }
+    )
     with (
         patch(
             "sase.agent.prompt_inputs.missing_required_input_names",
@@ -207,6 +215,10 @@ def test_launch_query_from_agent_context_requests_approval(
             "sase.agent.launch_request.create_launch_approval_request_from_prompt",
             return_value=request,
         ) as mock_request,
+        patch(
+            "sase.agent.launch_request.wait_for_launch_approval",
+            return_value=outcome,
+        ) as mock_wait,
         patch("sase.main.query_handler._launch.launch_agents_from_cwd") as mock_launch,
         pytest.raises(SystemExit) as excinfo,
     ):
@@ -218,8 +230,9 @@ def test_launch_query_from_agent_context_requests_approval(
         reason="Running agent requested a detached launch.",
         source_surface="agent_skill",
     )
+    mock_wait.assert_called_once_with(request)
     mock_launch.assert_not_called()
-    assert "Launch approval requested: launch-test" in capsys.readouterr().out
+    assert json.loads(capsys.readouterr().out)["status"] == "rejected"
 
 
 def test_entry_run_known_prompt_falls_through_to_run_branch(

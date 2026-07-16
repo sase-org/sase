@@ -306,8 +306,73 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "payload",
             "payload and producer must contain JSON values",
         ) from exc
+    if adapter.kind == "launch":
+        _validate_launch_spec(spec)
     if spec.auto.enabled:
         adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
+
+
+def _validate_launch_spec(spec: GateSpec) -> None:
+    """Keep privileged launch gates on the registered command contract."""
+    expected_commands = {
+        "approve": "commands/approve",
+        "reject": "commands/reject",
+        "feedback": "commands/feedback",
+    }
+    actual_commands = {choice.id: choice.command.argv[0] for choice in spec.choices}
+    if actual_commands != expected_commands:
+        raise GateError(
+            "invalid_launch_choices",
+            "choices",
+            "launch gates require approve, reject, and feedback commands",
+        )
+
+    from sase.agent.launch_request import launch_gate_command_script
+
+    resources = {resource.path: resource for resource in spec.resources}
+    for choice_id, path in expected_commands.items():
+        resource = resources[path]
+        try:
+            content = (
+                resource.content
+                if resource.content is not None
+                else resource.source.read_text(encoding="utf-8")
+                if resource.source is not None
+                else None
+            )
+        except OSError as exc:
+            raise GateError(
+                "invalid_launch_command", path, f"cannot read launch command: {exc}"
+            ) from exc
+        if content != launch_gate_command_script(choice_id):
+            raise GateError(
+                "invalid_launch_command",
+                path,
+                "launch command does not match the registered adapter",
+            )
+
+    dispatch = spec.payload.get("dispatch")
+    if not isinstance(dispatch, Mapping):
+        raise GateError(
+            "invalid_launch_payload",
+            "payload.dispatch",
+            "launch payload requires a dispatch object",
+        )
+    if (
+        not isinstance(dispatch.get("prompt"), str)
+        or not str(dispatch.get("prompt")).strip()
+    ):
+        raise GateError(
+            "invalid_launch_payload",
+            "payload.dispatch.prompt",
+            "launch payload requires a prompt",
+        )
+    if not isinstance(dispatch.get("cwd"), str) or not dispatch.get("cwd"):
+        raise GateError(
+            "invalid_launch_payload",
+            "payload.dispatch.cwd",
+            "launch payload requires a cwd",
+        )
 
 
 def _reject_duplicates(values: list[str], target: str, label: str) -> None:

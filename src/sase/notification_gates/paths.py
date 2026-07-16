@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -104,13 +105,20 @@ def resolve_notification_bundle(
     notification: Notification,
 ) -> ResolvedGateBundle | None:
     """Resolve a typed notification to a neutral bundle or its legacy directory."""
+    return resolve_action_bundle(notification.action, notification.action_data)
+
+
+def resolve_action_bundle(
+    action: str | None, action_data: Mapping[str, str]
+) -> ResolvedGateBundle | None:
+    """Resolve typed action data to a neutral bundle or its legacy directory."""
     from sase.notification_gates.registry import adapter_for_action
 
-    adapter = adapter_for_action(notification.action)
+    adapter = adapter_for_action(action)
     if adapter is None:
         return None
-    request_id = notification.action_data.get("request_id")
-    request_kind = notification.action_data.get("request_kind", adapter.kind)
+    request_id = action_data.get("request_id")
+    request_kind = action_data.get("request_kind", adapter.kind)
     if request_id:
         try:
             neutral = bundle_paths(request_kind, request_id)
@@ -125,7 +133,7 @@ def resolve_notification_bundle(
                 cancellation=neutral.cancellation,
                 legacy=False,
             )
-    return _resolve_legacy_bundle(adapter, notification.action_data)
+    return _resolve_legacy_bundle(adapter, dict(action_data))
 
 
 def _resolve_legacy_bundle(
@@ -202,5 +210,6 @@ __all__ = [
     "interaction_requests_dir",
     "open_regular_nofollow",
     "owned_resource_path",
+    "resolve_action_bundle",
     "resolve_notification_bundle",
 ]

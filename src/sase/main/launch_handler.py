@@ -39,7 +39,28 @@ def handle_launch_command(args: argparse.Namespace) -> None:
             )
             sys.exit(0)
         if subcommand == "request":
-            _print_request_result(_create_request_from_cli(args), args.output)
+            request = _create_request_from_cli(args)
+            from sase.agent.launch_request import (
+                cancel_launch_approval_request,
+                running_agent_context_requires_launch_approval,
+                wait_for_launch_approval,
+            )
+
+            if running_agent_context_requires_launch_approval():
+                try:
+                    outcome = wait_for_launch_approval(request)
+                except KeyboardInterrupt:
+                    try:
+                        cancel_launch_approval_request(request)
+                    except LaunchRequestError:
+                        pass
+                    Console(stderr=True).print(
+                        "[yellow]Launch request cancelled[/yellow]"
+                    )
+                    sys.exit(130)
+                _print_wait_result(outcome.to_dict(), args.output)
+            else:
+                _print_request_result(request, args.output)
             sys.exit(0)
     except LaunchApprovalActionError as exc:
         Console(stderr=True).print(f"[red]Error:[/red] {exc}")
@@ -203,6 +224,17 @@ def _print_request_result(result: LaunchRequestCreationResult, output: str) -> N
         f"[green]Launch approval requested[/green] "
         f"[bold]{request_id}[/bold] [dim]{_display_path(Path(payload['response_dir']))}[/dim]"
     )
+
+
+def _print_wait_result(payload: dict[str, Any], output: str) -> None:
+    from rich.console import Console
+
+    if output == "json":
+        print(json.dumps(payload, sort_keys=True))
+        return
+    status = str(payload.get("status") or "resolved").replace("_", " ")
+    message = str(payload.get("message") or status)
+    Console().print(f"[green]{status.title()}[/green] [dim]{message}[/dim]")
 
 
 def _display_path(path: Path) -> str:

@@ -41,7 +41,7 @@ def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
     reject_parser.add_argument(
         "-f",
         "--feedback",
-        help="Optional feedback to write into launch_response.json",
+        help="Optional feedback to return with the launch rejection",
     )
 
     request_parser = launch_subparsers.add_parser(
@@ -49,8 +49,8 @@ def register_launch_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Create a pending launch approval request",
         description=(
             "Create a LaunchApproval request from a structured JSON payload or "
-            "prompt flags. The request is previewed and registered, but no "
-            "agent is spawned until it is approved."
+            "prompt flags. Agent-side callers wait for the response; no agent "
+            "is spawned unless host dispatch is approved and succeeds."
         ),
     )
     request_parser.add_argument(

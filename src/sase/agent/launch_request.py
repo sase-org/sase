@@ -4,17 +4,23 @@ from __future__ import annotations
 
 import json
 import os
+import signal
+import sys
+import threading
 from collections.abc import Mapping
+from contextlib import redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.agent.launch_preview import (
+    LAUNCH_PREVIEW_FILE,
     LAUNCH_REQUEST_FILE,
     build_launch_preview_request,
-    write_launch_preview_files,
+    render_launch_preview_markdown,
 )
 from sase.agent.launch_types import AgentLaunchResult
+from sase.notification_gates.paths import REQUEST_FILENAME, RESPONSE_FILENAME
 
 LAUNCH_REQUEST_SCHEMA_VERSION = 1
 
@@ -28,6 +34,38 @@ class LaunchRequestCreationResult:
     preview_path: Path
     response_path: Path
     request: dict[str, Any]
+
+
+LaunchRequestStatus = Literal[
+    "approved",
+    "rejected",
+    "feedback",
+    "dispatch_failed",
+    "cancelled",
+    "timed_out",
+]
+
+
+@dataclass(frozen=True)
+class LaunchRequestOutcome:
+    """Deterministic terminal result observed by an agent-side requester."""
+
+    status: LaunchRequestStatus
+    request_id: str
+    notification_id: str
+    choice_id: str | None
+    message: str
+    response: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "request_id": self.request_id,
+            "notification_id": self.notification_id,
+            "choice_id": self.choice_id,
+            "message": self.message,
+            "response": self.response,
+        }
 
 
 @dataclass(frozen=True)
@@ -75,7 +113,7 @@ def create_launch_approval_request(
     *,
     source_surface: str | None = None,
 ) -> LaunchRequestCreationResult:
-    """Build preview files, register a LaunchApproval, and return its id."""
+    """Build and durably register a neutral LaunchApproval gate."""
     normalized = _normalize_request_payload(payload)
     source = source_surface or _default_source_surface()
     prompt = str(normalized["prompt"])
@@ -95,6 +133,7 @@ def create_launch_approval_request(
         context=context,
         source_surface=source,
         submitted_prompt=prompt,
+        response_file=RESPONSE_FILENAME,
     )
     request["launch_request"] = normalized
     request["requester"] = _requester_context()
@@ -103,47 +142,110 @@ def create_launch_approval_request(
         "prompt": prompt,
     }
 
-    paths = write_launch_preview_files(request)
-    from sase.notifications.senders import notify_launch_approval
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.service import create_gate
 
-    notification_id = notify_launch_approval(
-        request_id=str(request["request_id"]),
-        response_dir=str(paths["response_dir"]),
-        source_surface=source,
-        slot_count=slot_count,
-        preview_file=str(paths["preview"]),
-        request_file=str(paths["request"]),
-    )
+    try:
+        gate = create_gate(
+            _launch_gate_spec(
+                request,
+                preview=render_launch_preview_markdown(request),
+                source_surface=source,
+                slot_count=slot_count,
+            )
+        )
+    except GateError as exc:
+        raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
+    if gate.notification_id is None:  # Launch auto-resolution is forbidden.
+        raise LaunchRequestError(
+            "invalid_state",
+            str(gate.bundle_path),
+            "launch approval gate has no notification id",
+        )
+    if gate.preview_path is None:
+        raise LaunchRequestError(
+            "invalid_state",
+            str(gate.bundle_path),
+            "launch approval gate has no preview",
+        )
     return LaunchRequestCreationResult(
         request_id=str(request["request_id"]),
-        notification_id=notification_id,
-        response_dir=paths["response_dir"],
-        request_path=paths["request"],
-        preview_path=paths["preview"],
-        response_path=paths["response"],
+        notification_id=gate.notification_id,
+        response_dir=gate.bundle_path,
+        request_path=gate.request_path,
+        preview_path=gate.preview_path,
+        response_path=gate.response_path,
         request=request,
     )
+
+
+def wait_for_launch_approval(
+    request: LaunchRequestCreationResult,
+    *,
+    poll_interval: float = 0.2,
+) -> LaunchRequestOutcome:
+    """Wait mechanically for a launch gate and translate its neutral response."""
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.poller import wait_for_gate
+
+    terminated = False
+    previous_sigterm: Any = None
+
+    def on_sigterm(signum: int, frame: object) -> None:
+        del signum, frame
+        nonlocal terminated
+        terminated = True
+
+    if threading.current_thread() is threading.main_thread():
+        previous_sigterm = signal.signal(signal.SIGTERM, on_sigterm)
+    try:
+        result = wait_for_gate(
+            request.response_dir,
+            poll_interval=poll_interval,
+            cancelled=lambda: terminated,
+        )
+    except GateError as exc:
+        raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
+    finally:
+        if previous_sigterm is not None:
+            signal.signal(signal.SIGTERM, previous_sigterm)
+    if result.status != "responded":
+        status: LaunchRequestStatus = (
+            "timed_out" if result.status == "timed_out" else "cancelled"
+        )
+        return LaunchRequestOutcome(
+            status=status,
+            request_id=request.request_id,
+            notification_id=request.notification_id,
+            choice_id=None,
+            message=(
+                "Launch approval timed out"
+                if status == "timed_out"
+                else "Launch approval cancelled"
+            ),
+            response=result.payload,
+        )
+    return _launch_outcome_from_response(request, result.payload)
+
+
+def cancel_launch_approval_request(
+    request: LaunchRequestCreationResult,
+) -> dict[str, Any]:
+    """Cancel a request that the requester no longer intends to wait for."""
+    from sase.notification_gates.executor import cancel_gate
+    from sase.notification_gates.models import GateError
+
+    try:
+        return cancel_gate(request.response_dir, source="launch_requester")
+    except GateError as exc:
+        raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
 
 
 def dispatch_approved_launch_request(
     response_dir: Path,
 ) -> _ApprovedLaunchDispatchResult:
-    """Dispatch the launch described by an approved request directory."""
-    request_path = response_dir / LAUNCH_REQUEST_FILE
-    try:
-        data = json.loads(request_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise LaunchRequestError(
-            "invalid_request", str(request_path), "launch request is missing"
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise LaunchRequestError(
-            "invalid_request", str(request_path), "launch request is not valid JSON"
-        ) from exc
-    if not isinstance(data, dict):
-        raise LaunchRequestError(
-            "invalid_request", str(request_path), "launch request must be an object"
-        )
+    """Dispatch a neutral launch bundle or an in-flight legacy request."""
+    data = read_launch_request(response_dir)
 
     dispatch = data.get("dispatch")
     if not isinstance(dispatch, dict):
@@ -179,6 +281,267 @@ def dispatch_approved_launch_request(
     return _ApprovedLaunchDispatchResult(
         request_id=str(data.get("request_id") or ""),
         results=results,
+    )
+
+
+def read_launch_request(response_dir: Path) -> dict[str, Any]:
+    """Read a neutral launch payload first, then the legacy request file."""
+    neutral_path = response_dir / REQUEST_FILENAME
+    legacy_path = response_dir / LAUNCH_REQUEST_FILE
+    request_path = neutral_path if neutral_path.is_file() else legacy_path
+    try:
+        data = json.loads(request_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise LaunchRequestError(
+            "invalid_request", str(request_path), "launch request is missing"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise LaunchRequestError(
+            "invalid_request", str(request_path), "launch request is not valid JSON"
+        ) from exc
+    if not isinstance(data, dict):
+        raise LaunchRequestError(
+            "invalid_request", str(request_path), "launch request must be an object"
+        )
+
+    if request_path == neutral_path:
+        if data.get("kind") != "launch":
+            raise LaunchRequestError(
+                "invalid_request", str(request_path), "gate is not a launch request"
+            )
+        payload = data.get("payload")
+        if not isinstance(payload, dict):
+            raise LaunchRequestError(
+                "invalid_request",
+                str(request_path),
+                "launch gate payload must be an object",
+            )
+        return payload
+    return data
+
+
+def execute_launch_gate_command(choice: str) -> int:
+    """Entry point used only by the hashed scripts in a launch gate bundle."""
+    try:
+        raw_input = json.load(sys.stdin)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"invalid command input: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(raw_input, dict):
+        print("launch command input must be an object", file=sys.stderr)
+        return 2
+
+    if choice == "approve":
+        try:
+            with redirect_stdout(sys.stderr):
+                dispatch = dispatch_approved_launch_request(Path.cwd())
+        except Exception as exc:
+            result: dict[str, Any] = {
+                "action": "approve",
+                "dispatch_status": "failed",
+                "dispatch_error": str(exc),
+            }
+        else:
+            result = {
+                "action": "approve",
+                "dispatch_status": "launched",
+                "launched_count": dispatch.launched_count,
+            }
+    elif choice == "reject":
+        result = {"action": "reject"}
+    elif choice == "feedback":
+        feedback = raw_input.get("feedback")
+        if not isinstance(feedback, str) or not feedback.strip():
+            print("feedback text is required", file=sys.stderr)
+            return 2
+        result = {"action": "reject", "feedback": feedback}
+    else:
+        print(f"unsupported launch choice: {choice}", file=sys.stderr)
+        return 2
+    print(json.dumps(result, sort_keys=True))
+    return 0
+
+
+def _launch_outcome_from_response(
+    request: LaunchRequestCreationResult, response: dict[str, Any]
+) -> LaunchRequestOutcome:
+    choice_id = response.get("choice_id")
+    result = response.get("result")
+    if not isinstance(choice_id, str) or not isinstance(result, dict):
+        raise LaunchRequestError(
+            "invalid_response",
+            str(request.response_path),
+            "launch response is missing choice_id or result",
+        )
+    if choice_id == "approve":
+        if result.get("dispatch_status") == "failed":
+            status: LaunchRequestStatus = "dispatch_failed"
+            message = str(result.get("dispatch_error") or "Launch dispatch failed")
+        elif result.get("dispatch_status") == "launched":
+            status = "approved"
+            count = int(result.get("launched_count") or 0)
+            message = (
+                f"Launch approved and dispatched {count} agent"
+                f"{'s' if count != 1 else ''}"
+            )
+        else:
+            raise LaunchRequestError(
+                "invalid_response",
+                str(request.response_path),
+                "approved launch response has no dispatch status",
+            )
+    elif choice_id == "reject":
+        status = "rejected"
+        message = "Launch rejected"
+    elif choice_id == "feedback":
+        status = "feedback"
+        message = "Launch rejected with feedback"
+    else:
+        raise LaunchRequestError(
+            "invalid_response",
+            str(request.response_path),
+            f"unsupported launch response choice: {choice_id}",
+        )
+    return LaunchRequestOutcome(
+        status=status,
+        request_id=request.request_id,
+        notification_id=request.notification_id,
+        choice_id=choice_id,
+        message=message,
+        response=response,
+    )
+
+
+def _launch_gate_spec(
+    request: dict[str, Any],
+    *,
+    preview: str,
+    source_surface: str,
+    slot_count: int,
+) -> dict[str, Any]:
+    empty_input_schema = {
+        "type": "object",
+        "additionalProperties": False,
+    }
+    approve_result_schema = {
+        "type": "object",
+        "required": ["action", "dispatch_status"],
+        "properties": {
+            "action": {"const": "approve"},
+            "dispatch_status": {"enum": ["launched", "failed"]},
+            "launched_count": {"type": "integer", "minimum": 0},
+            "dispatch_error": {"type": "string"},
+        },
+        "allOf": [
+            {
+                "if": {
+                    "properties": {"dispatch_status": {"const": "launched"}},
+                    "required": ["dispatch_status"],
+                },
+                "then": {"required": ["launched_count"]},
+            },
+            {
+                "if": {
+                    "properties": {"dispatch_status": {"const": "failed"}},
+                    "required": ["dispatch_status"],
+                },
+                "then": {"required": ["dispatch_error"]},
+            },
+        ],
+        "additionalProperties": False,
+    }
+    reject_result_schema = {
+        "type": "object",
+        "required": ["action"],
+        "properties": {"action": {"const": "reject"}},
+        "additionalProperties": False,
+    }
+    feedback_input_schema = {
+        "type": "object",
+        "required": ["feedback"],
+        "properties": {"feedback": {"type": "string", "minLength": 1}},
+        "additionalProperties": False,
+    }
+    feedback_result_schema = {
+        "type": "object",
+        "required": ["action", "feedback"],
+        "properties": {
+            "action": {"const": "reject"},
+            "feedback": {"type": "string", "minLength": 1},
+        },
+        "additionalProperties": False,
+    }
+    choices = [
+        {
+            "id": "approve",
+            "label": "Approve",
+            "command": {"argv": ["commands/approve"]},
+            "input_schema": empty_input_schema,
+            "result_schema": approve_result_schema,
+        },
+        {
+            "id": "reject",
+            "label": "Reject",
+            "command": {"argv": ["commands/reject"]},
+            "input_schema": empty_input_schema,
+            "result_schema": reject_result_schema,
+        },
+        {
+            "id": "feedback",
+            "label": "Send Feedback",
+            "command": {"argv": ["commands/feedback"]},
+            "input_schema": feedback_input_schema,
+            "result_schema": feedback_result_schema,
+        },
+    ]
+    resources = [
+        {
+            "path": f"commands/{choice}",
+            "role": "command",
+            "content": launch_gate_command_script(choice),
+        }
+        for choice in ("approve", "reject", "feedback")
+    ]
+    resources.append(
+        {
+            "path": LAUNCH_PREVIEW_FILE,
+            "role": "preview",
+            "content": preview,
+        }
+    )
+    return {
+        "schema_version": 1,
+        "kind": "launch",
+        "request_id": str(request["request_id"]),
+        "producer": dict(request.get("requester", {})),
+        "continuation_mode": "wait_for_launch",
+        "payload": request,
+        "presentation": {
+            "notes": [
+                f"Launch approval requested: {slot_count} slot"
+                f"{'s' if slot_count != 1 else ''}",
+                f"Source: {source_surface}",
+            ],
+            "tags": ["launch"],
+            "files": [LAUNCH_PREVIEW_FILE],
+            "preview": LAUNCH_PREVIEW_FILE,
+            "action_data": {
+                "source_surface": source_surface,
+                "slot_count": str(slot_count),
+            },
+        },
+        "choices": choices,
+        "resources": resources,
+        "auto": False,
+    }
+
+
+def launch_gate_command_script(choice: str) -> str:
+    """Return the only command wrapper accepted by the launch adapter."""
+    return (
+        f"#!{sys.executable}\n"
+        "from sase.agent.launch_request import execute_launch_gate_command\n"
+        f"raise SystemExit(execute_launch_gate_command({choice!r}))\n"
     )
 
 
@@ -341,8 +704,15 @@ __all__ = [
     "LAUNCH_REQUEST_SCHEMA_VERSION",
     "LaunchRequestCreationResult",
     "LaunchRequestError",
+    "LaunchRequestOutcome",
+    "LaunchRequestStatus",
+    "cancel_launch_approval_request",
     "create_launch_approval_request",
     "create_launch_approval_request_from_prompt",
     "dispatch_approved_launch_request",
+    "execute_launch_gate_command",
+    "launch_gate_command_script",
+    "read_launch_request",
     "running_agent_context_requires_launch_approval",
+    "wait_for_launch_approval",
 ]
