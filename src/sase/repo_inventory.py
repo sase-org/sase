@@ -37,10 +37,10 @@ from sase._repo_inventory_models import (
     RepoRecord,
 )
 from sase._repo_inventory_workspaces import (
-    _external_repo_records,
-    _normalize_path,
-    _repo_clones,
-    _workspace_checkouts,
+    external_repo_records,
+    normalize_path,
+    repo_clones,
+    workspace_checkouts,
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
@@ -129,7 +129,7 @@ def _collect_project_repos(
     raw_primary = (host.workspace_dir or "").strip()
 
     if host.is_project:
-        primary_path = _normalize_path(raw_primary) if raw_primary else ""
+        primary_path = normalize_path(raw_primary) if raw_primary else ""
         records.append(
             RepoRecord(
                 name=Path(primary_path).name if primary_path else project,
@@ -151,7 +151,7 @@ def _collect_project_repos(
         )
         return records, issues
 
-    primary = _normalize_path(raw_primary)
+    primary = normalize_path(raw_primary)
     entries: list[Mapping[str, Any]] = []
     resolved_config: Mapping[str, Any] | None = None
     try:
@@ -345,7 +345,7 @@ def _collect_project_repos(
             )
         )
 
-    workspace_clones, clone_issues = _workspace_checkouts(
+    workspace_clones, clone_issues = workspace_checkouts(
         primary,
         project=project,
         config=resolved_config,
@@ -354,7 +354,7 @@ def _collect_project_repos(
     records = [
         replace(
             record,
-            clones=_repo_clones(
+            clones=repo_clones(
                 record,
                 host_primary=primary,
                 workspace_checkouts=workspace_clones,
@@ -362,7 +362,7 @@ def _collect_project_repos(
         )
         for record in records
     ]
-    external_records, external_issues = _external_repo_records(
+    external_records, external_issues = external_repo_records(
         project=project,
         project_key=project_key,
         workspace_checkouts=workspace_clones,

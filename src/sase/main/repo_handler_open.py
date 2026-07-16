@@ -28,7 +28,7 @@ from .repo_handler_common import (
 from .workspace_handler_context import ConfigLoader, ProjectContext
 
 
-class CheckoutResolver(Protocol):
+class _CheckoutResolver(Protocol):
     def __call__(
         self,
         ctx: ProjectContext,
@@ -49,7 +49,7 @@ def handle_open_command(
     *,
     collect_inventory: InventoryCollector,
     resolve_project_context: ProjectContextResolver,
-    resolve_checkout: CheckoutResolver,
+    resolve_checkout: _CheckoutResolver,
     resolve_workspace_num: ResolveWorkspaceNum,
     match_repo: MatchRepo,
     target_context: TargetContext,

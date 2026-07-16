@@ -45,7 +45,7 @@ def git_index_lock_path(workspace_dir: str) -> Path | None:
     return git_dir_path / "index.lock"
 
 
-def _clear_stale_git_index_lock(
+def clear_stale_git_index_lock(
     workspace_dir: str,
     *,
     min_age_seconds: float = _STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
@@ -111,7 +111,7 @@ def prepare_workspace(
     # seems to be running..."), which would fail the clean/checkout below. This
     # runs against a workspace we have exclusively claimed, so a lock old enough
     # to predate the claim is abandoned; clear it as git itself instructs.
-    _clear_stale_git_index_lock(workspace_dir)
+    clear_stale_git_index_lock(workspace_dir)
 
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")

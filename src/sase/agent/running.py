@@ -12,8 +12,8 @@ from pathlib import Path
 from sase.agent.names import find_named_agent, is_process_alive
 from sase.agent.running_listing import (
     _DONE_AGENTS_CAP_PER_PROJECT as _DONE_AGENTS_CAP_PER_PROJECT,
-    _active_status_for_record as _active_status_for_record,
     RunningAgentInfo as RunningAgentInfo,
+    active_status_for_record as _active_status_for_record,
     list_all_agents as list_all_agents,
     list_running_agents as list_running_agents,
 )

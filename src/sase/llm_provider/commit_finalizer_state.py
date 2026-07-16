@@ -43,7 +43,7 @@ def collect_dirty_state(
     main_repo = (
         DirtyRepo(
             name="main",
-            path=finalizer_git._normalize_path(project_dir),
+            path=finalizer_git.normalize_path(project_dir),
             changed_files=tuple(main_files),
             kind="main",
         )
@@ -83,7 +83,7 @@ def collect_dirty_state(
         sdd_repos=sdd_repos,
     )
     return DirtyState(
-        project_dir=finalizer_git._normalize_path(project_dir),
+        project_dir=finalizer_git.normalize_path(project_dir),
         repos=tuple(repos),
         details=details,
     )
@@ -102,7 +102,7 @@ def _dirty_opened_external_repos(
         workspace_dir = record.get("workspace_dir", "").strip()
         if not canonical_name or not workspace_dir:
             continue
-        workspace_dir = finalizer_git._normalize_path(workspace_dir)
+        workspace_dir = finalizer_git.normalize_path(workspace_dir)
         if canonical_name in seen_names or workspace_dir in seen_paths:
             continue
         changed_files = git_changed_files(workspace_dir)
@@ -164,7 +164,7 @@ def _dirty_sdd_store_repos(project_dir: str) -> list[DirtyRepo]:
             dirty.append(
                 DirtyRepo(
                     name=sdd_store_label(target_store) or fallback,
-                    path=finalizer_git._normalize_path(str(repo_root)),
+                    path=finalizer_git.normalize_path(str(repo_root)),
                     changed_files=tuple(changed_files),
                     kind="sdd",
                 )
@@ -250,7 +250,7 @@ def _blocking_sibling_candidates(
 
         workspace_dir = recorded_workspace_dir.strip()
         if workspace_dir:
-            workspace_dir = finalizer_git._normalize_path(workspace_dir)
+            workspace_dir = finalizer_git.normalize_path(workspace_dir)
         elif target is not None:
             workspace_dir = target.workspace_dir
         else:
@@ -288,7 +288,7 @@ def _sibling_targets_from_env() -> list[SiblingTarget]:
         targets.append(
             SiblingTarget(
                 name=name.strip(),
-                workspace_dir=finalizer_git._normalize_path(workspace_dir),
+                workspace_dir=finalizer_git.normalize_path(workspace_dir),
             )
         )
     return targets
@@ -320,7 +320,7 @@ def _sibling_targets_from_config(
     return [
         SiblingTarget(
             name=repo.name,
-            workspace_dir=finalizer_git._normalize_path(repo.workspace_dir),
+            workspace_dir=finalizer_git.normalize_path(repo.workspace_dir),
         )
         for repo in resolution.repos
     ]
@@ -341,8 +341,8 @@ def _workspace_num_for_project_file(project_file: str, project_dir: str) -> int 
     if not primary_dir:
         return None
 
-    primary_path = Path(finalizer_git._normalize_path(primary_dir))
-    project_path = Path(finalizer_git._normalize_path(project_dir))
+    primary_path = Path(finalizer_git.normalize_path(primary_dir))
+    project_path = Path(finalizer_git.normalize_path(project_dir))
     if project_path == primary_path:
         return 0
     if project_path.parent != primary_path.parent:

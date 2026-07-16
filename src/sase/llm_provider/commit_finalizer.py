@@ -58,7 +58,7 @@ _SiblingTarget = SiblingTarget
 
 _changed_files_from_git_status = finalizer_git._changed_files_from_git_status
 _git_changed_files = git_changed_files
-_normalize_path = finalizer_git._normalize_path
+_normalize_path = finalizer_git.normalize_path
 
 _append_response = append_response
 _build_dirty_details = build_dirty_details

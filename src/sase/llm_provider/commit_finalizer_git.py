@@ -51,7 +51,7 @@ class _SddPromptQaAutoCommitCandidate:
 
 
 def git_changed_files(repo_dir: str) -> list[str]:
-    repo_dir = _normalize_path(repo_dir)
+    repo_dir = normalize_path(repo_dir)
     if not Path(repo_dir).is_dir():
         return []
     try:
@@ -102,7 +102,7 @@ def sdd_prompt_qa_auto_commit_candidates(
         if repo.kind != "sdd":
             continue
 
-        repo_dir = _normalize_path(repo.path)
+        repo_dir = normalize_path(repo.path)
         status_records = _git_status_records(repo_dir)
         if not status_records:
             continue
@@ -137,8 +137,8 @@ def _done_sdd_plan_status_auto_commit_candidate(
         return None
 
     repo = dirty_state.repos[0]
-    repo_dir = _normalize_path(repo.path)
-    if repo.kind != "main" or repo_dir != _normalize_path(dirty_state.project_dir):
+    repo_dir = normalize_path(repo.path)
+    if repo.kind != "main" or repo_dir != normalize_path(dirty_state.project_dir):
         return None
     if len(repo.changed_files) != 1 or not _is_sdd_plan_markdown_path(
         repo.changed_files[0]
@@ -394,5 +394,5 @@ def _is_sase_reserved_path(path: str) -> bool:
     return any(parts[: len(prefix)] == prefix for prefix in _SASE_RESERVED_PATH_PARTS)
 
 
-def _normalize_path(path: str) -> str:
+def normalize_path(path: str) -> str:
     return str(Path(path).expanduser().resolve(strict=False))

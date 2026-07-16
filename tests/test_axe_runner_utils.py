@@ -24,7 +24,7 @@ from sase.axe.runner_signals import (
     was_killed,
 )
 from sase.axe.runner_workspace import (
-    _clear_stale_git_index_lock,
+    clear_stale_git_index_lock,
     prepare_workspace,
 )
 from sase.vcs_provider import VCS_DEFAULT_REVISION
@@ -435,7 +435,7 @@ def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
     mock_provider.sync_workspace.assert_called_once_with("/workspace")
 
 
-# Tests for _clear_stale_git_index_lock
+# Tests for clear_stale_git_index_lock
 
 
 def _make_index_lock(workspace: Path, *, age_seconds: float) -> Path:
@@ -452,7 +452,7 @@ def _make_index_lock(workspace: Path, *, age_seconds: float) -> Path:
 def test_clear_stale_git_index_lock_removes_abandoned_lock(tmp_path: Path) -> None:
     lock = _make_index_lock(tmp_path, age_seconds=3600)
 
-    assert _clear_stale_git_index_lock(str(tmp_path)) is True
+    assert clear_stale_git_index_lock(str(tmp_path)) is True
     assert not lock.exists()
 
 
@@ -460,14 +460,14 @@ def test_clear_stale_git_index_lock_keeps_fresh_lock(tmp_path: Path) -> None:
     lock = _make_index_lock(tmp_path, age_seconds=0)
 
     # A lock younger than the age threshold may belong to a live git process.
-    assert _clear_stale_git_index_lock(str(tmp_path)) is False
+    assert clear_stale_git_index_lock(str(tmp_path)) is False
     assert lock.exists()
 
 
 def test_clear_stale_git_index_lock_no_lock_is_noop(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
 
-    assert _clear_stale_git_index_lock(str(tmp_path)) is False
+    assert clear_stale_git_index_lock(str(tmp_path)) is False
 
 
 def test_prepare_workspace_clears_stale_lock_before_clean(tmp_path: Path) -> None:

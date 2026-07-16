@@ -27,7 +27,7 @@ from sase.axe.runner_signals import (
     was_killed,
 )
 from sase.axe.runner_workspace import (
-    _clear_stale_git_index_lock,
+    clear_stale_git_index_lock as _clear_stale_git_index_lock,
     git_index_lock_path,
     prepare_launch_workspace_repos,
     prepare_workspace,

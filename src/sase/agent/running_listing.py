@@ -98,7 +98,7 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     return parsed
 
 
-def _active_status_for_record(record: AgentArtifactRecordWire) -> str:
+def active_status_for_record(record: AgentArtifactRecordWire) -> str:
     if record.waiting is not None:
         return "WAITING"
     pending_question = record.pending_question
@@ -170,7 +170,7 @@ def _running_info_from_running_record(
     if not is_process_alive(meta_dict, Path(record.artifact_dir)):
         return None
 
-    status = _active_status_for_record(record)
+    status = active_status_for_record(record)
     started_at = _parse_iso_datetime(
         meta.run_started_at if status == "RUNNING" else None
     )

@@ -29,7 +29,7 @@ def ensure_workspace_sdd_clone(
 ) -> None:
     """Ensure a workspace-local clone, optionally failing the setup transaction."""
 
-    owner_anchor = _inherited_sdd_record_owner_anchor(
+    owner_anchor = inherited_sdd_record_owner_anchor(
         workspace_dir,
         workspace_num,
         primary_workspace_resolver=primary_workspace_resolver,
@@ -76,7 +76,7 @@ def ensure_sdd_kind_clone(
 ) -> Path:
     """Materialize and synchronize the sidecar clone backing *kind*."""
 
-    owner_anchor = _inherited_sdd_record_owner_anchor(
+    owner_anchor = inherited_sdd_record_owner_anchor(
         workspace_dir,
         workspace_num,
         primary_workspace_resolver=primary_workspace_resolver,
@@ -120,7 +120,7 @@ def ensure_sdd_kind_clone(
     return root
 
 
-def _inherited_sdd_record_owner_anchor(
+def inherited_sdd_record_owner_anchor(
     workspace_dir: str | Path,
     workspace_num: int,
     *,
