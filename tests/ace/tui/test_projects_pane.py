@@ -19,6 +19,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
+from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
 
@@ -147,19 +148,24 @@ async def test_projects_filter_forwards_brackets_to_cycle_subtabs(
         await _focus_projects_filter(page)
 
         pane = modal.query_one("#projects", ProjectsPane)
+        strip = pane.query_one("#projects-subtabs", PanelTabStrip)
         assert pane._active_subtab == "projects"
+        assert strip._build_content().plain == " PROJECTS  │  Repos  │  Workspaces "
 
         # Printable brackets are intercepted before Input can insert them and
         # cycle the Projects pane's real sub-tabs in both directions.
         await page.press("]")
         await page.wait_for(lambda _s: pane._active_subtab == "repos")
         assert modal._active_tab == "projects"
+        assert strip._build_content().plain == " Projects  │  REPOS  │  Workspaces "
 
         await page.press("[")
         await page.wait_for(lambda _s: pane._active_subtab == "projects")
+        assert strip._build_content().plain == " PROJECTS  │  Repos  │  Workspaces "
 
         await page.press("[")
         await page.wait_for(lambda _s: pane._active_subtab == "workspaces")
+        assert strip._build_content().plain == " Projects  │  Repos  │  WORKSPACES "
         assert pane.query_one("#projects-filter").value == ""
 
 

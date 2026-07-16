@@ -37,11 +37,13 @@ class PanelTabStrip(Static):
         active_tab: str,
         *,
         show_numbers: bool = False,
+        uppercase_active: bool = False,
         **kwargs: Any,
     ) -> None:
         self._tabs = tuple(tabs)
         self._active_tab = active_tab
         self._show_numbers = show_numbers
+        self._uppercase_active = uppercase_active
         self._tab_ranges: dict[str, tuple[int, int]] = {}
         self._line_width = 0
         super().__init__(self._build_content(), **kwargs)
@@ -77,7 +79,10 @@ class PanelTabStrip(Static):
                 text.append(f" {index + 1} ", style=number_style)
             else:
                 text.append(" ")
-            text.append(f"{tab.label} ", style=label_style)
+            label = (
+                tab.label.upper() if self._uppercase_active and is_active else tab.label
+            )
+            text.append(f"{label} ", style=label_style)
             self._tab_ranges[tab.id] = (start, len(text.plain))
         self._line_width = len(text.plain)
         return text

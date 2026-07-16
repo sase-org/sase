@@ -31,8 +31,15 @@ from .types import (
 if TYPE_CHECKING:
     from ...app import AceApp
 
+_ARTIFACT_LABELS: dict[ArtifactsSubTab, str] = {
+    "prs": "PRs",
+    "commits": "Commits",
+    "bugs": "Bugs",
+    "plans": "Plans",
+}
 _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
-    PanelTab(tab, tab.title(), ARTIFACTS_ACCENTS[tab]) for tab in ARTIFACTS_SUBTAB_ORDER
+    PanelTab(tab, _ARTIFACT_LABELS[tab], ARTIFACTS_ACCENTS[tab])
+    for tab in ARTIFACTS_SUBTAB_ORDER
 )
 
 
@@ -47,6 +54,7 @@ class ArtifactsView(Vertical):
         yield PanelTabStrip(
             _ARTIFACT_TABS,
             self._current_subtab,
+            uppercase_active=True,
             id="artifacts-subtabs",
         )
         with ContentSwitcher(

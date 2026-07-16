@@ -83,15 +83,19 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
         commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        assert strip._build_content().plain == " PRS  │  Commits  │  Bugs  │  Plans "
 
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
+        assert strip._build_content().plain == " PRs  │  COMMITS  │  Bugs  │  Plans "
         commits.set_class(True, "test-selection-state")
 
         strip.post_message(PanelTabStrip.TabClicked("bugs"))
         await page.expect_state("artifacts_subtab", "bugs")
+        assert strip._build_content().plain == " PRs  │  Commits  │  BUGS  │  Plans "
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
+        assert strip._build_content().plain == " PRs  │  COMMITS  │  Bugs  │  Plans "
 
         assert commits.first_activation_count == 1
         assert commits.activation_count == 2

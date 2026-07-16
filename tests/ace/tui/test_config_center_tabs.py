@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from rich.text import Text
+from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import ContentSwitcher, Static
 
@@ -20,7 +21,7 @@ from sase.ace.tui.modals.config_center_modal import (
     _TITLE_UNDERLINE,
     ConfigCenterModal,
 )
-from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.ace.tui.widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _catalog,
@@ -49,6 +50,31 @@ def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
     for index, (tab, label) in enumerate(_TAB_LABELS, start=1):
         start, end = strip._tab_ranges[tab]
         assert plain[start:end].strip() == f"{index} {label}"
+
+
+async def test_tab_strip_can_uppercase_only_the_active_canonical_label() -> None:
+    tabs = (
+        PanelTab("prs", "PRs", "green"),
+        PanelTab("commits", "Commits", "yellow"),
+    )
+
+    class _TabStripApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield PanelTabStrip(tabs, "prs", uppercase_active=True)
+
+    async with _TabStripApp().run_test() as pilot:
+        strip = pilot.app.query_one(PanelTabStrip)
+        assert strip._build_content().plain == " PRS  │  Commits "
+        for tab_id, expected_label in (("prs", "PRS"), ("commits", "Commits")):
+            start, end = strip._tab_ranges[tab_id]
+            assert strip._build_content().plain[start:end].strip() == expected_label
+
+        strip.set_active_tab("commits")
+
+        assert strip._build_content().plain == " PRs  │  COMMITS "
+        for tab_id, expected_label in (("prs", "PRs"), ("commits", "COMMITS")):
+            start, end = strip._tab_ranges[tab_id]
+            assert strip._build_content().plain[start:end].strip() == expected_label
 
 
 def test_tab_descriptions_cover_tabs_and_use_accent_colors() -> None:

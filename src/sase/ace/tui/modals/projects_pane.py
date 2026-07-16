@@ -162,6 +162,7 @@ class ProjectsPane(
         yield PanelTabStrip(
             _SUBTABS,
             self._active_subtab,
+            uppercase_active=True,
             id="projects-subtabs",
         )
         with ContentSwitcher(
