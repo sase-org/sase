@@ -6,6 +6,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.actions.agents._navigation_order import AgentNavigationOrderMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
 from sase.ace.tui.actions.navigation._advanced import AdvancedNavigationMixin
@@ -27,15 +28,21 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         with_panels: bool = False,
         focused_key: str | None = None,
         merge_tag_panels: bool = False,
+        collapsed_panels: set[str | None] | None = None,
     ) -> None:
         self._agents = agents
+        self.current_tab = "agents"
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
         self._current_group_key: tuple[str, ...] | None = None
         self._agent_panels_grouped = merge_tag_panels
+        self._collapsed_panel_keys = set(collapsed_panels or ())
         if with_panels:
             self._panel_group = AgentPanelGroup.from_agents(
-                agents, focused_key, merge_tag_panels=merge_tag_panels
+                agents,
+                focused_key,
+                merge_tag_panels=merge_tag_panels,
+                collapsed_panel_keys=self._collapsed_panel_keys,
             )
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
@@ -69,6 +76,8 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
         return self._patch_result
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
+        if kwargs.get("list_changed") and hasattr(self, "_panel_group"):
+            self._sync_panel_group()
         self.refresh_calls.append(kwargs)
 
     def _refresh_agents_display_debounced(self) -> None:
@@ -80,18 +89,30 @@ class UnreadJumpApp(AgentsMixinCore, BasicNavigationMixin, AdvancedNavigationMix
 
 class LeaderUnreadJumpApp(
     LeaderModeMixin,
+    AgentFoldingMixin,
     AgentUnreadMixin,
     AgentNavigationOrderMixin,
     AdvancedNavigationMixin,
 ):
-    def __init__(self, agents: list[Agent], *, current_idx: int = 0) -> None:
+    def __init__(
+        self,
+        agents: list[Agent],
+        *,
+        current_idx: int = 0,
+        collapsed_panels: set[str | None] | None = None,
+    ) -> None:
         self._agents = agents
         self.current_idx = current_idx
         self.current_attempt_number: int | None = 3
         self.current_tab = "agents"
         self._current_group_key: tuple[str, ...] | None = None
         self._agent_panels_grouped = False
-        self._panel_group = AgentPanelGroup.from_agents(agents, focused_key=None)
+        self._collapsed_panel_keys = set(collapsed_panels or ())
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            focused_key=None,
+            collapsed_panel_keys=self._collapsed_panel_keys,
+        )
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._leader_mode_active = True
         self._last_leader_key: str | None = None
@@ -104,6 +125,7 @@ class LeaderUnreadJumpApp(
         self.current_tab_refresh_calls = 0
         self.notification_count_refresh_calls = 0
         self.notifications: list[str] = []
+        self.panel_fold_changes: list[tuple[str | None, bool]] = []
 
     def notify(self, message: str, **_: Any) -> None:
         self.notifications.append(message)
@@ -119,7 +141,25 @@ class LeaderUnreadJumpApp(
         return True
 
     def _refresh_agents_display(self, **kwargs: Any) -> None:
+        if kwargs.get("list_changed"):
+            focused_key = self._panel_group.focused_key
+            self._panel_group = AgentPanelGroup.from_agents(
+                self._agents,
+                focused_key,
+                collapsed_panel_keys=self._collapsed_panel_keys,
+            )
         self.refresh_calls.append(kwargs)
 
     def _refresh_notification_count(self) -> None:
         self.notification_count_refresh_calls += 1
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        self._nav_stops_cache = None
+
+    def _record_agents_panel_fold_change(
+        self,
+        panel_key: str | None,
+        *,
+        collapsed: bool,
+    ) -> None:
+        self.panel_fold_changes.append((panel_key, collapsed))

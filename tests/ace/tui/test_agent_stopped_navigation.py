@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+
 from ._agent_unread_helpers import make_agent
 from ._agent_unread_navigation_helpers import UnreadJumpApp
 
@@ -131,7 +133,7 @@ def test_jump_to_next_stopped_agent_starts_at_newest_from_focused_banner() -> No
     assert app.current_idx == 1
     assert app._current_group_key is None
     assert app.current_attempt_number is None
-    assert app._entry_jump_agents_anchor_stack == [("banner", 0, ("group",))]
+    assert app._entry_jump_agents_anchor_stack == [("banner", None, ("group",))]
     assert app.refresh_calls == []
 
 
@@ -187,7 +189,7 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
     assert app._jump_to_next_stopped_agent()
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
     assert app._unread_completed_agent_ids == unread_before
 
     assert app._restore_agents_jump_anchor()
@@ -196,3 +198,144 @@ def test_jump_to_next_stopped_agent_back_jump_restores_without_acknowledging_unr
     assert app._current_group_key is None
     assert app._unread_completed_agent_ids == unread_before
     assert app._entry_jump_agents_anchor_stack == []
+
+
+def test_stopped_jump_expands_collapsed_panel_without_acknowledging_state() -> None:
+    origin = make_agent(name="origin", status="DONE", raw_suffix="origin")
+    older = make_agent(
+        name="older",
+        status="PLAN",
+        raw_suffix="older",
+        tag="alpha",
+        start_time=datetime(2026, 7, 16, 9, 0, 0),
+    )
+    older.plan_times = [datetime(2026, 7, 16, 10, 0, 0)]
+    target = make_agent(
+        name="target",
+        status="QUESTION",
+        raw_suffix="target",
+        tag="alpha",
+        start_time=datetime(2026, 7, 16, 8, 0, 0),
+    )
+    target.questions_times = [datetime(2026, 7, 16, 12, 0, 0)]
+    app = UnreadJumpApp(
+        [origin, older, target],
+        current_idx=0,
+        with_panels=True,
+        collapsed_panels={"alpha"},
+    )
+    app._unread_completed_agent_ids.update({origin.identity, target.identity})
+    app._manual_unread_agent_ids.add(origin.identity)
+    unread_before = set(app._unread_completed_agent_ids)
+    manual_before = set(app._manual_unread_agent_ids)
+
+    assert app._jump_to_next_stopped_agent()
+
+    assert app._collapsed_panel_keys == set()
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 2
+    assert app._unread_completed_agent_ids == unread_before
+    assert app._manual_unread_agent_ids == manual_before
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+    assert app._jump_to_next_stopped_agent()
+    assert app.current_idx == 1
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+
+
+def test_stopped_jump_from_collapsed_header_starts_at_newest_backing_row() -> None:
+    newest = make_agent(
+        name="newest",
+        status="PLAN",
+        raw_suffix="newest",
+        tag="alpha",
+        start_time=datetime(2026, 7, 16, 9, 0, 0),
+    )
+    newest.plan_times = [datetime(2026, 7, 16, 12, 0, 0)]
+    older = make_agent(
+        name="older",
+        status="QUESTION",
+        raw_suffix="older",
+        tag="beta",
+        start_time=datetime(2026, 7, 16, 8, 0, 0),
+    )
+    older.questions_times = [datetime(2026, 7, 16, 10, 0, 0)]
+    app = UnreadJumpApp(
+        [newest, older],
+        current_idx=0,
+        with_panels=True,
+        focused_key="alpha",
+        collapsed_panels={"alpha"},
+    )
+    assert app._current_agents_jump_anchor() == ("panel", "alpha")
+
+    assert app._jump_to_next_stopped_agent()
+
+    assert app.current_idx == 0
+    assert app._panel_group.focused_key == "alpha"
+    assert app._collapsed_panel_keys == set()
+    assert app._entry_jump_agents_anchor_stack == [("panel", "alpha")]
+    assert app._restore_agents_jump_anchor() is False
+    assert app._collapsed_panel_keys == set()
+
+
+def test_stopped_jump_selects_newest_across_multiple_collapsed_panels() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    alpha = make_agent(
+        name="alpha",
+        status="PLAN",
+        raw_suffix="alpha",
+        tag="alpha",
+    )
+    alpha.plan_times = [datetime(2026, 7, 16, 10, 0, 0)]
+    beta = make_agent(
+        name="beta",
+        status="QUESTION",
+        raw_suffix="beta",
+        tag="beta",
+    )
+    beta.questions_times = [datetime(2026, 7, 16, 12, 0, 0)]
+    app = UnreadJumpApp(
+        [origin, alpha, beta],
+        with_panels=True,
+        collapsed_panels={"alpha", "beta"},
+    )
+
+    assert app._jump_to_next_stopped_agent()
+
+    assert app.current_idx == 2
+    assert app._panel_group.focused_key == "beta"
+    assert app._collapsed_panel_keys == {"alpha"}
+
+
+def test_stopped_jump_no_match_preserves_collapsed_panel_and_group_fold() -> None:
+    hidden = make_agent(
+        name="hidden",
+        status="PLAN",
+        raw_suffix="hidden",
+        tag="alpha",
+    )
+    hidden.plan_times = [datetime(2026, 7, 16, 12, 0, 0)]
+    sibling = make_agent(
+        name="sibling",
+        status="RUNNING",
+        raw_suffix="sibling",
+        tag="alpha",
+    )
+    app = UnreadJumpApp(
+        [hidden, sibling],
+        with_panels=True,
+        focused_key="alpha",
+        collapsed_panels={"alpha"},
+    )
+    app._group_fold_registry = AgentGroupFoldRegistry()
+    registry = app._group_fold_registry.for_panel("alpha")
+    registry.collapse(("demo",))
+
+    assert app._jump_to_next_stopped_agent() is False
+    assert app._collapsed_panel_keys == {"alpha"}
+    assert app._panel_group.focused_key == "alpha"
+    assert registry.is_collapsed(("demo",))
+    assert app.refresh_calls == []
+    assert not hasattr(app, "_agents_fold_state_intents")

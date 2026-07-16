@@ -276,7 +276,7 @@ def test_focus_next_agent_panel_back_jump_restores_origin() -> None:
 
     assert app._panel_group.focused_key == "alpha"
     assert app.current_idx == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
 
     assert app._restore_agents_jump_anchor()
     assert app._panel_group.focused_key is None
@@ -292,14 +292,14 @@ def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
     ]
     app = _StubApp(agents, focused_key=None)
     app.artifact_viewer_guard_active = True
-    app._entry_jump_agents_anchor_stack = [("agent", 1, 1)]
+    app._entry_jump_agents_anchor_stack = [("agent", 1, "alpha")]
 
     app.action_focus_next_agent_panel()
 
     assert app._panel_group.focused_key is None
     assert app.current_idx == 0
     assert app._current_group_key == ("stale",)
-    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 1)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, "alpha")]
     assert app.refresh_calls == []
     app.notify.assert_called_once_with(
         "Close the artifact viewer before switching agents",
@@ -369,7 +369,7 @@ def test_focus_prev_agent_panel_back_jump_restores_origin() -> None:
 
     assert app._panel_group.focused_key is None
     assert app.current_idx == 0
-    assert app._entry_jump_agents_anchor_stack == [("agent", 1, 1)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 1, "alpha")]
 
     assert app._restore_agents_jump_anchor()
     assert app._panel_group.focused_key == "alpha"
@@ -396,7 +396,7 @@ def test_panel_switch_can_land_on_first_collapsed_banner() -> None:
     assert app.current_idx == 2
     assert app._agents[app.current_idx].agent_name == "banner-agent"
     assert app.current_attempt_number is None
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
 
     assert app._restore_agents_jump_anchor()
     assert app._panel_group.focused_key is None
@@ -517,13 +517,13 @@ def test_focus_next_agent_panel_single_panel_does_not_overwrite_anchor() -> None
     app = _StubApp(agents, focused_key="alpha")
     app.current_idx = 0
     app._current_group_key = None
-    app._entry_jump_agents_anchor_stack = [("agent", 0, 0)]
+    app._entry_jump_agents_anchor_stack = [("agent", 0, "alpha")]
 
     app.action_focus_next_agent_panel()
 
     assert app._panel_group.focused_key == "alpha"
     assert app.current_idx == 0
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, "alpha")]
 
 
 def test_optimized_panel_switch_clears_old_panel_highlight() -> None:

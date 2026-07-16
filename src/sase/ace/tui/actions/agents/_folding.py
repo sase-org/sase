@@ -396,17 +396,34 @@ class AgentFoldingMixin:
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         self._persist_panel_fold_change(focused_key, collapsed=True)
 
+    def _expand_agent_panel(self, panel_key: PanelKey) -> bool:
+        """Expand one whole panel without selecting or refreshing it."""
+        panel_group = getattr(self, "_panel_group", None)
+        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        if (
+            panel_group is None
+            or getattr(self, "_agent_panels_grouped", False)
+            or panel_key not in panel_group.panel_keys
+            or panel_key not in collapsed_keys
+        ):
+            return False
+
+        collapsed_keys.discard(panel_key)
+        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+        self._persist_panel_fold_change(panel_key, collapsed=False)
+        return True
+
     def _expand_focused_panel(self) -> None:
         """Expand the focused tag panel and select its first rendered row."""
         if self.current_tab != "agents":
             return
         panel_group = getattr(self, "_panel_group", None)
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
-        if panel_group is None or panel_group.focused_key not in collapsed_keys:
+        if panel_group is None:
             return
 
         focused_key = panel_group.focused_key
-        collapsed_keys.discard(focused_key)
+        if not self._expand_agent_panel(focused_key):
+            return
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if stops:
             self._focus_panel_navigation_stop(stops[0])  # type: ignore[attr-defined]
@@ -418,9 +435,7 @@ class AgentFoldingMixin:
                 focused_key,
             )
         self.current_attempt_number = None
-        self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
-        self._persist_panel_fold_change(focused_key, collapsed=False)
 
     def _focused_axe_lumberjack_name(self) -> str | None:
         """Return the lumberjack name for the focused AXE row, if any.

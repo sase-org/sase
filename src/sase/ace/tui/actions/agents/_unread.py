@@ -109,8 +109,17 @@ class AgentUnreadMixin:
         if not unread_ids:
             return False
 
-        def acknowledge_target(agent: Agent, needs_full_refresh: bool) -> None:
-            if needs_full_refresh:
+        def acknowledge_target(
+            agent: Agent,
+            needs_full_refresh: bool,
+            panel_expanded: bool,
+        ) -> None:
+            if panel_expanded:
+                self._clear_agent_unread_and_dismiss_notification(agent)
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True, defer_detail=True
+                )
+            elif needs_full_refresh:
                 changed = self._clear_agent_unread_and_dismiss_notification(agent)
                 if changed and not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
                     self._refresh_agents_display(  # type: ignore[attr-defined]
@@ -143,27 +152,38 @@ class AgentUnreadMixin:
         self,
         *,
         predicate: Callable[[Agent], bool],
-        after_select: Callable[[Agent, bool], None] | None,
+        after_select: Callable[[Agent, bool, bool], None] | None,
         time_for_agent: Callable[[Agent], datetime | None] | None = None,
     ) -> bool:
-        """Move focus to the next visible agent matching *predicate* by recency."""
+        """Move focus to the next jumpable agent matching *predicate* by recency."""
         if not self._agents:
             return False
 
-        visible_panel_indices = self._visible_agent_panel_indices()  # type: ignore[attr-defined]
+        visible_panel_indices = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
+            include_collapsed_panels=True
+        )
         if not visible_panel_indices:
             return False
 
-        candidates: list[tuple[int, int | None, datetime | None]] = []
+        panel_group = getattr(self, "_panel_group", None)
+        candidates: list[tuple[int, str | None, datetime | None]] = []
         for idx, panel_idx in visible_panel_indices.items():
             agent = self._agents[idx]
             if predicate(agent):
+                if panel_group is None:
+                    panel_key = None
+                elif panel_idx is not None and 0 <= panel_idx < len(
+                    panel_group.panel_keys
+                ):
+                    panel_key = panel_group.panel_keys[panel_idx]
+                else:
+                    continue
                 jump_time = (
                     time_for_agent(agent)
                     if time_for_agent is not None
                     else agent.stop_time or agent.start_time
                 )
-                candidates.append((idx, panel_idx, jump_time))
+                candidates.append((idx, panel_key, jump_time))
 
         if not candidates:
             return False
@@ -173,38 +193,58 @@ class AgentUnreadMixin:
         )
 
         target_pos = 0
-        if getattr(self, "_current_group_key", None) is None:
-            for candidate_pos, (idx, _panel_idx, _jump_time) in enumerate(candidates):
+        focused_panel_is_collapsed = (
+            panel_group is not None
+            and panel_group.focused_key in getattr(self, "_collapsed_panel_keys", set())
+        )
+        current_panel_idx = visible_panel_indices.get(self.current_idx)
+        current_is_visible_agent = (
+            getattr(self, "_current_group_key", None) is None
+            and self.current_idx in visible_panel_indices
+            and not focused_panel_is_collapsed
+            and (
+                panel_group is None
+                or current_panel_idx == getattr(panel_group, "focused_idx", None)
+            )
+        )
+        if current_is_visible_agent:
+            for candidate_pos, (idx, _panel_key, _jump_time) in enumerate(candidates):
                 if idx == self.current_idx:
                     target_pos = (candidate_pos + 1) % len(candidates)
                     break
 
-        target_idx, target_panel_idx, _jump_time = candidates[target_pos]
+        target_idx, target_panel_key, _jump_time = candidates[target_pos]
         old_idx = self.current_idx
-        old_panel_idx = getattr(
-            getattr(self, "_panel_group", None), "focused_idx", None
-        )
+        old_panel_key = panel_group.focused_key if panel_group is not None else None
         old_group_key = self._current_group_key
+        panel_was_collapsed = panel_group is not None and target_panel_key in getattr(
+            self, "_collapsed_panel_keys", set()
+        )
         focus_will_change = (
             old_idx != target_idx
             or old_group_key is not None
-            or (target_panel_idx is not None and target_panel_idx != old_panel_idx)
+            or target_panel_key != old_panel_key
+            or panel_was_collapsed
         )
         save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
         if focus_will_change and callable(save_jump_anchor):
             save_jump_anchor()
 
+        panel_expanded = False
+        if panel_was_collapsed:
+            expand_panel = getattr(self, "_expand_agent_panel", None)
+            if callable(expand_panel):
+                panel_expanded = bool(expand_panel(target_panel_key))
+
         target_agent = self._agents[target_idx]
-        panel_changed = False
-        panel_group = getattr(self, "_panel_group", None)
-        if (
-            panel_group is not None
-            and target_panel_idx is not None
-            and 0 <= target_panel_idx < len(panel_group.panel_keys)
-            and target_panel_idx != panel_group.focused_idx
-        ):
-            panel_group.focused_idx = target_panel_idx
-            panel_changed = old_panel_idx != target_panel_idx
+        panel_changed = target_panel_key != old_panel_key
+        if panel_group is not None:
+            try:
+                target_panel_idx = panel_group.panel_keys.index(target_panel_key)
+            except ValueError:
+                return False
+            if target_panel_idx != panel_group.focused_idx:
+                panel_group.focused_idx = target_panel_idx
         self._current_group_key = None
         self.current_idx = target_idx
         if hasattr(self, "current_attempt_number"):
@@ -214,7 +254,11 @@ class AgentUnreadMixin:
             old_idx == target_idx and old_group_key is not None
         )
         if after_select is not None:
-            after_select(target_agent, needs_full_refresh)
+            after_select(target_agent, needs_full_refresh, panel_expanded)
+        elif panel_expanded:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True, defer_detail=True
+            )
         elif needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True

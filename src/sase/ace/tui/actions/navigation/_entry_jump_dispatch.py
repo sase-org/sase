@@ -140,7 +140,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 panel_key = panel_target[1]
                 self._remember_agents_jump_origin_if_changed(
                     target_idx=None,
-                    target_panel_idx=target_panel_idx,
+                    target_panel_key=panel_key,
                     target_group_key=None,
                 )
                 if old_agent is not None:
@@ -160,9 +160,10 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 )
             elif banner_target is not None:
                 _, panel_idx, group_key = banner_target
+                panel_key = self._panel_group.panel_keys[panel_idx]
                 self._remember_agents_jump_origin_if_changed(
                     target_idx=None,
-                    target_panel_idx=panel_idx,
+                    target_panel_key=panel_key,
                     target_group_key=group_key,
                 )
                 if old_agent is not None:
@@ -178,9 +179,14 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             else:
                 assert agent_target is not None
                 agent_panel_idx = self._panel_idx_for_agent_jump_target(agent_target)
+                agent_panel_key = (
+                    self._panel_group.panel_keys[agent_panel_idx]
+                    if agent_panel_idx is not None
+                    else None
+                )
                 self._remember_agents_jump_origin_if_changed(
                     target_idx=agent_target,
-                    target_panel_idx=agent_panel_idx,
+                    target_panel_key=agent_panel_key,
                     target_group_key=None,
                 )
                 if (

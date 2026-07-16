@@ -113,29 +113,32 @@ def test_repeated_leader_j_walks_unread_done_agents_by_recency(
     assert app._handle_leader_key("j") is True
     assert app.current_idx == 1
     assert app._panel_group.focused_key == "alpha"
-    assert app._entry_jump_agents_anchor_stack == [("agent", 2, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 2, None)]
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 3
     assert app._panel_group.focused_key == "beta"
-    assert app._entry_jump_agents_anchor_stack == [("agent", 2, 0), ("agent", 1, 1)]
+    assert app._entry_jump_agents_anchor_stack == [
+        ("agent", 2, None),
+        ("agent", 1, "alpha"),
+    ]
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 0
     assert app._panel_group.focused_key == "zeta"
     assert app._entry_jump_agents_anchor_stack == [
-        ("agent", 2, 0),
-        ("agent", 1, 1),
-        ("agent", 3, 2),
+        ("agent", 2, None),
+        ("agent", 1, "alpha"),
+        ("agent", 3, "beta"),
     ]
 
     assert app._handle_leader_key("comma") is True
     assert app.current_idx == 0
     assert app._last_leader_key == "j"
     assert app._entry_jump_agents_anchor_stack == [
-        ("agent", 2, 0),
-        ("agent", 1, 1),
-        ("agent", 3, 2),
+        ("agent", 2, None),
+        ("agent", 1, "alpha"),
+        ("agent", 3, "beta"),
     ]
     assert app._unread_completed_agent_ids == set()
     assert app.notifications == ["No unread completed agents"]
@@ -274,7 +277,7 @@ def test_jump_to_next_unread_done_agent_clears_banner_focus_and_refreshes() -> N
 
     assert app.current_idx == 0
     assert app._current_group_key is None
-    assert app._entry_jump_agents_anchor_stack == [("banner", 0, ("done",))]
+    assert app._entry_jump_agents_anchor_stack == [("banner", None, ("done",))]
     assert done.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [done]
     assert app.refresh_calls == [{"list_changed": False, "defer_detail": True}]
@@ -356,13 +359,142 @@ def test_jump_to_next_unread_done_agent_back_jump_restores_origin() -> None:
     assert app._jump_to_next_unread_done_agent()
     assert app.current_idx == 1
     assert app._panel_group.focused_idx == 1
-    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
 
     assert app._restore_agents_jump_anchor()
     assert app.current_idx == 0
     assert app._panel_group.focused_idx == 0
     assert app._current_group_key is None
     assert app._entry_jump_agents_anchor_stack == []
+
+
+def test_unread_jump_expands_collapsed_panel_and_selects_exact_row(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    first_alpha = make_agent(
+        name="first-alpha",
+        status="RUNNING",
+        raw_suffix="first-alpha",
+        tag="alpha",
+    )
+    target = make_agent(
+        name="target",
+        status="DONE",
+        raw_suffix="target",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 16, 15, 0, 0),
+    )
+    beta = make_agent(
+        name="beta",
+        status="RUNNING",
+        raw_suffix="beta",
+        tag="beta",
+    )
+    app = UnreadJumpApp(
+        [origin, first_alpha, target, beta],
+        current_idx=0,
+        with_panels=True,
+        focused_key=None,
+        collapsed_panels={"alpha"},
+    )
+    app._unread_completed_agent_ids.add(target.identity)
+    assert app._panel_group.panel_keys == [None, "beta", "alpha"]
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app._collapsed_panel_keys == set()
+    assert app._panel_group.panel_keys == [None, "alpha", "beta"]
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 2
+    assert app._agents[app.current_idx] is target
+    assert app.current_attempt_number is None
+    assert target.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, None)]
+    intent = app._agents_fold_state_intents[-1]
+    assert intent.panel_key == "alpha"
+    assert intent.collapsed is False
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": target.cl_name, "raw_suffix": target.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_unread_jump_expands_manually_guarded_target_without_acknowledging(
+    notification_dismiss: Mock,
+) -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    target = make_agent(
+        name="target",
+        status="DONE",
+        raw_suffix="target",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 16, 15, 0, 0),
+    )
+    app = UnreadJumpApp(
+        [origin, target],
+        with_panels=True,
+        collapsed_panels={"alpha"},
+    )
+    app._unread_completed_agent_ids.add(target.identity)
+    app._manual_unread_agent_ids.add(target.identity)
+
+    assert app._jump_to_next_unread_done_agent()
+
+    assert app._collapsed_panel_keys == set()
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 1
+    assert target.identity in app._unread_completed_agent_ids
+    assert target.identity in app._manual_unread_agent_ids
+    assert app.patch_calls == []
+    assert app.refresh_calls == [{"list_changed": True, "defer_detail": True}]
+    notification_dismiss.assert_not_called()
+
+
+def test_unread_jump_history_survives_panel_repartition_back_and_forward() -> None:
+    target = make_agent(
+        name="target",
+        status="DONE",
+        raw_suffix="target",
+        tag="alpha",
+        stop_time=datetime(2026, 7, 16, 15, 0, 0),
+    )
+    beta = make_agent(
+        name="beta",
+        status="RUNNING",
+        raw_suffix="beta",
+        tag="beta",
+    )
+    origin = make_agent(
+        name="origin",
+        status="RUNNING",
+        raw_suffix="origin",
+        tag="gamma",
+    )
+    app = UnreadJumpApp(
+        [target, beta, origin],
+        current_idx=2,
+        with_panels=True,
+        focused_key="gamma",
+        collapsed_panels={"alpha"},
+    )
+    app._unread_completed_agent_ids.add(target.identity)
+    assert app._panel_group.panel_keys == ["beta", "gamma", "alpha"]
+
+    assert app._jump_to_next_unread_done_agent()
+    assert app._panel_group.panel_keys == ["alpha", "beta", "gamma"]
+    assert app._entry_jump_agents_anchor_stack == [("agent", 2, "gamma")]
+
+    assert app._restore_agents_jump_anchor()
+    assert app._panel_group.focused_key == "gamma"
+    assert app.current_idx == 2
+
+    app.action_jump_to_entry_forward()
+    assert app._panel_group.focused_key == "alpha"
+    assert app.current_idx == 0
 
 
 def test_jump_to_next_unread_done_agent_returns_false_when_no_unread_panels() -> None:

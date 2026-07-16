@@ -51,6 +51,7 @@ class _StubApp(
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
         self.refresh_calls: list[bool] = []
+        self.panel_fold_changes: list[tuple[str | None, bool]] = []
         self.notifications: list[str] = []
 
     def _agent_panel_index(self) -> Any:
@@ -97,6 +98,14 @@ class _StubApp(
 
     def notify(self, message: str, **_kwargs: Any) -> None:
         self.notifications.append(message)
+
+    def _record_agents_panel_fold_change(
+        self,
+        panel_key: str | None,
+        *,
+        collapsed: bool,
+    ) -> None:
+        self.panel_fold_changes.append((panel_key, collapsed))
 
 
 def _agent(*, name: str, project: str, tag: str | None) -> Agent:
@@ -151,6 +160,7 @@ def test_capital_h_and_l_collapse_and_expand_focused_panel() -> None:
     assert app._panel_group.focused_idx == 1
     assert registry.is_collapsed(("zeta",)) is True
     assert app.refresh_calls == [True, True]
+    assert app.panel_fold_changes == [("alpha", True), ("alpha", False)]
 
 
 def test_panel_collapse_guards_single_merged_and_repeated_actions() -> None:
@@ -229,6 +239,20 @@ def test_hidden_panel_rows_are_omitted_from_cross_panel_consumers() -> None:
     assert ("agent", 0) in targets
     assert ("agent", 3) in targets
     assert ("panel", "alpha") in targets
+
+
+def test_collapsed_panel_rows_are_opt_in_without_bypassing_group_folds() -> None:
+    app = _StubApp(_multi_panel_agents(), focused_key="alpha")
+    app._collapsed_panel_keys.add("alpha")
+    app._group_fold_registry.for_panel("alpha").collapse(("zeta",))
+
+    ordinary = app._visible_agent_panel_indices()
+    jumpable = app._visible_agent_panel_indices(include_collapsed_panels=True)
+
+    assert 1 not in ordinary
+    assert 2 not in ordinary
+    assert 1 not in jumpable
+    assert jumpable[2] == app._panel_group.panel_keys.index("alpha")
 
 
 def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:

@@ -12,6 +12,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._fold_persistence import AgentFoldPersistenceMixin
 from sase.ace.tui.actions.agents._fold_scope import reconcile_panel_fold_registries
+from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.models.agent_fold_persistence import (
     AgentGroupingFoldSnapshot,
     AgentsFoldStateSnapshot,
@@ -26,13 +27,13 @@ from sase.ace.tui.models.agent_group_fold import (
 from sase.ace.tui.models.agent_groups import GroupingMode
 
 
-class _Harness(AgentFoldPersistenceMixin):
+class _Harness(AgentFoldingMixin, AgentFoldPersistenceMixin):
     def __init__(self, *, first_load_done: bool = False) -> None:
         self._grouping_mode = GroupingMode.STANDARD
         self._group_fold_registries = {self._grouping_mode: AgentGroupFoldRegistry()}
         self._group_fold_registry = self._group_fold_registries[self._grouping_mode]
         self._collapsed_panel_keys: set[str | None] = set()
-        self._panel_group = SimpleNamespace(focused_key=None)
+        self._panel_group = SimpleNamespace(focused_key=None, panel_keys=[None])
         self._agent_panels_grouped = False
         self._current_group_key: tuple[str, ...] | None = None
         self._agents_first_load_done = first_load_done
@@ -41,6 +42,9 @@ class _Harness(AgentFoldPersistenceMixin):
 
     def _refilter_agents(self, **kwargs: Any) -> None:
         self.refilter_calls.append(kwargs)
+
+    def _invalidate_agent_panel_cache(self) -> None:
+        return
 
 
 def _baseline() -> AgentsFoldStateSnapshot:
@@ -101,6 +105,22 @@ def test_collapse_then_expand_journal_persists_expanded_result() -> None:
     assert not app._group_fold_registry.for_panel(None).is_collapsed(("Done",))
     assert "chop" not in app._collapsed_panel_keys
     assert "persisted" in app._collapsed_panel_keys
+
+
+def test_panel_expansion_helper_wins_when_persisted_load_is_still_in_flight() -> None:
+    app = _Harness()
+    app._panel_group = SimpleNamespace(focused_key="chop", panel_keys=["chop"])
+    app._collapsed_panel_keys.add("chop")
+
+    assert app._expand_agent_panel("chop") is True
+    assert app._collapsed_panel_keys == set()
+
+    app._resolve_agents_fold_state_load(
+        AgentsFoldStateSnapshot(collapsed_panels=frozenset({"chop"}))
+    )
+    app._maybe_install_agents_fold_state_before_finalize()
+
+    assert app._collapsed_panel_keys == set()
 
 
 def test_merged_layout_clear_removes_unseen_persisted_panel_folds() -> None:

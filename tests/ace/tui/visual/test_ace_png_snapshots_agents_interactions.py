@@ -120,6 +120,15 @@ def _panel_collapse_agents() -> list[Agent]:
     ]
 
 
+def _panel_auto_expand_agents() -> list[Agent]:
+    """Collapsed ``#chop`` panel with an unread target after its first row."""
+    agents = _panel_collapse_agents()
+    target = agents[2]
+    target.status = "DONE"
+    target.stop_time = datetime(2026, 7, 15, 10, 5, 0)
+    return agents
+
+
 async def test_agents_collapsed_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -223,6 +232,49 @@ async def test_agents_unread_highlight_png_snapshot(
             page,
             "agents_unread_highlight_120x40",
             title="ACE agents unread highlight",
+        )
+
+
+async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _panel_auto_expand_agents()
+    target = agents[2]
+    patch_startup_loaders(monkeypatch, agents=agents)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 4)
+        page.app._unread_completed_agent_ids.add(target.identity)
+
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "chop"
+        await page.press("H")
+        await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
+        assert page.app._panel_group.panel_keys == [None, "keep", "chop"]
+
+        await page.press("comma")
+        await page.press("j")
+        await page.wait_for(
+            lambda _screen: "chop" not in page.app._collapsed_panel_keys
+        )
+        await wait_for_visual_idle(page)
+
+        assert page.app._panel_group.panel_keys == [None, "chop", "keep"]
+        assert page.app._panel_group.focused_key == "chop"
+        assert page.app.current_idx == 2
+        assert page.app._agents[page.app.current_idx].identity == target.identity
+        assert target.identity not in page.app._unread_completed_agent_ids
+        target_widget = page.app.query_one("#agent-list-panel-1")
+        assert target_widget.highlighted is not None
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_leader_jump_auto_expanded_panel_120x40",
+            title="ACE agents leader jump auto-expanded panel",
         )
 
 

@@ -306,11 +306,17 @@ class AgentNavigationOrderMixin:
         except ValueError:
             return None
 
-    def _visible_agent_panel_indices(self) -> dict[int, int | None]:
+    def _visible_agent_panel_indices(
+        self,
+        *,
+        include_collapsed_panels: bool = False,
+    ) -> dict[int, int | None]:
         """Return visible global agent indices mapped to their panel index.
 
         The no-panel fallback intentionally keeps the old focused-list
-        behavior used by tests and single-list contexts.
+        behavior used by tests and single-list contexts.  Callers may opt in
+        to rows that would render if a whole collapsed panel were expanded;
+        in-panel folds and all other rendering filters remain authoritative.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
 
@@ -327,7 +333,7 @@ class AgentNavigationOrderMixin:
         collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
 
         for key in panel_group.panel_keys:
-            if key in collapsed_keys:
+            if key in collapsed_keys and not include_collapsed_panels:
                 continue
             registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)

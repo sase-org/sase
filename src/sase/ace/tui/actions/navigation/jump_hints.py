@@ -16,7 +16,11 @@ AgentJumpTarget = tuple[Literal["agent"], int]
 BannerJumpTarget = tuple[Literal["banner"], int, tuple[str, ...]]
 PanelJumpTarget = tuple[Literal["panel"], PanelKey]
 JumpTarget = AgentJumpTarget | BannerJumpTarget | PanelJumpTarget
-AgentJumpAnchor = tuple[Literal["agent"], int, int] | BannerJumpTarget | PanelJumpTarget
+AgentJumpAnchor = (
+    tuple[Literal["agent"], int, PanelKey]
+    | tuple[Literal["banner"], PanelKey, tuple[str, ...]]
+    | PanelJumpTarget
+)
 ChangeSpecBannerJumpAnchor = tuple[Literal["changespec_banner"], tuple[str, ...]]
 EntryJumpAnchor = int | ChangeSpecBannerJumpAnchor
 
