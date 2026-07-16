@@ -8,8 +8,8 @@ from sase.axe.chop_agents import agent_meta_from_chop_env
 from sase.axe.run_agent_markers import write_agent_meta
 
 
-def _completed_wait_metadata(artifacts_dir: str) -> dict[str, str]:
-    """Preserve the durable wait barrier across a runner re-exec."""
+def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
+    """Preserve durable launch metadata across a runner re-exec."""
     try:
         with open(
             os.path.join(artifacts_dir, "agent_meta.json"), encoding="utf-8"
@@ -19,8 +19,47 @@ def _completed_wait_metadata(artifacts_dir: str) -> dict[str, str]:
         return {}
     if not isinstance(existing_meta, dict):
         return {}
-    value = existing_meta.get("wait_completed_at")
-    return {"wait_completed_at": value} if isinstance(value, str) and value else {}
+    preserved: dict[str, Any] = {}
+    for key in (
+        "wait_completed_at",
+        "sdd_plan_path",
+        "epic_bead_id",
+        "phase_bead_id",
+    ):
+        value = existing_meta.get(key)
+        if isinstance(value, str) and value:
+            preserved[key] = value
+    if existing_meta.get("plan_committed") is True:
+        preserved["plan_committed"] = True
+    return preserved
+
+
+def _epic_work_metadata_from_env() -> dict[str, Any]:
+    """Consume host-only epic-work launch fields for ``agent_meta.json``.
+
+    These values describe only the current child. Popping them prevents a
+    phase or land agent from accidentally attributing its own nested launches
+    to the same epic role. ``SASE_BEAD_ID`` is intentionally left untouched:
+    it remains the commit workflow's bead attribution.
+    """
+    from sase.bead.work import (
+        SASE_EPIC_BEAD_ID_ENV,
+        SASE_EPIC_PLAN_REF_ENV,
+        SASE_PHASE_BEAD_ID_ENV,
+    )
+
+    metadata: dict[str, Any] = {}
+    for env_name, meta_name in (
+        (SASE_EPIC_PLAN_REF_ENV, "sdd_plan_path"),
+        (SASE_EPIC_BEAD_ID_ENV, "epic_bead_id"),
+        (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
+    ):
+        value = os.environ.pop(env_name, "").strip()
+        if value:
+            metadata[meta_name] = value
+    if "sdd_plan_path" in metadata:
+        metadata["plan_committed"] = True
+    return metadata
 
 
 class AgentInfo(NamedTuple):
@@ -59,7 +98,8 @@ def extract_directives_and_write_meta(
 
     Returns AgentInfo with all extracted info.
     """
-    completed_wait_metadata = _completed_wait_metadata(artifacts_dir)
+    preserved_agent_metadata = _preserved_agent_metadata(artifacts_dir)
+    epic_work_metadata = _epic_work_metadata_from_env()
 
     from sase.llm_provider.registry import (
         get_default_provider_name,
@@ -318,7 +358,8 @@ def extract_directives_and_write_meta(
             agent_meta["linked_repos"] = linked_repos
             agent_meta["sibling_repos"] = linked_repos
         agent_meta.update(agent_meta_from_chop_env())
-        agent_meta.update(completed_wait_metadata)
+        agent_meta.update(preserved_agent_metadata)
+        agent_meta.update(epic_work_metadata)
         if cl_name:
             agent_meta["changespec_name"] = cl_name
             agent_meta.setdefault("cl_name", cl_name)

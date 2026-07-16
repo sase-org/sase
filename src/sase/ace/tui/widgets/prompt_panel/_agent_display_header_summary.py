@@ -8,18 +8,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from sase.agent.bead_display import derive_agent_bead_id_from_name
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.tools import (
     build_slow_tool_sources,
     supports_slow_tool_sources,
 )
 from sase.ace.tui.widgets.file_panel._diff import DIFF_CACHE_TTL_SECONDS
-from sase.agent.bead_display import BeadIssueLookupSession
-
 from ...models.agent import Agent
 from ...models.agent_associated_plan import (
     associated_plan_cache_key,
-    resolve_agent_associated_plan,
+    resolve_agent_plan_enrichment,
 )
 from ...models.agent_bead import BEAD_DISPLAY_CACHE_MISS, cached_bead_display
 from ._agent_display_state import DetailHeaderSummary
@@ -123,11 +122,14 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         if cached_display is not BEAD_DISPLAY_CACHE_MISS:
             bead_display = cast(str | None, cached_display)
 
-    with BeadIssueLookupSession() as lookup_session:
-        associated_plan = resolve_agent_associated_plan(
-            agent,
-            lookup_session=lookup_session,
-        )
+    plan_enrichment = resolve_agent_plan_enrichment(agent)
+    associated_plan = plan_enrichment.associated_plan
+    enriched_bead_display = plan_enrichment.bead_display
+    legacy_candidate_id = derive_agent_bead_id_from_name(agent.agent_name)
+    if enriched_bead_display is not None and (
+        agent.phase_bead_id is not None or enriched_bead_display != legacy_candidate_id
+    ):
+        bead_display = enriched_bead_display
 
     slow_tool_sources = None
     if supports_slow_tool_sources(agent):
@@ -148,8 +150,8 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         linked_delta_groups = agent_commit_linked_delta_groups(agent)
 
     artifact_paths = agent_artifact_paths(agent)
-    if associated_plan is not None:
-        plan_path = Path(associated_plan.actual_path).resolve(strict=False)
+    if plan_enrichment.resolved_plan_path is not None:
+        plan_path = Path(plan_enrichment.resolved_plan_path).resolve(strict=False)
         artifact_paths = [
             artifact
             for artifact in artifact_paths

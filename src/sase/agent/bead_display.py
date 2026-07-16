@@ -311,7 +311,7 @@ def _bead_project_location(beads_dir: Path) -> tuple[Path, str]:
     return beads_dir.parent, beads_dir.name
 
 
-def _normalize_bead_text(text: str | None) -> str | None:
+def normalize_bead_text(text: str | None) -> str | None:
     """Collapse bead text for display on a single metadata line."""
     if not text:
         return None
@@ -359,14 +359,14 @@ def format_agent_bead_display_for_name(
         return None
 
     if include_description and issue is not None:
-        description = _normalize_bead_text(getattr(issue, "description", None))
+        description = normalize_bead_text(getattr(issue, "description", None))
         if description:
             return f"{bead_id} - {description}"
         if _is_epic_land_issue(agent_name, issue):
-            title = _normalize_bead_text(getattr(issue, "title", None))
+            title = normalize_bead_text(getattr(issue, "title", None))
             if title:
                 return f"{bead_id} - Land epic: {title}"
-        title = _normalize_bead_text(getattr(issue, "title", None))
+        title = normalize_bead_text(getattr(issue, "title", None))
         if title:
             return f"{bead_id} - {title}"
 

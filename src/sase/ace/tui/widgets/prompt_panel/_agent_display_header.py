@@ -175,12 +175,15 @@ def build_header_text(
     header_text.append("Name: ", style="bold #87D7FF")
     if agent.agent_name:
         header_text.append(f"{agent.agent_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
-        # Render ``Bead:`` only from confirmed cache state. The full path reads
-        # the value precomputed onto ``summary`` (itself cache-derived); the
-        # cheap/cold paths read the cache directly. None of these touch bead
-        # storage, and an unconfirmed candidate renders nothing.
+        # Modern phase identity is authoritative launch metadata, so the
+        # cheap/cold path can show its bare id immediately while deferred plan
+        # enrichment fills in the frontmatter description. Legacy candidates
+        # still render only from confirmed cache state. None of these paths
+        # touch bead storage.
         if summary is not None:
             bead_display = summary.bead_display
+        elif agent.phase_bead_id:
+            bead_display = agent.phase_bead_id
         else:
             cached_display = cached_bead_display(agent)
             bead_display = cached_display if isinstance(cached_display, str) else None

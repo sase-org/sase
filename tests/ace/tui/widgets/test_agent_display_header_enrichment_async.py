@@ -177,6 +177,61 @@ def test_stale_header_enrichment_result_is_ignored(
     assert get_cached_detail_header_summary(panel, agent) is None
 
 
+def test_completed_phase_enrichment_cannot_overwrite_new_phase_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = make_agent(
+        cl_name="phase-one",
+        raw_suffix="1",
+        agent_name="sase-7.1",
+        epic_bead_id="sase-7",
+        phase_bead_id="sase-7.1",
+    )
+    second = make_agent(
+        cl_name="phase-two",
+        raw_suffix="2",
+        agent_name="sase-7.2",
+        epic_bead_id="sase-7",
+        phase_bead_id="sase-7.2",
+    )
+    panel = _HeaderEnrichmentPanel()
+    selected_identity = first.identity
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        lambda agent: _DetailHeaderSummary(bead_display=agent.phase_bead_id),
+    )
+
+    panel.start_agent_detail_header_enrichment(
+        first,
+        generation=7,
+        attempt_view_mode="merged",
+        attempt_pinned_number=None,
+        is_current=lambda identity, *_args: identity == selected_identity,
+    )
+    assert panel.worker_fn is not None
+    first_worker = panel.worker
+    first_worker.result = panel.worker_fn()
+
+    selected_identity = second.identity
+    panel.start_agent_detail_header_enrichment(
+        second,
+        generation=8,
+        attempt_view_mode="merged",
+        attempt_pinned_number=None,
+        is_current=lambda identity, *_args: identity == selected_identity,
+    )
+    assert first_worker.cancelled
+
+    panel._apply_agent_detail_header_enrichment_result(
+        cast(Worker[Any], first_worker),
+        WorkerState.SUCCESS,
+    )
+
+    assert get_cached_detail_header_summary(panel, first) is None
+    assert get_cached_detail_header_summary(panel, second) is None
+
+
 def test_fresh_header_summary_cache_skips_second_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

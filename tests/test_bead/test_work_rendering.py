@@ -9,6 +9,9 @@ from sase.bead.work import (
     EpicWorkPlan,
     _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
+    SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_PLAN_REF_ENV,
+    SASE_PHASE_BEAD_ID_ENV,
     VCSLaunchContext,
     _build_epic_work_plan,
     epic_work_segment_env,
@@ -112,10 +115,28 @@ class TestRenderEdgeCases:
         seed(conn, [epic("e1"), phase("p1"), phase("p2")])
         plan = _build_epic_work_plan(conn, "e1")
 
-        assert epic_work_segment_env(plan) == (
-            {SASE_BEAD_ID_ENV: "p1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-            {SASE_BEAD_ID_ENV: "p2", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
-            {SASE_BEAD_ID_ENV: "e1", INTERNAL_AGENT_NAME_BYPASS_ENV: "1"},
+        plan_ref = "sdd/plans/202607/epic.md"
+        assert epic_work_segment_env(plan, plan_ref=plan_ref) == (
+            {
+                SASE_BEAD_ID_ENV: "p1",
+                SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_PLAN_REF_ENV: plan_ref,
+                SASE_PHASE_BEAD_ID_ENV: "p1",
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            },
+            {
+                SASE_BEAD_ID_ENV: "p2",
+                SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_PLAN_REF_ENV: plan_ref,
+                SASE_PHASE_BEAD_ID_ENV: "p2",
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            },
+            {
+                SASE_BEAD_ID_ENV: "e1",
+                SASE_EPIC_BEAD_ID_ENV: "e1",
+                SASE_EPIC_PLAN_REF_ENV: plan_ref,
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            },
         )
 
 

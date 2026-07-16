@@ -11,6 +11,12 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import IssueType, Status
 from sase.bead.project import BeadProject
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
+from sase.bead.work import (
+    SASE_BEAD_ID_ENV,
+    SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_PLAN_REF_ENV,
+    SASE_PHASE_BEAD_ID_ENV,
+)
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -28,6 +34,9 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     epic_id, phase_ids = seed_diamond(project_dir)
+    plan_ref = "sdd/plans/202607/diamond.md"
+    with BeadProject(project_dir) as project:
+        project.update(epic_id, design=plan_ref)
     captured: dict[str, Any] = {}
     commit_calls: list[tuple[Path, str, str, str]] = []
 
@@ -65,8 +74,24 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert f"#bd/land_epic:{epic_id}" in query
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
-        {"SASE_BEAD_ID": bead_id, INTERNAL_AGENT_NAME_BYPASS_ENV: "1"}
-        for bead_id in [*phase_ids, epic_id]
+        [
+            {
+                SASE_BEAD_ID_ENV: phase_id,
+                SASE_EPIC_BEAD_ID_ENV: epic_id,
+                SASE_EPIC_PLAN_REF_ENV: plan_ref,
+                SASE_PHASE_BEAD_ID_ENV: phase_id,
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            }
+            for phase_id in phase_ids
+        ]
+        + [
+            {
+                SASE_BEAD_ID_ENV: epic_id,
+                SASE_EPIC_BEAD_ID_ENV: epic_id,
+                SASE_EPIC_PLAN_REF_ENV: plan_ref,
+                INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
+            }
+        ]
     )
     assert commit_calls == [
         (project_dir / "sdd/beads", epic_id, "Diamond epic", "epic")

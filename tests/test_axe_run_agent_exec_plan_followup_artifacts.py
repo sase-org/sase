@@ -105,6 +105,33 @@ def test_create_followup_artifacts_inherits_model_alias_overrides(tmp_path) -> N
     assert meta["model_alias_overrides"] == {"coder": "sonnet"}
 
 
+def test_create_followup_artifacts_inherits_epic_work_metadata(tmp_path) -> None:
+    followup = tmp_path / "followup-epic-work"
+    followup.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(followup),
+    ):
+        create_followup_artifacts(
+            "test_proj",
+            {
+                "sdd_plan_path": "sdd/plans/202607/epic.md",
+                "plan_committed": True,
+                "epic_bead_id": "sase-7",
+                "phase_bead_id": "sase-7.2",
+            },
+            "--code",
+            "20260711120000",
+        )
+
+    meta = json.loads((followup / "agent_meta.json").read_text())
+    assert meta["sdd_plan_path"] == "sdd/plans/202607/epic.md"
+    assert meta["plan_committed"] is True
+    assert meta["epic_bead_id"] == "sase-7"
+    assert meta["phase_bead_id"] == "sase-7.2"
+
+
 def test_store_followup_prompt_artifact_registers_explicit_artifact(
     tmp_path, monkeypatch
 ) -> None:

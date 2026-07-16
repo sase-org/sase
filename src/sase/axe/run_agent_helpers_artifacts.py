@@ -130,6 +130,8 @@ def create_followup_artifacts(
         "changespec_name",
         "cl_name",
         "bead_id",
+        "sdd_plan_path",
+        "plan_committed",
         "epic_bead_id",
         "phase_bead_id",
         "agent_family_config_id",

@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from sase.xprompt.workflow_models import Workflow
 
 SASE_BEAD_ID_ENV = "SASE_BEAD_ID"
+SASE_EPIC_PLAN_REF_ENV = "SASE_EPIC_PLAN_REF"
+SASE_EPIC_BEAD_ID_ENV = "SASE_EPIC_BEAD_ID"
+SASE_PHASE_BEAD_ID_ENV = "SASE_PHASE_BEAD_ID"
 
 
 @dataclass(frozen=True)
@@ -279,13 +282,36 @@ def render_multi_prompt(
     return "\n---\n".join(segments)
 
 
-def epic_work_segment_env(plan: EpicWorkPlan) -> tuple[dict[str, str], ...]:
-    """Return per-segment env for an epic work prompt rendered from *plan*."""
+def epic_work_segment_env(
+    plan: EpicWorkPlan,
+    *,
+    plan_ref: str,
+) -> tuple[dict[str, str], ...]:
+    """Return role metadata for each epic-work launch segment.
+
+    ``SASE_BEAD_ID`` remains the commit-attribution value for the child. The
+    narrowly scoped epic fields are consumed while the child's
+    ``agent_meta.json`` marker is written, giving ACE a plan/role association
+    without overloading ``SASE_PLAN`` or consulting bead storage.
+    """
     envs: list[dict[str, str]] = []
     for wave in plan.waves:
         for assignment in wave:
-            envs.append(_bead_env(assignment.bead_id))
-    envs.append(_bead_env(plan.epic_id))
+            envs.append(
+                _bead_env(
+                    assignment.bead_id,
+                    epic_id=plan.epic_id,
+                    plan_ref=plan_ref,
+                    phase_bead_id=assignment.bead_id,
+                )
+            )
+    envs.append(
+        _bead_env(
+            plan.epic_id,
+            epic_id=plan.epic_id,
+            plan_ref=plan_ref,
+        )
+    )
     return tuple(envs)
 
 
@@ -316,11 +342,23 @@ def _group_directive(bead_id: str) -> str:
     return f"%group:{bead_id}"
 
 
-def _bead_env(bead_id: str) -> dict[str, str]:
-    return {
+def _bead_env(
+    bead_id: str,
+    *,
+    epic_id: str,
+    plan_ref: str,
+    phase_bead_id: str | None = None,
+) -> dict[str, str]:
+    env = {
         SASE_BEAD_ID_ENV: bead_id,
+        SASE_EPIC_BEAD_ID_ENV: epic_id,
         INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
     }
+    if plan_ref:
+        env[SASE_EPIC_PLAN_REF_ENV] = plan_ref
+    if phase_bead_id:
+        env[SASE_PHASE_BEAD_ID_ENV] = phase_bead_id
+    return env
 
 
 def _segment_prefix(

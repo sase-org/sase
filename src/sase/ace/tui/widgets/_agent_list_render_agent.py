@@ -308,9 +308,9 @@ def format_agent_option(
         else:
             text.append(fold_annotation, style="dim #00D7D7")
 
-    # Confirmed-only: the glyph appears solely when the TUI has confirmed the
-    # candidate id exists in a bead store (an O(1) cache read warmed off the
-    # event loop). Cold or missing candidates render no glyph.
+    # Authoritative-only: modern phase launch metadata renders immediately;
+    # legacy candidates render after an O(1) confirmed-cache read warmed off
+    # the event loop. Cold or missing legacy candidates render no glyph.
     if agent_has_confirmed_bead(agent):
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)

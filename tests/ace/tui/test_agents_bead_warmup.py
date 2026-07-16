@@ -73,6 +73,8 @@ def _agent(
     raw_suffix: str = "20260615190000",
     project_file: str = "/tmp/proj/proj.sase",
     workspace_dir: str | None = "/tmp/ws",
+    epic_bead_id: str | None = None,
+    phase_bead_id: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -83,6 +85,8 @@ def _agent(
         raw_suffix=raw_suffix,
         agent_name=agent_name,
         workspace_dir=workspace_dir,
+        epic_bead_id=epic_bead_id,
+        phase_bead_id=phase_bead_id,
     )
 
 
@@ -147,6 +151,13 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     missing = _agent(agent_name="sase-b.2", cl_name="missing", raw_suffix="2")
     cold = _agent(agent_name="sase-c.3", cl_name="cold", raw_suffix="3")
     ordinary = _agent(agent_name="reviewer", cl_name="ordinary", raw_suffix="4")
+    modern_phase = _agent(
+        agent_name="sase-d.1",
+        epic_bead_id="sase-d",
+        phase_bead_id="sase-d.1",
+        cl_name="modern-phase",
+        raw_suffix="5",
+    )
 
     confirmed_key = _bead_display_cache_key(confirmed)
     missing_key = _bead_display_cache_key(missing)
@@ -154,7 +165,7 @@ def test_warmup_candidates_only_uncached_bead_candidates() -> None:
     _BEAD_DISPLAY_CACHE.set(confirmed_key, "sase-a.1 - desc")
     _BEAD_DISPLAY_CACHE.set(missing_key, None)
     # ``cold`` and ``ordinary`` are left uncached; only ``cold`` has a candidate.
-    app._agents = [confirmed, missing, cold, ordinary]
+    app._agents = [confirmed, missing, cold, ordinary, modern_phase]
 
     assert app._bead_warmup_candidates() == [cold]
 

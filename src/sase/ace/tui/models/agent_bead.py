@@ -113,11 +113,13 @@ def cached_bead_display(agent: Agent) -> str | None | object:
 
 
 def agent_has_confirmed_bead(agent: Agent) -> bool:
-    """Return True iff a confirmed bead display is cached for *agent*.
+    """Return whether *agent* has authoritative bead identity metadata.
 
-    O(1) cache read only — never touches bead storage, so it is safe to call
-    from row rendering and render-key construction on the event loop.
+    Modern phase metadata is authoritative at launch; legacy candidates still
+    require a confirmed cached display. This is an O(1), memory-only check.
     """
+    if agent.phase_bead_id:
+        return True
     return isinstance(cached_bead_display(agent), str)
 
 
@@ -205,6 +207,11 @@ def _agent_workspace_cache_key(agent: Agent) -> str | None:
 
 
 def _bead_display_cache_key(agent: Agent) -> BeadDisplayCacheKey | None:
+    # Modern phase workers derive their display from immutable launch metadata
+    # plus validated plan frontmatter. They must never enter the generic
+    # bead-confirmation lookup or visible-row warmup paths.
+    if agent.phase_bead_id:
+        return None
     bead_id = _derive_agent_bead_id(agent)
     if bead_id is None:
         return None

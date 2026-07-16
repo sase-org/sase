@@ -353,7 +353,10 @@ def launch_epic_bead_work(
         with timer.stage("agent_launch"):
             results = launch_bead_work_agents(
                 query,
-                segment_extra_env=epic_work_segment_env(plan),
+                segment_extra_env=epic_work_segment_env(
+                    plan,
+                    plan_ref=issue.design,
+                ),
                 expected_names=expected_agent_names(plan),
                 launch_context=changespec_context or vcs_context,
             )

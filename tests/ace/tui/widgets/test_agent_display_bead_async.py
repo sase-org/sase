@@ -10,7 +10,12 @@ from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_bead import _BEAD_DISPLAY_CACHE, _bead_display_cache_key
+from sase.ace.tui.models.agent_bead import (
+    _BEAD_DISPLAY_CACHE,
+    _bead_display_cache_key,
+    agent_has_confirmed_bead,
+    should_resolve_bead_display,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     cache_detail_header_summary,
@@ -98,6 +103,24 @@ def test_cold_bead_display_schedules_worker_without_lookup(
     rendered = plain_of(panel.captured[-1])
     assert "Name: sase-x.3\n" in rendered
     assert "Bead:" not in rendered
+
+
+def test_modern_phase_bypasses_generic_bead_worker_and_is_row_confirmed() -> None:
+    agent = make_agent(
+        agent_name="sase-x.3",
+        epic_bead_id="sase-x",
+        phase_bead_id="sase-x.3",
+    )
+    panel = _BeadPanel()
+    _set_context(panel, agent, current=True)
+
+    panel.update_display(agent)
+
+    assert agent_has_confirmed_bead(agent)
+    assert not should_resolve_bead_display(agent)
+    assert "Bead: sase-x.3\n" in plain_of(panel.captured[-1])
+    assert getattr(panel, "_agent_bead_display_worker", None) is None
+    assert getattr(panel, "_agent_detail_header_worker", None) is panel.worker
 
 
 def test_successful_bead_worker_rerenders_cached_description(

@@ -343,12 +343,18 @@ descendants.
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
-When ACE knows an agent's associated plan, the metadata panel adds `SASE PLAN` as the first major section after all
-ordinary agent fields and `Timestamps`; model and xprompt usage remain ordinary metadata above it. The section starts
-with the complete normalized `Goal`, effective user-facing `Tier` (`plan`, `epic`, or `none`), and canonical `Path`.
-Pending proposals map authored `tier: tale` to `plan`; an explicitly uncommitted approval renders `none`. Committed
-paths are relative to the agent workspace (including SDD sidecars such as `sase/repos/plans/...`), while pending and
-uncommitted archives use `~/.sase/plans/...`.
+When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `SASE PLAN` as the first major
+section after all ordinary agent fields and `Timestamps`; model and xprompt usage remain ordinary metadata above it. An
+epic phase worker never shows this section. Instead, its launch metadata identifies the epic plan and exact phase bead,
+and ACE derives a single `Bead: <phase bead id> - <phase description>` row from that phase's validated,
+frontmatter-ordered entry. Authored descriptions are normalized to one line; a missing description uses the same stable
+plan-and-phase pointer generated during deterministic bead creation. This modern path does not read the bead store, and
+missing, damaged, or out-of-range metadata falls back to the bare phase bead ID without exposing the epic roadmap.
+
+For planner/author and lander rows, the section starts with the complete normalized `Goal`, effective user-facing `Tier`
+(`plan`, `epic`, or `none`), and canonical `Path`. Pending proposals map authored `tier: tale` to `plan`; an explicitly
+uncommitted approval renders `none`. Committed paths are relative to the agent workspace (including SDD sidecars such as
+`sase/repos/plans/...`), while pending and uncommitted archives use `~/.sase/plans/...`.
 
 Validated authored epics add a phase roadmap beneath those three rows. `Phases` gives the complete phase count, and each
 entry shows its one-based authored order, title, canonical ID, `no dependencies` or `after <id>, ...`, plus an authored
@@ -619,7 +625,8 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tag/name. A
 phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>` land agent displays the parent epic
 bead ID. Legacy `<epic_id>.land` land agents keep the same badge. Dismissed agents keep the badge by stripping only the
-date-prefix used for dismissal.
+date-prefix used for dismissal. Modern phase rows use their explicit launch metadata immediately; legacy bead-shaped
+names retain the deferred bead-store confirmation fallback.
 
 Each agent row also carries a per-provider emoji badge before the display name so the LLM provider behind a row is
 readable at a glance without scanning the right-hand model suffix:
@@ -1509,7 +1516,9 @@ dismissal-prefixed candidates so it anchors on a live, visible agent.
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
 
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
-  - `Bead` — shown for agents launched by `sase bead work`, inferred from phase, exact epic, or legacy `.land` names
+  - `Bead` — shown for agents launched by `sase bead work`; modern phase rows use explicit epic/phase/plan launch
+    metadata and validated plan frontmatter, while exact epic and legacy phase/`.land` rows retain compatibility
+    inference
   - `WAIT` — when the agent was spawned (waiting for a slot)
   - `BEGIN` — when runner admission completed, before workspace preparation for root agents
   - `PLAN` — each plan proposal round (multiple entries when re-planning occurs)
@@ -1519,14 +1528,15 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **SASE PLAN**: Shown when direct planner/family metadata or an epic/phase bead associates the agent with a plan. Its
-  rows are `Goal`, effective `Tier` (`plan`, `epic`, or `none`), and canonical `Path`, in that order. Committed paths
-  are workspace-relative; pending or explicitly uncommitted paths use the home-shortened machine-local archive. The
-  section is the first major section after ordinary metadata. Valid epics then show every phase in authored order with
-  its title, ID, dependency IDs, optional model, and optional description; these are static roadmap ordinals, not
-  progress indicators. Every value wraps without truncation in the normal panel and metadata zoom view, and only the
-  path participates in file hint mode. Invalid known epics show `Phases: unavailable` without leaking partial entries;
-  tales do not show a phase block.
+- **SASE PLAN**: Shown for the epic-authoring planner and epic lander when direct metadata or a confirmed legacy epic
+  association resolves a plan. Phase workers deliberately omit the entire section and show only their one phase's `Bead`
+  value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the rows are `Goal`, effective
+  `Tier` (`plan`, `epic`, or `none`), and canonical `Path`, in that order. Committed paths are workspace-relative;
+  pending or explicitly uncommitted paths use the home-shortened machine-local archive. The section is the first major
+  section after ordinary metadata. Valid epics then show every phase in authored order with its title, ID, dependency
+  IDs, optional model, and optional description; these are static roadmap ordinals, not progress indicators. Every value
+  wraps without truncation in the normal panel and metadata zoom view, and only the path participates in file hint mode.
+  Invalid known epics show `Phases: unavailable` without leaking partial entries; tales do not show a phase block.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

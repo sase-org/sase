@@ -57,6 +57,18 @@ def test_missing_cache_entries_back_off_longer_than_confirmed_hits(
 
 
 class TestAgentListBeadBadge:
+    def test_modern_phase_row_renders_badge_without_store_confirmation(self) -> None:
+        agent = make_agent(
+            agent_name="sase-x.3",
+            epic_bead_id="sase-x",
+            phase_bead_id="sase-x.3",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert " ◆ sase-x.3" in left.plain
+        assert should_resolve_bead_display(agent) is False
+
     def test_confirmed_phase_agent_row_renders_bead_badge(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

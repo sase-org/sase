@@ -9,6 +9,7 @@ from rich.cells import cell_len
 from rich.console import Console
 
 from sase.ace.tui.models.agent_associated_plan import (
+    AgentPlanEnrichment,
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
 )
@@ -539,13 +540,13 @@ def test_detail_summary_resolves_plan_only_in_enrichment_worker(
     plan = _plan_summary()
     calls: list[object] = []
 
-    def resolve(agent_arg: object, *, lookup_session: object) -> AssociatedPlanSummary:
-        calls.extend((agent_arg, lookup_session))
-        return plan
+    def resolve(agent_arg: object) -> AgentPlanEnrichment:
+        calls.append(agent_arg)
+        return AgentPlanEnrichment("ordinary", None, plan, plan.actual_path)
 
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
-        "resolve_agent_associated_plan",
+        "resolve_agent_plan_enrichment",
         resolve,
     )
 
@@ -553,7 +554,6 @@ def test_detail_summary_resolves_plan_only_in_enrichment_worker(
 
     assert summary.associated_plan is plan
     assert calls[0] is agent
-    assert calls[1].__class__.__name__ == "BeadIssueLookupSession"
 
 
 def test_canonical_plan_is_removed_from_generic_artifact_metadata(
@@ -565,8 +565,13 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
     duplicate = AgentArtifactPath("plan.md", "/tmp/plan.md", view_mode="markdown")
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
-        "resolve_agent_associated_plan",
-        lambda *_args, **_kwargs: plan,
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: AgentPlanEnrichment(
+            "ordinary",
+            None,
+            plan,
+            plan.actual_path,
+        ),
     )
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_artifacts.agent_artifact_paths",
@@ -578,12 +583,48 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
     assert summary.artifact_paths == [other]
 
 
+def test_phase_plan_is_not_exposed_as_generic_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(
+        agent_name="sase-9.2",
+        epic_bead_id="sase-9",
+        phase_bead_id="sase-9.2",
+        step_type="bash",
+    )
+    other = AgentArtifactPath("notes.md", "/tmp/notes.md")
+    duplicate = AgentArtifactPath("epic.md", "/tmp/epic.md", view_mode="markdown")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
+        "resolve_agent_plan_enrichment",
+        lambda *_args, **_kwargs: AgentPlanEnrichment(
+            "phase",
+            "sase-9.2 - Selected phase",
+            None,
+            "/tmp/epic.md",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_artifacts.agent_artifact_paths",
+        lambda _agent: [duplicate, other],
+    )
+
+    summary = build_detail_header_summary(agent)
+
+    assert summary.associated_plan is None
+    assert summary.artifact_paths == [other]
+
+
 def test_cheap_header_never_resolves_or_stats_plan(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     def fail(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("hot render path must remain memory-only")
 
     monkeypatch.setattr(
         "sase.ace.tui.models.agent_associated_plan.resolve_agent_associated_plan",
+        fail,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan.resolve_agent_plan_enrichment",
         fail,
     )
     monkeypatch.setattr(
@@ -615,3 +656,56 @@ def test_approval_metadata_change_invalidates_cached_plan_summary() -> None:
 
     assert get_cached_detail_header_summary(widget, agent) is None
     assert should_refresh_detail_header_summary(widget, agent)
+
+
+def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:  # type: ignore[no-untyped-def]
+    plan = tmp_path / "plans" / "epic.md"
+    plan.parent.mkdir()
+    plan.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Role-aware metadata\n"
+        "goal: Keep the complete roadmap on epic owners only.\n"
+        "phases:\n"
+        "  - id: core\n"
+        "    title: Build metadata\n"
+        "    depends_on: []\n"
+        "  - id: render\n"
+        "    title: Render phase metadata\n"
+        "    depends_on: [core]\n"
+        "    description: >-\n"
+        "      Show only this selected\n"
+        "      phase description.\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = make_agent(
+        agent_name="sase-9.2",
+        epic_bead_id="sase-9",
+        phase_bead_id="sase-9.2",
+        sdd_plan_path="plans/epic.md",
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+        step_type="bash",
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan._lookup_issue",
+        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+    )
+
+    summary = build_detail_header_summary(agent)
+    header, _ = build_header_text(agent, summary=summary)
+
+    assert summary.associated_plan is None
+    assert header.plain.count("Bead:") == 1
+    assert "Bead: sase-9.2 - Show only this selected phase description.\n" in (
+        header.plain
+    )
+    assert "SASE PLAN" not in header.plain
+    assert "Goal:" not in header.plain
+    assert "Path:" not in header.plain
+    assert "Build metadata" not in header.plain

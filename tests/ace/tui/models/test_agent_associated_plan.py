@@ -13,6 +13,7 @@ import sase.ace.tui.models.agent_associated_plan as plan_model
 from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     resolve_agent_associated_plan,
+    resolve_agent_plan_enrichment,
 )
 from sase.agent.bead_display import BeadIssueLookupSession
 from sase.bead.model import BeadTier, Issue, IssueType
@@ -241,14 +242,45 @@ def test_direct_metadata_wins_before_bead_lookup(
     assert summary.goal == "Deliver the direct plan"
 
 
-def test_phase_bead_resolves_parent_design(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_modern_phase_without_plan_stays_bead_only_without_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(
+        agent_name="sase-1.2",
+        epic_bead_id="sase-1",
+        phase_bead_id="sase-1.2",
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+    )
+
+    enrichment = resolve_agent_plan_enrichment(agent)
+
+    assert enrichment.role == "phase"
+    assert enrichment.bead_display == "sase-1.2"
+    assert enrichment.associated_plan is None
+    assert enrichment.resolved_plan_path is None
+
+
+def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     plan = _write_plan(tmp_path / "plans" / "epic.md", "Complete the epic")
-    agent = make_agent(phase_bead_id="sase-1.2", workspace_dir=str(tmp_path))
-    phase = Issue(id="sase-1.2", title="Phase", parent_id="sase-1")
+    agent = make_agent(agent_name="sase-1.2", workspace_dir=str(tmp_path))
+    phase = Issue(
+        id="sase-1.2",
+        title="Phase",
+        issue_type=IssueType.PHASE,
+        parent_id="sase-1",
+    )
     epic = Issue(
         id="sase-1",
         title="Epic",
         issue_type=IssueType.PLAN,
+        tier=BeadTier.EPIC,
         design="plans/epic.md",
     )
     issues = {phase.id: phase, epic.id: epic}
@@ -259,15 +291,174 @@ def test_phase_bead_resolves_parent_design(tmp_path: Path, monkeypatch) -> None:
     )
 
     with BeadIssueLookupSession() as lookup_session:
-        summary = resolve_agent_associated_plan(
+        enrichment = resolve_agent_plan_enrichment(
             agent,
             lookup_session=lookup_session,
         )
 
-    assert summary is not None
-    assert summary.actual_path == str(plan.resolve())
-    assert summary.display_path == "plans/epic.md"
-    assert summary.goal == "Complete the epic"
+    assert enrichment.role == "phase"
+    assert enrichment.bead_display == "sase-1.2"
+    assert enrichment.associated_plan is None
+    assert enrichment.resolved_plan_path == str(plan.resolve())
+
+
+@pytest.mark.parametrize(
+    ("epic_bead_id", "phase_bead_id", "expected"),
+    [
+        (
+            "sase-1",
+            "sase-1.1",
+            "sase-1.1 - Normalize the authoritative validator payload.",
+        ),
+        (
+            "sase-1",
+            "sase-1.2",
+            "sase-1.2 - Phase `docs` in approved epic plan `plans/epic.md`.",
+        ),
+        (
+            "sase-42.3",
+            "sase-42.3.3",
+            "sase-42.3.3 - Phase `render` in approved epic plan `plans/epic.md`.",
+        ),
+    ],
+    ids=["first", "middle", "nested-epic-id"],
+)
+def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    epic_bead_id: str,
+    phase_bead_id: str,
+    expected: str,
+) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    agent = make_agent(
+        agent_name=phase_bead_id,
+        epic_bead_id=epic_bead_id,
+        phase_bead_id=phase_bead_id,
+        sdd_plan_path="plans/epic.md",
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+    )
+    monkeypatch.setattr(
+        plan_model,
+        "_lookup_issue",
+        lambda *_args, **_kwargs: pytest.fail("modern phase must not read beads"),
+    )
+
+    enrichment = resolve_agent_plan_enrichment(agent)
+
+    assert enrichment.role == "phase"
+    assert enrichment.bead_display == expected
+    assert enrichment.associated_plan is None
+    assert enrichment.resolved_plan_path == str(plan.resolve())
+
+
+def test_modern_phase_normalizes_multiline_description(tmp_path: Path) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "description: Normalize the authoritative validator payload.",
+            "description: >-\n      Normalize the authoritative\n      validator payload.",
+        ),
+        encoding="utf-8",
+    )
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name="sase-1.1",
+            epic_bead_id="sase-1",
+            phase_bead_id="sase-1.1",
+            sdd_plan_path="plans/epic.md",
+            plan_committed=True,
+            workspace_dir=str(tmp_path),
+        )
+    )
+
+    assert enrichment.bead_display == (
+        "sase-1.1 - Normalize the authoritative validator payload."
+    )
+
+
+@pytest.mark.parametrize("failure", ["missing", "damaged", "out-of-range"])
+def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    plan = tmp_path / "plans" / "epic.md"
+    if failure == "damaged":
+        plan.parent.mkdir(parents=True)
+        plan.write_text("---\ntier: [epic\n---\n# Broken\n", encoding="utf-8")
+    elif failure == "out-of-range":
+        _write_epic(plan)
+    phase_bead_id = "sase-1.99" if failure == "out-of-range" else "sase-1.1"
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=phase_bead_id,
+            epic_bead_id="sase-1",
+            phase_bead_id=phase_bead_id,
+            sdd_plan_path="plans/epic.md",
+            plan_committed=True,
+            workspace_dir=str(tmp_path),
+        )
+    )
+
+    assert enrichment.role == "phase"
+    assert enrichment.bead_display == phase_bead_id
+    assert enrichment.associated_plan is None
+
+
+@pytest.mark.parametrize(
+    ("agent_name", "epic_bead_id", "expected_role"),
+    [
+        ("planner", "sase-1", "author"),
+        ("sase-1", "sase-1", "land"),
+        ("sase-1.land", None, "land"),
+        ("sase-1", None, "land"),
+    ],
+    ids=["author", "modern-land", "legacy-dot-land", "legacy-exact-land"],
+)
+def test_epic_author_and_land_roles_keep_complete_plan(
+    tmp_path: Path,
+    agent_name: str,
+    epic_bead_id: str | None,
+    expected_role: str,
+) -> None:
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name=agent_name,
+            epic_bead_id=epic_bead_id,
+            sdd_plan_path="plans/epic.md",
+            plan_committed=True,
+            workspace_dir=str(tmp_path),
+        )
+    )
+
+    assert enrichment.role == expected_role
+    assert enrichment.associated_plan is not None
+    assert enrichment.associated_plan.actual_path == str(plan.resolve())
+    assert len(enrichment.associated_plan.phases) == 4
+
+
+def test_legacy_dotted_phase_defaults_to_suppressed_plan_when_unconfirmed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_epic(tmp_path / "plans" / "epic.md")
+    monkeypatch.setattr(plan_model, "_lookup_issue", lambda *_args, **_kwargs: None)
+
+    enrichment = resolve_agent_plan_enrichment(
+        make_agent(
+            agent_name="sase-1.2",
+            sdd_plan_path="plans/epic.md",
+            plan_committed=True,
+            workspace_dir=str(tmp_path),
+        )
+    )
+
+    assert enrichment.role == "phase"
+    assert enrichment.associated_plan is None
+    assert enrichment.bead_display is None
 
 
 def test_bead_tier_preserves_known_epic_fallback_on_association_cache_hit(

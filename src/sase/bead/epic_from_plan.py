@@ -10,6 +10,7 @@ from typing import Literal
 from sase.bead.cli_common import auto_commit_bead_store
 from sase.bead.cli_work_handler import BeadWorkError
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType
+from sase.bead.phase_description import generated_phase_description
 from sase.bead.project import BeadProject
 
 type PlanUpdateCommitter = Callable[[Path], bool]
@@ -110,7 +111,7 @@ def create_and_launch_epic_from_plan(
                 issue_type=IssueType.PHASE,
                 parent_id=epic.id,
                 description=phase_spec.description
-                or _generated_phase_description(plan_ref, phase_spec.id),
+                or generated_phase_description(plan_ref, phase_spec.id),
                 model=phase_spec.model or "",
             )
             phases.append(phase)
@@ -160,11 +161,6 @@ def create_and_launch_epic_from_plan(
         if isinstance(exc, _EpicFromPlanError) and not rollback_errors:
             raise
         raise _EpicFromPlanError(detail) from exc
-
-
-def _generated_phase_description(plan_ref: str, phase_id: str) -> str:
-    """Return the stable fallback pointer used for description-less phases."""
-    return f"Phase `{phase_id}` in approved epic plan `{plan_ref}`."
 
 
 def _rollback_epic_creation(

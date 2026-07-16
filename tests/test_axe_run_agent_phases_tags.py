@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,11 @@ import pytest
 from sase.ace.agent_tags import load_agent_tags, save_agent_tags
 from sase.ace.tui.models.agent import AgentType
 from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_meta
+from sase.bead.work import (
+    SASE_EPIC_BEAD_ID_ENV,
+    SASE_EPIC_PLAN_REF_ENV,
+    SASE_PHASE_BEAD_ID_ENV,
+)
 from sase.llm_provider.temporary_override import set_temporary_override
 
 
@@ -44,6 +50,100 @@ def test_extract_directives_persists_runner_output_path(
     assert info.meta["output_path"] == str(output_path)
     persisted = json.loads((artifacts_dir / "agent_meta.json").read_text())
     assert persisted["output_path"] == str(output_path)
+
+
+@pytest.mark.parametrize(
+    ("phase_bead_id", "expected_name"),
+    [("sase-7.2", "sase-7.2"), (None, "sase-7")],
+    ids=["phase", "land"],
+)
+def test_extract_directives_persists_epic_work_role_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    phase_bead_id: str | None,
+    expected_name: str,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    plan_ref = "sase/repos/plans/202607/epic.md"
+    monkeypatch.setenv(SASE_EPIC_PLAN_REF_ENV, plan_ref)
+    monkeypatch.setenv(SASE_EPIC_BEAD_ID_ENV, "sase-7")
+    if phase_bead_id is not None:
+        monkeypatch.setenv(SASE_PHASE_BEAD_ID_ENV, phase_bead_id)
+    monkeypatch.setenv("SASE_PLAN", "/tmp/commit-attribution-plan.md")
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        info = extract_directives_and_write_meta(
+            f"%name:!{expected_name}\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+        )
+
+    persisted = json.loads((artifacts_dir / "agent_meta.json").read_text())
+    assert info.meta == persisted
+    assert persisted["epic_bead_id"] == "sase-7"
+    assert persisted["sdd_plan_path"] == plan_ref
+    assert persisted["plan_committed"] is True
+    if phase_bead_id is None:
+        assert "phase_bead_id" not in persisted
+    else:
+        assert persisted["phase_bead_id"] == phase_bead_id
+    assert SASE_EPIC_PLAN_REF_ENV not in os.environ
+    assert SASE_EPIC_BEAD_ID_ENV not in os.environ
+    assert SASE_PHASE_BEAD_ID_ENV not in os.environ
+    assert os.environ["SASE_PLAN"] == "/tmp/commit-attribution-plan.md"
+
+
+def test_extract_directives_preserves_epic_work_metadata_on_reexec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "sdd_plan_path": "sdd/plans/202607/epic.md",
+                "plan_committed": True,
+                "epic_bead_id": "sase-7",
+                "phase_bead_id": "sase-7.2",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        info = extract_directives_and_write_meta(
+            "%name:!sase-7.2\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+        )
+
+    assert info.meta["sdd_plan_path"] == "sdd/plans/202607/epic.md"
+    assert info.meta["plan_committed"] is True
+    assert info.meta["epic_bead_id"] == "sase-7"
+    assert info.meta["phase_bead_id"] == "sase-7.2"
 
 
 def test_extract_directives_persists_tag_with_atomic_helper(
