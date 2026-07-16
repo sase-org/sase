@@ -10,7 +10,8 @@ from unittest.mock import Mock
 
 import pytest
 from rich.console import Console
-from textual.widgets import OptionList
+from textual.color import Color
+from textual.widgets import Markdown, OptionList
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
@@ -22,7 +23,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     ProjectIssue,
     load_plans_snapshot,
 )
-from sase.ace.tui.widgets.artifacts import plans_pane
+from sase.ace.tui.widgets.artifacts import plans_detail, plans_pane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import BeadProject
@@ -81,6 +82,8 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         timestamp=notification.timestamp,
         plan_path=notification.files[0],
         content="# Ship the plan browser\n\nProposal body.",
+        frontmatter={},
+        body="# Ship the plan browser\n\nProposal body.",
         agent="alpha.plan",
         provider_model="codex/gpt-5",
     )
@@ -193,6 +196,13 @@ def _all_projects_snapshot(tmp_path: Path) -> PlansSnapshot:
         blocked_ids=frozenset({("beta", phases[1].issue.id)}),
         archive=(archive,),
     )
+
+
+def _render_detail(renderable: object) -> str:
+    console = Console(width=100, color_system=None)
+    with console.capture() as capture:
+        console.print(renderable)
+    return capture.get()
 
 
 def test_snapshot_reads_fixture_bead_dag_and_flat_plan_archive(
@@ -629,3 +639,122 @@ def test_all_projects_status_names_projects_with_load_errors(tmp_path: Path) -> 
 
     assert status.startswith("2 projects")
     assert "Load errors: Beta" in status
+
+
+def test_detail_properties_render_all_frontmatter_in_stable_order(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    frontmatter = {
+        "zeta": "last",
+        "goal": "A long goal that remains readable and wraps inside the value column.",
+        "create_time": "2026-07-16 12:00:00",
+        "status": "wip",
+        "tier": "epic",
+        "title": "Property-rich plan",
+        "alpha": "first extra",
+    }
+    proposal = replace(snapshot.proposals[0], frontmatter=frontmatter)
+    archive = replace(
+        snapshot.archive[0].match,
+        plan=replace(snapshot.archive[0].match.plan, frontmatter=frontmatter),
+    )
+
+    ordered_keys = [
+        key for key, _value in plans_detail._ordered_frontmatter_items(frontmatter)
+    ]
+    proposal_detail = _render_detail(
+        plans_detail.proposal_properties_header(proposal, project_name="Alpha")
+    )
+    archive_detail = _render_detail(
+        plans_detail.archive_properties_header(archive, project_name="Alpha")
+    )
+
+    assert ordered_keys == [
+        "title",
+        "tier",
+        "status",
+        "create_time",
+        "goal",
+        "alpha",
+        "zeta",
+    ]
+    for value in frontmatter.values():
+        assert value in proposal_detail
+        assert value in archive_detail
+    assert "Source" in archive_detail
+    assert "Project" in archive_detail
+    assert "archive.md" in "".join(archive_detail.split())
+
+
+def test_bead_detail_keeps_dependency_states_in_properties(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    dependent = snapshot.phases_by_epic[("alpha", "alpha-1")][1].issue
+
+    detail = _render_detail(
+        plans_detail.bead_properties_header(
+            dependent,
+            snapshot,
+            project="alpha",
+            project_name="Alpha",
+        )
+    )
+
+    assert "Dependencies" in detail
+    assert "alpha-1.1" in detail
+    assert "open" in detail
+    assert "blocked" in detail
+    assert "Render dependency state" in detail
+
+
+async def test_proposal_detail_markdown_excludes_frontmatter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    body = "# Proposal body\n\nUse `inline code` here.\n"
+    proposal = replace(
+        snapshot.proposals[0],
+        content="---\ntitle: Hidden properties\ntier: epic\n---\n" + body,
+        frontmatter={"title": "Hidden properties", "tier": "epic"},
+        body=body,
+    )
+    snapshot = replace(snapshot, proposals=(proposal,))
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("[")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        detail = pane.query_one("#plans-detail", Markdown)
+
+        assert detail.source == body
+        assert "---" not in detail.source
+        assert "title: Hidden properties" not in detail.source
+        assert pane._detail_debouncer is not None
+        await page.wait_for(lambda _state: bool(list(detail.query("MarkdownBlock"))))
+        markdown_block = list(detail.query("MarkdownBlock"))[0]
+        inline_style = markdown_block.get_component_rich_style(
+            "code_inline", partial=True
+        )
+        expected_background = Color.parse(
+            page.app.get_css_variables()["foreground"]
+        ).rich_color
+        assert inline_style.bgcolor == expected_background
+        resolved_style = markdown_block.get_component_rich_style("code_inline")
+        assert resolved_style.color is not None
+        assert resolved_style.bgcolor is not None
+        foreground = resolved_style.color.triplet
+        background = resolved_style.bgcolor.triplet
+        assert foreground is not None
+        assert background is not None
+        assert (
+            sum(abs(foreground[index] - background[index]) for index in range(3)) > 300
+        )

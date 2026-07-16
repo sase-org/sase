@@ -24,6 +24,8 @@ class PlanProposal:
     timestamp: str
     plan_path: str
     content: str
+    frontmatter: dict[str, str]
+    body: str
     agent: str
     provider_model: str
 
@@ -301,21 +303,57 @@ def _load_proposals(
             continue
         plan_path = row._plan_key
         content = _read_text(Path(plan_path))
+        frontmatter, body = _parse_proposal_document(content)
         proposals.append(
             PlanProposal(
                 project=row.project,
                 notification=notification,
-                title=_plan_title(Path(plan_path), content),
+                title=frontmatter.get("title") or _plan_title(Path(plan_path), content),
                 tier=row.tier,
                 age=row.age,
                 timestamp=row.timestamp,
                 plan_path=plan_path,
                 content=content,
+                frontmatter=frontmatter,
+                body=body,
                 agent=row.agent,
                 provider_model=row.provider_model,
             )
         )
     return tuple(proposals)
+
+
+def _parse_proposal_document(content: str) -> tuple[dict[str, str], str]:
+    """Project proposal YAML into the same flat strings as plan search."""
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    frontmatter, body, _had_frontmatter = parse_frontmatter(content)
+    return (
+        {
+            key: _yaml_value_to_string(value)
+            for key, value in frontmatter.items()
+            if isinstance(key, str)
+        },
+        body,
+    )
+
+
+def _yaml_value_to_string(value: object) -> str:
+    """Mirror the Rust plan reader's display-oriented YAML flattening."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_yaml_value_to_string(item) for item in value)
+    if isinstance(value, dict):
+        return ", ".join(
+            f"{_yaml_value_to_string(key)}: {_yaml_value_to_string(item)}"
+            for key, item in value.items()
+        )
+    return str(value)
 
 
 def _load_project_beads(

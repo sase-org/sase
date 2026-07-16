@@ -233,14 +233,29 @@
     border: round #5F5F87;
 }
 
-#plans-detail-scroll,
-#plans-detail {
+#plans-detail-scroll {
     width: 100%;
     height: 1fr;
 }
 
+#plans-detail-properties,
+#plans-detail {
+    width: 100%;
+    height: auto;
+}
+
+#plans-detail-properties {
+    padding: 1 2 0 2;
+}
+
 #plans-detail {
     padding: 0 2 1 2;
+}
+
+/* Keep inline code legible under flexoki across every ACE Markdown surface. */
+MarkdownBlock > .code_inline {
+    background: $foreground 10%;
+    color: $text;
 }
 
 #plans-hints {

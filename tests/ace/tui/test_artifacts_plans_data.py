@@ -51,6 +51,42 @@ def _project(
     )
 
 
+def test_proposal_document_projects_all_frontmatter_and_strips_body() -> None:
+    content = """---
+title: Full property projection
+tier: epic
+status: wip
+create_time: 2026-07-16 12:00:00
+goal: Keep `inline code` readable.
+tags:
+  - tui
+  - plans
+owners:
+  primary: bryan
+  backup: agent
+enabled: true
+---
+# Plan body
+
+Only the body belongs in Markdown.
+"""
+
+    frontmatter, body = plans_data._parse_proposal_document(content)
+
+    assert frontmatter == {
+        "title": "Full property projection",
+        "tier": "epic",
+        "status": "wip",
+        "create_time": "2026-07-16 12:00:00",
+        "goal": "Keep `inline code` readable.",
+        "tags": "tui, plans",
+        "owners": "primary: bryan, backup: agent",
+        "enabled": "true",
+    }
+    assert body == "# Plan body\n\nOnly the body belongs in Markdown.\n"
+    assert "create_time" not in body
+
+
 def test_all_projects_snapshot_attributes_each_entry_and_merges_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -274,6 +310,8 @@ def test_snapshot_sorts_proposals_and_epics_newest_first(
             timestamp=timestamp,
             plan_path=str(tmp_path / f"{proposal_id}.md"),
             content="",
+            frontmatter={},
+            body="",
             agent="planner",
             provider_model="codex/gpt-5",
         )

@@ -28,6 +28,14 @@ from .plans_data import (
     ProjectIssue,
     load_plans_snapshot,
 )
+from .plans_detail import (
+    archive_preview_markdown,
+    archive_properties_header,
+    bead_body_markdown,
+    bead_preview_markdown,
+    bead_properties_header,
+    proposal_properties_header,
+)
 from .types import ARTIFACTS_ACCENTS
 
 if TYPE_CHECKING:
@@ -83,6 +91,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             detail_panel.border_title = "Details"
             with detail_panel:
                 with VerticalScroll(id="plans-detail-scroll"):
+                    yield Static("", id="plans-detail-properties")
                     yield Markdown(self._empty_detail(), id="plans-detail")
         yield Static(self._hints_text(), id="plans-hints")
 
@@ -203,7 +212,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         if row.archive is not None:
             plan = row.archive.plan
             return PreviewPayload(
-                content=_archive_markdown(row.archive),
+                content=archive_preview_markdown(row.archive),
                 lexer="markdown",
                 title=plan.title or plan.name,
                 kind_label=f"{plan.kind} plan",
@@ -212,7 +221,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             )
         if row.issue is not None:
             return PreviewPayload(
-                content=self._bead_markdown(row.issue, row.project),
+                content=bead_preview_markdown(
+                    row.issue,
+                    self._snapshot,
+                    project=row.project,
+                ),
                 lexer="markdown",
                 title=f"{row.issue.id} · {row.issue.title}",
                 kind_label="bead",
@@ -444,81 +457,50 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
     def _update_detail(self) -> None:
         try:
-            detail = self.query_one("#plans-detail", Markdown)
+            properties = self.query_one("#plans-detail-properties", Static)
+            body = self.query_one("#plans-detail", Markdown)
         except Exception:
             return
         row = self.selected_row()
         if row is None:
-            detail.update(self._empty_detail())
+            properties.display = False
+            properties.update("")
+            body.update(self._empty_detail())
         elif row.proposal is not None:
-            detail.update(_proposal_markdown(row.proposal))
-        elif row.issue is not None:
-            detail.update(self._bead_markdown(row.issue, row.project))
-        elif row.archive is not None:
-            detail.update(_archive_markdown(row.archive))
-
-    def _bead_markdown(self, issue: Issue, project: str) -> str:
-        snapshot = self._snapshot
-        state = _readiness_label(issue, snapshot, project=project)
-        lines = [
-            f"# {issue.id} · {issue.title}",
-            "",
-            f"**Status:** `{issue.status.value}`  ",
-            f"**Readiness:** {state}  ",
-            f"**Type:** `{issue.issue_type.value}`  ",
-        ]
-        if issue.model:
-            lines.append(f"**Model:** `{issue.model}`  ")
-        if issue.assignee:
-            lines.append(f"**Assignee:** {issue.assignee}  ")
-        if issue.changespec_name:
-            lines.append(f"**ChangeSpec:** `{issue.changespec_name}`  ")
-        if issue.changespec_bug_id:
-            lines.append(f"**External bug:** `#{issue.changespec_bug_id}`  ")
-        if issue.design:
-            lines.append(f"**Design:** `{issue.design}`  ")
-        lines.extend(
-            ["", "## Description", "", issue.description or "_No description._"]
-        )
-        if issue.dependencies:
-            lines.extend(["", "## Dependencies", ""])
-            for dependency in issue.dependencies:
-                dependency_state = self._dependency_state(
-                    dependency.depends_on_id,
-                    project,
+            properties.display = True
+            properties.update(
+                proposal_properties_header(
+                    row.proposal,
+                    project_name=self._project_name(row.project),
                 )
-                lines.append(f"- `{dependency.depends_on_id}` — {dependency_state}")
-        if issue.notes:
-            lines.extend(["", "## Notes", "", issue.notes])
-        lines.extend(
-            [
-                "",
-                "## History",
-                "",
-                f"- Created: {issue.created_at or '—'}",
-                f"- Updated: {issue.updated_at or '—'}",
-            ]
-        )
-        if issue.closed_at:
-            lines.append(f"- Closed: {issue.closed_at}")
-        if issue.close_reason:
-            lines.append(f"- Close reason: {issue.close_reason}")
-        return "\n".join(lines)
+            )
+            body.update(row.proposal.body or "_No plan body._")
+        elif row.issue is not None:
+            properties.display = True
+            properties.update(
+                bead_properties_header(
+                    row.issue,
+                    self._snapshot,
+                    project=row.project,
+                    project_name=self._project_name(row.project),
+                )
+            )
+            body.update(bead_body_markdown(row.issue))
+        elif row.archive is not None:
+            properties.display = True
+            properties.update(
+                archive_properties_header(
+                    row.archive,
+                    project_name=self._project_name(row.project),
+                )
+            )
+            body.update(row.archive.plan.body or "_No plan body._")
 
-    def _dependency_state(self, issue_id: str, project: str) -> str:
+    def _project_name(self, project: str) -> str:
         snapshot = self._snapshot
         if snapshot is None:
-            return "unknown"
-        for (owner, _epic_id), phases in snapshot.phases_by_epic.items():
-            if owner != project:
-                continue
-            for phase in phases:
-                if phase.issue.id == issue_id:
-                    return phase.issue.status.value
-        for epic in snapshot.epics:
-            if epic.project == project and epic.issue.id == issue_id:
-                return epic.issue.status.value
-        return "unknown"
+            return project
+        return snapshot.display_names.get(project, project)
 
     def _scope_text(self) -> Text:
         text = Text()
@@ -851,60 +833,6 @@ def _compact_plan_date(timestamp: str) -> str:
     if len(date) == 10 and date[4] == "-" and date[7] == "-":
         return date[5:]
     return date
-
-
-def _proposal_markdown(proposal: PlanProposal) -> str:
-    return "\n".join(
-        [
-            f"# {proposal.title}",
-            "",
-            "**State:** pending approval  ",
-            f"**Tier:** `{proposal.tier}`  ",
-            f"**Agent:** {proposal.agent}  ",
-            f"**Model:** `{proposal.provider_model}`  ",
-            f"**Age:** {proposal.age}  ",
-            f"**Path:** `{proposal.plan_path}`",
-            "",
-            proposal.content,
-        ]
-    )
-
-
-def _archive_markdown(match: PlanSearchMatch) -> str:
-    plan = match.plan
-    lines = [
-        f"# {plan.title or plan.name}",
-        "",
-        f"**Tier:** `{plan.kind}`  ",
-        f"**Status:** `{plan.status or 'unknown'}`  ",
-        f"**Created:** {plan.created_at or '—'}  ",
-        f"**Path:** `{plan.path}`",
-        "",
-    ]
-    if plan.summary:
-        lines.extend(["> " + plan.summary.replace("\n", "\n> "), ""])
-    lines.append(plan.body or "_No plan body._")
-    return "\n".join(lines)
-
-
-def _readiness_label(
-    issue: Issue,
-    snapshot: PlansSnapshot | None,
-    *,
-    project: str,
-) -> str:
-    if issue.status == Status.CLOSED:
-        return "closed"
-    if issue.status == Status.IN_PROGRESS:
-        return "in progress"
-    if snapshot is None:
-        return "unknown"
-    issue_key = (project, issue.id)
-    if issue_key in snapshot.blocked_ids:
-        return "**blocked**"
-    if issue_key in snapshot.ready_ids:
-        return "**ready**"
-    return "waiting"
 
 
 def _status_glyph(status: Status) -> str:
