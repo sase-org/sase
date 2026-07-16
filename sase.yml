@@ -1,6 +1,5 @@
 commit_hooks:
   before: "just fix"
-  after: "sase init -y"
 amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructions"
 is_sase_managed: true
 
