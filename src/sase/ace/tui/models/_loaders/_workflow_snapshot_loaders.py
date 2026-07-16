@@ -24,6 +24,10 @@ from ..workflow import WorkflowEntry
 from ._diff_path import diff_path_from_step_output
 from ._meta_enrichment import enrich_agent_from_meta, enrich_agent_from_meta_wire
 from ._workflow_loaders import ACTIVE_STATUSES
+from ._workflow_failure_fallback import (
+    build_workflow_failure_fallback,
+    preferred_workflow_output_path,
+)
 from ._workflow_step_loaders import (
     FAMILY_PROGRESSED_PLAN_ACTIONS,
     NON_TERMINAL_STEP_DISPLAY_STATUSES,
@@ -119,6 +123,25 @@ def load_workflow_states_from_snapshot(
                     error_traceback = step.traceback
                     break
 
+        output_path: str | None = None
+        if display_status == "FAILED":
+            recorded_output_path = (
+                record.agent_meta.output_path if record.agent_meta is not None else None
+            )
+            output_path = preferred_workflow_output_path(
+                cl_name=wf_state.cl_name or "unknown",
+                launch_timestamp=record.timestamp,
+                recorded_output_path=recorded_output_path,
+            )
+            if not error_message and not error_traceback:
+                fallback = build_workflow_failure_fallback(
+                    cl_name=wf_state.cl_name or "unknown",
+                    launch_timestamp=record.timestamp,
+                    recorded_output_path=recorded_output_path,
+                )
+                error_message = fallback.error_message
+                output_path = fallback.output_path
+
         entries.append(
             WorkflowEntry(
                 workflow_name=wf_state.workflow_name,
@@ -137,6 +160,7 @@ def load_workflow_states_from_snapshot(
                 diff_path=diff_path,
                 error_message=error_message,
                 error_traceback=error_traceback,
+                output_path=output_path,
                 activity=wf_state.activity,
                 pdf_status=wf_state.pdf_status,
             )
@@ -216,6 +240,7 @@ def load_workflow_agents_from_snapshot(
             archived_plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            output_path=entry.output_path,
             activity=entry.activity,
             pdf_status=entry.pdf_status,
             step_output=step_output,

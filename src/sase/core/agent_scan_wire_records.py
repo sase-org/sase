@@ -24,7 +24,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 1
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 8
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 9
 
 # Workflow directory categories the Phase 3A scanner walks.
 #

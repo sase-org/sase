@@ -271,6 +271,18 @@ def test_empty_workflow_steps_placeholder_is_compact() -> None:
     )
 
 
+def test_failed_workflow_without_recorded_error_shows_output() -> None:
+    renderable = _build_workflow_detail_renderable(
+        _make_agent(status="FAILED", output_path="/tmp/workflow-runner.log"),
+        _workflow_snapshot(),
+    )
+
+    plain = _plain(renderable)
+    assert "ERROR" in plain
+    assert "Runner failed without error details." in plain
+    assert "Output: /tmp/workflow-runner.log" in plain
+
+
 def test_workflow_detail_uses_custom_slow_tool_threshold() -> None:
     agent = _make_agent()
     renderable = _build_workflow_detail_renderable(

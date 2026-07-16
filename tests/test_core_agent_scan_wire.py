@@ -24,7 +24,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 8
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 9
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -101,6 +101,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
                     "timestamp": "20260601010101",
                     "agent_meta": {
                         "name": "producer",
+                        "output_path": "/tmp/producer.log",
                         "linked_repos": [
                             {
                                 "name": "sase-core",
@@ -133,6 +134,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+    assert record.agent_meta.output_path == "/tmp/producer.log"
     assert record.agent_meta.linked_repos == [
         {
             "name": "sase-core",
@@ -152,6 +154,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+    assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
 
 
 def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:

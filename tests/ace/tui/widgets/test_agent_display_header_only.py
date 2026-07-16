@@ -185,6 +185,21 @@ def test_update_header_only_includes_error_traceback() -> None:
     assert "ValueError: boom" in plain
 
 
+def test_update_header_only_failed_without_recorded_error_shows_output() -> None:
+    panel = _FakePanel()
+    agent = _make_agent(
+        status="FAILED",
+        output_path="/tmp/demo-runner.log",
+    )
+
+    panel.update_header_only(agent)
+
+    plain = _plain_of(panel.captured[-1])
+    assert "ERROR" in plain
+    assert "Runner failed without error details." in plain
+    assert "Output: /tmp/demo-runner.log" in plain
+
+
 def test_update_header_only_skips_xprompts_disk_read(
     tmp_path: Path,
 ) -> None:

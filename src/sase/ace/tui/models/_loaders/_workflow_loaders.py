@@ -16,6 +16,10 @@ from ..workflow import WorkflowEntry
 from ._diff_path import diff_path_from_step_output
 from ._json_cache import load_json_cached
 from ._meta_enrichment import enrich_agent_from_meta
+from ._workflow_failure_fallback import (
+    build_workflow_failure_fallback,
+    preferred_workflow_output_path,
+)
 
 ACTIVE_STATUSES = frozenset(
     {
@@ -198,6 +202,32 @@ def load_workflow_states(
                         error_traceback = step_data.get("traceback")
                         break
 
+            output_path: str | None = None
+            if display_status == "FAILED":
+                recorded_output_path: str | None = None
+                try:
+                    meta = load_json_cached(timestamp_dir / "agent_meta.json")
+                    if isinstance(meta, dict):
+                        raw_output_path = meta.get("output_path")
+                        if isinstance(raw_output_path, str) and raw_output_path:
+                            recorded_output_path = raw_output_path
+                except (FileNotFoundError, json.JSONDecodeError, OSError):
+                    pass
+
+                output_path = preferred_workflow_output_path(
+                    cl_name=data.get("context", {}).get("cl_name", "unknown"),
+                    launch_timestamp=timestamp_dir.name,
+                    recorded_output_path=recorded_output_path,
+                )
+                if not error_message and not error_traceback:
+                    fallback = build_workflow_failure_fallback(
+                        cl_name=data.get("context", {}).get("cl_name", "unknown"),
+                        launch_timestamp=timestamp_dir.name,
+                        recorded_output_path=recorded_output_path,
+                    )
+                    error_message = fallback.error_message
+                    output_path = fallback.output_path
+
             entries.append(
                 WorkflowEntry(
                     workflow_name=data.get("workflow_name", "unknown"),
@@ -216,6 +246,7 @@ def load_workflow_states(
                     diff_path=diff_path,
                     error_message=error_message,
                     error_traceback=error_traceback,
+                    output_path=output_path,
                     activity=activity,
                     pdf_status=pdf_status,
                 )
@@ -319,6 +350,7 @@ def load_workflow_agents(
             archived_plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            output_path=entry.output_path,
             activity=entry.activity,
             pdf_status=entry.pdf_status,
             step_output=step_output,

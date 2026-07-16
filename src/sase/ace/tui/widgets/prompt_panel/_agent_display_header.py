@@ -522,14 +522,16 @@ def build_header_text(
             threshold_ms=slow_tool_call_threshold_ms,
         )
 
-    # Error message (for failed agents)
-    if agent.error_message:
+    # Failed agents always expose an ERROR section and raw-output breadcrumb.
+    is_failed = agent.display_status == "FAILED"
+    if agent.error_message or is_failed:
         header_text.append("\n")
         header_text.append("ERROR\n", style="bold #FF5F5F underline")
-        header_text.append(f"{agent.error_message}\n", style="bold #FF5F5F")
-        if agent.output_path:
-            header_text.append("Output: ", style="bold #87D7FF")
-            header_text.append(f"{agent.output_path}\n", style="dim")
+        error_message = agent.error_message or "Runner failed without error details."
+        header_text.append(f"{error_message}\n", style="bold #FF5F5F")
+    if agent.output_path and is_failed:
+        header_text.append("Output: ", style="bold #87D7FF")
+        header_text.append(f"{agent.output_path}\n", style="dim")
 
     # Compute traceback renderable for ERROR section (included in all paths)
     error_tb_syntax: Syntax | None = None

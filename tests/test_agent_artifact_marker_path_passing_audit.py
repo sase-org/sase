@@ -27,6 +27,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "workflow state."
         ),
     ),
+    "src/sase/ace/tui/models/_loaders/_workflow_loaders.py:load_workflow_states": (
+        PathPassingReview(
+            exemption=(
+                "Read-only FAILED-workflow enrichment: agent_meta.json is read "
+                "only to locate the runner output log for the TUI fallback."
+            ),
+        )
+    ),
 }
 
 
