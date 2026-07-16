@@ -1,0 +1,355 @@
+"""Snapshot-backed listing of active and recently completed agents."""
+
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from sase.agent.names import is_process_alive
+from sase.agent.status_buckets import EPIC_APPROVED_STATUS
+from sase.core.agent_scan_wire import (
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanWire,
+)
+from sase.core.paths import sase_projects_dir
+from sase.core.runner_slots import is_root_user_agent_record
+from sase.core.time import get_timezone
+
+
+@dataclass
+class RunningAgentInfo:
+    """Summary info for an active or recently completed agent.
+
+    ``status`` defaults to ``"RUNNING"`` for compatibility with direct
+    construction in tests and integrations. Listing functions may emit
+    ``"STARTING"``, ``"WAITING"``, ``"DONE"``, and ``"FAILED"`` as well.
+    """
+
+    name: str | None
+    project: str
+    pid: int | None
+    model: str | None
+    provider: str | None
+    workspace_num: int | None
+    duration: str
+    approve: bool
+    prompt: str | None = None
+    status: str = "RUNNING"
+    started_at: datetime | None = None
+    duration_seconds: int | None = None
+    artifacts_dir: str | None = None
+    # Exact scheduler occupancy from the source scan record. ``None`` preserves
+    # compatibility for integrations that construct this lightweight type.
+    holds_runner_slot: bool | None = None
+
+
+_DONE_AGENTS_CAP_PER_PROJECT = 50
+
+# Only the running/done CLI listing needs ace-run records. Skipping prompt
+# step markers avoids the per-directory glob the facade would otherwise do.
+_LISTING_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
+    include_prompt_step_markers=False,
+    only_workflow_dirs=("ace-run",),
+)
+
+
+def _scan_listing_snapshot() -> AgentArtifactScanWire:
+    """Acquire one ace-run snapshot for the ChangeSpecI listing call sites."""
+    # Local import: ``sase.core.agent_scan_facade`` pulls in the TUI loader
+    # chain at import time (for the shared mtime cache), which transitively
+    # imports ``sase.agent`` again. A module-level import here would
+    # circle back through ``sase.agent.__init__`` and fail during startup.
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    return scan_agent_artifacts(
+        sase_projects_dir(),
+        _LISTING_SCAN_OPTIONS,
+    )
+
+
+def _format_duration(seconds: int) -> str:
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}h{minutes}m"
+    if minutes > 0:
+        return f"{minutes}m{secs}s"
+    return f"{secs}s"
+
+
+def _parse_started_at(timestamp: str) -> datetime | None:
+    try:
+        return datetime.strptime(timestamp, "%Y%m%d%H%M%S").replace(
+            tzinfo=get_timezone()
+        )
+    except ValueError:
+        return None
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=get_timezone())
+    return parsed
+
+
+def _active_status_for_record(record: AgentArtifactRecordWire) -> str:
+    if record.waiting is not None:
+        return "WAITING"
+    pending_question = record.pending_question
+    if pending_question is not None:
+        request_path = pending_question.request_path
+        if request_path:
+            try:
+                if Path(request_path).with_name("question_response.json").exists():
+                    return "ANSWERED"
+            except OSError:
+                pass
+        return "QUESTION"
+    meta = record.agent_meta
+    if meta is not None and (meta.run_started_at or meta.wait_completed_at):
+        return "RUNNING"
+    return "STARTING"
+
+
+def _resolve_workspace_num(
+    *,
+    project_name: str,
+    project_file: str,
+    timestamp: str,
+    cache: dict[str, list],
+) -> int | None:
+    """Look up the workspace number for *timestamp* via the project's RUNNING field.
+
+    ``.gp`` parsing stays Python-only in Phase 3; we cache the result per
+    project file so a listing with N artifacts in one project still parses
+    that project's claims at most once.
+    """
+    if project_name == "home":
+        return None
+    try:
+        from sase.running_field import get_claimed_workspaces
+
+        claims = cache.get(project_file)
+        if claims is None:
+            claims = list(get_claimed_workspaces(project_file))
+            cache[project_file] = claims
+        for claim in claims:
+            if claim.artifacts_timestamp == timestamp:
+                return claim.workspace_num
+    except Exception:
+        return None
+    return None
+
+
+def _running_info_from_running_record(
+    record: AgentArtifactRecordWire,
+    *,
+    now: datetime,
+    workspace_cache: dict[str, list],
+) -> RunningAgentInfo | None:
+    """Adapt a snapshot record into RunningAgentInfo, or skip via current filters."""
+    meta = record.agent_meta
+    if meta is None:
+        return None
+    if meta.parent_timestamp:
+        return None
+    wf_state = record.workflow_state
+    if wf_state is not None and not wf_state.appears_as_agent:
+        return None
+
+    pid = meta.pid
+    if pid is None and record.running is not None:
+        pid = record.running.pid
+    meta_dict: dict[str, object] = {"pid": pid, "stopped_at": meta.stopped_at}
+    if not is_process_alive(meta_dict, Path(record.artifact_dir)):
+        return None
+
+    status = _active_status_for_record(record)
+    started_at = _parse_iso_datetime(
+        meta.run_started_at if status == "RUNNING" else None
+    )
+    if started_at is None:
+        started_at = _parse_started_at(record.timestamp)
+    duration = "?"
+    duration_seconds: int | None = None
+    if status == "RUNNING" and started_at is not None:
+        duration_seconds = int((now - started_at).total_seconds())
+        duration = _format_duration(duration_seconds)
+
+    workspace_num = _resolve_workspace_num(
+        project_name=record.project_name,
+        project_file=record.project_file,
+        timestamp=record.timestamp,
+        cache=workspace_cache,
+    )
+
+    return RunningAgentInfo(
+        name=meta.name,
+        project=record.project_name,
+        pid=meta.pid,
+        model=meta.model,
+        provider=meta.llm_provider,
+        workspace_num=workspace_num,
+        duration=duration,
+        approve=bool(meta.approve),
+        prompt=record.raw_prompt_snippet,
+        status=status,
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        artifacts_dir=record.artifact_dir,
+        holds_runner_slot=bool(meta.run_started_at) and record.pending_question is None,
+    )
+
+
+def _running_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+) -> list[RunningAgentInfo]:
+    """Build the running-agent list from *snapshot* using current Python filters."""
+    now = datetime.now(get_timezone())
+    workspace_cache: dict[str, list] = {}
+    pairs: list[tuple[str, RunningAgentInfo]] = []
+
+    for record in snapshot.records:
+        if not is_root_user_agent_record(record):
+            continue
+        info = _running_info_from_running_record(
+            record, now=now, workspace_cache=workspace_cache
+        )
+        if info is None:
+            continue
+        pairs.append((record.timestamp, info))
+
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    return [info for _, info in pairs]
+
+
+def _done_info_from_record(
+    record: AgentArtifactRecordWire,
+) -> RunningAgentInfo | None:
+    """Adapt a done-marker snapshot record into RunningAgentInfo, or skip."""
+    if not record.has_done_marker:
+        return None
+    done = record.done
+    if done is None:
+        return None
+
+    meta = record.agent_meta
+
+    if meta is not None and meta.parent_timestamp:
+        return None
+
+    wf_state = record.workflow_state
+    if wf_state is not None and not wf_state.appears_as_agent:
+        return None
+
+    outcome = done.outcome or "completed"
+    if outcome == "noop":
+        return None
+    if outcome == "epic_approved":
+        status = EPIC_APPROVED_STATUS
+    elif outcome in {"failed", "epic_launch_failed"}:
+        status = "FAILED"
+    else:
+        status = "DONE"
+
+    started_at = _parse_started_at(record.timestamp)
+    duration = "?"
+    duration_seconds: int | None = None
+    if started_at is not None:
+        if done.finished_at is not None:
+            end = datetime.fromtimestamp(float(done.finished_at), get_timezone())
+        else:
+            end = datetime.now(get_timezone())
+        duration_seconds = int((end - started_at).total_seconds())
+        duration = _format_duration(duration_seconds)
+
+    name = (meta.name if meta is not None else None) or done.name
+    pid = (meta.pid if meta is not None else None) or done.pid
+    model = (meta.model if meta is not None else None) or done.model
+    provider = (meta.llm_provider if meta is not None else None) or done.llm_provider
+    approve = bool((meta.approve if meta is not None else False) or done.approve)
+
+    return RunningAgentInfo(
+        name=name,
+        project=record.project_name,
+        pid=pid,
+        model=model,
+        provider=provider,
+        workspace_num=done.workspace_num,
+        duration=duration,
+        approve=approve,
+        prompt=record.raw_prompt_snippet,
+        status=status,
+        started_at=started_at,
+        duration_seconds=duration_seconds,
+        artifacts_dir=record.artifact_dir,
+    )
+
+
+def _done_from_snapshot(
+    snapshot: AgentArtifactScanWire,
+    *,
+    cap_per_project: int,
+) -> list[RunningAgentInfo]:
+    """Build the recently-completed list from *snapshot* with per-project cap."""
+    by_project: dict[str, list[AgentArtifactRecordWire]] = {}
+    for record in snapshot.records:
+        if record.workflow_dir_name != "ace-run":
+            continue
+        by_project.setdefault(record.project_name, []).append(record)
+
+    pairs: list[tuple[str, RunningAgentInfo]] = []
+    for project_records in by_project.values():
+        # Newest first, matching the existing ``sorted(..., reverse=True)``
+        # walk in the per-directory loop.
+        project_records.sort(key=lambda r: r.timestamp, reverse=True)
+        kept = 0
+        for record in project_records:
+            if kept >= cap_per_project:
+                break
+            info = _done_info_from_record(record)
+            if info is None:
+                continue
+            pairs.append((record.timestamp, info))
+            kept += 1
+
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    return [info for _, info in pairs]
+
+
+def list_running_agents() -> list[RunningAgentInfo]:
+    """List all currently running agents across all projects.
+
+    Consumes one :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
+    snapshot for ``ace-run`` records, applies the current Python filters
+    (parent-timestamp dedup, hidden-workflow skip, PID liveness), and
+    returns most-recent-first.
+    """
+    snapshot = _scan_listing_snapshot()
+    return _running_from_snapshot(snapshot)
+
+
+def list_all_agents(
+    *, cap_per_project: int = _DONE_AGENTS_CAP_PER_PROJECT
+) -> list[RunningAgentInfo]:
+    """List running agents plus recently-completed DONE/FAILED agents.
+
+    Acquires one scan snapshot and computes both running and completed
+    entries from it so the artifact walk happens at most once per call.
+    Per-project completed cap and ordering match the previous direct-walk
+    implementation.
+
+    Returns:
+        A list of RunningAgentInfo, sorted by start time (most recent
+        first). Running agents always precede completed agents.
+    """
+    snapshot = _scan_listing_snapshot()
+    running = _running_from_snapshot(snapshot)
+    done = _done_from_snapshot(snapshot, cap_per_project=cap_per_project)
+    return running + done
