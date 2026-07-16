@@ -100,10 +100,10 @@ reference notes that agents read only when relevant.
 
 - Type: `long`
 - Description: Read before changing anything that affects TUI performance or responsiveness (navigation, refresh,
-  rendering, startup).
+  rendering, startup), and before diagnosing TUI freezes or stalls.
 - Parent: `AGENTS.md`
-- Lines: 58
-- Approx. tokens: 1029
+- Lines: 72
+- Approx. tokens: 1410
 
 ### `memory/xprompts.md`
 
@@ -118,8 +118,8 @@ reference notes that agents read only when relevant.
 - Total notes: 10
 - Short notes: 5
 - Long notes: 5
-- Total lines: 473
-- Total approx. tokens: 6965
+- Total lines: 487
+- Total approx. tokens: 7346
 
 ## Commands
 

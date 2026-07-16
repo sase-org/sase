@@ -190,7 +190,8 @@ Read when working with sase agent skills (aka xprompt skills), which are generat
 Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic whitelists.
 
 **`memory/tui_perf.md`**  
-Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup).
+Read before changing anything that affects TUI performance or responsiveness (navigation, refresh, rendering, startup),
+and before diagnosing TUI freezes or stalls.
 
 **`memory/xprompts.md`**  
 Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
