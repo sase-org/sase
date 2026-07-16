@@ -21,6 +21,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_handling import (
 from sase.ace.tui.widgets._prompt_search import PromptSearchMixin
 from sase.ace.tui.widgets._prompt_jump import PromptJumpMixin
 from sase.ace.tui.widgets._prompt_preview import PromptPreviewMixin
+from sase.ace.tui.widgets._prompt_format import PromptFormatMixin
 from sase.ace.tui.widgets._search_highlight import SearchHighlightMixin
 from sase.ace.tui.widgets._snippets import SnippetExpansionMixin
 from sase.ace.tui.widgets._vcs_mru_cycling import (
@@ -70,6 +71,7 @@ class PromptTextArea(
     SearchHighlightMixin,
     XPromptSyntaxHighlightMixin,
     PromptSearchMixin,
+    PromptFormatMixin,
     PromptPreviewMixin,
     PromptJumpMixin,
     CodeBlockHighlightMixin,
@@ -130,6 +132,7 @@ class PromptTextArea(
         self._soft_completion: PromptSoftCompletion | None = None
         self._prompt_preview_request_id: int = 0
         self._prompt_jump_request_id: int = 0
+        self._prompt_format_request_id: int = 0
 
     @property
     def _ace_app(self) -> AceApp:

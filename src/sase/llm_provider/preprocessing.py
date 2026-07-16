@@ -137,8 +137,7 @@ def preprocess_prompt_late(
         The fully preprocessed prompt text.
     """
     from sase.file_references import (
-        AGENT_PROMPT_WRAP_WIDTH,
-        format_with_prettier,
+        format_agent_prompt_markdown,
         process_command_substitution,
         process_file_references,
         strip_html_comments,
@@ -168,7 +167,7 @@ def preprocess_prompt_late(
         prompt = render_toplevel_jinja2(prompt)
 
     # 5. Prettier formatting (agent prompts wrap narrower than saved artifacts)
-    prompt = format_with_prettier(prompt, print_width=AGENT_PROMPT_WRAP_WIDTH)
+    prompt = format_agent_prompt_markdown(prompt)
 
     # 6. HTML comment stripping
     prompt = strip_html_comments(prompt)

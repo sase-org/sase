@@ -104,6 +104,7 @@ async def test_single_pane_hint_entries_hide_multi_pane_and_stash_actions() -> N
 
         # No multi-pane nav (single pane), no stash restore (empty stash).
         assert _entry_pairs(bar) == [
+            ("f", "format prompt"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -119,6 +120,7 @@ async def test_single_pane_with_stash_hides_open_stash_on_bare_g() -> None:
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar) == [
+            ("f", "format prompt"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -134,6 +136,7 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar, via_ctrl_g=True) == [
+            ("f", "format prompt"),
             ("enter", "submit this draft"),
             ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
@@ -151,6 +154,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar) == [
+            ("f", "format prompt"),
             ("enter", "submit this draft"),
             ("-", "add pane"),
             ("=", "toggle frontmatter"),
@@ -159,6 +163,7 @@ async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> 
             ("X", "save as local xprompt"),
         ]
         assert _entry_pairs(bar, via_ctrl_g=True) == [
+            ("f", "format prompt"),
             ("enter", "submit this draft"),
             ("ctrl+c", "cancel all panes"),
             ("-", "add pane"),
@@ -176,6 +181,7 @@ async def test_update_pin_hint_requires_non_empty_prompt() -> None:
     async with app.run_test(size=(80, 24)):
         bar = app.query_one(PromptInputBar)
 
+        assert ("f", "format prompt") not in _entry_pairs(bar)
         assert ("S", "update pinned stash") not in _entry_pairs(bar)
 
 
@@ -190,6 +196,7 @@ async def test_multi_pane_hint_entries_include_nav_and_stash() -> None:
         bar = app.query_one(PromptInputBar)
 
         assert _entry_pairs(bar) == [
+            ("f", "format prompt"),
             ("enter", "launch this pane"),
             ("j", "focus next pane"),
             ("k", "focus prev pane"),
@@ -218,16 +225,28 @@ async def test_multi_pane_without_stash_hides_load_and_restore() -> None:
         assert "p" not in keys
         assert "P" not in keys
         # Multi-pane nav and stash-all stay available.
-        assert keys == ["enter", "j", "k", "J", "K", "-", "=", "s", "x", "X"]
+        assert keys == [
+            "f",
+            "enter",
+            "j",
+            "k",
+            "J",
+            "K",
+            "-",
+            "=",
+            "s",
+            "x",
+            "X",
+        ]
 
 
-async def test_feedback_bar_has_no_prompt_g_prefix_hints() -> None:
+async def test_feedback_bar_hints_prompt_formatting_only() -> None:
     app = _GPrefixHintApp("plan note", mode="feedback", stash_exists=True)
 
     async with app.run_test(size=(80, 24)):
         bar = app.query_one(PromptInputBar)
 
-        assert _entry_pairs(bar) == []
+        assert _entry_pairs(bar) == [("f", "format prompt")]
 
 
 # --- show / hide lifecycle -------------------------------------------------
@@ -250,6 +269,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert panel.border_title == " g "
         assert panel.border_subtitle == "\\[esc] cancel"
         plain = panel.render().plain
+        assert "gf   format prompt" in plain
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
@@ -278,6 +298,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert panel.border_subtitle == "\\[esc] cancel"
         plain = panel.render().plain
         assert "^Gg / ^G^G   edit in editor" in plain
+        assert "^Gf   format prompt" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
@@ -308,6 +329,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert panel.border_subtitle == "\\[esc] cancel"
         plain = panel.render().plain
         assert "^Gg / ^G^G   edit in editor" in plain
+        assert "^Gf   format prompt" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
@@ -542,7 +564,7 @@ async def test_unknown_insert_prefix_key_hides_hints_without_inserting() -> None
         assert app.restore_requests == []
 
 
-async def test_panel_stays_hidden_when_no_entries_are_available() -> None:
+async def test_feedback_panel_shows_format_entry() -> None:
     app = _GPrefixHintApp("plan note", mode="feedback", stash_exists=True)
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -553,8 +575,9 @@ async def test_panel_stays_hidden_when_no_entries_are_available() -> None:
         await pilot.press("escape", "g")
         await pilot.pause()
 
-        assert panel.has_class("hidden")
-        assert bar._g_prefix_hints_visible is False
+        assert not panel.has_class("hidden")
+        assert "gf   format prompt" in panel.render().plain
+        assert bar._g_prefix_hints_visible is True
 
 
 # --- vim ``g`` commands still resolve --------------------------------------
@@ -611,6 +634,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         monkeypatch.setattr(
             bar, "move_active_pane", lambda delta, **_: calls.append(f"move{delta:+d}")
         )
+        monkeypatch.setattr(bar, "format_active_prompt", lambda: calls.append("f"))
         monkeypatch.setattr(bar, "submit_active_pane", lambda: calls.append("enter"))
         monkeypatch.setattr(bar, "action_cancel_all", lambda: calls.append("ctrl+c"))
         monkeypatch.setattr(bar, "add_bottom_pane", lambda: calls.append("-"))
@@ -627,7 +651,20 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         )
         monkeypatch.setattr(bar, "request_open_prompt_stash", lambda: calls.append("p"))
 
-        for key in ("enter", "j", "k", "J", "K", "-", "=", "s", "S", "x", "X"):
+        for key in (
+            "f",
+            "enter",
+            "j",
+            "k",
+            "J",
+            "K",
+            "-",
+            "=",
+            "s",
+            "S",
+            "x",
+            "X",
+        ):
             assert bar.dispatch_g_prefix_key(key) is True
         assert bar.dispatch_g_prefix_key("ctrl+c") is False
         assert bar.dispatch_g_prefix_key("ctrl+c", via_ctrl_g=True) is True
@@ -641,6 +678,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
         assert bar.dispatch_g_prefix_key("z") is False
 
         assert calls == [
+            "f",
             "enter",
             "focus+1",
             "focus-1",

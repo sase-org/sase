@@ -46,6 +46,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_definition",
     ),
     _PromptGPrefixBinding(
+        "f",
+        "format_active_prompt",
+        "_g_prefix_label_format_prompt",
+        "_g_prefix_available_format_prompt",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -227,6 +233,15 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         if callable(action):
             action()
 
+    def format_active_prompt(self) -> None:
+        """Format the pane that is active when this action is invoked."""
+        text_area = self.active_text_area()
+        if not text_area.text:
+            return
+        action = getattr(text_area, "format_prompt_markdown", None)
+        if callable(action):
+            action()
+
     def _g_focus_next_pane(self, *, target_mode: str = "normal") -> None:
         """Focus the next/lower pane (the ``gj`` keymap)."""
         self.focus_relative(1, target_mode=target_mode)
@@ -263,6 +278,13 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             offset = text_area._absolute_offset(text_area.cursor_location)
             target = detect_jump_target_at_cursor(text_area.text, offset)
             return target is not None and target.kind == "xprompt"
+        except Exception:
+            return False
+
+    def _g_prefix_available_format_prompt(self) -> bool:
+        """Whether the active prompt-style pane contains text to format."""
+        try:
+            return bool(self.active_text_area().text.strip())
         except Exception:
             return False
 
@@ -359,6 +381,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_definition(self) -> str:
         return "edit definition"
+
+    def _g_prefix_label_format_prompt(self) -> str:
+        return "format prompt"
 
     def _g_prefix_label_cancel_all(self) -> str:
         """Return the ``Ctrl+G Ctrl+C`` label."""

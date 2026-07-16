@@ -9,6 +9,7 @@ import pytest
 from sase.file_references import (
     AGENT_PROMPT_WRAP_WIDTH,
     DEFAULT_MARKDOWN_WRAP_WIDTH,
+    format_agent_prompt_markdown,
     format_with_prettier,
 )
 
@@ -47,8 +48,8 @@ def test_format_with_prettier_default_uses_120() -> None:
     assert "--print-width=80" not in captured[0]
 
 
-def test_format_with_prettier_override_uses_80() -> None:
-    """An explicit print_width override flows through to prettier's argv."""
+def test_agent_prompt_formatter_uses_80() -> None:
+    """The named agent-prompt policy flows 80 columns through to prettier."""
     assert AGENT_PROMPT_WRAP_WIDTH == 80
 
     captured: list[list[str]] = []
@@ -59,7 +60,7 @@ def test_format_with_prettier_override_uses_80() -> None:
             side_effect=_fake_run_capturing(captured),
         ),
     ):
-        format_with_prettier("some prose", print_width=AGENT_PROMPT_WRAP_WIDTH)
+        format_agent_prompt_markdown("some prose")
 
     assert captured, "prettier should have been invoked"
     assert "--print-width=80" in captured[0]
@@ -97,14 +98,25 @@ def test_format_with_prettier_failure_returns_text() -> None:
         assert format_with_prettier("untouched", print_width=80) == "untouched"
 
 
-def test_preprocess_prompt_late_passes_agent_prompt_width() -> None:
-    """Launch-time preprocessing wraps agent prompts at AGENT_PROMPT_WRAP_WIDTH."""
+def test_format_with_prettier_timeout_returns_text() -> None:
+    """A timed-out prettier still falls back to the original text."""
+    with (
+        patch("sase.file_references.shutil.which", return_value="/usr/bin/prettier"),
+        patch(
+            "sase.file_references.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(["prettier"], 10.0),
+        ),
+    ):
+        assert format_with_prettier("untouched", print_width=80) == "untouched"
+
+
+def test_preprocess_prompt_late_uses_named_agent_prompt_formatter() -> None:
+    """Launch-time preprocessing routes through the shared prompt policy."""
     from sase.llm_provider.preprocessing import preprocess_prompt_late
 
-    mock_prettier = MagicMock(side_effect=lambda text, **_kw: text)
-    with patch("sase.file_references.format_with_prettier", mock_prettier):
+    mock_formatter = MagicMock(side_effect=lambda text: text)
+    with patch("sase.file_references.format_agent_prompt_markdown", mock_formatter):
         preprocess_prompt_late("just some prompt prose", file_ref_mode="skip")
 
-    assert mock_prettier.called
-    assert mock_prettier.call_args.kwargs.get("print_width") == AGENT_PROMPT_WRAP_WIDTH
+    mock_formatter.assert_called_once()
     assert AGENT_PROMPT_WRAP_WIDTH == 80

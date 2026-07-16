@@ -511,6 +511,18 @@ def format_with_prettier(
         return text
 
 
+def format_agent_prompt_markdown(text: str) -> str:
+    """Format editable/launch-time agent prompt Markdown canonically.
+
+    Agent prompts intentionally wrap more narrowly than saved Markdown
+    artifacts.  Keeping that policy behind a named helper lets launch-time
+    preprocessing and explicit prompt-editor formatting share it without
+    duplicating the width or invoking the rest of the prompt preprocessing
+    pipeline.
+    """
+    return format_with_prettier(text, print_width=AGENT_PROMPT_WRAP_WIDTH)
+
+
 def strip_html_comments(text: str) -> str:
     """Strip HTML/markdown comments from text while preserving code blocks.
 
