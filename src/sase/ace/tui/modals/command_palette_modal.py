@@ -32,7 +32,7 @@ from .base import FilterInput
 
 # Per-tab context badge label + accent.
 _TAB_BADGE: dict[CommandTab, tuple[str, str]] = {
-    "changespecs": ("PRs", "#00D7AF"),
+    "changespecs": ("Artifacts", "#00D7AF"),
     "agents": ("Agents", "#87D7FF"),
     "axe": ("AXE", "#FFD700"),
 }

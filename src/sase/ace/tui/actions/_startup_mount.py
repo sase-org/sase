@@ -29,6 +29,7 @@ class StartupMountMixin:
             AgentInfoPanel,
             AncestorsChildrenPanel,
             AxeInfoPanel,
+            ArtifactsView,
             ChangeSpecDetail,
             ChangeSpecInfoPanel,
             ChangeSpecList,
@@ -49,6 +50,9 @@ class StartupMountMixin:
             tab_bar = self.query_one("#tab-bar", TabBar)
             tab_bar.set_keymap_registry(self._keymap_registry)
             tab_bar.update_tab(self.current_tab)
+            artifacts_view = self.query_one("#changespecs-view", ArtifactsView)
+            artifacts_view.set_keymap_registry(self._keymap_registry)
+            artifacts_view.set_project_scope(self.artifacts_project_scope)
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)
             info_panel.set_keymap_registry(self._keymap_registry)
             try:

@@ -18,7 +18,7 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Welcome to sase ace" in rendered
-    assert "PRs" in rendered
+    assert "Artifacts" in rendered
     assert "Agents" in rendered
     assert "AXE" in rendered
     assert "https://sase.sh" in rendered
@@ -31,9 +31,11 @@ def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:
     sections = widget.render_content(load_keymap_registry({}))
     tabs_text = _section_plain(sections, "#agent-onboarding-tabs")
 
-    positions = {label: tabs_text.index(label) for label in ("Agents", "PRs", "AXE")}
+    positions = {
+        label: tabs_text.index(label) for label in ("Agents", "Artifacts", "AXE")
+    }
 
-    assert positions["Agents"] < positions["PRs"] < positions["AXE"]
+    assert positions["Agents"] < positions["Artifacts"] < positions["AXE"]
 
 
 def test_agent_onboarding_uses_active_keymap_registry() -> None:

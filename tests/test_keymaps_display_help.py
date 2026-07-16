@@ -26,7 +26,14 @@ def test_leader_repeat_last_override_updates_help_display() -> None:
 
 def test_help_panel_tab_switch_display_is_present() -> None:
     reg = load_keymap_registry({})
-    for sections in (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg)):
+    cls_pairs = {
+        (key, label)
+        for _section, bindings in cls_bindings(reg)
+        for key, label in bindings
+    }
+    assert ("[ / ]", "In help: switch Keymaps / Guide") in cls_pairs
+
+    for sections in (agents_bindings(reg), axe_bindings(reg)):
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }

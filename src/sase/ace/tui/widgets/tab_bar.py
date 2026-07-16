@@ -17,7 +17,7 @@ _TAB_COLORS: dict[TabName, str] = {
 }
 
 _TAB_DISPLAY_NAMES: dict[TabName, str] = {
-    "changespecs": "PRs",
+    "changespecs": "Artifacts",
     "agents": "Agents",
     "axe": "AXE",
 }

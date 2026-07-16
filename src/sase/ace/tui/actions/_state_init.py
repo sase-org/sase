@@ -123,6 +123,18 @@ class StateInitMixin:
         self._bead_warmup_async_tasks: set[asyncio.Task[None]] = set()
         self.query_string = query
         self.parsed_query = parse_query(query)
+        from ...query import get_sole_project_filter
+
+        # Shared Artifacts scope state is memory-only for this TUI session.
+        # Project inventory itself remains lazy and is read off-thread on the
+        # first project-backed pane activation.
+        self.artifacts_project_scope: str | None = get_sole_project_filter(
+            self.parsed_query
+        )
+        self._artifacts_project_choices: Any = None
+        self._artifacts_project_choices_loading = False
+        self._artifacts_project_picker_pending = False
+        self._artifacts_scope_was_picked = False
         self.refresh_interval = refresh_interval
         from ..tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 

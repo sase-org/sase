@@ -3,6 +3,7 @@
 from .agent_workflow import AgentWorkflowMixin
 from .agents import AgentMarkingMixin, AgentsMixin
 from .axe import AxeMixin
+from .artifacts import ArtifactsMixin
 from .base import BaseActionsMixin
 from .changespec import ChangeSpecMixin
 from .clipboard import ClipboardMixin
@@ -28,6 +29,7 @@ __all__ = [
     "AgentsMixin",
     "AgentWorkflowMixin",
     "AxeMixin",
+    "ArtifactsMixin",
     "BaseActionsMixin",
     "ChangeSpecMixin",
     "ClipboardMixin",

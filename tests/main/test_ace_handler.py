@@ -77,7 +77,7 @@ def test_tab_option_defaults_to_agents() -> None:
     assert args.tab == "agents"
 
 
-@pytest.mark.parametrize("tab", ["changespecs", "agents", "axe"])
+@pytest.mark.parametrize("tab", ["artifacts", "changespecs", "agents", "axe"])
 def test_tab_option_accepts_valid_choices(tab: str) -> None:
     args = _parse_ace_args(["--tab", tab])
     assert args.tab == tab

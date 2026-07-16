@@ -107,17 +107,18 @@ def test_tab_bar_update_tab_to_agents() -> None:
     assert tab_bar._current_tab == "agents"
 
 
-def test_tab_bar_changespec_tab_label_is_prs() -> None:
+def test_tab_bar_changespec_tab_label_is_artifacts() -> None:
     tab_bar = TabBar()
     plain = tab_bar._build_content().plain
-    assert " PRs " in plain
+    assert " Artifacts " in plain
+    assert " PRs " not in plain
     assert " ChangeSpecs " not in plain
 
 
-def test_tab_bar_label_order_is_agents_prs_axe() -> None:
+def test_tab_bar_label_order_is_agents_artifacts_axe() -> None:
     tab_bar = TabBar()
     plain = tab_bar._build_content().plain
-    assert plain.index("Agents") < plain.index("PRs") < plain.index("AXE")
+    assert plain.index("Agents") < plain.index("Artifacts") < plain.index("AXE")
 
 
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:

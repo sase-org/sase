@@ -54,6 +54,27 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Tab switching
     ("next_tab", "Next tab", "Tabs", ALL_TABS, ()),
     ("prev_tab", "Previous tab", "Tabs", ALL_TABS, ()),
+    (
+        "cycle_artifacts_subtab",
+        "Next Artifacts sub-tab",
+        "Tabs",
+        CL_ONLY,
+        ("next artifact", "commits", "bugs", "plans"),
+    ),
+    (
+        "cycle_artifacts_subtab_reverse",
+        "Previous Artifacts sub-tab",
+        "Tabs",
+        CL_ONLY,
+        ("previous artifact",),
+    ),
+    (
+        "pick_artifacts_project",
+        "Pick Artifacts project scope",
+        "Tabs",
+        CL_ONLY,
+        ("project scope", "filter project"),
+    ),
     # PR Actions
     ("quit", "Quit ace", "Misc", ALL_TABS, ("exit",)),
     ("change_status", "Change PR status", "PR Actions", CL_ONLY, ()),

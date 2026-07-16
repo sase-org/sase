@@ -193,6 +193,7 @@ class CommandContext:
     """
 
     tab: CommandTab = "changespecs"
+    artifacts_subtab: Literal["prs", "commits", "bugs", "plans"] = "prs"
     changespec: ChangeSpec | None = None
     agent: Agent | None = None
     axe_item: AxeItem | None = None

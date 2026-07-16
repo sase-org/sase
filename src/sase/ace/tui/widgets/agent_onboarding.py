@@ -40,9 +40,9 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
         "Inspect prompts, diffs, tools, and artifacts. You are here.",
     ),
     "changespecs": (
-        "PRs",
+        "Artifacts",
         "#00D7AF",
-        "Browse ChangeSpecs: commits, hooks, mentors, and status.",
+        "Browse PRs, commits, bugs, and plans in one place.",
     ),
     "axe": (
         "AXE",

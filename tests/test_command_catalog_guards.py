@@ -153,7 +153,15 @@ def test_every_command_spec_has_label_and_key_display() -> None:
     catalog = build_command_catalog(_registry())
     for spec in catalog:
         assert spec.label, f"{spec.id}: empty label"
-        if spec.id in {"logs", "projects", "tasks"}:
+        if spec.id in {
+            "logs",
+            "projects",
+            "tasks",
+            "artifacts.prs",
+            "artifacts.commits",
+            "artifacts.bugs",
+            "artifacts.plans",
+        }:
             assert spec.key_sequence == (), f"{spec.id}: expected keyless"
             assert spec.key_display == "", f"{spec.id}: expected blank key display"
             continue

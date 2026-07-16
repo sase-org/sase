@@ -72,6 +72,7 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
     """Extract structured state from the app's reactive properties."""
     state: dict[str, Any] = {
         "tab": app.current_tab,
+        "artifacts_subtab": app.current_artifacts_subtab,
         "idx": app.current_idx,
         "total": len(app.changespecs),
         "query": app.query_string,

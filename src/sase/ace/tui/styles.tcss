@@ -54,10 +54,85 @@
     height: 1fr;
 }
 
-/* ChangeSpecs Tab View */
+/* Artifacts Tab View (internal id remains changespecs) */
 #changespecs-view {
     width: 100%;
     height: 100%;
+}
+
+#artifacts-subtabs {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    background: $surface;
+}
+
+#artifacts-content-switcher,
+#artifacts-prs-pane,
+#artifacts-commits-pane,
+#artifacts-bugs-pane,
+#artifacts-plans-pane {
+    width: 100%;
+    height: 1fr;
+}
+
+.artifacts-pane-info {
+    width: 100%;
+    height: 2;
+    max-height: 2;
+    padding: 0 1;
+    background: $surface;
+    content-align: center middle;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+.artifacts-placeholder-scroll {
+    width: 100%;
+    height: 1fr;
+    padding: 2 4;
+    align-horizontal: center;
+    scrollbar-gutter: stable;
+}
+
+.artifacts-placeholder-hero {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+.artifacts-placeholder-card {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    border: round $secondary;
+    padding: 1 2;
+}
+
+#artifacts-commits-pane .artifacts-placeholder-card {
+    border-title-color: #FFD700;
+}
+
+#artifacts-bugs-pane .artifacts-placeholder-card {
+    border-title-color: #FF5F5F;
+}
+
+#artifacts-plans-pane .artifacts-placeholder-card {
+    border-title-color: #AF87FF;
+}
+
+.artifacts-placeholder-footer {
+    width: 100%;
+    max-width: 90;
+    height: auto;
+    text-align: center;
+    color: $text-muted;
+    margin-top: 1;
 }
 
 #changespecs-view.-onboarding-active #list-container {

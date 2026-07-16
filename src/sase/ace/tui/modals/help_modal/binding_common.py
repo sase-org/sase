@@ -89,14 +89,14 @@ _custom_mode_sections = custom_mode_sections
 
 
 TAB_DISPLAY_NAMES = {
-    "changespecs": "PRs",
+    "changespecs": "Artifacts",
     "agents": "Agents",
     "axe": "Axe",
 }
 
 # Column split indices for each tab (left column gets indices < split, right gets >= split)
 COLUMN_SPLITS = {
-    "changespecs": 2,  # Left: Navigation, PR Actions; Right: rest
+    "changespecs": 2,  # Left: Artifact Sub-tabs, Navigation; Right: PR Actions + rest
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
     "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

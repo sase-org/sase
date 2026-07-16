@@ -523,7 +523,15 @@ def test_command_specs_are_well_formed() -> None:
         assert spec.id
         assert spec.label
         assert spec.tabs
-        if spec.id in {"logs", "projects", "tasks"}:
+        if spec.id in {
+            "logs",
+            "projects",
+            "tasks",
+            "artifacts.prs",
+            "artifacts.commits",
+            "artifacts.bugs",
+            "artifacts.plans",
+        }:
             # These retired standalone panels are intentionally keyless:
             # searchable commands with no direct binding that open the
             # corresponding Admin Center tabs.

@@ -406,7 +406,10 @@ class BaseActionsMixin:
                 full_history=False,
             )
         elif self.current_tab == "changespecs":
-            self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+            if getattr(self, "current_artifacts_subtab", "prs") == "prs":
+                self._schedule_changespecs_async_refresh()  # type: ignore[attr-defined]
+            else:
+                self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
         else:  # axe
             # Targeted refresh repaints the focused panel first; the
             # full-fleet refresh lands whenever it lands.

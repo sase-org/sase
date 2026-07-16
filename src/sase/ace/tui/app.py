@@ -6,7 +6,7 @@ import sys
 from typing import Literal
 
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import Header
 
@@ -24,6 +24,7 @@ from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
     AgentWorkflowMixin,
+    ArtifactsMixin,
     AxeMixin,
     BaseActionsMixin,
     ChangeSpecMixin,
@@ -52,29 +53,24 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
-    AncestorsChildrenPanel,
     AliasOverridesIndicator,
+    ArtifactsSubTab,
+    ArtifactsView,
     AxeDashboard,
     AxeInfoPanel,
     BgCmdList,
-    ChangeSpecDetail,
-    ChangeSpecInfoPanel,
-    ChangeSpecList,
     KeybindingFooter,
     LLMOverrideIndicator,
     NotificationIndicator,
-    SearchQueryPanel,
     StashedPromptsIndicator,
     TabBar,
     TabQuickStart,
     TaskIndicator,
     UpdatesAvailableIndicator,
 )
+from .tab_order import ARTIFACTS_TAB, TabName
 
 log = logging.getLogger(__name__)
-
-# Type alias for tab names
-TabName = Literal["changespecs", "agents", "axe"]
 
 # Width bounds for dynamic list panel sizing (in terminal cells)
 # MIN must fit the PR status line plus padding/border; the refresh countdown
@@ -102,6 +98,7 @@ class AceApp(
     AgentWorkflowMixin,
     AgentsMixin,
     AxeMixin,
+    ArtifactsMixin,
     ChangeSpecMixin,
     ClipboardMixin,
     CustomModeMixin,
@@ -149,6 +146,9 @@ class AceApp(
         FoldLevel.COLLAPSED, recompose=False
     )
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
+    current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
+        "prs", recompose=False
+    )
     axe_running: reactive[bool] = reactive(False, recompose=False)
     hide_reverted: reactive[bool] = reactive(True, recompose=False)
     hide_submitted: reactive[bool] = reactive(True, recompose=False)
@@ -281,8 +281,31 @@ class AceApp(
 
             if isinstance(self.focused, VimTextArea):
                 return False
+        from .actions.artifacts import NON_PRS_ARTIFACT_ACTIONS
+
+        if (
+            self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_subtab != "prs"
+            and action not in NON_PRS_ARTIFACT_ACTIONS
+        ):
+            return False
+        if action in {
+            "cycle_artifacts_subtab",
+            "cycle_artifacts_subtab_reverse",
+        }:
+            if self.current_tab != ARTIFACTS_TAB:
+                return False
+        if action == "pick_artifacts_project":
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab == "prs"
+            ):
+                return False
+        if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
+            if self.current_tab != "agents":
+                return False
         if action in {"change_status", "bulk_change_status"}:
-            if self.current_tab != "changespecs":
+            if self.current_tab != ARTIFACTS_TAB:
                 return False
         if action == "save_marked_agents":
             if self.current_tab != "agents":
@@ -310,20 +333,7 @@ class AceApp(
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
-            with Horizontal(id="changespecs-view", classes=cs_classes):
-                with Vertical(id="list-container"):
-                    yield ChangeSpecInfoPanel(id="info-panel")
-                    yield ChangeSpecList(id="list-panel")
-                    yield AncestorsChildrenPanel(id="ancestors-children-panel")
-                with Vertical(id="detail-container"):
-                    yield SearchQueryPanel(id="search-query-panel")
-                    with VerticalScroll(id="detail-scroll"):
-                        yield ChangeSpecDetail(id="detail-panel")
-                    yield TabQuickStart(
-                        tab="changespecs",
-                        id="changespec-quickstart-panel",
-                        classes="hidden",
-                    )
+            yield ArtifactsView(id="changespecs-view", classes=cs_classes)
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
                 with Horizontal(id="agents-content"):
@@ -352,7 +362,10 @@ class AceApp(
     def watch_current_idx(self, old_idx: int, new_idx: int) -> None:
         """React to current_idx changes."""
         if old_idx != new_idx:
-            if self.current_tab == "changespecs":
+            if (
+                self.current_tab == ARTIFACTS_TAB
+                and self.current_artifacts_subtab == "prs"
+            ):
                 self._refresh_changespecs_display_debounced()
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
@@ -377,7 +390,7 @@ class AceApp(
             self._agent_detail_debouncer.cancel()
         elif old_tab == "axe":
             self._axe_detail_debouncer.cancel()
-        elif old_tab == "changespecs":
+        elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":
             self._changespec_detail_debouncer.cancel()
 
         # Tab changes always cancel one-key jump mode.
@@ -393,15 +406,22 @@ class AceApp(
         tab_bar = self.query_one("#tab-bar", TabBar)
         tab_bar.update_tab(new_tab)
 
-        changespecs_view = self.query_one("#changespecs-view")
+        changespecs_view = self.query_one("#changespecs-view", ArtifactsView)
         agents_view = self.query_one("#agents-view")
         axe_view = self.query_one("#axe-view")
 
-        if new_tab == "changespecs":
+        if old_tab == ARTIFACTS_TAB:
+            changespecs_view.deactivate_current()
+
+        if new_tab == ARTIFACTS_TAB:
             changespecs_view.remove_class("hidden")
             agents_view.add_class("hidden")
             axe_view.add_class("hidden")
-            self._refresh_display()
+            changespecs_view.activate_current()
+            if self.current_artifacts_subtab == "prs":
+                self._refresh_display()
+            else:
+                self._ensure_artifacts_project_choices()
         elif new_tab == "agents":
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
@@ -451,3 +471,25 @@ class AceApp(
                 ),
                 agents_plugins_installed=self._agents_onboarding_plugins_installed,
             )
+
+    def watch_current_artifacts_subtab(
+        self,
+        old_subtab: ArtifactsSubTab,
+        new_subtab: ArtifactsSubTab,
+    ) -> None:
+        """Switch Artifacts panes and preserve PR detail/refresh isolation."""
+        if old_subtab == new_subtab:
+            return
+        try:
+            view = self.query_one("#changespecs-view", ArtifactsView)
+        except Exception:
+            return
+        if old_subtab == "prs":
+            self._changespec_detail_debouncer.cancel()
+        view.switch_to(new_subtab)
+        if self.current_tab != ARTIFACTS_TAB:
+            return
+        if new_subtab == "prs":
+            self._refresh_display()
+        else:
+            self._ensure_artifacts_project_choices()

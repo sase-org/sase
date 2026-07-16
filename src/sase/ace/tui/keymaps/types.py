@@ -68,6 +68,9 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("scroll_prompt_up", "Scroll Prompt Up", False),
     ("next_tab", "Next Tab", True),
     ("prev_tab", "Prev Tab", True),
+    ("cycle_artifacts_subtab", "Next Artifact", False),
+    ("cycle_artifacts_subtab_reverse", "Previous Artifact", False),
+    ("pick_artifacts_project", "Project Scope", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
@@ -263,6 +266,9 @@ class AppKeymaps:
     # Tab switching
     next_tab: str
     prev_tab: str
+    cycle_artifacts_subtab: str
+    cycle_artifacts_subtab_reverse: str
+    pick_artifacts_project: str
     # ChangeSpec actions
     quit: str
     change_status: str

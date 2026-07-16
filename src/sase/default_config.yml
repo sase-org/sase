@@ -95,6 +95,9 @@ ace:
       # Tab switching
       next_tab: "tab"
       prev_tab: "shift+tab"
+      cycle_artifacts_subtab: "right_square_bracket"
+      cycle_artifacts_subtab_reverse: "left_square_bracket"
+      pick_artifacts_project: "p"
       # PR actions
       quit: "q"
       change_status: "s"

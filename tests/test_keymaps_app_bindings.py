@@ -5,9 +5,9 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 84 configurable + 10 digit = 94 bindings."""
+    """build_app_bindings produces 87 configurable + 10 digit bindings."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == 94
+    assert len(bindings) == 97
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:

@@ -73,6 +73,31 @@ _REQUIRES_NON_TERMINAL_STATUS: frozenset[str] = frozenset(
     }
 )
 
+_NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.cycle_artifacts_subtab",
+        "app.cycle_artifacts_subtab_reverse",
+        "app.pick_artifacts_project",
+        "app.next_tab",
+        "app.prev_tab",
+        "app.quit",
+        "app.stop_axe_and_quit",
+        "app.start_custom_agent",
+        "app.start_agent_home",
+        "app.start_last_vcs_xprompt_in_editor",
+        "app.restore_prompt_stash",
+        "app.show_notifications",
+        "app.show_help",
+        "app.open_config_center",
+        "app.open_command_palette",
+        "app.dismiss_toasts",
+        "app.refresh",
+        "projects",
+        "logs",
+        "tasks",
+    }
+)
+
 # Agent actions that require a focused agent (not a group banner).
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
@@ -110,6 +135,10 @@ def _get_base_status(status: str) -> str:
 
 
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
+    if ctx.artifacts_subtab != "prs":
+        return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
+    if spec.id == "app.pick_artifacts_project":
+        return False
     cs = ctx.changespec
     # ChangeSpec-required commands need a selected ChangeSpec.
     if spec.id in _REQUIRES_CL_NUMBER and (cs is None or cs.pr_url is None):

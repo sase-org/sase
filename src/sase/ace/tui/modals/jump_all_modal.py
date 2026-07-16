@@ -1,6 +1,6 @@
 """Cross-tab jump-to-entry modal for the ace TUI.
 
-Opens a modal showing all entries across PRs, Agents, and AXE tabs.
+Opens a modal showing all entries across Artifacts, Agents, and AXE tabs.
 Each entry has a single-keypress hint character; pressing a hint
 immediately switches to the target tab, focuses that entry, and
 dismisses the modal.
@@ -39,7 +39,7 @@ _SECTION_RULE_WIDTH = 76
 
 # Per-tab section header colours
 _TAB_STYLES: dict[TabName, tuple[str, str]] = {
-    "changespecs": ("PRs", "#00D7AF"),
+    "changespecs": ("Artifacts", "#00D7AF"),
     "agents": ("Agents", "#87D7FF"),
     "axe": ("AXE", "#FFD700"),
 }

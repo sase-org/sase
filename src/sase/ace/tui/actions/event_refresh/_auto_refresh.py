@@ -173,9 +173,18 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         elif watcher_active and not new_agent_notification:
             self._refresh_selected_agent_file_panel()
 
-        if self.current_tab == "changespecs" and _should_refresh("_dirty_changespecs"):
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") == "prs"
+            and _should_refresh("_dirty_changespecs")
+        ):
             await self._reload_and_reposition_async()  # type: ignore[attr-defined]
             self._dirty_changespecs = False
+        elif (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
+            self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
 
         if sanity_due:
             self._last_full_sanity_refresh = now_mono

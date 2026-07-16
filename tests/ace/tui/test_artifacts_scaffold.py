@@ -1,0 +1,160 @@
+"""Behavioral coverage for the Artifacts rename and sub-tab scaffold."""
+
+from __future__ import annotations
+
+import pytest
+from textual.widgets import ContentSwitcher
+
+from sase.ace.testing import AcePage
+from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
+from sase.ace.tui.commands import (
+    build_command_catalog,
+    execute_command,
+    extract_command_context,
+    is_command_available,
+)
+from sase.ace.tui.modals.inventory_project_picker import (
+    InventoryProjectChoice,
+    InventoryProjectPicker,
+)
+from sase.ace.tui.widgets import ArtifactPlaceholderPane, ArtifactsPrsPane
+from sase.ace.tui.widgets.artifacts import ARTIFACTS_PANE_IDS, ArtifactsView
+from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+
+
+async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
+    async with AcePage(initial_tab="changespecs") as page:
+        view = page.query_one_widget("#changespecs-view", ArtifactsView)
+        prs = page.query_one_widget("#artifacts-prs-pane", ArtifactsPrsPane)
+        commits = page.query_one_widget(
+            "#artifacts-commits-pane", ArtifactPlaceholderPane
+        )
+
+        assert view.current_subtab == "prs"
+        assert prs.first_activation_count == 1
+        assert prs.artifacts_active is True
+
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "commits")
+
+        switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)
+        assert switcher.current == ARTIFACTS_PANE_IDS["commits"]
+        assert prs.artifacts_active is False
+        assert commits.first_activation_count == 1
+        assert commits.artifacts_active is True
+        assert page.app.check_action("change_status", ()) is False
+        assert page.app.check_action("next_changespec", ()) is False
+
+        old_idx = page.app.current_idx
+        await page.press("j")
+        assert page.app.current_idx == old_idx
+
+        await page.press("[")
+        await page.expect_state("artifacts_subtab", "prs")
+        assert prs.activation_count == 2
+        assert commits.deactivation_count == 1
+
+        await page.press("[")
+        await page.expect_state("artifacts_subtab", "plans")
+
+
+async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
+    async with AcePage(initial_tab="changespecs") as page:
+        strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
+        commits = page.query_one_widget(
+            "#artifacts-commits-pane", ArtifactPlaceholderPane
+        )
+
+        strip.post_message(PanelTabStrip.TabClicked("commits"))
+        await page.expect_state("artifacts_subtab", "commits")
+        commits.set_class(True, "test-selection-state")
+
+        strip.post_message(PanelTabStrip.TabClicked("bugs"))
+        await page.expect_state("artifacts_subtab", "bugs")
+        strip.post_message(PanelTabStrip.TabClicked("commits"))
+        await page.expect_state("artifacts_subtab", "commits")
+
+        assert commits.first_activation_count == 1
+        assert commits.activation_count == 2
+        assert commits.has_class("test-selection-state")
+
+
+async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _ArtifactsProjectChoices(
+        choices=(
+            InventoryProjectChoice(
+                project_key="alpha",
+                display_name="Alpha",
+                state="enabled",
+            ),
+        ),
+        enabled_projects=("alpha",),
+        display_names={"alpha": "Alpha"},
+    )
+    calls = 0
+
+    def collect() -> _ArtifactsProjectChoices:
+        nonlocal calls
+        calls += 1
+        return result
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        collect,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.pause()
+        assert calls == 0
+
+        await page.press("]")
+        await page.wait_for(
+            lambda _state: page.app._artifacts_project_choices is result
+        )
+        assert calls == 1
+        assert page.app.artifacts_project_scope == "alpha"
+
+        for pane in page.app.query(ArtifactPlaceholderPane):
+            assert pane.project_scope == "alpha"
+
+        await page.press("p")
+        await page.expect_modal("InventoryProjectPicker")
+        picker = page.app.screen
+        assert isinstance(picker, InventoryProjectPicker)
+        picker.query_one("#inventory-project-picker-list").highlighted = 0
+        picker.action_select_highlighted()
+        await page.expect_no_modal()
+        await page.wait_for(lambda _state: page.app.artifacts_project_scope is None)
+        assert page.app.artifacts_project_scope is None
+
+
+async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
+    async with AcePage(initial_tab="agents") as page:
+        catalog = build_command_catalog(page.app._keymap_registry)
+        by_id = {spec.id: spec for spec in catalog}
+        expected = {
+            "artifacts.prs",
+            "artifacts.commits",
+            "artifacts.bugs",
+            "artifacts.plans",
+        }
+        assert expected <= by_id.keys()
+
+        execute_command(page.app, by_id["artifacts.bugs"])
+        await page.expect_state("tab", "changespecs")
+        await page.expect_state("artifacts_subtab", "bugs")
+
+        context = extract_command_context(page.app)
+        assert context.artifacts_subtab == "bugs"
+        assert is_command_available(by_id["artifacts.prs"], context)
+        assert not is_command_available(by_id["app.change_status"], context)
+
+
+def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
+    view = ArtifactsView(id="changespecs-view")
+    # The mounted interaction tests cover rendering; this unit assertion keeps
+    # the public pane-id map exhaustive for later feature phases.
+    assert tuple(ARTIFACTS_PANE_IDS) == ("prs", "commits", "bugs", "plans")
+    assert view.current_subtab == "prs"

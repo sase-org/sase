@@ -26,6 +26,23 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
 
     sections: Sections = [
         (
+            "Artifact Sub-tabs",
+            [
+                (
+                    f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
+                    "Previous / next: PRs, Commits, Bugs, Plans",
+                ),
+                (
+                    d(a.pick_artifacts_project),
+                    "Pick scope for Commits, Bugs, or Plans",
+                ),
+                (
+                    d(a.open_command_palette),
+                    "Jump directly to any artifact pane",
+                ),
+            ],
+        ),
+        (
             "Navigation",
             [
                 (
@@ -273,7 +290,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "General",
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
-                ("[ / ]", "Switch Keymaps / Guide"),
+                ("[ / ]", "In help: switch Keymaps / Guide"),
                 (d(a.toggle_hide_submitted), "Show/hide submitted PRs"),
                 (d(a.toggle_hide_reverted), "Show/hide reverted PRs"),
                 (

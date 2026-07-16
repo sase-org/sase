@@ -10,6 +10,13 @@ from .ancestors_children_panel import AncestorsChildrenPanel
 from .axe_dashboard import AxeDashboard
 from .axe_info_panel import AxeInfoPanel
 from .axe_onboarding import AxeOnboarding
+from .artifacts import (
+    ARTIFACTS_SUBTAB_ORDER,
+    ArtifactPlaceholderPane,
+    ArtifactsPrsPane,
+    ArtifactsSubTab,
+    ArtifactsView,
+)
 from .bgcmd_list import BgCmdList
 from .changespec_detail import ChangeSpecDetail, SearchQueryPanel
 from .changespec_info_panel import ChangeSpecInfoPanel
@@ -54,6 +61,11 @@ __all__ = [
     "AxeDashboard",
     "AxeInfoPanel",
     "AxeOnboarding",
+    "ARTIFACTS_SUBTAB_ORDER",
+    "ArtifactPlaceholderPane",
+    "ArtifactsPrsPane",
+    "ArtifactsSubTab",
+    "ArtifactsView",
     "BgCmdList",
     "ChangeSpecDetail",
     "ChangeSpecInfoPanel",

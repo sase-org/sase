@@ -29,6 +29,7 @@ from sase.ace.tui.commands._formatting import (
 )
 from sase.ace.tui.commands._mode_commands import iter_mode_commands
 from sase.ace.tui.commands._tabs import ALL_TABS
+from sase.ace.tui.commands._tabs import CL_ONLY
 from sase.ace.tui.commands.types import (
     CATEGORY_ORDER,
     CommandExecutor,
@@ -104,6 +105,29 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
+    """Yield keyless direct jumps for every Artifacts sub-tab."""
+    for subtab, label in (
+        ("prs", "PRs"),
+        ("commits", "Commits"),
+        ("bugs", "Bugs"),
+        ("plans", "Plans"),
+    ):
+        yield CommandSpec(
+            id=f"artifacts.{subtab}",
+            label=f"Show Artifacts: {label}",
+            key_sequence=(),
+            key_display="",
+            category="Tabs",
+            tabs=CL_ONLY,
+            executor=CommandExecutor(
+                kind="app_action",
+                action=f"show_artifacts_{subtab}",
+            ),
+            aliases=("artifacts", subtab, f"artifact {subtab}"),
+        )
+
+
 def _iter_logs_command() -> Iterator[CommandSpec]:
     """Yield the keyless Logs-tab command.
 
@@ -159,6 +183,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
     catalog.extend(iter_digit_commands())
+    catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())

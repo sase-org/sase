@@ -56,6 +56,19 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Tab switching
     Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),
+    Binding(
+        "right_square_bracket",
+        "cycle_artifacts_subtab",
+        "Next Artifact",
+        show=False,
+    ),
+    Binding(
+        "left_square_bracket",
+        "cycle_artifacts_subtab_reverse",
+        "Previous Artifact",
+        show=False,
+    ),
+    Binding("p", "pick_artifacts_project", "Project Scope", show=False),
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),
