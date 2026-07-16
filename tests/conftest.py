@@ -28,6 +28,8 @@ _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
         "tests/main/test_parser_plan.py",
         "tests/test_plan_utils.py",
         "tests/test_axe_run_agent_exec_killed_iteration.py",
+        "tests/test_axe_run_agent_exec_plan_followup_approval_effort.py",
+        "tests/test_axe_run_agent_exec_plan_followup_approval_plan_refs.py",
         "tests/test_axe_run_agent_exec_plan_followup_approvals.py",
         "tests/test_axe_run_agent_exec_plan_followup_coder_prompt.py",
         "tests/test_axe_run_agent_exec_plan_followup_model_selection.py",
