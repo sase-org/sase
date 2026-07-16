@@ -20,7 +20,6 @@ from sase.updates.incoming_commits import (
     RepoIncomingCommits,
 )
 from sase.uv_tool.receipt import parse_receipt
-from sase.uv_tool.render import PlannedPackage
 from sase.version.inventory import RuntimeVersionInventory
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _open_plugins_pane,
@@ -63,10 +62,10 @@ def _multi_root_dev_plan() -> DevUpdatePlan:
     return replace(base, packages=tuple(packages), roots=tuple(roots))
 
 
-def test_sase_preview_carries_transitive_wheel_core_as_managed_work(
+def test_sase_preview_routes_transitive_wheel_core_to_dev_restore(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
 ) -> None:
+    """A dev install plans the wheel core as a dev-leg restore, never managed work."""
     host = _version_record("sase", role="host")
     github = _version_record("sase-github", role="plugin")
     telegram = _version_record("sase-telegram", role="plugin")
@@ -95,32 +94,25 @@ requirements = [
 """
     )
     seen: list[str] = []
+    seen_kwargs: dict[str, Any] = {}
 
-    def _plan(records: tuple[Any, ...], **_kwargs: Any) -> DevUpdatePlan:
+    def _plan(records: tuple[Any, ...], **kwargs: Any) -> DevUpdatePlan:
         seen.extend(record.name for record in records)
+        seen_kwargs.update(kwargs)
         return _dev_plan(status="skipped")
 
     monkeypatch.setattr(
         pbdu, "collect_runtime_version_inventory", lambda **_kw: inventory
     )
     monkeypatch.setattr(pbdu, "plan_dev_update", _plan)
-    monkeypatch.setattr(
-        "sase.main.update_routing.write_editable_overrides",
-        lambda _requirements: tmp_path / "editable-overrides.txt",
-    )
 
     preview = pbdu.make_sase_dev_update_preview(receipt)
 
     assert preview.error is None
     assert seen == ["sase", "sase-github", "sase-telegram"]
-    assert preview.managed_packages == (
-        PlannedPackage(
-            name="sase-core-rs",
-            role="dependency",
-            current_version="0.4.0",
-        ),
-    )
-    assert preview.managed_argv[-2:] == ("--upgrade-package", "sase-core-rs")
+    assert seen_kwargs["stale_core_record"] is core
+    assert preview.managed_packages == ()
+    assert preview.managed_argv == ()
 
 
 async def test_updates_pane_sase_update_dev_preview_and_restart(

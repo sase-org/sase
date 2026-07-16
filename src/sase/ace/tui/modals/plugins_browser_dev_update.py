@@ -48,6 +48,7 @@ def make_sase_dev_update_preview(
     inventory = collect_runtime_version_inventory(include_plugins=True)
     records = inventory.packages
     host: VersionPackageRecord | None
+    stale_core: VersionPackageRecord | None
     if receipt is not None:
         route = dev_route_from_inventory(receipt, inventory)
         if isinstance(route, UvToolError):
@@ -56,6 +57,7 @@ def make_sase_dev_update_preview(
             return DevUpdatePreview(plan=None, subject="sase")
         editable = route.records
         host = route.host_record
+        stale_core = route.stale_core_record
         versions = {
             normalize_distribution_name(record.name): record.distribution_version
             or record.display_version
@@ -75,6 +77,7 @@ def make_sase_dev_update_preview(
             and record.role in {"host", "core", "plugin"}
         )
         host = _host_record(records)
+        stale_core = _stale_core_record(records, host)
         managed_argv = ()
         managed_packages = ()
     if not editable:
@@ -94,6 +97,7 @@ def make_sase_dev_update_preview(
         host_record=host,
         managed_argv=managed_argv,
         managed_packages=managed_packages,
+        stale_core_record=stale_core,
     )
 
 
@@ -157,7 +161,7 @@ def entry_uses_dev_update(entry: PluginCatalogEntry) -> bool:
 
 def dev_update_blocking_reason(plan: DevUpdatePlan) -> str | None:
     """Return the reason a plan must not be executed, if any."""
-    if not plan.actionable_roots:
+    if not plan.actionable_roots and not plan.reconcile_steps:
         return _dev_update_skipped_message(plan)
     for step in plan.reconcile_steps:
         if not step.available:
@@ -259,6 +263,7 @@ def _plan(
     host_record: VersionPackageRecord | None = None,
     managed_argv: tuple[str, ...] = (),
     managed_packages: tuple[PlannedPackage, ...] = (),
+    stale_core_record: VersionPackageRecord | None = None,
 ) -> DevUpdatePreview:
     host = host_record or _host_record(records)
     if host is None:
@@ -273,6 +278,7 @@ def _plan(
             host_record=host,
             receipt=receipt,
             already_refreshed_roots=already_refreshed_roots,
+            stale_core_record=stale_core_record,
         )
     except Exception as exc:  # noqa: BLE001 - update planning should toast clearly.
         return DevUpdatePreview(plan=None, subject=subject, error=str(exc))
@@ -289,6 +295,19 @@ def _host_record(
 ) -> VersionPackageRecord | None:
     for record in records:
         if record.role == "host" or normalize_distribution_name(record.name) == "sase":
+            return record
+    return None
+
+
+def _stale_core_record(
+    records: tuple[VersionPackageRecord, ...],
+    host: VersionPackageRecord | None,
+) -> VersionPackageRecord | None:
+    """Find a wheel-installed core in a dev (editable-host) install."""
+    if host is None or host.install_type != "editable":
+        return None
+    for record in records:
+        if record.role == "core" and record.install_type == "wheel":
             return record
     return None
 

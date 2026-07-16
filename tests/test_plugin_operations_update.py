@@ -99,7 +99,7 @@ requirements = [
     overrides_path = Path(plan.argv[-3])
     assert plan.argv[-2:] == ["--upgrade-package", "sase-github"]
     assert overrides_path.read_text(encoding="utf-8") == (
-        "-e /src/sase\n-e /src/sase-github\n"
+        "-e /src/sase\n-e /src/sase-github\nsase-core-rs\n"
     )
 
 

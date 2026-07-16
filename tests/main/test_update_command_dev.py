@@ -11,7 +11,14 @@ import pytest
 
 from sase.axe.process import AxeStartResult
 import sase.dev_update.journal as journal_mod
-from sase.dev_update.models import DevUpdateOutcome, DevUpdatePlan, DevUpdateResult
+from sase.dev_update.models import (
+    DevCommandResult,
+    DevReconcileStep,
+    DevUpdateOutcome,
+    DevUpdatePackagePlan,
+    DevUpdatePlan,
+    DevUpdateResult,
+)
 from sase.main.update_handler import handle_update_command
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -314,11 +321,17 @@ def test_upgrade_json_counts_exclude_receipt_duplicates(
     }
 
 
-def test_editable_roots_with_wheel_core_run_mixed_update_and_restart_once(
+def test_editable_roots_with_wheel_core_restore_core_via_dev_leg(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """A dev install never upgrades sase-core-rs on the managed PyPI leg.
+
+    A wheel-installed core in an editable-host install is a clobbered
+    environment: it is handed to the dev-update plan as the stale core so the
+    editable build gets restored from the local checkout.
+    """
     host = _record("sase", role="host", source_root="/home/u/sase")
     github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
     telegram = _record(
@@ -332,49 +345,37 @@ def test_editable_roots_with_wheel_core_run_mixed_update_and_restart_once(
         distribution_version="0.4.0",
         install_type="wheel",
     )
-    overrides = tmp_path / "editable-overrides.txt"
-    overrides.write_text("-e /home/u/sase\n", encoding="utf-8")
-    monkeypatch.setattr(
-        "sase.main.update_routing.write_editable_overrides",
-        lambda _requirements: overrides,
-    )
     monkeypatch.setattr(
         journal_mod, "DEV_UPDATE_JOURNAL", str(tmp_path / "dev_update.jsonl")
     )
-    order: list[str] = []
+    seen: dict[str, Any] = {}
     restart_calls = 0
 
-    def _execute(plan: DevUpdatePlan, *, run: Any) -> DevUpdateResult:
-        order.append("dev")
-        assert [package.record.name for package in plan.packages] == [
-            "sase",
-            "sase-github",
-            "sase-telegram",
-        ]
-        return _dev_result(plan, changed=False)
+    def _plan(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        **kwargs: Any,
+    ) -> DevUpdatePlan:
+        seen["records"] = [record.name for record in records]
+        seen["stale_core_record"] = kwargs.get("stale_core_record")
+        return _dev_plan(*records)
 
-    def _run(argv: list[str]) -> UvChangeSet:
-        order.append("managed")
-        assert argv[:5] == ["uv", "tool", "install", "--color", "never"]
-        assert ["--editable", "/home/u/sase"] == argv[5:7]
-        assert "--with-editable" in argv
-        assert argv[-2:] == ["--upgrade-package", "sase-core-rs"]
-        assert argv[argv.index("--overrides") + 1] == str(overrides)
-        return parse_uv_output(" - sase-core-rs==0.4.0\n + sase-core-rs==0.4.1")
+    def _run(_argv: list[str]) -> UvChangeSet:
+        raise AssertionError(
+            "the managed leg must not run when only sase-core-rs is non-editable"
+        )
 
     def _restart() -> AxeStartResult:
         nonlocal restart_calls
         restart_calls += 1
         return AxeStartResult(status="started", pid=2468)
 
-    plan = _dev_plan(host, github, telegram, status="skipped")
     code = handle_update_command(
         _args(json=True),
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
         run_fn=_run,
         inventory_fn=lambda: _inventory(host, core, github, telegram),
-        plan_dev_update_fn=lambda _records, **_kwargs: plan,
-        execute_dev_update_fn=_execute,
+        plan_dev_update_fn=_plan,
+        execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
         axe_running_fn=lambda: True,
         restart_axe_fn=_restart,
         version_fn=_versions,
@@ -382,27 +383,14 @@ def test_editable_roots_with_wheel_core_run_mixed_update_and_restart_once(
     )
 
     assert code == 0
-    assert order == ["dev", "managed"]
+    assert seen["records"] == ["sase", "sase-github", "sase-telegram"]
+    assert seen["stale_core_record"] is core
     assert restart_calls == 1
     payload = json.loads(capsys.readouterr().out)
-    assert payload["mode"] == "mixed"
+    assert payload["mode"] == "dev"
+    assert payload["command"] == []
+    assert payload["managed"] is None
     assert payload["changed"] is True
-    assert payload["counts"] == {
-        "updated": 1,
-        "already_current": 0,
-        "removed": 0,
-        "skipped": 3,
-        "failed": 0,
-    }
-    assert payload["managed"]["packages"] == [
-        {
-            "kind": "upgraded",
-            "name": "sase-core-rs",
-            "new_version": "0.4.1",
-            "old_version": "0.4.0",
-            "role": "dependency",
-        }
-    ]
 
 
 @pytest.mark.parametrize(
@@ -415,11 +403,12 @@ def test_editable_roots_with_wheel_core_run_mixed_update_and_restart_once(
         "fetch failed; using cached upstream ref: offline",
     ],
 )
-def test_skipped_editable_states_do_not_block_managed_core(
+def test_skipped_editable_states_do_not_block_stale_core_restore(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     reason: str,
 ) -> None:
+    """Skipped checkouts still let the dev leg rebuild a wheel-installed core."""
     host = _record("sase", role="host", source_root="/home/u/sase")
     core = _record(
         "sase-core-rs",
@@ -430,45 +419,70 @@ def test_skipped_editable_states_do_not_block_managed_core(
         install_type="wheel",
     )
     base = _dev_plan(host, status="skipped")
+    core_restore = DevUpdatePackagePlan(
+        record=core,
+        status="actionable",
+        reason=(
+            "installed sase-core-rs is a published wheel; dev installs use "
+            "the editable build from the local checkout"
+        ),
+        current_version="0.4.0",
+        latest_version="0.6.1",
+    )
+    rust_step = DevReconcileStep(
+        kind="rust_install_uv_tool",
+        label="Rebuild sase-core-rs into the uv-tool venv",
+        command=("just", "rust-install-uv-tool"),
+        cwd="/home/u/sase",
+    )
     plan = replace(
         base,
-        packages=(replace(base.packages[0], reason=reason),),
+        packages=(replace(base.packages[0], reason=reason), core_restore),
         roots=(replace(base.roots[0], reason=reason),),
+        reconcile_steps=(rust_step,),
     )
     monkeypatch.setattr(
         journal_mod, "DEV_UPDATE_JOURNAL", str(tmp_path / "dev_update.jsonl")
     )
-    managed_calls = 0
+    reconcile_commands: list[tuple[str, ...]] = []
 
-    def _run(_argv: list[str]) -> UvChangeSet:
-        nonlocal managed_calls
-        managed_calls += 1
-        return parse_uv_output("Nothing to upgrade")
+    def _run_command(argv: Any, *, cwd: Any = None) -> DevCommandResult:
+        reconcile_commands.append(tuple(argv))
+        return DevCommandResult(returncode=0)
 
     code = handle_update_command(
         _args(),
         console=_console(),
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
-        run_fn=_run,
+        run_fn=lambda _argv: pytest.fail(
+            "a dev install must not upgrade sase-core-rs on the managed leg"
+        ),
         inventory_fn=lambda: _inventory(host, core),
         plan_dev_update_fn=lambda _records, **_kwargs: plan,
-        run_dev_update_fn=lambda *_args, **_kwargs: pytest.fail(
-            "skipped roots must not execute git or reconcile commands"
-        ),
+        run_dev_update_fn=_run_command,
         axe_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
 
     assert code == 0
-    assert managed_calls == 1
+    assert reconcile_commands == [("just", "rust-install-uv-tool")]
 
 
 def test_managed_core_failure_is_not_success_and_does_not_restart(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    host = _record("sase", role="host", source_root="/home/u/sase")
+    """A published host keeps sase-core-rs on the managed leg, which can fail."""
+    mixed_receipt = """
+    [tool]
+    requirements = [
+        { name = "sase" },
+        { name = "sase-github", editable = "/home/u/sase-github" },
+    ]
+    """
+    host = _record("sase", role="host", source_root=None, install_type="wheel")
+    github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
     core = _record(
         "sase-core-rs",
         role="core",
@@ -483,6 +497,7 @@ def test_managed_core_failure_is_not_success_and_does_not_restart(
     restart_calls = 0
 
     def _run(argv: list[str]) -> UvChangeSet:
+        assert argv[-2:] == ["--upgrade-package", "sase-core-rs"]
         raise UvCommandFailedError(argv=argv, returncode=2, stderr="core conflict")
 
     def _restart() -> AxeStartResult:
@@ -490,15 +505,15 @@ def test_managed_core_failure_is_not_success_and_does_not_restart(
         restart_calls += 1
         return AxeStartResult(status="started", pid=1)
 
-    plan = _dev_plan(host, status="skipped")
+    plan = _dev_plan(github, status="skipped")
     err = _console()
     code = handle_update_command(
         _args(),
         console=_console(),
         err_console=err,
-        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        probe_fn=lambda: _install(tmp_path, mixed_receipt),
         run_fn=_run,
-        inventory_fn=lambda: _inventory(host, core),
+        inventory_fn=lambda: _inventory(host, core, github),
         plan_dev_update_fn=lambda _records, **_kwargs: plan,
         axe_running_fn=lambda: True,
         restart_axe_fn=_restart,

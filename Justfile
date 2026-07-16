@@ -20,6 +20,13 @@ workspace_sase_core_dir := "sase/repos/linked/sase-core"
 fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
 sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
 
+# Dev installs build sase_core_rs from the local checkout, so the published
+# sase-core-rs version window in pyproject.toml must not constrain (or
+# downgrade) that build during dependency resolution. When a buildable
+# checkout is present, editable install recipes pass a uv overrides file
+# that lifts the window; wheel-based installs keep the pyproject constraint.
+core_overrides_file := venv_dir / "sase-core-rs-overrides.txt"
+
 # The pinned renderer stack makes exact PNG equality the default in every
 # visual-bearing lane. The SASE_VISUAL_PNG_* environment variables remain
 # available as explicit escape hatches for renderer investigations and local
@@ -32,6 +39,16 @@ default:
 _venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
 
+# Print the `--overrides <file>` argument that lifts the published
+# sase-core-rs version window for dev installs. Prints nothing when no
+# buildable sase-core checkout exists, keeping the pyproject constraint
+# authoritative for published-wheel resolution.
+_core-overrides-arg:
+    @if [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
+        printf "sase-core-rs\n" > "{{ core_overrides_file }}"; \
+        printf -- "--overrides {{ core_overrides_file }}"; \
+    fi
+
 # Bootstrap .venv and install editable dev dependencies. Build the local
 # Rust extension first when a source checkout and Rust toolchain are
 # available, because `sase[dev]` depends on the `sase-core-rs` distribution.
@@ -39,7 +56,8 @@ _setup: _venv
     @if [ -d "{{ sase_core_dir }}" ] && [ ! -f "{{ sase_core_dir }}/Cargo.toml" ]; then \
         printf "[setup] sase-core checkout at {{ sase_core_dir }} has no Cargo.toml; treating as absent and using the published sase-core-rs wheel.\n"; \
     elif [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
-        {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || exit 1; \
+        {{ venv_bin }}/python tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || \
+            printf "[setup] WARNING: bump the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless.\n"; \
         if ! {{ venv_bin }}/python tools/validate_sase_core_rs; then \
             printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
             just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
@@ -48,7 +66,7 @@ _setup: _venv
     fi
     @if ! {{ venv_bin }}/python tools/validate_dependency_group dev || \
         ! {{ venv_bin }}/python tools/validate_editable_metadata; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources --reinstall-package mypy -e ".[dev]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) --reinstall-package mypy -e ".[dev]"; \
     fi
 
 # Bootstrap keep-sorted into the project venv so lint/fix do not depend on a
@@ -93,7 +111,7 @@ install: _venv
         printf "[install] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev]"
+    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev]"
 
 # Install in editable mode with dev and visual-test dependencies.
 install-visual: _venv
@@ -101,13 +119,13 @@ install-visual: _venv
         printf "[install-visual] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,visual]"
+    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"
 
 # Bootstrap visual-test dependencies without making them part of the default
 # development install.
 _setup-visual: _setup
     @if ! {{ venv_bin }}/python tools/validate_dependency_group visual; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,visual]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"; \
     fi
 
 # Install in editable mode with dev and real-terminal smoke-test dependencies.
@@ -116,13 +134,13 @@ install-terminal-smoke: _venv
         printf "[install-terminal-smoke] Building sase_core_rs from {{ sase_core_dir }} for local dev.\n"; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
     fi
-    uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"
+    uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"
 
 # Bootstrap real-terminal smoke-test dependencies without making them part of
 # the default development install.
 _setup-terminal-smoke: _setup
     @if ! {{ venv_bin }}/python tools/validate_dependency_group terminal-smoke; then \
-        uv pip install --python {{ venv_bin }}/python --no-sources -e ".[dev,terminal-smoke]"; \
+        uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,terminal-smoke]"; \
     fi
 
 # Run linters (ruff + mypy + pyscripts + symvision + toobig + keep-sorted)
@@ -431,7 +449,8 @@ rust-install VENV=venv_dir_abs: _venv
         printf "[rust-install] target venv %s has no bin/python; aborting.\n" "{{ VENV }}"; \
         exit 1; \
     fi
-    @"{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml
+    @"{{ VENV }}/bin/python" tools/validate_sase_core_rs_version --sase-core-dir "{{ sase_core_dir }}" --pyproject pyproject.toml || \
+        printf "[rust-install] WARNING: bump the published sase-core-rs window in pyproject.toml; dev builds from {{ sase_core_dir }} ignore it.\n"
     @"{{ VENV }}/bin/maturin" --version > /dev/null 2>&1 || uv pip install --python "{{ VENV }}/bin/python" maturin
     # Harden cargo crate downloads against transient crates.io flakiness.
     # CI has hit `curl ... [16] Error in the HTTP2 framing layer` while

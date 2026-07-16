@@ -87,11 +87,17 @@ def dev_route_from_inventory(
             "the install."
         )
 
+    # A dev (editable) host always pairs with the editable sase-core-rs build,
+    # so a wheel-installed core is a clobbered environment for the dev leg to
+    # restore. Only a published host keeps the core on the managed PyPI leg.
+    host_editable = receipt.primary.editable is not None
+    wheel_core_record = _wheel_core_record(inventory)
     return DevRoute(
         records=_with_editable_core_records(receipt_records, inventory),
         host_record=_host_record(inventory, receipt),
         managed_requirements=_managed_requirements(receipt),
-        managed_core_record=_managed_core_record(inventory),
+        managed_core_record=None if host_editable else wheel_core_record,
+        stale_core_record=wheel_core_record if host_editable else None,
     )
 
 
@@ -130,7 +136,7 @@ def _with_editable_core_records(
     return tuple(selected)
 
 
-def _managed_core_record(
+def _wheel_core_record(
     inventory: RuntimeVersionInventory,
 ) -> VersionPackageRecord | None:
     core_key = normalize_distribution_name(CORE_DISTRIBUTION_NAME)

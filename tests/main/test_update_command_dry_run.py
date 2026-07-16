@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from sase.dev_update.models import DevUpdatePlan
 from sase.main.update_handler import handle_update_command
 from sase.uv_tool.runner import UvChangeSet
+from sase.version.inventory import VersionPackageRecord
 from tests.main.update_command_helpers import (
     _DEV_RECEIPT,
     _args,
@@ -123,8 +126,7 @@ def test_dev_dry_run_renders_plan_without_executing(tmp_path: Path) -> None:
     assert "Reinstall uv-tool editable Python packages" in text
 
 
-def test_editable_dry_run_includes_managed_core_reconciliation(
-    monkeypatch: pytest.MonkeyPatch,
+def test_editable_dry_run_routes_wheel_core_to_dev_restore(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -141,36 +143,31 @@ def test_editable_dry_run_includes_managed_core_reconciliation(
         distribution_version="0.4.0",
         install_type="wheel",
     )
-    overrides = tmp_path / "editable-overrides.txt"
-    monkeypatch.setattr(
-        "sase.main.update_routing.write_editable_overrides",
-        lambda _requirements: overrides,
-    )
+    seen: dict[str, Any] = {}
+
+    def _plan_fn(
+        records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
+        **kwargs: Any,
+    ) -> DevUpdatePlan:
+        seen["stale_core_record"] = kwargs.get("stale_core_record")
+        return _dev_plan(host, github, telegram, status="skipped")
 
     code = handle_update_command(
         _args(json=True, dry_run=True),
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
         inventory_fn=lambda: _inventory(host, core, github, telegram),
-        plan_dev_update_fn=lambda records, **_kwargs: _dev_plan(
-            *records, status="skipped"
-        ),
+        plan_dev_update_fn=_plan_fn,
         version_fn=_versions,
     )
 
     assert code == 0
+    # A dev (editable-host) install never routes sase-core-rs to the managed
+    # PyPI leg; the wheel-installed core is handed to the dev plan to restore.
+    assert seen["stale_core_record"] is core
     payload = json.loads(capsys.readouterr().out)
-    assert payload["mode"] == "mixed"
-    assert payload["command"][-2:] == ["--upgrade-package", "sase-core-rs"]
-    assert payload["managed"] == {
-        "command": payload["command"],
-        "packages": [
-            {
-                "name": "sase-core-rs",
-                "role": "dependency",
-                "current_version": "0.4.0",
-            }
-        ],
-    }
+    assert payload["mode"] == "dev"
+    assert payload["command"] == []
+    assert payload["managed"] is None
     assert [package["status"] for package in payload["dev"]["packages"]] == [
         "skipped",
         "skipped",

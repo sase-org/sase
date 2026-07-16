@@ -320,6 +320,7 @@ def _handle_live_update(
                 host_record=route.host_record,
                 receipt=receipt,
                 tool_python=_tool_python(install),
+                stale_core_record=route.stale_core_record,
             )
         except Exception as exc:  # noqa: BLE001 - surface planning failures cleanly.
             return _fail(
@@ -454,6 +455,7 @@ def _handle_dry_run(
                 host_record=route.host_record,
                 receipt=receipt,
                 tool_python=_tool_python(install),
+                stale_core_record=route.stale_core_record,
             )
         except Exception as exc:  # noqa: BLE001 - dry-run should fail legibly.
             return _fail(
@@ -527,10 +529,13 @@ def _call_plan_dev_update(
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None,
     tool_python: str,
+    stale_core_record: VersionPackageRecord | None = None,
 ) -> DevUpdatePlan:
     kwargs: dict[str, Any] = {"host_record": host_record, "receipt": receipt}
     if _callable_accepts_keyword(fn, "tool_python"):
         kwargs["tool_python"] = tool_python
+    if _callable_accepts_keyword(fn, "stale_core_record"):
+        kwargs["stale_core_record"] = stale_core_record
     return fn(records, **kwargs)
 
 

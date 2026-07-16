@@ -41,6 +41,7 @@ class PlanDevFn(Protocol):
         host_record: VersionPackageRecord,
         receipt: ToolReceipt | None = None,
         tool_python: str | None = None,
+        stale_core_record: VersionPackageRecord | None = None,
     ) -> DevUpdatePlan: ...
 
 
@@ -69,6 +70,11 @@ class DevRoute:
     host_record: VersionPackageRecord
     managed_requirements: tuple[Requirement, ...]
     managed_core_record: VersionPackageRecord | None = None
+    #: Wheel-installed ``sase-core-rs`` found in a dev (editable-host) install.
+    #: Dev installs always use the editable core build, so this record marks a
+    #: clobbered environment the dev-update plan should restore rather than a
+    #: package the managed leg may upgrade.
+    stale_core_record: VersionPackageRecord | None = None
 
 
 @dataclass(frozen=True)

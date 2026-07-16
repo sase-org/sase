@@ -532,3 +532,70 @@ def test_execute_dev_update_no_actionable_roots_returns_skips() -> None:
 
     assert result.changed is False
     assert result.outcomes[0].status == "skipped"
+
+
+def _stale_core_package() -> DevUpdatePackagePlan:
+    return DevUpdatePackagePlan(
+        record=_record("sase-core-rs"),
+        status="actionable",
+        reason=(
+            "installed sase-core-rs is a published wheel; dev installs use "
+            "the editable build from the local checkout"
+        ),
+        current_version="0.4.1",
+        latest_version="0.5.0",
+    )
+
+
+def test_execute_dev_update_runs_core_restore_without_actionable_roots() -> None:
+    step = DevReconcileStep(
+        kind="rust_install_uv_tool",
+        label="Rebuild sase-core-rs into the uv-tool venv",
+        command=("just", "rust-install-uv-tool"),
+        cwd="/host",
+    )
+    plan = DevUpdatePlan(
+        packages=(_package("sase", status="skipped"), _stale_core_package()),
+        roots=(),
+        reconcile_steps=(step,),
+    )
+    runner = FakeRunner()
+
+    result = execute_dev_update(plan, run=runner)
+
+    assert runner.calls == [(("just", "rust-install-uv-tool"), Path("/host"))]
+    assert result.changed is True
+    statuses = {outcome.record.name: outcome.status for outcome in result.outcomes}
+    assert statuses == {"sase-core-rs": "updated", "sase": "skipped"}
+    core_outcome = next(
+        outcome for outcome in result.outcomes if outcome.record.name == "sase-core-rs"
+    )
+    assert core_outcome.old_version == "0.4.1"
+    assert core_outcome.new_version == "0.5.0"
+
+
+def test_execute_dev_update_core_restore_failure_reports_failed_core() -> None:
+    step = DevReconcileStep(
+        kind="rust_install_uv_tool",
+        label="Rebuild sase-core-rs into the uv-tool venv",
+        command=("just", "rust-install-uv-tool"),
+        cwd="/host",
+    )
+    plan = DevUpdatePlan(
+        packages=(_stale_core_package(),),
+        roots=(),
+        reconcile_steps=(step,),
+    )
+    runner = FakeRunner(
+        responses={
+            ("just", "rust-install-uv-tool"): DevCommandResult(
+                1, stderr="cargo build failed"
+            )
+        }
+    )
+
+    result = execute_dev_update(plan, run=runner)
+
+    assert result.changed is True
+    assert result.outcomes[0].status == "failed"
+    assert "cargo build failed" in result.outcomes[0].reason

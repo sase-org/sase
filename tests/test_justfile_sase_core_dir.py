@@ -150,7 +150,8 @@ def test_just_test_rust_install_targets_active_venv() -> None:
     ) in output
     assert (
         "uv pip install --python /tmp/sase-custom-venv/bin/python "
-        '--no-sources --reinstall-package mypy -e ".[dev]"'
+        "--no-sources $(just _core-overrides-arg) "
+        '--reinstall-package mypy -e ".[dev]"'
     ) in output
     assert (
         "/tmp/sase-custom-venv/bin/python tools/validate_dependency_group dev"
@@ -160,5 +161,5 @@ def test_just_test_rust_install_targets_active_venv() -> None:
     ) in output
     assert (
         "uv pip install --python /tmp/sase-custom-venv/bin/python "
-        '--no-sources -e ".[dev,visual]"'
+        '--no-sources $(just _core-overrides-arg) -e ".[dev,visual]"'
     ) in output

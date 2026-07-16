@@ -89,7 +89,9 @@ requirements = [
     ]
     assert plan.argv[-2] == "--overrides"
     overrides_path = Path(plan.argv[-1])
-    assert overrides_path.read_text(encoding="utf-8") == "-e /home/u/sase\n"
+    assert (
+        overrides_path.read_text(encoding="utf-8") == "-e /home/u/sase\nsase-core-rs\n"
+    )
 
 
 def test_plan_uninstall_community_plugin_absent_from_catalog(tmp_path: Path) -> None:

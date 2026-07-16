@@ -30,7 +30,10 @@ def execute_dev_update(
 ) -> DevUpdateResult:
     """Execute ``plan`` with a fully injected subprocess runner."""
     commands: list[DevExecutedCommand] = []
-    if not plan.actionable_roots:
+    # Reconcile steps can exist without actionable checkouts (for example a
+    # dev install restoring the editable sase-core-rs build over a published
+    # wheel), so an empty root set alone does not make the plan a no-op.
+    if not plan.actionable_roots and not plan.reconcile_steps:
         return DevUpdateResult(
             changed=False,
             outcomes=_skipped_outcomes(plan),
@@ -55,7 +58,9 @@ def execute_dev_update(
 
     reconcile_failure = _run_reconcile_steps(plan.reconcile_steps, run, commands)
     if reconcile_failure is not None:
-        return _failed_result(plan, reconcile_failure, commands, changed=True)
+        return _failed_result(
+            plan, reconcile_failure, commands, changed=merged_any or bool(commands)
+        )
 
     return DevUpdateResult(
         changed=True,

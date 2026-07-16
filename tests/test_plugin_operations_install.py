@@ -113,7 +113,7 @@ requirements = [
     assert plan.argv[-2] == "--overrides"
     overrides_path = Path(plan.argv[-1])
     assert overrides_path.read_text(encoding="utf-8") == (
-        "-e /src/sase\n-e /src/sase-telegram\n"
+        "-e /src/sase\n-e /src/sase-telegram\nsase-core-rs\n"
     )
 
 
@@ -162,7 +162,7 @@ requirements = [
     assert isinstance(plan, InstallManyReady)
     assert plan.argv[-2] == "--overrides"
     overrides_path = Path(plan.argv[-1])
-    assert overrides_path.read_text(encoding="utf-8") == "-e /src/sase\n"
+    assert overrides_path.read_text(encoding="utf-8") == "-e /src/sase\nsase-core-rs\n"
 
 
 def test_plan_install_many_skips_terminal_inputs(tmp_path: Path) -> None:

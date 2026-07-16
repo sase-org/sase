@@ -7,27 +7,42 @@ from pathlib import Path
 
 from sase.core.paths import ensure_sase_directory
 from sase.uv_tool.receipt import Requirement
+from sase.version._models import CORE_DISTRIBUTION_NAME, HOST_DISTRIBUTION_NAME
+from sase.version._utils import normalize_distribution_name
 
 _DEFAULT_FILENAME = "editable-overrides.txt"
+_HOST_KEY = normalize_distribution_name(HOST_DISTRIBUTION_NAME)
 
 
 def editable_override_lines(requirements: Iterable[Requirement]) -> tuple[str, ...]:
-    """Return ``-e <path>`` override lines for editable requirements.
+    """Return uv override lines for editable requirements.
 
-    One line is emitted per normalized distribution name. The first editable
-    entry wins, preserving the receipt or reconstructed-set order passed by the
-    caller.
+    One ``-e <path>`` line is emitted per normalized distribution name. The
+    first editable entry wins, preserving the receipt or reconstructed-set
+    order passed by the caller.
+
+    When the host ``sase`` package itself is editable (a dev install), an
+    unconstrained ``sase-core-rs`` override is appended so the published
+    version window in the host's pyproject never applies: dev installs build
+    ``sase_core_rs`` from the local checkout, and uv must not downgrade or
+    replace that build just because the checkout version is outside the
+    window published for wheel installs.
     """
     seen: set[str] = set()
     lines: list[str] = []
+    host_editable = False
     for requirement in requirements:
         if requirement.editable is None:
             continue
         key = requirement.normalized_name
+        if key == _HOST_KEY:
+            host_editable = True
         if key in seen:
             continue
         seen.add(key)
         lines.append(f"-e {requirement.editable}")
+    if host_editable:
+        lines.append(CORE_DISTRIBUTION_NAME)
     return tuple(lines)
 
 

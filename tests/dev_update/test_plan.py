@@ -275,7 +275,7 @@ def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
     assert command[-2] == "--overrides"
     overrides_path = Path(command[-1])
     assert overrides_path.read_text(encoding="utf-8") == (
-        "-e /repo/sase\n-e /repo/sase/plugins/github\n"
+        "-e /repo/sase\n-e /repo/sase/plugins/github\nsase-core-rs\n"
     )
 
 
@@ -327,6 +327,145 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     )
     assert plan.reconcile_steps[2].command == ("just", "rust-lsp-install-uv-tool")
     assert plan.reconcile_steps[2].cwd == str(host_root)
+
+
+def test_plan_dev_update_rebuilds_current_dev_core_after_uv_tool_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host = _record("sase", role="host", source_root="/repo/sase")
+    core = _record("sase-core-rs", role="core", source_root="/repo/sase-core")
+    statuses = {
+        "/repo/sase": _status("/repo/sase", behind=2),
+        "/repo/sase-core": _status("/repo/sase-core", behind=0),
+    }
+    receipt = parse_receipt(
+        """
+        [tool]
+        requirements = [
+            { name = "sase", editable = "/repo/sase" },
+        ]
+        """
+    )
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda root: statuses[str(root)]
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update(
+        [host, core],
+        host_record=host,
+        receipt=receipt,
+        tool_python="/tool/bin/python",
+    )
+
+    assert [step.kind for step in plan.reconcile_steps] == [
+        "uv_tool_install",
+        "rust_install_uv_tool",
+        "rust_health_check",
+        "rust_lsp_install",
+    ]
+
+
+def test_plan_dev_update_restores_stale_core_from_buildable_checkout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host_root = tmp_path / "sase"
+    core_root = tmp_path / "sase-core"
+    host_root.mkdir()
+    core_root.mkdir()
+    (host_root / "pyproject.toml").write_text(
+        """
+        [project]
+        dependencies = [
+            "sase-core-rs>=0.3.2,<0.4.0",
+        ]
+        """,
+        encoding="utf-8",
+    )
+    (core_root / "Cargo.toml").write_text(
+        '[workspace.package]\nversion = "0.5.0"\n',
+        encoding="utf-8",
+    )
+    host = _record("sase", role="host", source_root=str(host_root))
+    stale_core = _record(
+        "sase-core-rs",
+        role="core",
+        source_root=None,
+        display_version="0.4.1",
+        install_type="wheel",
+    )
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda _root: _status(str(host_root))
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+    monkeypatch.setattr(plan_mod.shutil, "which", lambda _name: "/usr/bin/cargo")
+    monkeypatch.delenv("SASE_CORE_DIR", raising=False)
+
+    plan = plan_dev_update(
+        [host],
+        host_record=host,
+        tool_python="/tool/bin/python",
+        stale_core_record=stale_core,
+    )
+
+    core_plans = [pkg for pkg in plan.packages if pkg.record.role == "core"]
+    assert len(core_plans) == 1
+    assert core_plans[0].status == "actionable"
+    assert "published wheel" in core_plans[0].reason
+    assert core_plans[0].current_version == "0.4.1"
+    assert core_plans[0].latest_version == "0.5.0+4.gbbbbbbbbb"
+    assert core_plans[0].git_root is None
+    assert [step.kind for step in plan.reconcile_steps] == [
+        "uv_tool_install",
+        "rust_install_uv_tool",
+        "rust_health_check",
+        "rust_lsp_install",
+    ]
+
+
+def test_plan_dev_update_stale_core_without_checkout_or_cargo_is_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host_root = tmp_path / "sase"
+    host_root.mkdir()
+    host = _record("sase", role="host", source_root=str(host_root))
+    stale_core = _record(
+        "sase-core-rs",
+        role="core",
+        source_root=None,
+        display_version="0.4.1",
+        install_type="wheel",
+    )
+    monkeypatch.setattr(
+        plan_mod,
+        "classify_git_upstream",
+        lambda _root: _status(str(host_root), behind=0),
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+    monkeypatch.delenv("SASE_CORE_DIR", raising=False)
+
+    monkeypatch.setattr(plan_mod.shutil, "which", lambda _name: "/usr/bin/cargo")
+    no_checkout = plan_dev_update(
+        [host], host_record=host, stale_core_record=stale_core
+    )
+
+    core_root = tmp_path / "sase-core"
+    core_root.mkdir()
+    (core_root / "Cargo.toml").write_text(
+        '[workspace.package]\nversion = "0.5.0"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(plan_mod.shutil, "which", lambda _name: None)
+    no_cargo = plan_dev_update([host], host_record=host, stale_core_record=stale_core)
+
+    for plan, expected in ((no_checkout, "no local"), (no_cargo, "cargo is not")):
+        core_plans = [pkg for pkg in plan.packages if pkg.record.role == "core"]
+        assert len(core_plans) == 1
+        assert core_plans[0].status == "skipped"
+        assert expected in core_plans[0].reason
+        assert plan.reconcile_steps == ()
 
 
 def test_plan_dev_update_core_rebuild_steps_need_host_source_root(

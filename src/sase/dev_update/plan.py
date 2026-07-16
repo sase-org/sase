@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -27,6 +29,7 @@ from sase.version._git import (
     probe_git_metadata_at_ref,
 )
 from sase.version._models import CORE_DISTRIBUTION_NAME, VersionPackageRecord
+from sase.version._sources import rust_source_version
 from sase.version._utils import normalize_distribution_name
 from sase.uv_tool.commands import build_install
 from sase.uv_tool.overrides import write_editable_overrides
@@ -46,8 +49,15 @@ def plan_dev_update(
     receipt: ToolReceipt | None = None,
     tool_python: str | None = None,
     already_refreshed_roots: Collection[str] = (),
+    stale_core_record: VersionPackageRecord | None = None,
 ) -> DevUpdatePlan:
-    """Plan a fast-forward-only dev update for editable package records."""
+    """Plan a fast-forward-only dev update for editable package records.
+
+    *stale_core_record* is a wheel-installed ``sase-core-rs`` found in a dev
+    (editable-host) install. Dev installs always use the editable core build,
+    so a buildable local checkout makes the restore actionable even when no
+    checkout is behind upstream.
+    """
     fresh_roots = {git_probe_cache_key(Path(root)) for root in already_refreshed_roots}
     packages: list[DevUpdatePackagePlan] = []
     by_root: OrderedDict[str, list[VersionPackageRecord]] = OrderedDict()
@@ -124,11 +134,19 @@ def plan_dev_update(
                 )
             )
 
+    stale_core_plan = _stale_core_plan(stale_core_record, host_record=host_record)
+    if stale_core_plan is not None:
+        packages.append(stale_core_plan)
+
     reconcile_steps = _reconcile_steps(
         [pkg.record for pkg in packages if pkg.status == "actionable"],
         host_record=host_record,
         receipt=receipt,
         tool_python=tool_python,
+        dev_core_present=any(
+            record.role == "core" and record.install_type == "editable"
+            for record in records
+        ),
     )
     return DevUpdatePlan(
         packages=tuple(packages),
@@ -240,10 +258,15 @@ def _reconcile_steps(
     host_record: VersionPackageRecord,
     receipt: ToolReceipt | None,
     tool_python: str | None,
+    dev_core_present: bool = False,
 ) -> tuple[DevReconcileStep, ...]:
     steps: list[DevReconcileStep] = []
     python_changed = any(record.role != "core" for record in actionable_records)
     core_changed = any(record.role == "core" for record in actionable_records)
+    # The uv-tool reinstall may rewrite the venv while resolving the editable
+    # Python set, so an installed editable core is rebuilt afterwards even
+    # when the core checkout itself did not change.
+    rebuild_core = core_changed or (python_changed and dev_core_present)
 
     if python_changed:
         if receipt is None:
@@ -273,7 +296,7 @@ def _reconcile_steps(
                 )
             )
 
-    if core_changed:
+    if rebuild_core:
         if host_record.source_root:
             steps.append(
                 DevReconcileStep(
@@ -313,6 +336,64 @@ def _reconcile_steps(
             )
 
     return tuple(steps)
+
+
+def _stale_core_plan(
+    stale_core_record: VersionPackageRecord | None,
+    *,
+    host_record: VersionPackageRecord,
+) -> DevUpdatePackagePlan | None:
+    """Plan the editable-core restore for a dev install running a wheel core.
+
+    A wheel-installed core in a dev install means an earlier update replaced
+    the local build (for example when a published version window excluded the
+    checkout's version). The restore is actionable only when the checkout can
+    actually be rebuilt; otherwise the wheel is kept and the reason says why.
+    """
+    if stale_core_record is None:
+        return None
+    checkout = _core_checkout_dir(host_record)
+    if checkout is None:
+        return _skipped(
+            stale_core_record,
+            "installed sase-core-rs is a published wheel and no local "
+            "sase-core checkout is available to rebuild the editable build",
+        )
+    if shutil.which("cargo") is None:
+        return _skipped(
+            stale_core_record,
+            "installed sase-core-rs is a published wheel and cargo is not "
+            "available to rebuild the editable build",
+        )
+    return DevUpdatePackagePlan(
+        record=stale_core_record,
+        status="actionable",
+        reason=(
+            "installed sase-core-rs is a published wheel; dev installs use "
+            "the editable build from the local checkout"
+        ),
+        current_version=stale_core_record.display_version,
+        latest_version=_core_checkout_version(checkout),
+    )
+
+
+def _core_checkout_dir(host_record: VersionPackageRecord) -> Path | None:
+    env_dir = os.environ.get("SASE_CORE_DIR")
+    candidates = [Path(env_dir)] if env_dir else []
+    if host_record.source_root:
+        candidates.append(Path(host_record.source_root).parent / "sase-core")
+    for candidate in candidates:
+        if (candidate / "Cargo.toml").is_file():
+            return candidate
+    return None
+
+
+def _core_checkout_version(checkout: Path) -> str | None:
+    version = rust_source_version(checkout)
+    result = probe_git_metadata_at_ref(checkout, "HEAD")
+    if result.metadata is None:
+        return version
+    return derive_display_version(version, result.metadata)
 
 
 def _rust_health_check_step(

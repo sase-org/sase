@@ -237,6 +237,11 @@ git clone https://github.com/sase-org/sase-core.git ../sase-core
 just install     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
 ```
 
+Dev installs always track the local checkout. The published `sase-core-rs` version window in `pyproject.toml` applies
+only to wheel-based installs: editable installs pass a uv override that lifts the window so the locally built extension
+is never downgraded to a published wheel during dependency resolution, and `sase update` rebuilds the editable extension
+from the checkout whenever it finds a published wheel installed in a dev environment.
+
 Docs-only commands do not need the application package or the Rust extension. `just docs-check` and
 `just docs-pdf-check` install only MkDocs tooling into `.venv`, which is why documentation CI can run without checking
 out `../sase-core`.

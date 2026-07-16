@@ -201,6 +201,7 @@ def test_plan_to_dev_builds_editable_reinstall_command(tmp_path: Path) -> None:
     assert overrides_path.read_text(encoding="utf-8") == (
         f"-e {tmp_path / 'dev' / 'sase-org' / 'sase'}\n"
         f"-e {tmp_path / 'dev' / 'sase-org' / 'sase-github'}\n"
+        "sase-core-rs\n"
     )
 
     clone_commands = {
