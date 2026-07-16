@@ -41,7 +41,8 @@ _SKILL_ENTRY = XPromptAssistEntry(
 def _xprompt_highlight_agent(artifacts_dir: Path) -> Agent:
     artifacts_dir.mkdir()
     (artifacts_dir / "raw_xprompt.md").write_text(
-        "#git:sase %auto #pr:my_change %m:opus\n---\n%{fast=a | safe=b} /sase_plan",
+        "#git:sase %auto #pr:my_change %m:opus Run `checks`\n"
+        "---\n%{fast=a | safe=b} /sase_plan",
         encoding="utf-8",
     )
     (artifacts_dir / "01_prompt.md").write_text(

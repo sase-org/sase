@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from pygments.lexers.markup import MarkdownLexer  # type: ignore[import-untyped]
+from pygments.token import Token  # type: ignore[import-untyped]
 from rich.style import StyleType
 from rich.syntax import Syntax
 from rich.text import Text
@@ -30,6 +32,21 @@ _ALT_TOKEN_STYLE_KEYS = {
     "branch_name": "branch_name",
     "error": "error",
 }
+
+
+class _XPromptMarkdownLexer(MarkdownLexer):
+    """Markdown lexer that keeps xprompt-led lines out of heading rules."""
+
+    tokens = {
+        **MarkdownLexer.tokens,
+        "root": [
+            (r"^#(?=[^#\s])", Token.Text),
+            *MarkdownLexer.tokens["root"],
+        ],
+    }
+
+
+_XPROMPT_MARKDOWN_LEXER = _XPromptMarkdownLexer()
 
 
 class _StylizableText(Protocol):
@@ -96,7 +113,11 @@ def highlight_prompt_text(
     ):
         return Text(text)
     try:
-        highlighted = Syntax(text, "markdown", theme="monokai").highlight(text)
+        highlighted = Syntax(
+            text,
+            _XPROMPT_MARKDOWN_LEXER,
+            theme="monokai",
+        ).highlight(text)
         if not text.endswith("\n") and highlighted.plain.endswith("\n"):
             highlighted.right_crop(1)
         apply_xprompt_overlays(

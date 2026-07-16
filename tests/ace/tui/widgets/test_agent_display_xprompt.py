@@ -150,6 +150,32 @@ class TestAgentXPromptRendering:
         assert XPROMPT_TOKEN_STYLES["skill"] in _styles_at(header, "/sase_plan")
         assert calls == [("sase", True)]
 
+    def test_agent_xprompt_highlights_inline_code_after_humanizing(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        monkeypatch.setattr(
+            pdn,
+            "_project_display_name_map_cached",
+            lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+        )
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt="#gh:gh_acme__widgets Run `pytest`",
+        )
+        agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
+        agent.project_display_name = "widgets"
+
+        panel.update_display(agent)
+
+        header = _header_text(panel.captured[-1])
+        assert "AGENT XPROMPT\n#gh:widgets Run `pytest`" in header.plain
+        assert any("#e6db74" in style for style in _styles_at(header, "pytest"))
+
     def test_agent_prompt_and_chat_use_logical_project_name(
         self,
         tmp_path: Path,

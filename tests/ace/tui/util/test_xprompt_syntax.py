@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pygments import lex
+from pygments.token import Generic
 from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
 from sase.ace.tui.util.xprompt_syntax import (
+    _XPROMPT_MARKDOWN_LEXER,
     XPROMPT_TOKEN_STYLES,
     highlight_prompt_text,
 )
@@ -18,6 +21,36 @@ def _styles_at(text: Text, needle: str, *, offset: int = 0) -> set[str]:
         for span in text.spans
         if span.start <= position < span.end and span.style is not None
     }
+
+
+def _has_style_fragment(text: Text, needle: str, fragment: str) -> bool:
+    return any(fragment in style for style in _styles_at(text, needle))
+
+
+def test_invocation_led_line_highlights_inline_code() -> None:
+    highlighted = highlight_prompt_text("#git:sase Run `foo`")
+
+    assert _has_style_fragment(highlighted, "foo", "#e6db74")
+
+
+def test_real_markdown_headings_keep_their_heading_tokens() -> None:
+    tokens = list(lex("# Heading\n## Sub\n", _XPROMPT_MARKDOWN_LEXER))
+
+    assert (Generic.Heading, "# Heading") in tokens
+    assert (Generic.Subheading, "## Sub") in tokens
+
+
+def test_workflow_invocation_led_line_highlights_inline_code() -> None:
+    highlighted = highlight_prompt_text("#!workflow Run `foo`")
+
+    assert _has_style_fragment(highlighted, "foo", "#e6db74")
+
+
+def test_fenced_code_after_invocation_keeps_inner_highlighting() -> None:
+    source = '#git:sase\n```python\nprint("ok")\n```'
+    highlighted = highlight_prompt_text(source)
+
+    assert _has_style_fragment(highlighted, '"ok"', "#e6db74")
 
 
 def test_highlights_reference_forms_and_arguments() -> None:
