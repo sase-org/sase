@@ -9,8 +9,8 @@ pdf: false
 
 ## Outcome
 
-The regenerated infographic is accurate enough to embed in `docs/xprompt.md`. It preserves the useful three-zone inputs
-→ resolution → outcomes structure while replacing the stale technical content in the prior PNG.
+The revised infographic is accurate enough to embed in `docs/xprompt.md`. It preserves the useful three-zone inputs →
+resolution → outcomes structure while removing legacy compatibility paths from the discovery inset.
 
 ## Accuracy Review
 
@@ -24,10 +24,9 @@ The final labels match the authoritative launch and expansion model:
 5. Inline expansion, standalone workflows, and depth-capped multi-agent fan-out are runtime outcomes. Workflow graph and
    explain output are presented separately as developer tools.
 
-The discovery panel mirrors all 17 rows in the current `docs/xprompt.md` table. Canonical project and home directories
-precede their read-compatible legacy locations; canonical and legacy project config entries remain distinct; user
-overlays/base config, plugin/package defaults, plugin xprompt entry points, and both package-provided xprompt locations
-retain their documented order.
+The discovery panel now presents only the 11 canonical project, home, config, plugin, and package sources from the
+current `docs/xprompt.md` table. Their relative first-wins order is preserved. The six legacy directory and config
+fallback paths are intentionally absent.
 
 ## Visual Review
 
@@ -40,7 +39,7 @@ The 1672×941 PNG was inspected at full resolution for:
 - distinct runtime and developer-tool regions; and
 - absence of model-generated text, pseudo-text, logos, or watermarks.
 
-The 17-row discovery panel is intentionally the densest part of the asset. Its monospace labels remain readable at full
+The 11-row canonical discovery panel remains the densest part of the asset. Its monospace labels remain readable at full
 resolution, while the larger stage labels preserve the diagram's scan path at normal documentation width.
 
 ## Resolved Problems From The Previous Asset
@@ -48,8 +47,9 @@ resolution, while the larger stage labels preserve the diagram's scan path at no
 - Removed the obsolete keyword-trigger and dynamic-memory rows.
 - Put aliases before masking and moved directive extraction after full expansion.
 - Added the iterative expansion loop and the missing argument-time `$(cmd)` step.
-- Replaced the stale collapsed discovery stack with the canonical 17-row ordering.
+- Replaced the stale collapsed discovery stack with canonical source ordering.
 - Corrected `#name` / `#!name` semantics and changed fan-out from “one-level” to depth-capped.
 - Renamed the inline outcome and visually demoted graph/explain to developer tooling.
+- Removed all legacy compatibility paths from the discovery panel.
 
-Final SHA-256: `a2b5e5e55e8af32966cb59e6806982c15d7fc19ff70583e327d6a8a280b19174`.
+Final SHA-256: `2c162d3c7f44f703fb8fc2e2a33cf75bd28ae5a32e8693ffd1c1a6e13fb8d002`.
