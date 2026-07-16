@@ -56,6 +56,94 @@ def test_config_schema_rejects_max_running_agents_below_minimum() -> None:
         Draft7Validator(_schema()).validate({"max_running_agents": 0})
 
 
+def test_config_schema_accepts_telegram_commands() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "telegram": {
+                "commands": {
+                    "tasks": {
+                        "description": "Obsidian tasks dashboard as a PDF",
+                        "run": "~/bin/tg_cmd_tasks --note dash.md",
+                        "output": "pdf",
+                        "timeout": "90s",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Tasks", "tasks-report", "", "a" * 33],
+)
+def test_config_schema_rejects_invalid_telegram_command_names(name: str) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "telegram": {
+                    "commands": {
+                        name: {
+                            "description": "Tasks dashboard",
+                            "run": "tg_cmd_tasks",
+                        }
+                    }
+                }
+            }
+        )
+
+
+@pytest.mark.parametrize("missing", ["description", "run"])
+def test_config_schema_requires_telegram_command_fields(missing: str) -> None:
+    command = {
+        "description": "Tasks dashboard",
+        "run": "tg_cmd_tasks",
+    }
+    del command[missing]
+
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {"telegram": {"commands": {"tasks": command}}}
+        )
+
+
+def test_config_schema_rejects_invalid_telegram_command_output() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "telegram": {
+                    "commands": {
+                        "tasks": {
+                            "description": "Tasks dashboard",
+                            "run": "tg_cmd_tasks",
+                            "output": "document",
+                        }
+                    }
+                }
+            }
+        )
+
+
+@pytest.mark.parametrize("timeout", ["90", "1d", "1.5m", "soon"])
+def test_config_schema_rejects_invalid_telegram_command_timeout(
+    timeout: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "telegram": {
+                    "commands": {
+                        "tasks": {
+                            "description": "Tasks dashboard",
+                            "run": "tg_cmd_tasks",
+                            "timeout": timeout,
+                        }
+                    }
+                }
+            }
+        )
+
+
 def test_get_max_running_agents_reads_merged_config(monkeypatch) -> None:
     from sase.config import core as config_core
 

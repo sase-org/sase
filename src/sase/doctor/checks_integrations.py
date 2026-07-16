@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import shlex
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.config import load_merged_config
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 from sase.integrations.mobile_gateway import (
     DEFAULT_BIND_ADDRESS,
@@ -35,6 +37,12 @@ def integration_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=_check_mobile_push_config,
         ),
         CheckSpec(
+            id="integrations.telegram_commands",
+            group="integrations",
+            title="Telegram command executables",
+            runner=_check_telegram_commands,
+        ),
+        CheckSpec(
             id="integrations.mobile_gateway_binary",
             group="integrations",
             title="Mobile gateway binary",
@@ -42,6 +50,96 @@ def integration_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             deep=True,
         ),
     )
+
+
+def _check_telegram_commands(
+    *,
+    config: dict[str, Any] | None = None,
+    command_head_available: CommandHeadProbe | None = None,
+) -> DiagnosticCheck:
+    """Check that every configured Telegram command executable resolves."""
+    config = load_merged_config() if config is None else config
+    command_head_available = command_head_available or _command_head_available
+    telegram = config.get("telegram")
+    commands = telegram.get("commands") if isinstance(telegram, dict) else None
+
+    if not isinstance(commands, dict) or not commands:
+        return DiagnosticCheck(
+            id="integrations.telegram_commands",
+            group="integrations",
+            status="SKIP",
+            title="Telegram command executables",
+            summary="no custom Telegram commands are configured",
+            data={
+                "configured_commands": 0,
+                "resolved_commands": 0,
+                "unresolved_commands": 0,
+                "command_results": (),
+            },
+        )
+
+    results: list[dict[str, Any]] = []
+    details: list[str] = []
+    for name, command_config in sorted(commands.items()):
+        run = command_config.get("run") if isinstance(command_config, dict) else None
+        command_head = _telegram_command_head(run)
+        resolved = command_head is not None and command_head_available(command_head)
+        displayed_head = command_head or "<invalid run>"
+        details.append(
+            f"{name}: {displayed_head} ({'resolved' if resolved else 'not found'})"
+        )
+        results.append(
+            {
+                "name": name,
+                "command_head": command_head,
+                "resolved": resolved,
+            }
+        )
+
+    resolved_count = sum(bool(result["resolved"]) for result in results)
+    unresolved_count = len(results) - resolved_count
+    data = {
+        "configured_commands": len(results),
+        "resolved_commands": resolved_count,
+        "unresolved_commands": unresolved_count,
+        "command_results": results,
+    }
+    if unresolved_count:
+        return DiagnosticCheck(
+            id="integrations.telegram_commands",
+            group="integrations",
+            status="WARN",
+            title="Telegram command executables",
+            summary=(
+                f"{unresolved_count} of {len(results)} custom Telegram command "
+                "executables do not resolve"
+            ),
+            details=details,
+            next_steps=(
+                "Install each missing executable or update its `telegram.commands.<name>.run` setting.",
+            ),
+            data=data,
+        )
+
+    return DiagnosticCheck(
+        id="integrations.telegram_commands",
+        group="integrations",
+        status="OK",
+        title="Telegram command executables",
+        summary=f"all {len(results)} custom Telegram command executables resolve",
+        details=details,
+        data=data,
+    )
+
+
+def _telegram_command_head(run: object) -> str | None:
+    if not isinstance(run, str):
+        return None
+    try:
+        argv = shlex.split(run)
+    except ValueError:
+        return None
+    return argv[0] if argv else None
 
 
 def _check_mobile_push_config(

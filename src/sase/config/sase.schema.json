@@ -575,6 +575,53 @@
         }
       }
     },
+    "telegram": {
+      "type": "object",
+      "description": "Configuration for the SASE Telegram integration.",
+      "additionalProperties": false,
+      "properties": {
+        "commands": {
+          "type": "object",
+          "description": "Custom Telegram slash commands keyed by their bot-command name.",
+          "default": {},
+          "propertyNames": {
+            "description": "A lowercase Telegram bot-command name containing only letters, digits, and underscores.",
+            "pattern": "^[a-z0-9_]{1,32}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "description": "The executable and delivery settings for one custom Telegram slash command.",
+            "additionalProperties": false,
+            "required": ["description", "run"],
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "Description shown for the command in Telegram's slash-command menu.",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "run": {
+                "type": "string",
+                "description": "Executable and fixed arguments to run without a shell.",
+                "minLength": 1
+              },
+              "output": {
+                "type": "string",
+                "description": "How the command's Markdown stdout is delivered to Telegram.",
+                "enum": ["message", "pdf"],
+                "default": "message"
+              },
+              "timeout": {
+                "type": "string",
+                "description": "Maximum command runtime as a duration ending in seconds, minutes, or hours.",
+                "pattern": "^\\d+(s|m|h)$",
+                "default": "60s"
+              }
+            }
+          }
+        }
+      }
+    },
     "mobile_gateway": {
       "type": "object",
       "description": "Configuration for the workstation-hosted mobile gateway",

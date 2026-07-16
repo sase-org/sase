@@ -35,6 +35,9 @@ chat_install:
   timeout_seconds: 900
   restart_attempts: 3
 
+telegram:
+  commands: {}
+
 mobile_gateway:
   bind_address: "127.0.0.1"
   port: 7629

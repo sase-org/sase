@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.doctor.checks_integrations import (
     _check_mobile_gateway_binary,
     _check_mobile_push_config,
+    _check_telegram_commands,
     integration_check_specs,
 )
 from sase.doctor.runner import DoctorContext
@@ -22,9 +23,76 @@ def test_integration_check_specs_registers_mobile_gateway_binary_as_deep(
 
     assert [spec.id for spec in specs] == [
         "integrations.mobile_push_config",
+        "integrations.telegram_commands",
         "integrations.mobile_gateway_binary",
     ]
-    assert specs[1].deep is True
+    assert specs[1].deep is False
+    assert specs[2].deep is True
+
+
+def test_telegram_commands_skips_when_none_are_configured() -> None:
+    check = _check_telegram_commands(config={"telegram": {"commands": {}}})
+
+    assert check.id == "integrations.telegram_commands"
+    assert check.group == "integrations"
+    assert check.status == "SKIP"
+    assert check.summary == "no custom Telegram commands are configured"
+    assert check.data["configured_commands"] == 0
+
+
+def test_telegram_commands_reports_resolvable_run_values() -> None:
+    check = _check_telegram_commands(
+        config={
+            "telegram": {
+                "commands": {
+                    "tasks": {
+                        "description": "Tasks dashboard",
+                        "run": "tg_cmd_tasks --note dash.md",
+                    }
+                }
+            }
+        },
+        command_head_available=lambda head: head == "tg_cmd_tasks",
+    )
+
+    assert check.status == "OK"
+    assert check.summary == "all 1 custom Telegram command executables resolve"
+    assert check.details == ("tasks: tg_cmd_tasks (resolved)",)
+    assert check.data["resolved_commands"] == 1
+    assert check.data["command_results"][0]["command_head"] == "tg_cmd_tasks"
+
+
+def test_telegram_commands_warns_for_unresolvable_run_values() -> None:
+    check = _check_telegram_commands(
+        config={
+            "telegram": {
+                "commands": {
+                    "report": {
+                        "description": "Other report",
+                        "run": "missing_report --verbose",
+                    },
+                    "tasks": {
+                        "description": "Tasks dashboard",
+                        "run": "tg_cmd_tasks",
+                    },
+                }
+            }
+        },
+        command_head_available=lambda head: head == "tg_cmd_tasks",
+    )
+
+    assert check.status == "WARN"
+    assert check.summary == (
+        "1 of 2 custom Telegram command executables do not resolve"
+    )
+    assert check.details == (
+        "report: missing_report (not found)",
+        "tasks: tg_cmd_tasks (resolved)",
+    )
+    assert check.data["configured_commands"] == 2
+    assert check.data["resolved_commands"] == 1
+    assert check.data["unresolved_commands"] == 1
+    assert any("telegram.commands" in step for step in check.next_steps)
 
 
 def test_mobile_push_config_skips_when_disabled() -> None:
