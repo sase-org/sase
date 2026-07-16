@@ -535,7 +535,7 @@ def test_repo_open_and_legacy_alias_share_audit_and_markers(
             return_value=checkout,
         ),
         patch(
-            "sase.axe.runner_utils.prepare_workspace",
+            "sase.axe.runner_workspace.prepare_workspace",
             side_effect=prepare_workspace_with_progress,
         ),
     ):

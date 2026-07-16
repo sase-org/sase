@@ -12,7 +12,7 @@ from typing import Any
 
 from sase.agent.names import is_process_alive
 from sase.axe.run_agent_markers import write_agent_meta
-from sase.axe.runner_utils import was_killed
+from sase.axe.runner_signals import was_killed
 from sase.config.core import get_max_running_agents
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,

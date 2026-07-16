@@ -77,12 +77,9 @@ from sase.axe.run_agent_runner_setup import (
     write_agent_meta,
     write_home_running_marker,
 )
-from sase.axe.runner_utils import (
-    all_steps_hidden,
-    install_sigterm_handler,
-    was_killed,
-    write_error_report,
-)
+from sase.axe.runner_artifacts import all_steps_hidden
+from sase.axe.runner_reporting import write_error_report
+from sase.axe.runner_signals import install_sigterm_handler, was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )

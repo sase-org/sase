@@ -213,7 +213,7 @@ def _persist_prompt_artifacts(
 
 def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
     if not patch.set_values and patch.remove_keys == ("tag",):
-        from sase.axe.runner_utils import clear_agent_meta_tag
+        from sase.axe.runner_artifacts import clear_agent_meta_tag
 
         return clear_agent_meta_tag(str(artifacts_path))
 

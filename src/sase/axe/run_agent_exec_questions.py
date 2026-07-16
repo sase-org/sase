@@ -37,7 +37,7 @@ from sase.axe.run_agent_helpers import (
     update_step_marker_chat_path,
 )
 from sase.axe.run_agent_wait import wait_for_runner_slot
-from sase.axe.runner_utils import reset_killed
+from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
     allocate_agent_family_child_suffix,

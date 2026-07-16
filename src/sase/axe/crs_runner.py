@@ -21,13 +21,15 @@ import traceback as tb_mod
 from sase.ace.changespec import ChangeSpec
 from sase.ace.comments import set_comment_suffix
 from sase.ace.hooks import format_duration
-from sase.axe.runner_utils import (
-    build_no_proposal_error_summary,
+from sase.axe.runner_artifacts import (
     detect_write_and_persist_review_agent_meta,
-    finalize_axe_runner,
     publish_review_agent_env,
     read_agent_meta,
     write_done_marker,
+)
+from sase.axe.runner_reporting import (
+    build_no_proposal_error_summary,
+    finalize_axe_runner,
     write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp

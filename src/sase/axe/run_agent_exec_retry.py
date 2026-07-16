@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Literal
 
 from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_helpers import append_meta_list_field
-from sase.axe.runner_utils import prepare_workspace, was_killed
+from sase.axe.runner_signals import was_killed
+from sase.axe.runner_workspace import prepare_workspace
 from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,

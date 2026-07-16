@@ -9,19 +9,23 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 from sase.ace.agent_tags import REVIEW_AGENT_TAG
-from sase.axe.runner_utils import (
-    _killed_state,
+from sase.axe.runner_artifacts import (
     all_steps_hidden,
     clear_agent_meta_tag,
-    _clear_stale_git_index_lock,
     detect_write_and_persist_review_agent_meta,
-    finalize_axe_runner,
+    write_done_marker,
+)
+from sase.axe.runner_reporting import finalize_axe_runner
+from sase.axe.runner_signals import (
+    _killed_state,
     install_sigterm_handler,
     killed_at,
-    prepare_workspace,
     reset_killed,
     was_killed,
-    write_done_marker,
+)
+from sase.axe.runner_workspace import (
+    _clear_stale_git_index_lock,
+    prepare_workspace,
 )
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 
@@ -237,7 +241,7 @@ def test_finalize_axe_runner_success() -> None:
         update_suffix_calls.append((cs, pf, pid, ec))
 
     with patch(
-        "sase.axe.runner_utils.parse_project_file",
+        "sase.axe.runner_reporting.parse_project_file",
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
@@ -264,7 +268,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
         update_suffix_calls.append((cs, pf, pid, ec))
 
     with patch(
-        "sase.axe.runner_utils.parse_project_file",
+        "sase.axe.runner_reporting.parse_project_file",
         return_value=[mock_cs],
     ):
         finalize_axe_runner(
@@ -282,7 +286,7 @@ def test_finalize_axe_runner_no_matching_changespec() -> None:
 def test_finalize_axe_runner_handles_errors() -> None:
     """Test finalize_axe_runner handles errors gracefully."""
     with patch(
-        "sase.axe.runner_utils.parse_project_file",
+        "sase.axe.runner_reporting.parse_project_file",
         side_effect=Exception("Parse error"),
     ):
         # Should not raise - errors are caught and printed
@@ -301,14 +305,14 @@ def test_sigterm_handler_sets_killed() -> None:
     reset_killed()
     captured_handler = None
 
-    with patch("sase.axe.runner_utils.signal.signal") as mock_signal:
+    with patch("sase.axe.runner_signals.signal.signal") as mock_signal:
         install_sigterm_handler("test")
         captured_handler = mock_signal.call_args[0][1]
 
     # Invoke the handler - it calls sys.exit, so we catch SystemExit
     with (
-        patch("sase.axe.runner_utils.sys.exit"),
-        patch("sase.axe.runner_utils.time.time", return_value=123.456),
+        patch("sase.axe.runner_signals.sys.exit"),
+        patch("sase.axe.runner_signals.time.time", return_value=123.456),
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -323,13 +327,13 @@ def test_sigterm_handler_runs_cleanup_callback() -> None:
     reset_killed()
     cleanup = MagicMock()
 
-    with patch("sase.axe.runner_utils.signal.signal") as mock_signal:
+    with patch("sase.axe.runner_signals.signal.signal") as mock_signal:
         install_sigterm_handler("test", on_signal=cleanup)
         captured_handler = mock_signal.call_args[0][1]
 
     with (
-        patch("sase.axe.runner_utils.sys.exit"),
-        patch("sase.axe.runner_utils.time.time", return_value=123.456),
+        patch("sase.axe.runner_signals.sys.exit"),
+        patch("sase.axe.runner_signals.time.time", return_value=123.456),
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -372,7 +376,7 @@ def test_prepare_workspace_update_fails() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -392,7 +396,7 @@ def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -420,7 +424,7 @@ def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -478,7 +482,7 @@ def test_prepare_workspace_clears_stale_lock_before_clean(tmp_path: Path) -> Non
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             str(tmp_path), "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -499,7 +503,7 @@ def test_prepare_workspace_default_parent_sync_not_implemented_passes() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -519,7 +523,7 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_utils.get_vcs_provider", return_value=mock_provider),
+        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", "my_branch", backup_suffix="ace"

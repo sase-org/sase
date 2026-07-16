@@ -355,7 +355,7 @@ def prepare_opened_checkout(
             print(str(exc), file=sys.stderr)
             return None
 
-        from sase.axe.runner_utils import prepare_workspace
+        from sase.axe.runner_workspace import prepare_workspace
         from sase.vcs_provider import VCS_DEFAULT_REVISION
 
         clean_label = f"{ctx.project_name}-workspace-{workspace_num}"

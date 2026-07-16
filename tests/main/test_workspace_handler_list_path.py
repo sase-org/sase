@@ -306,7 +306,7 @@ class TestOpen:
                 "sase.main.workspace_handler._resolve_checkout_path",
                 return_value=checkout,
             ),
-            patch("sase.axe.runner_utils.prepare_workspace", return_value=True),
+            patch("sase.axe.runner_workspace.prepare_workspace", return_value=True),
             pytest.raises(SystemExit) as exc,
         ):
             resolve.return_value = ctx
@@ -337,7 +337,7 @@ class TestOpen:
                 return_value=checkout,
             ) as resolve_checkout_path,
             patch(
-                "sase.axe.runner_utils.prepare_workspace", return_value=True
+                "sase.axe.runner_workspace.prepare_workspace", return_value=True
             ) as prepare_workspace,
             patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
             pytest.raises(SystemExit) as exc,
@@ -541,7 +541,7 @@ class TestOpen:
                 "sase.main.workspace_handler._resolve_checkout_path",
                 side_effect=RuntimeError("clone failed"),
             ),
-            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
+            patch("sase.axe.runner_workspace.prepare_workspace") as prepare_workspace,
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)
@@ -573,7 +573,7 @@ class TestOpen:
                 "sase.main.workspace_handler._resolve_checkout_path",
                 return_value=checkout,
             ),
-            patch("sase.axe.runner_utils.prepare_workspace", return_value=False),
+            patch("sase.axe.runner_workspace.prepare_workspace", return_value=False),
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)
@@ -603,7 +603,7 @@ class TestOpen:
                 "sase.main.workspace_handler._resolve_checkout_path",
                 return_value=checkout,
             ),
-            patch("sase.axe.runner_utils.prepare_workspace", return_value=True),
+            patch("sase.axe.runner_workspace.prepare_workspace", return_value=True),
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)
@@ -642,7 +642,7 @@ class TestOpen:
             patch(
                 "sase.main.workspace_handler._resolve_checkout_path"
             ) as resolve_checkout_path,
-            patch("sase.axe.runner_utils.prepare_workspace") as prepare_workspace,
+            patch("sase.axe.runner_workspace.prepare_workspace") as prepare_workspace,
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)

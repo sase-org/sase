@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sase.axe.runner_utils import write_error_report
+from sase.axe.runner_reporting import write_error_report
 
 
 def _write_report(tmp_path: Path, **kwargs: object) -> str:

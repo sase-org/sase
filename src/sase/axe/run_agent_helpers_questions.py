@@ -10,7 +10,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sase.axe.runner_utils import was_killed
+from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )

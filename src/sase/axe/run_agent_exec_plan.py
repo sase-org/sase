@@ -32,7 +32,7 @@ from sase.axe.run_agent_helpers import (
     update_meta_suffix,
     update_step_marker_chat_path,
 )
-from sase.axe.runner_utils import reset_killed, was_killed
+from sase.axe.runner_signals import reset_killed, was_killed
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     allocate_agent_family_child_suffix,

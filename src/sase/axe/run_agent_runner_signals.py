@@ -4,7 +4,7 @@ import os
 import signal
 from collections.abc import Callable
 
-from sase.axe.runner_utils import install_sigterm_handler, was_killed
+from sase.axe.runner_signals import install_sigterm_handler, was_killed
 
 _PENDING_HANDOFF_MARKERS = (".sase_plan_pending", ".sase_questions_pending")
 

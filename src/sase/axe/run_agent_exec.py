@@ -33,7 +33,7 @@ from sase.axe.run_agent_exec_custom_roles import (
     custom_role_snapshot_from_meta,
     spawn_custom_role_followup,
 )
-from sase.axe.runner_utils import killed_at, reset_killed, was_killed
+from sase.axe.runner_signals import killed_at, reset_killed, was_killed
 from sase.agent.user_kill import has_user_kill_intent
 from sase.agent_family import (
     HandoffEvent,

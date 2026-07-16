@@ -166,7 +166,7 @@ class TestWorkspaceProjectResolution:
                 lambda *_args, **_kwargs: checkout,
             )
             mp.setattr(
-                "sase.axe.runner_utils.prepare_workspace",
+                "sase.axe.runner_workspace.prepare_workspace",
                 lambda *_args, **_kwargs: True,
             )
             handle_workspace_command(args)
@@ -283,7 +283,7 @@ class TestWorkspaceProjectResolution:
                 lambda *_args, **_kwargs: checkout,
             )
             mp.setattr(
-                "sase.axe.runner_utils.prepare_workspace",
+                "sase.axe.runner_workspace.prepare_workspace",
                 lambda *_args, **_kwargs: True,
             )
             handle_workspace_command(args)

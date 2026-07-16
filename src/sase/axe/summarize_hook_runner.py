@@ -23,12 +23,12 @@ import traceback as tb_mod
 from pathlib import Path
 
 from sase.ace.hooks import format_duration, set_hook_suffix
-from sase.axe.runner_utils import (
+from sase.axe.runner_artifacts import (
     detect_write_and_persist_review_agent_meta,
     read_agent_meta,
     write_done_marker,
-    write_error_report,
 )
+from sase.axe.runner_reporting import write_error_report
 from sase.config.metahook import MetahookConfig, find_matching_metahook
 from sase.telemetry import init_telemetry, register_push_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS

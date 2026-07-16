@@ -238,7 +238,7 @@ def _is_index_lock_error(text: str) -> bool:
 
 
 def _remove_git_index_lock(git_root: str) -> bool:
-    from sase.axe.runner_utils import git_index_lock_path
+    from sase.axe.runner_workspace import git_index_lock_path
 
     lock_path = git_index_lock_path(git_root)
     if lock_path is None:

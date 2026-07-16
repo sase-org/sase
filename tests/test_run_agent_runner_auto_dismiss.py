@@ -10,7 +10,7 @@ from sase.axe.run_agent_runner import (
     auto_dismiss_completed_agent,
     install_workspace_release_sigterm_handler,
 )
-from sase.axe.runner_utils import reset_killed, was_killed
+from sase.axe.runner_signals import reset_killed, was_killed
 
 
 def test_auto_dismiss_completed_agent_syncs_dismissed_projection() -> None:
@@ -42,7 +42,7 @@ def test_workspace_release_sigterm_handler_releases_claim(
     reset_killed()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     project_file = "/tmp/.sase/projects/sase/sase.sase"
-    with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
             project_file=project_file,
             workspace_num=10,
@@ -54,7 +54,7 @@ def test_workspace_release_sigterm_handler_releases_claim(
 
     with (
         patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_utils.sys.exit") as exit_mock,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -76,7 +76,7 @@ def test_workspace_release_sigterm_handler_skips_plan_handoff(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
 
-    with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
@@ -88,7 +88,7 @@ def test_workspace_release_sigterm_handler_skips_plan_handoff(
 
     with (
         patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_utils.sys.exit") as exit_mock,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -105,7 +105,7 @@ def test_workspace_release_sigterm_handler_skips_question_handoff(
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
     (tmp_path / ".sase_questions_pending").write_text("{}", encoding="utf-8")
 
-    with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
@@ -117,7 +117,7 @@ def test_workspace_release_sigterm_handler_skips_question_handoff(
 
     with (
         patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_utils.sys.exit") as exit_mock,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 
@@ -134,7 +134,7 @@ def test_workspace_release_sigterm_handler_uses_artifacts_fallback(
     monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
     (tmp_path / ".sase_plan_pending").write_text("{}", encoding="utf-8")
 
-    with patch("sase.axe.runner_utils.signal.signal") as signal_handler:
+    with patch("sase.axe.runner_signals.signal.signal") as signal_handler:
         install_workspace_release_sigterm_handler(
             project_file="/tmp/.sase/projects/sase/sase.sase",
             workspace_num=10,
@@ -147,7 +147,7 @@ def test_workspace_release_sigterm_handler_uses_artifacts_fallback(
 
     with (
         patch("sase.running_field.release_workspace") as release,
-        patch("sase.axe.runner_utils.sys.exit") as exit_mock,
+        patch("sase.axe.runner_signals.sys.exit") as exit_mock,
     ):
         captured_handler(signal.SIGTERM, None)
 

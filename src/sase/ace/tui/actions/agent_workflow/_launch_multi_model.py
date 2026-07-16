@@ -300,7 +300,7 @@ def _write_fanout_failure_report(
         f"VCS ref: {vcs_label}",
     ]
     if submitted_xprompt is not None:
-        from sase.axe.runner_utils import format_markdown_fenced_block
+        from sase.axe.runner_reporting import format_markdown_fenced_block
 
         lines.extend(
             [

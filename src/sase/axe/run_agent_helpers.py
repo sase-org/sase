@@ -17,7 +17,7 @@ from sase.axe import run_agent_helpers_artifacts as _artifacts
 from sase.axe import run_agent_helpers_handoff as _handoff
 from sase.axe import run_agent_helpers_questions as _questions
 from sase.axe import run_agent_helpers_state as _state
-from sase.axe.runner_utils import was_killed
+from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
