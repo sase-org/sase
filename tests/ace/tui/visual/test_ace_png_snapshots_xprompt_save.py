@@ -9,6 +9,7 @@ from sase.ace.tui.modals.unified_xprompt_save_modal import (
     UnifiedSaveLocation,
     UnifiedXPromptSaveModal,
 )
+from sase.ace.tui.modals.unified_xprompt_save_support import UnifiedSaveInput
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -114,12 +115,14 @@ async def _open(page: AcePage, modal: UnifiedXPromptSaveModal) -> None:
     page.app.push_screen(modal)
     await page.expect_modal("UnifiedXPromptSaveModal")
     await wait_for_svg_contains(page, "Destination")
-    name = modal.query_one("#unified-save-name")
+    name = modal.query_one("#unified-save-name", UnifiedSaveInput)
     await wait_for_state(
         page,
         lambda: name.has_focus and not modal._preview_tasks,
         description="xprompt save name focus and preview load",
     )
+    # Keep the capture independent of Textual's wall-clock cursor blink phase.
+    name.cursor_blink = False
     await wait_for_visual_idle(page)
 
 
@@ -199,7 +202,7 @@ async def test_xprompt_save_snippet_mode_png_snapshot(
         await wait_for_startup(page)
         await _open(page, modal)
         modal.action_toggle_mode()
-        modal.query_one("#unified-save-name").value = "review_pane"  # type: ignore[attr-defined]
+        modal.query_one("#unified-save-name", UnifiedSaveInput).value = "review_pane"
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
