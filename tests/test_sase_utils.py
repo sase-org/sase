@@ -14,13 +14,12 @@ from sase.core.shell import run_workspace_command, strip_hook_prefix
 
 
 def test_shorten_path_partial_home_match() -> None:
-    """Test shorten_path with path that doesn't start with home."""
+    """A home-looking substring outside the path prefix is not shortened."""
     home = str(Path.home())
     # Path that contains home directory but not at start
     path = f"/prefix{home}/file.txt"
     result = shorten_path(path)
-    # Should still replace the home part
-    assert result == "/prefix~/file.txt"
+    assert result == path
 
 
 def test_get_workspace_directory_for_changespec_extracts_basename() -> None:

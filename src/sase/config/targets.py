@@ -17,6 +17,7 @@ from pathlib import Path
 
 from sase.config.core import CHEZMOI_HOME, CONFIG_DIR
 from sase.config.inventory import ConfigInventory, ConfigSource
+from sase.content_layout import chezmoi_source_path as _layout_chezmoi_source_path
 
 
 def chezmoi_source_path(target: Path) -> Path:
@@ -29,13 +30,11 @@ def chezmoi_source_path(target: Path) -> Path:
     used by the xprompt location modal). A path that is not under ``$HOME`` is
     not chezmoi-managed and is returned unchanged.
     """
-    home = Path.home()
-    try:
-        rel = target.expanduser().relative_to(home)
-    except ValueError:
-        return target
-    parts = [f"dot_{part[1:]}" if part.startswith(".") else part for part in rel.parts]
-    return CHEZMOI_HOME.joinpath(*parts)
+    return _layout_chezmoi_source_path(
+        target,
+        home_root=Path.home(),
+        source_root=CHEZMOI_HOME,
+    )
 
 
 def resolve_write_path(file: str | None, *, use_chezmoi: bool) -> Path | None:

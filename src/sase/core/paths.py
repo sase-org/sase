@@ -132,7 +132,9 @@ def shorten_path(path: str) -> str:
     Returns:
         Path with home directory replaced by ~
     """
-    return path.replace(str(Path.home()), "~")
+    from sase.content_layout import display_path
+
+    return display_path(path, home_root=Path.home())
 
 
 def make_safe_filename(name: str) -> str:
