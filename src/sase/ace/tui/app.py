@@ -354,6 +354,14 @@ class AceApp(
         if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
             if self.current_tab != "agents":
                 return False
+        if action in {
+            "next_agent_metadata_section",
+            "prev_agent_metadata_section",
+        }:
+            if self.current_tab != "agents":
+                return False
+        if action == "jump_to_entry_forward" and self.current_tab == "agents":
+            return False
         if action in {"change_status", "bulk_change_status"}:
             if self.current_tab != ARTIFACTS_TAB:
                 return False

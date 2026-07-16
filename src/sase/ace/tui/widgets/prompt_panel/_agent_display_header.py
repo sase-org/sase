@@ -533,7 +533,12 @@ def build_header_text(
     is_failed = agent.display_status == "FAILED"
     if agent.error_message or is_failed:
         header_text.append("\n")
-        header_text.append("ERROR\n", style="bold #FF5F5F underline")
+        append_section_heading(
+            header_text,
+            "ERROR",
+            style="bold #FF5F5F underline",
+            section_id="error",
+        )
         error_message = agent.error_message or "Runner failed without error details."
         header_text.append(f"{error_message}\n", style="bold #FF5F5F")
     if agent.output_path and is_failed:

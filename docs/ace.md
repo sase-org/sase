@@ -293,6 +293,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
+| `Ctrl+J` / `Ctrl+K` | Move to the next / previous rendered metadata section                                                 |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
 | `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
 | `~`                 | Jump among related agent rows: dotted-name ancestors, descendants, and same-namespace neighbors       |
@@ -1525,6 +1526,13 @@ dismissal-prefixed candidates so it anchors on a live, visible agent.
 ## Agents Tab Metadata Panel
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about the selected agent:
+
+`Ctrl+J` and `Ctrl+K` cycle forward and backward through the rendered titled sections in this pane. On a fresh agent
+document, the first forward jump selects the first title and the first reverse jump selects the final title. Both
+directions then share one cursor and wrap at the ends. Each selected title is aligned with the first visible metadata
+row, including a short final section. Only rendered section titles participate; ordinary metadata fields and matching
+text inside prompts or replies do not. The shortcuts continue to target the metadata pane when a file or tools pane is
+also visible, and changing agents or entering/leaving a pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, ChangeSpec association, and chronologically sorted timestamps:
   - `Bead` — shown for agents launched by `sase bead work`; modern phase rows use explicit epic/phase/plan launch

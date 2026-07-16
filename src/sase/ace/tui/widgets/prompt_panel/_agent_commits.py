@@ -24,7 +24,7 @@ from ._agent_context_common import (
     EXTERNAL_REPO_GLYPH,
     WORKSPACE_GLYPH,
 )
-from ._helpers import append_major_section_divider
+from ._helpers import append_major_section_divider, append_section_heading
 
 if TYPE_CHECKING:
     from ._agent_display_state import CommitViewSpec, HeaderHintState
@@ -543,7 +543,12 @@ def append_agent_commits_section(
         return
 
     append_major_section_divider(text)
-    text.append("COMMITS:\n", style=_COLOR_HEADER)
+    append_section_heading(
+        text,
+        "COMMITS:",
+        style=_COLOR_HEADER,
+        section_id="commits",
+    )
     for repo_name, repo_kind, commits in commit_groups:
         _append_commit_group(
             text,

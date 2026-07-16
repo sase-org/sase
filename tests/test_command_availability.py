@@ -92,6 +92,24 @@ def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
     assert not is_command_available(show_diff, ctx)
 
 
+def test_metadata_section_and_forward_jump_commands_have_inverse_tab_scope() -> None:
+    catalog = _catalog_by_id()
+    next_section = catalog["app.next_agent_metadata_section"]
+    prev_section = catalog["app.prev_agent_metadata_section"]
+    jump_forward = catalog["app.jump_to_entry_forward"]
+
+    for section_command in (next_section, prev_section):
+        assert is_command_available(section_command, CommandContext(tab="agents"))
+        assert not is_command_available(
+            section_command, CommandContext(tab="changespecs")
+        )
+        assert not is_command_available(section_command, CommandContext(tab="axe"))
+
+    assert not is_command_available(jump_forward, CommandContext(tab="agents"))
+    assert is_command_available(jump_forward, CommandContext(tab="changespecs"))
+    assert is_command_available(jump_forward, CommandContext(tab="axe"))
+
+
 # ---------------------------------------------------------------------------
 # ChangeSpecs tab
 # ---------------------------------------------------------------------------

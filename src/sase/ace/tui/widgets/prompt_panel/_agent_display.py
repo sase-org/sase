@@ -35,6 +35,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         """
         with tui_trace("widget.prompt_panel.update_display"):
             self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
+            prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+            if callable(prepare_sections):
+                prepare_sections(agent)
             self._reset_markdown_render_cache_for_agent(agent)
             self._update_display_impl(agent)
             self._start_agent_detail_header_enrichment_from_context(agent)
@@ -49,6 +52,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
     def refresh_slow_tool_metadata_from_cache(self, agent: Agent) -> None:
         """Re-render from cached header/tool data for the slow-tool tick."""
         with tui_trace("widget.prompt_panel.refresh_slow_tool_metadata_from_cache"):
+            prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+            if callable(prepare_sections):
+                prepare_sections(agent)
             self._update_display_impl(agent)
 
     def refresh_detail_header_from_cache(self, agent: Agent) -> None:
@@ -73,6 +79,14 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
             self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
+            prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+            if callable(prepare_sections):
+                prepare_sections(agent)
+            preserve_section = getattr(
+                self, "preserve_missing_section_on_next_update", None
+            )
+            if callable(preserve_section):
+                preserve_section()
             cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
             if callable(cancel_slow_tick):
                 cancel_slow_tick()

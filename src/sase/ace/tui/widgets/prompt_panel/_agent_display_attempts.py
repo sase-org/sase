@@ -115,6 +115,7 @@ class AgentAttemptDisplayMixin:
         append_section_heading(
             reply_header,
             f"ATTEMPT {record.attempt_number} REPLY",
+            section_id="attempt-reply",
         )
         renderables.append(reply_header)
 
@@ -176,6 +177,7 @@ def render_attempt_banner(record: AttemptRecord, *, total: int) -> Text:
         banner,
         "ATTEMPT ERROR",
         style="bold #FF5F5F underline",
+        section_id="attempt-error",
     )
     return banner
 

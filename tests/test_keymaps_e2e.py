@@ -152,3 +152,28 @@ async def test_prompt_input_space_is_text_after_home_prompt_opens() -> None:
             await page.pause()
 
             assert text_area.text == "a b"
+
+
+async def test_agents_prompt_input_ctrl_j_keeps_local_newline_priority() -> None:
+    """The Agents metadata shortcut must not steal Ctrl+J from the editor."""
+    with _patch_config():
+        async with AcePage(initial_tab="agents") as page:
+            await page.press("space")
+            await page.pause()
+
+            text_area = page.query_one_widget(".prompt-input", PromptTextArea)
+            await page.press("a", "ctrl+j", "b")
+            await page.pause()
+
+            assert text_area.text == "a\nb"
+
+
+async def test_agents_prompt_input_ctrl_k_keeps_local_history_priority() -> None:
+    """The Agents previous-section shortcut must not steal prompt history."""
+    with _patch_config():
+        async with AcePage(initial_tab="agents") as page:
+            await page.press("space")
+            await page.pause()
+            await page.press("h", "i", "ctrl+k")
+
+            await page.expect_modal("PromptHistoryModal")

@@ -19,6 +19,7 @@ from ..file_panel._diff import diff_badge_uses_live_hint, get_agent_diff
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ..hint_tracker import HintTracker
 from ._agent_commits import CommitDiffInfo, agent_commit_diffs
+from ._helpers import mark_section_heading
 
 if TYPE_CHECKING:
     from ._agent_display_state import HeaderHintState
@@ -328,6 +329,7 @@ def append_agent_deltas_section(
     if not deltas and not linked_groups:
         return
 
+    heading_start = len(text)
     if hint_state is None:
         build_delta_entries_section(
             text,
@@ -335,6 +337,12 @@ def append_agent_deltas_section(
             FoldLevel.FULLY_EXPANDED,
             header_label="Deltas:",
             linked_delta_groups=linked_groups,
+        )
+        mark_section_heading(
+            text,
+            "deltas",
+            start=heading_start,
+            end=heading_start + len("Deltas:"),
         )
         return
 
@@ -358,3 +366,9 @@ def append_agent_deltas_section(
     hint_state.hint_counter = tracker.counter
     hint_state.hint_mappings.clear()
     hint_state.hint_mappings.update(tracker.mappings)
+    mark_section_heading(
+        text,
+        "deltas",
+        start=heading_start,
+        end=heading_start + len("Deltas:"),
+    )

@@ -1,15 +1,18 @@
 """Helper functions for the agent prompt panel widget."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
+from rich.style import Style
 from rich.style import StyleType
 from rich.text import Text
 
 from sase.llm_provider.model_label import append_model_field as append_model_field
 
 from ...models.agent import Agent
+from ._section_navigation import SECTION_MARKER_META_KEY
 
 
 def get_rich_status_indicator(status: str) -> tuple[str, str]:
@@ -98,6 +101,7 @@ def append_section_heading(
     heading: str | Text,
     *,
     style: StyleType = PROMPT_PANEL_SECTION_HEADING_STYLE,
+    section_id: str | None = None,
 ) -> None:
     """Append one prompt-panel heading followed by exactly one line ending.
 
@@ -106,12 +110,43 @@ def append_section_heading(
     appended here, so suppress that implicit ending to keep the first content
     row directly beneath the heading.
     """
+    heading_plain = heading.plain if isinstance(heading, Text) else heading
+    start = len(text.plain)
     if isinstance(heading, Text):
         text.append_text(heading)
     else:
         text.append(heading, style=style)
+    mark_section_heading(
+        text,
+        section_id or _default_section_id(heading_plain),
+        start=start,
+        end=start + len(heading_plain),
+    )
     text.append("\n")
     text.end = ""
+
+
+def mark_section_heading(
+    text: Any,
+    section_id: str,
+    *,
+    start: int,
+    end: int,
+) -> None:
+    """Attach a non-visual semantic identity to a rendered title span."""
+    if start >= end:
+        return
+    text.stylize(
+        Style(meta={SECTION_MARKER_META_KEY: section_id}),
+        start,
+        end,
+    )
+
+
+def _default_section_id(heading: str) -> str:
+    """Return a stable identity for headings without a dynamic override."""
+    semantic_label = heading.split(" · ", 1)[0].strip().rstrip(":")
+    return re.sub(r"[^a-z0-9]+", "-", semantic_label.lower()).strip("-")
 
 
 def extract_meta_fields(output: dict[str, Any]) -> list[tuple[str, str]]:

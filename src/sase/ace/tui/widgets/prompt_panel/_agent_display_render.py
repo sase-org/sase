@@ -441,6 +441,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
 
     def show_empty(self) -> None:
         """Show empty state."""
+        reset_sections = getattr(self, "reset_section_document", None)
+        if callable(reset_sections):
+            reset_sections()
         cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
             cancel_slow_tick()

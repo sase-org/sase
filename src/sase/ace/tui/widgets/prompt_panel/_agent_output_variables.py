@@ -46,7 +46,7 @@ def append_agent_output_variables_section(text: Text, agent: Agent) -> None:
             f" \u00b7 {count_phrase(len(contributors), 'agent')}",
             style=COLOR_SUMMARY,
         )
-    append_section_heading(text, heading)
+    append_section_heading(text, heading, section_id="output-variables")
 
     if len(contributors) == 1:
         _append_flat_variables(text, contributors[0].output_variables)

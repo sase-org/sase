@@ -126,6 +126,22 @@ def test_both_overrides_duplicate_revert_both() -> None:
     assert reg.app.prev_changespec == "k"  # default
 
 
+def test_contextual_ctrl_k_actions_remain_independently_configurable() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "prev_agent_metadata_section": "ctrl+x",
+                    "jump_to_entry_forward": "ctrl+y",
+                }
+            }
+        }
+    )
+
+    assert reg.app.prev_agent_metadata_section == "ctrl+x"
+    assert reg.app.jump_to_entry_forward == "ctrl+y"
+
+
 def test_compound_key_conflict_reverts_override() -> None:
     """A key inside a compound binding conflicts like a normal app key."""
     reg = load_keymap_registry({"keymaps": {"app": {"next_changespec": "semicolon"}}})

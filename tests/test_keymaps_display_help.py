@@ -121,6 +121,24 @@ def test_agents_help_lists_neighbor_navigation() -> None:
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 
+def test_agents_help_replaces_forward_jump_with_metadata_sections() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    axe_pairs = {
+        (key, label)
+        for _section, bindings in axe_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("Ctrl+J / Ctrl+K", "Next / previous metadata section") in agent_pairs
+    assert ("Ctrl+O / Ctrl+K", "Jump stack back / forward") not in agent_pairs
+    assert ("Ctrl+O / Ctrl+K", "Jump stack back / forward") in axe_pairs
+
+
 def test_agents_help_describes_tmux_workspace_chooser() -> None:
     reg = load_keymap_registry({})
     labels = {

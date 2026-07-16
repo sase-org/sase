@@ -88,6 +88,8 @@ ace:
       scroll_detail_up: "ctrl+u"
       scroll_prompt_down: "ctrl+f"
       scroll_prompt_up: "ctrl+b"
+      next_agent_metadata_section: "ctrl+j"
+      prev_agent_metadata_section: "ctrl+k"
       next_agent_file: "ctrl+n"
       prev_agent_file: "ctrl+p"
       # Tab switching

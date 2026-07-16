@@ -101,6 +101,10 @@ class AgentHintsDisplayMixin:
         Returns:
             File hint mappings and deferred tool-call report specs.
         """
+        prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+        if callable(prepare_sections):
+            prepare_sections(agent)
+
         # Workflow top-level or bash/python/parallel: no hint support
         if (
             agent.agent_type == AgentType.WORKFLOW

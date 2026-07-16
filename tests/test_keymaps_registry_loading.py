@@ -32,6 +32,8 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.next_tab == "tab"
     assert reg.app.jump_to_entry_fast == "ctrl+o"
     assert reg.app.jump_to_entry_forward == "ctrl+k"
+    assert reg.app.next_agent_metadata_section == "ctrl+j"
+    assert reg.app.prev_agent_metadata_section == "ctrl+k"
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)

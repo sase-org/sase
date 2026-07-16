@@ -112,8 +112,8 @@ def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
     ]
 
 
-def test_ctrl_o_and_ctrl_k_bind_jump_stack_navigation() -> None:
-    """Ctrl+O/Ctrl+K are the back/forward jump-stack bindings."""
+def test_ctrl_o_and_ctrl_k_bind_contextual_navigation() -> None:
+    """Ctrl+K intentionally serves Agents sections and other-tab jump stacks."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
 
@@ -123,8 +123,10 @@ def test_ctrl_o_and_ctrl_k_bind_jump_stack_navigation() -> None:
     assert "next_changespec_history" not in by_action
     assert [b.action for b in bindings if b.key == "ctrl+o"] == ["jump_to_entry_fast"]
     assert [b.action for b in bindings if b.key == "ctrl+k"] == [
-        "jump_to_entry_forward"
+        "jump_to_entry_forward",
+        "prev_agent_metadata_section",
     ]
+    assert by_action["next_agent_metadata_section"].key == "ctrl+j"
 
 
 def test_build_app_bindings_preserves_compound_key() -> None:

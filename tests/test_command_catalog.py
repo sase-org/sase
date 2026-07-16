@@ -73,6 +73,9 @@ def test_fast_jump_command_uses_ctrl_o_default() -> None:
     assert forward.label == "Jump forward through jump stack"
     assert forward.key_sequence == ("ctrl+k",)
     assert forward.key_display == "Ctrl+K"
+    assert forward.tabs == ("changespecs", "axe")
+    assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
+    assert by_id["app.prev_agent_metadata_section"].tabs == ("agents",)
     assert "app.prev_changespec_history" not in by_id
     assert "app.next_changespec_history" not in by_id
 

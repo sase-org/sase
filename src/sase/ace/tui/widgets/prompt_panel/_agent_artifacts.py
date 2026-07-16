@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 
 from ...models.agent import Agent
+from ._helpers import append_section_heading
 
 if TYPE_CHECKING:
     from ._agent_display_state import HeaderHintState
@@ -49,7 +50,12 @@ def append_agent_artifacts_section(
     if not artifacts:
         return
 
-    text.append("Artifacts:\n", style=_COLOR_HEADER)
+    append_section_heading(
+        text,
+        "Artifacts:",
+        style=_COLOR_HEADER,
+        section_id="artifacts",
+    )
     for artifact in artifacts:
         icon, icon_style = _artifact_icon(artifact.view_mode, exists=artifact.exists)
         text.append("  ")

@@ -116,6 +116,24 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     assert changespecs_app.check_action("start_fold_mode", ()) is not False
 
 
+def test_metadata_sections_and_forward_jump_are_inverse_tab_gated() -> None:
+    agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
+    changespecs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
+    axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
+
+    for action in (
+        "next_agent_metadata_section",
+        "prev_agent_metadata_section",
+    ):
+        assert agents_app.check_action(action, ()) is not False
+        assert changespecs_app.check_action(action, ()) is False
+        assert axe_app.check_action(action, ()) is False
+
+    assert agents_app.check_action("jump_to_entry_forward", ()) is False
+    assert changespecs_app.check_action("jump_to_entry_forward", ()) is not False
+    assert axe_app.check_action("jump_to_entry_forward", ()) is not False
+
+
 async def test_clear_marks_action_is_disabled_while_modal_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

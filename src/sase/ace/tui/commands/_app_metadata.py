@@ -9,6 +9,7 @@ from sase.ace.tui.commands._tabs import (
     AGENTS_ONLY,
     ALL_TABS,
     CL_AGENTS,
+    CL_AXE,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import CommandCategory, CommandTab
@@ -33,6 +34,20 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("scroll_detail_up", "Scroll detail up", "Navigation", ALL_TABS, ()),
     ("scroll_prompt_down", "Scroll prompt down", "Navigation", AGENTS_ONLY, ()),
     ("scroll_prompt_up", "Scroll prompt up", "Navigation", AGENTS_ONLY, ()),
+    (
+        "next_agent_metadata_section",
+        "Next metadata section",
+        "Navigation",
+        AGENTS_ONLY,
+        ("section", "heading", "ctrl+j"),
+    ),
+    (
+        "prev_agent_metadata_section",
+        "Previous metadata section",
+        "Navigation",
+        AGENTS_ONLY,
+        ("section", "heading", "ctrl+k"),
+    ),
     ("next_agent_file", "Next file / chop run", "Navigation", AGENTS_AXE, ()),
     ("prev_agent_file", "Previous file / chop run", "Navigation", AGENTS_AXE, ()),
     ("jump_to_entry", "Jump to entry", "Navigation", ALL_TABS, ("hint",)),
@@ -47,7 +62,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "jump_to_entry_forward",
         "Jump forward through jump stack",
         "Navigation",
-        ALL_TABS,
+        CL_AXE,
         ("jump", "forward", "ctrl+k"),
     ),
     ("jump_to_all_entries", "Jump to any entry", "Navigation", ALL_TABS, ("hint",)),

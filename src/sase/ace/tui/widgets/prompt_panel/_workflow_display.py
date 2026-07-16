@@ -69,6 +69,9 @@ class WorkflowDisplayMixin:
         is_current: Callable[[tuple[Any, ...], int, str, int | None], bool],
     ) -> None:
         """Render a workflow parent row in a worker thread."""
+        prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
+        if callable(prepare_sections):
+            prepare_sections(agent)
         current_worker = getattr(self, "_workflow_detail_worker", None)
         if current_worker is not None and current_worker.is_running:
             current_worker.cancel()

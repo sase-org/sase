@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.containers import VerticalScroll
+from textual.geometry import Region
 
 from ...tab_order import TabName, adjacent_tab
 from ._types import NavigationMixinBase
@@ -262,6 +263,94 @@ class BasicNavigationMixin(NavigationMixinBase):
             height = scroll_container.scrollable_content_region.height
             scroll_container.scroll_relative(y=-height, animate=False)  # Full page
 
+    def action_next_agent_metadata_section(self) -> None:
+        """Jump to the next rendered title in the Agents metadata pane."""
+        self._cycle_agent_metadata_section(1)
+
+    def action_prev_agent_metadata_section(self) -> None:
+        """Jump to the previous rendered title in the Agents metadata pane."""
+        self._cycle_agent_metadata_section(-1)
+
+    def _cycle_agent_metadata_section(
+        self,
+        direction: int,
+        *,
+        retry: bool = False,
+    ) -> None:
+        """Resolve a cached section anchor and align it with the viewport top."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+        from ...widgets.prompt_panel import AgentPromptPanel
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+            scroll = agent_detail.query_one("#agent-prompt-scroll", VerticalScroll)
+        except Exception:
+            return
+
+        if panel.enable_section_layout_reserve():
+            panel.queue_section_retry(direction)
+            if not getattr(self, "_agent_metadata_section_retry_scheduled", False):
+                self._agent_metadata_section_retry_scheduled = True
+                self.call_after_refresh(  # type: ignore[attr-defined]
+                    self._retry_agent_metadata_section
+                )
+            return
+
+        anchor, ready = panel.resolve_section_target(
+            direction,
+            width=panel.size.width,
+        )
+        if not ready:
+            if retry:
+                return
+            panel.queue_section_retry(direction)
+            if not getattr(self, "_agent_metadata_section_retry_scheduled", False):
+                self._agent_metadata_section_retry_scheduled = True
+                self.call_after_refresh(  # type: ignore[attr-defined]
+                    self._retry_agent_metadata_section
+                )
+            return
+        if anchor is None:
+            return
+
+        panel_region = panel.virtual_region
+        target_region = Region(
+            panel_region.x,
+            panel_region.y + anchor.row,
+            max(1, panel_region.width),
+            1,
+        )
+        scroll.scroll_to_region(
+            target_region,
+            top=True,
+            animate=False,
+            x_axis=False,
+            y_axis=True,
+            immediate=True,
+        )
+
+    def _retry_agent_metadata_section(self) -> None:
+        """Consume one thin after-refresh retry from the newly published cache."""
+        self._agent_metadata_section_retry_scheduled = False
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+        from ...widgets.prompt_panel import AgentPromptPanel
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+            panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        except Exception:
+            return
+        direction = panel.consume_section_retry()
+        if direction is not None:
+            self._cycle_agent_metadata_section(direction, retry=True)
+
     def action_scroll_to_top(self) -> None:
         """Scroll to the top of the current scrollable area."""
         if self.current_tab == "axe":
@@ -289,7 +378,19 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
-            scroll_container.scroll_end(animate=False)
+            if scroll_id == "#agent-prompt-scroll":
+                from ...widgets.prompt_panel import AgentPromptPanel
+
+                panel = scroll_container.query_one(
+                    "#agent-prompt-panel", AgentPromptPanel
+                )
+                target = max(
+                    0,
+                    int(scroll_container.max_scroll_y) - panel.section_layout_reserve,
+                )
+                scroll_container.scroll_to(y=target, animate=False, immediate=True)
+            else:
+                scroll_container.scroll_end(animate=False)
         elif self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)

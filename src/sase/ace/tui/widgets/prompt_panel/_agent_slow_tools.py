@@ -99,7 +99,7 @@ def append_slow_tool_calls_section(
     append_major_section_divider(text)
     heading = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
     heading.append(f" \u00b7 {' · '.join(summary_parts)}", style=COLOR_SUMMARY)
-    append_section_heading(text, heading)
+    append_section_heading(text, heading, section_id="slow-tool-calls")
 
     visible = _select_visible_slow_tool_calls(slow_calls)
     hint_marker_width = _hint_marker_width(visible, hint_state)

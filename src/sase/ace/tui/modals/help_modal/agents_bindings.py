@@ -34,12 +34,14 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle panels incl. collapsed",
                 ),
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
-                (
-                    f"{d(a.jump_to_entry_fast)} / {d(a.jump_to_entry_forward)}",
-                    "Jump stack back / forward",
-                ),
+                (d(a.jump_to_entry_fast), "Jump stack back / first hint"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (d(a.start_sibling_mode), "Jump ancestor/neighbor/desc"),
+                (
+                    f"{d(a.next_agent_metadata_section)} / "
+                    f"{d(a.prev_agent_metadata_section)}",
+                    "Next / previous metadata section",
+                ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
                     "Scroll file panel to top / bottom",

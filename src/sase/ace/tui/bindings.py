@@ -45,6 +45,18 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+u", "scroll_detail_up", "Scroll Up", show=False),
     Binding("ctrl+f", "scroll_prompt_down", "Scroll Prompt Down", show=False),
     Binding("ctrl+b", "scroll_prompt_up", "Scroll Prompt Up", show=False),
+    Binding(
+        "ctrl+j",
+        "next_agent_metadata_section",
+        "Next Metadata Section",
+        show=False,
+    ),
+    Binding(
+        "ctrl+k",
+        "prev_agent_metadata_section",
+        "Previous Metadata Section",
+        show=False,
+    ),
     # Tab switching
     Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
     Binding("shift+tab", "prev_tab", "Prev Tab", show=False, priority=True),

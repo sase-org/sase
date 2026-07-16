@@ -68,6 +68,8 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("scroll_detail_up", "Scroll Up", False),
     ("scroll_prompt_down", "Scroll Prompt Down", False),
     ("scroll_prompt_up", "Scroll Prompt Up", False),
+    ("next_agent_metadata_section", "Next Metadata Section", False),
+    ("prev_agent_metadata_section", "Previous Metadata Section", False),
     ("next_tab", "Next Tab", True),
     ("prev_tab", "Prev Tab", True),
     ("cycle_artifacts_subtab", "Next Artifact", False),
@@ -296,6 +298,8 @@ class AppKeymaps:
     scroll_detail_up: str
     scroll_prompt_down: str
     scroll_prompt_up: str
+    next_agent_metadata_section: str
+    prev_agent_metadata_section: str
     next_agent_file: str
     prev_agent_file: str
     # Tab switching
