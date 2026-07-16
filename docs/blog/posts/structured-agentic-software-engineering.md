@@ -106,7 +106,7 @@ launches before they run._
 
 ## XPrompts
 
-The smallest XPrompt is just a Markdown file. Put this in `xprompts/til.md` next to the repo where you run SASE:
+The smallest XPrompt is just a Markdown file. Put this in `sase/xprompts/til.md` at the project root where you run SASE:
 
 ```markdown
 Append one Today-I-Learned entry to `til.md` about something useful in this workspace. Keep it to two sentences. If the
@@ -120,10 +120,10 @@ sase run "#til"
 ```
 
 That single `#til` reference expands into the Markdown body before the agent sees the prompt. XPrompts can live in a
-project `xprompts/` directory, user-wide config locations such as `~/.config/sase/xprompts/`, or the `xprompts:` block
-in `sase.yml`; project-local definitions win when names collide. The full discovery table has more tiers for plugins and
-built-ins, but day one is simple: put reusable prompts near the work, then move them outward when they become personal
-tools.
+project `sase/xprompts/` directory, the user-wide `~/sase/xprompts/` directory, or the `xprompts:` block in
+`sase/sase.yml`; project-local definitions win when names collide. The full discovery table has more tiers for plugins
+and built-ins, but day one is simple: put reusable prompts near the work, then move them outward when they become
+personal tools.
 
 ![ACE prompt input expanding an XPrompt reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
 
@@ -304,7 +304,7 @@ llm_provider:
 ```
 
 Config layers are predictable: bundled defaults, plugin defaults, `~/.config/sase/sase.yml`, alphabetized `sase_*.yml`
-overlays, then a project-local `./sase.yml` for agent-launch contexts. That gives you a global default, machine or
+overlays, then a project-local `sase/sase.yml` for agent-launch contexts. That gives you a global default, machine or
 persona overlays, and repo-local behavior without rewriting the same block everywhere.
 
 Initialization wires up the files agents and companion tools depend on:

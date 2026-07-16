@@ -322,7 +322,7 @@ symlinks without touching the canonical checkouts.
 ### Post-Default Migration Guidance
 
 Users and environments that still rely on sibling checkouts should set `workspace.root: adjacent` explicitly, either in
-the project-local `sase.yml` or globally in `~/.config/sase/sase.yml`. The managed-root default is intentionally
+the project-local `sase/sase.yml` or globally in `~/.config/sase/sase.yml`. The managed-root default is intentionally
 non-migrating: it prevents silent moves, but a project with old adjacent clones and no explicit config will create new
 non-primary checkouts under the state root after the default change.
 

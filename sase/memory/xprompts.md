@@ -42,8 +42,11 @@ description: Read before xprompts, prompt directives, or launching agents with g
 - **Inputs:** `word/line/text/path/int/bool/float`; defaultless means required.
 - **`.yml`:** workflow `steps`: `prompt_part/python/bash/agent/use: shared/...`; supports
   `input/output/environment/if/repeat/finally/hidden/tags`.
-- **Discovery, first wins:** `.xprompts/` -> `xprompts/` -> `~/.xprompts/` -> `~/xprompts/` ->
-  `~/.config/sase/xprompts/<project>/` -> `sase.yml` `xprompts:` -> plugins -> package defaults/built-ins.
+- **Discovery, first wins:** project `sase/xprompts/` -> legacy project `.xprompts/`, `xprompts/` -> home
+  `~/sase/xprompts/` -> legacy home `~/.xprompts/`, `~/xprompts/` -> project-specific home `~/sase/xprompts/<project>/`
+  -> legacy `~/.config/sase/xprompts/<project>/` -> project/user config -> plugins -> package defaults/built-ins.
+  Writers use canonical `sase/` paths only; config/memory collisions error while xprompt duplicates shadow
+  lower-priority definitions.
 - **Swarm:** top-level `---` outside fences fans out one agent per segment; use `#name` for markdown swarms. Embedded
   swarms put the first segment at the call site, append the rest, and inherit leading workspace refs.
 

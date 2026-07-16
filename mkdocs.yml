@@ -14,6 +14,7 @@ nav:
   - Getting Started:
       - Your First 15 Minutes: getting_started.md
       - Initialization: init.md
+      - Content Layout Migration: content_layout.md
       - Agent Providers: agent_providers.md
   - The Basics:
       - Memory: memory.md

@@ -1195,11 +1195,11 @@ Press `#` on any tab to open **SASE Admin Center**, then switch to the **XPrompt
 The XPrompts tab displays all discovered xprompts in a two-panel layout: a filterable list on the left and a
 syntax-highlighted preview on the right.
 
-Xprompts are grouped by source (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`, Home `~/xprompts/`,
-project-specific, config `sase.yml`, plugins, built-in). Workflow xprompts (multi-step YAML) are marked with a gear
-icon; standalone workflows are displayed with the `#!name` insertion syntax. Project-local xprompts defined in each
-project's `sase.yml` file are also included, even though the TUI's normal config loading does not read project-local
-config files.
+Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`, project-specific home, config
+`sase.yml`, plugins, built-in, plus labeled legacy compatibility sources). Workflow xprompts (multi-step YAML) are
+marked with a gear icon; standalone workflows are displayed with the `#!name` insertion syntax. Project-local xprompts
+defined in each project's `sase.yml` file are also included, even though the TUI's normal config loading does not read
+project-local config files.
 
 The list rows and preview metadata show the same insertion form and visible input metadata used by `Ctrl+T` completion.
 Step-only inputs are hidden from this user-facing surface because they are supplied by workflow execution rather than
@@ -1224,17 +1224,18 @@ Type in the filter input to narrow the list in real time.
 
 ### Editing XPrompts
 
-Press `Enter` on any xprompt to edit it in `$EDITOR`. All xprompts are editable, including plugin and built-in sources —
-these are copied to the highest-priority user directory (`~/.xprompts/`) before opening, so edits create an override
-rather than modifying the original. After saving, the browser offers to commit and push changes to git if applicable.
+Press `Enter` on any xprompt to edit it in `$EDITOR`. All xprompts are editable, including legacy, plugin, and built-in
+sources — read-only sources are copied to the canonical user directory (`~/sase/xprompts/`) before opening, so edits
+create an override rather than modifying the original. After saving, the browser offers to commit and push changes to
+git if applicable.
 
 ### Creating XPrompts
 
 Press `Ctrl+O` to start the guided creation flow:
 
-1. **Location modal** — Choose where to save the new xprompt (CWD `.xprompts/`, CWD `xprompts/`, Home `~/.xprompts/`,
-   Home `~/xprompts/`, or a config file). Press `Ctrl+G` to open the selected config file in `$EDITOR` instead of
-   proceeding with creation.
+1. **Location modal** — Choose where to save the new xprompt (project `sase/xprompts/`, home `~/sase/xprompts/`, project
+   `sase/sase.yml`, or a global config file). Legacy sources remain browseable but are never new-write destinations.
+   Press `Ctrl+G` to open the selected config file in `$EDITOR` instead of proceeding with creation.
 2. **Filename modal** — Enter a filename (`.md` for prompt parts, `.yml` for workflows). Workflow files are pre-filled
    with a YAML template containing the workflow scaffold.
 3. **Editor** — The file opens in `$EDITOR` for editing.
@@ -2380,7 +2381,7 @@ simple snippets if the helper is unavailable. Clients without snippet support do
 ### XPrompt Picker (`#@`)
 
 Typing `#@` (the `#` character followed by `@`) opens the XPrompt snippet picker modal. This lists all available
-xprompts (including project-local xprompts from `sase.yml` files) and inserts the selected reference at the cursor
+xprompts (including project-local xprompts from `sase/sase.yml` files) and inserts the selected reference at the cursor
 position. Inline-capable xprompts and workflows insert as `#name`; standalone workflows insert as `#!name`. The picker
 uses the same argument-aware skeletons as xprompt completion, so typed inputs can be filled immediately after selection.
 Markdown xprompt swarms are inline-capable and insert as `#name`. This is separate from the `ace.snippets` mechanism —

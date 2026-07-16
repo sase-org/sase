@@ -181,35 +181,45 @@ See the [editor integration guide](editor.md) for setup, feature coverage, helpe
 Markdown xprompts are loaded from multiple locations. When two locations define an xprompt with the same name, the
 higher-priority source wins (first-wins).
 
-| Priority | Location                               | Notes                                            |
-| -------- | -------------------------------------- | ------------------------------------------------ |
-| 1        | `.xprompts/` (CWD, hidden dir)         | Highest priority; project-local overrides        |
-| 2        | `xprompts/` (CWD)                      | Non-hidden variant                               |
-| 3        | `~/.xprompts/` (home, hidden dir)      | User-wide overrides                              |
-| 4        | `~/xprompts/` (home)                   | Non-hidden variant                               |
-| 5        | `~/.config/sase/xprompts/{project}/`   | Project-specific (when project is set)           |
-| 6        | `sase.yml` `xprompts:` section         | Config-based definitions (local + global)        |
-| 7        | Plugin packages (`sase_xprompts` EPs)  | Installed plugin xprompts                        |
-| 8        | `<sase_package>/default_xprompts/*.md` | Built-in default markdown xprompts               |
-| 9        | `<sase_package>/xprompts/*.md`         | Built-in package xprompts shipped with core SASE |
+| Priority | Location                               | Role                                                        |
+| -------- | -------------------------------------- | ----------------------------------------------------------- |
+| 1        | `<project>/sase/xprompts/`             | Canonical project files; writable                           |
+| 2        | `<project>/.xprompts/`                 | Legacy hidden project files; read-only compatibility        |
+| 3        | `<project>/xprompts/`                  | Legacy visible project files; read-only compatibility       |
+| 4        | `~/sase/xprompts/`                     | Canonical user-wide files; writable                         |
+| 5        | `~/.xprompts/`                         | Legacy hidden home files; read-only compatibility           |
+| 6        | `~/xprompts/`                          | Legacy visible home files; read-only compatibility          |
+| 7        | `~/sase/xprompts/{project}/`           | Canonical project-specific home files; writable             |
+| 8        | `~/.config/sase/xprompts/{project}/`   | Legacy project-specific home files; read-only compatibility |
+| 9        | `<project>/sase/sase.yml`              | Canonical project config definitions; writable              |
+| 10       | `<project>/sase.yml`                   | Exclusive legacy project-config fallback                    |
+| 11       | `~/.config/sase/sase_*.yml`            | User overlays; reverse lexical winner order                 |
+| 12       | `~/.config/sase/sase.yml`              | User base config                                            |
+| 13       | Plugin `default_config.yml` resources  | Installed plugin config definitions                         |
+| 14       | Package `default_config.yml`           | Built-in config definitions                                 |
+| 15       | Plugin packages (`sase_xprompts` EPs)  | Installed plugin files                                      |
+| 16       | `<sase_package>/default_xprompts/*.md` | Built-in default Markdown files                             |
+| 17       | `<sase_package>/xprompts/`             | Built-in Markdown, YAML, and shared steps                   |
 
-Each directory-based source can contain individual `.md` files. YAML workflows use the same CWD, home, project, plugin,
-and package locations, with `.yml` or `.yaml` files loaded as workflow definitions. Within priority 6, the config merge
-chain applies: built-in defaults, plugin configs, `~/.config/sase/sase.yml`, overlay files (`sase_*.yml`), and finally a
-local `./sase.yml` in the current working directory (highest config priority).
+Each directory-based source can contain individual `.md` files and, where supported, `.yml` or `.yaml` workflows plus a
+`steps/` directory. Project config is exclusive: if priorities 9 and 10 both exist, SASE reports a collision instead of
+merging them. File directories are first-wins, so a canonical definition shadows a same-named legacy definition. All
+save, create, copy-on-edit, export, and workflow-editor destinations use writable canonical sources; legacy sources are
+displayed only for migration. See [Canonical SASE Content Layout](content_layout.md) for before/after paths and the
+compatibility timeline.
 
-For file-based xprompts (priorities 1-5 and 7-9), the xprompt name defaults to the filename stem (e.g., `summarize.md`
-defines the xprompt `summarize`). The name can be overridden via the `name` field in the YAML front matter.
+For file-based xprompts, the xprompt name defaults to the filename stem (e.g., `summarize.md` defines the xprompt
+`summarize`). The name can be overridden via the `name` field in the YAML front matter.
 
-Project-specific xprompts (priority 5) are namespaced: a file `bar.md` in the `foo` project directory becomes `foo/bar`.
-Inline-capable project xprompts are referenced as `#foo/bar`; standalone project workflows are referenced as
+Project-specific xprompts (priorities 7-8) are namespaced: a file `bar.md` in the `foo` project directory becomes
+`foo/bar`. Inline-capable project xprompts are referenced as `#foo/bar`; standalone project workflows are referenced as
 `#!foo/bar`.
 
-When a project is detected (via the workspace provider), CWD xprompts (priorities 1-2) and local config xprompts are
-also auto-namespaced with the `{project}/` prefix. For example, if the project is `myapp` and `xprompts/deploy.md`
-exists in the CWD, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. A project workflow with no
-`prompt_part` would instead be launched as `#!myapp/deploy`. This prevents name collisions between project-local
-xprompts and global or built-in ones.
+When a project is detected (via the workspace provider), project xprompts (priorities 1-3) and local config xprompts are
+also auto-namespaced with the `{project}/` prefix. For example, if the project is `myapp` and `sase/xprompts/deploy.md`
+exists, it becomes `myapp/deploy` and is referenced as `#myapp/deploy`. A project workflow with no `prompt_part` would
+instead be launched as `#!myapp/deploy`. This prevents name collisions between project-local xprompts and global or
+built-in ones.
 
 ## File Format
 
@@ -885,7 +895,7 @@ in the ACE TUI, a distinct grouping concept. See [Agent Families](agent_families
 
 ### Bundled Standalone Workflows
 
-The repo-level `xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
+The project `sase/xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
 
 | Reference                          | Inputs                           | Purpose                                        |
 | ---------------------------------- | -------------------------------- | ---------------------------------------------- |
@@ -901,7 +911,7 @@ the resulting tree with `git add -A`, creates a commit when the staged diff is n
 pushes. If lint or test failed, it launches separate draft-PR repair agents through `#gh:sase #pr(...)` for
 `fix_just_linters` and `fix_just_tests`; workflow expansion applies the normal PR context before the agents run.
 
-The scheduled documentation refresh workflow lives in this repo as `xprompts/refresh_docs.yml` and is invoked as
+The scheduled documentation refresh workflow lives in this repo as `sase/xprompts/refresh_docs.yml` and is invoked as
 `#!sase/refresh_docs`. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase` repo behavior
 (`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in linked repos, pass repo-specific values such as
 `#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
@@ -937,20 +947,21 @@ xprompts:
     content: "Hello {{ name }}, count is {{ count }}"
 ```
 
-Config-based xprompts have priority 6 (below file-backed project and user xprompts; above plugin and built-in
-definitions).
+Config-based xprompts follow project and home file sources and precede plugin/package file resources. Within config,
+project `sase/sase.yml` wins over user overlays and base config.
 
-Standalone workflows must be defined as YAML files in an `xprompts/` directory (repo-level, project plugin, or built-in
-package). Top-level `workflows:` blocks in `sase.yml` or `sase_*.yml` overlays are no longer supported and will be
-ignored by the runtime; move any such definitions into `xprompts/<name>.yml` files.
+Standalone workflows must be defined as YAML files in an `sase/xprompts/` directory (project or home), a compatibility
+`xprompts/` directory, a project plugin, or a built-in package. Top-level `workflows:` blocks in `sase.yml` or
+`sase_*.yml` overlays are no longer supported and will be ignored by the runtime; move any such definitions into
+`sase/xprompts/<name>.yml` files.
 
 ## Local Configuration Files
 
-You can define project-specific xprompts in a `sase.yml` file in the current working directory. This is a full sase
-config file that can override any configuration, including xprompts. It is the highest-priority config source in the
+You can define project-specific xprompts in `sase/sase.yml` at the detected project root. This is a full SASE config
+file that can override any configuration, including xprompts. It is the highest-priority config source in the
 [deep-merge system](configuration.md#deep-merge-system), overriding global `sase.yml`, overlay files, plugin configs,
 and built-in defaults. Individual `.md` files in xprompts directories still take precedence over config-defined
-xprompts.
+xprompts. A root-level `sase.yml` remains an exclusive legacy fallback during the compatibility window.
 
 ```yaml
 xprompts:
@@ -1841,7 +1852,7 @@ picker, and completion UI display markdown-defined xprompt swarms with the inlin
 form is still recognized for xprompt swarms for compatibility, but new prompts should use `#name`.
 
 ```
-# xprompts/three_phase.md
+# sase/xprompts/three_phase.md
 ---
 input:
   target: word

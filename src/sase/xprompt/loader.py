@@ -107,16 +107,11 @@ def get_all_xprompts(project: str | None = None) -> dict[str, XPrompt]:
     xprompts from project-local sources (CWD xprompt directories and the
     local ``sase.yml``) are namespaced with ``{project}/``.
 
-    Priority order (first wins on name conflict):
-    1. .xprompts/*.md (CWD, hidden)
-    2. xprompts/*.md (CWD, non-hidden)
-    3. ~/.xprompts/*.md (home, hidden)
-    4. ~/xprompts/*.md (home, non-hidden)
-    5. ~/.config/sase/xprompts/{project}/*.md (project-specific, if project given)
-    6. sase.yml xprompts:/snippets: section
-    7. Plugin packages (via sase_xprompts entry points)
-    8. <sase_package>/default_xprompts/*.md (default built-ins)
-    9. <sase_package>/xprompts/*.md (internal)
+    The first-wins order comes from the shared content-layout contract:
+    canonical project and home sources precede their legacy fallbacks,
+    project-specific home sources precede config sources, and plugin/package
+    resources come last. See ``resolve_xprompt_file_sources`` for the
+    filesystem portion.
 
     Args:
         project: Optional project name.  When ``None``, the project is

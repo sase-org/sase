@@ -289,13 +289,19 @@ The `use` value is a slash-separated path relative to a `steps/` directory, with
 
 Step definitions are resolved from the following `steps/` directories (in priority order):
 
-1. `.xprompts/steps/` (CWD, hidden)
-2. `xprompts/steps/` (CWD, non-hidden)
-3. `~/.xprompts/steps/` (home, hidden)
-4. `~/xprompts/steps/` (home, non-hidden)
-5. `<sase-package>/xprompts/steps/` (built-in)
+1. `<project>/sase/xprompts/steps/` (canonical)
+2. `<project>/.xprompts/steps/` (legacy)
+3. `<project>/xprompts/steps/` (legacy)
+4. `~/sase/xprompts/steps/` (canonical)
+5. `~/.xprompts/steps/` (legacy)
+6. `~/xprompts/steps/` (legacy)
+7. `~/sase/xprompts/<project>/steps/` (canonical project-specific home source)
+8. `~/.config/sase/xprompts/<project>/steps/` (legacy project-specific home source)
+9. `<sase-package>/xprompts/steps/` (built-in)
 
-Both `.yml` and `.yaml` extensions are checked.
+Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are written only to canonical project
+or home directories; the legacy sources remain readable during the
+[content-layout compatibility window](content_layout.md#compatibility-and-collisions).
 
 ### Override Behavior
 

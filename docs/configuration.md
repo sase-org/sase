@@ -54,9 +54,11 @@ Overlay files matching the glob `~/.config/sase/sase_*.yml` are merged on top of
 new-overlay prompt, enter a single local overlay name rather than a path: `extra`, `sase_extra`, and `sase_extra.yml`
 all resolve to `~/.config/sase/sase_extra.yml`. SASE trims surrounding whitespace and rejects empty names, `.` / `..`,
 or names containing `/` or `\`, so the create-overlay flow cannot escape the user config directory. A project-local
-`./sase.yml` in the current working directory usually takes highest priority. The ACE TUI deliberately disables
-project-local config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's
-agent-run settings. See [Deep-Merge System](#deep-merge-system) below.
+`sase/sase.yml` at the detected project root usually takes highest priority. A root-level `sase.yml` remains an
+exclusive read fallback during the [layout compatibility window](content_layout.md#compatibility-and-collisions); if
+both files exist, SASE reports a collision instead of merging them. The ACE TUI deliberately disables project-local
+config loading for its own process so opening `sase ace` inside a repo does not inherit that repo's agent-run settings.
+See [Deep-Merge System](#deep-merge-system) below.
 
 ## SASE Admin Center (interactive editor)
 
@@ -205,7 +207,7 @@ amd_h1_title: "Structured Agentic Software Engineering (SASE) - Agent Instructio
 | -------------- | -------------- | ------- | --------------------------------------------------------------------------------------- |
 | `amd_h1_title` | string \| null | `null`  | H1 title used by the `sase memory init` `AGENTS.md` generator when enabled for a scope. |
 
-For ordinary project roots, `is_sase_managed: true` in that root's own `./sase.yml` is the authorization switch. A
+For ordinary project roots, `is_sase_managed: true` in that root's own `sase/sase.yml` is the authorization switch. A
 managed project with no title derives `<project> - Agent Instructions`; `amd_h1_title` alone does not opt a project in.
 
 Home roots are the exception. For the live home root, user config from `~/.config/sase/sase.yml` and
@@ -228,11 +230,12 @@ is_sase_managed: false # default
 | ----------------- | ------- | ------- | ------------------------------------------------------------------------ |
 | `is_sase_managed` | boolean | `false` | Explicitly authorize SASE to manage resources in the current repository. |
 
-Only the target repository's own checked-in `./sase.yml` is consulted for this authorization. Defaults, user config, and
-merged overlays cannot opt repositories in globally. When false or absent, memory init does not create, refresh, or
-validate project memory and does not create or alter the root `AGENTS.md`; it still propagates every existing project
-`AGENTS.md` to provider files beside it. Explicit `sase repo init` and its `sase init repo` alias become successful
-no-ops before provider and storage work. Invalid local YAML or a non-boolean marker fails safely.
+Only the target repository's own checked-in `sase/sase.yml` is consulted for this authorization. A legacy root
+`sase.yml` remains readable only when the canonical file is absent. Defaults, user config, and merged overlays cannot
+opt repositories in globally. When false or absent, memory init does not create, refresh, or validate project memory and
+does not create or alter the root `AGENTS.md`; it still propagates every existing project `AGENTS.md` to provider files
+beside it. Explicit `sase repo init` and its `sase init repo` alias become successful no-ops before provider and storage
+work. Invalid local YAML or a non-boolean marker fails safely.
 
 This is a direct migration: `memory.enabled` is retired and does not authorize repository management. Existing managed
 projects must replace it with top-level `is_sase_managed: true`.
@@ -562,7 +565,7 @@ Declares linked and sidecar repositories related to a project. Git linked-repo w
 commit-finalizer checks at their resolved `workspace_dir`. Agents use `/sase_repo` to prepare them; its audited
 `sase repo open` command records manually opened linked workspaces in run artifacts for ACE context and appends a
 durable audit event. SASE materializes a hidden sibling-state ProjectSpec for the linked repo when needed. Entries can
-live in user config or a project-local `sase.yml`; local entries are resolved relative to the project's primary
+live in user config or a project-local `sase/sase.yml`; local entries are resolved relative to the project's primary
 workspace directory.
 
 Linked repositories are lazy by default. Set `auto_clone: true` for a repository that every launched agent needs; SASE
@@ -974,20 +977,21 @@ xprompts:
     tags: [crs]
 ```
 
-Xprompts defined in `sase.yml` are priority 6 out of 9 in the resolution order:
+Xprompts use the shared first-wins content-layout order:
 
-1. `.xprompts/*.md` (CWD, hidden directory)
-2. `xprompts/*.md` (CWD)
-3. `~/.xprompts/*.md` (home, hidden directory)
-4. `~/xprompts/*.md` (home)
-5. `~/.config/sase/xprompts/{project}/*.md` (project-specific)
-6. `sase.yml` `xprompts:` section (local `./sase.yml` overrides global; see [Deep-Merge System](#deep-merge-system))
-7. Plugin packages (via `sase_xprompts` entry points)
-8. `<sase_package>/default_xprompts/*.md` (built-in default markdown xprompts)
-9. `<sase_package>/xprompts/*.md` (built-in package xprompts)
+1. Project `sase/xprompts/`, then legacy project `.xprompts/` and `xprompts/`
+2. Home `~/sase/xprompts/`, then legacy home `~/.xprompts/` and `~/xprompts/`
+3. `~/sase/xprompts/{project}/`, then legacy `~/.config/sase/xprompts/{project}/`
+4. Project `sase/sase.yml` (root `sase.yml` is an exclusive legacy fallback)
+5. User `sase_*.yml` overlays, then `~/.config/sase/sase.yml`
+6. Plugin config and package default config
+7. Plugin xprompt resources
+8. `<sase_package>/default_xprompts/*.md`, then `<sase_package>/xprompts/*.md`
 
-Earlier sources win on name conflicts. File-based xprompts use YAML front matter for metadata and the file body for
-content.
+Earlier sources win on name conflicts. Project and home canonical directories are the only writable filesystem
+destinations; legacy directories remain read-compatible but are not offered for new saves. File-based xprompts use YAML
+front matter for metadata and the file body for content. The [XPrompt discovery table](xprompt.md#discovery-order) lists
+every source separately.
 
 Source: `src/sase/xprompt/loader.py`
 
@@ -1022,7 +1026,8 @@ Source: `src/sase/xprompt/processor.py`
 
 Enables chezmoi-aware home-file writes. When set to `true`, SASE writes generated home instructions, memory, skills, and
 home-directory xprompt paths through the chezmoi source tree under `~/.local/share/chezmoi/home/` instead of writing the
-live home files directly. For example, `~/.xprompts/` is remapped to `~/.local/share/chezmoi/home/dot_xprompts/`.
+live home files directly. Canonical `~/sase/xprompts/` and `~/sase/memory/` map to source paths `home/sase/xprompts/`
+and `home/sase/memory/`. The unchanged global config still maps to `home/dot_config/sase/sase.yml`.
 
 This affects initialization workflow as well as xprompt editing. `sase memory init` targets the chezmoi home source root
 when it needs to initialize home-level `AGENTS.md`, writes home memory there, and may run the configured chezmoi deploy
@@ -1215,13 +1220,14 @@ initialization, existing bare-repo registration, `#git`/workspace materializatio
 Setup/materialization flows commit and push only those generated init paths with an `Initialize SDD` init commit when
 needed.
 
-For a repository whose own `sase.yml` sets `is_sase_managed: true`, running `sase repo init` or its `sase init repo`
-alias writes the managed plans and research entries, initializes configured sidecars, then refreshes generated guides
-and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--plans` and `<owner>/<repo>--research`, while
-honoring optional explicit `repo` pins. It initializes and pushes every enabled entry, then maintains the split store
-record. Existing legacy `--sdd` files remain untouched locally and in their remote, while normal SDD routing uses the
-configured sidecars. `--check` previews provider and generated-file work without writing. Missing or false management
-markers make both forms successful no-ops; invalid local marker configuration fails before provider calls or writes.
+For a repository whose own `sase/sase.yml` sets `is_sase_managed: true`, running `sase repo init` or its
+`sase init repo` alias writes the managed plans and research entries, initializes configured sidecars, then refreshes
+generated guides and the directory map. On GitHub it derives the remotes as `<owner>/<repo>--plans` and
+`<owner>/<repo>--research`, while honoring optional explicit `repo` pins. It initializes and pushes every enabled entry,
+then maintains the split store record. Existing legacy `--sdd` files remain untouched locally and in their remote, while
+normal SDD routing uses the configured sidecars. `--check` previews provider and generated-file work without writing.
+Missing or false management markers make both forms successful no-ops; invalid local marker configuration fails before
+provider calls or writes.
 
 Explicit initialization first performs authoritative provider discovery for every enabled sidecar. Each missing GitHub
 repository triggers a separate prompt naming its role and resolved repository; only `y` or `yes` authorizes that
@@ -1759,9 +1765,9 @@ and skills, prints a grouped summary, and prompts once per initializer that need
 Non-interactive runs never prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag runs
 needed initializers but cannot authorize creation of a missing GitHub SDD sidecar, which always requires its own
 interactive `y`/`yes` response. The memory planner (which owns agent-document initialization) only generates managed
-project `AGENTS.md` from bare `sase init` when the current project's own `./sase.yml` sets `is_sase_managed: true`. The
-SDD planner uses that same local marker and skips unmanaged repositories before provider work. Neither planner infers
-project ownership from `amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
+project `AGENTS.md` from bare `sase init` when the current project's own `sase/sase.yml` sets `is_sase_managed: true`.
+The SDD planner uses that same local marker and skips unmanaged repositories before provider work. Neither planner
+infers project ownership from `amd_h1_title`, existing memory notes, lifecycle state, or merged configuration.
 
 `--all` applies that coordinator to every registered enabled main project from its recorded primary workspace, even when
 the command starts outside a project. It excludes disabled projects, internal sibling backing records, `home`, and other
@@ -1818,18 +1824,18 @@ sase memory log --id <read-id>
 ### `sase memory init`
 
 Creates or refreshes home memory and memory for SASE-managed projects. Project ownership requires
-`is_sase_managed: true` in the project's own `./sase.yml`; `amd_h1_title` is optional title customization, with a stable
-derived title otherwise. The retired `memory.enabled` key does not authorize management. It never creates or alters an
-unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider instruction file (`CLAUDE.md`,
-`GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy of that root's `AGENTS.md` (legacy `@AGENTS.md` /
-`*.md.tmpl` import shims are recognized and migrated to full copies). This copy applies to every existing project-tree
-`AGENTS.md`; directories without one are untouched. For managed roots, memory init synchronizes memory: short-term notes
-are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a description-driven
-reference list, and missing long-memory `description` frontmatter is inserted. By default it also tries to commit,
-rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for this command.
-Generated repository memory requires agents to use `/sase_repo` before reading or modifying any repo outside their own
-workspace checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked GitHub repos even when
-no linked repositories are configured.
+`is_sase_managed: true` in the project's own `sase/sase.yml`; `amd_h1_title` is optional title customization, with a
+stable derived title otherwise. The retired `memory.enabled` key does not authorize management. It never creates or
+alters an unmanaged project's root `AGENTS.md`. Independently, it overwrites each provider instruction file
+(`CLAUDE.md`, `GEMINI.md`, `QWEN.md`, `OPENCODE.md`) with a byte-for-byte copy of that root's `AGENTS.md` (legacy
+`@AGENTS.md` / `*.md.tmpl` import shims are recognized and migrated to full copies). This copy applies to every existing
+project-tree `AGENTS.md`; directories without one are untouched. For managed roots, memory init synchronizes memory:
+short-term notes are inlined verbatim into the Tier 1 block of `AGENTS.md`, long-term notes are rendered as a
+description-driven reference list, and missing long-memory `description` frontmatter is inserted. By default it also
+tries to commit, rebase-pull, and push generated project-side files. `sase init memory` is a compatibility alias for
+this command. Generated repository memory requires agents to use `/sase_repo` before reading or modifying any repo
+outside their own workspace checkout. The rule covers linked repos, sidecars, different SASE projects, and unlinked
+GitHub repos even when no linked repositories are configured.
 
 | Flag                          | Values | Default | Description                                                                                             |
 | ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
@@ -1839,13 +1845,13 @@ no linked repositories are configured.
 
 ### `sase init repo`
 
-`sase init repo` is an alias for `sase repo init`. For targets marked `is_sase_managed: true` in their own `sase.yml`,
-it initializes configured sidecars, creates or refreshes generated README files, ensures the managed plans and research
-declarations, and maintains the root `/sase/repos/` ignore rule. Missing or false markers produce an informative
-successful no-op, while invalid local configuration fails before provider or filesystem work. `--path` always checks the
-target repository's marker. GitHub setup creates missing sidecars with their configured public/private visibility.
-Bare-git projects refresh generated files automatically during repository setup and first SDD writes; the explicit
-command remains useful for refreshes and `--check` audits.
+`sase init repo` is an alias for `sase repo init`. For targets marked `is_sase_managed: true` in their own
+`sase/sase.yml`, it initializes configured sidecars, creates or refreshes generated README files, ensures the managed
+plans and research declarations, and maintains the root `/sase/repos/` ignore rule. Missing or false markers produce an
+informative successful no-op, while invalid local configuration fails before provider or filesystem work. `--path`
+always checks the target repository's marker. GitHub setup creates missing sidecars with their configured public/private
+visibility. Bare-git projects refresh generated files automatically during repository setup and first SDD writes; the
+explicit command remains useful for refreshes and `--check` audits.
 
 When the GitHub sidecar is missing, this alias uses the same default-no repository-specific confirmation as
 `sase repo init`. EOF, interruption, and any answer other than `y`/`yes` return nonzero before remote creation. Generic

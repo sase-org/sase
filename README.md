@@ -236,6 +236,7 @@ The full documentation lives at **[sase.sh](https://sase.sh/)**. Start with:
 - [Initialization](https://sase.sh/init/) ([local](docs/init.md))
 - [Agent Providers](https://sase.sh/agent_providers/) ([local](docs/agent_providers.md))
 - [Memory](https://sase.sh/memory/) ([local](docs/memory.md))
+- [Canonical content layout and migration](https://sase.sh/content-layout/) ([local](docs/content_layout.md))
 - [AXE Automation](https://sase.sh/axe/) ([local](docs/axe.md))
 - [Spec-Driven Development](https://sase.sh/sdd/) ([local](docs/sdd.md))
 - [SDD Storage](https://sase.sh/sdd_storage/) ([local](docs/sdd_storage.md))

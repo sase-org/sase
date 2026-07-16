@@ -229,7 +229,7 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
         except Exception:
             return None
 
-    # local_config → ./sase.yml in CWD
+    # local_config → project sase/sase.yml (legacy root fallback is display-only)
     if source_path == "local_config":
         project_root = discover_project_root() or Path.cwd()
         path = resolve_project_config_read_path(project_root)

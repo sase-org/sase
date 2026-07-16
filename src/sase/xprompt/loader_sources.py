@@ -169,14 +169,10 @@ def get_xprompt_search_paths(
 ) -> list[Path]:
     """Get the ordered list of directories to search for xprompt files.
 
-    Priority order (first wins on name conflict):
-    1. .xprompts/*.md (CWD, hidden)
-    2. xprompts/*.md (CWD, non-hidden)
-    3. ~/.xprompts/*.md (home, hidden)
-    4. ~/xprompts/*.md (home, non-hidden)
-    5. (config is handled separately)
-    6. <sase_package>/default_xprompts/*.md (default built-ins, separate)
-    7. <sase_package>/xprompts/*.md (internal, separate)
+    The Rust content-layout contract owns the first-wins order: canonical
+    project, legacy project, canonical home, legacy home, project-specific
+    home, and package filesystem sources. Config and plugin-only entries are
+    handled by their dedicated loaders.
 
     Returns:
         List of directory paths to search, in priority order.
@@ -197,8 +193,9 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
     Scans each search directory for ``.md`` files. Earlier directories in the
     search path take precedence over later ones.
 
-    When *project* is given, xprompts from CWD directories (``.xprompts/``,
-    ``xprompts/``) are namespaced with ``{project}/``.
+    When *project* is given, xprompts from project directories (canonical
+    ``sase/xprompts/`` and legacy fallbacks) are namespaced with
+    ``{project}/``.
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
@@ -250,7 +247,7 @@ def load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
     xprompt gets the correct source attribution instead of all being
     tagged as ``"config"``.
 
-    When *project* is given, xprompts from the local ``sase.yml``
+    When *project* is given, xprompts from the local ``sase/sase.yml``
     (``local_config`` source) are namespaced with ``{project}/``.
 
     Priority order (within config sources, later overrides earlier):
@@ -258,7 +255,7 @@ def load_xprompts_from_config(project: str | None = None) -> dict[str, XPrompt]:
     2. Plugin ``default_config.yml`` files
     3. User ``sase.yml``
     4. Overlay ``sase_*.yml`` files
-    5. Local ``./sase.yml``
+    5. Local ``sase/sase.yml`` (root ``sase.yml`` is a legacy fallback)
 
     Returns:
         Dictionary mapping xprompt name to XPrompt object.
@@ -398,8 +395,9 @@ def load_xprompts_from_plugins() -> dict[str, XPrompt]:
 def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
     """Load xprompts from a project-specific directory.
 
-    Loads xprompts from ~/.config/sase/xprompts/{project}/*.md and namespaces
-    them with the project name (e.g., bar.md → foo/bar for project 'foo').
+    Loads xprompts from canonical ``~/sase/xprompts/{project}/`` and the
+    legacy config-directory fallback, then namespaces them with the project
+    name (e.g., bar.md → foo/bar for project 'foo').
 
     Args:
         project: The project name to load xprompts for.

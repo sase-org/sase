@@ -22,7 +22,7 @@ The lifecycle is:
 ## Configuration
 
 Mentors are configured through `mentor_profiles` in `sase.yml`. SASE loads merged config, so user-level profiles from
-`~/.config/sase/sase.yml` and project-local profiles from `./sase.yml` can both contribute profiles. See
+`~/.config/sase/sase.yml` and project-local profiles from `sase/sase.yml` can both contribute profiles. See
 [`docs/configuration.md`](configuration.md#mentor_profiles) for the field reference.
 
 A profile defines when it should run. Each profile contains one or more mentors, and each mentor has a role plus focus
@@ -81,9 +81,9 @@ Matching profiles are added to the latest regular commit's `MENTORS` entry befor
 
 ### Project Scoping
 
-Mentor profiles from a project-local `sase.yml` are automatically scoped to that project. This means a profile defined
-in `/home/user/myproject/sase.yml` will only match ChangeSpecs belonging to `myproject`, preventing local profiles from
-firing on unrelated projects.
+Mentor profiles from a project-local `sase/sase.yml` are automatically scoped to that project. This means a profile
+defined in `/home/user/myproject/sase/sase.yml` will only match ChangeSpecs belonging to `myproject`, preventing local
+profiles from firing on unrelated projects.
 
 You can also explicitly set the `projects` field on any profile to restrict it to specific projects:
 

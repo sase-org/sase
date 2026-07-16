@@ -228,8 +228,8 @@ Bridge a useful one-off prompt into a durable [xprompt](xprompt.md) so you can t
 sase prompt save ph_8f3a9c0d12ab -n fix-auth-review -t review
 sase run "#fix-auth-review"               # the existing loader resolves it
 
-sase prompt save ph_8f3a9c0d12ab -g       # write to ~/.xprompts/ instead of ./.xprompts/
-sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/.config/sase/xprompts/bob/
+sase prompt save ph_8f3a9c0d12ab -g       # write to ~/sase/xprompts/ instead of project sase/xprompts/
+sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/xprompts/bob/
 ```
 
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never overwrites an existing xprompt

@@ -24,23 +24,21 @@ when to stop there instead of reaching for a workflow.
 <!-- more -->
 
 [Getting Started](../../getting_started.md) shows how to turn a one-off prompt into a reusable `#docstring`. That is the
-smallest XPrompt: one Markdown file in `xprompts/`, invoked by name. This post zooms in. We will walk from that one-file
-XPrompt up through typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML workflows exist
-— because most of the time you do not need one.
+smallest XPrompt: one Markdown file in `sase/xprompts/`, invoked by name. This post zooms in. We will walk from that
+one-file XPrompt up through typed inputs, directives, and multi-agent fan-out, and only at the end show why YAML
+workflows exist — because most of the time you do not need one.
 
 ## The Smallest XPrompt Is a Markdown File
 
-`xprompts/docstring.md` is the entire definition. Drop the file in `xprompts/` (or `.xprompts/` for hidden-dir layouts)
-and the prompt becomes reachable as `#docstring`. Optional YAML frontmatter on top of the file gives it a `name`, a
-`description`, typed `input` fields, a `snippet` for editor completion, and a `skill` advertisement. None of those
-fields are required.
+`sase/xprompts/docstring.md` is the entire definition. Drop the file in the canonical project directory and the prompt
+becomes reachable as `#docstring`. Optional YAML frontmatter on top of the file gives it a `name`, a `description`,
+typed `input` fields, a `snippet` for editor completion, and a `skill` advertisement. None of those fields are required.
 
-Discovery order is deterministic and project-aware: project hidden dir, project plain dir, then user hidden dir, user
-plain dir, then `~/.config/sase/xprompts/{project}/`, then `sase.yml` `xprompts:` entries, then `sase_xprompts` plugin
-packages, then SASE's built-in defaults. First match wins. The
-[full table is in the docs](../../xprompt.md#discovery-order); the practical implication is that a project-local
-override always beats a user override which always beats a plugin which always beats a built-in. That ordering is what
-lets `crs`, `fix_hook`, and the commit workflows ship as overridable defaults.
+Discovery order is deterministic and project-aware: canonical project files, legacy project fallbacks, canonical home
+files, legacy home fallbacks, project-specific home files, config entries, `sase_xprompts` plugin packages, then SASE's
+built-in defaults. First match wins. The [full table is in the docs](../../xprompt.md#discovery-order); the practical
+implication is that a project-local override always beats a user override which always beats a plugin which always beats
+a built-in. That ordering is what lets `crs`, `fix_hook`, and the commit workflows ship as overridable defaults.
 
 ## Typed Inputs Add Light Validation
 
@@ -98,7 +96,7 @@ A bare `---` line on its own inside an XPrompt body (outside any fenced code blo
 becomes its own agent at dispatch time, with the same input arguments threaded through:
 
 ```markdown
-# xprompts/three_phase.md
+# sase/xprompts/three_phase.md
 
 ---
 

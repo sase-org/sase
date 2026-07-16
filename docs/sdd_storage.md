@@ -69,7 +69,7 @@ sidecars are prepared by initialization in the current workspace. In later works
 owns bead state, while research materializes on demand. The provider still supports `<owner>/<repo>--sdd` discovery and
 `sdd.repo.name` overrides for unmigrated legacy stores.
 
-Set `is_sase_managed: true` in the repository's own `sase.yml`, then run `sase repo init` to create or connect the
+Set `is_sase_managed: true` in the repository's own `sase/sase.yml`, then run `sase repo init` to create or connect the
 provider store and refresh generated SDD guides. Without that local marker, explicit init and `--check` skip before
 provider work. The `#gh` setup step also materializes the sidecar before claiming and launching work. Authentication,
 authorization, network, discovery, creation, label, clone, import, or initial-push failures stop setup; GitHub projects

@@ -504,8 +504,9 @@ def _load_workflows_from_plugins() -> dict[str, Workflow]:
 def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
     """Load workflows from a project-specific directory.
 
-    Loads workflows from ~/.config/sase/xprompts/{project}/*.yml and namespaces
-    them with the project name (e.g., bar.yml → foo/bar for project 'foo').
+    Loads workflows from canonical ``~/sase/xprompts/{project}/`` and the
+    legacy config-directory fallback, then namespaces them with the project
+    name (e.g., bar.yml → foo/bar for project 'foo').
 
     Args:
         project: The project name to load workflows for.
@@ -577,15 +578,10 @@ def get_all_workflows(project: str | None = None) -> dict[str, Workflow]:
     workflows from project-local sources (CWD xprompt directories) are
     namespaced with ``{project}/``.
 
-    Priority order (higher layers override lower layers):
-    1. .xprompts/*.yml (CWD, hidden)
-    2. xprompts/*.yml (CWD, non-hidden)
-    3. ~/.xprompts/*.yml (home, hidden)
-    4. ~/xprompts/*.yml (home, non-hidden)
-    5. Known project workspace xprompts (project fallback, if project given)
-    6. ~/.config/sase/xprompts/{project}/*.yml (project-specific, if project given)
-    7. Plugin packages (via sase_xprompts entry points)
-    8. <sase_package>/xprompts/*.yml (internal)
+    The priority order follows the shared content-layout contract: canonical
+    project and home directories precede their legacy fallbacks,
+    project-specific home sources precede plugin/package resources, and known
+    project workspaces provide the cross-project fallback.
 
     Args:
         project: Optional project name.  When ``None``, the project is

@@ -73,14 +73,20 @@ The project-adjacent taxonomy has three non-overlapping roles:
 | Agent archives   | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/` | Dismissed-agent recovery bundles and named groups for later ACE revival.                                       |
 | SDD artifacts    | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots     | Prompt snapshots, plans, executable epics, and research notes; resolve with `sase repo path plans              | research`. |
 | Beads            | The resolved SDD beads directory                                   | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; split stores use `--plans/beads/`. |
-| Memory context   | `memory/`, `~/.sase/projects/<project>/`                           | Agent instructions, audited reads, and write proposals.                                                        |
-| Configuration    | `~/.config/sase/sase.yml`, overlays, optional project-local config | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                      |
+| Project content  | `sase/sase.yml`, `sase/xprompts/`, `sase/memory/`, `sase/repos/`   | Source-controlled project settings/context plus ignored workspace-scoped repository checkouts.                 |
+| Home content     | `~/sase/xprompts/`, `~/sase/memory/`                               | User-wide reusable prompts and agent memory.                                                                   |
+| Memory audit     | `~/.sase/projects/<project>/`                                      | Attributable reads, write proposals, and review decisions.                                                     |
+| Configuration    | `~/.config/sase/sase.yml`, overlays, project `sase/sase.yml`       | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                      |
 | Notifications    | Notification store facade backed by Rust operations                | User-visible actions, unread state, agent completion, errors, and mobile events.                               |
 | Workspace claims | Running-field state and provider metadata                          | Reservation and release of numbered workspaces for parallel agents.                                            |
 | Workspace stores | Per-project `registry.json` under the configured workspace root    | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.      |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated tests, alternate profiles, or
 containerized runs.
+
+The canonical project/home namespace and legacy read boundary are documented in
+[Canonical SASE Content Layout](content_layout.md). Global config, `.sase` runtime state, package resources, and plugin
+resources deliberately remain outside that namespace.
 
 This model lets ACE, CLI commands, axe, and future frontends read the same engineering state without depending on one
 terminal session.

@@ -265,7 +265,7 @@ reports the warning count and appends `(use --show-warnings to display)` so they
 through noise on the happy path. Pass `-W/--show-warnings` to print each warning, or `--strict` to promote warnings to
 errors before filtering. JSON mode (`-j/--json`) and exit codes are unaffected by `-W`.
 
-For a repository whose own `sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
+For a repository whose own `sase/sase.yml` sets `is_sase_managed: true`, the `sase repo init` command materializes the
 provider-selected store. On GitHub it finds or creates every enabled configured sidecar, deriving
 `<owner>/<repo>--<role>` for unpinned roles such as plans and research and honoring explicit repository pins. It writes
 each repository's deterministic README and infographic asset, pushes generated drift, and only then records the split

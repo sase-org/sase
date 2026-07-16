@@ -1,7 +1,7 @@
 # Memory
 
-SASE memory is durable context that survives individual agent chats. Notes live as Markdown files directly under
-`memory/`; each non-README note declares its tier in YAML frontmatter:
+SASE memory is durable context that survives individual agent chats. Project notes live as Markdown files directly under
+`sase/memory/`; home notes live under `~/sase/memory/`. Each non-README note declares its tier in YAML frontmatter:
 
 - **Short-term memory** uses `type: short`. It is always-loaded instruction context: `sase memory init` inlines each
   short-term note's body verbatim into the `## Tier 1 (short-term) Memory` block of the managed `AGENTS.md` (one
@@ -9,7 +9,7 @@ SASE memory is durable context that survives individual agent chats. Notes live 
   project-local `is_sase_managed: true`. `amd_h1_title` optionally customizes the generated title. The retired
   `memory.enabled` key no longer authorizes management.
 - **Long-term memory** uses `type: long`. It is reference context, requires `description` frontmatter, and can set
-  `parent: memory/<note>.md` to appear under another long note's `## Children` section.
+  `parent: sase/memory/<note>.md` to appear under another long note's `## Children` section.
 - **Audited memory operations** live under the project state directory and record agent reads plus proposed writes and
   human review decisions.
 
@@ -33,8 +33,9 @@ The dashboard separates:
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context. Provider
   instruction files (`CLAUDE.md`, `GEMINI.md`, …) are full copies of `AGENTS.md`; they are reported as instruction roots
   but are not separate traversal roots for this dashboard.
-- `referenced` files mentioned by plain `memory/...` text or by audited `sase memory read` instructions, but not loaded.
-- `available` files present under project or home `memory/` but unreachable from the current launch context.
+- `referenced` files mentioned by plain `sase/memory/...` text or by audited `sase memory read` instructions, but not
+  loaded.
+- `available` files present under project or home `sase/memory/` but unreachable from the current launch context.
 - `missing` referenced files that do not exist.
 
 Approximate token counts are included so large instruction surfaces are visible before an agent launch.
@@ -52,7 +53,8 @@ sase memory log --agent agent-a
 sase memory log --id <read-id>
 ```
 
-The read path is relative to `memory/` and accepts long-term notes (`type: long`). Short-term notes are excluded because
+The read argument remains relative to the selected project or home memory root, so callers pass `generated_skills.md`,
+not `sase/memory/generated_skills.md`. It accepts long-term notes (`type: long`). Short-term notes are excluded because
 they are intended to arrive through instruction loading rather than ad hoc reads. The command strips one leading YAML
 frontmatter block from stdout and appends a `## Children` section when the note has nested long-term children. The audit
 event records metadata such as path, agent name, timestamp, cwd, byte count, and reason.
@@ -133,7 +135,7 @@ Agents cannot approve, edit-approve, or reject proposals: those actions fail whe
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`. Human review events record the local user and
 hostname. `--edit` opens `$VISUAL` or `$EDITOR`, then approves the edited body.
 
-Approval writes the canonical file under the current repo's `memory/` path and prepends frontmatter:
+Approval writes the canonical file under the current repo's `sase/memory/` path and prepends frontmatter:
 
 ```yaml
 ---
@@ -147,8 +149,12 @@ source_candidate: mem-20260523-142233-a1b2c3d4
 Approval refuses to overwrite an existing target. Use `--target <slug>.md` to approve into a different unused one-level
 target, `--edit` to open `$VISUAL`/`$EDITOR` before approving, or `--edited-file` for non-interactive edited approval.
 
-If approved memory should be loaded every time, add an explicit `@memory/<note>.md` reference from the appropriate
+If approved memory should be loaded every time, add an explicit `@sase/memory/<note>.md` reference from the appropriate
 instruction file.
+
+Legacy project `memory/` and home `~/memory/` trees remain readable to migration tooling during the compatibility
+window. Canonical and legacy trees are exclusive: non-identical coexistence blocks initialization instead of merging
+context. See [Canonical SASE Content Layout](content_layout.md#compatibility-and-collisions).
 
 ## Review TUI
 

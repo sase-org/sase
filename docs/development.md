@@ -229,18 +229,19 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
 | `docs/`                        | MkDocs Material site source.                                                                           |
-| `sdd/`                         | Project-local prompt, tale, epic, research, and bead artifacts.                                        |
-| `xprompts/`                    | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
+| `sase/sase.yml`                | Repository-local SASE configuration.                                                                   |
+| `sase/xprompts/`               | Repository-local xprompts and workflows for SASE maintenance agents.                                   |
+| `sase/memory/`                 | SASE memory files used by repository agents.                                                           |
+| `sase/repos/`                  | Runtime-only linked, sidecar, and external repository checkouts.                                       |
 | `tools/`                       | Development scripts used by `just` targets and CI checks.                                              |
-| `memory/`                      | SASE memory files used by repository agents.                                                           |
 
 Detailed subsystem pages often include narrower source-layout tables. Use this page for initial orientation, then jump
 to the specific reference for the area you are changing.
 
 ## Repository XPrompts
 
-The checkout's top-level `xprompts/` directory is project-local to the `sase` repository. When SASE resolves prompts
-from this project checkout, those entries are namespaced as `sase/<name>` so they do not collide with user or packaged
+The checkout's `sase/xprompts/` directory is project-local to the `sase` repository. When SASE resolves prompts from
+this project checkout, those entries are namespaced as `sase/<name>` so they do not collide with user or packaged
 prompts. Use the catalog's `insertion` value to know whether an entry should be invoked with `#` or `#!`.
 
 Useful visible entries include:

@@ -112,14 +112,10 @@ Per-role fields (unknown keys are load errors):
 
 ### Discovery
 
-Definitions are discovered from `*.yml`/`*.yaml` files in the same directories as xprompts, with later sources
-overriding earlier ones by `id`:
-
-1. Bundled package xprompts
-2. Plugin `sase_xprompts` resources
-3. `~/.config/sase/xprompts/<project>/`
-4. Workspace `.xprompts/` and `xprompts/` directories
-5. The general xprompt search paths
+Definitions are discovered from `*.yml`/`*.yaml` files in the same first-wins order as xprompts: canonical project,
+legacy project, canonical home, legacy home, canonical and legacy project-specific home sources, then config, plugin,
+and package sources. Definitions from a higher-priority source override lower-priority definitions by `id`. See the
+[full discovery table](xprompt.md#discovery-order); new files belong under project or home `sase/xprompts/`.
 
 Invalid files are skipped with a recorded load issue (surfaced as `skipped: <source>: <error>` by `sase xprompt list`).
 Valid definitions appear in `sase xprompt list` JSON output with `"type": "agent_family"` and a role-summary preview.

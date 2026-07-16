@@ -19,10 +19,10 @@ initialization (managed `AGENTS.md` and its provider instruction copies); reposi
 sidecars and the workspace ignore rule. Planning is read-only. In non-interactive shells, bare `sase init` reports drift
 and exits non-zero instead of prompting; use `sase init --yes` when you want an unattended apply run. Apply runs can
 write project files, deploy home files through chezmoi when configured, and use each initializer's normal commit/push
-behavior. Project-wide ownership requires `is_sase_managed: true` in the current repository's own `./sase.yml`; defaults
-and merged user configuration cannot grant it. Without that local marker, memory init leaves project memory and the root
-`AGENTS.md` untouched while still copying every existing project-tree `AGENTS.md` to the provider instruction files
-beside it, and explicit repository initialization exits successfully without detecting a provider, materializing
+behavior. Project-wide ownership requires `is_sase_managed: true` in the current repository's own `sase/sase.yml`;
+defaults and merged user configuration cannot grant it. Without that local marker, memory init leaves project memory and
+the root `AGENTS.md` untouched while still copying every existing project-tree `AGENTS.md` to the provider instruction
+files beside it, and explicit repository initialization exits successfully without detecting a provider, materializing
 sidecars, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the repository initializer, but it
@@ -38,7 +38,7 @@ projects from being attempted; the final summary and exit status reflect the who
 read-only and exits non-zero if any project has drift or cannot be checked. Without a TTY, `--all` remains read-only
 unless `--yes` is supplied.
 
-Use `-M, --enable-project-memory` to create or update the current project's `./sase.yml` with `is_sase_managed: true`
+Use `-M, --enable-project-memory` to create or update the current project's `sase/sase.yml` with `is_sase_managed: true`
 before normal initialization. The compatibility spelling remains, but the marker now authorizes SASE management of the
 repository as a whole and thereby enables managed project memory and explicit repository initialization. The option
 preserves other local configuration and is available on both bare `sase init` and `sase memory init` (as well as the
@@ -142,12 +142,12 @@ that creates or refreshes these documents.
 `sase memory init` always initializes the home-level memory surface. It initializes project-local memory only for a
 SASE-managed repository, and independently owns provider instruction copies:
 
-`sase memory init -M` is the convenience path for a new active main project: it creates or updates `./sase.yml` with the
-repository-wide marker before loading configuration and running the normal initializer.
+`sase memory init -M` is the convenience path for a new active main project: it creates or updates `sase/sase.yml` with
+the repository-wide marker before loading configuration and running the normal initializer.
 
-- Project memory under `./memory/`, including `memory/README.md` and flat note files with `type`/`parent` frontmatter,
-  only when the project's own `./sase.yml` contains `is_sase_managed: true`.
-- Home memory under `~/memory/`, or under `~/.local/share/chezmoi/home/` when `use_chezmoi: true`.
+- Project memory under `./sase/memory/`, including `sase/memory/README.md` and flat note files with `type`/`parent`
+  frontmatter, only when the project's own `sase/sase.yml` contains `is_sase_managed: true`.
+- Home memory under `~/sase/memory/`, or under `~/.local/share/chezmoi/home/sase/memory/` when `use_chezmoi: true`.
 - A managed project `AGENTS.md` only with that same explicit opt-in. `amd_h1_title` customizes its H1; otherwise SASE
   derives the stable `<project> - Agent Instructions` title.
 - Provider instruction files `CLAUDE.md`, `GEMINI.md`, `QWEN.md`, and `OPENCODE.md`; each is a byte-for-byte copy of
@@ -175,8 +175,8 @@ files already there.
 When `use_chezmoi: true`, the home files are written to the chezmoi source tree. The command can then commit those home
 changes and run `chezmoi apply --force`; `--no-commit` does not disable that home deployment path.
 
-The generated `memory/sase.md` summarizes workspace naming and linked repositories. Project memory reads linked-repo
-descriptions from the project-local `./sase.yml`; home memory reads them from the global config
+The generated `sase/memory/sase.md` summarizes workspace naming and linked repositories. Project memory reads
+linked-repo descriptions from the project-local `sase/sase.yml`; home memory reads them from the global config
 `~/.config/sase/sase.yml`, or from the chezmoi-managed config path when `use_chezmoi: true`. Generated memory requires
 agents to use `/sase_repo` before reading or modifying any repository outside their own workspace checkout. This rule
 applies to configured linked repos and sidecars, other SASE projects, and unlinked GitHub repos even when no linked
@@ -191,19 +191,19 @@ the standard memory-init commit message, pulls with rebase, and pushes. This pat
 generated project files before committing. `--no-commit` only skips the project deploy path; home memory deployment
 still follows `use_chezmoi` when it is enabled.
 
-For managed roots, memory validation is reachability-based: Markdown files under `memory/` must be reachable from
-`AGENTS.md` directly or through transitive `@memory/...` or `memory/...` references. Unreferenced memory files make the
-command fail so important agent context is not silently ignored. Unmanaged project memory is not validated.
+For managed roots, memory validation is reachability-based: Markdown files under `sase/memory/` must be reachable from
+`AGENTS.md` directly or through transitive `@sase/memory/...` or `sase/memory/...` references. Unreferenced memory files
+make the command fail so important agent context is not silently ignored. Unmanaged project memory is not validated.
 
 ## Memory Context List
 
 `sase memory list`, or bare `sase memory`, renders a read-only dashboard for the current directory. It reports:
 
 - `loaded` files reached by transitive `@...` references from `AGENTS.md` in the project or home context.
-- `referenced` files mentioned by plain `memory/...` text from loaded context or by audited `sase memory read`
+- `referenced` files mentioned by plain `sase/memory/...` text from loaded context or by audited `sase memory read`
   instructions. These are visible in the dashboard, but their contents are not loaded unless another `@...` edge reaches
   them.
-- `available` files present under project or home `memory/` that the current launch context does not reach.
+- `available` files present under project or home `sase/memory/` that the current launch context does not reach.
 - `missing` referenced memory paths that do not exist.
 
 The dashboard includes approximate local token estimates for loaded memory context.
@@ -214,10 +214,10 @@ For day-to-day read/write operations, including audited reads and reviewed long-
 ## Memory Read Audit Log
 
 `sase memory read <memory-relative-path> -r <reason>` is the audited path for agent-initiated long-term memory reads.
-The path is relative to `memory/`; the command allows `type: long` Markdown notes and rejects `type: short` notes
-because short-term memory is expected to arrive through instruction loading. The command strips one leading YAML
-frontmatter block from stdout and appends `## Children` when nested long notes exist, but the audit log records only
-metadata such as path, agent name, timestamp, cwd, byte count, and reason.
+The argument is relative to the selected project or home `sase/memory/` root; the command allows `type: long` Markdown
+notes and rejects `type: short` notes because short-term memory is expected to arrive through instruction loading. The
+command strips one leading YAML frontmatter block from stdout and appends `## Children` when nested long notes exist,
+but the audit log records only metadata such as path, agent name, timestamp, cwd, byte count, and reason.
 
 Every read must include a non-empty reason via `-r` or `--reason`. The command also requires agent attribution from
 `SASE_AGENT_NAME`, `SASE_AGENT`, or `SASE_ARTIFACTS_DIR/agent_meta.json`; unattributed reads fail instead of writing a
@@ -287,10 +287,11 @@ sase repo init --no-commit        # write project config/ignore changes without 
 sase init repo                    # alias for sase repo init
 ```
 
-Both apply and `--check` first read the current repository's own `sase.yml`. A missing or false `is_sase_managed` marker
-makes the command an informative, successful no-op before provider work; malformed YAML and non-boolean marker values
-fail safely. `sase init repo` delegates to the same repository initializer; `sase init workspace` is no longer a public
-subcommand because its ignore-rule work is part of repository initialization.
+Both apply and `--check` first read the current repository's own `sase/sase.yml` (with root `sase.yml` as a legacy-only
+fallback). A missing or false `is_sase_managed` marker makes the command an informative, successful no-op before
+provider work; malformed YAML and non-boolean marker values fail safely. `sase init repo` delegates to the same
+repository initializer; `sase init workspace` is no longer a public subcommand because its ignore-rule work is part of
+repository initialization.
 
 Built-in bare-git projects keep their provider-owned in-tree SDD layout. For those projects, `sase repo init` refreshes
 the existing generated SDD guides while still maintaining the managed sidecar declarations and repository ignore rule.
