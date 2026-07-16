@@ -104,6 +104,8 @@ class StateInitMixin:
         self._agents_onboarding_plugins_refresh_running = False
         self._agents_onboarding_plugins_refresh_pending = False
         self._update_toast_shown = False
+        self._automatic_update_check_in_flight = False
+        self._automatic_update_check_timer: Timer | None = None
         # Deferred live-workspace pencil-hint scan coalescing. The expensive
         # per-agent live VCS diff is computed in a background worker after the
         # first agents load applies (never on the startup-critical loader

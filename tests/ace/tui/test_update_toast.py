@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -84,6 +85,243 @@ def _incoming(prefix: str, total: int) -> IncomingCommits:
         ),
         source="git",
     )
+
+
+class _Indicator:
+    def __init__(self, count: int = 0) -> None:
+        self.count = count
+
+    def set_available(self, count: int) -> None:
+        self.count = count
+
+
+class _AutomaticCheckApp(UpdateToastMixin):
+    def __init__(self, *, indicator_count: int = 0) -> None:
+        self._automatic_update_check_in_flight = False
+        self._automatic_update_check_timer = None
+        self._update_toast_shown = False
+        self.indicator = _Indicator(indicator_count)
+        self.workers: list[tuple[Callable[[], None], dict[str, object]]] = []
+        self.intervals: list[tuple[float, Callable[[], None], str]] = []
+        self.notifications: list[dict[str, object]] = []
+
+    def set_interval(
+        self,
+        interval: float,
+        callback: Callable[[], None],
+        *,
+        name: str,
+    ) -> object:
+        self.intervals.append((interval, callback, name))
+        return object()
+
+    def run_worker(self, callback: Callable[[], None], **kwargs: object) -> None:
+        self.workers.append((callback, kwargs))
+
+    def query_one(self, *_args: object) -> _Indicator:
+        return self.indicator
+
+    def call_from_thread(self, callback: Callable[..., None], *args: object) -> None:
+        callback(*args)
+
+    def notify(self, message: str, **kwargs: object) -> None:
+        self.notifications.append({"message": message, **kwargs})
+
+
+def test_startup_registers_one_fixed_interval_and_off_thread_worker() -> None:
+    app = _AutomaticCheckApp()
+
+    app._schedule_startup_update_toast_check()
+    app._schedule_startup_update_toast_check()
+
+    assert len(app.intervals) == 1
+    interval, callback, name = app.intervals[0]
+    assert interval == 600.0
+    assert callback == app._on_periodic_update_check
+    assert name == "automatic-update-check"
+    assert len(app.workers) == 1
+    assert app.workers[0][0] == app._run_startup_update_toast_check
+    assert app.workers[0][1]["thread"] is True
+
+
+def test_periodic_tick_skips_positive_indicator_and_in_flight_check() -> None:
+    app = _AutomaticCheckApp(indicator_count=2)
+
+    app._on_periodic_update_check()
+    assert app.workers == []
+
+    app.indicator.count = 0
+    app._automatic_update_check_in_flight = True
+    app._on_periodic_update_check()
+    assert app.workers == []
+
+
+def test_periodic_tick_schedules_clear_indicator_off_thread() -> None:
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+
+    assert len(app.workers) == 1
+    assert app.workers[0][1] == {
+        "name": "automatic-update-check",
+        "thread": True,
+        "exclusive": False,
+        "group": "startup-loads",
+    }
+    assert app._automatic_update_check_in_flight is True
+
+
+def test_automatic_update_worker_scheduling_failure_releases_guard() -> None:
+    class _App(_AutomaticCheckApp):
+        def run_worker(
+            self,
+            callback: Callable[[], None],
+            **kwargs: object,
+        ) -> None:
+            del callback, kwargs
+            raise RuntimeError("worker unavailable")
+
+    app = _App()
+
+    app._on_periodic_update_check()
+
+    assert app._automatic_update_check_in_flight is False
+
+
+def test_periodic_update_check_releases_guard_on_no_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+    monkeypatch.setattr(update_toast, "get_cached_update_status", lambda **_kw: None)
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers[0][0]()
+
+    assert app._automatic_update_check_in_flight is False
+
+
+def test_periodic_update_check_releases_guard_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+
+    def fail_status(**_kwargs: object) -> None:
+        raise RuntimeError("status failed")
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", fail_status)
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers[0][0]()
+
+    assert app._automatic_update_check_in_flight is False
+
+
+def test_periodic_update_sets_surfaces_once_then_stops_status_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+
+    def get_status(**_kwargs: object) -> UpdateStatus:
+        nonlocal calls
+        calls += 1
+        return _status()
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+    monkeypatch.setattr(update_toast, "_build_startup_toast_sections", lambda *_a: ())
+
+    class _App(_AutomaticCheckApp):
+        def run_worker(
+            self,
+            callback: Callable[[], None],
+            **kwargs: object,
+        ) -> None:
+            super().run_worker(callback, **kwargs)
+            callback()
+
+    app = _App()
+
+    app._on_periodic_update_check()
+    app._on_periodic_update_check()
+
+    assert calls == 1
+    assert len(app.workers) == 1
+    assert app.indicator.count == 2
+    assert len(app.notifications) == 1
+    assert app._automatic_update_check_in_flight is False
+
+
+def test_indicator_disabled_skips_periodic_status_but_keeps_startup_toast(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status_calls = 0
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(indicator=False),
+    )
+
+    def get_status(**_kwargs: object) -> UpdateStatus:
+        nonlocal status_calls
+        status_calls += 1
+        return _status(count=1)
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+    monkeypatch.setattr(update_toast, "_build_startup_toast_sections", lambda *_a: ())
+    app = _AutomaticCheckApp()
+
+    app._schedule_startup_update_toast_check()
+    app.workers.pop()[0]()
+    assert status_calls == 1
+    assert len(app.notifications) == 1
+
+    app._update_toast_shown = False
+    app._on_periodic_update_check()
+    app.workers.pop()[0]()
+    assert status_calls == 1
+    assert app._automatic_update_check_in_flight is False
+
+
+def test_check_ttl_is_passed_without_changing_fixed_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(
+            startup_toast=False,
+            check_ttl_seconds=0.0,
+        ),
+    )
+
+    def get_status(**kwargs: object) -> None:
+        captured.update(kwargs)
+        return None
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+    app = _AutomaticCheckApp()
+
+    app._schedule_startup_update_toast_check()
+    app.workers[0][0]()
+
+    assert app.intervals[0][0] == 600.0
+    assert captured == {"ttl_seconds": 0.0}
+    assert app._automatic_update_check_in_flight is False
 
 
 def test_update_toast_message_recommends_update_keymap() -> None:

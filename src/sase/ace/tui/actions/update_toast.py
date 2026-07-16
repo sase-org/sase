@@ -1,4 +1,4 @@
-"""Startup update-available toast for the ace TUI."""
+"""Automatic update-available checks and toast for the ace TUI."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 from textual.markup import escape
@@ -30,6 +31,8 @@ from ..modals.config_center_modal import (
 )
 
 if TYPE_CHECKING:
+    from textual.timer import Timer
+
     from sase.updates import OutdatedComponent
 
 log = logging.getLogger(__name__)
@@ -43,6 +46,8 @@ _DEFAULT_CHECK_TTL_MINUTES = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 60.0
 _DEFAULT_CHECK_TTL_HOURS = DEFAULT_UPDATE_STATUS_TTL_SECONDS / 3600.0
 _DEFAULT_STARTUP_TOAST_MAX_COMMITS = 20
 _STARTUP_TOAST_DEADLINE_SECONDS = 8.0
+_AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS = 600.0
+_AUTOMATIC_UPDATE_CHECK_TIMER_NAME = "automatic-update-check"
 _COMMIT_SUBJECT_WIDTH = 58
 
 FetchIncomingCommitsFn = Callable[..., IncomingCommits]
@@ -50,7 +55,7 @@ FetchIncomingCommitsFn = Callable[..., IncomingCommits]
 
 @dataclass(frozen=True)
 class _UpdateToastConfig:
-    """Config values controlling the startup update toast."""
+    """Config values controlling automatic update checks and update toasts."""
 
     startup_toast: bool = True
     post_update_toast: bool = True
@@ -63,7 +68,7 @@ class _UpdateToastConfig:
 
 @dataclass(frozen=True)
 class _ToastRepoSection:
-    """One repository section in the startup update toast."""
+    """One repository section in the automatic update toast."""
 
     label: str
     installed_version: str
@@ -72,47 +77,160 @@ class _ToastRepoSection:
     total: int = 0
 
 
+@dataclass(frozen=True)
+class _AutomaticUpdateCheckResult:
+    """Worker result ready to apply to ACE's update surfaces."""
+
+    status: UpdateStatus
+    config: _UpdateToastConfig
+    sections: tuple[_ToastRepoSection, ...] | None = None
+
+
 class UpdateToastMixin:
-    """Mixin that schedules and renders the startup update-available toast."""
+    """Mixin that schedules and renders automatic update availability."""
 
     _update_toast_shown: bool
+    _automatic_update_check_in_flight: bool
+    _automatic_update_check_timer: Timer | None
 
     def _schedule_startup_update_toast_check(self) -> None:
-        """Schedule the update-status check after first paint."""
+        """Start periodic checks and schedule the first one after first paint."""
+        self._start_periodic_update_checks()
+        self._schedule_automatic_update_check(periodic=False)
+
+    def _start_periodic_update_checks(self) -> None:
+        """Register the fixed session timer once."""
+        if getattr(self, "_automatic_update_check_timer", None) is not None:
+            return
+        try:
+            self._automatic_update_check_timer = self.set_interval(  # type: ignore[attr-defined]
+                _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS,
+                self._on_periodic_update_check,
+                name=_AUTOMATIC_UPDATE_CHECK_TIMER_NAME,
+            )
+        except Exception:
+            log.debug("Failed to start periodic update checks", exc_info=True)
+
+    def _on_periodic_update_check(self) -> None:
+        """Handle a timer tick using only mounted UI and in-memory state."""
+        self._schedule_automatic_update_check(periodic=True)
+
+    def _schedule_automatic_update_check(self, *, periodic: bool) -> None:
+        """Schedule one guarded automatic update worker."""
+        if periodic:
+            from ..widgets import UpdatesAvailableIndicator
+
+            try:
+                indicator = self.query_one(  # type: ignore[attr-defined]
+                    "#updates-indicator",
+                    UpdatesAvailableIndicator,
+                )
+            except Exception:
+                return
+            if indicator.count > 0:
+                return
+        if getattr(self, "_automatic_update_check_in_flight", False):
+            return
+
+        self._automatic_update_check_in_flight = True
+        worker_fn: Any = self._run_startup_update_toast_check
+        if periodic:
+            worker_fn = partial(self._run_startup_update_toast_check, periodic=True)
         try:
             self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, self._run_startup_update_toast_check),
+                cast(Any, worker_fn),
+                name="automatic-update-check",
                 thread=True,
                 exclusive=False,
                 group="startup-loads",
             )
         except Exception:
-            log.debug("Failed to schedule startup update-status check", exc_info=True)
+            self._automatic_update_check_in_flight = False
+            log.debug("Failed to schedule automatic update-status check", exc_info=True)
 
-    def _run_startup_update_toast_check(self) -> None:
-        """Run the cached update-status check in a worker thread."""
+    def _run_startup_update_toast_check(self, *, periodic: bool = False) -> None:
+        """Run an automatic cached update-status check in a worker thread."""
+        scheduled = getattr(self, "_automatic_update_check_in_flight", False)
+        result: _AutomaticUpdateCheckResult | None = None
         try:
-            config = _load_update_toast_config()
-            if not config.startup_toast and not config.indicator:
-                return
-            status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
-            if status is None:
-                return
-            if config.indicator:
-                self.call_from_thread(  # type: ignore[attr-defined]
-                    self._refresh_updates_indicator,
-                    status,
-                )
-            if not config.startup_toast or not status.has_updates:
-                return
-            sections = _build_startup_toast_sections(status, config)
+            result = self._compute_automatic_update_check(periodic=periodic)
+        except Exception:
+            log.debug("Automatic update-status check failed", exc_info=True)
+        finally:
+            if scheduled:
+                self._finish_automatic_update_check_from_worker(result)
+
+        # Preserve direct mixin-harness usage: an unscheduled worker invocation
+        # still applies a successful result, but has no overlap guard to clear.
+        if not scheduled and result is not None:
             self.call_from_thread(  # type: ignore[attr-defined]
-                self._show_startup_update_toast,
-                status,
-                sections,
+                self._apply_startup_update_status,
+                result.status,
+                result.config,
+                result.sections,
+            )
+
+    def _compute_automatic_update_check(
+        self,
+        *,
+        periodic: bool,
+    ) -> _AutomaticUpdateCheckResult | None:
+        """Compute one automatic update result without touching mounted widgets."""
+        config = _load_update_toast_config()
+        if periodic and not config.indicator:
+            return None
+        if not config.startup_toast and not config.indicator:
+            return None
+        status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
+        if status is None:
+            return None
+
+        sections = None
+        should_build_toast = (
+            config.startup_toast
+            and status.has_updates
+            and not getattr(self, "_update_toast_shown", False)
+        )
+        if should_build_toast:
+            try:
+                sections = _build_startup_toast_sections(status, config)
+            except Exception:
+                log.debug(
+                    "Failed to build automatic update toast sections",
+                    exc_info=True,
+                )
+        return _AutomaticUpdateCheckResult(status, config, sections)
+
+    def _finish_automatic_update_check_from_worker(
+        self,
+        result: _AutomaticUpdateCheckResult | None,
+    ) -> None:
+        """Marshal worker completion and guard release to the UI thread."""
+        try:
+            self.call_from_thread(  # type: ignore[attr-defined]
+                self._complete_automatic_update_check,
+                result,
             )
         except Exception:
-            log.debug("Startup update-status check failed", exc_info=True)
+            # Textual may reject callbacks while shutting down. No timer can
+            # fire after teardown, but still leave direct state retryable.
+            self._automatic_update_check_in_flight = False
+            log.debug("Failed to finish automatic update-status check", exc_info=True)
+
+    def _complete_automatic_update_check(
+        self,
+        result: _AutomaticUpdateCheckResult | None,
+    ) -> None:
+        """Apply a worker result and release its overlap guard on the UI thread."""
+        try:
+            if result is not None:
+                self._apply_startup_update_status(
+                    result.status,
+                    result.config,
+                    result.sections,
+                )
+        finally:
+            self._automatic_update_check_in_flight = False
 
     def _apply_startup_update_status(
         self,
@@ -120,7 +238,7 @@ class UpdateToastMixin:
         config: _UpdateToastConfig,
         sections: Sequence[_ToastRepoSection] | None = None,
     ) -> None:
-        """Apply startup update status to all UI surfaces."""
+        """Apply automatic update status to all UI surfaces."""
         if config.indicator:
             self._refresh_updates_indicator(status)
         if config.startup_toast:
@@ -131,7 +249,7 @@ class UpdateToastMixin:
         status: UpdateStatus,
         sections: Sequence[_ToastRepoSection] | None = None,
     ) -> None:
-        """Show the startup update toast once per TUI session."""
+        """Show the automatic update toast once per TUI session."""
         if getattr(self, "_update_toast_shown", False):
             return
         if not status.has_updates:
@@ -196,7 +314,7 @@ class UpdateToastMixin:
 
 
 def _load_update_toast_config() -> _UpdateToastConfig:
-    """Load the startup update-toast config from merged SASE config."""
+    """Load automatic update-check config from merged SASE config."""
     data = load_merged_config()
     ace = data.get("ace")
     if not isinstance(ace, dict):
@@ -222,7 +340,7 @@ def _load_update_toast_config() -> _UpdateToastConfig:
 
 
 def _resolve_check_ttl_seconds(updates: dict[str, Any]) -> float:
-    """Resolve the startup-check TTL in seconds from the updates config.
+    """Resolve the automatic-check cache TTL from the updates config.
 
     ``check_ttl_minutes`` is the primary knob; ``check_ttl_hours`` is retained
     only for backward compatibility and consulted when minutes is absent. The
@@ -288,9 +406,9 @@ def _build_toast_commit_sections(
                 limit=max_total,
                 offline=offline,
             )
-        except Exception:  # noqa: BLE001 - update hints must never break startup.
+        except Exception:  # noqa: BLE001 - update hints must never break ACE.
             log.debug(
-                "Failed to fetch incoming commits for startup update toast",
+                "Failed to fetch incoming commits for automatic update toast",
                 exc_info=True,
             )
     totals = [

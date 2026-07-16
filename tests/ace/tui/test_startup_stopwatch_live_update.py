@@ -107,11 +107,21 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
     """Startup launcher schedules fold, agent, and axe paths independently."""
     app = AceApp()
     scheduled: list[object] = []
+    intervals: list[tuple[float, object, str | None]] = []
 
-    with patch.object(
-        app,
-        "run_worker",
-        side_effect=lambda fn, **kwargs: scheduled.append(fn),
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(
+            app,
+            "set_interval",
+            side_effect=lambda seconds, callback, **kwargs: (
+                intervals.append((seconds, callback, kwargs.get("name"))) or MagicMock()
+            ),
+        ),
     ):
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
@@ -119,6 +129,10 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
     assert scheduled.count(app._run_agents_fold_state_load) == 1
+    assert scheduled.count(app._run_startup_update_toast_check) == 1
+    assert intervals == [
+        (600.0, app._on_periodic_update_check, "automatic-update-check")
+    ]
     assert app._post_mount_background_loads_started is True
 
 
