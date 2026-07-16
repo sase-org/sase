@@ -1,5 +1,6 @@
 """Artifacts tab widgets."""
 
+from .commits import CommitsPane, CommitsTimeline
 from .panes import (
     ArtifactPlaceholderPane,
     ArtifactsPaneLifecycle,
@@ -23,5 +24,7 @@ __all__ = [
     "ArtifactsPrsPane",
     "ArtifactsSubTab",
     "ArtifactsView",
+    "CommitsPane",
+    "CommitsTimeline",
     "DEFAULT_ARTIFACTS_SUBTAB",
 ]

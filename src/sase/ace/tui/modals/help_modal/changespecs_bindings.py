@@ -43,6 +43,17 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Commits Pane",
+            [
+                ("j / k", "Move to next / previous commit"),
+                ("Enter", "Open full commit message and diff"),
+                ("y", "Copy full commit SHA"),
+                ("f", "Edit author, date, repo, and limit filters"),
+                ("d / a", "Toggle SDD history / all projects"),
+                ("F / R", "Fetch remote refs / refresh from local refs"),
+            ],
+        ),
+        (
             "Navigation",
             [
                 (

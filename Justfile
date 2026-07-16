@@ -153,6 +153,10 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
+        --epic-symbol 'sase-69(BugLinks)' \
+        --epic-symbol 'sase-69(InMemoryIssuePlugin)' \
+        --epic-symbol 'sase-69(find_bug_links)' \
+        --epic-symbol 'sase-69(normalize_bug_id)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

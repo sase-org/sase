@@ -12,6 +12,7 @@ from textual.widgets import ContentSwitcher
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
+from .commits import CommitsPane
 from .panes import (
     ArtifactPlaceholderPane,
     ArtifactsPaneLifecycle,
@@ -51,7 +52,8 @@ class ArtifactsView(Vertical):
             id="artifacts-content-switcher",
         ):
             yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
-            for subtab in ARTIFACTS_SUBTAB_ORDER[1:]:
+            yield CommitsPane(id=ARTIFACTS_PANE_IDS["commits"])
+            for subtab in ARTIFACTS_SUBTAB_ORDER[2:]:
                 yield ArtifactPlaceholderPane(
                     subtab,
                     id=ARTIFACTS_PANE_IDS[subtab],
@@ -111,8 +113,14 @@ class ArtifactsView(Vertical):
         project: str | None,
         *,
         display_name: str | None = None,
+        project_file: str | None = None,
     ) -> None:
         """Apply the shared scope to every project-backed pane."""
+        self.query_one(CommitsPane).set_project_scope(
+            project,
+            display_name=display_name,
+            project_file=project_file,
+        )
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
 

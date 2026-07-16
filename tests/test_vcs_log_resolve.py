@@ -405,6 +405,60 @@ def _configure_global_resolution(
     return calls
 
 
+def test_explicit_project_scope_resolves_only_that_constellation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    alpha = _global_record(
+        tmp_path,
+        "alpha",
+        display_name="Alpha Display",
+        aliases=["a"],
+    )
+    beta = _global_record(tmp_path, "beta")
+    core = tmp_path / "repos" / "core"
+    core.mkdir(parents=True)
+    alpha_sdd = tmp_path / "stores" / "alpha-sdd"
+    alpha_sdd.mkdir(parents=True)
+    _configure_global_resolution(
+        monkeypatch,
+        tmp_path,
+        [alpha, beta],
+        linked={
+            "alpha": _FakeLinkedResolution(repos=(_FakeLinked("sase-core", str(core)),))
+        },
+        sdd={"alpha": alpha_sdd},
+        sdd_records={"alpha": _FakeRecord(repo="alpha-sdd")},
+    )
+
+    resolved = resolve_log_repos(
+        cwd="/unrelated",
+        project_scope="a",
+        include_sdd=True,
+    )
+
+    assert [(repo.name, repo.kind) for repo in resolved.repos] == [
+        ("Alpha Display", "primary"),
+        ("sase-core", "linked"),
+        ("alpha-sdd", "sdd"),
+    ]
+    assert all("beta" not in repo.path for repo in resolved.repos)
+
+
+def test_explicit_project_scope_reports_unknown_project(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _configure_global_resolution(
+        monkeypatch,
+        tmp_path,
+        [_global_record(tmp_path, "alpha")],
+    )
+
+    resolved = resolve_log_repos(cwd="/unrelated", project_scope="missing")
+
+    assert resolved.repos == []
+    assert resolved.warnings == ["project 'missing' was not found"]
+
+
 def test_all_projects_uses_full_inventory_outside_a_workspace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -17,18 +17,31 @@ from sase.ace.tui.modals.inventory_project_picker import (
     InventoryProjectChoice,
     InventoryProjectPicker,
 )
-from sase.ace.tui.widgets import ArtifactPlaceholderPane, ArtifactsPrsPane
+from sase.ace.tui.widgets import (
+    ArtifactPlaceholderPane,
+    ArtifactsPrsPane,
+    CommitsPane,
+)
 from sase.ace.tui.widgets.artifacts import ARTIFACTS_PANE_IDS, ArtifactsView
+import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
+from sase.vcs_log.models import VcsLogResult
+
+
+@pytest.fixture(autouse=True)
+def _stub_commits_collector(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **_kwargs: VcsLogResult((), (), ()),
+    )
 
 
 async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         view = page.query_one_widget("#changespecs-view", ArtifactsView)
         prs = page.query_one_widget("#artifacts-prs-pane", ArtifactsPrsPane)
-        commits = page.query_one_widget(
-            "#artifacts-commits-pane", ArtifactPlaceholderPane
-        )
+        commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
 
         assert view.current_subtab == "prs"
         assert prs.first_activation_count == 1
@@ -61,9 +74,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         strip = page.query_one_widget("#artifacts-subtabs", PanelTabStrip)
-        commits = page.query_one_widget(
-            "#artifacts-commits-pane", ArtifactPlaceholderPane
-        )
+        commits = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
 
         strip.post_message(PanelTabStrip.TabClicked("commits"))
         await page.expect_state("artifacts_subtab", "commits")
@@ -118,6 +129,7 @@ async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
 
         for pane in page.app.query(ArtifactPlaceholderPane):
             assert pane.project_scope == "alpha"
+        assert page.app.query_one(CommitsPane).project_scope == "alpha"
 
         await page.press("p")
         await page.expect_modal("InventoryProjectPicker")

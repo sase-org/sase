@@ -557,4 +557,56 @@ def _day_label(dt_local: datetime, now_local: datetime) -> str:
     return f"{dt_local:%b} {dt_local.day}, {dt_local.year}"
 
 
-__all__ = ["render"]
+def build_pretty_legend(
+    result: VcsLogResult,
+    *,
+    filters: CommitFilters | None = None,
+) -> Text:
+    """Build the shared Rich legend used by CLI and interactive timelines."""
+    return _legend(
+        result,
+        tuple(result.commits),
+        _repo_colors(result),
+        filters or CommitFilters(),
+    )
+
+
+def build_timeline_day(
+    timestamp: int,
+    *,
+    now_local: datetime | None = None,
+) -> tuple[str, Text]:
+    """Return the grouping key and banner for a commit timestamp."""
+    label = _day_label(_to_local(timestamp), now_local or _local_now())
+    return label, _day_header(label)
+
+
+def build_timeline_commit(
+    entry: AggregatedCommitWire,
+    result: VcsLogResult,
+    *,
+    show_tags: bool = True,
+) -> Text:
+    """Build one shared pretty timeline row for an aggregated commit."""
+    commits = tuple(result.commits)
+    repo_width = max((len(item.repo) for item in commits), default=len(entry.repo))
+    sha_width = max(
+        (len(item.commit.short_id) for item in commits),
+        default=len(entry.commit.short_id),
+    )
+    return _commit_line(
+        entry,
+        _repo_colors(result),
+        repo_width,
+        sha_width,
+        _to_local(entry.commit.timestamp),
+        show_tags,
+    )
+
+
+__all__ = [
+    "build_pretty_legend",
+    "build_timeline_commit",
+    "build_timeline_day",
+    "render",
+]

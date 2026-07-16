@@ -78,6 +78,64 @@
     height: 1fr;
 }
 
+#commits-info {
+    width: 100%;
+    height: 3;
+    max-height: 3;
+    padding: 0 1;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#commits-main {
+    width: 100%;
+    height: 1fr;
+}
+
+#commits-list-container {
+    width: 58%;
+    min-width: 48;
+    height: 100%;
+}
+
+#commits-timeline {
+    width: 100%;
+    height: 1fr;
+    border: solid #FFD700;
+    padding: 0 1;
+}
+
+#commits-footer {
+    width: 100%;
+    height: 2;
+    max-height: 2;
+    padding: 0 1;
+    color: $text-muted;
+    background: $surface;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#commits-detail-container {
+    width: 1fr;
+    height: 100%;
+}
+
+#commits-detail-scroll {
+    width: 100%;
+    height: 1fr;
+    border: solid $secondary;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+#commits-detail {
+    width: 100%;
+    height: auto;
+}
+
 .artifacts-pane-info {
     width: 100%;
     height: 2;
@@ -3012,6 +3070,68 @@ CommitViewModal #commit-view-footer {
     margin-top: 1;
     border-top: solid $secondary;
     padding-top: 1;
+}
+
+/* ===== Commit Filters Modal Styling ===== */
+
+CommitFiltersModal {
+    align: center middle;
+}
+
+CommitFiltersModal #commit-filters-container {
+    width: 78;
+    height: auto;
+    max-height: 35;
+    border: thick #FFD700;
+    background: $surface;
+    padding: 1 2;
+}
+
+CommitFiltersModal #commit-filters-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: #FFD700;
+    margin-bottom: 1;
+}
+
+CommitFiltersModal #commit-filters-fields {
+    height: auto;
+}
+
+CommitFiltersModal .commit-filter-bound-row {
+    height: auto;
+}
+
+CommitFiltersModal .commit-filter-bound-row > Vertical {
+    width: 1fr;
+    margin-right: 1;
+}
+
+CommitFiltersModal .commit-filter-limit-column {
+    width: 18;
+    margin-right: 0;
+}
+
+CommitFiltersModal SelectionList {
+    height: 7;
+    border: solid $secondary;
+}
+
+CommitFiltersModal #commit-filter-date-help,
+CommitFiltersModal .commit-filter-empty-repos {
+    height: auto;
+    color: $text-muted;
+}
+
+CommitFiltersModal #commit-filter-buttons {
+    height: 3;
+    align-horizontal: right;
+    margin-top: 1;
+}
+
+CommitFiltersModal #commit-filter-buttons Button {
+    margin-left: 1;
 }
 
 /* ===== Workspace Input Modal Styling ===== */

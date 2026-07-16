@@ -19,14 +19,14 @@ _FAILURE_EXPLANATION = (
 
 
 @dataclass(frozen=True)
-class WorkflowFailureFallback:
+class _WorkflowFailureFallback:
     """Fallback message and best raw-output path for one failed workflow."""
 
     error_message: str
     output_path: str | None
 
 
-def workflow_output_candidates(
+def _workflow_output_candidates(
     *,
     cl_name: str,
     launch_timestamp: str,
@@ -55,7 +55,7 @@ def preferred_workflow_output_path(
     recorded_output_path: str | None,
 ) -> str | None:
     """Return the metadata path when present, otherwise the derived path."""
-    candidates = workflow_output_candidates(
+    candidates = _workflow_output_candidates(
         cl_name=cl_name,
         launch_timestamp=launch_timestamp,
         recorded_output_path=recorded_output_path,
@@ -97,9 +97,9 @@ def build_workflow_failure_fallback(
     cl_name: str,
     launch_timestamp: str,
     recorded_output_path: str | None,
-) -> WorkflowFailureFallback:
+) -> _WorkflowFailureFallback:
     """Build actionable failure text from a runner log, even when it is absent."""
-    candidates = workflow_output_candidates(
+    candidates = _workflow_output_candidates(
         cl_name=cl_name,
         launch_timestamp=launch_timestamp,
         recorded_output_path=recorded_output_path,
@@ -107,13 +107,13 @@ def build_workflow_failure_fallback(
     for path in candidates:
         tail = _read_output_tail(path)
         if tail:
-            return WorkflowFailureFallback(
+            return _WorkflowFailureFallback(
                 error_message=f"{_FAILURE_EXPLANATION}\nLast output:\n{tail}",
                 output_path=path,
             )
 
     checked = ", ".join(candidates) if candidates else "(no path could be derived)"
-    return WorkflowFailureFallback(
+    return _WorkflowFailureFallback(
         error_message=(
             f"{_FAILURE_EXPLANATION}\n"
             f"No runner output was available. Checked: {checked}"

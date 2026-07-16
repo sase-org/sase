@@ -62,6 +62,7 @@ def resolve_log_repos(
     cwd: str,
     repo_filters: Sequence[str] = (),
     all_projects: bool = False,
+    project_scope: str | None = None,
     current_only: bool = False,
     include_sdd: bool = False,
 ) -> ResolvedRepos:
@@ -75,6 +76,13 @@ def resolve_log_repos(
 
     if all_projects:
         repos = _resolve_all_project_repos(warnings, include_sdd=include_sdd)
+    elif project_scope is not None:
+        repos = _resolve_explicit_project_repos(
+            project_scope,
+            warnings,
+            current_only=current_only,
+            include_sdd=include_sdd,
+        )
     else:
         repos = _resolve_current_scope_repos(
             cwd=cwd,
@@ -88,6 +96,55 @@ def resolve_log_repos(
         repos = _apply_filters(repos, list(repo_filters), warnings)
 
     return ResolvedRepos(repos=repos, warnings=warnings)
+
+
+def _resolve_explicit_project_repos(
+    project_scope: str,
+    warnings: list[str],
+    *,
+    current_only: bool,
+    include_sdd: bool,
+) -> list[LogRepo]:
+    """Resolve one registered project's constellation without changing cwd."""
+    try:
+        records = list_project_records(
+            sase_projects_dir(), ("enabled", "disabled"), include_home=False
+        )
+    except Exception as exc:  # pragma: no cover - facade failures are rare
+        warnings.append(
+            f"project {project_scope}: inventory could not be loaded: {exc}"
+        )
+        return []
+
+    folded = project_scope.casefold()
+    matches = [
+        record
+        for record in records
+        if not record.system_managed
+        and (
+            record.project_name.casefold() == folded
+            or effective_project_name(record).casefold() == folded
+            or any(alias.casefold() == folded for alias in record.aliases)
+        )
+    ]
+    if not matches:
+        warnings.append(f"project '{project_scope}' was not found")
+        return []
+
+    matches.sort(
+        key=lambda record: (
+            record.project_name.casefold() != folded,
+            effective_project_name(record).casefold() != folded,
+            _record_sort_key(record),
+        )
+    )
+    candidates = _resolve_record_candidates(
+        matches[0], warnings, include_sdd=include_sdd
+    )
+    repos = _deduplicate_and_name(candidates)
+    if current_only:
+        repos = [repo for repo in repos if repo.kind == "primary"]
+    return repos
 
 
 def _resolve_current_scope_repos(

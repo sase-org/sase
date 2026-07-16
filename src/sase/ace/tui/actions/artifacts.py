@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from sase.ace.query import get_sole_project_filter
@@ -51,6 +51,7 @@ class _ArtifactsProjectChoices:
     choices: tuple[InventoryProjectChoice, ...]
     enabled_projects: tuple[str, ...]
     display_names: dict[str, str]
+    project_files: dict[str, str] = field(default_factory=dict)
 
 
 def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
@@ -81,10 +82,12 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
     )
     choices: list[InventoryProjectChoice] = []
     display_names: dict[str, str] = {}
+    project_files: dict[str, str] = {}
     enabled: list[str] = []
     for record in project_records:
         display = effective_project_name(record)
         display_names[record.project_name] = display
+        project_files[record.project_name] = record.project_file
         choices.append(
             InventoryProjectChoice(
                 project_key=record.project_name,
@@ -98,6 +101,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
         choices=tuple(choices),
         enabled_projects=tuple(enabled),
         display_names=display_names,
+        project_files=project_files,
     )
 
 
@@ -169,12 +173,18 @@ class ArtifactsMixin:
         if picked:
             self._artifacts_scope_was_picked = True
         display_name = None
+        project_file = None
         choices = self._artifacts_project_choices
         if project is not None and choices is not None:
             display_name = choices.display_names.get(project)
+            project_file = choices.project_files.get(project)
         view = self._artifacts_view()
         if view is not None:
-            view.set_project_scope(project, display_name=display_name)
+            view.set_project_scope(
+                project,
+                display_name=display_name,
+                project_file=project_file,
+            )
 
     def _ensure_artifacts_project_choices(self) -> None:
         """Start one coalesced, off-thread project inventory read."""

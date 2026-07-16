@@ -10,8 +10,8 @@ import pytest
 
 from sase.ace.tui.models._loaders._workflow_failure_fallback import (
     _read_output_tail_cached,
+    _workflow_output_candidates,
     build_workflow_failure_fallback,
-    workflow_output_candidates,
 )
 from sase.ace.tui.models._loaders._workflow_loaders import load_workflow_states
 from sase.ace.tui.models._loaders._workflow_snapshot_loaders import (
@@ -189,7 +189,7 @@ def test_output_path_derivation_matches_launch_policy(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "sase-home"))
 
-    candidates = workflow_output_candidates(
+    candidates = _workflow_output_candidates(
         cl_name="feature/test:1",
         launch_timestamp="20260715123456",
         recorded_output_path=None,

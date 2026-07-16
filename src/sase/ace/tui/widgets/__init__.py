@@ -16,6 +16,8 @@ from .artifacts import (
     ArtifactsPrsPane,
     ArtifactsSubTab,
     ArtifactsView,
+    CommitsPane,
+    CommitsTimeline,
 )
 from .bgcmd_list import BgCmdList
 from .changespec_detail import ChangeSpecDetail, SearchQueryPanel
@@ -66,6 +68,8 @@ __all__ = [
     "ArtifactsPrsPane",
     "ArtifactsSubTab",
     "ArtifactsView",
+    "CommitsPane",
+    "CommitsTimeline",
     "BgCmdList",
     "ChangeSpecDetail",
     "ChangeSpecInfoPanel",
