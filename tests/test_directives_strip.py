@@ -30,6 +30,16 @@ def test_strips_paren_argument_form() -> None:
     assert result.strip() == "Review this"
 
 
+def test_strips_family_directive_and_alias() -> None:
+    text = "%family(root, role=phase) %f:root Do the thing"
+
+    result = strip_known_directives(text)
+
+    assert "%family" not in result
+    assert "%f" not in result
+    assert result.strip() == "Do the thing"
+
+
 def test_unknown_directive_preserved() -> None:
     """Unknown %name tokens are left untouched."""
     text = "%unknown:value stays"

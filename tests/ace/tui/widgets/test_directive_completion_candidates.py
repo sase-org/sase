@@ -104,6 +104,19 @@ def test_directive_completion_includes_group() -> None:
     assert group.insertion == "%group"
 
 
+def test_directive_completion_includes_family_and_alias() -> None:
+    family, _ = single_directive_candidate("%fam")
+    alias, _ = single_directive_candidate("%f")
+
+    assert family.insertion == "%family"
+    assert alias.insertion == "%family"
+    assert directive_metadata(family).aliases == ("f",)
+    assert directive_metadata(family).argument_hint == (":root or (root, role=token)")
+    assert directive_metadata(family).description == (
+        "join a parallel agent family rooted at another launch segment"
+    )
+
+
 def test_all_directive_completion_candidates_have_descriptions() -> None:
     candidates, _ = build_directive_completion_candidates("%")
 

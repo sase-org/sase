@@ -56,19 +56,26 @@ def test_tokenize_all_invocation_argument_forms() -> None:
 
 
 def test_tokenize_known_directives_aliases_and_arguments_only() -> None:
-    text = "%wait:x %w %model(opus) %m:sonnet %auto %notadirective"
+    text = (
+        "%wait:x %w %model(opus) %m:sonnet %family(root, role=phase) "
+        "%f:root %auto %notadirective"
+    )
 
     assert _source_by_kind(text, "directive") == [
         "%wait",
         "%w",
         "%model",
         "%m",
+        "%family",
+        "%f",
         "%auto",
     ]
     assert _source_by_kind(text, "directive_arg") == [
         ":x",
         "(opus)",
         ":sonnet",
+        "(root, role=phase)",
+        ":root",
     ]
 
 

@@ -23,6 +23,7 @@ _KNOWN_DIRECTIVES = frozenset(
     {
         "auto",
         "effort",
+        "family",
         "hide",
         "model",
         "name",
@@ -65,6 +66,7 @@ _DEPRECATED_DIRECTIVES = frozenset(_DEPRECATED_DIRECTIVE_MESSAGES)
 _DIRECTIVE_ALIASES: dict[str, str] = {
     "a": "auto",
     "e": "effort",
+    "f": "family",
     "g": "group",
     "h": "hide",
     "m": "model",
@@ -87,6 +89,10 @@ class PromptDirectives:
             none was given. The public directive/suffix spell it ``effort``;
             the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via %name directive, or None.
+        family_target: Family-root name or name template requested via
+            ``%family``/``%f``, or None when no family membership was declared.
+        family_role: Free-form family-member role requested via ``%family``;
+            defaults to ``"member"`` when the directive is present.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
@@ -111,6 +117,8 @@ class PromptDirectives:
     name: str | None = None
     name_explicit: bool = False
     name_force_reuse: bool = False
+    family_target: str | None = None
+    family_role: str | None = None
     family_attach_parent: str | None = None
     family_attach_suffix: str | None = None
     name_template: str | None = None

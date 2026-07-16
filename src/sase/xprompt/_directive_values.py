@@ -23,6 +23,9 @@ class _NameTemplateInfo:
     name_indexed_base: str | None = None
 
 
+_FAMILY_ROLE_RE = re.compile(r"[A-Za-z0-9_]+")
+
+
 def resolve_wait_agent_args(seen_multi: dict[str, list[str]]) -> None:
     """Resolve positional ``%wait`` arguments in-place."""
     if "wait" not in seen_multi:
@@ -301,6 +304,31 @@ def parse_group_tag(expanded_args: dict[str, str]) -> str | None:
             "'%group' directive requires a tag name argument (e.g., %group:review)"
         )
     return None
+
+
+def resolve_family_membership(
+    expanded_args: dict[str, str],
+    *,
+    raw_role: str | None,
+) -> tuple[str | None, str | None]:
+    """Validate and return the optional ``%family`` membership declaration."""
+    if "family" not in expanded_args:
+        return None, None
+
+    target = expanded_args["family"].strip()
+    if not target:
+        raise DirectiveError(
+            "'%family' directive requires a root-name argument "
+            "(e.g., %family:research.@.final)"
+        )
+
+    role = "member" if raw_role is None else raw_role.strip()
+    if _FAMILY_ROLE_RE.fullmatch(role) is None:
+        raise DirectiveError(
+            f"Invalid %family role '{raw_role or ''}'; role must be a bare token "
+            "containing only letters, numbers, and underscores."
+        )
+    return target, role
 
 
 def resolve_reasoning_effort(
