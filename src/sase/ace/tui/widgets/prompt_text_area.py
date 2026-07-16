@@ -11,6 +11,7 @@ from sase.ace.tui.widgets._codeblock_syntax_highlight import (
 from sase.ace.tui.widgets._file_completion import FileCompletionMixin
 from sase.ace.tui.widgets._jinja_diagnostics import JinjaDiagnosticsMixin
 from sase.ace.tui.widgets._jinja_highlight import JinjaHighlightMixin
+from sase.ace.tui.widgets._placeholder_highlight import PlaceholderHighlightMixin
 from sase.ace.tui.widgets._prompt_soft_completion import PromptSoftCompletionMixin
 from sase.ace.tui.widgets._prompt_text_area_actions import (
     PromptTextAreaActionsMixin,
@@ -75,6 +76,7 @@ class PromptTextArea(
     PromptPreviewMixin,
     PromptJumpMixin,
     CodeBlockHighlightMixin,
+    PlaceholderHighlightMixin,
     JinjaHighlightMixin,
     FileCompletionMixin,
     PromptSoftCompletionMixin,

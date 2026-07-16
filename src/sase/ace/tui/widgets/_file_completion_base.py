@@ -31,6 +31,9 @@ if TYPE_CHECKING:
         ActiveXPromptArgHint,
         XPromptAssistEntry,
     )
+    from sase.ace.tui.widgets.placeholder_completion import (
+        PlaceholderCompletionResult,
+    )
     from sase.xprompt.vcs_ref_completion import VcsRefTrigger
 
 
@@ -63,6 +66,9 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _vcs_ref_completion_has_namespaces: bool
 
         def _find_prompt_bar(self) -> Any: ...
+        def _placeholder_completion_at_cursor(
+            self,
+        ) -> PlaceholderCompletionResult | None: ...
 
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]

@@ -1,7 +1,7 @@
 """Pure helpers for generic insert-mode auto-pairing in the prompt input.
 
 These planners give the Textual ``PromptTextArea`` a small, fixed-rule
-auto-pair feature for bracket pairs (``()``, ``[]``, ``{}``, ``<>``) and
+auto-pair feature for bracket pairs (``()``, ``[]``, ``{}``) and
 same-character quotes (``'``, ``"``, and `````). They plan in-memory text edits
 only and never
 touch the event loop (no I/O, bounded string scanning over the current document
@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Bracket openers and their matching closers.
-_OPEN_TO_CLOSE = {"(": ")", "[": "]", "{": "}", "<": ">"}
+_OPEN_TO_CLOSE = {"(": ")", "[": "]", "{": "}"}
 _CLOSE_TO_OPEN = {close: open_ for open_, close in _OPEN_TO_CLOSE.items()}
 # Bracket closers, i.e. characters that may already belong to an open pair.
 _CLOSE_CHARS = frozenset(_OPEN_TO_CLOSE.values())

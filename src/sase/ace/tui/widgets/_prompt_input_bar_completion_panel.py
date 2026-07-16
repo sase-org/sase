@@ -13,6 +13,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_directive_arg_completion_row,
     append_directive_completion_row,
     append_jinja_completion_row,
+    append_placeholder_completion_row,
     append_vcs_project_completion_row,
     append_vcs_ref_completion_row,
     append_vcs_repo_completion_row,
@@ -24,6 +25,9 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
 )
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
+from sase.ace.tui.widgets.placeholder_completion import (
+    PLACEHOLDER_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
@@ -107,6 +111,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_arg_completion = completion_kind in ("xprompt_arg_name", "xprompt_arg_value")
         is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
         is_jinja = completion_kind == "jinja"
+        is_placeholder = completion_kind == PLACEHOLDER_COMPLETION_KIND
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
@@ -181,6 +186,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 )
             elif is_jinja:
                 append_jinja_completion_row(content, candidate, is_selected)
+            elif is_placeholder:
+                append_placeholder_completion_row(content, candidate, is_selected)
             elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(
@@ -223,6 +230,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "xprompt path"
         elif is_jinja:
             panel.border_title = "jinja"
+        elif is_placeholder:
+            panel.border_title = "placeholder"
         elif is_history:
             panel.border_title = "recent files"
         elif "/" in token:

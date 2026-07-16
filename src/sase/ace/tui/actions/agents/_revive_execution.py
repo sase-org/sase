@@ -160,20 +160,23 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         # selection step once the async apply has completed.
         self._refilter_agents()  # type: ignore[attr-defined]
 
-        def _on_revive_loaded(agent: Agent = agent, scope: Any = scope) -> None:
+        revived_agent = agent
+        revived_scope: Any = scope
+
+        def _on_revive_loaded() -> None:
             if self.current_tab != "agents":
                 return
             try:
-                if self._select_revived_agent(agent):
+                if self._select_revived_agent(revived_agent):
                     self._refresh_agents_display(  # type: ignore[attr-defined]
                         list_changed=False,
                     )
             except Exception as exc:
                 log_revive_failure(
                     stage="refresh_display",
-                    agent=agent,
+                    agent=revived_agent,
                     error=exc,
-                    selection_scope=scope,
+                    selection_scope=revived_scope,
                 )
 
         schedule_revive_artifact_delta_refresh(

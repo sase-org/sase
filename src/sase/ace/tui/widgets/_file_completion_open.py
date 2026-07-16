@@ -20,6 +20,10 @@ from sase.ace.tui.widgets.file_completion import (
     is_path_like_token,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.placeholder_completion import (
+    PLACEHOLDER_COMPLETION_KIND,
+    PlaceholderCompletionResult,
+)
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
     build_no_active_projects_placeholder,
@@ -49,7 +53,36 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
 
     if TYPE_CHECKING:
 
+        def _placeholder_completion_at_cursor(
+            self,
+        ) -> PlaceholderCompletionResult | None: ...
         def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
+
+    def _try_auto_placeholder_completion(self) -> bool:
+        """Open placeholder completion when automatic completion is enabled."""
+        if self._prompt_completion_settings().auto == "off":
+            return False
+        result = self._placeholder_completion_at_cursor()
+        if result is None:
+            if (
+                self._file_completion_active
+                and self._completion_kind == PLACEHOLDER_COMPLETION_KIND
+            ):
+                self._clear_file_completion()
+            return False
+        self._open_placeholder_completion(result)
+        return True
+
+    def _open_placeholder_completion(
+        self,
+        result: PlaceholderCompletionResult,
+    ) -> None:
+        """Populate the shared hard-popup state from a placeholder result."""
+        self._completion_kind = PLACEHOLDER_COMPLETION_KIND
+        self._file_completion_active = True
+        self._file_completion_candidates = result.candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(result.prefix)
 
     def _try_vcs_project_completion(self) -> bool:
         """Open the ``#+`` project completion menu at a ``#+token``.
@@ -162,6 +195,8 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
             return False
+        if self._try_auto_placeholder_completion():
+            return True
         if self._get_vcs_project_trigger() is not None:
             return False
 
@@ -291,6 +326,12 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
 
     def _try_file_completion_tab(self) -> bool:
         """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        placeholder_result = self._placeholder_completion_at_cursor()
+        if placeholder_result is not None:
+            self._open_placeholder_completion(placeholder_result)
+            if len(placeholder_result.candidates) == 1:
+                self._accept_file_completion()
+            return True
         if self._try_vcs_project_completion():
             return True
         if self._try_vcs_repo_completion():

@@ -308,6 +308,19 @@ def append_jinja_completion_row(
     content.append(f"  {kind}", style="dim")
 
 
+def append_placeholder_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+) -> None:
+    """Append one reusable placeholder row with a quiet bracket badge."""
+    content.append("<> ", style="dim cyan")
+    content.append(
+        candidate.display,
+        style="bold cyan" if is_selected else "cyan",
+    )
+
+
 def _append_vcs_ref_project_row(
     content: Text,
     entry: VcsProjectEntry,

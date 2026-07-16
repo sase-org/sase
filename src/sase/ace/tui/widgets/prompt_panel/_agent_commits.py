@@ -401,7 +401,7 @@ def _persisted_commit_groups(
         if grouped:
             primary_name = _primary_repo_name(agent, step_output)
             ordered_groups: list[tuple[str, RepoKind, tuple[_CommitLine, ...]]] = []
-            primary_key = (primary_name, "primary")
+            primary_key: tuple[str, RepoKind] = (primary_name, "primary")
             if primary_key in grouped:
                 ordered_groups.append(
                     (primary_name, "primary", tuple(grouped[primary_key]))
@@ -485,7 +485,7 @@ def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
         )
 
     ordered: list[CommitDiffInfo] = []
-    primary_key = (primary_name, "primary")
+    primary_key: tuple[str, RepoKind] = (primary_name, "primary")
     if primary_key in grouped:
         ordered.extend(grouped[primary_key])
     for key in sorted(group_order, key=lambda value: value[1] == "external"):

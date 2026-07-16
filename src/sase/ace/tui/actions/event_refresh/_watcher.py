@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir, sase_subdir
@@ -31,11 +32,15 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            callback = (
-                self._on_artifact_change
-                if changed_paths is None
-                else lambda: self._on_artifact_change(changed_paths)
-            )
+            callback: Callable[[], None]
+            if changed_paths is None:
+                callback = self._on_artifact_change
+            else:
+                deferred_paths = changed_paths
+
+                def callback() -> None:
+                    self._on_artifact_change(deferred_paths)
+
             self.set_timer(  # type: ignore[attr-defined]
                 delay,
                 callback,

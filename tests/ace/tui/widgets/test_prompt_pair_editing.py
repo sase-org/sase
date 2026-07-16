@@ -37,7 +37,6 @@ class PairEditTestApp(App[None]):
         ("(", ")"),
         ("[", "]"),
         ("{", "}"),
-        ("<", ">"),
         ("'", "'"),
         ('"', '"'),
         ("`", "`"),
@@ -55,7 +54,6 @@ def test_plan_pair_insert_at_eof(char: str, closer: str) -> None:
         ("(", ")"),
         ("[", "]"),
         ("{", "}"),
-        ("<", ">"),
         ("'", "'"),
         ('"', '"'),
         ("`", "`"),
@@ -76,13 +74,16 @@ def test_plan_pair_insert_before_existing_closer() -> None:
     )
 
 
-@pytest.mark.parametrize("opener", ["(", "<"])
+@pytest.mark.parametrize("opener", ["("])
 def test_plan_pair_insert_brackets_reject_before_token_chars(opener: str) -> None:
     # Word characters and token-continuation characters block bracket pairing.
-    # Angle brackets are common comparison/prose characters, so ``<`` before a
-    # letter, digit, ``.``, etc. must stay literal rather than auto-pair.
     for following in ("a", "1", "_", ".", "$", "%", "(", "'", '"', "`"):
         assert plan_pair_insert(following, 0, opener) is None
+
+
+def test_plan_pair_insert_never_pairs_angle_brackets() -> None:
+    assert plan_pair_insert("", 0, "<") is None
+    assert plan_pair_insert(" ", 0, "<") is None
 
 
 def test_plan_pair_insert_quote_rejects_contraction() -> None:
@@ -130,14 +131,14 @@ def test_plan_pair_insert_ignores_non_pair_chars() -> None:
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize(("opener", "closer"), [("(", ")"), ("<", ">")])
+@pytest.mark.parametrize(("opener", "closer"), [("(", ")")])
 def test_plan_pair_close_skip_bracket(opener: str, closer: str) -> None:
     assert plan_pair_close_skip(opener + closer, 1, closer) == TextEdit(
         start=1, end=1, text="", cursor=2
     )
 
 
-@pytest.mark.parametrize(("opener", "closer"), [("(", ")"), ("<", ">")])
+@pytest.mark.parametrize(("opener", "closer"), [("(", ")")])
 def test_plan_pair_close_skip_bracket_requires_unmatched_opener(
     opener: str, closer: str
 ) -> None:
@@ -171,12 +172,12 @@ def test_plan_pair_close_skip_ignores_openers() -> None:
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize("pair", ["()", "[]", "{}", "<>", "''", '""', "``"])
+@pytest.mark.parametrize("pair", ["()", "[]", "{}", "''", '""', "``"])
 def test_plan_pair_delete_left_empty_pair(pair: str) -> None:
     assert plan_pair_delete_left(pair, 1) == TextEdit(start=0, end=2, text="", cursor=0)
 
 
-@pytest.mark.parametrize("pair", ["()", "[]", "{}", "<>", "''", '""', "``"])
+@pytest.mark.parametrize("pair", ["()", "[]", "{}", "''", '""', "``"])
 def test_plan_pair_delete_right_empty_pair(pair: str) -> None:
     assert plan_pair_delete_right(pair, 0) == TextEdit(
         start=0, end=2, text="", cursor=0
@@ -231,7 +232,6 @@ def test_plan_pair_delete_left_multiline_offset() -> None:
         ("(", "()"),
         ("[", "[]"),
         ("{", "{}"),
-        ("<", "<>"),
         ("'", "''"),
         ('"', '""'),
         ("`", "``"),
@@ -248,7 +248,7 @@ async def test_typing_opener_inserts_pair(char: str, expected: str) -> None:
 
 @pytest.mark.parametrize(
     ("opener", "closer"),
-    [("(", ")"), ("[", "]"), ("{", "}"), ("<", ">")],
+    [("(", ")"), ("[", "]"), ("{", "}")],
 )
 async def test_typing_closer_moves_over_auto_pair(opener: str, closer: str) -> None:
     app = PairEditTestApp()
@@ -259,7 +259,7 @@ async def test_typing_closer_moves_over_auto_pair(opener: str, closer: str) -> N
         assert ta.cursor_location == (0, 2)
 
 
-@pytest.mark.parametrize("pair", ["()", "[]", "{}", "<>", "''", '""', "``"])
+@pytest.mark.parametrize("pair", ["()", "[]", "{}", "''", '""', "``"])
 async def test_backspace_removes_empty_pair(pair: str) -> None:
     app = PairEditTestApp()
     async with app.run_test() as pilot:
@@ -270,7 +270,7 @@ async def test_backspace_removes_empty_pair(pair: str) -> None:
         assert ta.text == ""
 
 
-@pytest.mark.parametrize("pair", ["()", "[]", "{}", "<>", "''", '""', "``"])
+@pytest.mark.parametrize("pair", ["()", "[]", "{}", "''", '""', "``"])
 async def test_delete_removes_empty_pair(pair: str) -> None:
     app = PairEditTestApp()
     async with app.run_test() as pilot:
@@ -279,6 +279,23 @@ async def test_delete_removes_empty_pair(pair: str) -> None:
         ta.cursor_location = (0, 0)
         await pilot.press("delete")
         assert ta.text == ""
+
+
+async def test_typing_angle_brackets_is_literal_and_not_paired_deleted() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        await pilot.press("<")
+        assert ta.text == "<"
+        assert ta.cursor_location == (0, 1)
+
+        await pilot.press(">")
+        assert ta.text == "<>"
+        assert ta.cursor_location == (0, 2)
+
+        ta.cursor_location = (0, 1)
+        await pilot.press("backspace")
+        assert ta.text == ">"
 
 
 async def test_backspace_keeps_non_empty_pair() -> None:

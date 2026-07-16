@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.placeholder_completion import (
+    PLACEHOLDER_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
@@ -168,11 +171,19 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         size = len(self._file_completion_candidates)
         self._file_completion_index = (self._file_completion_index + delta) % size
         if self._completion_kind == "jinja":
-            result = build_jinja_completion_result(
+            jinja_result = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
             )
-            self._update_file_completion_panel("" if result is None else result.prefix)
+            self._update_file_completion_panel(
+                "" if jinja_result is None else jinja_result.prefix
+            )
+            return True
+        if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
+            placeholder_result = self._placeholder_completion_at_cursor()
+            self._update_file_completion_panel(
+                "" if placeholder_result is None else placeholder_result.prefix
+            )
             return True
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
             project_trigger = self._get_vcs_project_trigger()
@@ -208,17 +219,35 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         if self._completion_kind == VCS_REPO_COMPLETION_KIND:
             return self._accept_vcs_repo_completion(selected)
         if self._completion_kind == "jinja":
-            result = build_jinja_completion_result(
+            jinja_result = build_jinja_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
             )
-            if result is None:
+            if jinja_result is None:
                 self._clear_file_completion()
                 return False
             self._replace_absolute_range(
-                result.replacement_start,
-                result.replacement_end,
+                jinja_result.replacement_start,
+                jinja_result.replacement_end,
                 selected.insertion,
+            )
+            self._clear_file_completion()
+            return True
+        if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
+            placeholder_result = self._placeholder_completion_at_cursor()
+            if placeholder_result is None:
+                self._clear_file_completion()
+                return False
+            replacement = selected.insertion
+            if placeholder_result.append_closing_bracket:
+                replacement += ">"
+            self._replace_absolute_range(
+                placeholder_result.replacement_start,
+                placeholder_result.replacement_end,
+                replacement,
+            )
+            self.cursor_location = self._location_from_absolute(
+                placeholder_result.replacement_start + len(selected.insertion) + 1
             )
             self._clear_file_completion()
             return True

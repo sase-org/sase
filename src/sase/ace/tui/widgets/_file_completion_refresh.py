@@ -12,6 +12,9 @@ from sase.ace.tui.widgets.directive_completion import (
 )
 from sase.ace.tui.widgets.file_completion import build_completion_candidates
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.placeholder_completion import (
+    PLACEHOLDER_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
     build_no_active_projects_placeholder,
@@ -36,12 +39,9 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if not self._file_completion_active:
             return
 
-        if self._completion_kind == "jinja":
-            result = build_jinja_completion_result(
-                self.text,
-                self._absolute_offset(self.cursor_location),
-            )
-            if result is None or not result.candidates:
+        if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
+            placeholder_result = self._placeholder_completion_at_cursor()
+            if placeholder_result is None:
                 self._clear_file_completion()
                 return
             previous = None
@@ -49,23 +49,49 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                 previous = self._file_completion_candidates[
                     self._file_completion_index
                 ].insertion
-            self._file_completion_candidates = result.candidates
+            self._file_completion_candidates = placeholder_result.candidates
+            self._file_completion_index = min(
+                self._file_completion_index,
+                len(placeholder_result.candidates) - 1,
+            )
             if previous is not None:
-                for i, candidate in enumerate(result.candidates):
+                for index, candidate in enumerate(placeholder_result.candidates):
+                    if candidate.insertion == previous:
+                        self._file_completion_index = index
+                        break
+            self._update_file_completion_panel(placeholder_result.prefix)
+            return
+
+        if self._completion_kind == "jinja":
+            jinja_result = build_jinja_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if jinja_result is None or not jinja_result.candidates:
+                self._clear_file_completion()
+                return
+            previous = None
+            if self._file_completion_candidates:
+                previous = self._file_completion_candidates[
+                    self._file_completion_index
+                ].insertion
+            self._file_completion_candidates = jinja_result.candidates
+            if previous is not None:
+                for i, candidate in enumerate(jinja_result.candidates):
                     if candidate.insertion == previous:
                         self._file_completion_index = i
                         break
                 else:
                     self._file_completion_index = min(
                         self._file_completion_index,
-                        len(result.candidates) - 1,
+                        len(jinja_result.candidates) - 1,
                     )
             else:
                 self._file_completion_index = min(
                     self._file_completion_index,
-                    len(result.candidates) - 1,
+                    len(jinja_result.candidates) - 1,
                 )
-            self._update_file_completion_panel(result.prefix)
+            self._update_file_completion_panel(jinja_result.prefix)
             return
 
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:

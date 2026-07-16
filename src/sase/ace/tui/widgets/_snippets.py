@@ -29,6 +29,7 @@ class SnippetExpansionMixin(_MixinBase):
         def _replace_via_keyboard(
             self, insert: str, start: tuple[int, int], end: tuple[int, int]
         ) -> None: ...
+        def _try_auto_placeholder_completion(self) -> bool: ...
 
     # -- Mixin implementation --
 
@@ -67,11 +68,14 @@ class SnippetExpansionMixin(_MixinBase):
             return False
 
         template = snippets[trigger]
-        return self._expand_snippet_template_at_range(
+        expanded = self._expand_snippet_template_at_range(
             template,
             (row, word_start),
             (row, col),
         )
+        if expanded:
+            self._try_auto_placeholder_completion()
+        return expanded
 
     def _expand_snippet_template_at_range(
         self,
@@ -182,12 +186,14 @@ class SnippetExpansionMixin(_MixinBase):
             line_len = len(self.document.get_line(r))
             if remaining <= line_len:
                 self.cursor_location = (r, remaining)
+                self._try_auto_placeholder_completion()
                 return True
             remaining -= line_len + 1
 
         # Fallback: end of document
         last_row = self.document.line_count - 1
         self.cursor_location = (last_row, len(self.document.get_line(last_row)))
+        self._try_auto_placeholder_completion()
         return True
 
 
