@@ -9,6 +9,7 @@ from sase.content_layout import (
     discover_project_root,
     display_path,
     resolve_project_layout,
+    resolve_xprompt_file_sources,
 )
 from sase.core.paths import shorten_path
 
@@ -196,8 +197,9 @@ def test_discover_project_root_resolves_symlinked_working_tree(
     )
 
 
-def test_discover_project_root_degrades_for_deleted_cwd(
+def test_deleted_cwd_degrades_to_home_only_xprompt_sources(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def deleted_cwd(cls: type[Path]) -> Path:
         raise FileNotFoundError("cwd was removed")
@@ -205,6 +207,10 @@ def test_discover_project_root_degrades_for_deleted_cwd(
     monkeypatch.setattr(Path, "cwd", classmethod(deleted_cwd))
 
     assert discover_project_root() is None
+    assert all(
+        not source.id.startswith("project_")
+        for source in resolve_xprompt_file_sources(home_root=tmp_path)
+    )
 
 
 def test_chezmoi_remap_handles_canonical_legacy_and_external_paths() -> None:
