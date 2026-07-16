@@ -40,7 +40,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(a.next_agent_metadata_section)} / "
                     f"{d(a.prev_agent_metadata_section)}",
-                    "Next / previous metadata section",
+                    "Cycle metadata through top",
                 ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",

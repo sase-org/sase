@@ -283,6 +283,9 @@ class BasicNavigationMixin(NavigationMixinBase):
 
         from ...widgets import AgentDetail
         from ...widgets.prompt_panel import AgentPromptPanel
+        from ...widgets.prompt_panel._section_navigation import (
+            PromptPanelSectionTargetKind,
+        )
 
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
@@ -300,11 +303,11 @@ class BasicNavigationMixin(NavigationMixinBase):
                 )
             return
 
-        anchor, ready = panel.resolve_section_target(
+        target = panel.resolve_section_target(
             direction,
             width=panel.size.width,
         )
-        if not ready:
+        if not target.ready:
             if retry:
                 return
             panel.queue_section_retry(direction)
@@ -314,6 +317,13 @@ class BasicNavigationMixin(NavigationMixinBase):
                     self._retry_agent_metadata_section
                 )
             return
+        if target.kind is PromptPanelSectionTargetKind.EMPTY:
+            return
+        if target.kind is PromptPanelSectionTargetKind.TOP:
+            scroll.scroll_to(y=0, animate=False, immediate=True)
+            return
+
+        anchor = target.anchor
         if anchor is None:
             return
 

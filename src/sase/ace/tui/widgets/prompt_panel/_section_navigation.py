@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum, auto
 from typing import TYPE_CHECKING
 from weakref import ref
 
@@ -26,6 +27,28 @@ class PromptPanelSectionAnchor:
 
     identity: str
     row: int
+
+
+class PromptPanelSectionTargetKind(Enum):
+    """Resolution states for one metadata-section navigation request."""
+
+    NOT_READY = auto()
+    EMPTY = auto()
+    TOP = auto()
+    ANCHOR = auto()
+
+
+@dataclass(frozen=True, slots=True)
+class PromptPanelSectionTarget:
+    """A cached navigation result without overloading a missing anchor."""
+
+    kind: PromptPanelSectionTargetKind
+    anchor: PromptPanelSectionAnchor | None = None
+
+    @property
+    def ready(self) -> bool:
+        """Whether the current generation and width have published anchors."""
+        return self.kind is not PromptPanelSectionTargetKind.NOT_READY
 
 
 class SectionTrackingVisual(Visual):
@@ -122,6 +145,8 @@ def _segment_section_identity(segment: Segment) -> str | None:
 
 __all__ = [
     "PromptPanelSectionAnchor",
+    "PromptPanelSectionTarget",
+    "PromptPanelSectionTargetKind",
     "SECTION_MARKER_META_KEY",
     "SectionTrackingVisual",
 ]

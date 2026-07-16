@@ -28,6 +28,7 @@ from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._helpers import append_section_heading
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
+    PromptPanelSectionTargetKind,
     SectionTrackingVisual,
 )
 from sase.ace.tui.widgets.prompt_panel._workflow_render import (
@@ -161,11 +162,27 @@ def test_render_pass_collects_width_aware_anchors_without_navigation_render() ->
     assert narrow_anchors[-1].row > wide_anchors[-1].row
 
     generation = narrow._section_generation  # noqa: SLF001
-    target, ready = narrow.resolve_section_target(1, width=28)
-    assert ready is True
-    assert target == narrow_anchors[0]
+    target = narrow.resolve_section_target(1, width=28)
+    assert target.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert target.anchor == narrow_anchors[0]
     assert narrow._section_generation == generation  # noqa: SLF001
     assert narrow.content is renderable
+
+
+def test_section_target_distinguishes_not_ready_and_empty_documents() -> None:
+    panel = AgentPromptPanel()
+    panel.prepare_section_document("empty-document")
+    panel.update(Group(Text("No marked titles\n")))
+
+    target = panel.resolve_section_target(1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.NOT_READY
+    assert target.ready is False
+
+    _track_renderable(panel, cast(RenderableType, panel.content), width=40)
+    target = panel.resolve_section_target(1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.EMPTY
+    assert target.ready is True
+    assert panel.active_section_identity is None
 
 
 def test_active_section_reconciles_across_same_document_rerender() -> None:
@@ -186,12 +203,93 @@ def test_active_section_reconciles_across_same_document_rerender() -> None:
     )
     _track_renderable(panel, cast(RenderableType, panel.content), width=40)
     assert panel.active_section_identity == "two"
-    target, ready = panel.resolve_section_target(1, width=40)
-    assert ready is True
-    assert target is not None and target.identity == "zero"
+    target = panel.resolve_section_target(1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.TOP
+    assert target.anchor is None
+    assert panel.active_section_identity is None
+
+    target = panel.resolve_section_target(1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert target.anchor is not None and target.anchor.identity == "zero"
 
     panel.prepare_section_document("new-document")
     assert panel.active_section_identity is None
+
+
+def test_section_target_boundaries_cycle_through_top_in_both_directions() -> None:
+    panel = _render_panel(
+        Group(
+            _section("ONE", "1\n"),
+            _section("TWO", "2\n"),
+            _section("THREE", "3\n"),
+        ),
+        width=40,
+    )
+
+    forward = [panel.resolve_section_target(1, width=40) for _ in range(5)]
+    assert [target.kind for target in forward] == [
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.TOP,
+        PromptPanelSectionTargetKind.ANCHOR,
+    ]
+    assert [
+        target.anchor.identity if target.anchor is not None else None
+        for target in forward
+    ] == ["one", "two", "three", None, "one"]
+
+    panel.prepare_section_document("reverse-document")
+    reverse = [panel.resolve_section_target(-1, width=40) for _ in range(5)]
+    assert [target.kind for target in reverse] == [
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.ANCHOR,
+        PromptPanelSectionTargetKind.TOP,
+        PromptPanelSectionTargetKind.ANCHOR,
+    ]
+    assert [
+        target.anchor.identity if target.anchor is not None else None
+        for target in reverse
+    ] == ["three", "two", "one", None, "three"]
+
+
+def test_single_section_cycles_to_top_in_both_directions() -> None:
+    panel = _render_panel(Group(_section("ONLY", "body\n")), width=40)
+
+    for direction in (1, -1):
+        target = panel.resolve_section_target(direction, width=40)
+        assert target.kind is PromptPanelSectionTargetKind.ANCHOR
+        assert target.anchor is not None and target.anchor.identity == "only"
+
+        target = panel.resolve_section_target(direction, width=40)
+        assert target.kind is PromptPanelSectionTargetKind.TOP
+        assert panel.active_section_identity is None
+
+
+def test_top_waypoint_survives_same_document_rerender() -> None:
+    panel = _render_panel(
+        Group(_section("ONE", "1\n"), _section("TWO", "2\n")),
+        width=40,
+    )
+    panel.resolve_section_target(1, width=40)
+    panel.resolve_section_target(1, width=40)
+    target = panel.resolve_section_target(1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.TOP
+
+    panel.update(
+        Group(
+            Text("New unmarked header\n"),
+            _section("ONE", "now wraps " * 10),
+            _section("TWO", "2\n"),
+        )
+    )
+    _track_renderable(panel, cast(RenderableType, panel.content), width=40)
+    assert panel.active_section_identity is None
+
+    target = panel.resolve_section_target(-1, width=40)
+    assert target.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert target.anchor is not None and target.anchor.identity == "two"
 
 
 def test_cheap_paint_preserves_section_until_enriched_layout_returns() -> None:
@@ -287,12 +385,13 @@ class _MetadataNavigationApp(BasicNavigationMixin, App[None]):
         yield AgentDetail(id="agent-detail-panel")
 
 
-async def test_mounted_actions_cycle_wrap_and_align_every_title_at_top() -> None:
+async def test_mounted_actions_cycle_through_top_and_align_every_title() -> None:
     app = _MetadataNavigationApp()
     async with app.run_test(size=(50, 16)) as pilot:
         panel = app.query_one("#agent-prompt-panel", AgentPromptPanel)
         scroll = app.query_one("#agent-prompt-scroll", VerticalScroll)
         content = Group(
+            Text("Name: demo-agent\nStatus: DONE\nUnmarked preamble\n"),
             _section("ONE", "one\n" * 8),
             _section("TWO", "two\n" * 8),
             _section("THREE", "short final body\n"),
@@ -302,20 +401,37 @@ async def test_mounted_actions_cycle_wrap_and_align_every_title_at_top() -> None
         await pilot.pause()
 
         anchors = {anchor.identity: anchor.row for anchor in panel._section_anchors}  # noqa: SLF001
-        for expected in ("one", "two", "three", "one"):
+        assert anchors["one"] > 0
+        for expected in ("one", "two", "three"):
             await pilot.press("ctrl+j")
             await pilot.pause()
             assert panel.active_section_identity == expected
             assert int(scroll.scroll_y) == panel.virtual_region.y + anchors[expected]
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+        assert panel.active_section_identity is None
+        assert int(scroll.scroll_y) == 0
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+        assert panel.active_section_identity == "one"
+        assert int(scroll.scroll_y) == panel.virtual_region.y + anchors["one"]
 
         panel.prepare_section_document("reverse")
         panel.update(content)
         await pilot.pause()
-        for expected in ("three", "two", "one", "three"):
+        for expected in ("three", "two", "one"):
             await pilot.press("ctrl+k")
             await pilot.pause()
             assert panel.active_section_identity == expected
             assert int(scroll.scroll_y) == panel.virtual_region.y + anchors[expected]
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+        assert panel.active_section_identity is None
+        assert int(scroll.scroll_y) == 0
+        await pilot.press("ctrl+k")
+        await pilot.pause()
+        assert panel.active_section_identity == "three"
+        assert int(scroll.scroll_y) == panel.virtual_region.y + anchors["three"]
 
         # The trailing reserve makes the final title alignable, but ordinary
         # bottom scrolling still stops at the end of real metadata.
@@ -382,4 +498,16 @@ async def test_key_during_layout_invalidation_gets_one_after_refresh_retry() -> 
         await pilot.pause()
 
         assert panel.active_section_identity == "first"
+        assert app._agent_metadata_section_retry_scheduled is False  # noqa: SLF001
+
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+        assert panel.active_section_identity == "last"
+
+        panel.update(Group(_section("FIRST", "body\n"), _section("LAST", "tail\n")))
+        app.action_next_agent_metadata_section()
+        assert panel.active_section_identity == "last"
+        await pilot.pause()
+
+        assert panel.active_section_identity is None
         assert app._agent_metadata_section_retry_scheduled is False  # noqa: SLF001

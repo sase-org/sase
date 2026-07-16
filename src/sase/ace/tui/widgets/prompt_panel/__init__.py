@@ -19,6 +19,8 @@ from ._helpers import (
 )
 from ._section_navigation import (
     PromptPanelSectionAnchor,
+    PromptPanelSectionTarget,
+    PromptPanelSectionTargetKind,
     SectionTrackingVisual,
 )
 from ._workflow_display import WorkflowDisplayMixin
@@ -147,12 +149,12 @@ class AgentPromptPanel(
         direction: int,
         *,
         width: int,
-    ) -> tuple[PromptPanelSectionAnchor | None, bool]:
+    ) -> PromptPanelSectionTarget:
         """Resolve an initial or adjacent section from the current render cache.
 
-        Returns ``(anchor, ready)``. A ready result with no anchor is a valid
-        zero-section document; a non-ready result is the brief invalidation
-        window before the refreshed Rich render publishes its anchors.
+        The result distinguishes a rendered anchor, the document-top waypoint,
+        a valid zero-section document, and the brief invalidation window before
+        the refreshed Rich render publishes its anchors.
         """
         generation = getattr(self, "_section_generation", 0)
         ready = (
@@ -160,13 +162,13 @@ class AgentPromptPanel(
             and getattr(self, "_section_anchor_width", -1) == width
         )
         if not ready:
-            return None, False
+            return PromptPanelSectionTarget(PromptPanelSectionTargetKind.NOT_READY)
 
         anchors: tuple[PromptPanelSectionAnchor, ...] = getattr(
             self, "_section_anchors", ()
         )
         if not anchors:
-            return None, True
+            return PromptPanelSectionTarget(PromptPanelSectionTargetKind.EMPTY)
 
         active = getattr(self, "_active_section_identity", None)
         if active is None:
@@ -178,12 +180,20 @@ class AgentPromptPanel(
             current_index = index_by_identity.get(active)
             if current_index is None:
                 index = 0 if direction > 0 else len(anchors) - 1
+            elif (direction > 0 and current_index == len(anchors) - 1) or (
+                direction < 0 and current_index == 0
+            ):
+                self._active_section_identity = None
+                return PromptPanelSectionTarget(PromptPanelSectionTargetKind.TOP)
             else:
                 index = (current_index + direction) % len(anchors)
 
         target = anchors[index]
         self._active_section_identity = target.identity
-        return target, True
+        return PromptPanelSectionTarget(
+            PromptPanelSectionTargetKind.ANCHOR,
+            target,
+        )
 
     def queue_section_retry(self, direction: int) -> None:
         """Retain one direction while refreshed anchors await first paint."""

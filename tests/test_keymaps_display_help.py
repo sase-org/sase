@@ -134,7 +134,7 @@ def test_agents_help_replaces_forward_jump_with_metadata_sections() -> None:
         for key, label in bindings
     }
 
-    assert ("Ctrl+J / Ctrl+K", "Next / previous metadata section") in agent_pairs
+    assert ("Ctrl+J / Ctrl+K", "Cycle metadata through top") in agent_pairs
     assert ("Ctrl+O / Ctrl+K", "Jump stack back / forward") not in agent_pairs
     assert ("Ctrl+O / Ctrl+K", "Jump stack back / forward") in axe_pairs
 
