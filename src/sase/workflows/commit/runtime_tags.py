@@ -4,22 +4,26 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import socket
 from collections.abc import Mapping
 from pathlib import Path
+
+from sase.core.commit_footer_facade import (
+    CommitTagValue,
+    LinkedCommitTagValue,
+    parse_commit_footer,
+    update_commit_footer,
+)
 
 RUNTIME_COMMIT_TAG_KEYS = frozenset({"AGENT", "MACHINE"})
 
 #: Prefix rendered onto every SASE-authored commit footer tag key. New commit
 #: messages write ``SASE_<KEY>=<value>`` while readers still accept the legacy
-#: unprefixed spelling (see :func:`canonicalize_commit_tag_key`).
+#: unprefixed spelling (see :func:`_canonicalize_commit_tag_key`).
 COMMIT_TAG_PREFIX = "SASE_"
 
-_TAG_LINE_RE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 
-
-def canonicalize_commit_tag_key(key: str) -> str:
+def _canonicalize_commit_tag_key(key: str) -> str:
     """Return *key* without the :data:`COMMIT_TAG_PREFIX`.
 
     Canonical (unprefixed) keys are the internal form used by helper inputs,
@@ -29,15 +33,6 @@ def canonicalize_commit_tag_key(key: str) -> str:
     if key.startswith(COMMIT_TAG_PREFIX):
         return key[len(COMMIT_TAG_PREFIX) :]
     return key
-
-
-def _render_commit_tag_key(key: str) -> str:
-    """Return the rendered footer spelling (``SASE_<KEY>``) of *key*.
-
-    Idempotent: an already-prefixed ``SASE_TYPE`` renders as ``SASE_TYPE``
-    rather than ``SASE_SASE_TYPE``.
-    """
-    return f"{COMMIT_TAG_PREFIX}{canonicalize_commit_tag_key(key)}"
 
 
 def _resolve_runtime_commit_tags() -> dict[str, str]:
@@ -138,8 +133,12 @@ def parse_trailing_commit_tags(message: str) -> dict[str, str]:
     duplicate keys win, matching how the block is rendered by
     :func:`update_trailing_commit_tags`.
     """
-    tags = _split_trailing_tag_block(message)[1]
-    return {canonicalize_commit_tag_key(key): value for key, value in tags}
+    return {tag.key: tag.label for tag in parse_commit_footer(message).tags}
+
+
+def parse_trailing_commit_tag_values(message: str) -> dict[str, CommitTagValue]:
+    """Return canonical tag values while retaining optional link targets."""
+    return {tag.key: tag.value for tag in parse_commit_footer(message).tags}
 
 
 def update_trailing_commit_tags(
@@ -157,33 +156,10 @@ def update_trailing_commit_tags(
     order, then sanitized non-empty update values are appended. Every final
     footer key is rendered with the ``SASE_`` prefix.
     """
-    body, existing_tags = _split_trailing_tag_block(message)
-    sanitized_updates = {
-        canonicalize_commit_tag_key(key): value
-        for key, raw_value in updates.items()
-        if (value := _sanitize_tag_value(raw_value))
-    }
-    owned_keys = {canonicalize_commit_tag_key(key) for key in (*remove_keys, *updates)}
-
-    merged_tags: list[tuple[str, str]] = [
-        (canonical, value)
-        for key, value in existing_tags
-        if (canonical := canonicalize_commit_tag_key(key)) not in owned_keys
-    ]
-    merged_tags.extend(sanitized_updates.items())
-
-    if not merged_tags:
-        return body
-
-    tag_block = "\n".join(
-        f"{_render_commit_tag_key(key)}={value}" for key, value in merged_tags
-    )
-    if body:
-        return f"{body}\n\n{tag_block}"
-    return tag_block
+    return update_commit_footer(message, updates, remove_keys=remove_keys)
 
 
-def filter_runtime_owned_tags(tags: Mapping[str, str]) -> dict[str, str]:
+def filter_runtime_owned_tags(tags: Mapping[str, object]) -> dict[str, object]:
     """Remove runtime-owned tag keys from inherited/configured PR tag maps.
 
     Keys are compared in canonical form so ``AGENT``/``MACHINE`` and their
@@ -192,42 +168,8 @@ def filter_runtime_owned_tags(tags: Mapping[str, str]) -> dict[str, str]:
     return {
         key: value
         for key, value in tags.items()
-        if canonicalize_commit_tag_key(key) not in RUNTIME_COMMIT_TAG_KEYS
+        if _canonicalize_commit_tag_key(key) not in RUNTIME_COMMIT_TAG_KEYS
     }
-
-
-def _split_trailing_tag_block(message: str) -> tuple[str, list[tuple[str, str]]]:
-    lines = message.split("\n")
-
-    last_non_blank = len(lines) - 1
-    while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
-        last_non_blank -= 1
-
-    if last_non_blank < 0:
-        return "", []
-
-    tags_start_idx = last_non_blank + 1
-    for idx in range(last_non_blank, -1, -1):
-        stripped = lines[idx].strip()
-        if _TAG_LINE_RE.match(stripped):
-            tags_start_idx = idx
-        elif stripped == "":
-            continue
-        else:
-            break
-
-    if tags_start_idx > last_non_blank:
-        return message.rstrip(), []
-
-    tags: list[tuple[str, str]] = []
-    for line in lines[tags_start_idx : last_non_blank + 1]:
-        stripped = line.strip()
-        match = _TAG_LINE_RE.match(stripped)
-        if match:
-            tags.append((match.group(1), match.group(2)))
-
-    body = "\n".join(lines[:tags_start_idx]).rstrip()
-    return body, tags
 
 
 def _sanitize_tag_value(value: object) -> str | None:

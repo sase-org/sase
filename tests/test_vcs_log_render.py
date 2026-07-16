@@ -92,6 +92,25 @@ def _tagged_result() -> VcsLogResult:
     )
 
 
+def _linked_tagged_result() -> VcsLogResult:
+    return VcsLogResult(
+        repos=(LogRepo("sase", "/p/sase", "primary"),),
+        commits=(
+            _entry(
+                "sase",
+                "a1b2c3d4",
+                300,
+                "linked plan",
+                body=(
+                    "body text\n\nSASE_PLAN=[202607/foo.md][1]\n\n"
+                    "[1]: https://github.com/acme/plans/blob/main/202607/foo.md"
+                ),
+            ),
+        ),
+        warnings=(),
+    )
+
+
 def _render(
     result: VcsLogResult,
     fmt: str,
@@ -194,6 +213,17 @@ def test_json_tags_shape() -> None:
         "TYPE": "sdd",
     }
     assert payload["commits"][1]["sase_tags"] == {}
+
+
+def test_linked_tag_rendering_uses_label_and_omits_reference_definition() -> None:
+    oneline = _render(_linked_tagged_result(), "oneline")
+    payload = json.loads(_render(_linked_tagged_result(), "json"))
+    full = _render(_linked_tagged_result(), "full")
+
+    assert "PLAN=202607/foo.md" in oneline
+    assert payload["commits"][0]["sase_tags"] == {"PLAN": "202607/foo.md"}
+    assert "plan  202607/foo.md" in full
+    assert "[1]: https://github.com" not in full
 
 
 def test_json_no_tags_omits_sase_tags() -> None:

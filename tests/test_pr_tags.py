@@ -1,12 +1,15 @@
 """Tests for pr_tags config reading and commit message appending."""
 
+import json
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.core.commit_footer_facade import LinkedCommitTagValue
 from sase.vcs_provider.config import extract_pr_tags, get_pr_tags
-from sase.workflows.commit.pr_operations import append_pr_tags
+from sase.workflows.commit.pr_operations import append_pr_tags, build_pr_body
 from sase.workflows.commit.workflow import CommitWorkflow
 from tests._commit_workflow_fixtures import (
     no_commit_hooks,  # noqa: F401 (imported for fixture discovery, re-used as fixture arg)
@@ -340,6 +343,64 @@ class TestExtractPrTags:
     def test_mixed_legacy_and_prefixed_tags(self) -> None:
         body = "Description\n\nTEAM=infra\nSASE_OWNER=alice"
         assert extract_pr_tags(body) == {"TEAM": "infra", "OWNER": "alice"}
+
+    def test_linked_tag_retains_destination(self) -> None:
+        body = (
+            "Description\n\nSASE_PLAN=[202607/p.md][4]\n\n"
+            "[4]: https://github.com/acme/plans/blob/main/202607/p.md"
+        )
+
+        assert extract_pr_tags(body) == {
+            "PLAN": LinkedCommitTagValue(
+                "202607/p.md",
+                "https://github.com/acme/plans/blob/main/202607/p.md",
+                "4",
+            )
+        }
+
+
+def test_linked_parent_tag_inheritance_keeps_reference_definition() -> None:
+    parent_body = (
+        "Parent\n\nSASE_PLAN=[202607/p.md][4]\n\n"
+        "[4]: https://github.com/acme/plans/blob/main/202607/p.md"
+    )
+    payload = {"message": "Child"}
+
+    with (
+        patch(_FETCH_PARENT_TARGET, return_value=extract_pr_tags(parent_body)),
+        patch("sase.vcs_provider.config.get_pr_tags", return_value={}),
+    ):
+        append_pr_tags(payload, "parent")
+
+    assert payload["message"] == (
+        "Child\n\nSASE_PLAN=[202607/p.md][4]\n\n"
+        "[4]: https://github.com/acme/plans/blob/main/202607/p.md"
+    )
+
+
+def test_pr_body_agent_info_precedes_structured_footer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "codex", "model": "gpt-5", "name": "worker"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = {
+        "message": (
+            "Description\n\nSASE_PLAN=[202607/p.md][1]\n\n"
+            "[1]: https://github.com/acme/plans/blob/main/202607/p.md"
+        )
+    }
+
+    build_pr_body(payload)
+
+    assert payload["_pr_body"] == (
+        "Description\n\n---\n**Model:** `codex/gpt-5`\n**Agent:** `worker`\n\n"
+        "SASE_PLAN=[202607/p.md][1]\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/p.md"
+    )
 
 
 class TestInheritParentPrTags:

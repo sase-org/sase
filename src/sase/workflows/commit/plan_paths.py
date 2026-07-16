@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -81,6 +82,33 @@ def format_sase_plan_tag_value(
     )
 
 
+def format_sase_plan_link(
+    plan_ref: str,
+    *,
+    store: SddStore,
+) -> str | None:
+    """Return the owning GitHub repository's blob URL for *plan_ref*.
+
+    Link generation is best-effort and local-only. Stores without authoritative
+    hosted-remote metadata or a resolvable checked-out/default branch retain
+    their existing plain path tag.
+    """
+    if store.is_in_tree or not store.remote_url:
+        return None
+    branch = _store_commit_branch(store.repo_root)
+    if branch is None:
+        return None
+
+    from sase._git_remote import github_blob_url
+
+    return github_blob_url(
+        store.remote_url,
+        provider=store.provider,
+        branch=branch,
+        path=plan_ref,
+    )
+
+
 def is_sase_plan_in_repo(
     raw_plan: str,
     repo_root: str | os.PathLike[str] | None,
@@ -108,3 +136,32 @@ def _local_sdd_reference(path: Path) -> str | None:
         if parts[idx] == ".sase" and parts[idx + 1] == "sdd":
             return Path(*parts[idx:]).as_posix()
     return None
+
+
+def _store_commit_branch(repo_root: Path) -> str | None:
+    current = _git_symbolic_ref(repo_root, "HEAD")
+    if current:
+        return current.removeprefix("refs/heads/")
+    origin_head = _git_symbolic_ref(repo_root, "refs/remotes/origin/HEAD")
+    if not origin_head:
+        return None
+    if origin_head.startswith("refs/remotes/"):
+        origin_head = origin_head[len("refs/remotes/") :]
+    if origin_head.startswith("origin/"):
+        origin_head = origin_head[len("origin/") :]
+    return origin_head or None
+
+
+def _git_symbolic_ref(repo_root: Path, ref: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "--short", ref],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and value else None

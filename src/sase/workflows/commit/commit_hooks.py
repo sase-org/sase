@@ -14,6 +14,7 @@ from sase.bead.project import BEADS_DIRNAME
 from sase.config.core import load_merged_config
 from sase.output import print_status
 from sase.workflows.commit.plan_paths import (
+    format_sase_plan_link,
     format_sase_plan_tag_value,
     is_sase_plan_in_repo,
 )
@@ -225,11 +226,36 @@ def _store_owning_plan_path(
         if relative_plan.parts and re.fullmatch(r"\d{6}", relative_plan.parts[0])
         else SDD_STORAGE_SEPARATE_REPO
     )
+    remote_url = _git_origin_remote(plan_root)
+    provider: str | None = None
+    if remote_url:
+        from sase._git_remote import parse_hosted_git_remote
+
+        hosted = parse_hosted_git_remote(remote_url)
+        if hosted is not None and hosted.host.split(":", 1)[0] == "github.com":
+            provider = "github"
     return SddStore(
         storage=storage,
         sdd_dir=plan_root,
         repo_root=plan_root,
+        provider=provider,
+        remote_url=remote_url,
     )
+
+
+def _git_origin_remote(repo_root: Path) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "config", "--get", "remote.origin.url"],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    value = result.stdout.strip()
+    return value if result.returncode == 0 and value else None
 
 
 def _is_local_plan_archive(plan_path: Path) -> bool:
@@ -266,8 +292,6 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if not raw_plan_path:
         return
 
-    from sase.sdd.store import resolve_sdd_store
-
     # Determine repo root
     repo_root = _get_repo_root(cwd)
     plan = Path(raw_plan_path).expanduser()
@@ -287,13 +311,16 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
             return  # truly missing
 
     plan_path = str(plan.resolve(strict=False))
-    owning_store = _store_owning_plan_path(Path(plan_path), repo_root)
-    if owning_store is not None:
-        store = owning_store
-    elif archive_only:
+    if archive_only:
         store = _launch_owning_store(cwd)
     else:
-        store = resolve_sdd_store(cwd, 1)
+        resolved_store = _launch_owning_store(cwd)
+        if is_sase_plan_in_repo(plan_path, resolved_store.sdd_dir):
+            store = resolved_store
+        else:
+            store = (
+                _store_owning_plan_path(Path(plan_path), repo_root) or resolved_store
+            )
 
     in_repo = is_sase_plan_in_repo(plan_path, repo_root)
     plan_in_store = is_sase_plan_in_repo(plan_path, store.sdd_dir)
@@ -371,11 +398,19 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
     if plan_ref is None:
         plan_ref = os.path.basename(plan_path)
 
-    from sase.workflows.commit.runtime_tags import update_trailing_commit_tags
+    from sase.workflows.commit.runtime_tags import (
+        LinkedCommitTagValue,
+        update_trailing_commit_tags,
+    )
+
+    plan_target = format_sase_plan_link(plan_ref, store=store)
+    plan_value: object = (
+        LinkedCommitTagValue(plan_ref, plan_target) if plan_target else plan_ref
+    )
 
     message = payload.get("message", "")
     payload["message"] = update_trailing_commit_tags(
-        message, {"PLAN": plan_ref}, remove_keys={"PLAN"}
+        message, {"PLAN": plan_value}, remove_keys={"PLAN"}
     )
 
     # Mark plan as done

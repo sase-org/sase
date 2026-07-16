@@ -37,7 +37,7 @@ def apply_project_pr_prefix(payload: dict) -> None:
             payload["message"] = strip_project_pr_prefix(message)
 
 
-def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, str]:
+def _fetch_parent_pr_tags(parent_cl_name: str | None) -> dict[str, object]:
     """Fetch PR tags from the parent PR's body (best-effort).
 
     Returns an empty dict if there is no parent, the parent has no PR URL,
@@ -124,9 +124,14 @@ def build_pr_body(payload: dict) -> None:
         lines.append(f"**Agent:** `{name}`")
 
     if lines:
+        from sase.core.commit_footer_facade import append_body_suffix_before_footer
+
         message = payload.get("message", "")
         footer = "\n".join(lines)
-        payload["_pr_body"] = f"{message}\n\n---\n{footer}"
+        payload["_pr_body"] = append_body_suffix_before_footer(
+            message,
+            f"---\n{footer}",
+        )
 
 
 def detect_parent_changespec(base_cl_name: str | None, payload: dict) -> str | None:

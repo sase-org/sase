@@ -251,6 +251,106 @@ class TestHandleSasePlan:
         assert message == "Complete SDD plan for my_plan"
         assert mock_commit.call_args.kwargs == {"paths": [str(plan_file)]}
 
+    def test_linked_repo_commit_links_flat_github_plan_in_owning_sidecar(
+        self, tmp_path: Path
+    ) -> None:
+        code_repo = tmp_path / "linked-repo"
+        _init_git_repo(code_repo)
+        owning_store = tmp_path / "host-plans"
+        _init_git_repo(owning_store)
+        subprocess.run(
+            ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+            cwd=owning_store,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:sase-org/sase--plans.git",
+            ],
+            cwd=owning_store,
+            check=True,
+            capture_output=True,
+        )
+        plan_file = owning_store / "202607" / "my_plan.md"
+        plan_file.parent.mkdir()
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        payload: dict = {"message": "fix: linked code"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch("sase.sdd.files.commit_sdd_store_files"),
+        ):
+            handle_sase_plan(payload, str(code_repo))
+
+        assert payload["message"] == (
+            "fix: linked code\n\nSASE_PLAN=[202607/my_plan.md][1]\n\n"
+            "[1]: https://github.com/sase-org/sase--plans/blob/"
+            "main/202607/my_plan.md"
+        )
+
+    def test_legacy_separate_github_store_links_plans_prefixed_path(
+        self, tmp_path: Path
+    ) -> None:
+        repo_dir = tmp_path / "repo"
+        _init_git_repo(repo_dir)
+        store_root = repo_dir / ".sase" / "sdd"
+        _init_git_repo(store_root)
+        subprocess.run(
+            ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+            cwd=store_root,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "remote",
+                "add",
+                "origin",
+                "git@github.com:acme/widget--sdd.git",
+            ],
+            cwd=store_root,
+            check=True,
+            capture_output=True,
+        )
+        write_sdd_store_record(
+            repo_dir,
+            {
+                "storage": "separate_repo",
+                "provider": "github",
+                "repo": "acme/widget--sdd",
+                "remote_url": "git@github.com:acme/widget--sdd.git",
+                "discovery": "found",
+            },
+        )
+        plan_file = store_root / "plans" / "202607" / "my_plan.md"
+        plan_file.parent.mkdir(parents=True)
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        payload: dict = {"message": "fix: code"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch("sase.sdd.files.commit_sdd_store_files"),
+        ):
+            handle_sase_plan(payload, str(repo_dir))
+
+        assert payload["message"] == (
+            "fix: code\n\nSASE_PLAN=[plans/202607/my_plan.md][1]\n\n"
+            "[1]: https://github.com/acme/widget--sdd/blob/"
+            "main/plans/202607/my_plan.md"
+        )
+
     def test_archive_plan_from_linked_repo_routes_to_host_store(
         self, tmp_path: Path
     ) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,34 @@ def parse_hosted_git_remote(value: str) -> _HostedGitRemote | None:
     if not normalized_host or not normalized_repo:
         return None
     return _HostedGitRemote(normalized_host, normalized_repo)
+
+
+def github_blob_url(
+    remote_url: str,
+    *,
+    provider: str | None,
+    branch: str,
+    path: str,
+) -> str | None:
+    """Return a sanitized GitHub blob URL for an unambiguous repository.
+
+    ``github.com`` is recognized directly. Other hosts require authoritative
+    provider metadata naming GitHub, which covers GitHub Enterprise without
+    guessing from an arbitrary hosted remote.
+    """
+    parsed = parse_hosted_git_remote(remote_url)
+    if parsed is None or not branch.strip() or not path.strip():
+        return None
+    provider_is_github = (provider or "").strip().casefold() == "github"
+    if _host_name(parsed.host) != "github.com" and not provider_is_github:
+        return None
+    repo_parts = parsed.repo.split("/")
+    if len(repo_parts) != 2 or not all(repo_parts):
+        return None
+    encoded_repo = "/".join(quote(part, safe="") for part in repo_parts)
+    encoded_branch = quote(branch.strip(), safe="")
+    encoded_path = quote(path.strip().lstrip("/"), safe="/")
+    return f"https://{parsed.host}/{encoded_repo}/blob/{encoded_branch}/{encoded_path}"
 
 
 def _git_remote_identity(value: str) -> str:

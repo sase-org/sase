@@ -9,6 +9,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from sase.workflows.commit.runtime_tags import (
+    LinkedCommitTagValue,
     RUNTIME_COMMIT_TAG_KEYS,
     _resolve_runtime_commit_tags,
     apply_auto_commit_tags_with_runtime,
@@ -256,6 +257,76 @@ def test_update_trailing_tags_keeps_body_text_intact() -> None:
         )
         == "Fix bug\n\nBody line\n\nSASE_MACHINE=machine-a"
     )
+
+
+def test_runtime_update_preserves_linked_plan_footer() -> None:
+    message = (
+        "Fix bug\n\nSASE_PLAN=[202607/plan.md][1]\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/plan.md"
+    )
+
+    updated = update_trailing_commit_tags(
+        message,
+        {"AGENT": "agent-a", "MACHINE": "athena"},
+        remove_keys=RUNTIME_COMMIT_TAG_KEYS,
+    )
+
+    assert updated == (
+        "Fix bug\n\nSASE_PLAN=[202607/plan.md][1]\n"
+        "SASE_AGENT=agent-a\nSASE_MACHINE=athena\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/plan.md"
+    )
+    assert parse_trailing_commit_tags(updated)["PLAN"] == "202607/plan.md"
+
+
+def test_linked_update_is_idempotent_and_removes_replaced_definition() -> None:
+    first = update_trailing_commit_tags(
+        "Fix bug",
+        {
+            "PLAN": LinkedCommitTagValue(
+                "old.md",
+                "https://github.com/acme/plans/blob/main/old.md",
+            )
+        },
+        remove_keys={"PLAN"},
+    )
+    second = update_trailing_commit_tags(
+        first,
+        {
+            "PLAN": LinkedCommitTagValue(
+                "new.md",
+                "https://github.com/acme/plans/blob/main/new.md",
+            )
+        },
+        remove_keys={"PLAN"},
+    )
+    repeated = update_trailing_commit_tags(
+        second,
+        {
+            "PLAN": LinkedCommitTagValue(
+                "new.md",
+                "https://github.com/acme/plans/blob/main/new.md",
+            )
+        },
+        remove_keys={"PLAN"},
+    )
+
+    assert second == repeated
+    assert "old.md" not in second
+    assert "SASE_PLAN=[new.md][2]" in second
+    assert "[2]: https://github.com/acme/plans/blob/main/new.md" in second
+
+
+def test_body_markdown_definition_is_not_mistaken_for_footer_metadata() -> None:
+    message = (
+        "Fix bug\n\nSASE_PLAN=body-like-text\n\n"
+        "[1]: https://example.test/body\n\nTrailing prose"
+    )
+
+    updated = update_trailing_commit_tags(message, {"TYPE": "sdd"})
+
+    assert updated.startswith(message)
+    assert updated.endswith("SASE_TYPE=sdd")
 
 
 def test_filter_runtime_owned_tags() -> None:

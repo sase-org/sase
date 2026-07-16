@@ -95,6 +95,8 @@ def check_backend_health() -> BackendHealthReport:
     error_kind: str | None = None
     probes: dict[str, bool] = {
         "parse_query": False,
+        "commit_footer_wire_schema_version": False,
+        "parse_commit_footer": False,
         "agent_launch_wire_schema_version": False,
         "plan_agent_launch_fanout": False,
         "bead_cli_execute": False,
@@ -129,6 +131,54 @@ def check_backend_health() -> BackendHealthReport:
                     f"{RUST_EXTENSION_MODULE_NAME}.parse_query("
                     f"{_HEALTH_PROBE_QUERY!r}) raised {type(exc).__name__}: "
                     f"{exc}"
+                )
+                error_kind = type(exc).__name__
+
+    if rust_loaded and error is None:
+        try:
+            footer_schema_version = rust_module.commit_footer_wire_schema_version
+        except AttributeError:
+            error = (
+                f"{RUST_EXTENSION_MODULE_NAME} is importable but does not "
+                "expose commit_footer_wire_schema_version; the extension is "
+                "too old for structured commit footers."
+            )
+            error_kind = "AttributeError"
+        else:
+            try:
+                version = int(footer_schema_version())
+                if version != 1:
+                    raise RuntimeError(f"unexpected schema version {version}")
+                probes["commit_footer_wire_schema_version"] = True
+            except Exception as exc:  # noqa: BLE001 — surface broken wheel.
+                error = (
+                    f"{RUST_EXTENSION_MODULE_NAME}."
+                    "commit_footer_wire_schema_version() raised "
+                    f"{type(exc).__name__}: {exc}"
+                )
+                error_kind = type(exc).__name__
+
+    if rust_loaded and error is None:
+        try:
+            parse_commit_footer = rust_module.parse_commit_footer
+        except AttributeError:
+            error = (
+                f"{RUST_EXTENSION_MODULE_NAME} is importable but does not "
+                "expose parse_commit_footer; the extension is too old for "
+                "structured commit footers."
+            )
+            error_kind = "AttributeError"
+        else:
+            try:
+                footer = parse_commit_footer("Health\n\nSASE_TYPE=health")
+                tags = footer.get("tags") if isinstance(footer, dict) else None
+                if not isinstance(tags, list) or not tags:
+                    raise RuntimeError("commit footer parser returned no tags")
+                probes["parse_commit_footer"] = True
+            except Exception as exc:  # noqa: BLE001 — surface broken wheel.
+                error = (
+                    f"{RUST_EXTENSION_MODULE_NAME}.parse_commit_footer() "
+                    f"raised {type(exc).__name__}: {exc}"
                 )
                 error_kind = type(exc).__name__
 

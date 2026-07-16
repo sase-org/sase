@@ -73,3 +73,16 @@ def test_tags_separated_by_blank_line() -> None:
 def test_multiple_blank_line_separated_tag_groups() -> None:
     desc = "Fix bug\n\nBUG=483686843\n\nFIXES=123\n\nR=startblock\nWANT_LGTM=all"
     assert strip_pr_tags(desc) == "Fix bug"
+
+
+def test_linked_tags_remove_attached_definitions() -> None:
+    desc = (
+        "Fix bug\n\nSASE_PLAN=[202607/p.md][1]\nSASE_TEAM=infra\n\n"
+        "[1]: https://github.com/acme/plans/blob/main/202607/p.md"
+    )
+    assert strip_pr_tags(desc) == "Fix bug"
+
+
+def test_non_footer_markdown_definition_is_preserved() -> None:
+    desc = "Fix bug\n\nSASE_PLAN=body text\n\n[1]: https://example.test"
+    assert strip_pr_tags(desc) == desc

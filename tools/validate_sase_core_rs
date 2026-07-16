@@ -15,6 +15,9 @@ from typing import Any
 REQUIRED_BINDINGS = (
     "parse_project_bytes",
     "parse_query",
+    "commit_footer_wire_schema_version",
+    "parse_commit_footer",
+    "update_commit_footer",
     "scan_agent_artifacts",
     "scan_agent_artifact_dirs",
     "plan_agent_cleanup",

@@ -22,12 +22,16 @@ def _install_fake_extension(
     monkeypatch: pytest.MonkeyPatch,
     *,
     parse_query: Any = None,
+    commit_footer_wire_schema_version: Any = None,
+    parse_commit_footer: Any = None,
     agent_launch_wire_schema_version: Any = None,
     plan_agent_launch_fanout: Any = None,
     bead_cli_execute: Any = None,
     version: str | None = "0.0.0-fake",
     file_path: str | None = "/fake/sase_core_rs/__init__.py",
     omit_parse_query: bool = False,
+    omit_commit_footer_wire_schema_version: bool = False,
+    omit_parse_commit_footer: bool = False,
     omit_agent_launch_wire_schema_version: bool = False,
     omit_plan_agent_launch_fanout: bool = False,
     omit_bead_cli_execute: bool = False,
@@ -39,6 +43,15 @@ def _install_fake_extension(
 
     def _schema_version() -> int:
         return 1
+
+    def _parse_commit_footer(_message: str) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "body": "Health",
+            "footer": "SASE_TYPE=health",
+            "tags": [{"key": "TYPE", "label": "health"}],
+            "references": [],
+        }
 
     def _launch_plan(prompt: str, launch_kind: str | None = None) -> dict[str, Any]:
         return {
@@ -73,6 +86,18 @@ def _install_fake_extension(
     fake = types.ModuleType(RUST_EXTENSION_MODULE_NAME)
     if not omit_parse_query:
         fake.parse_query = parse_query if parse_query is not None else _ok  # type: ignore[attr-defined]
+    if not omit_commit_footer_wire_schema_version:
+        fake.commit_footer_wire_schema_version = (  # type: ignore[attr-defined]
+            commit_footer_wire_schema_version
+            if commit_footer_wire_schema_version is not None
+            else _schema_version
+        )
+    if not omit_parse_commit_footer:
+        fake.parse_commit_footer = (  # type: ignore[attr-defined]
+            parse_commit_footer
+            if parse_commit_footer is not None
+            else _parse_commit_footer
+        )
     if not omit_agent_launch_wire_schema_version:
         fake.agent_launch_wire_schema_version = (  # type: ignore[attr-defined]
             agent_launch_wire_schema_version
@@ -121,6 +146,8 @@ def test_health_ok_with_extension(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.rust_extension_path == "/fake/sase_core_rs/__init__.py"
     assert report.probe_ok is True
     assert report.extras["probes"]["parse_query"] is True
+    assert report.extras["probes"]["commit_footer_wire_schema_version"] is True
+    assert report.extras["probes"]["parse_commit_footer"] is True
     assert report.extras["probes"]["agent_launch_wire_schema_version"] is True
     assert report.extras["probes"]["plan_agent_launch_fanout"] is True
     assert report.extras["probes"]["bead_cli_execute"] is True
@@ -187,6 +214,19 @@ def test_health_parse_query_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     assert report.error_kind == "ValueError"
     assert report.error is not None
     assert "invalid token" in report.error
+
+
+def test_health_extension_missing_commit_footer_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_extension(monkeypatch, omit_parse_commit_footer=True)
+
+    report = check_backend_health()
+
+    assert report.status == HEALTH_ERROR
+    assert report.error_kind == "AttributeError"
+    assert report.error is not None
+    assert "parse_commit_footer" in report.error
 
 
 def test_health_extension_missing_launch_binding(

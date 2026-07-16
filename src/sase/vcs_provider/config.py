@@ -83,10 +83,9 @@ def get_workspace_root() -> str | None:
 
 
 _PREFIX_PATTERN = re.compile(r"^\[.+?\] ")
-_TAG_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]*=")
 
 
-def extract_pr_tags(description: str) -> dict[str, str]:
+def extract_pr_tags(description: str) -> dict[str, object]:
     """Extract the trailing contiguous block of ``KEY=value`` PR tag lines.
 
     This is the read counterpart of :func:`strip_pr_tags`.  It scans the
@@ -98,28 +97,9 @@ def extract_pr_tags(description: str) -> dict[str, str]:
     Returns:
         A dict mapping canonical tag names to values (empty if no tags found).
     """
-    from sase.workflows.commit.runtime_tags import canonicalize_commit_tag_key
+    from sase.workflows.commit.runtime_tags import parse_trailing_commit_tag_values
 
-    lines = description.split("\n")
-
-    # Skip trailing blank lines
-    last_non_blank = len(lines) - 1
-    while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
-        last_non_blank -= 1
-
-    # Scan upward to find tag block (skipping blank lines between tags)
-    tags: dict[str, str] = {}
-    for idx in range(last_non_blank, -1, -1):
-        stripped = lines[idx].strip()
-        if _TAG_PATTERN.match(stripped):
-            key, _, value = stripped.partition("=")
-            tags[canonicalize_commit_tag_key(key)] = value
-        elif stripped == "":
-            continue
-        else:
-            break
-
-    return tags
+    return dict(parse_trailing_commit_tag_values(description))
 
 
 def strip_pr_tags(description: str) -> str:
@@ -131,27 +111,9 @@ def strip_pr_tags(description: str) -> str:
 
     Returns the cleaned description, or the original if no tags are found.
     """
-    lines = description.split("\n")
+    from sase.core.commit_footer_facade import parse_commit_footer
 
-    # Skip trailing blank lines
-    last_non_blank = len(lines) - 1
-    while last_non_blank >= 0 and lines[last_non_blank].strip() == "":
-        last_non_blank -= 1
-
-    # Scan upward to find tag block (skipping blank lines between tags)
-    tags_start_idx = last_non_blank + 1
-    for idx in range(last_non_blank, -1, -1):
-        stripped = lines[idx].strip()
-        if _TAG_PATTERN.match(stripped):
-            tags_start_idx = idx
-        elif stripped == "":
-            continue
-        else:
-            break
-
-    if tags_start_idx > last_non_blank:
+    footer = parse_commit_footer(description)
+    if not footer.tags:
         return description
-
-    # Remove tags and strip trailing blank lines
-    result = "\n".join(lines[:tags_start_idx]).rstrip()
-    return result
+    return footer.body

@@ -75,6 +75,18 @@ def test_duplicate_sase_keys_keep_later_value() -> None:
     assert view.body == "body text"
 
 
+def test_linked_plan_displays_label_and_hides_definition_from_body() -> None:
+    view = commit_tag_view(
+        _commit(
+            "body text\n\nSASE_PLAN=[202607/foo.md][1]\n\n"
+            "[1]: https://github.com/acme/plans/blob/main/202607/foo.md"
+        )
+    )
+
+    assert view.tags == (("PLAN", "202607/foo.md"),)
+    assert view.body == "body text"
+
+
 @pytest.mark.parametrize(
     ("type_value", "expected_color"),
     [
