@@ -6,6 +6,23 @@ from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import flat_help, help_subcommand_rows, parser_for
 
 
+def _assert_metavar_option_documented(
+    help_text: str,
+    short_option: str,
+    long_option: str,
+    metavar: str,
+) -> None:
+    """Accept argparse's pre-3.13 and 3.13+ option-help renderings."""
+    expected_renderings = (
+        f"{short_option} {metavar}, {long_option} {metavar}",
+        f"{short_option}, {long_option} {metavar}",
+    )
+    assert any(rendering in help_text for rendering in expected_renderings), (
+        f"option was not documented using either supported rendering: "
+        f"{expected_renderings!r}"
+    )
+
+
 def test_agents_help_renders_sorted_subcommands() -> None:
     """A formerly unsorted help view renders its user-facing rows sorted."""
     agents_parser = parser_for(("sase", "agent"))
@@ -149,9 +166,9 @@ def test_repo_open_help_documents_inference_and_required_reason() -> None:
 
     assert "usage: sase repo open" in open_help
     assert "REPO" in open_help
-    assert "-p, --project PROJECT" in open_help
-    assert "-r, --reason REASON" in open_help
-    assert "-w, --workspace N" in open_help
+    _assert_metavar_option_documented(open_help, "-p", "--project", "PROJECT")
+    _assert_metavar_option_documented(open_help, "-r", "--reason", "REASON")
+    _assert_metavar_option_documented(open_help, "-w", "--workspace", "N")
     assert "defaults to the checkout that contains the current directory" in open_help
     assert "sase repo open chezmoi --reason" in open_help
     assert "another registered SASE project" in open_help
@@ -183,8 +200,8 @@ def test_repo_list_help_documents_scope_workspace_and_examples() -> None:
     assert "usage: sase repo list" in list_help
     assert "-a, --all" in list_help
     assert "-j, --json" in list_help
-    assert "-p, --project PROJECT" in list_help
-    assert "-w, --workspace N" in list_help
+    _assert_metavar_option_documented(list_help, "-p", "--project", "PROJECT")
+    _assert_metavar_option_documented(list_help, "-w", "--workspace", "N")
     assert "default to the checkout that contains the current directory" in list_help
     assert "sase repo list --workspace 12" in list_help
     assert "sase repo list --all" in list_help
@@ -196,12 +213,12 @@ def test_repo_log_help_documents_filters_lookup_and_examples() -> None:
     log_help = flat_help(parser_for(("sase", "repo", "log")).format_help())
 
     assert "usage: sase repo log" in log_help
-    assert "-a, --agent AGENT_NAME" in log_help
-    assert "-i, --id OPEN_ID" in log_help
+    _assert_metavar_option_documented(log_help, "-a", "--agent", "AGENT_NAME")
+    _assert_metavar_option_documented(log_help, "-i", "--id", "OPEN_ID")
     assert "-j, --json" in log_help
-    assert "-p, --project PROJECT" in log_help
-    assert "-r, --repo REPO" in log_help
-    assert "-w, --workspace N" in log_help
+    _assert_metavar_option_documented(log_help, "-p", "--project", "PROJECT")
+    _assert_metavar_option_documented(log_help, "-r", "--repo", "REPO")
+    _assert_metavar_option_documented(log_help, "-w", "--workspace", "N")
     assert "defaults to the checkout that contains the current directory" in log_help
     assert "sase repo log --repo sase-core" in log_help
     assert "sase repo log --id <open-id> --json" in log_help

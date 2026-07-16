@@ -173,15 +173,11 @@ def content_layout_from_mapping(raw: Mapping[str, Any]) -> SaseContentLayout:
     return SaseContentLayout(
         schema_version=int(raw["schema_version"]),
         project=(
-            _project_layout(_mapping(project_raw))
-            if project_raw is not None
-            else None
+            _project_layout(_mapping(project_raw)) if project_raw is not None else None
         ),
         home=_home_layout(_mapping(raw["home"])),
         chezmoi=(
-            _chezmoi_layout(_mapping(chezmoi_raw))
-            if chezmoi_raw is not None
-            else None
+            _chezmoi_layout(_mapping(chezmoi_raw)) if chezmoi_raw is not None else None
         ),
         xprompt_sources=tuple(
             _xprompt_source(_mapping(item))
@@ -268,12 +264,8 @@ def _xprompt_source(raw: Mapping[str, Any]) -> XpromptSource:
             if raw.get("collision_group") is not None
             else None
         ),
-        collision_policy=cast(
-            CollisionPolicy | None, raw.get("collision_policy")
-        ),
-        ordering=(
-            str(raw["ordering"]) if raw.get("ordering") is not None else None
-        ),
+        collision_policy=cast(CollisionPolicy | None, raw.get("collision_policy")),
+        ordering=(str(raw["ordering"]) if raw.get("ordering") is not None else None),
     )
 
 

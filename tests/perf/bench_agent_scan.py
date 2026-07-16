@@ -269,11 +269,10 @@ def _run_scenarios(
     scanner takes the root explicitly and is not affected by the patch.
     """
     from sase.agent.names._lookup import find_named_agent, is_workflow_complete
-    from sase.agent.running import (
+    from sase.agent.running import list_all_agents, list_running_agents
+    from sase.agent.running_listing import (
         _done_from_snapshot,
         _running_from_snapshot,
-        list_all_agents,
-        list_running_agents,
     )
     from sase.ace.tui.models._loaders._done_loaders import load_done_agents
     from sase.ace.tui.models._loaders._running_loaders import (

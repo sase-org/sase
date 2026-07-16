@@ -40,6 +40,13 @@ _CONTROL_ENV = (
     "SASE_MODEL_OVERRIDE",
 )
 
+_CANONICAL_VISUAL_TRACEBACK = """Traceback (most recent call last):
+  File "/workspace/sase/src/sase/llm_provider/_invoke.py", line 261, in invoke_agent
+    invoke_result = provider.invoke(query, options=invocation_options)
+  File "/workspace/sase/src/sase/llm_provider/_plugin_manager.py", line 31, in invoke
+    return plugin.invoke(query, options)
+sase.llm_provider.errors.LLMInvocationError: temporary fakey outage"""
+
 
 @dataclass(frozen=True)
 class FakeyBarrier:
@@ -326,12 +333,13 @@ class FakeyRetryHarness:
             for step in workflow.get("steps", []):
                 if not isinstance(step, dict):
                     continue
-                for field_name in ("error", "traceback"):
-                    value = step.get(field_name)
-                    if isinstance(value, str):
-                        step[field_name] = value.replace(
-                            str(self.repo_root), "/workspace/sase"
-                        )
+                error = step.get("error")
+                if isinstance(error, str):
+                    step["error"] = error.replace(
+                        str(self.repo_root), "/workspace/sase"
+                    )
+                if isinstance(step.get("traceback"), str):
+                    step["traceback"] = _CANONICAL_VISUAL_TRACEBACK
             workflow_path.write_text(json.dumps(workflow, indent=2), encoding="utf-8")
 
         attempt_base_epoch = visual_epoch - 20

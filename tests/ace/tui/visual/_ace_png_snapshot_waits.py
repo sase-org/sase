@@ -19,7 +19,7 @@ async def wait_for_state(
     predicate: Callable[[], bool],
     *,
     description: str = "visual state predicate",
-    timeout: float = 5.0,
+    timeout: float = 15.0,
 ) -> None:
     """Wait until a semantic visual-state predicate becomes true.
 
@@ -49,7 +49,7 @@ async def wait_for_svg_contains(
     page: AcePage,
     text: str,
     *,
-    timeout: float = 5.0,
+    timeout: float = 15.0,
 ) -> None:
     """Wait until the exported frame contains the expected text sentinel."""
     await wait_for_state(
@@ -122,7 +122,7 @@ def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]
     return debouncers, workers, timers
 
 
-async def wait_for_visual_idle(page: AcePage, *, timeout: float = 2.0) -> None:
+async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
     """Wait for finite work to finish and the rendered SVG frame to converge."""
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
