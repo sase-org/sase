@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from sase.core.query_corpus_facade import QueryCorpus
 
 from ....changespec import ChangeSpec
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 
 
@@ -37,6 +38,7 @@ class ChangeSpecLoadingMixin:
     _hidden_reverted_count: int
     _hidden_submitted_count: int
     _changespecs_loading: bool
+    _changespecs_refresh_scheduled: bool
     _changespecs_refresh_pending: bool
     _changespecs_first_load_done: bool
     _current_changespec_group_key: tuple[str, ...] | None
@@ -348,10 +350,25 @@ class ChangeSpecLoadingMixin:
         if self._changespecs_loading:
             self._changespecs_refresh_pending = True
             return
-        self.call_later(self._run_changespecs_async_refresh)  # type: ignore[attr-defined]
+        if getattr(self, "_changespecs_refresh_scheduled", False):
+            return
+        self._changespecs_refresh_scheduled = True
+        self._spawn_changespecs_refresh_task()
+
+    def _spawn_changespecs_refresh_task(self) -> None:
+        """Run a ChangeSpec reload outside Textual's serial message pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_changespecs_async_refresh(),
+            name="sase-changespecs-refresh",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._changespecs_refresh_scheduled = False
 
     async def _run_changespecs_async_refresh(self) -> None:
         """Run the async changespec refresh with loading guard."""
+        self._changespecs_refresh_scheduled = False
         if self._changespecs_loading:
             self._changespecs_refresh_pending = True
             return
@@ -362,4 +379,4 @@ class ChangeSpecLoadingMixin:
             self._changespecs_loading = False
             if self._changespecs_refresh_pending:
                 self._changespecs_refresh_pending = False
-                self.call_later(self._run_changespecs_async_refresh)  # type: ignore[attr-defined]
+                self._schedule_changespecs_async_refresh()

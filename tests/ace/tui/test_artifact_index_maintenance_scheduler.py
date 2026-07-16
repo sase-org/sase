@@ -31,7 +31,9 @@ class _FakeApp(AgentIndexMaintenanceMixin):
         self._scheduled: list[Callable[[], Any]] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
 
-    def call_later(self, callback: Callable[[], Any]) -> None:
+    def _spawn_artifact_index_maintenance_task(self) -> None:
+        """Record scheduling without starting a task in narrow unit tests."""
+        callback = self._run_artifact_index_maintenance
         self._scheduled.append(callback)
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
@@ -155,7 +157,7 @@ async def test_scheduler_defers_behind_navigation_gate(
     assert len(app._timer_calls) == 1
     delay, callback = app._timer_calls[0]
     assert 0.05 < delay <= 0.30
-    assert callback == app._run_artifact_index_maintenance
+    assert callback == app._spawn_artifact_index_maintenance_task
     assert app._artifact_index_maintenance_running is True
     assert app._artifact_index_maintenance_pending_request is not None
 

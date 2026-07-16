@@ -85,17 +85,27 @@ def run_tracked_task(app: Any, task: dict[str, Any]) -> TrackedTaskCompletion[An
         payload=result.payload,
         error=result.error,
     )
-    on_complete = task["on_complete"]
-    if on_complete is not None:
-        on_complete(completion)
-    # Completion effects schedule coroutine callbacks (the off-thread
-    # notification-count refresh) via call_later; run them here so test
-    # counters observe the refresh.
-    scheduled = getattr(app, "_scheduled", None)
-    if scheduled is not None:
-        for entry in list(scheduled):
-            callback, args = entry
-            if inspect.iscoroutinefunction(callback):
-                asyncio.run(callback(*args))
-                scheduled.remove(entry)
+
+    async def _run_completion_effects() -> None:
+        on_complete = task["on_complete"]
+        if on_complete is not None:
+            on_complete(completion)
+
+        # New completion effects use retained pump-free tasks. Drain until
+        # stable because a coalesced completion may spawn one follow-up.
+        while tasks := list(getattr(app, "_pump_free_async_tasks", ())):
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(0)
+
+        # Keep compatibility for unrelated synchronous test doubles that
+        # intentionally record coroutine callbacks in ``_scheduled``.
+        scheduled = getattr(app, "_scheduled", None)
+        if scheduled is not None:
+            for entry in list(scheduled):
+                callback, args = entry
+                if inspect.iscoroutinefunction(callback):
+                    await callback(*args)
+                    scheduled.remove(entry)
+
+    asyncio.run(_run_completion_effects())
     return completion

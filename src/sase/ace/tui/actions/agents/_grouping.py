@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable, Coroutine
+from typing import TYPE_CHECKING, Any, Literal
+
+from ...util.pump_tasks import spawn_pump_free_task
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -144,9 +147,6 @@ class AgentGroupingMixin:
         mode = self._grouping_mode_save_pending.get(target)
         if mode is None:
             return
-        call_later = getattr(self, "call_later", None)
-        if not callable(call_later):
-            return
         self._grouping_mode_save_inflight.add(target)
         self._grouping_mode_save_active[target] = mode
 
@@ -164,7 +164,23 @@ class AgentGroupingMixin:
                 if self._grouping_mode_save_pending.get(target) is not active_mode:
                     self._start_grouping_mode_save(target)
 
-        call_later(_runner)
+        self._spawn_grouping_mode_save_task(target, _runner)
+
+    def _spawn_grouping_mode_save_task(
+        self,
+        target: GroupingSaveTarget,
+        coro_factory: Callable[[], Coroutine[Any, Any, None]],
+    ) -> None:
+        """Spawn one latest-value persistence worker outside the app pump."""
+        task = spawn_pump_free_task(
+            self,
+            coro_factory(),
+            name=f"sase-grouping-mode-save-{target}",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._grouping_mode_save_inflight.discard(target)
+            self._grouping_mode_save_active.pop(target, None)
 
     def _save_grouping_mode_now(
         self,

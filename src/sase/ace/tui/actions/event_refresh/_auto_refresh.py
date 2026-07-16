@@ -7,6 +7,7 @@ from typing import Any
 
 from .._debug_leaks import debug_leaks_enabled, log_leak_snapshot
 from ..agents._notification_utils import request_notification_agents_refresh
+from ...util.pump_tasks import spawn_pump_free_task
 from ._artifact_paths import agent_has_live_file_panel
 from ._constants import (
     AGENTS_LOAD_MIN_INTERVAL_SECONDS,
@@ -47,8 +48,8 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         agent_detail.refresh_current_file(agent)
         return True
 
-    async def _on_auto_refresh(self) -> None:
-        """Auto-refresh handler called by timer.
+    def _on_auto_refresh(self) -> None:
+        """Timer-facing sync callback that launches a pump-free refresh.
 
         When the user is mid-burst on j/k the refresh defers itself for the
         remainder of the navigation window plus a small overshoot.  A new
@@ -60,14 +61,57 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         Every ``FULL_SANITY_REFRESH_SECONDS`` we ignore the gate and run
         a full reconcile to recover from any missed events.
         """
-        if self._nav_gate.is_navigating():
-            delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._on_auto_refresh)  # type: ignore[attr-defined]
-            return
-
         self._countdown_remaining = self.refresh_interval
+        if self._nav_gate.is_navigating():
+            if getattr(self, "_auto_refresh_deferred", False):
+                return
+            self._auto_refresh_deferred = True
+            delay = self._nav_gate.time_until_idle() + 0.05
+            self.set_timer(delay, self._retry_auto_refresh)  # type: ignore[attr-defined]
+            return
         if self._prompt_input_active():
             return
+        if getattr(self, "_auto_refresh_running", False):
+            self._auto_refresh_pending = True
+            return
+        if getattr(self, "_auto_refresh_scheduled", False):
+            return
+        self._auto_refresh_scheduled = True
+        self._spawn_auto_refresh_task()
+
+    def _retry_auto_refresh(self) -> None:
+        """Navigation-gate timer callback that only invokes the sync spawner."""
+        self._auto_refresh_deferred = False
+        self._on_auto_refresh()
+
+    def _spawn_auto_refresh_task(self) -> None:
+        """Run auto-refresh without making Textual's message pump await it."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_auto_refresh(),
+            name="sase-auto-refresh",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._auto_refresh_scheduled = False
+
+    async def _run_auto_refresh(self) -> None:
+        """Run one guarded refresh and coalesce a trailing timer tick."""
+        self._auto_refresh_scheduled = False
+        if getattr(self, "_auto_refresh_running", False):
+            self._auto_refresh_pending = True
+            return
+        self._auto_refresh_running = True
+        try:
+            await self._run_auto_refresh_body()
+        finally:
+            self._auto_refresh_running = False
+            if getattr(self, "_auto_refresh_pending", False):
+                self._auto_refresh_pending = False
+                self._on_auto_refresh()
+
+    async def _run_auto_refresh_body(self) -> None:
+        """Refresh dirty surfaces; always called from a pump-free task."""
 
         watcher_active = self._watcher_active()
         now_mono = time.monotonic()
@@ -85,8 +129,22 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         # transitions) — but skip the disk poll on idle ticks when the
         # watcher is active and nothing about axe has changed.
         if _should_refresh("_dirty_axe"):
-            await self._load_axe_status_async()  # type: ignore[attr-defined]
-            self._dirty_axe = False
+            run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
+            if callable(run_axe_refresh):
+                if not getattr(
+                    self, "_axe_status_refresh_running", False
+                ) and not getattr(
+                    self,
+                    "_axe_status_refresh_scheduled",
+                    False,
+                ):
+                    if await run_axe_refresh():
+                        self._dirty_axe = False
+            else:
+                # Narrow EventAutoRefreshMixin test doubles do not include the
+                # AXE loader mixin; production always takes the guarded path.
+                await self._load_axe_status_async()  # type: ignore[attr-defined]
+                self._dirty_axe = False
 
         queued_agent_artifact_dirs = tuple(
             getattr(self, "_dirty_agent_artifact_dirs", ())
@@ -178,8 +236,24 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             and getattr(self, "current_artifacts_subtab", "prs") == "prs"
             and _should_refresh("_dirty_changespecs")
         ):
-            await self._reload_and_reposition_async()  # type: ignore[attr-defined]
-            self._dirty_changespecs = False
+            run_changespecs_refresh = getattr(
+                self,
+                "_run_changespecs_async_refresh",
+                None,
+            )
+            if callable(run_changespecs_refresh):
+                if not getattr(self, "_changespecs_loading", False) and not getattr(
+                    self,
+                    "_changespecs_refresh_scheduled",
+                    False,
+                ):
+                    await run_changespecs_refresh()
+                    self._dirty_changespecs = False
+            else:
+                # Narrow EventAutoRefreshMixin test doubles do not include the
+                # ChangeSpec loader mixin; production uses its overlap guard.
+                await self._reload_and_reposition_async()  # type: ignore[attr-defined]
+                self._dirty_changespecs = False
         elif (
             self.current_tab == "changespecs"
             and getattr(self, "current_artifacts_subtab", "prs") != "prs"

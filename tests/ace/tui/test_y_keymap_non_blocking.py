@@ -62,6 +62,7 @@ class FakeApp(ChangeSpecMixin):
         self._hidden_reverted_count = 0
         self._hidden_submitted_count = 0
         self._changespecs_loading: bool = False
+        self._changespecs_refresh_scheduled: bool = False
         self._changespecs_refresh_pending: bool = False
         self._query_corpus: QueryCorpus | None = None
         self._query_corpus_source_list_id: int | None = None
@@ -70,8 +71,9 @@ class FakeApp(ChangeSpecMixin):
     def _refresh_display(self) -> None:
         pass
 
-    def call_later(self, callback: Any) -> None:
-        self._scheduled.append(callback)
+    def _spawn_changespecs_refresh_task(self) -> None:
+        """Record scheduling without starting a task in narrow unit tests."""
+        self._scheduled.append(self._run_changespecs_async_refresh)
 
     def notify(self, *args: Any, **kwargs: Any) -> None:
         pass
@@ -179,15 +181,15 @@ async def test_schedule_coalesces_in_flight_refreshes() -> None:
     app._schedule_changespecs_async_refresh()
     app._schedule_changespecs_async_refresh()
 
-    # Nothing was posted to call_later because a refresh is already running.
+    # Nothing was spawned because a refresh is already running.
     assert app._scheduled == []
     # But a single follow-up is pending.
     assert app._changespecs_refresh_pending is True
 
 
 @pytest.mark.asyncio
-async def test_schedule_when_idle_posts_to_call_later() -> None:
-    """When no refresh is in flight, scheduling posts to the loop."""
+async def test_schedule_when_idle_spawns_pump_free_task() -> None:
+    """When no refresh is in flight, scheduling invokes the task spawner."""
     app = FakeApp([_make_cs("alpha")])
 
     app._schedule_changespecs_async_refresh()

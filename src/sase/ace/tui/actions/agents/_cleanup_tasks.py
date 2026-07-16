@@ -94,7 +94,25 @@ class CleanupTaskMixin:
         if outcome.refresh_notifications:
             # Off-thread refresh: the notifications file is read in a worker
             # thread and the indicator update lands back on the UI thread.
-            self.call_later(self._refresh_notification_count_async)  # type: ignore[attr-defined]
+            schedule_refresh = getattr(
+                self,
+                "_schedule_notification_snapshot_refresh",
+                None,
+            )
+            if callable(schedule_refresh):
+                schedule_refresh()
+            else:
+                # Narrow mixin users/tests may omit the notification-provider
+                # coalescer. They still use the same pump-free execution
+                # boundary rather than falling back to ``call_later(async)``.
+                from ...util.pump_tasks import spawn_pump_free_task
+
+                spawn_pump_free_task(
+                    self,
+                    self._refresh_notification_count_async(),  # type: ignore[attr-defined]
+                    name="sase-cleanup-notification-count-refresh",
+                    registry_attr="_pump_free_async_tasks",
+                )
 
 
 __all__ = [

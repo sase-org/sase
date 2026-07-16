@@ -6,6 +6,8 @@ import asyncio
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.actions.axe_bgcmd import AxeBgCmdMixin
 from sase.ace.tui.actions.axe_chop_run import AxeChopRunMixin
 from sase.ace.tui.actions.base import BaseActionsMixin
@@ -141,21 +143,22 @@ def test_run_selected_chop_with_lumberjack_row_is_noop() -> None:
     assert app.launched_chops == []
 
 
-# --- _launch_chop_run schedules via call_later ---
+# --- _launch_chop_run schedules pump-free ---
 
 
-def test_launch_chop_run_schedules_on_event_loop() -> None:
-    """The real ``_launch_chop_run`` defers to the event loop via call_later."""
+@pytest.mark.asyncio
+async def test_launch_chop_run_schedules_pump_free_task() -> None:
+    """The real launcher creates a retained task outside Textual's pump."""
     app = _FakeChopApp()
 
     # Call the real mixin method directly, bypassing the fake's override.
     AxeChopRunMixin._launch_chop_run(app, "hooks", "fast")
 
-    assert len(app.call_later_calls) == 1
-    fn, args = app.call_later_calls[0]
-    assert args == ("hooks", "fast")
-    # The scheduled callable is the bound async launcher.
-    assert fn == app._launch_chop_run_async
+    tasks = list(app._pump_free_async_tasks)
+    assert len(tasks) == 1
+    assert tasks[0].get_name() == "sase-axe-chop-run"
+    tasks[0].cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
 
 
 # --- async path: outcomes -> notifications + refresh ---

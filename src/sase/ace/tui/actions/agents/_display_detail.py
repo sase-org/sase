@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 
 from ...models.agent_groups import GroupingMode, status_bucket_for
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from .._widget_visibility import set_widget_hidden, widget_has_class
 from ._display_helpers import TabName
@@ -193,11 +194,15 @@ class DetailMixin:
             False,
         ):
             return
-        call_later = getattr(self, "call_later", None)
-        if not callable(call_later):
-            return
         self._agents_onboarding_launch_targets_refresh_scheduled = True
-        call_later(self._run_agents_onboarding_launch_targets_refresh)
+        task = spawn_pump_free_task(
+            self,
+            self._run_agents_onboarding_launch_targets_refresh(),
+            name="sase-agents-onboarding-launch-targets",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._agents_onboarding_launch_targets_refresh_scheduled = False
 
     async def _run_agents_onboarding_launch_targets_refresh(self) -> None:
         """Compute launch-target availability off-thread and update the card."""
@@ -241,11 +246,15 @@ class DetailMixin:
             False,
         ):
             return
-        call_later = getattr(self, "call_later", None)
-        if not callable(call_later):
-            return
         self._agents_onboarding_plugins_refresh_scheduled = True
-        call_later(self._run_agents_onboarding_plugins_refresh)
+        task = spawn_pump_free_task(
+            self,
+            self._run_agents_onboarding_plugins_refresh(),
+            name="sase-agents-onboarding-plugins",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._agents_onboarding_plugins_refresh_scheduled = False
 
     async def _run_agents_onboarding_plugins_refresh(self) -> None:
         """Compute plugin presence off-thread and update the card."""

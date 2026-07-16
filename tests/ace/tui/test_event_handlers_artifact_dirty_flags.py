@@ -80,7 +80,7 @@ async def test_known_marker_change_schedules_artifact_delta_not_broad_load() -> 
     )
 
     app._on_artifact_change((path,))
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["delta:watcher:1"]
     assert app.delta_requests == [("watcher", (path.parent,))]
@@ -97,7 +97,7 @@ async def test_artifact_month_shard_path_uses_broad_auto_refresh_fallback() -> N
     )
 
     app._on_artifact_change((path,))
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["agents"]
     assert app.delta_requests == []
@@ -124,7 +124,7 @@ async def test_artifact_delta_queue_overflow_uses_broad_fallback() -> None:
     )
 
     app._on_artifact_change(paths)
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["agents"]
     assert app.delta_requests == []
@@ -188,7 +188,7 @@ async def test_artifact_dir_deletion_schedules_delta_not_broad_load(
     app = _FakeApp(watcher_active=True)
 
     app._on_artifact_change((path,))
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["delta:watcher:1"]
     assert app.delta_requests == [("watcher", (path,))]

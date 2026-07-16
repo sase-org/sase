@@ -254,7 +254,16 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
             if self._artifacts_project_picker_pending:
                 self._open_artifacts_project_picker()
 
-        self.call_later(_runner)  # type: ignore[attr-defined]
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        task = spawn_pump_free_task(
+            self,
+            _runner(),
+            name="sase-artifacts-project-choices",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._artifacts_project_choices_loading = False
 
     def _open_artifacts_project_picker(self) -> None:
         choices = self._artifacts_project_choices

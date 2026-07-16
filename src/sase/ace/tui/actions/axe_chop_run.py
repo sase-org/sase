@@ -27,8 +27,9 @@ from sase.axe.chop_runner import (
 from sase.axe.config import load_axe_config
 from sase.axe.state import chop_run_log_path
 
-from .failure_messages import with_log_panel_hint
+from ..util.pump_tasks import spawn_pump_free_task
 from ..widgets.bgcmd_list import ChopItem
+from .failure_messages import with_log_panel_hint
 
 if TYPE_CHECKING:
     from .axe_display import ChopSnapshot
@@ -70,8 +71,11 @@ class AxeChopRunMixin:
         point can be reused if a future feature (e.g. command palette)
         wants to run a chop by name.
         """
-        self.call_later(  # type: ignore[attr-defined]
-            self._launch_chop_run_async, lumberjack_name, chop_name
+        spawn_pump_free_task(
+            self,
+            self._launch_chop_run_async(lumberjack_name, chop_name),
+            name="sase-axe-chop-run",
+            registry_attr="_pump_free_async_tasks",
         )
 
     def _open_selected_chop_output(self) -> None:

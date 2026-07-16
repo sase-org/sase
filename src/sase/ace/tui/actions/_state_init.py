@@ -118,6 +118,17 @@ class StateInitMixin:
         self._live_hints_scan_running = False
         self._live_hints_scan_pending = False
         self._live_hints_scan_source = "unknown"
+        self._pump_free_async_tasks: set[asyncio.Task[object]] = set()
+        self._auto_refresh_scheduled = False
+        self._auto_refresh_running = False
+        self._auto_refresh_pending = False
+        self._auto_refresh_deferred = False
+        self._axe_status_refresh_scheduled = False
+        self._axe_status_refresh_running = False
+        self._axe_status_refresh_pending = False
+        self._axe_targeted_refresh_scheduled = False
+        self._axe_targeted_refresh_running = False
+        self._axe_targeted_refresh_pending = False
         # Deferred bead-confirmation warmup coalescing. Row/header rendering can
         # only show confirmed bead UI from cache, so the per-candidate bead-store
         # lookup runs in a background worker after an agents load applies; these
@@ -360,6 +371,7 @@ class StateInitMixin:
         ] = {}
         self._post_mount_background_loads_started = False
         self._changespecs_loading: bool = False
+        self._changespecs_refresh_scheduled: bool = False
         self._changespecs_refresh_pending: bool = False
         self._has_always_visible: bool = False
         self._hidden_count: int = 0
@@ -502,6 +514,7 @@ class StateInitMixin:
         self._notification_snapshot_cache: Any | None = None
         self._notification_snapshot_version: int = 0
         self._notification_snapshot_refresh_pending: bool = False
+        self._notification_snapshot_refresh_followup: bool = False
         self._unread_completed_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._manual_unread_agent_ids: set[tuple[AgentType, str, str | None]] = set()
         self._agent_display_status_by_identity: dict[

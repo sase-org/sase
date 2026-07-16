@@ -558,14 +558,11 @@ class BaseActionsMixin:
         ``[``/``]`` autorepeat) collapse to a last-write-wins persist.
         """
         # Defensive init so direct-mixin tests that bypass ``_init_app_state``
-        # still behave (they just won't have ``call_later`` and no-op below).
+        # still behave.
         if not hasattr(self, "_admin_center_tab_save_inflight"):
             self._admin_center_tab_save_inflight = False  # type: ignore[attr-defined]
         self._admin_center_tab_save_pending = tab  # type: ignore[attr-defined]
         if self._admin_center_tab_save_inflight:  # type: ignore[attr-defined]
-            return
-        call_later = getattr(self, "call_later", None)
-        if not callable(call_later):
             return
         self._admin_center_tab_save_inflight = True  # type: ignore[attr-defined]
 
@@ -583,7 +580,16 @@ class BaseActionsMixin:
             finally:
                 self._admin_center_tab_save_inflight = False  # type: ignore[attr-defined]
 
-        call_later(_runner)
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        task = spawn_pump_free_task(
+            self,
+            _runner(),
+            name="sase-admin-center-tab-save",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._admin_center_tab_save_inflight = False  # type: ignore[attr-defined]
 
     def action_open_command_palette(self) -> None:
         """Open the context-aware command palette modal (bound to ``:``)."""

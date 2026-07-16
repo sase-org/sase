@@ -12,6 +12,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index_report,
 )
 
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ._loading_state import AgentIdentity, AgentLoadingStateMixin
 
@@ -68,7 +69,18 @@ class AgentIndexMaintenanceMixin(AgentLoadingStateMixin):
             self._artifact_index_maintenance_pending = True
             return
         self._artifact_index_maintenance_running = True
-        self.call_later(self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
+        self._spawn_artifact_index_maintenance_task()
+
+    def _spawn_artifact_index_maintenance_task(self) -> None:
+        """Run index maintenance without occupying Textual's message pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_artifact_index_maintenance(),
+            name="sase-agents-index-maintenance",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._artifact_index_maintenance_running = False
 
     def _resume_artifact_index_maintenance_after_schema_rebuild(self) -> None:
         """Run the latest request deferred while the schema rebuild held the lock."""
@@ -85,7 +97,10 @@ class AgentIndexMaintenanceMixin(AgentLoadingStateMixin):
         """Run the latest queued maintenance request in a worker thread."""
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
+            self.set_timer(  # type: ignore[attr-defined]
+                delay,
+                self._spawn_artifact_index_maintenance_task,
+            )
             return
 
         request = self._artifact_index_maintenance_pending_request
@@ -123,7 +138,7 @@ class AgentIndexMaintenanceMixin(AgentLoadingStateMixin):
             if has_followup:
                 self._artifact_index_maintenance_pending = False
                 self._artifact_index_maintenance_running = True
-                self.call_later(self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
+                self._spawn_artifact_index_maintenance_task()
 
     def _should_run_active_tier_terminalize(self) -> bool:
         """Return whether apply-triggered maintenance may terminalize now."""

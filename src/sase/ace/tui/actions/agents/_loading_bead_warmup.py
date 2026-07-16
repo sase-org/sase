@@ -25,6 +25,7 @@ from ...models.agent_bead import (
     should_resolve_bead_display,
     warm_confirmed_bead_displays,
 )
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
@@ -72,30 +73,14 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
 
     def _spawn_bead_confirmation_warmup_task(self) -> None:
         """Run a bead warmup outside Textual's serial app message pump."""
-        coro = self._run_bead_confirmation_warmup()
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            coro.close()
-            log.debug("bead confirmation warmup skipped without a running loop")
-            return
-        task = loop.create_task(coro, name="sase-agents-bead-warmup")
-        tasks = getattr(self, "_bead_warmup_async_tasks", None)
-        if tasks is None:
-            tasks = set()
-            self._bead_warmup_async_tasks = tasks
-        tasks.add(task)
-
-        def _done(completed: asyncio.Task[None]) -> None:
-            tasks.discard(completed)
-            if completed.cancelled():
-                return
-            try:
-                completed.result()
-            except Exception:
-                log.exception("Bead confirmation warmup task failed")
-
-        task.add_done_callback(_done)
+        task = spawn_pump_free_task(
+            self,
+            self._run_bead_confirmation_warmup(),
+            name="sase-agents-bead-warmup",
+            registry_attr="_bead_warmup_async_tasks",
+        )
+        if task is None:
+            self._bead_warmup_scan_scheduled = False
 
     async def _run_bead_confirmation_warmup(self) -> None:
         """Confirm bead candidates off-thread, then patch confirmed rows.

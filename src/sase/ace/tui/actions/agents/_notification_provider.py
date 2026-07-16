@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+
+from ...util.pump_tasks import spawn_pump_free_task
 from ._notification_provider_direct import (
     direct_notification_count_snapshot,
     direct_notification_detail,
@@ -301,13 +303,17 @@ class AgentNotificationProviderMixin:
     def _schedule_notification_snapshot_refresh(self: Any) -> None:
         """Refresh the notification cache off the current finalization frame."""
         if getattr(self, "_notification_snapshot_refresh_pending", False):
+            self._notification_snapshot_refresh_followup = True  # type: ignore[attr-defined]
             return
         self._notification_snapshot_refresh_pending = True  # type: ignore[attr-defined]
-        call_later = getattr(self, "call_later", None)
-        if callable(call_later):
-            call_later(self._refresh_notification_count_async)
-            return
-        self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
+        task = spawn_pump_free_task(
+            self,
+            self._refresh_notification_count_async(),
+            name="sase-notification-count-refresh",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
 
 
 __all__ = [

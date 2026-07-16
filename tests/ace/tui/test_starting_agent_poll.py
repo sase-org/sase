@@ -54,9 +54,16 @@ class _PollApp(AgentLoadingRefreshMixin):
     def _agent_panel_index(self) -> _FakePanelIndex:
         return self._panel_index
 
-    def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
-        del kwargs
-        self._scheduled.append((callback, args))
+    def _spawn_agent_artifact_delta_refresh_task(
+        self,
+        artifact_dirs: tuple[Path, ...],
+        source: str = "unknown",
+        *args: Any,
+    ) -> None:
+        del args
+        self._scheduled.append(
+            (self._run_agent_artifact_delta_refresh, (artifact_dirs, source))
+        )
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))

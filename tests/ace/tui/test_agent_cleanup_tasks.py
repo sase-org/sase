@@ -80,6 +80,9 @@ class _CleanupTaskApp(AgentsMixin, TaskActionsMixin):
     async def _refresh_notification_count_async(self) -> None:
         return
 
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self._scheduled.append((self._refresh_notification_count_async, ()))
+
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         self.refresh_sources.append(source)
 

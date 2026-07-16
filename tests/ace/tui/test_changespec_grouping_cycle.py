@@ -67,6 +67,10 @@ class _StubApp(AgentGroupingMixin):
     def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
         self.scheduled.append((callback, args, kwargs))
 
+    def _spawn_grouping_mode_save_task(self, target: str, coro_factory: Any) -> None:
+        del target
+        self.scheduled.append((coro_factory, (), {}))
+
 
 # ---------------------------------------------------------------------------
 # Cycle order + wrap

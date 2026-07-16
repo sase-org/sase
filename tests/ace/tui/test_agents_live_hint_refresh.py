@@ -8,6 +8,8 @@ changed rows in place by identity.
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -39,8 +41,9 @@ class _FakeApp(AgentLiveHintMixin):
         self._timer_calls: list[tuple[float, Any]] = []
         self._patched: list[Agent] = []
 
-    def call_later(self, callback: Any) -> None:
-        self._scheduled.append(callback)
+    def _spawn_live_hint_refresh_task(self) -> None:
+        """Record scheduling without starting a task in narrow sync tests."""
+        self._scheduled.append(self._run_live_hint_refresh)
 
     def set_timer(self, delay: float, callback: Any) -> None:
         self._timer_calls.append((delay, callback))
@@ -471,3 +474,37 @@ async def test_run_noop_without_candidates() -> None:
 
     assert app._live_hints_scan_running is False
     assert app._patched == []
+
+
+@pytest.mark.asyncio
+async def test_live_hint_worker_does_not_block_loop_pump(monkeypatch: Any) -> None:
+    """A stuck worker thread must not keep loop messages from progressing."""
+    app = _FakeApp()
+    agent = _agent()
+    app._agents = [agent]
+    app._agents_with_children = [agent]
+    app._live_hints_scan_scheduled = True
+    entered = threading.Event()
+    release = threading.Event()
+
+    def _slow_compute(
+        candidates: list[Agent],
+    ) -> dict[tuple[AgentType, str, str | None], bool]:
+        entered.set()
+        release.wait(timeout=1.0)
+        return {candidate.identity: True for candidate in candidates}
+
+    monkeypatch.setattr(live_hints_mod, "_compute_live_hints", _slow_compute)
+    try:
+        AgentLiveHintMixin._spawn_live_hint_refresh_task(app)
+        await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+
+        heartbeat = asyncio.Event()
+        asyncio.get_running_loop().call_soon(heartbeat.set)
+        await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+        assert app._live_hints_scan_running is True
+    finally:
+        release.set()
+        tasks = list(getattr(app, "_pump_free_async_tasks", ()))
+        if tasks:
+            await asyncio.gather(*tasks)

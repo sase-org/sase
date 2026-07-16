@@ -25,6 +25,9 @@ class LifecycleMixin:
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
+        from ..util.pump_tasks import cancel_pump_free_tasks
+
+        cancel_pump_free_tasks(self)
         self._stop_tui_stall_watchdog()
         stop_watcher = getattr(self, "_stop_artifact_watcher", None)
         if stop_watcher is not None:
@@ -234,6 +237,8 @@ class LifecycleMixin:
             return
         call_later = getattr(self, "call_later", None)
         if callable(call_later):
+            # Controlled exit intentionally keeps pump ordering: no further UI
+            # input should run while the final persistence flush precedes exit.
             call_later(self._flush_then_do_quit)
             return
         try:
@@ -273,6 +278,11 @@ class LifecycleMixin:
             if cancel_content_search is not None:
                 cancel_content_search()
 
+        def cancel_async_refresh_tasks() -> None:
+            from ..util.pump_tasks import cancel_pump_free_tasks
+
+            cancel_pump_free_tasks(self)
+
         def shutdown_loader_executor() -> None:
             from sase.ace.tui.models._loaders._json_cache import (
                 shutdown_loader_executor as shutdown,
@@ -303,6 +313,7 @@ class LifecycleMixin:
             cleanup(self._save_current_selection)
             cleanup(self._stop_tui_stall_watchdog)
             cleanup(stop_artifact_watcher)
+            cleanup(cancel_async_refresh_tasks)
             cleanup(cancel_artifact_discovery)
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)

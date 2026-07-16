@@ -33,6 +33,7 @@ from ...widgets.bgcmd_list import (
     ChopItem,
     LumberjackItem,
 )
+from ...util.pump_tasks import spawn_pump_free_task
 from ._data import (
     AxeCollectedData,
     AxeViewType,
@@ -138,6 +139,12 @@ class AxeDisplayLoadersMixin:
     # Startup loading indicator flag: flipped to True once the first async
     # axe-status load completes; remains True forever afterward.
     _axe_first_load_done: bool
+    _axe_status_refresh_scheduled: bool
+    _axe_status_refresh_running: bool
+    _axe_status_refresh_pending: bool
+    _axe_targeted_refresh_scheduled: bool
+    _axe_targeted_refresh_running: bool
+    _axe_targeted_refresh_pending: bool
 
     def _load_axe_status(self) -> None:
         """Load axe status from disk and update display."""
@@ -225,7 +232,40 @@ class AxeDisplayLoadersMixin:
 
     def _schedule_axe_async_refresh(self) -> None:
         """Schedule an async axe status reload without blocking."""
-        self.call_later(self._load_axe_status_async)  # type: ignore[attr-defined]
+        if getattr(self, "_axe_status_refresh_running", False):
+            self._axe_status_refresh_pending = True
+            return
+        if getattr(self, "_axe_status_refresh_scheduled", False):
+            return
+        self._axe_status_refresh_scheduled = True
+        self._spawn_axe_status_refresh_task()
+
+    def _spawn_axe_status_refresh_task(self) -> None:
+        """Run the full AXE refresh without blocking Textual's pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_axe_status_refresh(),
+            name="sase-axe-status-refresh",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._axe_status_refresh_scheduled = False
+
+    async def _run_axe_status_refresh(self) -> bool:
+        """Run one guarded full AXE refresh and coalesce a trailing request."""
+        self._axe_status_refresh_scheduled = False
+        if getattr(self, "_axe_status_refresh_running", False):
+            self._axe_status_refresh_pending = True
+            return False
+        self._axe_status_refresh_running = True
+        try:
+            await self._load_axe_status_async()
+            return True
+        finally:
+            self._axe_status_refresh_running = False
+            if getattr(self, "_axe_status_refresh_pending", False):
+                self._axe_status_refresh_pending = False
+                self._schedule_axe_async_refresh()
 
     async def _refresh_selected_axe_item_async(self) -> None:
         """Re-read on-disk state for the currently selected axe item only.
@@ -262,6 +302,9 @@ class AxeDisplayLoadersMixin:
                 return collect_chop_snapshot(lj_name, chop_name, description)
 
             snap = await asyncio.to_thread(_read_chop)
+            # Re-read current caches/tab after the await. Selection may have
+            # moved, but the originally selected chop's keyed cache remains a
+            # valid update and the display refresh uses the current selection.
             # Keep the user's pinned offset (if any) on the same run_id
             # across the targeted refresh.
             self._reconcile_chop_run_offsets({(lj_name, chop_name): snap})
@@ -292,6 +335,8 @@ class AxeDisplayLoadersMixin:
                 )
 
             status, metrics, log_tail = await asyncio.to_thread(_read_one)
+            # ``name`` identifies the snapshot target; current tab state is
+            # intentionally re-read below after the await.
             self._axe_lumberjack_statuses[name] = status
             self._axe_lumberjack_metrics[name] = metrics
             self._axe_lumberjack_log_tails[name] = log_tail
@@ -309,6 +354,8 @@ class AxeDisplayLoadersMixin:
                 return info, running, read_slot_output_tail(slot, 500)
 
             info, running, tail = await asyncio.to_thread(_read_slot)
+            # ``slot`` identifies the snapshot target; current tab state is
+            # intentionally re-read below after the await.
             self._axe_bgcmd_details[slot] = BgCmdSnapshot(
                 info=info, running=running, output_tail=tail
             )
@@ -317,7 +364,39 @@ class AxeDisplayLoadersMixin:
 
     def _schedule_targeted_axe_refresh(self) -> None:
         """Schedule a targeted refresh of the selected item's on-disk state."""
-        self.call_later(self._refresh_selected_axe_item_async)  # type: ignore[attr-defined]
+        if getattr(self, "_axe_targeted_refresh_running", False):
+            self._axe_targeted_refresh_pending = True
+            return
+        if getattr(self, "_axe_targeted_refresh_scheduled", False):
+            return
+        self._axe_targeted_refresh_scheduled = True
+        self._spawn_targeted_axe_refresh_task()
+
+    def _spawn_targeted_axe_refresh_task(self) -> None:
+        """Run the selected-item refresh without blocking Textual's pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_targeted_axe_refresh(),
+            name="sase-axe-targeted-refresh",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._axe_targeted_refresh_scheduled = False
+
+    async def _run_targeted_axe_refresh(self) -> None:
+        """Run one targeted refresh and collapse overlapping live ticks."""
+        self._axe_targeted_refresh_scheduled = False
+        if getattr(self, "_axe_targeted_refresh_running", False):
+            self._axe_targeted_refresh_pending = True
+            return
+        self._axe_targeted_refresh_running = True
+        try:
+            await self._refresh_selected_axe_item_async()
+        finally:
+            self._axe_targeted_refresh_running = False
+            if getattr(self, "_axe_targeted_refresh_pending", False):
+                self._axe_targeted_refresh_pending = False
+                self._schedule_targeted_axe_refresh()
 
     def _axe_selected_chop_has_running_run(self) -> bool:
         """Return True when the selected chop's newest cached run is active.

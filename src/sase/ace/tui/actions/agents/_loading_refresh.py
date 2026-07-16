@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ...util.trace import trace_event, tui_trace
+from ...util.pump_tasks import spawn_pump_free_task
 from ._loading_state import AgentLoadingStateMixin
 from ._refresh_trace import (
     classify_agents_data_cost,
@@ -169,32 +170,14 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
 
     def _spawn_agents_refresh_task(self) -> None:
         """Run a refresh outside Textual's serial app message pump."""
-        import asyncio
-
-        coro = self._run_agents_async_refresh()
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            coro.close()
-            log.debug("agents async refresh skipped without a running loop")
-            return
-        task = loop.create_task(coro, name="sase-agents-refresh")
-        tasks = getattr(self, "_agents_refresh_async_tasks", None)
-        if tasks is None:
-            tasks = set()
-            self._agents_refresh_async_tasks = tasks
-        tasks.add(task)
-
-        def _done(completed: asyncio.Task[None]) -> None:
-            tasks.discard(completed)
-            if completed.cancelled():
-                return
-            try:
-                completed.result()
-            except Exception:
-                log.exception("Agents async refresh task failed")
-
-        task.add_done_callback(_done)
+        task = spawn_pump_free_task(
+            self,
+            self._run_agents_async_refresh(),
+            name="sase-agents-refresh",
+            registry_attr="_agents_refresh_async_tasks",
+        )
+        if task is None:
+            self._agents_refresh_scheduled = False
 
     def _schedule_agent_artifact_delta_refresh(
         self,
@@ -275,9 +258,26 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             args = (*args, on_complete)
         if unique_deleted_dirs:
             args = (*args, tuple(unique_deleted_dirs))
-        self.call_later(  # type: ignore[attr-defined]
-            self._run_agent_artifact_delta_refresh,
-            *args,
+        self._spawn_agent_artifact_delta_refresh_task(*args)
+
+    def _spawn_agent_artifact_delta_refresh_task(
+        self,
+        artifact_dirs: tuple[Path, ...],
+        source: str = "unknown",
+        on_complete: Callable[[], None] | None = None,
+        deleted_artifact_dirs: tuple[Path, ...] = (),
+    ) -> None:
+        """Run an artifact delta without occupying Textual's message pump."""
+        spawn_pump_free_task(
+            self,
+            self._run_agent_artifact_delta_refresh(
+                artifact_dirs,
+                source,
+                on_complete,
+                deleted_artifact_dirs,
+            ),
+            name="sase-agents-artifact-delta-refresh",
+            registry_attr="_pump_free_async_tasks",
         )
 
     async def _run_agent_artifact_delta_refresh(
@@ -293,7 +293,7 @@ class AgentLoadingRefreshMixin(AgentLoadingStateMixin):
             self.set_timer(  # type: ignore[attr-defined]
                 delay,
                 partial(
-                    self._run_agent_artifact_delta_refresh,
+                    self._spawn_agent_artifact_delta_refresh_task,
                     artifact_dirs,
                     source,
                     on_complete,

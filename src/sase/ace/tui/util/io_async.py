@@ -10,12 +10,11 @@ Action handlers that mutate persistent state should:
 If the worker raises, the helper surfaces a toast notification with
 ``severity="error"`` and invokes the optional ``on_error`` callback so the
 handler can roll back the optimistic mutation. On success, the optional
-``on_success`` callback runs on the UI thread (Textual already pumps the
-awaitable on the event loop).
+``on_success`` callback runs on the UI thread.
 
-The helper takes a Textual-app-like object exposing ``notify`` and
-``call_later``; we model that with :class:`_AppLike` rather than importing
-Textual at module load so unit tests can substitute a plain fake.
+The helper takes a Textual-app-like object exposing ``notify``; we model that
+with :class:`_AppLike` rather than importing Textual at module load so unit
+tests can substitute a plain fake.
 """
 
 from __future__ import annotations
@@ -24,6 +23,8 @@ import asyncio
 import logging
 from collections.abc import Callable
 from typing import Any, Protocol
+
+from .pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
 
@@ -36,13 +37,6 @@ class _AppLike(Protocol):
         message: str,
         *,
         severity: str = ...,
-    ) -> Any: ...
-
-    def call_later(  # noqa: D401 — protocol mirrors Textual signature
-        self,
-        callback: Callable[..., Any],
-        *args: Any,
-        **kwargs: Any,
     ) -> Any: ...
 
 
@@ -84,7 +78,12 @@ def _schedule_persist[T](
             except Exception:
                 log.exception("%s on_success callback failed", error_label)
 
-    app.call_later(_runner)
+    spawn_pump_free_task(
+        app,
+        _runner(),
+        name="sase-persist",
+        registry_attr="_pump_free_async_tasks",
+    )
 
 
 # Keep a same-file reference so symvision accepts this compatibility utility

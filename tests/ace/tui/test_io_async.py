@@ -15,16 +15,17 @@ class FakeApp:
 
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str]] = []
-        self.scheduled: list[Any] = []
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
 
-    def call_later(self, callback: Any, *args: Any, **kwargs: Any) -> None:
-        self.scheduled.append((callback, args, kwargs))
+
+async def _drain_pump_free_tasks(app: FakeApp) -> None:
+    await asyncio.gather(*list(app._pump_free_async_tasks))
 
 
-def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
+@pytest.mark.asyncio
+async def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
     app = FakeApp()
     calls: list[tuple[int, str]] = []
     successes: list[int] = []
@@ -42,16 +43,15 @@ def test__schedule_persist_runs_persist_fn_and_calls_on_success() -> None:
         on_success=successes.append,
     )
 
-    assert len(app.scheduled) == 1
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
+    await _drain_pump_free_tasks(app)
 
     assert calls == [(7, "x")]
     assert successes == [42]
     assert app.notifications == []
 
 
-def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
+@pytest.mark.asyncio
+async def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
     app = FakeApp()
     seen: list[BaseException] = []
 
@@ -65,15 +65,15 @@ def test__schedule_persist_failure_notifies_and_calls_on_error() -> None:
         on_error=seen.append,
     )
 
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
+    await _drain_pump_free_tasks(app)
 
     assert app.notifications == [("Approve persist failed: boom", "error")]
     assert len(seen) == 1
     assert isinstance(seen[0], RuntimeError)
 
 
-def test__schedule_persist_failure_without_on_error_still_notifies() -> None:
+@pytest.mark.asyncio
+async def test__schedule_persist_failure_without_on_error_still_notifies() -> None:
     app = FakeApp()
 
     def persist() -> None:
@@ -81,13 +81,13 @@ def test__schedule_persist_failure_without_on_error_still_notifies() -> None:
 
     _schedule_persist(app, persist, error_label="Persist")
 
-    callback = app.scheduled[0][0]
-    asyncio.run(callback())
+    await _drain_pump_free_tasks(app)
 
     assert app.notifications == [("Persist failed: disk full", "error")]
 
 
-def test__schedule_persist_callbacks_isolate_failures() -> None:
+@pytest.mark.asyncio
+async def test__schedule_persist_callbacks_isolate_failures() -> None:
     """A throwing on_success callback must not propagate."""
     app = FakeApp()
 
@@ -105,9 +105,8 @@ def test__schedule_persist_callbacks_isolate_failures() -> None:
         on_success=on_success,
     )
 
-    callback = app.scheduled[0][0]
     # Must not raise — failures in on_success should be logged, not bubble up.
-    asyncio.run(callback())
+    await _drain_pump_free_tasks(app)
 
 
 if __name__ == "__main__":

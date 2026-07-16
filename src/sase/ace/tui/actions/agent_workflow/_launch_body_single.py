@@ -306,6 +306,7 @@ def run_single_agent_launch_body(
             dispatch=fanout_plan.launch_kind,
             slot_count=len(fanout_prompts),
         )
+        # Synchronous task-queue staging; fan-out work runs in tracked workers.
         app.call_later(
             app._launch_multi_model_agents,
             [dispatch_prompt],
@@ -333,6 +334,7 @@ def run_single_agent_launch_body(
         repeat_count, _, _ = extract_repeat_and_name(raw_prompt)
     if repeat_count is not None and repeat_count > 1:
         timer.finish(dispatch="repeat", slot_count=repeat_count)
+        # Synchronous task-queue staging; repeat work runs in tracked workers.
         app.call_later(
             app._launch_repeat_agents,
             raw_prompt,

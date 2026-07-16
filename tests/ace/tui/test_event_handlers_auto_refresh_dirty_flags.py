@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 import time
 
 import pytest
@@ -13,10 +15,49 @@ from ._event_handlers_dirty_flags_helpers import _FakeApp, _make_agent
 
 
 @pytest.mark.asyncio
+async def test_auto_refresh_task_keeps_loop_live_and_coalesces_ticks() -> None:
+    """Slow auto-refresh I/O cannot occupy the pump; tick bursts trail once."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_agents = True
+    entered = threading.Event()
+    release = threading.Event()
+    load_calls = 0
+
+    async def _slow_load_agents_async() -> None:
+        nonlocal load_calls
+        load_calls += 1
+        entered.set()
+        await asyncio.to_thread(release.wait, 1.0)
+
+    app._load_agents_async = _slow_load_agents_async  # type: ignore[method-assign]
+    try:
+        app._on_auto_refresh()
+        await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+
+        for _ in range(5):
+            app._on_auto_refresh()
+        assert app._auto_refresh_pending is True
+
+        heartbeat = asyncio.Event()
+        asyncio.get_running_loop().call_soon(heartbeat.set)
+        await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+    finally:
+        release.set()
+        while tasks := list(getattr(app, "_pump_free_async_tasks", ())):
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(0)
+
+    # The dirty work ran once. All overlapping ticks collapsed into one clean
+    # follow-up pass rather than stacking more agent loads.
+    assert load_calls == 1
+    assert app._auto_refresh_pending is False
+
+
+@pytest.mark.asyncio
 async def test_watcher_active_clean_flags_skip_all_refreshes() -> None:
     """Watcher active + every dirty flag clear + sanity-floor not due -> no work."""
     app = _FakeApp(watcher_active=True)
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls == []
 
 
@@ -27,7 +68,7 @@ async def test_watcher_active_clean_agents_tick_refreshes_selected_file_only() -
     agent = _make_agent()
     app._agents = [agent]
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["file"]
     assert app.agent_detail.refreshed_agents == [agent]
@@ -39,7 +80,7 @@ async def test_watcher_active_clean_tick_skips_completed_selected_agent() -> Non
     app = _FakeApp(watcher_active=True)
     app._agents = [_make_agent(status="DONE")]
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == []
     assert app.agent_detail.refreshed_agents == []
@@ -54,7 +95,7 @@ async def test_watcher_active_clean_tick_skips_non_file_detail_modes(
     app._agents = [_make_agent()]
     app.agent_detail.panel_mode_label = panel_mode_label
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == []
     assert app.agent_detail.refreshed_agents == []
@@ -66,7 +107,7 @@ async def test_watcher_active_clean_tick_skips_attempt_pinned_detail() -> None:
     app._agents = [_make_agent()]
     app.current_attempt_number = 1
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == []
     assert app.agent_detail.refreshed_agents == []
@@ -84,7 +125,7 @@ async def test_watcher_active_clean_tick_skips_file_refresh_in_transient_modes(
     app._agents = [_make_agent()]
     setattr(app, flag_name, True)
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == []
     assert app.agent_detail.refreshed_agents == []
@@ -96,7 +137,7 @@ async def test_watcher_active_clean_tick_skips_file_refresh_while_loader_runs() 
     app._agents = [_make_agent()]
     app._agents_loading = True
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == []
     assert app.agent_detail.refreshed_agents == []
@@ -108,7 +149,7 @@ async def test_watcher_active_dirty_agents_load_does_not_refresh_file_panel() ->
     app._agents = [_make_agent()]
     app._dirty_agents = True
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["agents"]
     assert app.agent_detail.refreshed_agents == []
@@ -120,7 +161,7 @@ async def test_watcher_active_dirty_agents_runs_only_agent_path() -> None:
     """Only flag-set surfaces refresh when the watcher is active."""
     app = _FakeApp(watcher_active=True)
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "axe" not in app.refresh_calls
     assert "notifications" not in app.refresh_calls
     assert "agents" in app.refresh_calls
@@ -133,7 +174,7 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
     """``_dirty_notifications`` gates the on-disk notification snapshot poll."""
     app = _FakeApp(watcher_active=True)
     app._dirty_notifications = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "notifications" in app.refresh_calls
     assert "agents" not in app.refresh_calls
     assert "axe" not in app.refresh_calls
@@ -147,7 +188,7 @@ async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None
     app._dirty_notifications = True
     app._poll_agent_completions_result = True
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["notifications", "request_agents:notification"]
     assert app.refresh_requests == ["notification"]
@@ -162,7 +203,7 @@ async def test_new_notification_does_not_schedule_agents_refresh_off_tab() -> No
     app._dirty_notifications = True
     app._poll_agent_completions_result = True
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["notifications"]
 
@@ -174,7 +215,7 @@ async def test_new_notification_does_not_duplicate_due_agents_load() -> None:
     app._dirty_agents = True
     app._poll_agent_completions_result = True
 
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
 
     assert app.refresh_calls == ["notifications", "agents"]
     assert "schedule_agents" not in app.refresh_calls
@@ -185,7 +226,7 @@ async def test_new_notification_does_not_duplicate_due_agents_load() -> None:
 async def test_watcher_inactive_runs_full_refresh() -> None:
     """Without a watcher the auto-refresh path keeps polling every surface."""
     app = _FakeApp(watcher_active=False)
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "axe" in app.refresh_calls
     assert "notifications" in app.refresh_calls
     assert "agents" in app.refresh_calls
@@ -196,7 +237,7 @@ async def test_sanity_floor_forces_refresh_when_overdue() -> None:
     """A clean watcher state still reconciles once per sanity window."""
     app = _FakeApp(watcher_active=True)
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "axe" in app.refresh_calls
     assert "agents" in app.refresh_calls
 
@@ -211,7 +252,7 @@ async def test_off_tab_dirty_agents_does_not_load_and_keeps_flag_set() -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "changespecs"
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "agents" not in app.refresh_calls
     assert app._dirty_agents is True
 
@@ -223,7 +264,7 @@ async def test_off_tab_sanity_tick_still_loads_agents() -> None:
     app.current_tab = "changespecs"
     app._dirty_agents = True
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "agents" in app.refresh_calls
     assert app._dirty_agents is False
 
@@ -234,10 +275,10 @@ async def test_debounce_collapses_back_to_back_agent_loads() -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "agents"
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls.count("agents") == 1
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls.count("agents") == 1
     assert app._dirty_agents is True
 
@@ -248,13 +289,13 @@ async def test_debounce_window_clears_after_interval() -> None:
     app = _FakeApp(watcher_active=True)
     app.current_tab = "agents"
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls.count("agents") == 1
     app._last_agents_load_mono = (
         time.monotonic() - AGENTS_LOAD_MIN_INTERVAL_SECONDS - 0.1
     )
     app._dirty_agents = True
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert app.refresh_calls.count("agents") == 2
 
 
@@ -266,5 +307,5 @@ async def test_debounce_bypassed_by_sanity_floor() -> None:
     app._dirty_agents = True
     app._last_agents_load_mono = time.monotonic()
     app._last_full_sanity_refresh = time.monotonic() - FULL_SANITY_REFRESH_SECONDS - 1.0
-    await app._on_auto_refresh()
+    await app._run_auto_refresh()
     assert "agents" in app.refresh_calls

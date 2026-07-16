@@ -16,6 +16,7 @@ from sase.ace.tui.artifacts_bugs import (
 from sase.vcs_provider import IssueWire
 
 from ..tab_order import ARTIFACTS_TAB
+from ..util.pump_tasks import spawn_pump_free_task
 from ..widgets.artifacts import ArtifactsBugsPane
 from .task_actions import TrackedTaskCompletion, TrackedTaskResult
 
@@ -364,7 +365,12 @@ class ArtifactBugsMixin:
             if not opened:
                 self.notify("Browser did not accept the issue URL", severity="warning")  # type: ignore[attr-defined]
 
-        self.call_later(_open)  # type: ignore[attr-defined]
+        spawn_pump_free_task(
+            self,
+            _open(),
+            name="sase-bug-open",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def action_copy_bug(self) -> None:
         pane = self._bugs_pane()
@@ -392,7 +398,12 @@ class ArtifactBugsMixin:
                 severity="information" if copied else "error",
             )
 
-        self.call_later(_copy)  # type: ignore[attr-defined]
+        spawn_pump_free_task(
+            self,
+            _copy(),
+            name="sase-bug-copy",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def action_start_agent_from_bug(self) -> None:
         pane = self._bugs_pane()
@@ -406,6 +417,7 @@ class ArtifactBugsMixin:
                 "The scoped project has no launchable ProjectSpec", severity="error"
             )  # type: ignore[attr-defined]
             return
+        display_name = pane.snapshot.display_name or project
 
         async def _seed_prompt() -> None:
             from sase.workspace_provider import detect_workflow_type
@@ -421,7 +433,6 @@ class ArtifactBugsMixin:
                     severity="error",
                 )  # type: ignore[attr-defined]
                 return
-            display_name = pane.snapshot.display_name or project
             prefix = f"#{workflow_type}:{display_name} "
             prompt = _bug_agent_prompt(prefix, issue)
             self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
@@ -430,7 +441,12 @@ class ArtifactBugsMixin:
                 history_sort_key=project,
             )
 
-        self.call_later(_seed_prompt)  # type: ignore[attr-defined]
+        spawn_pump_free_task(
+            self,
+            _seed_prompt(),
+            name="sase-bug-seed-agent-prompt",
+            registry_attr="_pump_free_async_tasks",
+        )
 
     def _open_bug_link(self, kind: BugLinkKind, target: str) -> None:
         if kind == "epic":

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+# ``call_later`` usages in this module intentionally marshal synchronous
+# ``notify`` lambdas from launch/background-thread paths. Workflow execution
+# itself runs in a daemon thread or subprocess and is never awaited by the pump.
+
 import logging
 import os
 import sys

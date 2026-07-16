@@ -120,6 +120,8 @@ def run_agent_launch_body(
                     severity="error",
                 )
             )
+        # These dispatchers are synchronous optimistic/task-queue staging
+        # callbacks; the launched work itself never runs on the app pump.
         app.call_later(app._launch_bulk_agents, prompt)
         return _with_unresolved_warnings(
             LaunchTaskOutcome("Bulk launch queued", notify=False)
@@ -209,6 +211,7 @@ def run_agent_launch_body(
         if owns_context:
             app._prompt_context = None
         timer.finish(dispatch="multi_prompt", segment_count=len(multi.segments))
+        # Synchronous task-queue staging; preserves post-validation ordering.
         app.call_later(
             app._launch_multi_prompt_agents,
             multi,

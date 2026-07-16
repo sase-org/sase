@@ -134,42 +134,56 @@ class AgentNotificationPollingMixin:
             count_snapshot = await asyncio.to_thread(
                 self._read_notification_counts_from_provider
             )
-        except Exception:
+            counts = count_snapshot.counts
+
+            if not getattr(self, "_notification_provider_used_daemon", False):
+                snapshot = await asyncio.to_thread(
+                    self._read_notification_snapshot_from_provider
+                )
+                self._set_notification_snapshot_cache(snapshot)
+                unread_priority, unread_errors, unread_rest, _ = (
+                    unread_notification_buckets(snapshot.notifications)
+                )
+                counts = snapshot.counts
+                self._last_unread_ids = {
+                    n.id for n in unread_priority + unread_errors + unread_rest
+                }
+            elif (
+                cached := getattr(self, "_notification_snapshot_cache", None)
+            ) is not None:
+                unread_priority, unread_errors, unread_rest, _ = (
+                    unread_notification_buckets(cached.notifications)
+                )
+                self._last_unread_ids = {
+                    n.id for n in unread_priority + unread_errors + unread_rest
+                }
+
+            try:
+                indicator = self.query_one(  # type: ignore[attr-defined]
+                    "#notification-indicator", NotificationIndicator
+                )
+            except Exception:
+                return
+            indicator.set_counts(
+                counts.priority + counts.errors,
+                counts.rest,
+                counts.muted,
+            )
+            self._reconcile_unread_from_cached_notifications()
+        finally:
+            # Keep the coalescing guard armed across both awaits. Under
+            # ``call_later`` Textual serialized the whole coroutine; detached
+            # tasks must preserve that non-overlap explicitly.
             self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
-            raise
-        self._notification_snapshot_refresh_pending = False  # type: ignore[attr-defined]
-        counts = count_snapshot.counts
-
-        if not getattr(self, "_notification_provider_used_daemon", False):
-            snapshot = await asyncio.to_thread(
-                self._read_notification_snapshot_from_provider
-            )
-            self._set_notification_snapshot_cache(snapshot)
-            unread_priority, unread_errors, unread_rest, _ = (
-                unread_notification_buckets(snapshot.notifications)
-            )
-            counts = snapshot.counts
-            self._last_unread_ids = {
-                n.id for n in unread_priority + unread_errors + unread_rest
-            }
-        elif (
-            cached := getattr(self, "_notification_snapshot_cache", None)
-        ) is not None:
-            unread_priority, unread_errors, unread_rest, _ = (
-                unread_notification_buckets(cached.notifications)
-            )
-            self._last_unread_ids = {
-                n.id for n in unread_priority + unread_errors + unread_rest
-            }
-
-        try:
-            indicator = self.query_one(  # type: ignore[attr-defined]
-                "#notification-indicator", NotificationIndicator
-            )
-        except Exception:
-            return
-        indicator.set_counts(counts.priority + counts.errors, counts.rest, counts.muted)
-        self._reconcile_unread_from_cached_notifications()
+            if getattr(self, "_notification_snapshot_refresh_followup", False):
+                self._notification_snapshot_refresh_followup = False  # type: ignore[attr-defined]
+                schedule_refresh = getattr(
+                    self,
+                    "_schedule_notification_snapshot_refresh",
+                    None,
+                )
+                if callable(schedule_refresh):
+                    schedule_refresh()
 
     async def _ring_tmux_bell_async(self: Any) -> None:
         """Run the tmux bell on a worker thread.

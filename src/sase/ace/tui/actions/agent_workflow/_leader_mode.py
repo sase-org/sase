@@ -190,6 +190,8 @@ class LeaderModeMixin:
 
         if key == leader_keys["open_prompt_stash"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            # Intentional pump ordering: this async action contains no await;
+            # it only spawns its disk-reading coroutine as a retained task.
             self.call_later(self.action_open_prompt_stash)  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True

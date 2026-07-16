@@ -1,7 +1,8 @@
-"""``_on_auto_refresh`` and ``_on_artifact_change`` defer to the nav gate."""
+"""Auto-refresh scheduling and artifact changes defer to the nav gate."""
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -59,18 +60,17 @@ def test_record_jk_navigation_arms_gate() -> None:
     assert app._nav_gate.is_navigating()
 
 
-@pytest.mark.asyncio
-async def test_auto_refresh_defers_when_navigating() -> None:
+def test_auto_refresh_defers_when_navigating() -> None:
     app = _FakeApp()
     app._record_jk_navigation()
-    await app._on_auto_refresh()
+    app._on_auto_refresh()
     # No refresh work ran inline — the call rescheduled itself instead.
     assert app.refresh_calls == []
     assert len(app.deferred_calls) == 1
     delay, callback = app.deferred_calls[0]
     # Delay is the gate window remainder plus the 50 ms overshoot.
     assert 0.05 < delay <= 0.30
-    assert callback == app._on_auto_refresh
+    assert callback == app._retry_auto_refresh
 
 
 @pytest.mark.asyncio
@@ -78,7 +78,8 @@ async def test_auto_refresh_runs_inline_when_idle() -> None:
     app = _FakeApp()
     # Simulate "agents tab, no input modes, no in-flight load".
     app.current_tab = "agents"
-    await app._on_auto_refresh()
+    app._on_auto_refresh()
+    await asyncio.gather(*list(app._pump_free_async_tasks))
     # axe + notifications always run; agents runs because we're idle and
     # not in any input mode.  No deferred timer was scheduled.
     assert "axe" in app.refresh_calls

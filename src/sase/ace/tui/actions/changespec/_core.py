@@ -62,6 +62,7 @@ class ChangeSpecMixin(
     _hidden_submitted_count: int
     _axe_cmds_hidden: bool
     _changespecs_loading: bool
+    _changespecs_refresh_scheduled: bool
     _changespecs_refresh_pending: bool
 
     # Debouncer for j/k navigation detail panel updates (changespecs tab).

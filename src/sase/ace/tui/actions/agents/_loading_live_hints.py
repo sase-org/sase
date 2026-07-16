@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import status_bucket_for_values
 
 from ...models._agent_status_overrides import classify_live_file_change_hint
+from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ._loading_state import AgentLoadingStateMixin
 
@@ -83,7 +84,7 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
     """Schedule and apply deferred live-workspace pencil hints off startup."""
 
     # Coalescing state (initialized by ``_init_app_state``):
-    #   ``_live_hints_scan_scheduled`` — a ``call_later`` worker is queued.
+    #   ``_live_hints_scan_scheduled`` — a pump-free loop task is queued.
     #   ``_live_hints_scan_running``  — a worker is mid-flight (off-thread).
     #   ``_live_hints_scan_pending``  — a request arrived while one ran, so the
     #                                   in-flight worker re-arms itself on exit.
@@ -111,7 +112,18 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
             return
         self._live_hints_scan_scheduled = True
         self._live_hints_scan_source = source
-        self.call_later(self._run_live_hint_refresh)  # type: ignore[attr-defined]
+        self._spawn_live_hint_refresh_task()
+
+    def _spawn_live_hint_refresh_task(self) -> None:
+        """Run the scan without making Textual's message pump await it."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_live_hint_refresh(),
+            name="sase-agents-live-hints",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._live_hints_scan_scheduled = False
 
     async def _run_live_hint_refresh(self) -> None:
         """Compute live hints off-thread, then patch affected rows by identity.
@@ -123,7 +135,9 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         """
         if self._nav_gate.is_navigating():
             delay = self._nav_gate.time_until_idle() + 0.05
-            self.set_timer(delay, self._run_live_hint_refresh)  # type: ignore[attr-defined]
+            # Timer callbacks run on Textual's message pump, so the timer may
+            # only invoke the synchronous spawner.
+            self.set_timer(delay, self._spawn_live_hint_refresh_task)  # type: ignore[attr-defined]
             return
         self._live_hints_scan_scheduled = False
         candidates = self._live_hint_candidates()
@@ -137,6 +151,8 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
                 source=self._live_hints_scan_source,
             ):
                 results = await asyncio.to_thread(_compute_live_hints, candidates)
+            # Re-match against the current agent objects after the await; an
+            # interleaved refresh may have rebuilt the list while VCS ran.
             self._apply_live_hint_results(results)
         except Exception:
             log.exception("Live workspace hint refresh failed")
