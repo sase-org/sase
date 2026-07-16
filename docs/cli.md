@@ -29,7 +29,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase vcs list`                 | List the primary, linked, and SDD repositories with branch, dirty, commit-count, and activity summaries.             | [VCS](vcs.md#sase-vcs-list)                           |
 | `sase vcs log`                  | Show a primary/linked timeline; `--sdd` opts into separate SDD history in current or all-project scope.              | [VCS](vcs.md#sase-vcs-log)                            |
 | `sase notify`                   | Shortcut for `sase notify list`.                                                                                     | [Notifications](notifications.md)                     |
-| `sase notify create`            | Create a notification from JSON input.                                                                               | [Notifications](notifications.md)                     |
+| `sase notify create`            | Create a raw notification or durable command-backed gate from JSON input.                                            | [Notifications](notifications.md)                     |
 | `sase notify list`              | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
 | `sase notify show`              | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |

@@ -2172,19 +2172,21 @@ editable-install SASE updates reinstall the server into the uv-tool venv when pu
 ### `sase notify`
 
 With no subcommand, `sase notify` defaults to the compact `sase notify list` view. Use `sase notify list` for JSON,
-limit, query, unread, dismissed, or the clearest sender/tag filtering form. Use `sase notify create` to write a
-notification from stdin JSON.
+limit, query, unread, dismissed, or the clearest sender/tag filtering form. Use `sase notify create` to write a raw
+notification from stdin JSON, or add `-g/--gate` for a versioned command-backed gate specification.
 
 | Form                 | Flags                                                                                         | Description                                                 |
 | -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `sase notify`        | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output |
-| `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Create a notification from stdin JSON                       |
+| `sase notify create` | `-g/--gate`, `-s/--sender`, `-t/--tag`                                                        | Create a raw notification or durable gate from stdin JSON   |
 | `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
 | `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |
 
-Create accepts a JSON `tags` field and repeatable `-t/--tag`; CLI tags are appended to JSON tags, then normalized and
-deduplicated. `sase notify list -q` also matches tags, and `sase notify list --tag <tag>` filters to notifications with
-that exact normalized tag.
+Raw creation accepts JSON `tags` and `silent` fields plus repeatable `-t/--tag`; CLI tags are appended to JSON tags,
+then normalized and deduplicated. Raw creation cannot create a registered privileged gate action. Gate mode returns a
+stable JSON descriptor with the request identity, owned paths, continuation/auto state, and hashes. The query form,
+`sase notify list -q`, also matches tags, and `sase notify list --tag <tag>` filters to notifications with that exact
+normalized tag.
 
 ### `sase plan`
 

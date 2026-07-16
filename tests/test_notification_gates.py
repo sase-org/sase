@@ -13,6 +13,7 @@ import pytest
 from sase.main.notify_handler import handle_notify_command
 from sase.notification_gates.executor import execute_gate_choice
 from sase.notification_gates.models import GateError
+from sase.notification_gates.paths import resolve_action_bundle
 from sase.notification_gates.poller import poll_gate, wait_for_gate
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
@@ -317,3 +318,89 @@ def test_launch_adapter_rejects_unregistered_command_shape(gate_home: Path) -> N
     with pytest.raises(GateError) as exc_info:
         create_gate(_gate_spec(kind="launch"))
     assert exc_info.value.code == "invalid_launch_choices"
+
+
+@pytest.mark.parametrize(
+    (
+        "action",
+        "kind",
+        "legacy_key",
+        "legacy_request",
+        "legacy_response",
+    ),
+    [
+        (
+            "PlanApproval",
+            "plan",
+            "response_dir",
+            "plan_request.json",
+            "plan_response.json",
+        ),
+        (
+            "EpicApproval",
+            "epic_plan",
+            "response_dir",
+            "plan_request.json",
+            "plan_response.json",
+        ),
+        (
+            "UserQuestion",
+            "question",
+            "response_dir",
+            "question_request.json",
+            "question_response.json",
+        ),
+        (
+            "LaunchApproval",
+            "launch",
+            "response_dir",
+            "launch_request.json",
+            "launch_response.json",
+        ),
+        (
+            "HITL",
+            "hitl",
+            "artifacts_dir",
+            "hitl_request.json",
+            "hitl_response.json",
+        ),
+    ],
+)
+def test_typed_gate_resolver_keeps_neutral_first_legacy_fallback_contract(
+    gate_home: Path,
+    action: str,
+    kind: str,
+    legacy_key: str,
+    legacy_request: str,
+    legacy_response: str,
+) -> None:
+    """Keep legacy readers until the documented post-release removal window."""
+    request_id = f"{kind}-compatibility"
+    neutral_root = gate_home / "requests" / kind / request_id
+    neutral_root.mkdir(parents=True)
+    neutral_request = neutral_root / "request.json"
+    neutral_request.write_text("{}\n", encoding="utf-8")
+
+    legacy_root = gate_home / f"legacy-{kind}"
+    legacy_root.mkdir()
+    (legacy_root / legacy_request).write_text("{}\n", encoding="utf-8")
+    action_data = {
+        "request_id": request_id,
+        "request_kind": kind,
+        legacy_key: str(legacy_root),
+    }
+
+    neutral = resolve_action_bundle(action, action_data)
+    assert neutral is not None
+    assert neutral.root == neutral_root
+    assert neutral.request == neutral_request
+    assert neutral.response == neutral_root / "response.json"
+    assert neutral.legacy is False
+
+    neutral_request.unlink()
+    legacy = resolve_action_bundle(action, action_data)
+    assert legacy is not None
+    assert legacy.root == legacy_root
+    assert legacy.request == legacy_root / legacy_request
+    assert legacy.response == legacy_root / legacy_response
+    assert legacy.legacy is True

@@ -56,7 +56,16 @@ from tests.main.init_skills_handler_helpers import make_args
                 "## Children",
             ),
         ),
-        ("sase_notify", ("sase notify list -j", "sase notify show --id")),
+        (
+            "sase_notify",
+            (
+                "sase notify list -j",
+                "sase notify show --id",
+                "interaction_requests/<kind>/<request-id>/request.json",
+                "sase notify create --gate",
+                '"silent": true',
+            ),
+        ),
         (
             "sase_plan",
             (
@@ -69,6 +78,17 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase plan validate sase_plan_<name>.md --tier tale",
                 "sase plan validate sase_plan_<name>.md --tier epic",
                 "sase plan propose sase_plan_<name>.md",
+                "writes a handoff marker",
+                "do not poll response files yourself",
+            ),
+        ),
+        (
+            "sase_questions",
+            (
+                "sase questions '<json>'",
+                "writes a durable handoff marker",
+                "sends `SIGTERM`",
+                "Do not poll question request or response files",
             ),
         ),
         (
@@ -111,6 +131,7 @@ from tests.main.init_skills_handler_helpers import make_args
                 "%xprompts_enabled:false",
                 "sase xprompt expand",
                 "max_slots_exceeded",
+                "interaction_requests/launch/<request-id>/",
             ),
         ),
         (

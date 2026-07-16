@@ -6,6 +6,11 @@ Sase includes a notification system that surfaces important events from backgrou
 to the user through the ACE TUI. Notifications are stored as JSONL and persisted to
 `~/.sase/notifications/notifications.jsonl`.
 
+Plan, epic-plan, question, and agent-launch approvals use the notification row as a typed transport projection of a
+durable interaction gate. The reviewed content, terminal choices, validation schemas, and hash-verified commands live in
+`~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed CLI actions all resolve that same
+bundle.
+
 ## Viewing Notifications
 
 Press `i` on any tab in ACE to open the notifications modal. Notifications display relative timestamps (e.g., "2m ago",
@@ -41,7 +46,7 @@ non-error notifications with multiple tags appear in each matching tag tab:
 
 | Tab       | Contents                                                                                                                         |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `HITL`    | Plan approvals, user questions, workflow HITL prompts, and launch approvals.                                                     |
+| `HITL`    | Plan and epic approvals, user questions, workflow HITL prompts, and launch approvals.                                            |
 | `Errors`  | Axe error digests and agent error reports (sender `axe` or `user-agent` paired with the `ViewErrorReport` action).               |
 | `General` | Untagged non-HITL, non-error, unmuted notifications.                                                                             |
 | `Done`    | Non-HITL, non-error notifications carrying the `done` tag, pinned before other custom tags.                                      |
@@ -92,7 +97,7 @@ The following events generate notifications:
 
 | Sender                         | Event                                                          |
 | ------------------------------ | -------------------------------------------------------------- |
-| `plan`                         | A plan file is ready for user review and approval              |
+| `plan` / `epic`                | A tale or epic plan is ready for user review and approval      |
 | `launch`                       | A running agent requested a new agent launch for approval      |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`) |
 | `hitl`                         | A workflow HITL step is waiting for user input                 |
@@ -181,21 +186,21 @@ id when delivery succeeds.
 
 Each notification contains:
 
-| Field          | Type         | Description                                                                                          |
-| -------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `id`           | string       | UUID4 unique identifier                                                                              |
-| `timestamp`    | string       | ISO-8601 creation timestamp                                                                          |
-| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                      |
-| `notes`        | list[string] | Human-readable message lines                                                                         |
-| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                 |
-| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                              |
-| `action`       | string       | Action type: `HITL`, `JumpToChangeSpec`, `PlanApproval`, etc.                                        |
-| `action_data`  | dict         | Action-specific data (e.g., response directory, PR name)                                             |
-| `read`         | bool         | Whether the notification has been read                                                               |
-| `dismissed`    | bool         | Whether the notification has been dismissed                                                          |
-| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                              |
-| `muted`        | bool         | Muted notifications appear under the `Muted` tab and are excluded from the bell indicator and toasts |
-| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                            |
+| Field          | Type         | Description                                                                                           |
+| -------------- | ------------ | ----------------------------------------------------------------------------------------------------- |
+| `id`           | string       | UUID4 unique identifier                                                                               |
+| `timestamp`    | string       | ISO-8601 creation timestamp                                                                           |
+| `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                       |
+| `notes`        | list[string] | Human-readable message lines                                                                          |
+| `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                  |
+| `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                               |
+| `action`       | string       | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, etc.           |
+| `action_data`  | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json` |
+| `read`         | bool         | Whether the notification has been read                                                                |
+| `dismissed`    | bool         | Whether the notification has been dismissed                                                           |
+| `silent`       | bool         | Silent notifications are stored but hidden from the TUI                                               |
+| `muted`        | bool         | Muted notifications appear under the `Muted` tab and are excluded from the bell indicator and toasts  |
+| `snooze_until` | string\|null | ISO-8601 timestamp at which a snoozed notification automatically un-mutes                             |
 
 ## Silent Notifications
 
@@ -233,9 +238,24 @@ from JSON input:
 
 ```bash
 echo '{"sender": "test", "notes": ["Hello"], "tags": ["review"]}' | sase notify create
+echo '{"sender": "audit", "notes": ["Background result"], "silent": true}' | sase notify create
 sase notify create -s my_sender < notification.json
 sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
+
+Raw creation preserves the JSON `silent` field. It rejects registered privileged actions (`PlanApproval`,
+`EpicApproval`, `UserQuestion`, `LaunchApproval`, and `HITL`) because a raw row has no trusted command bundle.
+
+The low-level gate API reads a versioned gate specification from stdin:
+
+```bash
+sase notify create --gate < gate-request.json
+```
+
+On success it prints a stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`, `kind`,
+bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. Typed front doors such as
+`sase plan propose`, `sase questions`, and agent-initiated launch requests call the same in-process gate service
+directly; they do not spawn this CLI.
 
 For read-only inspection, list recent notifications as either a compact table or stable JSON:
 
@@ -275,6 +295,44 @@ To create a local test notification with a persistent PNG attachment for ACE mod
 `tools/test_image_notification` from the repository root.
 
 See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI reference.
+
+## Command-backed interaction gates
+
+Each new gate is written once under `~/.sase/interaction_requests/<kind>/<request-id>/`. The bundle contains canonical
+`request.json`, eventual write-once `response.json`, reviewed previews or attachments, and adapter-owned commands. The
+request records the continuation mode, optional gate timeout, typed payload, presentation metadata, terminal choices,
+input/result schemas, and hashes for the request and owned resources. Commands are argv arrays executed without a shell.
+Plan editing is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes
+the reviewed hashes before approval can continue.
+
+Manual creation succeeds only after the bundle, notification row, and pending-action registration are durable. A partial
+failure is compensated, and retries are idempotent by request ID. Manual and automatic choices use the same hash, input,
+result, and write-once response validation. The pending-action 24-hour stale threshold is transport-only; it may hide
+remote controls but does not terminate a waiting producer. Only cancellation or an explicit per-request gate timeout is
+terminal.
+
+The typed projections remain deliberately distinct:
+
+| Gate kind   | Notification action | Recommended producer                              |
+| ----------- | ------------------- | ------------------------------------------------- |
+| `plan`      | `PlanApproval`      | `sase plan propose` with an authored `tier: tale` |
+| `epic_plan` | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
+| `question`  | `UserQuestion`      | `sase questions`                                  |
+| `launch`    | `LaunchApproval`    | Agent-initiated `sase launch request`             |
+
+Workflow `HITL` is registered at the adapter boundary but is not migrated to the command-backed producer in this
+rollout; its existing behavior remains unchanged.
+
+### Compatibility window
+
+Readers resolve the neutral bundle first and then fall back to in-flight legacy plan, question, launch, or HITL request
+directories. New producers do not dual-write the old trees. Keep these fallbacks for at least one complete SASE release
+after neutral writers ship and beyond the 24-hour remote-action stale window. The cross-kind resolver regression test
+locks this rule in; removing a fallback requires a separately announced migration after that window, updated fixtures,
+and explicit release notes.
+
+Question summaries use the same resolver, so ACE can render both neutral and legacy questions. Gate command execution
+from ACE is scheduled as tracked background work rather than running on Textual's event loop.
 
 ## Storage
 

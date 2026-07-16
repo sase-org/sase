@@ -206,14 +206,14 @@ SASE keeps durable state outside any one chat session:
   Unmigrated projects keep their legacy `.sase/sdd/` clone. A positive `.sase/sdd-store.json` record keeps the resolved
   layout usable offline. The retired `sdd.storage` and `sdd.version_controlled` selectors are ignored and reported by
   `sase doctor` for cleanup.
-- **Plan approval pipeline** - Planning agents submit Markdown plans with `sase plan propose`. ACE, notifications, and
-  `sase plan` all read the same pending approval state; `sase plan approve [id] -k <kind>` and `sase plan reject [id]`
-  write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
-  committing an SDD plan, commits the plan as a tale/epic before the follow-up, or records the approved plan in SDD and
-  stops there. A no-feedback rejection writes the response first, then attempts to kill and dismiss the matching planner
-  row when it can be found. Users can attach explicitly named family members with `%n(parent, suffix)`, including
-  arbitrary suffixes such as `reviewer` or `tester`. Launches requested by running agents are gated behind
-  `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
+- **Command-backed interaction gates** - Planning agents submit Markdown plans with `sase plan propose`; authored tales
+  project as `PlanApproval` and authored epics as `EpicApproval`. Plan, question, and agent-launch requests share one
+  durable, hash-verified command service while retaining their typed ACE/mobile/Telegram actions. `sase plan`, the plan
+  approval/rejection CLI, and the TUI resolve the same write-once response protocol. Approval kinds decide whether the
+  runner starts a coder, commits the plan as a tale/epic, or records the approved plan without a follow-up. Users can
+  attach explicitly named family members with `%n(parent, suffix)`, including arbitrary suffixes such as `reviewer` or
+  `tester`. Launches requested by running agents use `LaunchApproval` and return a deterministic approval, rejection,
+  feedback, dispatch-failure, cancellation, or timeout result; direct user launches remain unchanged.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git linked-repo workspaces. Dirty linked clones
   are enforced like the main workspace. If the only enforced change is one tracked SDD markdown file under `sdd/plans/`

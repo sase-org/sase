@@ -145,6 +145,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
         }
     ]
     payload = agent_scan_wire_to_json_dict(snapshot)
+    assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["linked_repos"] == [
         {
             "name": "sase-core",
