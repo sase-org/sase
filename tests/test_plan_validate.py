@@ -22,6 +22,7 @@ from sase.sdd.plan_validate import (
 
 VALID_TALE = """---
 tier: tale
+title: Strict plan validation
 goal: Ship strict plan validation
 ---
 # Plan
@@ -67,10 +68,11 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
     assert result.plan is not None
     assert result.plan.tier == "tale"
     assert result.plan.goal == "Ship strict plan validation"
-    assert result.plan.title is None
+    assert result.plan.title == "Strict plan validation"
     assert result.plan.phases == ()
     assert [field.name for field in plan_frontmatter_schema("tale")] == [
         "tier",
+        "title",
         "goal",
         "model",
         "create_time",
@@ -95,6 +97,7 @@ def test_facade_rehydrates_all_diagnostics_and_is_frozen() -> None:
     result = validate_plan(
         """---
 tier: epic
+title: Diagnostic aggregation
 goal: '   '
 tyop: value
 ---
@@ -110,7 +113,7 @@ tyop: value
         "tier-mismatch",
         "value-empty",
     ]
-    assert result.diagnostics[0].line == 4
+    assert result.diagnostics[0].line == 5
     assert result.diagnostics[0].severity is PlanDiagnosticSeverity.ERROR
     with pytest.raises(FrozenInstanceError):
         result.diagnostics[0].code = "changed"  # type: ignore[misc]
@@ -215,6 +218,7 @@ def test_failure_human_output_is_location_bearing_and_self_teaching(
     assert f"{plan}:2: error [tier-mismatch]" in captured.err
     assert "Expected tale frontmatter schema" in captured.err
     assert "Minimal valid tale plan" in captured.err
+    assert "title: Ship the requested capability" in captured.err
     assert "goal: The requested capability works end to end." in captured.err
     assert "Validation failed" in captured.err
 
@@ -255,6 +259,47 @@ def test_failure_json_envelope_has_core_parity(
     assert payload["expected_schema"]["fields"][0]["type"] == "tale | epic"
     assert "field_type" not in payload["expected_schema"]["fields"][0]
     assert payload["expected_schema"]["example"].startswith("---\ntier: tale")
+    assert (
+        "title: Ship the requested capability" in payload["expected_schema"]["example"]
+    )
+
+
+@pytest.mark.parametrize("tier", ["tale", "epic"])
+@pytest.mark.parametrize(
+    ("title_line", "expected_code"),
+    [
+        ("", "required-missing"),
+        ("title: '   '\n", "value-empty"),
+        ("title: [not, text]\n", "type-mismatch"),
+    ],
+)
+def test_cli_rejects_missing_blank_and_wrong_typed_titles(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    tier: str,
+    title_line: str,
+    expected_code: str,
+) -> None:
+    extra = (
+        "phases:\n  - id: core\n    title: Core\n    depends_on: []\n"
+        if tier == "epic"
+        else ""
+    )
+    plan = tmp_path / f"{tier}.md"
+    plan.write_text(
+        f"---\ntier: {tier}\n{title_line}goal: outcome\n{extra}---\nbody\n",
+        encoding="utf-8",
+    )
+
+    assert _invoke([str(plan), "-t", tier, "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    title_diagnostics = [
+        diagnostic
+        for diagnostic in payload["diagnostics"]
+        if diagnostic["field_path"] == "title"
+    ]
+    assert [diagnostic["code"] for diagnostic in title_diagnostics] == [expected_code]
+    assert title_diagnostics[0]["line"] is not None
 
 
 @pytest.mark.parametrize(

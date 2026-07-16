@@ -28,7 +28,8 @@ def test_sweep_applies_full_schema_at_cutover_only(tmp_path: Path) -> None:
         tmp_path,
         "202608",
         "strict.md",
-        "---\ntier: tale\ngoal: Ship the validated plan sweep\n---\n# Plan\n",
+        "---\ntier: tale\ntitle: Validated plan sweep\n"
+        "goal: Ship the validated plan sweep\n---\n# Plan\n",
     )
     prompt = tmp_path / "202608" / "prompts" / "prompt.md"
     prompt.parent.mkdir(parents=True)
@@ -114,7 +115,8 @@ def test_main_returns_zero_for_valid_store(
         tmp_path,
         "202608",
         "valid.md",
-        "---\ntier: tale\ngoal: Keep committed plans valid\n---\n# Plan\n",
+        "---\ntier: tale\ntitle: Committed plan validation\n"
+        "goal: Keep committed plans valid\n---\n# Plan\n",
     )
     monkeypatch.setattr(
         "sase.scripts.validate_committed_plans._resolve_committed_plans_root",

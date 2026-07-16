@@ -34,6 +34,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     PLAN_PHASE_TITLE_STYLE,
     PLAN_PHASES_LABEL_STYLE,
     PLAN_SECTION_MAX_WIDTH,
+    PLAN_TITLE_VALUE_STYLE,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
@@ -41,6 +42,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_co
 
 def _plan_summary(
     *,
+    title: str | None = "Required plan titles",
     goal: str | None = "Make agent intent immediately legible.",
     tier: str | None = "plan",
     actual_path: str = "/tmp/workspace/sase/repos/plans/202607/plan.md",
@@ -50,6 +52,7 @@ def _plan_summary(
     phases: tuple[AssociatedPlanPhaseSummary, ...] = (),
 ) -> AssociatedPlanSummary:
     return AssociatedPlanSummary(
+        title=title,
         goal=goal,
         authored_tier="tale" if tier != "epic" else "epic",
         effective_tier=tier,  # type: ignore[arg-type]
@@ -119,6 +122,18 @@ def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
     return goal_lines
 
 
+def _rendered_title_lines(header: AgentHeader, *, width: int) -> list[str]:
+    lines = _render_header(header, width=width)
+    start = next(index for index, line in enumerate(lines) if line.startswith("Title:"))
+    title_lines = [lines[start]]
+    continuation_prefix = " " * PLAN_FIELD_LABEL_WIDTH
+    for line in lines[start + 1 :]:
+        if not line.startswith(continuation_prefix):
+            break
+        title_lines.append(line)
+    return title_lines
+
+
 def _reconstruct_word_wrapped_goal(lines: list[str]) -> str:
     return " ".join(line[PLAN_FIELD_LABEL_WIDTH:].rstrip() for line in lines)
 
@@ -137,11 +152,19 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     plain = header.plain
     assert plain.index("Timestamps:") < plain.index("SASE PLAN")
     assert plain.index("SASE PLAN") < plain.index("OUTPUT VARIABLES")
-    assert plain.index("SASE PLAN") < plain.index("Goal:")
-    assert plain.index("Goal:") < plain.index("Tier:") < plain.index("Path:")
+    assert plain.index("SASE PLAN") < plain.index("Title:")
+    assert (
+        plain.index("Title:")
+        < plain.index("Goal:")
+        < plain.index("Tier:")
+        < plain.index("Path:")
+    )
+    assert plain.count("Title:") == 1
     assert plain.count("Goal:") == 1
     assert plain.splitlines()[1].startswith("ChangeSpec:")
     assert_span_covers(header, "SASE PLAN", "bold #D7AF5F underline")
+    assert_span_covers(header, "Title: ", "bold #87D7FF")
+    assert_span_covers(header, "Required plan titles", PLAN_TITLE_VALUE_STYLE)
     assert_span_covers(header, "Goal: ", "bold #87D7FF")
     assert_span_covers(
         header, "Make agent intent immediately legible.", "italic #D7D7FF"
@@ -154,7 +177,7 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     ids=["plan", "tale", "epic"],
 )
 @pytest.mark.parametrize("width", [32, 120], ids=["narrow", "wide"])
-def test_plan_heading_is_immediately_followed_by_goal(
+def test_plan_heading_is_immediately_followed_by_title(
     summary: AssociatedPlanSummary,
     width: int,
 ) -> None:
@@ -163,12 +186,12 @@ def test_plan_heading_is_immediately_followed_by_goal(
         summary=DetailHeaderSummary(associated_plan=summary),
     )
 
-    assert "SASE PLAN\nGoal:" in header.plain
-    assert "SASE PLAN\n\nGoal:" not in header.plain
+    assert "SASE PLAN\nTitle:" in header.plain
+    assert "SASE PLAN\n\nTitle:" not in header.plain
 
     lines = _render_header(header, width=width)
     heading_index = lines.index("SASE PLAN")
-    assert lines[heading_index + 1].startswith("Goal:")
+    assert lines[heading_index + 1].startswith("Title:")
 
 
 def test_plan_is_first_major_section_in_maximal_append_flow(
@@ -278,7 +301,12 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     )
 
     plain = header.plain
-    assert plain.index("Goal:") < plain.index("Tier:") < plain.index("Path:")
+    assert (
+        plain.index("Title:")
+        < plain.index("Goal:")
+        < plain.index("Tier:")
+        < plain.index("Path:")
+    )
     assert plain.index("Path:") < plain.index("Phases: 3")
     assert "  1 ◆ Planner and safety checks\n" in plain
     assert "    core · no dependencies\n" in plain
@@ -396,6 +424,38 @@ def test_long_goal_is_complete_with_hanging_indent_and_80_cell_cap() -> None:
 
 
 @pytest.mark.parametrize(
+    "title",
+    [
+        " ".join(f"title{index}" for index in range(40)),
+        "responsive_plan_title_must_never_drop_this_final_suffix",
+        "界" * 25 + "終",
+    ],
+)
+def test_long_ascii_and_wide_unicode_titles_fold_without_loss(title: str) -> None:
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(
+            associated_plan=_plan_summary(title=title),
+        ),
+    )
+
+    wide_lines = _rendered_title_lines(header, width=120)
+    narrow_lines = _rendered_title_lines(header, width=24)
+    reconstruct = (
+        _reconstruct_word_wrapped_goal if " " in title else _reconstruct_folded_token
+    )
+    assert reconstruct(wide_lines) == title
+    assert reconstruct(narrow_lines) == title
+    assert len(narrow_lines) >= len(wide_lines)
+    assert all(cell_len(line) <= PLAN_SECTION_MAX_WIDTH for line in wide_lines)
+    assert all(cell_len(line) <= 24 for line in narrow_lines)
+    assert all(
+        line.startswith(" " * PLAN_FIELD_LABEL_WIDTH) for line in narrow_lines[1:]
+    )
+    assert "…" not in "".join(narrow_lines)
+
+
+@pytest.mark.parametrize(
     "goal",
     [
         "responsive_metadata_rendering_must_never_drop_this_final_suffix",
@@ -491,6 +551,7 @@ def test_missing_or_damaged_plan_keeps_section_with_quiet_fallbacks() -> None:
         make_agent(agent_name="planner"),
         summary=DetailHeaderSummary(
             associated_plan=_plan_summary(
+                title=None,
                 goal=None,
                 tier=None,
                 actual_path="/tmp/missing plan.md",
@@ -500,6 +561,7 @@ def test_missing_or_damaged_plan_keeps_section_with_quiet_fallbacks() -> None:
         ),
     )
 
+    assert "Title: unavailable" in header.plain
     assert "Goal: unavailable" in header.plain
     assert "Tier: unavailable" in header.plain
     assert "Path: ~/missing plan.md (missing)" in header.plain

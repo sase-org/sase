@@ -19,8 +19,9 @@ from ._helpers import append_major_section_divider
 
 PLAN_SECTION_LABEL = "SASE PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
-PLAN_FIELD_LABEL_WIDTH = cell_len("Goal: ")
+PLAN_FIELD_LABEL_WIDTH = cell_len("Title: ")
 PLAN_FIELD_LABEL_STYLE = "bold #87D7FF"
+PLAN_TITLE_VALUE_STYLE = "#D7D7FF"
 PLAN_GOAL_VALUE_STYLE = "italic #D7D7FF"
 PLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 PLAN_UNAVAILABLE_STYLE = "dim italic #878787"
@@ -121,10 +122,16 @@ class ResponsivePlanSection:
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
+            ("Title: ", self._title_value()),
             ("Goal: ", self._goal_value()),
             ("Tier: ", self._tier_value()),
             ("Path: ", self._path_value()),
         )
+
+    def _title_value(self) -> Text:
+        if self.summary.title:
+            return Text(self.summary.title, style=PLAN_TITLE_VALUE_STYLE)
+        return Text("unavailable", style=PLAN_UNAVAILABLE_STYLE)
 
     def _goal_value(self) -> Text:
         if self.summary.goal:

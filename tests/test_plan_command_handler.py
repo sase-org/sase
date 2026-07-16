@@ -15,6 +15,7 @@ from tests.conftest import redirect_sase_home
 
 VALID_TALE = """---
 tier: tale
+title: Ship the planned change
 goal: Ship the planned change
 ---
 # Plan

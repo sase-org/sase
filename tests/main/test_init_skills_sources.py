@@ -61,6 +61,8 @@ from tests.main.init_skills_handler_helpers import make_args
             "sase_plan",
             (
                 "tier: tale",
+                "title: Focused capability rollout",
+                "Both tiers require a non-empty frontmatter `title`",
                 "tier: epic",
                 "depends_on: []",
                 "Otherwise omit it so the configured `@phase_worker`",

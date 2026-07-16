@@ -69,7 +69,7 @@ class _ValidatedPlan:
     tier: str
     goal: str
     model: str | None
-    title: str | None
+    title: str
     phases: tuple[ValidatedPlanPhase, ...]
     changespec: str | None
     bug_id: int | None
@@ -175,7 +175,7 @@ def _validated_plan_from_dict(payload: dict[str, Any]) -> _ValidatedPlan:
         tier=str(payload["tier"]),
         goal=str(payload["goal"]),
         model=_optional_str(payload.get("model")),
-        title=_optional_str(payload.get("title")),
+        title=str(payload["title"]),
         phases=tuple(_validated_phase_from_dict(item) for item in payload["phases"]),
         changespec=_optional_str(payload.get("changespec")),
         bug_id=(int(payload["bug_id"]) if payload.get("bug_id") is not None else None),

@@ -2,6 +2,7 @@
 
 VALID_TALE_PLAN = """---
 tier: tale
+title: Approved implementation
 goal: Deliver the approved implementation
 ---
 # Plan

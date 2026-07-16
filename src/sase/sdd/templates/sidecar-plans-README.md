@@ -8,7 +8,8 @@ available to humans and agents.
 
 ## Directory Layout
 
-- `<YYYYMM>/*.md` stores plan files. Every plan declares `tier: tale` or `tier: epic` in YAML frontmatter.
+- `<YYYYMM>/*.md` stores plan files. Every plan declares a non-empty `title` and either `tier: tale` or `tier: epic` in
+  YAML frontmatter.
 - `<YYYYMM>/prompts/*.md` stores the original prompts or expanded snapshots that produced that month's plans.
 - `beads/` stores SASE bead events and compatibility projections. SQLite `beads.db*` files are local-only.
 - `assets/` stores generated explanatory media used by this README.

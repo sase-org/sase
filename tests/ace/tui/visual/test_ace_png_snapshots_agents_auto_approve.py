@@ -330,10 +330,10 @@ async def test_agents_sase_plan_metadata_png_snapshot(
     plan_path.write_text(
         "---\n"
         "tier: tale\n"
+        "title: Agent intent metadata\n"
         "goal: >\n"
-        "  Make the selected agent's intended outcome immediately legible while\n"
-        "  preserving fast keyboard navigation through every metadata refresh\n"
-        "  without hiding the approved destination.\n"
+        "  Make the selected agent's intended outcome legible while preserving fast\n"
+        "  navigation and the approved destination.\n"
         "---\n"
         "# Plan\n",
         encoding="utf-8",
@@ -365,6 +365,8 @@ async def test_agents_sase_plan_metadata_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE PLAN")
+        assert_page_svg_contains(page, "Title:")
+        assert_page_svg_contains(page, "Agent intent metadata")
         assert_page_svg_contains(page, "Goal:")
         assert_page_svg_contains(page, "Tier:")
         assert_page_svg_contains(page, "tale")
@@ -436,6 +438,8 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "SASE PLAN")
+        assert_page_svg_contains(page, "Title:")
+        assert_page_svg_contains(page, "Epic phase roadmap")
         assert_page_svg_contains(page, "Phases:")
         assert_page_svg_contains(page, "Planner and safety checks")
         assert_page_svg_contains(page, "no dependencies")

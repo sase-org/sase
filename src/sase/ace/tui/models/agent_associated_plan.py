@@ -64,6 +64,7 @@ class AssociatedPlanPhaseSummary:
 class AssociatedPlanSummary:
     """Immutable plan metadata consumed by the in-memory render path."""
 
+    title: str | None
     goal: str | None
     authored_tier: AuthoredPlanTier | None
     effective_tier: AssociatedPlanTier | None
@@ -94,6 +95,7 @@ class _AgentPlanEnrichment:
 
 @dataclass(frozen=True, slots=True)
 class _PlanFileMetadata:
+    title: str | None
     goal: str | None
     authored_tier: AuthoredPlanTier | None
     exists: bool
@@ -167,62 +169,69 @@ class _PlanFileCache:
     def _load(path: Path, *, exists: bool) -> _PlanFileMetadata:
         if not exists:
             return _PlanFileMetadata(
-                None,
-                None,
-                False,
-                False,
-                False,
-                "unavailable",
-                (),
+                title=None,
+                goal=None,
+                authored_tier=None,
+                exists=False,
+                readable=False,
+                frontmatter_readable=False,
+                phase_availability="unavailable",
+                phases=(),
             )
 
         readable = os.access(path, os.R_OK)
         if not readable:
             return _PlanFileMetadata(
-                None,
-                None,
-                True,
-                False,
-                False,
-                "unavailable",
-                (),
+                title=None,
+                goal=None,
+                authored_tier=None,
+                exists=True,
+                readable=False,
+                frontmatter_readable=False,
+                phase_availability="unavailable",
+                phases=(),
             )
 
         try:
             content = path.read_text(encoding="utf-8")
         except OSError:
             return _PlanFileMetadata(
-                None,
-                None,
-                True,
-                False,
-                False,
-                "unavailable",
-                (),
+                title=None,
+                goal=None,
+                authored_tier=None,
+                exists=True,
+                readable=False,
+                frontmatter_readable=False,
+                phase_availability="unavailable",
+                phases=(),
             )
         except UnicodeDecodeError:
             return _PlanFileMetadata(
-                None,
-                None,
-                True,
-                True,
-                False,
-                "unavailable",
-                (),
+                title=None,
+                goal=None,
+                authored_tier=None,
+                exists=True,
+                readable=True,
+                frontmatter_readable=False,
+                phase_availability="unavailable",
+                phases=(),
             )
 
         frontmatter, error = parse_plan_frontmatter(content)
         if error is not None:
             return _PlanFileMetadata(
-                None,
-                None,
-                True,
-                True,
-                False,
-                "unavailable",
-                (),
+                title=None,
+                goal=None,
+                authored_tier=None,
+                exists=True,
+                readable=True,
+                frontmatter_readable=False,
+                phase_availability="unavailable",
+                phases=(),
             )
 
+        raw_title = frontmatter.get("title")
+        title = " ".join(raw_title.split()) if isinstance(raw_title, str) else None
         raw_goal = frontmatter.get("goal")
         goal = " ".join(raw_goal.split()) if isinstance(raw_goal, str) else None
         normalized_tier = normalize_plan_tier(frontmatter.get("tier"))
@@ -246,6 +255,7 @@ class _PlanFileCache:
                 )
                 phase_availability = "available"
         return _PlanFileMetadata(
+            title=title or None,
             goal=goal or None,
             authored_tier=authored_tier,
             exists=True,
@@ -438,6 +448,7 @@ def resolve_agent_plan_enrichment(
         known_epic=known_epic,
     )
     summary = AssociatedPlanSummary(
+        title=metadata.title,
         goal=metadata.goal,
         authored_tier=metadata.authored_tier,
         effective_tier=_effective_tier(agent, metadata.authored_tier),

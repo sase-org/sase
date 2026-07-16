@@ -30,11 +30,18 @@ def _clear_plan_caches() -> Iterator[None]:
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
 
 
-def _write_plan(path: Path, goal: str, *, tier: str | None = "tale") -> Path:
+def _write_plan(
+    path: Path,
+    goal: str,
+    *,
+    title: str | None = "Associated plan metadata",
+    tier: str | None = "tale",
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     tier_line = f"tier: {tier}\n" if tier is not None else ""
+    title_line = f"title: {title!r}\n" if title is not None else ""
     path.write_text(
-        f"---\n{tier_line}goal: {goal!r}\n---\n# Plan\n",
+        f"---\n{tier_line}{title_line}goal: {goal!r}\n---\n# Plan\n",
         encoding="utf-8",
     )
     return path
@@ -97,6 +104,7 @@ def test_pending_tale_maps_to_tale_and_uses_home_shortened_archive(
     summary = resolve_agent_associated_plan(agent)
 
     assert summary is not None
+    assert summary.title == "Associated plan metadata"
     assert summary.goal == "Deliver the pending plan"
     assert summary.authored_tier == "tale"
     assert summary.effective_tier == "tale"
@@ -578,6 +586,7 @@ def test_known_missing_plan_keeps_path_and_unavailable_metadata(
 
     assert summary is not None
     assert summary.actual_path == str(missing.resolve())
+    assert summary.title is None
     assert summary.goal is None
     assert summary.effective_tier is None
     assert not summary.exists
@@ -631,6 +640,7 @@ def test_damaged_frontmatter_keeps_readable_plan_association(tmp_path: Path) -> 
     assert summary.exists
     assert summary.readable
     assert not summary.frontmatter_readable
+    assert summary.title is None
     assert summary.goal is None
     assert summary.effective_tier is None
 
@@ -751,6 +761,81 @@ def test_frontmatter_cache_reuses_parse_until_mtime_changes(
     assert updated.goal == "Second goal"
     assert updated.effective_tier == "epic"
     assert reads == [plan.resolve(), plan.resolve()]
+
+
+def test_title_is_normalized_cached_and_invalidated_with_file_signature(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = tmp_path / "title.md"
+    plan.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: >-\n"
+        "  Full\n"
+        "  plan   title\n"
+        "goal: Keep cached metadata responsive\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+    real_reader = Path.read_text
+    reads = 0
+
+    def read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        nonlocal reads
+        reads += 1
+        return real_reader(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", read)
+
+    first = resolve_agent_associated_plan(agent)
+    cached = resolve_agent_associated_plan(agent)
+    assert first is not None
+    assert cached is not None
+    assert first.title == "Full plan title"
+    assert cached.title == first.title
+    assert reads == 1
+
+    previous_mtime = plan.stat().st_mtime_ns
+    _write_plan(
+        plan,
+        "Keep cached metadata responsive",
+        title="Updated title",
+    )
+    os.utime(
+        plan,
+        ns=(plan.stat().st_atime_ns, max(plan.stat().st_mtime_ns, previous_mtime + 1)),
+    )
+
+    updated = resolve_agent_associated_plan(agent)
+    assert updated is not None
+    assert updated.title == "Updated title"
+    assert reads == 2
+
+
+def test_legacy_titleless_plan_keeps_association_with_unavailable_title(
+    tmp_path: Path,
+) -> None:
+    plan = _write_plan(
+        tmp_path / "legacy.md",
+        "Keep historical plans discoverable",
+        title=None,
+    )
+
+    summary = resolve_agent_associated_plan(
+        make_agent(archived_plan_path=str(plan), plan_path=str(plan))
+    )
+
+    assert summary is not None
+    assert summary.title is None
+    assert summary.goal == "Keep historical plans discoverable"
+    assert summary.frontmatter_readable
 
 
 def test_epic_phase_cache_reuses_validation_until_signature_changes(

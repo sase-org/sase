@@ -10,8 +10,8 @@ may be the checkout's `sdd/` directory or a separate `.sase/sdd/` store; run `sa
 ## Directory Layout
 
 - `plans/` stores implementation plans. Each `plans/<YYYYMM>/prompts/` subdirectory stores the original user prompts or
-  expanded prompt snapshots that led to that month's plans. Plan files require `tier: tale` for focused task plans or
-  `tier: epic` for larger multi-phase plans.
+  expanded prompt snapshots that led to that month's plans. Plan files require a non-empty frontmatter `title` plus
+  `tier: tale` for focused task plans or `tier: epic` for larger multi-phase plans.
 - `research/` stores exploratory findings, prior art, options, critiques, and recommendations that inform later work.
 - `beads/` stores bead issue data for SDD-backed work tracking.
 
