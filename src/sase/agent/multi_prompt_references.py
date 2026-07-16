@@ -6,6 +6,8 @@ implementation lives in focused sibling modules.
 
 from sase.agent.multi_prompt_reference_allocator import PlannedNameAllocator
 from sase.agent.multi_prompt_reference_directives import (
+    StaticFamilyDirective,
+    extract_static_family_directive,
     extract_static_name_directive,
     has_bare_wait_directive,
     rewrite_bare_wait_directives,
@@ -22,8 +24,10 @@ from sase.agent.multi_prompt_reference_resume import (
 
 __all__ = [
     "PlannedNameAllocator",
+    "StaticFamilyDirective",
     "_GENERATED_AGENT_NAME_ENV",
     "_PLANNED_AGENT_NAME_ENV",
+    "extract_static_family_directive",
     "extract_static_name_directive",
     "has_bare_resume_reference",
     "has_bare_wait_directive",

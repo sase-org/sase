@@ -7,15 +7,18 @@ the launcher falls back to the legacy naming poll.
 """
 
 from collections.abc import Callable, Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
+from sase.agent.family_membership import FAMILY_MEMBERSHIP_ENV
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
     _GENERATED_AGENT_NAME_ENV,
     _PLANNED_AGENT_NAME_ENV,
     PlannedNameAllocator as _PlannedNameAllocator,
+    StaticFamilyDirective as _StaticFamilyDirective,
+    extract_static_family_directive as _extract_static_family_directive,
     extract_static_name_directive as _extract_static_name_directive,
     has_bare_resume_reference as _has_bare_resume_reference,
     has_bare_wait_directive as _has_bare_wait_directive,
@@ -112,6 +115,213 @@ def _assign_missing_slot_timestamps(
     )
 
 
+def _plan_segment_fanout(
+    segment: str,
+    *,
+    segment_local_xprompts: dict[str, XPrompt],
+    preplanned_fanout_plan: LaunchFanoutPlanWire | None,
+) -> tuple[LaunchFanoutPlanWire, bool]:
+    """Return one segment's launch plan and whether it is a real fan-out."""
+    from sase.core.agent_launch_facade import plan_fake_fanout
+    from sase.xprompt.directives import plan_prompt_fanout_variants
+
+    fanout_plan = (
+        preplanned_fanout_plan
+        if preplanned_fanout_plan is not None
+        else plan_prompt_fanout_variants(
+            segment,
+            extra_xprompts=segment_local_xprompts or None,
+        )
+    )
+    if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
+        from sase.xprompt.processor import process_xprompt_references
+
+        expanded = process_xprompt_references(
+            segment,
+            extra_xprompts=segment_local_xprompts or None,
+        )
+        fanout_plan = plan_prompt_fanout_variants(
+            expanded,
+            extra_xprompts=segment_local_xprompts or None,
+        )
+    if fanout_plan is not None:
+        return fanout_plan, True
+    return plan_fake_fanout("multi_prompt", [segment]), False
+
+
+@dataclass
+class _ParallelFamilyPrepass:
+    """Launch values pinned before any parallel-family member can spawn."""
+
+    root_timestamps: dict[int, str]
+    root_contexts: dict[int, _SegmentVcsContext]
+    root_planned_names: dict[int, tuple[str, str | None]]
+    membership_env_by_segment: dict[int, str]
+
+
+def _prepare_parallel_family_launches(
+    *,
+    segments: list[str],
+    local_xprompts: dict[str, XPrompt],
+    cl_name: str,
+    project_file: str,
+    project_name: str,
+    is_home_mode: bool,
+    vcs_ref: tuple[str, str] | None,
+    segment_template_groups: Sequence[str | None] | None,
+    preplanned_fanout_plans: Sequence[LaunchFanoutPlanWire | None] | None,
+    default_bare_segments_to_home: bool,
+    timestamp_allocator: LaunchTimestampBatchAllocator,
+    name_allocator: _PlannedNameAllocator,
+) -> _ParallelFamilyPrepass:
+    """Resolve in-launch family roots before the first segment is spawned."""
+    from sase.agent.family_membership import (
+        FamilyMembershipPlan,
+        encode_family_membership_plan,
+    )
+    from sase.project_aliases import canonicalize_project_aliases_in_prompt
+    from sase.xprompt._exceptions import DirectiveError
+    from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
+    from sase.xprompt.directives import has_deferred_start_directive
+
+    directives: list[_StaticFamilyDirective | None] = [
+        _extract_static_family_directive(segment) for segment in segments
+    ]
+    if not any(directive is not None for directive in directives):
+        return _ParallelFamilyPrepass({}, {}, {}, {})
+
+    names = [_extract_static_name_directive(segment) for segment in segments]
+    members_by_target: dict[str, list[int]] = {}
+    for index, directive in enumerate(directives):
+        if directive is None:
+            continue
+        if names[index] == directive.target:
+            raise DirectiveError(
+                f"Multi-prompt segment {index + 1} cannot target itself with "
+                f"%family:{directive.target}"
+            )
+        members_by_target.setdefault(directive.target, []).append(index)
+
+    root_timestamps: dict[int, str] = {}
+    root_contexts: dict[int, _SegmentVcsContext] = {}
+    root_planned_names: dict[int, tuple[str, str | None]] = {}
+    membership_env_by_segment: dict[int, str] = {}
+
+    def set_membership(index: int, payload: str) -> None:
+        if index in membership_env_by_segment:
+            raise DirectiveError(
+                f"Multi-prompt segment {index + 1} belongs to more than one "
+                "parallel family"
+            )
+        membership_env_by_segment[index] = payload
+
+    for target, member_indexes in members_by_target.items():
+        root_indexes = [index for index, name in enumerate(names) if name == target]
+        if len(root_indexes) > 1:
+            raise DirectiveError(
+                f"%family target '{target}' matches more than one sibling root segment"
+            )
+        if not root_indexes:
+            # A directive-only launch or retry resolves the root in the runner.
+            continue
+
+        root_index = root_indexes[0]
+        root_segment = canonicalize_project_aliases_in_prompt(segments[root_index])
+        if default_bare_segments_to_home:
+            root_segment = normalize_default_vcs_workflow_segment(root_segment)
+        root_local_xprompts = _local_xprompts_for_segment(
+            root_segment,
+            local_xprompts,
+        )
+        preplanned = (
+            None
+            if preplanned_fanout_plans is None
+            else preplanned_fanout_plans[root_index]
+        )
+        root_plan, _ = _plan_segment_fanout(
+            root_segment,
+            segment_local_xprompts=root_local_xprompts,
+            preplanned_fanout_plan=preplanned,
+        )
+        root_plan = _assign_missing_slot_timestamps(root_plan, timestamp_allocator)
+        if len(root_plan.slots) != 1:
+            raise DirectiveError(
+                f"%family root segment for '{target}' must resolve to exactly "
+                "one launch slot"
+            )
+        root_slot = root_plan.slots[0]
+        assert root_slot.timestamp is not None
+        root_timestamp = root_slot.timestamp
+        has_wait = has_deferred_start_directive(root_segment)
+        root_context = _resolve_segment_vcs_context(
+            prompt=root_slot.prompt,
+            fallback_cl_name=cl_name,
+            fallback_project_file=project_file,
+            fallback_project_name=project_name,
+            fallback_is_home_mode=is_home_mode,
+            fallback_vcs_ref=vcs_ref,
+            has_wait=has_wait,
+        )
+        root_artifacts_dir = _future_agent_artifacts_dir(
+            project_name=root_context.project_name,
+            timestamp=root_timestamp,
+        )
+        template_group = (
+            None
+            if segment_template_groups is None
+            else segment_template_groups[root_index]
+        )
+        root_name, root_env_name = name_allocator.planned_name_for_prompt(
+            root_slot.prompt,
+            artifacts_dir=root_artifacts_dir,
+            template_group=template_group,
+        )
+        if root_name is None:
+            raise DirectiveError(
+                f"%family root segment for '{target}' has no plannable %name"
+            )
+
+        from sase.artifacts import convert_timestamp_to_artifacts_format
+
+        root_identity_timestamp = convert_timestamp_to_artifacts_format(root_timestamp)
+        root_payload = encode_family_membership_plan(
+            FamilyMembershipPlan(
+                family_base=root_name,
+                root_timestamp=root_identity_timestamp,
+                root_artifacts_dir=str(root_artifacts_dir),
+                root_project_name=root_context.project_name,
+                role="root",
+                is_root=True,
+            )
+        )
+        set_membership(root_index, root_payload)
+        for member_index in member_indexes:
+            directive = directives[member_index]
+            assert directive is not None
+            member_payload = encode_family_membership_plan(
+                FamilyMembershipPlan(
+                    family_base=root_name,
+                    root_timestamp=root_identity_timestamp,
+                    root_artifacts_dir=str(root_artifacts_dir),
+                    root_project_name=root_context.project_name,
+                    role=directive.role,
+                    is_root=False,
+                )
+            )
+            set_membership(member_index, member_payload)
+
+        root_timestamps[root_index] = root_timestamp
+        root_contexts[root_index] = root_context
+        root_planned_names[root_index] = (root_name, root_env_name)
+
+    return _ParallelFamilyPrepass(
+        root_timestamps=root_timestamps,
+        root_contexts=root_contexts,
+        root_planned_names=root_planned_names,
+        membership_env_by_segment=membership_env_by_segment,
+    )
+
+
 def launch_multi_prompt_agents(
     *,
     segments: list[str],
@@ -205,12 +415,8 @@ def _spawn_segments_into(
         LaunchExecutionRecord,
         execute_launch_plan,
     )
-    from sase.core.agent_launch_facade import plan_fake_fanout
     from sase.artifacts import create_artifacts_directory
-    from sase.xprompt.directives import (
-        has_deferred_start_directive,
-        plan_prompt_fanout_variants,
-    )
+    from sase.xprompt.directives import has_deferred_start_directive
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
@@ -238,14 +444,33 @@ def _spawn_segments_into(
         raise ValueError(
             "segment_template_groups must have one entry per multi-prompt segment"
         )
-    from sase.agent.launch_validation import validate_launch_name_requests
-
-    validate_launch_name_requests(
-        segments,
-        allow_reserved_family_separator_names=allow_reserved_family_separator_names,
-    )
-
     name_allocator = _PlannedNameAllocator()
+    try:
+        family_prepass = _prepare_parallel_family_launches(
+            segments=segments,
+            local_xprompts=local_xprompts,
+            cl_name=cl_name,
+            project_file=project_file,
+            project_name=project_name,
+            is_home_mode=is_home_mode,
+            vcs_ref=vcs_ref,
+            segment_template_groups=segment_template_groups,
+            preplanned_fanout_plans=preplanned_fanout_plans,
+            default_bare_segments_to_home=default_bare_segments_to_home,
+            timestamp_allocator=timestamp_allocator,
+            name_allocator=name_allocator,
+        )
+        from sase.agent.launch_validation import validate_launch_name_requests
+
+        validate_launch_name_requests(
+            segments,
+            allow_reserved_family_separator_names=(
+                allow_reserved_family_separator_names
+            ),
+        )
+    except Exception:
+        name_allocator.release_uncommitted_template_reservations()
+        raise
     previous_agent_name: str | None = None
     upstreams: list[dict[str, Any]] = []
     pending_family_parents: list[Any] = []
@@ -294,32 +519,24 @@ def _spawn_segments_into(
             None if preplanned_fanout_plans is None else preplanned_fanout_plans[i]
         )
         with timer.stage("fanout_plan", segment_index=i, fanout_kind="prompt"):
-            fanout_plan = (
-                preplanned_fanout_plan
-                if preplanned_fanout_plan is not None
-                else plan_prompt_fanout_variants(
-                    segment,
-                    extra_xprompts=segment_local_xprompts or None,
-                )
+            plan, is_fanout = _plan_segment_fanout(
+                segment,
+                segment_local_xprompts=segment_local_xprompts,
+                preplanned_fanout_plan=preplanned_fanout_plan,
             )
-        if fanout_plan is None and preplanned_fanout_plan is None and "#" in segment:
-            from sase.xprompt.processor import process_xprompt_references
+        root_timestamp = family_prepass.root_timestamps.get(i)
+        if root_timestamp is not None:
+            if len(plan.slots) != 1:
+                from sase.xprompt._exceptions import DirectiveError
 
-            with timer.stage("xprompt_expand", segment_index=i):
-                expanded = process_xprompt_references(
-                    segment,
-                    extra_xprompts=segment_local_xprompts or None,
+                raise DirectiveError(
+                    "Parallel-family root segment changed to a multi-slot fan-out "
+                    "after launch pre-planning"
                 )
-                fanout_plan = plan_prompt_fanout_variants(
-                    expanded,
-                    extra_xprompts=segment_local_xprompts or None,
-                )
-
-        plan = (
-            fanout_plan
-            if fanout_plan is not None
-            else plan_fake_fanout("multi_prompt", [segment])
-        )
+            plan = replace(
+                plan,
+                slots=[replace(plan.slots[0], timestamp=root_timestamp)],
+            )
         plan = _assign_missing_slot_timestamps(plan, timestamp_allocator)
         if (
             multi_agent_prompt_text is not None
@@ -339,6 +556,9 @@ def _spawn_segments_into(
         slot_local_xprompts_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
         planned_env_names: dict[int, str | None] = {}
+        pinned_root_name = family_prepass.root_planned_names.get(i)
+        if pinned_root_name is not None:
+            planned_names[0], planned_env_names[0] = pinned_root_name
         explicit_templates: dict[int, str | None] = {}
         try:
             for slot in plan.slots:
@@ -346,15 +566,17 @@ def _spawn_segments_into(
                 sub_prompt = slot.prompt
                 assert slot.timestamp is not None
                 with timer.stage("vcs_resolution", segment_index=i, slot_index=j):
-                    segment_ctx = _resolve_segment_vcs_context(
-                        prompt=sub_prompt,
-                        fallback_cl_name=cl_name,
-                        fallback_project_file=project_file,
-                        fallback_project_name=project_name,
-                        fallback_is_home_mode=is_home_mode,
-                        fallback_vcs_ref=vcs_ref,
-                        has_wait=has_wait,
-                    )
+                    segment_ctx = family_prepass.root_contexts.get(i)
+                    if segment_ctx is None or j != 0:
+                        segment_ctx = _resolve_segment_vcs_context(
+                            prompt=sub_prompt,
+                            fallback_cl_name=cl_name,
+                            fallback_project_file=project_file,
+                            fallback_project_name=project_name,
+                            fallback_is_home_mode=is_home_mode,
+                            fallback_vcs_ref=vcs_ref,
+                            has_wait=has_wait,
+                        )
                     slot_contexts[j] = LaunchExecutionContext(
                         cl_name=segment_ctx.cl_name,
                         project_file=segment_ctx.project_file,
@@ -389,7 +611,7 @@ def _spawn_segments_into(
             from sase.agent.names import is_agent_name_template
 
             grouped_template_slots: list[tuple[int, str]] = []
-            if fanout_plan is not None and len(plan.slots) > 1:
+            if is_fanout and len(plan.slots) > 1:
                 for slot in plan.slots:
                     template = explicit_templates.get(slot.slot_index)
                     if template and is_agent_name_template(template):
@@ -451,6 +673,9 @@ def _spawn_segments_into(
                     slot_env[_GENERATED_AGENT_NAME_ENV] = "1"
                 if multi_agent_prompt_file is not None:
                     slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
+                family_payload = family_prepass.membership_env_by_segment.get(i)
+                if family_payload is not None:
+                    slot_env[FAMILY_MEMBERSHIP_ENV] = family_payload
                 slot_planned_env[j] = slot_env
 
             with timer.stage(

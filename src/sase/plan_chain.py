@@ -16,6 +16,7 @@ PLAN_CHAIN_PARENT_TIMESTAMP_FIELD = "plan_chain_parent_timestamp"
 PLAN_CHAIN_ROOT_FIELD = "plan_chain_root"
 AGENT_FAMILY_FIELD = "agent_family"
 AGENT_FAMILY_ROLE_FIELD = "agent_family_role"
+AGENT_FAMILY_PARALLEL_FIELD = "agent_family_parallel"
 
 _FEEDBACK_SUFFIX_RE = re.compile(r"^(?:--|[-.])(\d+)$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
@@ -192,21 +193,27 @@ def _parse_plan_chain_suffix(
     match = _ROOT_TOKEN_SUFFIX_RE.match(suffix)
     if match is not None:
         token = match.group(1)
-        if stored_role == "q" or token in {"0", "1"}:
+        if stored_role is not None:
+            return _PlanChainSuffixInfo(
+                suffix=suffix,
+                role=stored_role,
+                kind=(
+                    "root_question"
+                    if stored_role == "q"
+                    else "legacy_feedback"
+                    if stored_role == "feedback"
+                    else "phase"
+                ),
+                token=token,
+                legacy=legacy_suffix or stored_role == "feedback",
+            )
+        if token in {"0", "1"}:
             return _PlanChainSuffixInfo(
                 suffix=suffix,
                 role="q",
                 kind="root_question",
                 token=token,
                 legacy=legacy_suffix,
-            )
-        if stored_role == "feedback":
-            return _PlanChainSuffixInfo(
-                suffix=suffix,
-                role="feedback",
-                kind="legacy_feedback",
-                token=token,
-                legacy=True,
             )
         feedback_round = _plan_chain_feedback_round_from_raw_suffix(suffix)
         if feedback_round is not None:
@@ -216,14 +223,6 @@ def _parse_plan_chain_suffix(
                 kind="legacy_feedback",
                 token=token,
                 legacy=True,
-            )
-        if stored_role is not None:
-            return _PlanChainSuffixInfo(
-                suffix=suffix,
-                role=stored_role,
-                kind="root_question" if stored_role == "q" else "phase",
-                token=token,
-                legacy=legacy_suffix,
             )
         return None
 

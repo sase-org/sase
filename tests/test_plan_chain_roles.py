@@ -37,6 +37,7 @@ def test_agent_family_role_for_suffix_accepts_new_and_legacy_suffixes() -> None:
     assert agent_family_role_for_suffix(".q") == "q"
     assert agent_family_role_for_suffix("--2") == "feedback"
     assert agent_family_role_for_suffix("--2", agent_family_role="q") == "q"
+    assert agent_family_role_for_suffix("--2", agent_family_role="phase") == "phase"
     assert agent_family_role_for_suffix("-2") == "feedback"
     assert agent_family_role_for_suffix(".code") == "code"
     assert agent_family_role_for_suffix(".unknown") is None

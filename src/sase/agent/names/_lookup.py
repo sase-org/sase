@@ -25,6 +25,7 @@ and diagnostics.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from dataclasses import dataclass
@@ -261,6 +262,47 @@ def most_recent_completed_family_member(base_name: str) -> NamedAgent | None:
     )
 
 
+def _self_parallel_family_root(
+    base_name: str,
+) -> tuple[bool, NamedAgent | None]:
+    """Return this member's generation-pinned root for a base-name reference."""
+    artifacts_value = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_value:
+        return False, None
+    artifacts_dir = Path(artifacts_value)
+    meta = _read_json_dict(artifacts_dir / "agent_meta.json")
+    if meta is None:
+        return False, None
+    if meta.get("agent_family_parallel") is not True:
+        return False, None
+    if meta.get(AGENT_FAMILY_FIELD) != base_name:
+        return False, None
+    parent_timestamp = _meta_parent_timestamp(meta)
+    if parent_timestamp is None:
+        return False, None
+
+    family = find_agent_family(base_name)
+    if (
+        family is not None
+        and family.root is not None
+        and family.root.timestamp == parent_timestamp
+    ):
+        root = family.root
+        return True, NamedAgent(
+            name=root.name,
+            artifacts_dir=str(root.artifacts_dir),
+            is_done=root.is_done,
+            outcome=root.outcome,
+        )
+
+    # Exact-name recovery covers a plain pre-existing root that acquired a
+    # late parallel member but does not itself carry family metadata.
+    exact = find_named_agent(base_name)
+    if exact is not None and Path(exact.artifacts_dir).name == parent_timestamp:
+        return True, exact
+    return True, None
+
+
 def resolve_resume_agent_name(name: str) -> NamedAgent | None:
     """Resolve a ``#fork`` target to the artifact that should provide chat.
 
@@ -270,6 +312,15 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
     exact-name behavior when no family exists.
     """
     name = resolve_agent_name_template_reference(name)
+    is_self_family, self_root = _self_parallel_family_root(name)
+    if is_self_family:
+        if (
+            self_root is not None
+            and self_root.is_done
+            and self_root.outcome == _SUCCESS_OUTCOME
+        ):
+            return self_root
+        return None
     if not is_agent_family_member(name):
         family_member = most_recent_completed_family_member(name)
         if family_member is not None:
@@ -279,6 +330,13 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
 
 def resolve_wait_dependency(name: str) -> bool:
     """Return whether a wait dependency has completed successfully."""
+    is_self_family, self_root = _self_parallel_family_root(name)
+    if is_self_family:
+        return bool(
+            self_root is not None
+            and self_root.is_done
+            and self_root.outcome == _SUCCESS_OUTCOME
+        )
     complete = is_agent_family_complete(name)
     if complete is not None:
         return complete
