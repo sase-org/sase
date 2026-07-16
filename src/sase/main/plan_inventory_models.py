@@ -23,6 +23,7 @@ class ProposedPlan:
     project: str
     provider_model: str
     plan_path: str
+    title: str | None
     tier: str
     response_dir: str
 
@@ -37,6 +38,7 @@ class ApprovedPlan:
     project: str
     provider_model: str
     plan_path: str
+    title: str | None
     tier: str
     meta_path: str
 
@@ -46,6 +48,7 @@ class RejectedPlan:
     timestamp: str
     age: str
     plan_path: str
+    title: str | None
     tier: str
     note: str = _REJECTED_NOTE
 

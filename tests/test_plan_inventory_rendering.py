@@ -66,9 +66,11 @@ def test_render_plan_inventory_non_empty_output_uses_stable_columns(
     assert "Age" in output
     assert "Agent/Project" in output
     assert "Model" in output
-    assert "Plan path" in output
+    assert "Plan" in output
+    assert "Plan path" not in output
     assert "12345678" in output
     assert "planner / demo-project" in output
+    assert output.index("Proposed") < output.index("proposed.md")
 
 
 def test_render_plan_inventory_uses_project_display_names_only_in_dashboard(
@@ -190,3 +192,69 @@ def test_render_plan_inventory_filters_panels_and_consolidates_filters() -> None
     assert "No inferred rejected plans." not in output
     assert "Filters: status=approved · tier=epic: 0 · limit=25" in output
     assert "Tier filter:" not in output
+
+
+def test_render_plan_inventory_titles_paths_and_rejected_note_at_multiple_widths(
+    tmp_path: Path,
+) -> None:
+    proposed = _archived_plan("p.md", minutes_ago=3, title="Atlas")
+    approved = _archived_plan("a.md", minutes_ago=2, title="Beacon")
+    rejected = _archived_plan("r.md", minutes_ago=1, title="Cipher")
+    _append_plan_notification(
+        "87654321-plan-notification",
+        proposed,
+        _response_dir(tmp_path, "p"),
+        minutes_ago=3,
+    )
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613150000",
+        {
+            "plan_approved": True,
+            "plan_path": str(approved),
+            "name": "approver",
+        },
+        minutes_ago=1,
+    )
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+        return_value=(_live_agent(),),
+    ):
+        inventory = build_plan_inventory()
+
+    assert rejected.name == "r.md"
+    for width in (100, 180):
+        buffer = io.StringIO()
+        render_plan_inventory(
+            inventory,
+            console=Console(
+                file=buffer,
+                force_terminal=False,
+                color_system=None,
+                width=width,
+            ),
+        )
+
+        output = buffer.getvalue()
+        assert "87654321" in output
+        for title, filename in (
+            ("Atlas", "p.md"),
+            ("Beacon", "a.md"),
+            ("Cipher", "r.md"),
+        ):
+            assert title in output
+            assert filename in output
+            assert output.index(title) < output.index(filename)
+        assert output.count("inferred from archived proposal") == 1
+        assert "Note" not in output
+
+
+def test_render_plan_inventory_uses_subdued_unavailable_title() -> None:
+    from sase.main.plan_inventory_render import _plan_cell
+
+    cell = _plan_cell(None, "~/.sase/plans/legacy.md")
+
+    assert cell.plain == "title unavailable\n~/.sase/plans/legacy.md"
+    assert str(cell.spans[0].style) == "dim italic"

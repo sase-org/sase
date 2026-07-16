@@ -63,10 +63,13 @@ def test_build_plan_inventory_classifies_proposed_approved_and_rejected(
     assert payload["proposed"][0]["agent"] == "planner"
     assert payload["proposed"][0]["project"] == "demo-project"
     assert payload["proposed"][0]["provider_model"] == "anthropic/claude-sonnet"
+    assert payload["proposed"][0]["title"] == "Proposed"
     assert payload["approved"][0]["action"] == "tale"
     assert payload["approved"][0]["agent"] == "approved-agent"
     assert payload["approved"][0]["provider_model"] == "openai/gpt-5"
+    assert payload["approved"][0]["title"] == "Approved"
     assert payload["rejected"][0]["plan_path"].endswith("/rejected.md")
+    assert payload["rejected"][0]["title"] == "Rejected"
     assert "inferred from archived proposal" in str(payload["rejected"][0]["note"])
     assert str(rejected_plan) in payload["rejected"][0]["plan_path"].replace(
         "~/.sase", str(Path(os.environ["SASE_HOME"]).expanduser())
@@ -133,6 +136,7 @@ def test_inventory_dedupes_approved_by_plan_path_and_applies_limits() -> None:
             "project": "demo",
             "provider_model": "-",
             "plan_path": shared_rows[0]["plan_path"],
+            "title": "Shared",
             "tier": "-",
             "meta_path": shared_rows[0]["meta_path"],
         }
@@ -300,3 +304,16 @@ def test_inventory_status_and_tier_filters_compose() -> None:
     assert payload["summary"]["status_filter"] == ["approved"]
     assert payload["summary"]["tier_filter"] == ["epic"]
     assert payload["summary"]["limit"] == 25
+
+
+def test_inventory_keeps_malformed_historical_plan_with_null_title() -> None:
+    valid = _archived_plan("valid.md", minutes_ago=2, title="Readable history")
+    malformed = _archived_plan("malformed.md", minutes_ago=1)
+    malformed.write_text("---\ntitle: [unterminated\n---\n# Broken\n", encoding="utf-8")
+
+    payload = plan_inventory_to_json(build_plan_inventory())
+
+    rejected = {Path(str(row["plan_path"])).name: row for row in payload["rejected"]}
+    assert rejected[valid.name]["title"] == "Readable history"
+    assert rejected[malformed.name]["title"] is None
+    assert rejected[malformed.name]["tier"] == "-"

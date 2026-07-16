@@ -34,16 +34,24 @@ def touch(path: Path, value: datetime) -> None:
     os.utime(path, (epoch, epoch))
 
 
-def archived_plan(name: str, *, minutes_ago: int) -> Path:
+def archived_plan(name: str, *, minutes_ago: int, title: str = "") -> Path:
     value = timestamp(minutes_ago)
     path = Path(sharded_path("plans", name, ts=value))
-    path.write_text(f"# {name}\n", encoding="utf-8")
+    canonical_title = title or path.stem.replace("_", " ").replace("-", " ").title()
+    path.write_text(
+        f"---\ntitle: {json.dumps(canonical_title)}\n---\n# {name}\n",
+        encoding="utf-8",
+    )
     touch(path, value)
     return path
 
 
 def set_plan_tier(path: Path, tier: str) -> None:
-    path.write_text(f"---\ntier: {tier}\n---\n# {path.stem}\n", encoding="utf-8")
+    title = path.stem.replace("_", " ").replace("-", " ").title()
+    path.write_text(
+        f"---\ntitle: {json.dumps(title)}\ntier: {tier}\n---\n# {path.stem}\n",
+        encoding="utf-8",
+    )
 
 
 def response_dir(root: Path, name: str) -> Path:

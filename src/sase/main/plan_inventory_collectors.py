@@ -18,7 +18,7 @@ from sase.main.plan_inventory_models import (
     ProposedPlan,
     RejectedPlan,
 )
-from sase.main.plan_inventory_paths import display_path, tier_for_path
+from sase.main.plan_inventory_paths import display_path, plan_metadata_for_path
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 
@@ -49,6 +49,7 @@ def _proposed_plan_from_notification(
         action_data.get("llm_provider"),
         action_data.get("model"),
     )
+    plan_metadata = plan_metadata_for_path(plan_path)
     return ProposedPlan(
         _plan_key=path_key(plan_path) if plan_path else "",
         id_prefix=notification.id[:PENDING_ACTION_PREFIX_LEN],
@@ -63,7 +64,8 @@ def _proposed_plan_from_notification(
         project=_project_from_action_data(action_data),
         provider_model=provider_model,
         plan_path=display_path(plan_path, display_roots=display_roots),
-        tier=tier_for_path(plan_path),
+        title=plan_metadata.title,
+        tier=plan_metadata.tier,
         response_dir=display_path(
             action_data.get("response_dir"),
             display_roots=display_roots,
@@ -136,6 +138,7 @@ def _approved_plan_from_meta(
     display_roots: DisplayPathRoots,
 ) -> ApprovedPlan:
     timestamp_text = timestamp.isoformat()
+    plan_metadata = plan_metadata_for_path(plan_path)
     return ApprovedPlan(
         _plan_key=path_key(plan_path),
         timestamp=timestamp_text,
@@ -150,7 +153,8 @@ def _approved_plan_from_meta(
             _first_str(meta.get("model")),
         ),
         plan_path=display_path(plan_path, display_roots=display_roots),
-        tier=tier_for_path(plan_path),
+        title=plan_metadata.title,
+        tier=plan_metadata.tier,
         meta_path=display_path(str(meta_path), display_roots=display_roots),
     )
 
@@ -170,8 +174,8 @@ def collect_rejected_plans(
             continue
         timestamp = _file_mtime(path)
         timestamp_text = timestamp.isoformat()
-        tier = tier_for_path(str(path))
-        if tiers and tier not in tiers:
+        plan_metadata = plan_metadata_for_path(str(path))
+        if tiers and plan_metadata.tier not in tiers:
             continue
         rows.append(
             (
@@ -180,7 +184,8 @@ def collect_rejected_plans(
                     timestamp=timestamp_text,
                     age=format_relative_time(timestamp_text),
                     plan_path=display_path(str(path), display_roots=display_roots),
-                    tier=tier,
+                    title=plan_metadata.title,
+                    tier=plan_metadata.tier,
                 ),
             )
         )

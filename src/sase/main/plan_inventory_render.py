@@ -101,6 +101,7 @@ def render_plan_inventory(
                 _rejected_table(inventory.rejected),
                 empty="No inferred rejected plans.",
                 border_style="red",
+                note=inventory.rejected[0].note if inventory.rejected else None,
             )
         )
 
@@ -181,7 +182,7 @@ def _proposed_table(
     table.add_column("Agent/Project")
     table.add_column("Model")
     table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
+    table.add_column("Plan", ratio=2, overflow="fold")
     for row in rows:
         table.add_row(
             row.id_prefix,
@@ -189,7 +190,7 @@ def _proposed_table(
             agent_project(row.agent, row.project),
             row.provider_model,
             _tier_text(row.tier),
-            row.plan_path,
+            _plan_cell(row.title, row.plan_path),
         )
     return table
 
@@ -204,14 +205,14 @@ def _approved_table(
     table.add_column("Action", no_wrap=True, style="green")
     table.add_column("Agent/Project")
     table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
+    table.add_column("Plan", ratio=2, overflow="fold")
     for row in rows:
         table.add_row(
             row.age,
             row.action,
             agent_project(row.agent, row.project),
             _tier_text(row.tier),
-            row.plan_path,
+            _plan_cell(row.title, row.plan_path),
         )
     return table
 
@@ -222,10 +223,13 @@ def _rejected_table(rows: tuple[RejectedPlan, ...]) -> Any | None:
     table = _base_table()
     table.add_column("Archived", no_wrap=True)
     table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
-    table.add_column("Note", ratio=1)
+    table.add_column("Plan", ratio=2, overflow="fold")
     for row in rows:
-        table.add_row(row.age, _tier_text(row.tier), row.plan_path, row.note)
+        table.add_row(
+            row.age,
+            _tier_text(row.tier),
+            _plan_cell(row.title, row.plan_path),
+        )
     return table
 
 
@@ -244,3 +248,16 @@ def _tier_text(tier: str) -> Any:
     from rich.text import Text
 
     return Text(tier, style=_tier_style(tier))
+
+
+def _plan_cell(title: str | None, plan_path: str) -> Any:
+    from rich.text import Text
+
+    cell = Text()
+    if title is None:
+        cell.append("title unavailable", style="dim italic")
+    else:
+        cell.append(title, style="bold")
+    cell.append("\n")
+    cell.append(plan_path, style="dim")
+    return cell

@@ -6,6 +6,7 @@ import io
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from rich.console import Console
 
 from sase.core.agent_artifact_paths import canonical_agent_artifact_path
@@ -66,6 +67,53 @@ def test_approved_plan_scan_stops_after_limit() -> None:
 
     assert len(payload["approved"]) == 10
     assert read_json.call_count == 10
+
+
+def test_inventory_reads_each_status_plan_once_for_title_and_tier(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proposed = _archived_plan("proposed-once.md", minutes_ago=3)
+    approved = _archived_plan("approved-once.md", minutes_ago=2)
+    rejected = _archived_plan("rejected-once.md", minutes_ago=1)
+    _append_plan_notification(
+        "abcdef12-plan-notification",
+        proposed,
+        _response_dir(tmp_path, "proposed-once"),
+        minutes_ago=3,
+    )
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260613150000",
+        {"plan_approved": True, "plan_path": str(approved)},
+        minutes_ago=1,
+    )
+    expected = {proposed, approved, rejected}
+    real_read_text = Path.read_text
+    reads: list[Path] = []
+
+    def read_text(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path in expected:
+            reads.append(path)
+        return real_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+
+    with patch(
+        "sase.main.plan_candidates._load_live_plan_agents_for_notifications",
+        return_value=(_live_agent(),),
+    ):
+        payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert payload["summary"]["proposed"] == 1
+    assert payload["summary"]["approved_shown"] == 1
+    assert payload["summary"]["rejected_shown"] == 1
+    assert sorted(reads) == sorted(expected)
 
 
 def test_approved_scan_cap_scales_with_limit() -> None:
