@@ -344,32 +344,34 @@ descendants.
 | `z`                 | Open the zoom modal for the active detail panel                                                               |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
-When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `SASE PLAN` as the first major
-section after all ordinary agent fields and `Timestamps`; model and xprompt usage remain ordinary metadata above it. An
-epic phase worker never shows this section. Instead, its launch metadata identifies the epic plan and exact phase bead,
-and ACE derives a single `Bead: <phase bead id> - <phase description>` row from that phase's validated,
-frontmatter-ordered entry. Authored descriptions are normalized to one line; a missing description uses the same stable
-plan-and-phase pointer generated during deterministic bead creation. This modern path does not read the bead store, and
-missing, damaged, or out-of-range metadata falls back to the bare phase bead ID without exposing the epic roadmap.
+When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
+`SASE CONTEXT`, ahead of the audited `MEMORY`, `SKILLS`, and `WORKSPACES` event lanes. A plan alone is enough to show
+the context section. An epic phase worker never shows the `PLAN` lane. Instead, its launch metadata identifies the epic
+plan and exact phase bead, and ACE derives a single `Bead: <phase bead id> - <phase description>` row from that phase's
+validated, frontmatter-ordered entry. Authored descriptions are normalized to one line; a missing description uses the
+same stable plan-and-phase pointer generated during deterministic bead creation. This modern path does not read the bead
+store, and missing, damaged, or out-of-range metadata falls back to the bare phase bead ID without exposing the epic
+roadmap.
 
-For planner/author and lander rows, the section starts with the complete normalized `Goal`, effective user-facing `Tier`
-(`plan`, `tale`, or `epic`), and canonical `Path`. The tier records how the user approved the plan: `approve` means a
-plan approved without an SDD commit, `tale` (and the legacy commit-only action) means a committed tale, and `epic` means
-a committed or launched epic. That displayed choice survives a later commit or launch failure. When action metadata is
-absent, ACE falls back to a valid authored `tier: tale` or `tier: epic`; a legacy committed record without a readable
-authored tier falls back to `tale`, while a genuinely unresolved tier renders `unavailable`. Path selection is
-independent: committed paths are relative to the agent workspace (including SDD sidecars such as
-`sase/repos/plans/...`), while pending and explicitly uncommitted archives use `~/.sase/plans/...`.
+For planner/author and lander rows, the lane body contains the complete normalized `Title`, `Goal`, and canonical
+`Path`. Its header shows the effective user-facing tier (`plan`, `tale`, or `epic`) and, for epics, the phase count. The
+tier records how the user approved the plan: `approve` means a plan approved without an SDD commit, `tale` (and the
+legacy commit-only action) means a committed tale, and `epic` means a committed or launched epic. That displayed choice
+survives a later commit or launch failure. When action metadata is absent, ACE falls back to a valid authored
+`tier: tale` or `tier: epic`; a legacy committed record without a readable authored tier falls back to `tale`, while a
+genuinely unresolved tier renders `tier unavailable`. Path selection is independent: committed paths are relative to the
+agent workspace (including SDD sidecars such as `sase/repos/plans/...`), while pending and explicitly uncommitted
+archives use `~/.sase/plans/...`.
 
-Validated authored epics add a phase roadmap beneath those three rows. `Phases` gives the complete phase count, and each
-entry shows its one-based authored order, title, canonical ID, `no dependencies` or `after <id>, ...`, plus an authored
-phase model when present. Optional descriptions get their own hanging-indented line. The order and diamond glyph
-describe static plan structure, not execution state or live bead progress. Tales retain the compact three-row form. Long
-goals, titles, IDs, dependency lists, models, and descriptions use hanging indentation and responsive Unicode-aware
-folding without ellipses; the section caps content at 80 terminal cells on wide panels and reflows to the normal
-metadata panel or metadata zoom width. In hint mode only `Path` receives a numbered file hint. Missing or damaged plans
-keep their known section and path visible; when epic context is known, strict validation failure renders one quiet
-`Phases: unavailable` state rather than partial phase data.
+Validated authored epics add a phase roadmap beneath those three rows. Each entry shows its one-based authored order,
+title, canonical ID, `no dependencies` or `after <id>, ...`, plus an authored phase model when present. Optional
+descriptions get their own hanging-indented line. The order and diamond glyph describe static plan structure, not
+execution state or live bead progress. Tales retain the compact three-row form. Long goals, titles, IDs, dependency
+lists, models, and descriptions use hanging indentation and responsive Unicode-aware folding without ellipses; the lane
+caps content at 80 terminal cells on wide panels and reflows to the normal metadata panel or metadata zoom width. In
+hint mode only `Path` receives a numbered file hint, allocated in the plan's visual reading order. Missing or damaged
+plans keep their known lane and path visible; when epic context is known, strict validation failure renders one quiet
+`phases unavailable` header state rather than partial phase data.
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the normal Agents-tab working set:
 active rows plus recent completed, non-hidden rows. Startup, manual refresh (`y`), and active agent search use that path
@@ -1537,19 +1539,21 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **SASE PLAN**: Shown for the epic-authoring planner and epic lander when direct metadata or a confirmed legacy epic
-  association resolves a plan. Phase workers deliberately omit the entire section and show only their one phase's `Bead`
-  value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the rows are `Goal`, effective
-  `Tier` (`plan`, `tale`, or `epic`), and canonical `Path`, in that order. An `approve` action displays `plan`, `tale`
-  and legacy commit-only actions display `tale`, and an `epic` action displays `epic`, even when the corresponding
-  commit or launch later fails. Without action metadata, a valid authored tale or epic supplies the tier; legacy
-  committed plans without a readable authored tier display `tale`, and unresolved values display `unavailable`.
-  Canonical path selection remains separate: committed paths are workspace-relative, while pending or explicitly
-  uncommitted paths use the home-shortened machine-local archive. The section is the first major section after ordinary
-  metadata. Valid authored epics then show every phase in authored order with its title, ID, dependency IDs, optional
-  model, and optional description; these are static roadmap ordinals, not progress indicators. Every value wraps without
-  truncation in the normal panel and metadata zoom view, and only the path participates in file hint mode. Invalid known
-  epics show `Phases: unavailable` without leaking partial entries; tales do not show a phase block.
+- **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
+  metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
+  only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the
+  body rows are `Title`, `Goal`, and canonical `Path`, in that order. The lane header carries the effective tier
+  (`plan`, `tale`, or `epic`) and an epic's phase count. An `approve` action displays `plan`, `tale` and legacy
+  commit-only actions display `tale`, and an `epic` action displays `epic`, even when the corresponding commit or launch
+  later fails. Without action metadata, a valid authored tale or epic supplies the tier; legacy committed plans without
+  a readable authored tier display `tale`, and unresolved values display `tier unavailable`. Canonical path selection
+  remains separate: committed paths are workspace-relative, while pending or explicitly uncommitted paths use the
+  home-shortened machine-local archive. Valid authored epics then show every phase in authored order with its title, ID,
+  dependency IDs, optional model, and optional description; these are static roadmap ordinals, not progress indicators.
+  Every value wraps without truncation in the normal panel and metadata zoom view, and only the path participates in
+  file hint mode. Invalid known epics show `phases unavailable` in the lane header without leaking partial entries;
+  tales do not show a phase roadmap. A plan alone renders `SASE CONTEXT`; when event lanes are present, the full order
+  is `PLAN`, `MEMORY`, `SKILLS`, then `WORKSPACES`.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

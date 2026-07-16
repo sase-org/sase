@@ -1,4 +1,4 @@
-"""Agents-tab SASE PLAN metadata rendering tests."""
+"""Agents-tab SASE CONTEXT PLAN lane rendering tests."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     PLAN_PHASE_MODEL_STYLE,
     PLAN_PHASE_ORDINAL_STYLE,
     PLAN_PHASE_TITLE_STYLE,
-    PLAN_PHASES_LABEL_STYLE,
+    PLAN_PHASE_COUNT_STYLE,
     PLAN_SECTION_MAX_WIDTH,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -125,7 +125,9 @@ def _rendered_text_with_style(
 
 def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
     lines = _render_header(header, width=width)
-    start = next(index for index, line in enumerate(lines) if line.startswith("Goal:"))
+    start = next(
+        index for index, line in enumerate(lines) if line.startswith("  Goal:")
+    )
     goal_lines = [lines[start]]
     continuation_prefix = " " * PLAN_FIELD_LABEL_WIDTH
     for line in lines[start + 1 :]:
@@ -137,7 +139,9 @@ def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
 
 def _rendered_title_lines(header: AgentHeader, *, width: int) -> list[str]:
     lines = _render_header(header, width=width)
-    start = next(index for index, line in enumerate(lines) if line.startswith("Title:"))
+    start = next(
+        index for index, line in enumerate(lines) if line.startswith("  Title:")
+    )
     title_lines = [lines[start]]
     continuation_prefix = " " * PLAN_FIELD_LABEL_WIDTH
     for line in lines[start + 1 :]:
@@ -155,7 +159,7 @@ def _reconstruct_folded_token(lines: list[str]) -> str:
     return "".join(line[PLAN_FIELD_LABEL_WIDTH:].rstrip() for line in lines)
 
 
-def test_section_follows_timestamps_and_precedes_optional_major_sections() -> None:
+def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     agent = make_agent(agent_name="planner", output_variables={"result": "ok"})
     header, _ = build_header_text(
         agent,
@@ -163,19 +167,17 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     )
 
     plain = header.plain
-    assert plain.index("Timestamps:") < plain.index("SASE PLAN")
-    assert plain.index("SASE PLAN") < plain.index("OUTPUT VARIABLES")
-    assert plain.index("SASE PLAN") < plain.index("Title:")
-    assert (
-        plain.index("Title:")
-        < plain.index("Goal:")
-        < plain.index("Tier:")
-        < plain.index("Path:")
-    )
+    assert plain.index("Timestamps:") < plain.index("OUTPUT VARIABLES")
+    assert plain.index("OUTPUT VARIABLES") < plain.index("SASE CONTEXT")
+    assert plain.index("SASE CONTEXT") < plain.index("▸ PLAN · plan")
+    assert plain.index("▸ PLAN · plan") < plain.index("  Title:")
+    assert plain.index("  Title:") < plain.index("  Goal:") < plain.index("  Path:")
     assert plain.count("Title:") == 1
     assert plain.count("Goal:") == 1
+    assert "Tier:" not in plain
+    assert "SASE PLAN" not in plain
     assert plain.splitlines()[1].startswith("ChangeSpec:")
-    assert_span_covers(header, "SASE PLAN", "bold #D7AF5F underline")
+    assert_span_covers(header, "▸ PLAN", "bold #AF87FF")
     assert_span_covers(header, "Title: ", "bold #87D7FF")
     assert_span_covers(header, "Required plan titles", "#D7D7FF underline")
     assert_span_covers(header, "Goal: ", "bold #87D7FF")
@@ -190,7 +192,7 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     ids=["plan", "tale", "epic"],
 )
 @pytest.mark.parametrize("width", [32, 120], ids=["narrow", "wide"])
-def test_plan_heading_is_immediately_followed_by_title(
+def test_plan_lane_header_is_immediately_followed_by_title(
     summary: AssociatedPlanSummary,
     width: int,
 ) -> None:
@@ -199,15 +201,21 @@ def test_plan_heading_is_immediately_followed_by_title(
         summary=DetailHeaderSummary(associated_plan=summary),
     )
 
-    assert "SASE PLAN\nTitle:" in header.plain
-    assert "SASE PLAN\n\nTitle:" not in header.plain
+    assert "▸ PLAN ·" in header.plain
+    logical_lines = header.plain.splitlines()
+    logical_heading_index = next(
+        index for index, line in enumerate(logical_lines) if line.startswith("▸ PLAN ·")
+    )
+    assert logical_lines[logical_heading_index + 1].startswith("  Title:")
 
     lines = _render_header(header, width=width)
-    heading_index = lines.index("SASE PLAN")
-    assert lines[heading_index + 1].startswith("Title:")
+    heading_index = next(
+        index for index, line in enumerate(lines) if line.startswith("▸ PLAN ·")
+    )
+    assert lines[heading_index + 1].startswith("  Title:")
 
 
-def test_plan_is_first_major_section_in_maximal_append_flow(
+def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.ace.tui.widgets.prompt_panel import _agent_artifacts
@@ -243,10 +251,20 @@ def test_plan_is_first_major_section_in_maximal_append_flow(
         "append_agent_artifacts_section",
         section("ARTIFACTS"),
     )
+
+    def append_context(text, *, plan_section, **_kwargs):  # type: ignore[no-untyped-def]
+        text.append("\nSASE CONTEXT\n")
+        assert plan_section is not None
+        plan_start = len(text)
+        text.append_text(plan_section.logical_text)
+        plan_range = (plan_start, len(text))
+        text.append("\n▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n")
+        return plan_range
+
     monkeypatch.setattr(
         _agent_context,
         "append_agent_context_section",
-        section("SASE CONTEXT"),
+        append_context,
     )
     monkeypatch.setattr(
         _agent_slow_tools,
@@ -268,6 +286,8 @@ def test_plan_is_first_major_section_in_maximal_append_flow(
         xprompts_used=[{"kind": "part", "name": "plan"}],
         associated_plan=_epic_summary(),
         memory_reads=(object(),),  # type: ignore[arg-type]
+        skill_uses=(object(),),  # type: ignore[arg-type]
+        opened_workspaces=(object(),),  # type: ignore[arg-type]
         slow_tool_sources=(object(),),  # type: ignore[arg-type]
     )
 
@@ -277,8 +297,10 @@ def test_plan_is_first_major_section_in_maximal_append_flow(
     )
 
     plain = header.plain
-    plan_index = plain.index("SASE PLAN")
-    assert plain.count("SASE PLAN") == 1
+    context_index = plain.index("SASE CONTEXT")
+    plan_index = plain.index("▸ PLAN")
+    assert plain.count("▸ PLAN") == 1
+    assert "SASE PLAN" not in plain
     for metadata_label in (
         "Name:",
         "ChangeSpec:",
@@ -289,14 +311,19 @@ def test_plan_is_first_major_section_in_maximal_append_flow(
         "Activity:",
         "Timestamps:",
     ):
-        assert plain.index(metadata_label) < plan_index
+        assert plain.index(metadata_label) < context_index
     for section_label in (
         "OUTPUT VARIABLES",
         "COMMITS",
         "DELTAS",
         "ARTIFACTS",
         "WORKFLOW VARIABLES",
-        "SASE CONTEXT",
+    ):
+        assert plain.index(section_label) < context_index
+    assert context_index < plan_index
+    for lane_label in ("▸ MEMORY", "▸ SKILLS", "▸ WORKSPACES"):
+        assert plan_index < plain.index(lane_label)
+    for section_label in (
         "SLOW TOOL CALLS",
         "ERROR",
         "AGENT XPROMPT",
@@ -314,13 +341,11 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     )
 
     plain = header.plain
-    assert (
-        plain.index("Title:")
-        < plain.index("Goal:")
-        < plain.index("Tier:")
-        < plain.index("Path:")
-    )
-    assert plain.index("Path:") < plain.index("Phases: 3")
+    assert plain.index("▸ PLAN · epic · 3 phases") < plain.index("Title:")
+    assert plain.index("Title:") < plain.index("Goal:") < plain.index("Path:")
+    assert plain.index("Path:") < plain.index("  1 ◆")
+    assert "Tier:" not in plain
+    assert "Phases:" not in plain
     assert "  1 ◆ Planner and safety checks\n" in plain
     assert "    core · no dependencies\n" in plain
     assert "    Establish the canonical normalized data model.\n" in plain
@@ -328,7 +353,7 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     assert "    render · after core · model codex/gpt-5.6-sol\n" in plain
     assert "  3 ◆ Responsive verification\n" in plain
     assert "    verify · after core, render\n" in plain
-    assert_span_covers(header, "Phases: ", PLAN_PHASES_LABEL_STYLE)
+    assert_span_covers(header, "3 phases", PLAN_PHASE_COUNT_STYLE)
     assert_span_covers(header, "  1 ", PLAN_PHASE_ORDINAL_STYLE)
     assert_span_covers(header, "◆ ", PLAN_PHASE_GLYPH_STYLE)
     assert_span_covers(header, "Planner and safety checks", PLAN_PHASE_TITLE_STYLE)
@@ -356,7 +381,7 @@ def test_single_phase_count_and_omitted_optional_values_are_compact() -> None:
         ),
     )
 
-    assert "Phases: 1\n" in header.plain
+    assert "▸ PLAN · epic · 1 phase\n" in header.plain
     assert "    only · no dependencies\n" in header.plain
     assert "model" not in header.plain
     assert "None" not in header.plain
@@ -371,9 +396,9 @@ def test_section_is_omitted_without_cached_association() -> None:
         summary=DetailHeaderSummary(associated_plan=None),
     )
 
-    assert "SASE PLAN" not in cheap_header.plain
+    assert "▸ PLAN" not in cheap_header.plain
     assert "Goal:" not in cheap_header.plain
-    assert "SASE PLAN" not in empty_header.plain
+    assert "▸ PLAN" not in empty_header.plain
 
 
 def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
@@ -384,7 +409,8 @@ def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
         ),
     )
 
-    assert "Tier: tale" in header.plain
+    assert "▸ PLAN · tale\n" in header.plain
+    assert "Tier:" not in header.plain
     assert "Phases:" not in header.plain
     assert "◆" not in header.plain
 
@@ -405,8 +431,8 @@ def test_tier_values_have_distinct_restrained_styles(tier: str, style: str) -> N
         ),
     )
 
-    assert f"Tier: {tier}" in header.plain
-    start = header.plain.index(f"Tier: {tier}") + len("Tier: ")
+    assert f"▸ PLAN · {tier}" in header.plain
+    start = header.plain.index(f"▸ PLAN · {tier}") + len("▸ PLAN · ")
     end = start + len(tier)
     assert any(
         span.start <= start and span.end >= end and str(span.style) == style
@@ -466,22 +492,16 @@ def test_long_ascii_and_wide_unicode_titles_fold_without_loss(title: str) -> Non
         line.startswith(" " * PLAN_FIELD_LABEL_WIDTH) for line in narrow_lines[1:]
     )
     assert "…" not in "".join(narrow_lines)
-    assert (
-        _rendered_text_with_style(
+    for width in (120, 24):
+        styled_title = _rendered_text_with_style(
             header,
-            width=120,
+            width=width,
             style="#D7D7FF underline",
         )
-        == title
-    )
-    assert (
-        _rendered_text_with_style(
-            header,
-            width=24,
-            style="#D7D7FF underline",
-        )
-        == title
-    )
+        if " " in title:
+            assert styled_title.replace(" ", "") == title.replace(" ", "")
+        else:
+            assert styled_title == title
 
 
 @pytest.mark.parametrize(
@@ -592,7 +612,8 @@ def test_missing_or_damaged_plan_keeps_section_with_quiet_fallbacks() -> None:
 
     assert "Title: unavailable" in header.plain
     assert "Goal: unavailable" in header.plain
-    assert "Tier: unavailable" in header.plain
+    assert "▸ PLAN · tier unavailable" in header.plain
+    assert "Tier:" not in header.plain
     assert "Path: ~/missing plan.md (missing)" in header.plain
     assert_span_covers(header, "unavailable", "dim italic #878787")
     assert_span_covers(header, "(missing)", "dim italic #FF8787")
@@ -609,7 +630,7 @@ def test_known_invalid_epic_renders_one_quiet_unavailable_phase_state() -> None:
         ),
     )
 
-    assert header.plain.count("Phases: unavailable") == 1
+    assert header.plain.count("phases unavailable") == 1
     assert "◆" not in header.plain
     assert_span_covers(header, "unavailable", "dim italic #878787")
 
@@ -624,7 +645,7 @@ def test_header_append_interface_preserves_section_and_suffix() -> None:
 
     assert header.plain.endswith("AGENT PROMPT\n")
     assert "AGENT PROMPT" in _render_header(header, width=36)
-    assert "SASE PLAN" in header.plain
+    assert "▸ PLAN" in header.plain
 
 
 def test_detail_summary_resolves_plan_only_in_enrichment_worker(
@@ -724,7 +745,7 @@ def test_cheap_header_never_resolves_or_stats_plan(monkeypatch) -> None:  # type
 
     header, _ = build_header_text(make_agent(agent_name="planner"), cheap=True)
 
-    assert "SASE PLAN" not in header.plain
+    assert "▸ PLAN" not in header.plain
 
 
 def test_approval_metadata_change_invalidates_cached_plan_summary() -> None:
@@ -795,7 +816,7 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
     assert "Bead: sase-9.2 - Show only this selected phase description.\n" in (
         header.plain
     )
-    assert "SASE PLAN" not in header.plain
+    assert "▸ PLAN" not in header.plain
     assert "Goal:" not in header.plain
     assert "Path:" not in header.plain
     assert "Build metadata" not in header.plain

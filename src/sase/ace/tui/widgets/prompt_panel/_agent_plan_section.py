@@ -1,4 +1,4 @@
-"""Responsive SASE PLAN section for the Agents metadata header."""
+"""Responsive PLAN lane for the Agents metadata header."""
 
 from __future__ import annotations
 
@@ -15,18 +15,21 @@ from ...models.agent_associated_plan import (
     AssociatedPlanSummary,
 )
 from ._agent_artifacts import append_artifact_path
-from ._helpers import append_major_section_divider
+from ._agent_context_common import (
+    COLOR_PLAN_SUBHEADER,
+    COLOR_SUMMARY,
+    append_context_lane_header,
+    count_phrase,
+)
 
-PLAN_SECTION_LABEL = "SASE PLAN"
+PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
-PLAN_FIELD_LABEL_WIDTH = cell_len("Title: ")
+PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
 PLAN_FIELD_LABEL_STYLE = "bold #87D7FF"
 PLAN_TITLE_VALUE_STYLE = "#D7D7FF underline"
 PLAN_GOAL_VALUE_STYLE = "italic #D7D7FF"
-PLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 PLAN_UNAVAILABLE_STYLE = "dim italic #878787"
 PLAN_MISSING_SUFFIX_STYLE = "dim italic #FF8787"
-PLAN_PHASES_LABEL_STYLE = "bold #87D7AF"
 PLAN_PHASE_COUNT_STYLE = "#AFAFD7"
 PLAN_PHASE_ORDINAL_STYLE = "dim #8787AF"
 PLAN_PHASE_GLYPH_STYLE = "#AF87FF"
@@ -42,23 +45,20 @@ PLAN_TIER_STYLES = {
 }
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class ResponsivePlanSection:
-    """One logical section that reflows its fields at render time."""
+    """One logical descriptive lane that reflows its fields at render time."""
 
     summary: AssociatedPlanSummary
     hint_number: int | None = None
 
     @property
     def logical_text(self) -> Text:
-        """Return the unwrapped styled section used by header inspection."""
-        text = self._heading()
+        """Return the unwrapped styled lane used by header inspection."""
+        text = self._lane_header()
         for label, value in self._rows():
             text.append(label, style=PLAN_FIELD_LABEL_STYLE)
             text.append_text(value)
-            text.append("\n")
-        if self.summary.phase_availability != "not-applicable":
-            text.append_text(self._phases_heading())
             text.append("\n")
         if self.summary.phase_availability == "available":
             for ordinal, phase in enumerate(self.summary.phases, start=1):
@@ -70,7 +70,7 @@ class ResponsivePlanSection:
         console: Console,
         options: ConsoleOptions,
     ) -> RenderResult:
-        yield self._heading(width=options.max_width)
+        yield self._lane_header()
         width = min(options.max_width, PLAN_SECTION_MAX_WIDTH)
         table = Table.grid(padding=0)
         table.add_column(width=PLAN_FIELD_LABEL_WIDTH, no_wrap=True)
@@ -80,11 +80,7 @@ class ResponsivePlanSection:
             value.no_wrap = False
             table.add_row(Text(label, style=PLAN_FIELD_LABEL_STYLE), value)
         yield from console.render(table, options.update_width(width))
-        if self.summary.phase_availability == "not-applicable":
-            return
-
         render_options = options.update_width(width)
-        yield from console.render(self._phases_heading(), render_options)
         if self.summary.phase_availability != "available":
             return
 
@@ -108,24 +104,40 @@ class ResponsivePlanSection:
                     render_options,
                 )
 
-    @staticmethod
-    def _heading(*, width: int | None = None) -> Text:
+    def _lane_header(self) -> Text:
         text = Text(end="")
-        if width is None:
-            append_major_section_divider(text)
-        else:
-            text.append("\n")
-            text.append("─" * min(50, max(1, width)) + "\n", style="dim")
-            text.append("\n")
-        text.append(f"{PLAN_SECTION_LABEL}\n", style=PLAN_SECTION_HEADING_STYLE)
+        append_context_lane_header(
+            text,
+            PLAN_SECTION_LABEL,
+            label_style=COLOR_PLAN_SUBHEADER,
+            details=self._lane_details(),
+        )
+        return text
+
+    def _lane_details(self) -> Text:
+        text = Text()
+        tier = self.summary.effective_tier
+        if tier is None:
+            text.append("tier unavailable", style=PLAN_UNAVAILABLE_STYLE)
+            return text
+
+        text.append(tier, style=PLAN_TIER_STYLES[tier])
+        if self.summary.phase_availability == "available":
+            text.append(" · ", style=COLOR_SUMMARY)
+            text.append(
+                count_phrase(len(self.summary.phases), "phase"),
+                style=PLAN_PHASE_COUNT_STYLE,
+            )
+        elif self.summary.phase_availability != "not-applicable":
+            text.append(" · ", style=COLOR_SUMMARY)
+            text.append("phases unavailable", style=PLAN_UNAVAILABLE_STYLE)
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
-            ("Title: ", self._title_value()),
-            ("Goal: ", self._goal_value()),
-            ("Tier: ", self._tier_value()),
-            ("Path: ", self._path_value()),
+            ("  Title: ", self._title_value()),
+            ("  Goal: ", self._goal_value()),
+            ("  Path: ", self._path_value()),
         )
 
     def _title_value(self) -> Text:
@@ -140,12 +152,6 @@ class ResponsivePlanSection:
             return Text(self.summary.goal, style=PLAN_GOAL_VALUE_STYLE)
         return Text("unavailable", style=PLAN_UNAVAILABLE_STYLE)
 
-    def _tier_value(self) -> Text:
-        tier = self.summary.effective_tier
-        if tier is None:
-            return Text("unavailable", style=PLAN_UNAVAILABLE_STYLE)
-        return Text(tier, style=PLAN_TIER_STYLES[tier])
-
     def _path_value(self) -> Text:
         text = Text()
         if self.hint_number is not None:
@@ -157,15 +163,6 @@ class ResponsivePlanSection:
         )
         if not self.summary.exists:
             text.append(" (missing)", style=PLAN_MISSING_SUFFIX_STYLE)
-        return text
-
-    def _phases_heading(self) -> Text:
-        text = Text()
-        text.append("Phases: ", style=PLAN_PHASES_LABEL_STYLE)
-        if self.summary.phase_availability == "available":
-            text.append(str(len(self.summary.phases)), style=PLAN_PHASE_COUNT_STYLE)
-        else:
-            text.append("unavailable", style=PLAN_UNAVAILABLE_STYLE)
         return text
 
     @staticmethod

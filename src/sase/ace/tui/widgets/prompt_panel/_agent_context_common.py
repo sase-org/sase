@@ -16,6 +16,7 @@ from sase.core.time import get_timezone
 REASON_LINE_CELL_LIMIT = 80
 
 COLOR_MEMORY_SUBHEADER = "bold #5FD7FF"
+COLOR_PLAN_SUBHEADER = "bold #AF87FF"
 COLOR_SKILLS_SUBHEADER = "bold #5FD75F"
 COLOR_WORKSPACE_SUBHEADER = "bold #FF87D7"
 COLOR_SUMMARY = "dim"
@@ -100,11 +101,16 @@ def append_context_lane_header(
     label: str,
     *,
     label_style: str,
-    details: str,
+    details: str | Text,
     details_style: str = COLOR_SUMMARY,
 ) -> None:
     text.append(f"▸ {label}", style=label_style)
-    text.append(f" · {details}\n", style=details_style)
+    text.append(" · ", style=details_style)
+    if isinstance(details, Text):
+        text.append_text(details)
+        text.append("\n")
+    else:
+        text.append(f"{details}\n", style=details_style)
 
 
 def format_role_column(role_label: str | None) -> str:
@@ -125,6 +131,9 @@ def append_lane_row(
     role_label: str | None = None,
     show_role_column: bool = False,
 ) -> int:
+    # PLAN is a descriptive lane rather than an event log, so it deliberately
+    # bypasses this shared timestamp/actor row shape. MEMORY, SKILLS, and
+    # WORKSPACES keep using it so their event columns remain aligned.
     text.append(
         f"{_ROW_LEADING}{format_local_hhmmss(timestamp)}{_ROW_AFTER_TIMESTAMP}",
         style=COLOR_TIMESTAMP,

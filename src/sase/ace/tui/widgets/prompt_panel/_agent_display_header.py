@@ -459,22 +459,6 @@ def build_header_text(
             style="#D7D7FF",
         )
 
-    plan_section: ResponsivePlanSection | None = None
-    plan_section_range: tuple[int, int] | None = None
-    if summary is not None and summary.associated_plan is not None:
-        hint_number = None
-        if hint_state is not None:
-            hint_number = hint_state.hint_counter
-            hint_state.hint_mappings[hint_number] = summary.associated_plan.actual_path
-            hint_state.hint_counter += 1
-        plan_section = ResponsivePlanSection(
-            summary.associated_plan,
-            hint_number=hint_number,
-        )
-        plan_start = len(header_text)
-        header_text.append_text(plan_section.logical_text)
-        plan_section_range = (plan_start, len(header_text))
-
     append_agent_output_variables_section(header_text, agent)
 
     from ._agent_commits import append_agent_commits_section
@@ -508,18 +492,29 @@ def build_header_text(
             header_text.append(f"{name}: ", style="bold #87D7FF")
             header_text.append(f"{value}\n", style="#5FD75F")
 
+    plan_section: ResponsivePlanSection | None = None
+    plan_section_range: tuple[int, int] | None = None
     if (
         not cheap
         and summary is not None
-        and (summary.memory_reads or summary.skill_uses or summary.opened_workspaces)
+        and (
+            summary.associated_plan is not None
+            or summary.memory_reads
+            or summary.skill_uses
+            or summary.opened_workspaces
+        )
     ):
         from ._agent_context import append_agent_context_section
 
-        append_agent_context_section(
+        if summary.associated_plan is not None:
+            plan_section = ResponsivePlanSection(summary.associated_plan)
+        plan_section_range = append_agent_context_section(
             header_text,
             memory_reads=summary.memory_reads,
             skill_uses=summary.skill_uses,
             opened_workspaces=summary.opened_workspaces,
+            plan_section=plan_section,
+            hint_state=hint_state,
         )
 
     if not cheap and summary is not None:

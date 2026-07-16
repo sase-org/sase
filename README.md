@@ -186,8 +186,8 @@ SASE keeps durable state outside any one chat session:
   deprecated aliases). SASE records those paths in environment variables and agent metadata so cross-repo work uses the
   same numbered workspace as the main checkout. Numbered linked checkouts live under
   `<host_workspace>/sase/repos/linked/<linked_repo>`, so two host projects cannot collide. `sase repo init` adds the
-  tracked `/sase/repos/` ignore rule. ACE uses that metadata for live context: dirty linked repos can appear in a
-  non-terminal agent's `DELTAS` section, and linked workspaces opened inside the agent with
+  tracked `/sase/repos/` ignore rule. ACE ranks live context as `PLAN` → `MEMORY` → `SKILLS` → `WORKSPACES`: dirty
+  linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened inside the agent with
   `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT` `WORKSPACES` lane and the `t` tmux chooser.
   The host project and workspace are inferred from cwd; `sase repo log` exposes the durable open history.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after

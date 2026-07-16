@@ -31,7 +31,12 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _zoom_agent(tmp_path: Path, *, include_xprompts: bool = False) -> Agent:
+def _zoom_agent(
+    tmp_path: Path,
+    *,
+    include_xprompts: bool = False,
+    include_plan: bool = False,
+) -> Agent:
     diff_path = tmp_path / "visual_zoom.diff"
     diff_path.write_text(
         "\n".join(
@@ -86,7 +91,7 @@ def _zoom_agent(tmp_path: Path, *, include_xprompts: bool = False) -> Agent:
             ),
             encoding="utf-8",
         )
-    return Agent(
+    agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="visual-zoom",
         project_file="/workspace/sase/visual_project.sase",
@@ -100,6 +105,27 @@ def _zoom_agent(tmp_path: Path, *, include_xprompts: bool = False) -> Agent:
         diff_path=str(diff_path),
         artifacts_dir=str(artifacts_dir) if artifacts_dir is not None else None,
     )
+    if include_plan:
+        relative_plan_path = Path("sase/repos/plans/202607/context lane.md")
+        plan_path = tmp_path / relative_plan_path
+        plan_path.parent.mkdir(parents=True)
+        plan_path.write_text(
+            "---\n"
+            "tier: tale\n"
+            "title: Unified agent context\n"
+            "goal: Present the plan and audited context in one ranked list.\n"
+            "---\n"
+            "# Plan\n",
+            encoding="utf-8",
+        )
+        agent.plan_path = relative_plan_path.as_posix()
+        agent.sdd_plan_path = relative_plan_path.as_posix()
+        agent.plan_committed = True
+        agent.plan_action = "tale"
+        agent.workspace_dir = str(tmp_path)
+        agent.llm_provider = None
+        agent.model = None
+    return agent
 
 
 def _zoom_multi_file_agent(tmp_path: Path) -> Agent:
@@ -186,21 +212,6 @@ def _context_memory_reads() -> list[MemoryReadEvent]:
             reason="needed generated skill rules",
             byte_count=64,
             frontmatter_stripped=False,
-        ),
-        MemoryReadEvent(
-            schema_version=READ_LOG_SCHEMA_VERSION,
-            id="visual-read-gotchas",
-            timestamp="2026-06-14T14:18:30+00:00",
-            project="visual",
-            cwd="/workspace/sase",
-            canonical_path="gotchas.md",
-            resolved_path="/workspace/sase/memory/gotchas.md",
-            agent_name="zoom.snapshot.agent",
-            agent_source="SASE_AGENT_NAME",
-            artifacts_dir="/workspace/sase/artifacts/visual-zoom",
-            reason="avoid the double-install gotcha",
-            byte_count=64,
-            frontmatter_stripped=True,
         ),
     ]
 
@@ -379,7 +390,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
 ) -> None:
     patch_startup_loaders(
         monkeypatch,
-        agents=[_zoom_agent(tmp_path)],
+        agents=[_zoom_agent(tmp_path, include_plan=True)],
         memory_reads=_context_memory_reads(),
         skill_uses=_context_skill_uses(),
         opened_workspaces=_context_opened_workspaces(),
@@ -401,6 +412,9 @@ async def test_agents_context_zoom_modal_png_snapshot(
         )
 
         assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "PLAN")
+        assert_page_svg_contains(page, "tale")
+        assert_page_svg_contains(page, "Unified agent context")
         assert_page_svg_contains(page, "◇")
         assert_page_svg_contains(page, "generated_skills.md")
         assert_page_svg_contains(page, "◆")

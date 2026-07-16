@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.models.agent_associated_plan import AssociatedPlanSummary
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -14,6 +15,9 @@ from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import count_phrase
 from sase.ace.tui.widgets.prompt_panel._agent_context import (
     append_agent_context_section,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
+    ResponsivePlanSection,
 )
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
@@ -84,6 +88,25 @@ def _workspace_event(
     )
 
 
+def _plan_section() -> ResponsivePlanSection:
+    return ResponsivePlanSection(
+        AssociatedPlanSummary(
+            title="Plan lane",
+            goal="Keep every agent input together.",
+            authored_tier="tale",
+            effective_tier="tale",
+            actual_path="/tmp/workspace/sase/repos/plans/plan.md",
+            display_path="sase/repos/plans/plan.md",
+            committed=True,
+            exists=True,
+            readable=True,
+            frontmatter_readable=True,
+            phase_availability="not-applicable",
+            phases=(),
+        )
+    )
+
+
 def _span_style_for(text: Text, needle: str) -> str:
     start = text.plain.index(needle)
     end = start + len(needle)
@@ -102,6 +125,23 @@ def test_empty_context_appends_nothing() -> None:
     assert text.plain == ""
 
 
+def test_plan_only_context_renders_plan_lane_and_returns_its_range() -> None:
+    text = Text()
+    plan_section = _plan_section()
+
+    plan_range = append_agent_context_section(text, plan_section=plan_section)
+
+    assert plan_range is not None
+    plan_start, plan_end = plan_range
+    assert text[plan_start:plan_end].plain == plan_section.logical_text.plain
+    assert "SASE CONTEXT\n" in text.plain
+    assert "▸ PLAN · tale\n" in text.plain
+    assert "  Title: Plan lane\n" in text.plain
+    assert "▸ MEMORY" not in text.plain
+    assert "▸ SKILLS" not in text.plain
+    assert "▸ WORKSPACES" not in text.plain
+
+
 def test_memory_only_context_omits_empty_skills_lane() -> None:
     text = Text()
     append_agent_context_section(text, memory_reads=(_memory_event(),), skill_uses=())
@@ -112,6 +152,7 @@ def test_memory_only_context_omits_empty_skills_lane() -> None:
     assert "generated_skills.md" in plain
     assert "▸ SKILLS" not in plain
     assert "▸ WORKSPACES" not in plain
+    assert "▸ PLAN" not in plain
     assert "none recorded" not in plain
     assert_logical_section_is_compact(text, "SASE CONTEXT", "▸ MEMORY")
     assert_rendered_section_is_compact(text, "SASE CONTEXT", "▸ MEMORY")
@@ -125,6 +166,7 @@ def test_skills_only_context_omits_empty_memory_lane() -> None:
     assert "SASE CONTEXT\n" in plain
     assert "▸ SKILLS · 1 use · 1 skill\n" in plain
     assert "sase_plan" in plain
+    assert "▸ PLAN" not in plain
     assert "▸ MEMORY" not in plain
     assert "▸ WORKSPACES" not in plain
     assert "none recorded" not in plain
@@ -145,6 +187,7 @@ def test_workspaces_only_context_omits_empty_other_lanes() -> None:
     assert "↳ needed to inspect core boundary" in plain
     assert "▸ MEMORY" not in plain
     assert "▸ SKILLS" not in plain
+    assert "▸ PLAN" not in plain
     assert "none recorded" not in plain
 
 
@@ -152,13 +195,15 @@ def test_context_lanes_render_in_parent_context_order() -> None:
     text = Text()
     append_agent_context_section(
         text,
+        plan_section=_plan_section(),
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
     )
 
     plain = text.plain
-    assert plain.index("SASE CONTEXT\n") < plain.index("▸ MEMORY")
+    assert plain.index("SASE CONTEXT\n") < plain.index("▸ PLAN")
+    assert plain.index("▸ PLAN") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
     assert "needed generated skill rules" in plain
@@ -181,19 +226,21 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
     text = Text()
     append_agent_context_section(
         text,
+        plan_section=_plan_section(),
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
     )
 
+    plan_style = _span_style_for(text, "▸ PLAN").lower()
     memory_style = _span_style_for(text, "▸ MEMORY").lower()
     skills_style = _span_style_for(text, "▸ SKILLS").lower()
     workspaces_style = _span_style_for(text, "▸ WORKSPACES").lower()
+    assert plan_style == "bold #af87ff"
     assert memory_style == "bold #5fd7ff"
     assert skills_style == "bold #5fd75f"
     assert workspaces_style == "bold #ff87d7"
-    assert memory_style != skills_style
-    assert workspaces_style not in {memory_style, skills_style}
+    assert len({plan_style, memory_style, skills_style, workspaces_style}) == 4
 
 
 def test_context_rows_share_columns() -> None:

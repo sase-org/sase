@@ -112,8 +112,10 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
-        assert header.plain.index("SASE PLAN") < header.plain.index("Deltas:\n")
         assert header.plain.index("Deltas:\n") < header.plain.index("Artifacts:\n")
+        assert header.plain.index("Artifacts:\n") < header.plain.index("SASE CONTEXT")
+        assert header.plain.index("SASE CONTEXT") < header.plain.index("▸ PLAN")
+        assert "SASE PLAN" not in header.plain
         assert "DELTAS:" not in header.plain
         assert "ARTIFACTS:" not in header.plain
         assert "Artifacts: 2" not in header.plain
@@ -183,7 +185,9 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
-        assert "SASE PLAN" in header.plain
+        assert "SASE CONTEXT" in header.plain
+        assert "▸ PLAN" in header.plain
+        assert "SASE PLAN" not in header.plain
         assert "Path: ~/.sase/plans/202605/plan.md" in header.plain
         assert "sdd/plans/202605/plan.md" not in header.plain
 
@@ -200,6 +204,17 @@ class TestAgentArtifactMetadata:
         sdd_plan.parent.mkdir(parents=True)
         archived_plan.write_text("# Archived", encoding="utf-8")
         sdd_plan.write_text("# SDD", encoding="utf-8")
+        diff_path = tmp_path / "agent.diff"
+        diff_path.write_text(
+            """diff --git a/src/foo.py b/src/foo.py
+--- a/src/foo.py
++++ b/src/foo.py
+@@ -1 +1 @@
+-old
++new
+""",
+            encoding="utf-8",
+        )
         (artifacts_dir / "agent_meta.json").write_text(
             json.dumps(
                 {
@@ -214,6 +229,7 @@ class TestAgentArtifactMetadata:
             status="DONE",
             artifacts_dir=str(artifacts_dir),
             workspace_dir=str(workspace),
+            diff_path=str(diff_path),
         )
         enrich_agent_from_meta(agent, str(artifacts_dir))
         panel = FakePromptPanel()
@@ -221,8 +237,12 @@ class TestAgentArtifactMetadata:
         result = panel.update_display_with_hints(agent)
 
         plain = plain_of(panel.captured[-1])
-        assert "SASE PLAN" in plain
-        assert "Path: [1] sdd/plans/202605/plan.md\n" in plain
+        assert "SASE CONTEXT" in plain
+        assert "▸ PLAN" in plain
+        assert "SASE PLAN" not in plain
+        assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
+        assert "Path: [2] sdd/plans/202605/plan.md\n" in plain
         assert "Artifacts:" not in plain
         assert "ARTIFACTS:" not in plain
-        assert result.file_hints[1] == str(sdd_plan)
+        assert result.file_hints[1] == str(workspace / "src/foo.py")
+        assert result.file_hints[2] == str(sdd_plan)
