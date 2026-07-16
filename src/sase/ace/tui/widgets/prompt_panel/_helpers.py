@@ -116,7 +116,7 @@ def append_section_heading(
         text.append_text(heading)
     else:
         text.append(heading, style=style)
-    mark_section_heading(
+    _mark_section_heading(
         text,
         section_id or _default_section_id(heading_plain),
         start=start,
@@ -126,7 +126,7 @@ def append_section_heading(
     text.end = ""
 
 
-def mark_section_heading(
+def _mark_section_heading(
     text: Any,
     section_id: str,
     *,

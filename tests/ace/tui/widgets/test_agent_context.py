@@ -6,6 +6,7 @@ from itertools import product
 from zoneinfo import ZoneInfo
 
 import pytest
+from rich.style import Style as RichStyle
 from rich.text import Text
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
@@ -29,6 +30,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+from sase.ace.tui.widgets.prompt_panel._section_navigation import (
+    SECTION_MARKER_META_KEY,
+)
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
@@ -128,6 +132,18 @@ def _span_style_for(text: Text, needle: str) -> str:
     ]
     assert len(styles) == 1
     return styles[0]
+
+
+def _section_marker_ids(text: Text) -> list[str]:
+    return [
+        identity
+        for span in text.spans
+        if isinstance(span.style, RichStyle)
+        and isinstance(
+            identity := span.style.meta.get(SECTION_MARKER_META_KEY),
+            str,
+        )
+    ]
 
 
 def test_empty_context_appends_nothing() -> None:
@@ -236,6 +252,7 @@ def test_artifacts_lane_groups_output_fields_and_counts() -> None:
     assert "      abcdef123456 feat: grouped outputs\n" in plain
     assert "  Deltas:\n    ~ src/output.py  ~2\n" in plain
     assert "  Artifacts:\n    • reports/result.md\n" in plain
+    assert _section_marker_ids(text) == ["sase-context"]
 
 
 def test_artifacts_lane_chrome_uses_its_palette_and_shared_path_idiom() -> None:
