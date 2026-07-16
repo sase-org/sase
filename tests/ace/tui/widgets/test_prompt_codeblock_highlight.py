@@ -10,6 +10,7 @@ from textual.widgets.text_area import Selection
 from sase.ace.tui.util.code_injection import language_for_info_string
 from sase.ace.tui.widgets._codeblock_syntax_highlight import (
     CodeBlockHighlightMixin,
+    _resolve_codeblock_theme_colors,
 )
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
@@ -44,6 +45,46 @@ def _background_at(text_area: PromptTextArea, y: int, cell: int) -> Color | None
         if segment.control is None and segment.style is not None:
             return segment.style.bgcolor
     return None
+
+
+def _color_distance(left: Color | None, right: Color | None) -> int:
+    assert left is not None and left.triplet is not None
+    assert right is not None and right.triplet is not None
+    return sum(
+        abs(left_channel - right_channel)
+        for left_channel, right_channel in zip(left.triplet, right.triplet, strict=True)
+    )
+
+
+def _assert_inline_chip_contract(text_area: PromptTextArea) -> tuple[Style, Style]:
+    app_theme = text_area.app.current_theme
+    canvas, foreground = _resolve_codeblock_theme_colors(
+        app_theme.background,
+        app_theme.foreground,
+        dark=app_theme.dark,
+    )
+    canvas_rich = Color.parse(canvas.hex)
+    foreground_rich = Color.parse(foreground.hex)
+    styles = text_area._theme.syntax_styles
+    card = styles["codeblock.content"]
+    inline = styles["codeblock.inline"]
+    delimiter = styles["codeblock.delimiter"]
+
+    assert card.bgcolor not in (None, canvas_rich)
+    assert inline.bgcolor not in (None, canvas_rich, card.bgcolor)
+    assert _color_distance(inline.bgcolor, canvas_rich) > _color_distance(
+        card.bgcolor, canvas_rich
+    )
+    assert inline.color == foreground_rich
+    assert inline.bold is False
+    assert inline.italic is False
+    assert delimiter.bgcolor == inline.bgcolor
+    assert delimiter.bold is False
+    assert delimiter.italic is False
+    assert _color_distance(delimiter.color, inline.bgcolor) < _color_distance(
+        inline.color, inline.bgcolor
+    )
+    return inline, delimiter
 
 
 def test_codeblock_info_string_language_aliases_and_unknowns() -> None:
@@ -110,7 +151,7 @@ async def test_codeblock_band_lines_follow_fenced_block_details() -> None:
             assert text_area._codeblock_band_lines == expected
 
 
-async def test_inline_code_pill_tints_delimiters_and_content() -> None:
+async def test_inline_code_chip_tints_delimiters_and_content() -> None:
     app = CompletionTestApp()
     async with app.run_test():
         text_area = app.query_one(PromptTextArea)
@@ -121,6 +162,21 @@ async def test_inline_code_pill_tints_delimiters_and_content() -> None:
         assert (4, 15, "codeblock.inline") in row
         assert (4, 5, "codeblock.delimiter") in row
         assert (14, 15, "codeblock.delimiter") in row
+        _assert_inline_chip_contract(text_area)
+
+
+def test_codeblock_theme_color_fallbacks_follow_canvas_tone() -> None:
+    dark_canvas, dark_foreground = _resolve_codeblock_theme_colors(
+        None, None, dark=True
+    )
+    light_canvas, light_foreground = _resolve_codeblock_theme_colors(
+        None, None, dark=False
+    )
+
+    assert dark_canvas.hex == "#000000"
+    assert dark_foreground.hex == "#FFFFFF"
+    assert light_canvas.hex == "#FFFFFF"
+    assert light_foreground.hex == "#000000"
 
 
 async def test_codeblock_band_fills_content_and_preserves_overlays() -> None:
@@ -196,15 +252,30 @@ async def test_codeblock_styles_reregister_after_app_theme_switch() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         text_area = app.query_one(PromptTextArea)
-        sentinel = Style(bgcolor="red")
-        text_area._theme.syntax_styles["codeblock.content"] = sentinel
+        app.theme = "textual-dark"
+        await pilot.pause()
+        dark_inline, dark_delimiter = _assert_inline_chip_contract(text_area)
+
+        sentinel = Style(color="white", bgcolor="red")
+        text_area._theme.syntax_styles["codeblock.inline"] = sentinel
+        text_area._theme.syntax_styles["codeblock.delimiter"] = sentinel
 
         app.theme = "textual-light"
         await pilot.pause()
 
-        after = text_area._theme.syntax_styles["codeblock.content"]
-        assert after.bgcolor is not None
-        assert after != sentinel
+        light_inline, light_delimiter = _assert_inline_chip_contract(text_area)
+        assert light_inline != sentinel
+        assert light_delimiter != sentinel
+        assert light_inline.color == Color.parse("#000000")
+        assert (light_inline, light_delimiter) != (dark_inline, dark_delimiter)
+
+        app.theme = "textual-dark"
+        await pilot.pause()
+
+        assert _assert_inline_chip_contract(text_area) == (
+            dark_inline,
+            dark_delimiter,
+        )
 
 
 async def test_unclosed_fence_tints_to_eof_then_gains_closing_fence() -> None:

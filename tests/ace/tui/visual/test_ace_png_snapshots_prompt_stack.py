@@ -86,7 +86,7 @@ _XPROMPT_HIGHLIGHT_STACK = (
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
 _CODEBLOCK_HIGHLIGHT_SOLO = (
-    "#gh:sase %auto inspect the parser; keep `#commit %m:opus` literal\n"
+    "#gh:sase %auto inspect `foo`; keep `/sase_gate` literal\n"
     "```\n"
     "plain text without a language still forms one card\n"
     "```\n"
@@ -98,13 +98,13 @@ _CODEBLOCK_HIGHLIGHT_SOLO = (
     "```"
 )
 _CODEBLOCK_HIGHLIGHT_STACK = (
-    "#gh:sase %auto review the Python transform\n"
+    "#gh:sase %auto review the `increment` Python transform\n"
     "```python\n"
     "def increment(value: int) -> int:\n"
     "    return value + 1\n"
     "```\n"
     "---\n"
-    "%{%m:opus | %m:sonnet} #git:home verify the shell path\n"
+    "%{%m:opus | %m:sonnet} #git:home verify the `src/*.py` path\n"
     "```bash\n"
     "for file in src/*.py; do\n"
     "  printf '%s\\n' \"$file\"\n"

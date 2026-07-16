@@ -24,6 +24,10 @@ from sase.ace.tui.widgets._jinja_highlight import (
 from sase.xprompt._fenced_blocks import fenced_block_details
 from sase.xprompt._literal_zones import inline_literal_ranges
 
+_FENCED_CODE_SURFACE_BLEND = 0.08
+_INLINE_CODE_SURFACE_BLEND = 0.22
+_INLINE_CODE_DELIMITER_BLEND = 0.45
+
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 else:
@@ -291,23 +295,43 @@ class CodeBlockHighlightMixin(_MixinBase):
         base = self._resolve_codeblock_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
-        background = app_theme.background or "#000000"
-        foreground = app_theme.foreground or "#ffffff"
-        background_color = Color.parse(background)
-        foreground_color = Color.parse(foreground)
+        background_color = Color.parse(app_theme.background or "#000000")
+        foreground_color = Color.parse(app_theme.foreground or "#ffffff")
+        inline_background_color, inline_foreground_color = (
+            _resolve_codeblock_theme_colors(
+                app_theme.background,
+                app_theme.foreground,
+                dark=app_theme.dark,
+            )
+        )
+        card_background = background_color.blend(
+            foreground_color, _FENCED_CODE_SURFACE_BLEND
+        )
+        inline_background = inline_background_color.blend(
+            inline_foreground_color, _INLINE_CODE_SURFACE_BLEND
+        )
+        delimiter_foreground = inline_foreground_color.blend(
+            inline_background, _INLINE_CODE_DELIMITER_BLEND
+        )
         syntax_styles.update(
             {
                 "codeblock.content": Style(
-                    bgcolor=background_color.blend(foreground_color, 0.08).hex,
+                    bgcolor=card_background.hex,
                 ),
                 "codeblock.inline": Style(
-                    bgcolor=background_color.blend(foreground_color, 0.13).hex,
+                    color=inline_foreground_color.hex,
+                    bgcolor=inline_background.hex,
+                    bold=False,
+                    italic=False,
                 ),
                 "codeblock.fence": Style(
                     color=foreground_color.blend(background_color, 0.35).hex,
                 ),
                 "codeblock.delimiter": Style(
-                    color=foreground_color.blend(background_color, 0.35).hex,
+                    color=delimiter_foreground.hex,
+                    bgcolor=inline_background.hex,
+                    bold=False,
+                    italic=False,
                 ),
                 "codeblock.lang": Style(
                     color=app_theme.accent,
@@ -334,6 +358,21 @@ class CodeBlockHighlightMixin(_MixinBase):
             assert fallback is not None
             return fallback
         return theme
+
+
+def _resolve_codeblock_theme_colors(
+    background: str | None,
+    foreground: str | None,
+    *,
+    dark: bool,
+) -> tuple[Color, Color]:
+    """Resolve a neutral canvas and legible text color for code treatments."""
+    background_fallback = "#000000" if dark else "#ffffff"
+    foreground_fallback = "#ffffff" if dark else "#000000"
+    return (
+        Color.parse(background or background_fallback),
+        Color.parse(foreground or foreground_fallback),
+    )
 
 
 def _backtick_run_length(text: str, start: int) -> int:
