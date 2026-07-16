@@ -20,14 +20,10 @@ workspace_sase_core_dir := "sase/repos/linked/sase-core"
 fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
 sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
 
-# Even with the bundled-font pin, resvg has low-intensity cross-host edge drift.
-# Bound both its area (1%) and visible color distance (8 channel levels); no
-# above-ceiling pixels are accepted by default, so small high-contrast UI changes
-# still fail. These defaults cover every visual-bearing lane. Set the ratio to 0
-# for exact comparison, or override all three values for renderer investigations.
-export SASE_VISUAL_PNG_MAX_DIFF_RATIO := env_var_or_default("SASE_VISUAL_PNG_MAX_DIFF_RATIO", "0.01")
-export SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD := env_var_or_default("SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD", "8")
-export SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS := env_var_or_default("SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS", "0")
+# The pinned renderer stack makes exact PNG equality the default in every
+# visual-bearing lane. The SASE_VISUAL_PNG_* environment variables remain
+# available as explicit escape hatches for renderer investigations and local
+# iteration on non-canonical platforms.
 
 default:
     @just --list
@@ -225,6 +221,12 @@ test-slow *args: _setup (_header "test-slow")
 test-visual *args: _setup-visual (_header "test-visual")
     @printf "\n---------- Running visual pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
+
+# Regenerate the complete ACE PNG golden corpus. The visual-suite fingerprint
+# fixture refuses updates outside the pinned renderer environment or canonical
+# Linux platform.
+update-visual-snapshots: _setup-visual
+    @just test-visual -- --sase-update-visual-snapshots
 
 # Run optional real-terminal ACE smoke coverage. This launches the TUI in a
 # PTY, so keep it separate from the default and visual snapshot lanes.

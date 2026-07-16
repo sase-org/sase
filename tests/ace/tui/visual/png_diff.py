@@ -137,12 +137,11 @@ class AcePngSnapshotFixture:
     ) -> None:
         """Capture *page* as PNG and assert that it matches the golden.
 
-        Direct helper calls default to exact equality. The repository's visual
-        commands configure a bounded cross-host allowance: setting
-        ``SASE_VISUAL_PNG_MAX_DIFF_RATIO`` or passing tolerance kwargs relaxes
-        the exact area comparison, while the material-difference limit still
-        rejects small high-contrast changes. Both limits have explicit
-        overrides for renderer investigations.
+        Direct helper calls and the repository's visual commands default to
+        exact equality. Setting ``SASE_VISUAL_PNG_MAX_DIFF_RATIO`` or passing
+        tolerance kwargs relaxes the exact area comparison, while the
+        material-difference limit still rejects small high-contrast changes.
+        Both limits have explicit overrides for renderer investigations.
         """
         svg = page.export_svg(title=title, simplify=simplify)
         png_bytes = render_svg_to_png(svg)
@@ -191,8 +190,9 @@ def render_svg_to_png(svg: str) -> bytes:
 
     Rendering goes through resvg (a pure-Rust SVG rasterizer with its own font
     database) restricted to the bundled Fira Code. ``skip_system_fonts`` keeps
-    every platform text and graphics stack out of the render. The remaining
-    cross-host edge-rasterization drift is bounded by the comparison contract.
+    every platform text and graphics stack out of the render. Explicit
+    tolerance overrides remain available when investigating cross-host
+    edge-rasterization drift.
     """
     try:
         import resvg_py
