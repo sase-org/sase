@@ -51,6 +51,7 @@ def wait_for_gate(
     timeout_seconds: float | None = None,
     poll_interval: float = 0.2,
     cancelled: Callable[[], bool] | None = None,
+    on_poll: Callable[[], None] | None = None,
 ) -> GatePollResult:
     """Wait for response/cancellation or the request's explicit gate timeout.
 
@@ -87,6 +88,11 @@ def wait_for_gate(
                     return response
                 raise
             return GatePollResult("cancelled", payload)
+        if on_poll is not None:
+            on_poll()
+            result = poll_gate(bundle_path)
+            if result is not None:
+                return result
         if deadline is not None and time.monotonic() >= deadline:
             try:
                 payload = cancel_gate(

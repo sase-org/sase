@@ -35,8 +35,8 @@ _KNOWN_DIRECTIVES = frozenset(
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
-# Ordered valid values for the %auto/%a directive. Kept here so parser
-# validation and editor completion cannot drift.
+# Compatibility suggestions for the %auto/%a directive. The parser retains
+# arbitrary raw arguments; the adapter that opens a gate owns validation.
 AUTO_MODES_ORDERED: tuple[str, ...] = ("plan", "tale", "epic")
 AUTO_MODES: frozenset[str] = frozenset(AUTO_MODES_ORDERED)
 
@@ -92,12 +92,16 @@ class PromptDirectives:
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
         wait_runners: Existing-runner threshold from the
             %wait(runners=...) keyword.
-        auto_mode: Auto-approval mode from ``%auto``/``%a``: ``"plan"``,
-            ``"tale"``, ``"epic"``, or None when no auto-approval directive
-            was present.
+        auto_mode: Compatibility rendering of the raw ``%auto`` argument;
+            bare ``%auto`` is ``"plan"`` and absence is None.
+        auto_enabled: Whether ``%auto``/``%a`` was present.
+        auto_argument: The optional raw argument, validated later by the gate
+            adapter that owns the interaction kind.
     """
 
     auto_mode: str | None = None
+    auto_enabled: bool = False
+    auto_argument: str | None = None
     hide: bool = False
     model: str | None = None
     model_alias_overrides: Mapping[str, str] = field(

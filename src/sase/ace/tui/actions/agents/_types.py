@@ -21,6 +21,7 @@ class PlanFeedbackContext:
     response_path: Path
     agent_identity: tuple[AgentType, str, str | None] | None
     plan_file: str
+    notification: Notification | None = None
 
 
 @dataclass

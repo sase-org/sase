@@ -238,16 +238,3 @@ def review_modal_choice_bindings() -> list[tuple[str, str, str]]:
         if record.review_modal_key is not None:
             bindings.append((record.review_modal_key, record.id, record.display_label))
     return bindings
-
-
-def review_modal_choice_hints_markup() -> str:
-    """Return footer hint markup for top-level approval choices."""
-    parts: list[str] = []
-    for choice in PLAN_APPROVAL_MODAL_CHOICES:
-        record = require_plan_approval_choice(choice)
-        key = record.review_modal_key
-        if key is None:
-            continue
-        color = "magenta" if choice == "epic" else "green"
-        parts.append(f"[{color}]{key}[/{color}]={record.display_label}")
-    return "  ".join(parts)

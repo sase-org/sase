@@ -14,6 +14,7 @@ from sase.notifications.pending_actions import (
 )
 from sase.notifications.sort import timestamp_sort_key
 from sase.notifications.store import load_notifications
+from sase.plan_approval_actions import PLAN_APPROVAL_ACTIONS
 
 
 def _available_plan_notifications() -> list[Notification]:
@@ -23,7 +24,7 @@ def _available_plan_notifications() -> list[Notification]:
     notifications = [
         notification
         for notification in load_notifications(include_dismissed=False)
-        if notification.action == "PlanApproval"
+        if notification.action in PLAN_APPROVAL_ACTIONS
         and action_state_for_notification(notification, now=now, store=store)
         == "available"
     ]

@@ -11,6 +11,7 @@ ACTION_BADGES: dict[str | None, str] = {
     "HITL": "[HITL]",
     "LaunchApproval": "[launch]",
     "PlanApproval": "[plan]",
+    "EpicApproval": "[epic]",
     "UserQuestion": "[question]",
     "ViewErrorReport": "[error]",
     "memory_review": "[memory]",

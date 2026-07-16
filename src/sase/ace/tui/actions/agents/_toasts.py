@@ -63,7 +63,7 @@ def _format_notification_toast(n: Notification) -> tuple[str, Severity]:
     note = _first_note(n)
     action = n.action
 
-    if action == "PlanApproval":
+    if action in {"PlanApproval", "EpicApproval"}:
         agent_name = n.action_data.get("agent_name")
         plan_file = next(iter(n.files), None)
         plan_name = ""
@@ -167,6 +167,7 @@ def format_batch_toasts(
 
 _ACTION_LABELS: dict[str | None, tuple[str, str]] = {
     "PlanApproval": ("plan", "plans"),
+    "EpicApproval": ("epic", "epics"),
     "UserQuestion": ("question", "questions"),
     "HITL": ("HITL", "HITLs"),
     "LaunchApproval": ("launch approval", "launch approvals"),

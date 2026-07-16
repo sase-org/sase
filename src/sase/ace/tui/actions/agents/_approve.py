@@ -150,7 +150,11 @@ class AgentApproveMixin:
             prompt_mutator=lambda prompt: set_prompt_auto_mode(prompt, auto_mode),
             meta_patch=AgentMetaPatch(
                 set_values=meta_set,
-                remove_keys=("approve", "auto_approve_plan_action"),
+                remove_keys=(
+                    "approve",
+                    "auto_approve_plan_action",
+                    "auto_approve_argument",
+                ),
             ),
         )
 

@@ -1,0 +1,255 @@
+"""Tiered neutral plan-gate contract and compatibility coverage."""
+
+from __future__ import annotations
+
+import json
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
+
+from sase.main.plan_pending import plan_context_from_notification
+from sase.notification_gates.executor import execute_gate_choice
+from sase.notification_gates.models import GateError
+from sase.notification_gates.service import create_gate, refresh_gate_after_edit
+from sase.notifications import pending_actions
+from sase.notifications.store import load_notifications
+from sase.plan_approval_actions import (
+    PlanApprovalActionContext,
+    PlanApprovalValidationError,
+    execute_plan_approval_response,
+)
+from sase.plan_gate import (
+    _build_plan_gate_spec,
+    create_plan_approval_gate,
+    plan_gate_choice_ids,
+)
+
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
+
+
+@pytest.fixture()
+def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    from sase.notification_gates import paths
+    from sase.notifications import store
+
+    monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
+    monkeypatch.setattr(store, "NOTIFICATIONS_DIR", str(tmp_path / "notifications"))
+    monkeypatch.setattr(
+        store,
+        "NOTIFICATIONS_FILE",
+        str(tmp_path / "notifications" / "notifications.jsonl"),
+    )
+    monkeypatch.setattr(
+        pending_actions, "PENDING_ACTIONS_PATH", tmp_path / "pending.json"
+    )
+    monkeypatch.setattr(
+        pending_actions,
+        "LEGACY_TELEGRAM_PENDING_ACTIONS_PATH",
+        tmp_path / "legacy-pending.json",
+    )
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.delenv("SASE_ARTIFACTS_DIR", raising=False)
+    store._LOAD_CACHE.clear()
+    return tmp_path
+
+
+def _write_plan(root: Path, name: str, content: str) -> Path:
+    path = root / name
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None:
+    tale = create_plan_approval_gate(
+        _write_plan(gate_home, "tale.md", VALID_TALE_PLAN),
+        "tale-request",
+        agent_name="planner.tale",
+    )
+    epic = create_plan_approval_gate(
+        _write_plan(gate_home, "epic.md", VALID_EPIC_PLAN),
+        "epic-request",
+        agent_name="planner.epic",
+    )
+
+    tale_request = json.loads(tale.request_path.read_text(encoding="utf-8"))
+    epic_request = json.loads(epic.request_path.read_text(encoding="utf-8"))
+    assert tale_request["kind"] == "plan"
+    assert epic_request["kind"] == "epic_plan"
+    assert [choice["id"] for choice in tale_request["choices"]] == list(
+        plan_gate_choice_ids("tale")
+    )
+    assert [choice["id"] for choice in epic_request["choices"]] == list(
+        plan_gate_choice_ids("epic")
+    )
+    assert tale_request["operations"] == [
+        {"id": "edit_plan", "kind": "edit_file", "target": "plan.md"}
+    ]
+    assert epic_request["operations"] == tale_request["operations"]
+    assert (tale.bundle_path / "plan.md").read_text() == VALID_TALE_PLAN
+    assert (epic.bundle_path / "plan.md").read_text() == VALID_EPIC_PLAN
+
+    actions = {row.action for row in load_notifications()}
+    assert actions == {"PlanApproval", "EpicApproval"}
+
+
+def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, "edit.md", VALID_TALE_PLAN),
+        "edit-request",
+    )
+    reviewed = gate.bundle_path / "plan.md"
+    request_before = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    reviewed.write_text("# missing frontmatter\n", encoding="utf-8")
+
+    with pytest.raises(PlanApprovalValidationError):
+        refresh_gate_after_edit(gate.bundle_path, "edit_plan")
+    assert json.loads(gate.request_path.read_text())["review_revision"] == 1
+
+    edited = VALID_TALE_PLAN.replace(
+        "Implement the requested change.", "Implement and verify the requested change."
+    )
+    reviewed.write_text(edited, encoding="utf-8")
+    hashes = refresh_gate_after_edit(gate.bundle_path, "edit_plan")
+    request_after = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    assert request_after["review_revision"] == 2
+    assert hashes["request"] != request_before["hashes"]["request"]
+    assert (
+        hashes["resources"]["plan.md"]
+        != request_before["hashes"]["resources"]["plan.md"]
+    )
+    assert execute_gate_choice(gate.bundle_path, "approve").response["choice_id"] == (
+        "approve"
+    )
+
+
+@pytest.mark.parametrize(
+    ("content", "argument", "expected_kind", "expected_choice"),
+    [
+        (VALID_TALE_PLAN, None, "plan", "approve"),
+        (VALID_TALE_PLAN, "tale", "plan", "tale"),
+        (VALID_EPIC_PLAN, None, "epic_plan", "epic"),
+        (VALID_EPIC_PLAN, "epic", "epic_plan", "epic"),
+    ],
+)
+def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
+    content: str,
+    argument: str | None,
+    expected_kind: str,
+    expected_choice: str,
+    gate_home: Path,
+) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, f"{expected_kind}-{argument}.md", content),
+        f"auto-{expected_kind}-{argument or 'bare'}",
+        auto_enabled=True,
+        auto_argument=argument,
+    )
+
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    assert response["kind"] == expected_kind
+    assert response["choice_id"] == expected_choice
+    assert response["source"] == "auto_resolution"
+    assert gate.notification_id is None
+    assert load_notifications(include_dismissed=True) == []
+
+
+def test_auto_rejects_unknown_and_cross_tier_arguments_before_publication(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "conflict.md", VALID_TALE_PLAN)
+    for argument in ("epic", "unknown"):
+        with pytest.raises(GateError) as exc_info:
+            create_plan_approval_gate(
+                plan,
+                f"conflict-{argument}",
+                auto_enabled=True,
+                auto_argument=argument,
+            )
+        assert exc_info.value.code == "invalid_auto_argument"
+    assert load_notifications(include_dismissed=True) == []
+
+
+def test_shared_host_executor_handles_feedback_rejection_and_races(
+    gate_home: Path,
+) -> None:
+    create_plan_approval_gate(
+        _write_plan(gate_home, "feedback.md", VALID_TALE_PLAN),
+        "feedback-request",
+    )
+    [feedback_notification] = load_notifications()
+    feedback_result = execute_plan_approval_response(
+        plan_context_from_notification(feedback_notification),
+        "feedback",
+        feedback="Add rollback coverage",
+    )
+    assert feedback_result.response_file == "response.json"
+    assert feedback_result.response_json["result"] == {
+        "action": "reject",
+        "feedback": "Add rollback coverage",
+    }
+
+    race_gate = create_plan_approval_gate(
+        _write_plan(gate_home, "race.md", VALID_TALE_PLAN),
+        "race-request",
+    )
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(
+            executor.map(
+                lambda _: execute_gate_choice(race_gate.bundle_path, "reject"),
+                range(2),
+            )
+        )
+    assert sorted(outcome.already_completed for outcome in outcomes) == [False, True]
+    assert json.loads(race_gate.response_path.read_text())["choice_id"] == "reject"
+
+
+def test_plan_toctou_and_unregistered_command_contract_are_rejected(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "toctou.md", VALID_TALE_PLAN)
+    gate = create_plan_approval_gate(plan, "toctou-request")
+    (gate.bundle_path / "plan.md").write_text(
+        VALID_TALE_PLAN + "\nUnreviewed mutation\n", encoding="utf-8"
+    )
+    with pytest.raises(GateError) as exc_info:
+        execute_gate_choice(gate.bundle_path, "approve")
+    assert exc_info.value.code == "hash_mismatch"
+    assert not gate.response_path.exists()
+
+    forged = _build_plan_gate_spec(
+        plan,
+        "forged-request",
+        tier="tale",
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
+    commands = forged["resources"]
+    assert isinstance(commands, list)
+    commands[1]["content"] = "#!/bin/sh\nexit 0\n"
+    with pytest.raises(GateError) as exc_info:
+        create_gate(forged)
+    assert exc_info.value.code == "invalid_plan_command"
+
+
+def test_legacy_plan_approval_remains_answerable(gate_home: Path) -> None:
+    plan = _write_plan(gate_home, "legacy.md", VALID_TALE_PLAN)
+    response_dir = gate_home / "legacy-plan-approval"
+    response_dir.mkdir()
+    (response_dir / "plan_request.json").write_text("{}\n", encoding="utf-8")
+    result = execute_plan_approval_response(
+        PlanApprovalActionContext(
+            id="legacy-notification",
+            host_files=(str(plan),),
+            host_action_data={"response_dir": str(response_dir)},
+        ),
+        "reject",
+    )
+
+    assert result.response_file == "plan_response.json"
+    assert json.loads(result.response_path.read_text()) == {"action": "reject"}

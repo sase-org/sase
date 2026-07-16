@@ -33,12 +33,16 @@ class AgentNotificationStatusMixin:
         dismissed_any = False
         changed_agents: list[Any] = []
         for notification in unread:
-            if notification.action not in ("PlanApproval", "UserQuestion"):
+            if notification.action not in (
+                "PlanApproval",
+                "EpicApproval",
+                "UserQuestion",
+            ):
                 continue
 
             # Check if PlanApproval was already responded to externally
             # (e.g. via Telegram). If so, auto-dismiss and update status.
-            if notification.action == "PlanApproval":
+            if notification.action in {"PlanApproval", "EpicApproval"}:
                 if self._auto_dismiss_external_plan_response(notification):
                     dismissed_any = True
                     continue
@@ -58,7 +62,7 @@ class AgentNotificationStatusMixin:
                         continue
                     break
 
-                if notification.action == "PlanApproval":
+                if notification.action in {"PlanApproval", "EpicApproval"}:
                     if self._agent_status_overrides.get(agent.identity) != "PLAN":  # type: ignore[attr-defined]
                         self._agent_status_overrides[agent.identity] = "PLAN"  # type: ignore[attr-defined]
                         changed_agents.append(agent)
@@ -111,13 +115,15 @@ class AgentNotificationStatusMixin:
             persist_plan_approved,
         )
 
-        response_dir = notification.action_data.get("response_dir")
-        if not response_dir:
+        from sase.notification_gates.paths import resolve_notification_bundle
+
+        bundle = resolve_notification_bundle(notification)
+        if bundle is None:
             return False
 
-        response_dir_path = Path(response_dir)
-        response_file = response_dir_path / "plan_response.json"
-        request_file = response_dir_path / "plan_request.json"
+        response_dir_path = bundle.root
+        response_file = bundle.response
+        request_file = bundle.request
         marker_file = response_dir_path / "plan_approved.marker"
 
         if response_file.exists():
@@ -131,7 +137,10 @@ class AgentNotificationStatusMixin:
 
             agent = find_agent_for_notification(self, notification)
             if agent is not None:
-                plan_action = persisted_plan_action(response)
+                result = response.get("result") if not bundle.legacy else response
+                plan_action = persisted_plan_action(
+                    result if isinstance(result, dict) else {}
+                )
                 if plan_action is not None:
                     status = plan_enrichment_status(
                         plan_approved=True,
@@ -148,7 +157,7 @@ class AgentNotificationStatusMixin:
 
             return True
 
-        if marker_file.exists():
+        if bundle.legacy and marker_file.exists():
             mark_dismissed(notification.id)
 
             agent = find_agent_for_notification(self, notification)
@@ -159,7 +168,7 @@ class AgentNotificationStatusMixin:
 
             return True
 
-        if not request_file.exists() and response_dir_path.is_dir():
+        if bundle.legacy and not request_file.exists() and response_dir_path.is_dir():
             mark_dismissed(notification.id)
 
             agent = find_agent_for_notification(self, notification)

@@ -340,6 +340,8 @@ def extract_directives_and_write_meta(
         auto_mode = directives.auto_mode
         if auto_mode == "plan":
             agent_meta["approve"] = True
+        if directives.auto_argument is not None:
+            agent_meta["auto_approve_argument"] = directives.auto_argument
         if auto_mode == "epic":
             agent_meta["auto_approve_plan_action"] = "epic"
         if auto_mode == "tale":

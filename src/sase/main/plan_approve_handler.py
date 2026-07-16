@@ -56,6 +56,15 @@ def _read_agent_meta() -> dict[str, object]:
 
 def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
     """Return the plan-specific auto-approval action, if one is active."""
+    raw_argument, has_raw_argument = _raw_auto_plan_argument()
+    if has_raw_argument:
+        if raw_argument == "epic":
+            return "epic"
+        if raw_argument == "tale":
+            return "tale"
+        # ``approve`` is an enabled-state compatibility sentinel. The plan
+        # adapter receives and validates the opaque argument separately.
+        return "approve"
     for env_name in (
         "SASE_AGENT_AUTO_APPROVE_PLAN_ACTION",
         "SASE_AGENT_AUTO_PLAN_ACTION",
@@ -73,6 +82,28 @@ def get_auto_plan_approval_action() -> PlanAutoApprovalAction | None:
         return "approve"
 
     return None
+
+
+def get_auto_plan_approval_argument() -> str | None:
+    """Return the optional raw argument retained from ``%auto``."""
+    argument, present = _raw_auto_plan_argument()
+    return argument if present else None
+
+
+def _raw_auto_plan_argument() -> tuple[str | None, bool]:
+    for env_name in (
+        "SASE_AGENT_AUTO_APPROVE_ARGUMENT",
+        "SASE_AGENT_AUTO_PLAN_ARGUMENT",
+    ):
+        if env_name in os.environ:
+            value = os.environ.get(env_name, "").strip()
+            return value or None, True
+    meta = _read_agent_meta()
+    if "auto_approve_argument" in meta:
+        raw_value = meta.get("auto_approve_argument")
+        if isinstance(raw_value, str):
+            return raw_value.strip() or None, True
+    return None, False
 
 
 def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
@@ -138,8 +169,11 @@ def is_auto_approve_active() -> bool:
     ``approve`` field is truthy in the agent's ``agent_meta.json`` (located
     via SASE_ARTIFACTS_DIR).
     """
+    _argument, has_argument = _raw_auto_plan_argument()
     return bool(
-        os.environ.get("SASE_AGENT_AUTO_APPROVE") or _read_agent_meta().get("approve")
+        has_argument
+        or os.environ.get("SASE_AGENT_AUTO_APPROVE")
+        or _read_agent_meta().get("approve")
     )
 
 

@@ -23,6 +23,7 @@ from sase.launch_approval_actions import (
     execute_launch_approval_response,
 )
 from sase.plan_approval_actions import (
+    PLAN_APPROVAL_ACTIONS,
     PlanApprovalActionContext,
     PlanApprovalActionError,
     execute_plan_approval_response,
@@ -55,7 +56,7 @@ def execute_mobile_plan_action(
         raise MobilePlanActionError(
             "not_found", identity.notification_id, "notification not found"
         )
-    if notification.action != "PlanApproval":
+    if notification.action not in PLAN_APPROVAL_ACTIONS:
         raise MobilePlanActionError(
             "unsupported_action",
             notification.action or "non_action",
@@ -74,14 +75,17 @@ def execute_mobile_plan_action(
             "invalid_request", notification.id, f"action is {notification.action_state}"
         )
 
-    response_dir = Path(
-        notification.host_action_data.get("response_dir", "")
-    ).expanduser()
-    if not response_dir.is_dir():
+    from sase.notification_gates.paths import resolve_action_bundle
+
+    bundle = resolve_action_bundle(
+        notification.action,
+        notification.host_action_data,
+    )
+    if bundle is None or not bundle.root.is_dir():
         raise MobilePlanActionError(
             "invalid_request", "response_dir", "response_dir is missing"
         )
-    if not (response_dir / "plan_request.json").is_file():
+    if not bundle.request.is_file():
         raise MobilePlanActionError(
             "conflict_already_handled",
             notification.id,

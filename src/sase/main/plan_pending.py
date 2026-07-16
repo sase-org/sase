@@ -17,6 +17,7 @@ from sase.notifications.models import Notification
 from sase.notifications.pending_actions import action_state_for_notification
 from sase.notifications.store import load_notifications
 from sase.plan_approval_actions import (
+    PLAN_APPROVAL_ACTIONS,
     PlanApprovalActionContext,
     PlanApprovalActionError,
 )
@@ -73,7 +74,7 @@ def _resolve_plan_selector(selector: str) -> Notification:
             [
                 notification
                 for notification in load_notifications(include_dismissed=False)
-                if notification.action == "PlanApproval"
+                if notification.action in PLAN_APPROVAL_ACTIONS
             ],
         )
         if action_state_for_notification(notification) != "available"
@@ -107,7 +108,7 @@ def _available_plan_notifications() -> list[Notification]:
 
 def ensure_plan_notification_available(notification: Notification) -> None:
     """Raise when *notification* is not an available plan approval action."""
-    if notification.action != "PlanApproval":
+    if notification.action not in PLAN_APPROVAL_ACTIONS:
         raise PlanApprovalActionError(
             "unsupported_action",
             notification.action or "non_action",
@@ -135,8 +136,5 @@ def plan_context_from_notification(
     return PlanApprovalActionContext(
         id=notification.id,
         host_files=tuple(str(Path(path).expanduser()) for path in notification.files),
-        host_action_data={
-            key: str(Path(value).expanduser())
-            for key, value in notification.action_data.items()
-        },
+        host_action_data=dict(notification.action_data),
     )

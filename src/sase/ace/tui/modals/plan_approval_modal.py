@@ -1,7 +1,9 @@
 """Plan approval modal for the ace TUI."""
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import cast
 
 from rich.syntax import Syntax
 from textual.app import ComposeResult
@@ -14,7 +16,6 @@ from sase.plan_approval_choices import (
     PlanApprovalProtocolFields,
     approval_protocol_for_choice as _approval_protocol_for_choice,
     review_modal_choice_bindings,
-    review_modal_choice_hints_markup,
 )
 
 from ..actions.clipboard import copy_to_system_clipboard
@@ -113,6 +114,7 @@ class PlanApprovalModal(
         llm_provider: str | None = None,
         model: str | None = None,
         default_choice: PlanApprovalChoice | None = None,
+        allowed_choices: Iterable[PlanApprovalChoice] | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -132,22 +134,46 @@ class PlanApprovalModal(
         self._llm_provider = llm_provider
         self._model = model
         self._default_choice: PlanApprovalChoice = default_choice or "approve"
+        self._allowed_choices = frozenset(
+            allowed_choices or ("approve", "tale", "epic")
+        )
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
         plan_name = os.path.basename(self._plan_file)
         badge = _provider_badge_markup(self._llm_provider, self._model)
         badge_segment = f"  {badge}" if badge else ""
-        return (
-            f"[bold cyan]Plan Review[/bold cyan]{badge_segment}  [dim]{plan_name}[/dim]"
+        title = (
+            "Epic Review"
+            if getattr(self, "_default_choice", "approve") == "epic"
+            else "Plan Review"
         )
+        return f"[bold cyan]{title}[/bold cyan]{badge_segment}  [dim]{plan_name}[/dim]"
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        default_label = self._default_choice.title()
+        default_choice = cast(
+            PlanApprovalChoice, getattr(self, "_default_choice", "approve")
+        )
+        allowed_choices = getattr(
+            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
+        )
+        default_label = default_choice.title()
+        choice_hints = "  ".join(
+            hint
+            for choice, hint in (
+                ("approve", "[green]a[/green]=Approve"),
+                ("tale", "[green]t[/green]=Tale"),
+                ("epic", "[magenta]E[/magenta]=Epic"),
+            )
+            if choice in allowed_choices
+        )
+        custom_hint = (
+            "  [green]c[/green]=Custom" if {"approve", "tale"} & allowed_choices else ""
+        )
         hints = (
             f"[green]enter[/green]={default_label}  "
-            f"{review_modal_choice_hints_markup()}  [green]c[/green]=Custom  [red]r[/red]=Reject  "
+            f"{choice_hints}{custom_hint}  [red]r[/red]=Reject  "
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
@@ -222,14 +248,23 @@ class PlanApprovalModal(
 
     def action_approve(self) -> None:
         """Approve the plan without an SDD commit."""
+        if not self._choice_allowed("approve"):
+            return
         self.dismiss(_plan_approval_result_for_choice("approve"))
 
     def action_approve_default(self) -> None:
         """Approve using the tier authored in the pending plan."""
-        self.dismiss(_plan_approval_result_for_choice(self._default_choice))
+        default_choice = cast(
+            PlanApprovalChoice, getattr(self, "_default_choice", "approve")
+        )
+        if not self._choice_allowed(default_choice):
+            return
+        self.dismiss(_plan_approval_result_for_choice(default_choice))
 
     def action_tale(self) -> None:
         """Approve the plan as an SDD tale."""
+        if not self._choice_allowed("tale"):
+            return
         self.dismiss(_plan_approval_result_for_choice("tale"))
 
     def _push_approve_options(
@@ -285,7 +320,16 @@ class PlanApprovalModal(
 
     def action_custom(self) -> None:
         """Open the custom approval modal."""
-        self._push_approve_options(choice=self._default_choice)
+        allowed_choices = getattr(
+            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
+        )
+        if not {"approve", "tale"} & allowed_choices:
+            self.notify(
+                "Custom approval is not available for this gate",
+                severity="warning",
+            )
+            return
+        self._push_approve_options(choice=getattr(self, "_default_choice", "approve"))
 
     def action_approve_options(self) -> None:
         """Backward-compatible alias for the old action name."""
@@ -301,7 +345,21 @@ class PlanApprovalModal(
 
     def action_epic(self) -> None:
         """Create an epic from the plan."""
+        if not self._choice_allowed("epic"):
+            return
         self.dismiss(_plan_approval_result_for_choice("epic"))
+
+    def _choice_allowed(self, choice: PlanApprovalChoice) -> bool:
+        allowed_choices = getattr(
+            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
+        )
+        if choice in allowed_choices:
+            return True
+        self.notify(
+            "Choice is not present in this approval request",
+            severity="warning",
+        )
+        return False
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

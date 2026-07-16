@@ -46,7 +46,7 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _gate_spec(
     *,
     request_id: str = "request-1",
-    kind: str = "plan",
+    kind: str = "hitl",
     command: str | None = None,
     auto: object = False,
     timeout: float | None = None,
@@ -113,7 +113,7 @@ def test_create_gate_returns_stable_descriptor_and_is_idempotent(
     assert request["hashes"]["request"] == result.hashes["request"]
     rows = load_notifications(include_dismissed=True)
     assert [row.id for row in rows] == [result.notification_id]
-    assert rows[0].action == "PlanApproval"
+    assert rows[0].action == "HITL"
     assert rows[0].tags == ["gate"]
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
     assert entry["notification_id"] == result.notification_id
@@ -161,7 +161,18 @@ def test_hash_mismatch_and_malformed_output_leave_gate_answerable(
 def test_automatic_resolution_uses_executor_without_pending_row(
     gate_home: Path,
 ) -> None:
-    result = create_gate(_gate_spec(auto=True))
+    from sase.user_question_actions import create_user_question_gate
+
+    result = create_user_question_gate(
+        [
+            {
+                "question": "Choose one",
+                "options": [{"label": "First"}, {"label": "Second"}],
+            }
+        ],
+        session_id="automatic-question",
+        auto=True,
+    )
 
     assert result.notification_id is None
     assert result.auto_resolution["state"] == "resolved"
@@ -258,7 +269,7 @@ def test_notify_create_gate_json_and_raw_privileged_rejection(
     assert excinfo.value.code == 0
     descriptor = json.loads(capsys.readouterr().out)
     assert descriptor["schema_version"] == 1
-    assert descriptor["kind"] == "plan"
+    assert descriptor["kind"] == "hitl"
 
     monkeypatch.setattr(
         sys,

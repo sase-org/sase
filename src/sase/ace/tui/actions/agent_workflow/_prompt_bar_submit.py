@@ -119,7 +119,32 @@ class PromptBarSubmitMixin:
             self.notify("No plan feedback context", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Write plan_response.json with reject + feedback
+        if ctx.notification is not None:
+            from sase.notification_gates.paths import resolve_notification_bundle
+
+            bundle = resolve_notification_bundle(ctx.notification)
+            if bundle is not None and not bundle.legacy:
+                from sase.ace.tui.actions.agents._notification_modals import (
+                    submit_neutral_plan_response,
+                )
+                from sase.ace.tui.actions.agents._notification_navigation import (
+                    find_agent_for_notification,
+                )
+                from sase.ace.tui.modals.plan_approval_modal import PlanApprovalResult
+
+                agent = find_agent_for_notification(self, ctx.notification)
+                submitted = submit_neutral_plan_response(
+                    self,
+                    ctx.notification,
+                    agent,
+                    PlanApprovalResult(action="reject", feedback=feedback),
+                )
+                if submitted:
+                    self._plan_feedback_context = None
+                    self._unmount_prompt_bar()  # type: ignore[attr-defined]
+                return
+
+        # Write a legacy plan_response.json with reject + feedback
         plan_response_path = ctx.response_path / "plan_response.json"
         response_data: dict[str, object] = {
             "action": "reject",

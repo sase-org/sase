@@ -28,6 +28,7 @@ from sase.sdd.plan_validate import (
 )
 
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
+PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 EpicLaunchMode = Literal["detached", "foreground", "skip"]
 
 
@@ -95,7 +96,48 @@ def execute_plan_approval_response(
     coder_model: str | None = None,
     epic_launch_mode: EpicLaunchMode = "detached",
 ) -> PlanApprovalActionResult:
-    """Write the runner response for a resolved PlanApproval notification."""
+    """Resolve a neutral plan gate, with legacy in-flight fallback."""
+    request_kind = notification.host_action_data.get("request_kind")
+    action = "EpicApproval" if request_kind == "epic_plan" else "PlanApproval"
+    from sase.notification_gates.paths import resolve_action_bundle
+
+    bundle = resolve_action_bundle(action, notification.host_action_data)
+    if bundle is not None and not bundle.legacy:
+        return _execute_neutral_plan_approval_response(
+            notification,
+            bundle.root,
+            choice,
+            feedback=feedback,
+            commit_plan=commit_plan,
+            run_coder=run_coder,
+            coder_prompt=coder_prompt,
+            coder_model=coder_model,
+            epic_launch_mode=epic_launch_mode,
+        )
+    return _execute_legacy_plan_approval_response(
+        notification,
+        choice,
+        feedback=feedback,
+        commit_plan=commit_plan,
+        run_coder=run_coder,
+        coder_prompt=coder_prompt,
+        coder_model=coder_model,
+        epic_launch_mode=epic_launch_mode,
+    )
+
+
+def _execute_legacy_plan_approval_response(
+    notification: PlanApprovalActionContext,
+    choice: str | None,
+    *,
+    feedback: str | None,
+    commit_plan: bool | None,
+    run_coder: bool | None,
+    coder_prompt: str | None,
+    coder_model: str | None,
+    epic_launch_mode: EpicLaunchMode,
+) -> PlanApprovalActionResult:
+    """Write the runner response for an in-flight legacy PlanApproval."""
     raw_response_dir = notification.host_action_data.get("response_dir")
     if not raw_response_dir:
         raise PlanApprovalActionError(
@@ -118,9 +160,9 @@ def execute_plan_approval_response(
             "invalid_request", "plan_file", "plan file is missing"
         )
 
-    choice = resolve_plan_approval_choice(notification.host_files[0], choice)
+    choice = _resolve_plan_approval_choice(notification.host_files[0], choice)
 
-    response_json, message = _plan_response_json(
+    response_json, message = plan_response_json(
         choice,
         feedback=feedback,
         commit_plan=commit_plan,
@@ -129,78 +171,35 @@ def execute_plan_approval_response(
         coder_model=coder_model,
     )
     response_path = response_dir / "plan_response.json"
-    foreground_cwd: Path | None = None
+    host_owns_epic_launch = False
+    epic_launch_cwd: Path | None = None
     if choice == "epic":
-        if epic_launch_mode not in {"detached", "foreground", "skip"}:
-            raise PlanApprovalActionError(
-                "invalid_request",
-                "epic_launch_mode",
-                f"unsupported epic launch mode: {epic_launch_mode}",
-            )
-        host_owns_launch = epic_launch_mode == "skip"
-        if not host_owns_launch:
-            project_dir = notification.host_action_data.get("project_dir")
-            if project_dir:
-                try:
-                    from sase.bead.epic_launch import resolve_epic_launch_cwd
-
-                    foreground_cwd = resolve_epic_launch_cwd(
-                        project_dir,
-                        agent_project_file=notification.host_action_data.get(
-                            "agent_project_file"
-                        ),
-                    )
-                except Exception:
-                    foreground_cwd = None
-        if epic_launch_mode == "foreground" and foreground_cwd is not None:
-            host_owns_launch = True
-        elif epic_launch_mode == "detached" and foreground_cwd is not None:
-            try:
-                from sase.bead.epic_launch import spawn_detached_epic_launch
-
-                artifacts_dir = resolve_plan_agent_artifacts_dir(
-                    notification.host_action_data
-                )
-                log_root = Path(artifacts_dir) if artifacts_dir else response_dir
-                spawn_detached_epic_launch(
-                    notification.host_files[0],
-                    cwd=foreground_cwd,
-                    log_path=log_root / "epic_launch.log",
-                    artifacts_dir=artifacts_dir,
-                    cl_name=notification.host_action_data.get("agent_cl_name"),
-                )
-                host_owns_launch = True
-            except Exception:
-                host_owns_launch = False
-        if host_owns_launch:
+        if epic_launch_mode == "skip":
+            host_owns_epic_launch = True
+        else:
+            epic_launch_cwd = _epic_launch_cwd(notification)
+            host_owns_epic_launch = epic_launch_cwd is not None
+        if host_owns_epic_launch:
             response_json["epic_launch_owner"] = "host"
     _write_json_once(response_path, response_json, notification.id)
 
     run_plan_side_effects(notification, choice, response_path, response_json)
-    if choice == "epic" and epic_launch_mode == "foreground" and foreground_cwd:
-        try:
-            from sase.bead.epic_launch import run_epic_launch_foreground
-
-            completed = run_epic_launch_foreground(
-                notification.host_files[0],
-                cwd=foreground_cwd,
-            )
-        except OSError as exc:
-            raise PlanApprovalActionError(
-                "epic_launch_failed",
-                notification.host_files[0],
-                f"could not start epic launch: {exc}",
-            ) from exc
-        if completed.returncode != 0:
-            from sase.bead.epic_launch import build_epic_launch_argv
-
-            resume = shlex.join(build_epic_launch_argv(notification.host_files[0]))
-            raise PlanApprovalActionError(
-                "epic_launch_failed",
-                notification.host_files[0],
-                f"epic launch failed with exit code {completed.returncode}; "
-                f"resume with `{resume}`",
-            )
+    if (
+        host_owns_epic_launch
+        and epic_launch_mode != "skip"
+        and not prepare_epic_launch(
+            notification,
+            Path(notification.host_files[0]),
+            mode=epic_launch_mode,
+            response_dir=response_dir,
+            resolved_cwd=epic_launch_cwd,
+        )
+    ):
+        raise PlanApprovalActionError(
+            "epic_launch_failed",
+            notification.host_files[0],
+            "host claimed the epic launch but could not start it",
+        )
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file="plan_response.json",
@@ -210,7 +209,181 @@ def execute_plan_approval_response(
     )
 
 
-def resolve_plan_approval_choice(plan_file: str, choice: str | None) -> str:
+def _execute_neutral_plan_approval_response(
+    notification: PlanApprovalActionContext,
+    bundle_path: Path,
+    choice: str | None,
+    *,
+    feedback: str | None,
+    commit_plan: bool | None,
+    run_coder: bool | None,
+    coder_prompt: str | None,
+    coder_model: str | None,
+    epic_launch_mode: EpicLaunchMode,
+) -> PlanApprovalActionResult:
+    """Execute one tier-approved choice through the shared gate executor."""
+    if not notification.host_files:
+        raise PlanApprovalActionError(
+            "invalid_request", "plan_file", "plan file is missing"
+        )
+    resolved_choice = _resolve_plan_approval_choice(notification.host_files[0], choice)
+    choice_id = (
+        "feedback"
+        if resolved_choice == "reject" and feedback is not None
+        else resolved_choice
+    )
+    input_data: dict[str, Any] = {}
+    if feedback is not None:
+        input_data["feedback"] = feedback
+    if commit_plan is not None:
+        input_data["commit_plan"] = commit_plan
+    if run_coder is not None:
+        input_data["run_coder"] = run_coder
+    if coder_prompt is not None:
+        input_data["coder_prompt"] = coder_prompt
+    if coder_model is not None:
+        input_data["coder_model"] = coder_model
+    if choice_id == "epic":
+        input_data["epic_launch_mode"] = epic_launch_mode
+
+    from sase.notification_gates.executor import execute_gate_choice
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.paths import RESPONSE_FILENAME
+
+    try:
+        execution = execute_gate_choice(
+            bundle_path,
+            choice_id,
+            input_data,
+            source="plan_response",
+        )
+    except GateError as exc:
+        code = (
+            "conflict_already_handled"
+            if exc.code in {"gate_cancelled", "already_answered"}
+            else exc.code
+        )
+        raise PlanApprovalActionError(code, exc.target, str(exc)) from exc
+    if execution.already_completed:
+        raise PlanApprovalActionError(
+            "conflict_already_handled",
+            notification.id,
+            "response already exists",
+        )
+    result = execution.response.get("result")
+    if not isinstance(result, dict):
+        raise PlanApprovalActionError(
+            "invalid_response",
+            str(bundle_path / RESPONSE_FILENAME),
+            "plan command returned no result object",
+        )
+    try:
+        message = require_plan_approval_choice(choice_id).response_message
+    except KeyError as exc:  # pragma: no cover - executor rejects first
+        raise PlanApprovalActionError(
+            "unsupported_action", choice_id, "unsupported plan action choice"
+        ) from exc
+    return PlanApprovalActionResult(
+        notification_id=notification.id,
+        response_file=RESPONSE_FILENAME,
+        response_path=bundle_path / RESPONSE_FILENAME,
+        response_json=execution.response,
+        message=message,
+    )
+
+
+def prepare_epic_launch(
+    notification: PlanApprovalActionContext,
+    plan_file: str | Path,
+    *,
+    mode: EpicLaunchMode,
+    response_dir: Path,
+    resolved_cwd: Path | None = None,
+) -> bool:
+    """Start the host-owned epic launch and report whether the host claimed it."""
+    if mode not in {"detached", "foreground", "skip"}:
+        raise PlanApprovalActionError(
+            "invalid_request",
+            "epic_launch_mode",
+            f"unsupported epic launch mode: {mode}",
+        )
+    if mode == "skip":
+        return True
+    cwd = resolved_cwd or _epic_launch_cwd(notification)
+    if cwd is None:
+        return False
+
+    plan_path = str(plan_file)
+    if mode == "detached":
+        try:
+            from sase.bead.epic_launch import spawn_detached_epic_launch
+
+            artifacts_dir = resolve_plan_agent_artifacts_dir(
+                notification.host_action_data
+            )
+            log_root = Path(artifacts_dir) if artifacts_dir else response_dir
+            spawn_detached_epic_launch(
+                plan_path,
+                cwd=cwd,
+                log_path=log_root / "epic_launch.log",
+                artifacts_dir=artifacts_dir,
+                cl_name=notification.host_action_data.get("agent_cl_name"),
+            )
+            return True
+        except Exception:
+            return False
+
+    try:
+        from sase.bead.epic_launch import run_epic_launch_foreground
+
+        completed = run_epic_launch_foreground(plan_path, cwd=cwd)
+    except OSError as exc:
+        raise PlanApprovalActionError(
+            "epic_launch_failed", plan_path, f"could not start epic launch: {exc}"
+        ) from exc
+    if completed.returncode != 0:
+        from sase.bead.epic_launch import build_epic_launch_argv
+
+        resume = shlex.join(build_epic_launch_argv(plan_path))
+        raise PlanApprovalActionError(
+            "epic_launch_failed",
+            plan_path,
+            f"epic launch failed with exit code {completed.returncode}; resume with `{resume}`",
+        )
+    return True
+
+
+def can_claim_epic_launch(
+    notification: PlanApprovalActionContext,
+    *,
+    mode: EpicLaunchMode,
+) -> bool:
+    """Return whether the host can durably claim an epic launch."""
+    if mode not in {"detached", "foreground", "skip"}:
+        raise PlanApprovalActionError(
+            "invalid_request",
+            "epic_launch_mode",
+            f"unsupported epic launch mode: {mode}",
+        )
+    return mode == "skip" or _epic_launch_cwd(notification) is not None
+
+
+def _epic_launch_cwd(notification: PlanApprovalActionContext) -> Path | None:
+    project_dir = notification.host_action_data.get("project_dir")
+    if not project_dir:
+        return None
+    try:
+        from sase.bead.epic_launch import resolve_epic_launch_cwd
+
+        return resolve_epic_launch_cwd(
+            project_dir,
+            agent_project_file=notification.host_action_data.get("agent_project_file"),
+        )
+    except Exception:
+        return None
+
+
+def _resolve_plan_approval_choice(plan_file: str, choice: str | None) -> str:
     """Resolve an implicit approval choice and enforce target-tier validation.
 
     An omitted choice follows the tier authored in the pending plan. Explicit
@@ -298,7 +471,7 @@ def _approval_diagnostic_text(plan_path: Path, diagnostic: Any) -> str:
     return f"{location} [{diagnostic.code}] {diagnostic.message}"
 
 
-def _plan_response_json(
+def plan_response_json(
     choice: str,
     *,
     feedback: str | None,
@@ -401,11 +574,12 @@ def run_plan_side_effects(
     choice: str,
     response_path: Path,
     response_json: dict[str, Any],
+    *,
+    response_container: dict[str, Any] | None = None,
+    source: str = "plan_response",
 ) -> None:
     dismiss_notification_best_effort(notification.id)
-    _mark_action_handled_best_effort(
-        notification.id, source="plan_response", action=choice
-    )
+    _mark_action_handled_best_effort(notification.id, source=source, action=choice)
 
     persisted_action = _persist_plan_approved_metadata(notification, response_json)
     if persisted_action is None:
@@ -416,10 +590,17 @@ def run_plan_side_effects(
         if saved_path:
             try:
                 response_json["saved_plan_path"] = saved_path
-                response_path.write_text(
-                    json.dumps(response_json, indent=2) + "\n",
-                    encoding="utf-8",
-                )
+                if response_container is not None:
+                    response_container["result"] = response_json
+                if response_container is not None:
+                    from sase.notification_gates.durability import atomic_write_json
+
+                    atomic_write_json(response_path, response_container)
+                else:
+                    response_path.write_text(
+                        json.dumps(response_json, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
             except OSError:
                 pass
 
@@ -444,10 +625,14 @@ def _persist_plan_approved_metadata(
     if action is None:
         return None
 
-    raw_response_dir = notification.host_action_data.get("response_dir")
-    if not raw_response_dir:
-        return action
-    meta_path = Path(raw_response_dir).expanduser().parent / "agent_meta.json"
+    artifacts_dir = resolve_plan_agent_artifacts_dir(notification.host_action_data)
+    if artifacts_dir:
+        meta_path = Path(artifacts_dir) / "agent_meta.json"
+    else:
+        raw_response_dir = notification.host_action_data.get("response_dir")
+        if not raw_response_dir:
+            return action
+        meta_path = Path(raw_response_dir).expanduser().parent / "agent_meta.json"
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if not isinstance(meta, dict):

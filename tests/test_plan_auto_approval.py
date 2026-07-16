@@ -13,67 +13,78 @@ from sase.main.plan_approve_handler import (
     get_auto_plan_approval_action,
     is_auto_approve_active,
 )
-from sase.plan_approval_actions import PlanApprovalValidationError
+from sase.notification_gates.models import GateError
 
 from tests.conftest import redirect_sase_home
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
-def _only_plan_approval_response_dir(sase_home: Path, session_id: str) -> Path:
-    matches = list((sase_home / "plan_approval").glob(f"*/{session_id}"))
-    assert len(matches) == 1
-    return matches[0]
+def _plan_gate_bundle(sase_home: Path, tier: str, session_id: str) -> Path:
+    kind = "epic_plan" if tier == "epic" else "plan"
+    bundle = sase_home / "interaction_requests" / kind / session_id
+    assert bundle.is_dir()
+    return bundle
 
 
-def test_handle_plan_approval_auto_approve() -> None:
-    """Test that handle_plan_approval returns plan_file when auto-approve is active."""
+def test_handle_plan_approval_auto_approve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare auto approval runs the normal tale approval command."""
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     with patch(
         "sase.main.plan_approve_handler.get_auto_plan_approval_action",
         return_value="approve",
     ):
-        result = handle_plan_approval("/path/to/plan.md", "session-123")
+        result = handle_plan_approval(str(plan), "session-123")
+    bundle = _plan_gate_bundle(sase_home, "tale", "session-123")
     assert result == PlanApprovalResult(
-        action="approve", plan_file="/path/to/plan.md", commit_plan=False
+        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=False
     )
 
 
-def test_handle_plan_approval_auto_epic_skips_notification(tmp_path: Path) -> None:
+def test_handle_plan_approval_auto_epic_skips_notification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Plan-specific auto-epic enters the existing epic action path."""
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value="epic",
-        ),
-        patch("sase.notifications.senders.notify_plan_approval") as notify,
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with patch(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        return_value="epic",
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
-    assert result == PlanApprovalResult(action="epic", plan_file=str(plan))
-    notify.assert_not_called()
+    bundle = _plan_gate_bundle(sase_home, "epic", "session-123")
+    assert result == PlanApprovalResult(
+        action="epic", plan_file=str(bundle / "plan.md")
+    )
 
 
-def test_handle_plan_approval_auto_tale_skips_notification(tmp_path: Path) -> None:
+def test_handle_plan_approval_auto_tale_skips_notification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Plan-specific auto-tale enters the auto-approval action path."""
     plan = tmp_path / "plan.md"
-    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value="tale",
-        ),
-        patch("sase.notifications.senders.notify_plan_approval") as notify,
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with patch(
+        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
+        return_value="tale",
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
-    assert result == PlanApprovalResult(action="tale", plan_file=str(plan))
-    notify.assert_not_called()
+    bundle = _plan_gate_bundle(sase_home, "tale", "session-123")
+    assert result == PlanApprovalResult(
+        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=True
+    )
 
 
 def test_invalid_auto_epic_does_not_consume_pending_action(tmp_path: Path) -> None:
     plan = tmp_path / "plan.md"
-    plan.write_text("# Invalid epic\n", encoding="utf-8")
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
 
     with (
         patch(
@@ -83,7 +94,7 @@ def test_invalid_auto_epic_does_not_consume_pending_action(tmp_path: Path) -> No
         patch(
             "sase.llm_provider._plan_utils._mark_auto_approved_plan_handled"
         ) as mark_handled,
-        pytest.raises(PlanApprovalValidationError),
+        pytest.raises(GateError, match="conflicts with the authored tale plan tier"),
     ):
         handle_plan_approval(str(plan), "session-123", agent_name="planner")
 
@@ -98,7 +109,8 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
     from sase.notifications import load_notifications, pending_actions
 
     plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text(VALID_EPIC_PLAN)
+    tier = "epic" if auto_action == "epic" else "tale"
+    Path(plan_file).write_text(VALID_EPIC_PLAN if tier == "epic" else VALID_TALE_PLAN)
     session_id = f"waiting-auto-{auto_action}"
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
@@ -108,7 +120,7 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
             "sase.main.plan_approve_handler.get_auto_plan_approval_action",
             side_effect=[None, None, auto_action],
         ) as get_auto_action,
-        patch("sase.llm_provider._plan_utils.time.sleep") as sleep,
+        patch("sase.notification_gates.poller.time.sleep") as sleep,
         patch("sase.main.plan_approve_handler.send_desktop_notification"),
         patch("sase.main.plan_approve_handler.ring_tmux_bell"),
         patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
@@ -119,17 +131,17 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
             agent_name="planner.agent",
         )
 
+    response_dir = _plan_gate_bundle(sase_home, tier, session_id)
     assert result == PlanApprovalResult(
-        action=auto_action,
-        plan_file=plan_file,
+        action="epic" if auto_action == "epic" else "approve",
+        plan_file=str(response_dir / "plan.md"),
         commit_plan=auto_action != "approve",
     )
     assert get_auto_action.call_count == 3
     sleep.assert_any_call(_POLL_INTERVAL)
 
-    response_dir = _only_plan_approval_response_dir(sase_home, session_id)
-    assert not (response_dir / "plan_response.json").exists()
-    assert not (response_dir / "plan_request.json").exists()
+    assert (response_dir / "response.json").exists()
+    assert (response_dir / "request.json").exists()
 
     store = pending_actions.read_pending_action_store()
     [entry] = store["actions"].values()
@@ -150,7 +162,7 @@ def test_handle_plan_approval_killed_check_wins_over_waiting_auto_approve(
     from sase.notifications import load_notifications, pending_actions
 
     plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
+    Path(plan_file).write_text(VALID_TALE_PLAN)
     session_id = "waiting-auto-killed"
     sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
@@ -160,7 +172,7 @@ def test_handle_plan_approval_killed_check_wins_over_waiting_auto_approve(
             "sase.main.plan_approve_handler.get_auto_plan_approval_action",
             side_effect=[None, "approve"],
         ) as get_auto_action,
-        patch("sase.llm_provider._plan_utils.time.sleep") as sleep,
+        patch("sase.notification_gates.poller.time.sleep") as sleep,
         patch("sase.main.plan_approve_handler.send_desktop_notification"),
         patch("sase.main.plan_approve_handler.ring_tmux_bell"),
         patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
@@ -176,17 +188,18 @@ def test_handle_plan_approval_killed_check_wins_over_waiting_auto_approve(
     assert get_auto_action.call_count == 1
     sleep.assert_not_called()
 
-    response_dir = _only_plan_approval_response_dir(sase_home, session_id)
-    assert (response_dir / "plan_request.json").exists()
-    assert not (response_dir / "plan_response.json").exists()
+    response_dir = _plan_gate_bundle(sase_home, "tale", session_id)
+    assert (response_dir / "request.json").exists()
+    assert not (response_dir / "response.json").exists()
 
     store = pending_actions.read_pending_action_store()
     [entry] = store["actions"].values()
-    assert entry["state"] == "available"
+    assert entry["state"] == "already_handled"
+    assert entry["handled_source"] == "requester"
 
     notifications = load_notifications(include_dismissed=True)
     assert len(notifications) == 1
-    assert notifications[0].dismissed is False
+    assert notifications[0].dismissed is True
 
 
 def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
@@ -204,6 +217,8 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
 
     store_path = tmp_path / "pending_actions" / "actions.json"
     plan_file = str(tmp_path / "plan.md")
+    Path(plan_file).write_text(VALID_TALE_PLAN, encoding="utf-8")
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setattr(pending_actions, "PENDING_ACTIONS_PATH", store_path)
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "root-1")
 
@@ -227,8 +242,9 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
     ):
         result = handle_plan_approval(plan_file, "session-xyz", agent_name="plan.agent")
 
+    bundle = _plan_gate_bundle(sase_home, "tale", "session-xyz")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=plan_file, commit_plan=False
+        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=False
     )
     store = pending_actions.read_pending_action_store()
     assert store["actions"]["abcdef01"]["state"] == "already_handled"

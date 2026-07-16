@@ -66,13 +66,13 @@ def test_auto_duplicate_raises() -> None:
         extract_prompt_directives("%auto\n%a\nDo the work")
 
 
-def test_auto_invalid_mode_raises() -> None:
-    """Unknown %auto modes list the valid modes."""
-    with pytest.raises(
-        DirectiveError,
-        match="Unknown %auto mode 'foo'; valid modes are: plan, tale, epic",
-    ):
-        extract_prompt_directives("%auto:foo\nDo the work")
+def test_auto_argument_is_retained_for_adapter_validation() -> None:
+    """The parser retains opaque auto arguments for the eventual gate adapter."""
+    cleaned, directives = extract_prompt_directives("%auto:foo\nDo the work")
+    assert cleaned == "Do the work"
+    assert directives.auto_enabled is True
+    assert directives.auto_argument == "foo"
+    assert directives.auto_mode == "foo"
 
 
 def test_auto_default_none() -> None:

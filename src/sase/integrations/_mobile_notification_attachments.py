@@ -82,11 +82,15 @@ def _attachment_candidate_paths(
         if action_path:
             _append_unique_path(paths, action_path)
 
-    if notification.action == "PlanApproval":
-        if response_dir := notification.host_action_data.get("response_dir"):
-            _append_unique_path(
-                paths, str(Path(response_dir).expanduser() / "plan_request.json")
-            )
+    if notification.action in {"PlanApproval", "EpicApproval"}:
+        from sase.notification_gates.paths import resolve_action_bundle
+
+        bundle = resolve_action_bundle(
+            notification.action,
+            notification.host_action_data,
+        )
+        if bundle is not None:
+            _append_unique_path(paths, str(bundle.request))
     elif notification.action == "HITL":
         if artifacts_dir := notification.host_action_data.get("artifacts_dir"):
             request_path = Path(artifacts_dir).expanduser() / "hitl_request.json"

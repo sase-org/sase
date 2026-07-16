@@ -65,7 +65,11 @@ class AgentNotificationModalMixin:
 
         matched: Notification | None = None
         for notification in unread:
-            if notification.action not in ("PlanApproval", "UserQuestion"):
+            if notification.action not in (
+                "PlanApproval",
+                "EpicApproval",
+                "UserQuestion",
+            ):
                 continue
             if not agent_matches_notification_identity(agent, notification):
                 continue
@@ -83,7 +87,7 @@ class AgentNotificationModalMixin:
 
         from ._notification_actions import handle_plan_approval, handle_user_question
 
-        if matched.action == "PlanApproval":
+        if matched.action in {"PlanApproval", "EpicApproval"}:
             self._read_notification_pending_actions_from_provider()
             handle_plan_approval(self, matched)
         elif matched.action == "UserQuestion":
@@ -154,6 +158,7 @@ class AgentNotificationModalMixin:
                 # PlanApproval/UserQuestion must stay unread until response.
                 if result.action not in (
                     "PlanApproval",
+                    "EpicApproval",
                     "UserQuestion",
                     "LaunchApproval",
                 ):
@@ -169,6 +174,7 @@ class AgentNotificationModalMixin:
                 result = detail.notification
             if result.action in (
                 "PlanApproval",
+                "EpicApproval",
                 "UserQuestion",
                 "HITL",
                 "LaunchApproval",
@@ -185,7 +191,7 @@ class AgentNotificationModalMixin:
                 handle_tmux(self, result)
             elif result.action == "HITL":
                 handle_hitl(self, result)
-            elif result.action == "PlanApproval":
+            elif result.action in {"PlanApproval", "EpicApproval"}:
                 handle_plan_approval(self, result)
             elif result.action == "UserQuestion":
                 handle_user_question(self, result)

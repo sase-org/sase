@@ -62,13 +62,15 @@ def handle_plan_approval(
     """
     from ...modals import PlanApprovalModal, PlanApprovalResult
 
-    response_dir = notification.action_data.get("response_dir")
-    if not response_dir:
-        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+    from sase.notification_gates.paths import resolve_notification_bundle
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None:
+        app.notify("No plan request in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
-    response_path = Path(response_dir)
-    request_path = response_path / "plan_request.json"
+    response_path = bundle.root
+    request_path = bundle.request
 
     if not request_path.exists():
         app.notify("Plan approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
@@ -89,6 +91,22 @@ def handle_plan_approval(
         if authored_tier in {"tale", "epic"}
         else None
     )
+    allowed_choices: tuple[PlanApprovalModalChoice, ...] | None = None
+    if not bundle.legacy:
+        try:
+            from sase.notification_gates.durability import read_json_object
+
+            envelope = read_json_object(bundle.request)
+            raw_choices = envelope.get("choices")
+            if isinstance(raw_choices, list):
+                allowed_choices = tuple(
+                    cast(PlanApprovalModalChoice, choice_id)
+                    for raw in raw_choices
+                    if isinstance(raw, dict)
+                    and (choice_id := raw.get("id")) in {"approve", "tale", "epic"}
+                )
+        except Exception:
+            allowed_choices = None
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -104,12 +122,25 @@ def handle_plan_approval(
             editor = os.environ.get("EDITOR") or "nvim"
             with app.suspend():  # type: ignore[attr-defined]
                 subprocess.run([editor, plan_file], check=False)
+            if not bundle.legacy:
+                try:
+                    from sase.notification_gates.service import refresh_gate_after_edit
+
+                    refresh_gate_after_edit(bundle.root, "edit_plan")
+                except Exception as exc:
+                    app.notify(  # type: ignore[attr-defined]
+                        str(exc),
+                        title="Plan edit rejected",
+                        severity="error",
+                        timeout=15,
+                    )
             app.push_screen(  # type: ignore[attr-defined]
                 PlanApprovalModal(
                     plan_file,
                     llm_provider=llm_provider,
                     model=model,
                     default_choice=default_choice,
+                    allowed_choices=allowed_choices,
                 ),
                 on_dismiss,
             )
@@ -131,6 +162,7 @@ def handle_plan_approval(
                 response_path=response_path,
                 agent_identity=agent_identity,
                 plan_file=plan_file,
+                notification=notification,
             )
             app.mount(PromptInputBar(mode="feedback", id="prompt-input-bar"))  # type: ignore[attr-defined]
             return
@@ -163,6 +195,10 @@ def handle_plan_approval(
         from ._notification_navigation import find_agent_for_notification
 
         agent = find_agent_for_notification(app, notification)
+
+        if not bundle.legacy:
+            submit_neutral_plan_response(app, notification, agent, result)
+            return
 
         # Reject without feedback: write response file so external watchers
         # (e.g. Telegram) can detect the rejection, then kill the agent.
@@ -261,10 +297,123 @@ def handle_plan_approval(
             llm_provider=llm_provider,
             model=model,
             default_choice=default_choice,
+            allowed_choices=allowed_choices,
         ),
         on_dismiss,
     )
     return True
+
+
+def submit_neutral_plan_response(
+    app: object,
+    notification: Notification,
+    agent: Agent | None,
+    result: PlanApprovalResult,
+) -> bool:
+    """Execute a neutral plan choice as tracked background work."""
+    choice = _plan_approval_choice_for_status(result)
+    if choice is None:
+        choice = "feedback" if result.feedback else "reject"
+    host_owns_epic_launch = False
+    if choice == "epic":
+        from sase.plan_approval_actions import (
+            PlanApprovalValidationError,
+            require_plan_approval_validation,
+        )
+
+        try:
+            validation = require_plan_approval_validation(notification.files[0], "epic")
+        except PlanApprovalValidationError as exc:
+            app.notify(  # type: ignore[attr-defined]
+                str(exc),
+                title="Epic approval blocked",
+                severity="error",
+                timeout=15,
+            )
+            return False
+        from ._notification_epic_launch import submit_epic_launch_task
+
+        host_owns_epic_launch = submit_epic_launch_task(
+            app,
+            notification,
+            plan_file=notification.files[0],
+            phase_count=len(validation.plan.phases) if validation.plan else 0,
+        )
+
+    submit = getattr(app, "_submit_tracked_task", None)
+    if not callable(submit):
+        app.notify("Tracked plan execution is unavailable", severity="error")  # type: ignore[attr-defined]
+        return False
+
+    from ...actions.task_actions import TrackedTaskResult
+    from sase.main.plan_pending import plan_context_from_notification
+    from sase.plan_approval_actions import execute_plan_approval_response
+
+    def work() -> TrackedTaskResult[object]:
+        try:
+            action_result = execute_plan_approval_response(
+                plan_context_from_notification(notification),
+                choice,
+                feedback=result.feedback,
+                commit_plan=result.commit_plan,
+                run_coder=result.run_coder,
+                coder_prompt=result.coder_prompt,
+                coder_model=result.coder_model,
+                epic_launch_mode=("skip" if host_owns_epic_launch else "detached"),
+            )
+        except Exception as exc:
+            return TrackedTaskResult(
+                success=False,
+                message=str(exc),
+                error=str(exc),
+            )
+        return TrackedTaskResult(
+            success=True,
+            message=action_result.message,
+            payload=action_result,
+        )
+
+    def on_complete(completion: object) -> None:
+        if not getattr(completion, "success", False):
+            app.notify(  # type: ignore[attr-defined]
+                getattr(completion, "message", "Plan command failed"),
+                severity="error",
+            )
+            return
+        if agent is not None:
+            if result.action == "reject" and result.feedback is None:
+                app._agent_status_overrides.pop(agent.identity, None)  # type: ignore[attr-defined]
+                app._agent_pre_question_status.pop(agent.identity, None)  # type: ignore[attr-defined]
+                app._do_kill_agent(agent)  # type: ignore[attr-defined]
+            else:
+                status = _plan_approval_status(result)
+                if status is None and result.feedback is not None:
+                    status = "RUNNING"
+                if status is not None:
+                    app._agent_status_overrides[agent.identity] = status  # type: ignore[attr-defined]
+                    _refresh_agents_from_cache(app, agent)
+        app._refresh_notification_count()  # type: ignore[attr-defined]
+
+    cl_name = (
+        notification.action_data.get("agent_cl_name")
+        or Path(notification.files[0]).stem
+    )
+    project_file = notification.action_data.get("agent_project_file") or (
+        notification.action_data.get("project_dir") or notification.files[0]
+    )
+    submitted = submit(
+        "plan-gate",
+        cl_name,
+        project_file,
+        work,
+        display_name=f"Plan response: {choice}",
+        dedup_key=f"plan-gate:{notification.id}",
+        duplicate_message="This plan response is already running",
+        on_complete=on_complete,
+        reload_on_complete=False,
+        notify_on_complete=False,
+    )
+    return submitted is not None
 
 
 def _build_plan_approval_response(

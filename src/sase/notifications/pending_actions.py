@@ -224,7 +224,10 @@ def mark_plan_approval_auto_handled(
         _merge_legacy_telegram({"actions": merged})
         marked: list[str] = []
         for key, entry in merged.items():
-            if not isinstance(entry, dict) or entry.get("action") != "PlanApproval":
+            if not isinstance(entry, dict) or entry.get("action") not in {
+                "PlanApproval",
+                "EpicApproval",
+            }:
                 continue
             if not _plan_identity_matches(
                 entry,

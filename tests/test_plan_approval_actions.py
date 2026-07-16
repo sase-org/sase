@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -8,6 +9,7 @@ import pytest
 
 from sase.plan_approval_actions import (
     PlanApprovalActionContext,
+    PlanApprovalActionError,
     _archive_plan_for_approval,
     execute_plan_approval_response,
     resolve_plan_agent_artifacts_dir,
@@ -95,14 +97,15 @@ def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path
     )
 
 
-def test_headless_epic_approval_spawns_before_claiming_host_ownership(
+def test_headless_epic_approval_claims_host_ownership_before_spawning(
     tmp_path: Path,
 ) -> None:
     context, response_dir, workspace = _epic_context(tmp_path)
     order: list[str] = []
 
     def spawn(*_args: object, **_kwargs: object) -> object:
-        assert not (response_dir / "plan_response.json").exists()
+        response = json.loads((response_dir / "plan_response.json").read_text())
+        assert response["epic_launch_owner"] == "host"
         order.append("spawn")
         return SimpleNamespace(pid=1234)
 
@@ -118,9 +121,8 @@ def test_headless_epic_approval_spawns_before_claiming_host_ownership(
     ):
         result = execute_plan_approval_response(context, "epic")
 
-    order.append("response")
     assert result.response_json["epic_launch_owner"] == "host"
-    assert order == ["spawn", "response"]
+    assert order == ["spawn"]
     resolve_cwd.assert_called_once_with(
         str(workspace),
         agent_project_file=str(tmp_path / "projects" / "canonical" / "canonical.sase"),
@@ -129,10 +131,10 @@ def test_headless_epic_approval_spawns_before_claiming_host_ownership(
     assert spawn_launch.call_args.kwargs["cwd"] == workspace
 
 
-def test_headless_epic_spawn_failure_leaves_agent_fallback_unclaimed(
+def test_headless_epic_spawn_failure_keeps_durable_host_claim(
     tmp_path: Path,
 ) -> None:
-    context, _response_dir, workspace = _epic_context(tmp_path)
+    context, response_dir, workspace = _epic_context(tmp_path)
     with (
         patch(
             "sase.bead.epic_launch.resolve_epic_launch_cwd",
@@ -142,10 +144,12 @@ def test_headless_epic_spawn_failure_leaves_agent_fallback_unclaimed(
             "sase.bead.epic_launch.spawn_detached_epic_launch",
             side_effect=OSError("no process"),
         ),
+        pytest.raises(PlanApprovalActionError, match="could not start"),
     ):
-        result = execute_plan_approval_response(context, "epic")
+        execute_plan_approval_response(context, "epic")
 
-    assert "epic_launch_owner" not in result.response_json
+    response = json.loads((response_dir / "plan_response.json").read_text())
+    assert response["epic_launch_owner"] == "host"
 
 
 def test_headless_epic_resolution_failure_leaves_agent_fallback_unclaimed(

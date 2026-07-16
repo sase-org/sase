@@ -6,7 +6,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.notification_gates.models import GateChoice, GateError, GateSpec
 
@@ -54,11 +54,10 @@ class GateAdapter:
                 "auto.argument",
                 f"unsupported {self.kind} auto argument: {argument}",
             )
-        preferred = (
-            ("tale", "plan", "approve")
-            if self.kind == "plan"
-            else ("epic", "epic_plan", "approve")
-        )
+        if self.kind == "plan":
+            preferred = ("tale",) if argument == "tale" else ("approve", "run")
+        else:
+            preferred = ("epic",)
         for choice_id in preferred:
             if choice_id in by_id:
                 return by_id[choice_id]
@@ -72,11 +71,62 @@ class GateAdapter:
         self, *, bundle_path: Path, response: Mapping[str, Any]
     ) -> None:
         """Apply adapter-declared host effects after terminal persistence."""
-        del bundle_path, response
+        if self.kind not in {"plan", "epic_plan"}:
+            return
+        from sase.notification_gates.durability import read_json_object
+        from sase.plan_approval_actions import run_plan_side_effects
+        from sase.plan_gate import plan_context_from_envelope
+
+        envelope = read_json_object(bundle_path / "request.json")
+        result = response.get("result")
+        choice = response.get("choice_id")
+        if not isinstance(result, dict) or not isinstance(choice, str):
+            raise GateError(
+                "invalid_response",
+                str(bundle_path / "response.json"),
+                "plan response is missing its choice or result",
+            )
+        run_plan_side_effects(
+            plan_context_from_envelope(bundle_path, envelope),
+            choice,
+            bundle_path / "response.json",
+            result,
+            response_container=response if isinstance(response, dict) else None,
+            source=str(response.get("source") or "plan_response"),
+        )
+        if choice == "epic" and result.get("epic_launch_owner") == "host":
+            raw_input = response.get("input")
+            mode = (
+                raw_input.get("epic_launch_mode")
+                if isinstance(raw_input, dict)
+                else None
+            )
+            if mode in {"detached", "foreground"}:
+                from sase.plan_approval_actions import prepare_epic_launch
+
+                launched = prepare_epic_launch(
+                    plan_context_from_envelope(bundle_path, envelope),
+                    bundle_path / "plan.md",
+                    mode=mode,
+                    response_dir=bundle_path,
+                )
+                if not launched:
+                    raise GateError(
+                        "epic_launch_failed",
+                        str(bundle_path / "plan.md"),
+                        "host claimed the epic launch but could not start it",
+                    )
 
     def validate_edited_resource(self, *, path: Path) -> None:
         """Validate an editable target before advancing its review revision."""
-        del path
+        if self.kind not in {"plan", "epic_plan"}:
+            return
+        from sase.plan_approval_actions import require_plan_approval_validation
+
+        require_plan_approval_validation(
+            path,
+            "epic" if self.kind == "epic_plan" else "tale",
+        )
 
     def regenerate_previews(self, *, bundle_path: Path) -> None:
         """Regenerate adapter-owned previews after an edit."""
@@ -95,6 +145,8 @@ class GateAdapter:
                 code = getattr(exc, "code", "invalid_auto_input")
                 target = getattr(exc, "target", "auto")
                 raise GateError(str(code), str(target), str(exc)) from exc
+        if self.kind == "epic_plan":
+            return {"epic_launch_mode": "detached"}
         return {}
 
 
@@ -325,9 +377,89 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         _validate_launch_spec(spec)
     if adapter.kind == "question":
         _validate_question_spec(spec)
+    if adapter.kind in {"plan", "epic_plan"}:
+        _validate_plan_spec(spec, adapter)
     if spec.auto.enabled:
         adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
         adapter.automatic_input(spec)
+
+
+def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
+    """Keep plan gates on their tier-specific trusted command contract."""
+    from sase.plan_gate import (
+        PLAN_EDIT_OPERATION_ID,
+        PLAN_RESOURCE_PATH,
+        PlanGateTier,
+        plan_gate_choice_ids,
+        plan_gate_command_script,
+    )
+
+    tier = "epic" if adapter.kind == "epic_plan" else "tale"
+    if spec.payload.get("authored_tier") != tier:
+        raise GateError(
+            "plan_tier_mismatch",
+            "payload.authored_tier",
+            f"{adapter.kind} gates require authored tier {tier}",
+        )
+    if spec.payload.get("plan_resource") != PLAN_RESOURCE_PATH:
+        raise GateError(
+            "invalid_plan_payload",
+            "payload.plan_resource",
+            "plan gate payload must reference the adapter-owned plan resource",
+        )
+
+    expected_choices = plan_gate_choice_ids(cast(PlanGateTier, tier))
+    actual_commands = {choice.id: choice.command.argv[0] for choice in spec.choices}
+    expected_commands = {choice: f"commands/{choice}" for choice in expected_choices}
+    if actual_commands != expected_commands:
+        raise GateError(
+            "invalid_plan_choices",
+            "choices",
+            f"{tier} plan gate choices do not match the registered adapter",
+        )
+    if len(spec.operations) != 1 or (
+        spec.operations[0].id,
+        spec.operations[0].kind,
+        spec.operations[0].target,
+    ) != (PLAN_EDIT_OPERATION_ID, "edit_file", PLAN_RESOURCE_PATH):
+        raise GateError(
+            "invalid_plan_operation",
+            "operations",
+            "plan gates require the registered edit_plan operation",
+        )
+
+    resources = {resource.path: resource for resource in spec.resources}
+    plan_resource = resources.get(PLAN_RESOURCE_PATH)
+    if plan_resource is None or plan_resource.role != "editable":
+        raise GateError(
+            "invalid_plan_resource",
+            PLAN_RESOURCE_PATH,
+            "plan gates require one editable plan.md resource",
+        )
+    for choice, path in expected_commands.items():
+        resource = resources.get(path)
+        if resource is None or resource.role != "command":
+            raise GateError(
+                "invalid_plan_command", path, "plan command resource is missing"
+            )
+        try:
+            content = (
+                resource.content
+                if resource.content is not None
+                else resource.source.read_text(encoding="utf-8")
+                if resource.source is not None
+                else None
+            )
+        except OSError as exc:
+            raise GateError(
+                "invalid_plan_command", path, f"cannot read plan command: {exc}"
+            ) from exc
+        if content != plan_gate_command_script(choice):
+            raise GateError(
+                "invalid_plan_command",
+                path,
+                "plan command does not match the registered adapter",
+            )
 
 
 def _validate_launch_spec(spec: GateSpec) -> None:

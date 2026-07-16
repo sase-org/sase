@@ -7,7 +7,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, cast
 
 from sase.main.utils import kill_agent_runner_group
 
@@ -48,7 +48,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     # Validate before formatting or making any queue-related mutation.  A
     # pinned tale/epic auto action is the target tier so the core validator
     # emits its authoritative tier-mismatch diagnostic and target schema.
-    from sase.main.plan_approve_handler import get_auto_plan_approval_action
+    from sase.main.plan_approve_handler import (
+        get_auto_plan_approval_action,
+        get_auto_plan_approval_argument,
+    )
     from sase.main.plan_validate_handler import read_and_validate_plan_file
     from sase.main.plan_validate_render import render_validation_human
     from sase.output import error_console
@@ -56,10 +59,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
     from sase.sdd.plan_validate import plan_frontmatter_schema
 
     authored_tier = read_plan_tier(plan_path)
-    auto_action = get_auto_plan_approval_action()
-    target_tier = (
-        auto_action if auto_action in {"tale", "epic"} else authored_tier or "tale"
-    )
+    target_tier = authored_tier or "tale"
     validation = read_and_validate_plan_file(plan_path, tier=target_tier)
     if not validation.ok:
         render_validation_human(
@@ -70,6 +70,25 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
             console=error_console,
         )
         sys.exit(1)
+    auto_action = get_auto_plan_approval_action()
+    if auto_action is not None:
+        from sase.notification_gates.models import GateError
+        from sase.plan_gate import PlanGateTier, validate_plan_auto_argument
+
+        auto_argument = get_auto_plan_approval_argument()
+        if auto_argument is None and auto_action in {"tale", "epic"}:
+            auto_argument = auto_action
+        try:
+            validate_plan_auto_argument(
+                cast(PlanGateTier, target_tier),
+                auto_argument,
+            )
+        except GateError as exc:
+            print(
+                f"Error [{exc.code.replace('_', '-')}]: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # Format plan file in-place with prettier before archiving
     from sase.file_references import format_with_prettier

@@ -1,10 +1,8 @@
 """Shared plan utilities for LLM providers."""
 
-import json
 import os
 import re
 import shutil
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -28,31 +26,6 @@ class PlanApprovalResult:
     coder_model: str | None = None
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
-
-
-def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResult:
-    """Build the runner result for an auto-approved plan.
-
-    Bare ``%auto``/``%a`` plan mode resolves to ``auto_action == "approve"``.
-    That mirrors the interactive "Approve" choice, so it should run the coder
-    without committing an SDD tale. Tale and epic auto modes keep committing.
-    """
-    return PlanApprovalResult(
-        action=auto_action,
-        plan_file=plan_file,
-        commit_plan=auto_action != "approve",
-        auto_approved=True,
-    )
-
-
-def _validated_auto_approval_result(
-    auto_action: str, plan_file: str
-) -> PlanApprovalResult:
-    """Validate a tiered auto-approval before consuming its pending action."""
-    from sase.plan_approval_actions import resolve_plan_approval_choice
-
-    resolved_action = resolve_plan_approval_choice(plan_file, auto_action)
-    return _auto_approval_result(resolved_action, plan_file)
 
 
 def add_create_time_frontmatter(
@@ -180,10 +153,7 @@ def handle_plan_approval(
     agent_runtime: str | None = None,
     agent_vcs_tag: str | None = None,
 ) -> PlanApprovalResult | None:
-    """Handle plan approval flow.
-
-    Creates a TUI notification via ``notify_plan_approval()``, then polls for
-    the user's response.  Sends desktop notification and tmux bell.
+    """Create and mechanically wait for a tiered command-backed plan gate.
 
     Args:
         plan_file: Path to the plan file.
@@ -195,65 +165,39 @@ def handle_plan_approval(
     Returns a ``PlanApprovalResult`` when accepted, or ``None`` if
     rejected / missing / killed.
     """
-    from sase.main.plan_approve_handler import get_auto_plan_approval_action
-
-    auto_action = get_auto_plan_approval_action()
-    if auto_action is not None:
-        if not plan_file:
-            return None
-        result = _validated_auto_approval_result(auto_action, plan_file)
-        # Auto-approval resolves the plan outside the notification + Telegram
-        # callback path. Any notification or inline keyboard already sent for
-        # this plan must be cleared, so record handled-state and dismiss the
-        # matching notification if it exists.
-        _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-        return result
-
     if not plan_file:
         return None
+    from sase.main.plan_approve_handler import (
+        get_auto_plan_approval_action,
+        get_auto_plan_approval_argument,
+    )
 
-    from sase.core.paths import sharded_path
+    auto_action = get_auto_plan_approval_action()
+    auto_enabled = auto_action is not None
+    auto_argument = get_auto_plan_approval_argument()
+    if auto_argument is None and auto_action in {"tale", "epic"}:
+        auto_argument = auto_action
 
-    # Session IDs carry no timestamp → shard by now() at write time.
-    response_dir = Path(sharded_path("plan_approval", session_id))
-    response_dir.mkdir(parents=True, exist_ok=True)
+    from sase.plan_gate import create_plan_approval_gate
 
-    request_path = response_dir / "plan_request.json"
-    response_path = response_dir / "plan_response.json"
-
-    if response_path.exists():
-        response_path.unlink()
-
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    request_data = {
-        "plan_file": plan_file,
-        "session_id": session_id,
-        "timestamp": time.time(),
-    }
-    with open(request_path, "w", encoding="utf-8") as f:
-        json.dump(request_data, f, indent=2)
-
-    from sase.notifications.senders import notify_plan_approval
-
-    agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
-    agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
-    agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
-    agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
-    notify_plan_approval(
-        plan_file=plan_file,
-        response_dir=str(response_dir),
-        session_id=session_id,
-        project_dir=project_dir,
-        agent_cl_name=agent_cl_name,
-        agent_project_file=agent_project_file,
-        agent_timestamp=agent_timestamp,
-        agent_root_timestamp=agent_root_timestamp,
+    gate = create_plan_approval_gate(
+        plan_file,
+        session_id,
+        auto_enabled=auto_enabled,
+        auto_argument=auto_argument,
         agent_name=agent_name,
         agent_model=agent_model,
         agent_llm_provider=agent_llm_provider,
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
     )
+    reviewed_plan = gate.bundle_path / "plan.md"
+    if auto_enabled:
+        _mark_auto_approved_plan_handled(
+            plan_file,
+            agent_name,
+            action=auto_action,
+        )
 
     # Desktop notification + tmux bell
     from sase.main.plan_approve_handler import (
@@ -262,86 +206,90 @@ def handle_plan_approval(
         send_desktop_notification,
     )
 
-    prefix = get_tmux_prefix()
-    send_desktop_notification(
-        f"{prefix} Plan Complete", "Plan ready for review in sase ace"
+    if gate.notification_id is not None:
+        prefix = get_tmux_prefix()
+        send_desktop_notification(
+            f"{prefix} Plan Complete", "Plan ready for review in sase ace"
+        )
+        ring_tmux_bell()
+
+    auto_resolved = auto_enabled
+
+    def _resolve_new_auto_setting() -> None:
+        nonlocal auto_resolved
+        if auto_resolved:
+            return
+        current_action = get_auto_plan_approval_action()
+        if current_action is None:
+            return
+        argument = get_auto_plan_approval_argument()
+        if argument is None and current_action in {"tale", "epic"}:
+            argument = current_action
+        from sase.plan_gate import execute_plan_gate_auto_choice
+
+        execute_plan_gate_auto_choice(
+            gate.bundle_path,
+            argument,
+            source="auto_approve",
+        )
+        auto_resolved = True
+        _mark_auto_approved_plan_handled(
+            plan_file,
+            agent_name,
+            action=current_action,
+        )
+
+    from sase.notification_gates.poller import wait_for_gate
+
+    polled = wait_for_gate(
+        gate.bundle_path,
+        poll_interval=_POLL_INTERVAL,
+        cancelled=killed_check,
+        on_poll=_resolve_new_auto_setting,
     )
-    ring_tmux_bell()
+    if polled.status != "responded":
+        if gate.notification_id is not None:
+            from sase.notifications import mark_dismissed
 
-    # Poll for response (blocks until the user acts)
-    while True:
-        if killed_check is not None and killed_check():
-            return None
+            mark_dismissed(gate.notification_id)
+        return None
+    from sase.plan_gate import translate_plan_gate_response
 
-        if response_path.exists():
-            try:
-                with open(response_path, encoding="utf-8") as f:
-                    response_data = json.load(f)
-
-                if request_path.exists():
-                    request_path.unlink()
-
-                action = response_data.get("action")
-                if action in ("approve", "epic", "commit"):
-                    response_path.unlink()
-                    assert plan_file is not None
-                    # Read custom approval fields with type validation
-                    raw_commit = response_data.get("commit_plan")
-                    commit_plan = raw_commit if isinstance(raw_commit, bool) else True
-                    raw_run = response_data.get("run_coder")
-                    run_coder = raw_run if isinstance(raw_run, bool) else True
-                    raw_prompt = response_data.get("coder_prompt")
-                    coder_prompt = (
-                        raw_prompt.strip() or None
-                        if isinstance(raw_prompt, str)
-                        else None
-                    )
-                    raw_model = response_data.get("coder_model")
-                    coder_model = (
-                        raw_model.strip() or None
-                        if isinstance(raw_model, str)
-                        else None
-                    )
-                    raw_epic_launch_owner = response_data.get("epic_launch_owner")
-                    epic_launch_owner: Literal["host"] | None = None
-                    if action == "epic" and raw_epic_launch_owner == "host":
-                        epic_launch_owner = "host"
-                    # Backward compat: old "commit" action maps to
-                    # approve with run_coder=False
-                    if action == "commit":
-                        action = "approve"
-                        run_coder = False
-                    return PlanApprovalResult(
-                        action=action,
-                        plan_file=plan_file,
-                        commit_plan=commit_plan,
-                        run_coder=run_coder,
-                        coder_prompt=coder_prompt,
-                        coder_model=coder_model,
-                        epic_launch_owner=epic_launch_owner,
-                    )
-                # Rejection with feedback: return result so caller
-                # can spawn a replanner agent with the feedback.
-                feedback = response_data.get("feedback")
-                if feedback:
-                    response_path.unlink()
-                    assert plan_file is not None
-                    return PlanApprovalResult(
-                        action="feedback",
-                        plan_file=plan_file,
-                        feedback=feedback,
-                    )
-                # Plain rejection — no response needed.
-                return None
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        auto_action = get_auto_plan_approval_action()
-        if auto_action is not None:
-            result = _validated_auto_approval_result(auto_action, plan_file)
-            if request_path.exists():
-                request_path.unlink()
-            _mark_auto_approved_plan_handled(plan_file, agent_name, action=auto_action)
-            return result
-
-        time.sleep(_POLL_INTERVAL)
+    response_data = translate_plan_gate_response(gate.bundle_path, polled.payload)
+    action = response_data.get("action")
+    if action in ("approve", "epic", "commit"):
+        raw_commit = response_data.get("commit_plan")
+        commit_plan = raw_commit if isinstance(raw_commit, bool) else True
+        raw_run = response_data.get("run_coder")
+        run_coder = raw_run if isinstance(raw_run, bool) else True
+        raw_prompt = response_data.get("coder_prompt")
+        coder_prompt = (
+            raw_prompt.strip() or None if isinstance(raw_prompt, str) else None
+        )
+        raw_model = response_data.get("coder_model")
+        coder_model = raw_model.strip() or None if isinstance(raw_model, str) else None
+        epic_launch_owner: Literal["host"] | None = None
+        if action == "epic" and response_data.get("epic_launch_owner") == "host":
+            epic_launch_owner = "host"
+        if action == "commit":
+            action = "approve"
+            run_coder = False
+        return PlanApprovalResult(
+            action=action,
+            plan_file=str(reviewed_plan),
+            commit_plan=commit_plan,
+            run_coder=run_coder,
+            coder_prompt=coder_prompt,
+            coder_model=coder_model,
+            auto_approved=auto_resolved,
+            epic_launch_owner=epic_launch_owner,
+        )
+    feedback = response_data.get("feedback")
+    if isinstance(feedback, str) and feedback:
+        return PlanApprovalResult(
+            action="feedback",
+            plan_file=str(reviewed_plan),
+            feedback=feedback,
+            auto_approved=auto_resolved,
+        )
+    return None

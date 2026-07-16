@@ -172,7 +172,9 @@ _lint-pyscripts: _setup
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --epic-symbol 'sase-6e(execute_launch_gate_command)' \
+        --epic-symbol 'sase-6e(execute_plan_gate_command)' \
         --epic-symbol 'sase-6e(execute_user_question_gate_command)' \
+        --epic-symbol 'sase-6e(notify_plan_approval)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

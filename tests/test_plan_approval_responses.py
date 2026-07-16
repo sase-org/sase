@@ -1,281 +1,188 @@
-"""Tests for plan approval responses and notification metadata."""
+"""Tests for neutral plan approval responses and notification metadata."""
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
+
 from sase.llm_provider._plan_utils import PlanApprovalResult, handle_plan_approval
+from sase.notification_gates.executor import execute_gate_choice
+from sase.plan_gate import create_plan_approval_gate as _create_plan_approval_gate
 
 from tests.conftest import redirect_sase_home
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
+
+
+def _respond_after_gate_creation(
+    choice: str,
+    *,
+    input_data: dict[str, Any] | None = None,
+    captured: dict[str, Any] | None = None,
+) -> Any:
+    """Patch gate creation so a host response is ready before the runner polls."""
+
+    def create(*args: Any, **kwargs: Any) -> Any:
+        gate = _create_plan_approval_gate(*args, **kwargs)
+        if captured is not None:
+            captured["gate"] = gate
+            captured["request"] = json.loads(
+                gate.request_path.read_text(encoding="utf-8")
+            )
+        execute_gate_choice(
+            gate.bundle_path,
+            choice,
+            input_data or {},
+            source="test_host",
+        )
+        return gate
+
+    return patch("sase.plan_gate.create_plan_approval_gate", side_effect=create)
+
+
+def _ui_patches() -> tuple[Any, Any, Any]:
+    return (
+        patch("sase.main.plan_approve_handler.send_desktop_notification"),
+        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
+        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+    )
 
 
 def test_handle_plan_approval_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that handle_plan_approval accepts 'commit' action from response file."""
-    import json
+    """The neutral commit command maps back to the runner's no-coder result."""
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    desktop, bell, prefix = _ui_patches()
 
-    plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
-    session_id = "test-commit-session"
-    sase_home = tmp_path / ".sase"
-    redirect_sase_home(monkeypatch, sase_home)
+    with _respond_after_gate_creation("commit"), desktop, bell, prefix:
+        result = handle_plan_approval(str(plan), "test-commit-session")
 
-    captured_response_dir: dict[str, Path] = {}
-
-    def _fake_notify(**kwargs: object) -> None:
-        # handle_plan_approval hands us the exact response_dir it created.
-        response_dir = Path(str(kwargs["response_dir"]))
-        captured_response_dir["dir"] = response_dir
-        (response_dir / "plan_response.json").write_text(
-            json.dumps({"action": "commit"})
-        )
-
-    with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
-        ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="",
-        ),
-    ):
-        result = handle_plan_approval(plan_file, session_id)
-
-    assert result == PlanApprovalResult(
-        action="approve", plan_file=plan_file, run_coder=False
+    reviewed = (
+        sase_home / "interaction_requests" / "plan" / "test-commit-session" / "plan.md"
     )
-    # Session directory lives under a YYYYMM shard of plan_approval/.
-    assert captured_response_dir["dir"].parent.parent == sase_home / "plan_approval"
-    assert captured_response_dir["dir"].name == session_id
+    assert result == PlanApprovalResult(
+        action="approve",
+        plan_file=str(reviewed),
+        commit_plan=True,
+        run_coder=False,
+    )
 
 
 def test_handle_plan_approval_reads_host_epic_launch_owner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    plan_file = str(tmp_path / "epic.md")
-    Path(plan_file).write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    plan = tmp_path / "epic.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-
-    def _fake_notify(**kwargs: object) -> None:
-        response_dir = Path(str(kwargs["response_dir"]))
-        (response_dir / "plan_response.json").write_text(
-            json.dumps(
-                {"action": "epic", "epic_launch_owner": "host"},
-            ),
-            encoding="utf-8",
-        )
+    desktop, bell, prefix = _ui_patches()
 
     with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
-        ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch("sase.main.plan_approve_handler.get_tmux_prefix", return_value=""),
+        _respond_after_gate_creation("epic", input_data={"epic_launch_mode": "skip"}),
+        desktop,
+        bell,
+        prefix,
     ):
-        result = handle_plan_approval(plan_file, "host-owned-epic")
+        result = handle_plan_approval(str(plan), "host-owned-epic")
 
     assert result is not None
     assert result.action == "epic"
     assert result.epic_launch_owner == "host"
 
 
-def test_handle_plan_approval_passes_agent_root_timestamp(
+@pytest.mark.parametrize(
+    ("keyword", "value", "action_data_key"),
+    [
+        ("agent_runtime", "4m32s", "runtime"),
+        ("agent_vcs_tag", "#gh:sase ", "agent_vcs_tag"),
+    ],
+)
+def test_handle_plan_approval_forwards_agent_metadata(
+    keyword: str,
+    value: str,
+    action_data_key: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    captured: dict[str, Any] = {}
+    desktop, bell, prefix = _ui_patches()
+
+    with (
+        _respond_after_gate_creation("approve", captured=captured),
+        desktop,
+        bell,
+        prefix,
+    ):
+        result = handle_plan_approval(str(plan), "session", **{keyword: value})
+
+    assert result is not None
+    action_data = captured["request"]["presentation"]["action_data"]
+    assert action_data[action_data_key] == value
+
+
+def test_handle_plan_approval_passes_agent_routing_timestamps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Plan notifications include both phase and root routing timestamps."""
-    import json
-
-    plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260512094333")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260512090000")
-    captured_kwargs: dict[str, object] = {}
-
-    def _fake_notify(**kwargs: object) -> None:
-        captured_kwargs.update(kwargs)
-        response_dir = Path(str(kwargs["response_dir"]))
-        (response_dir / "plan_response.json").write_text(
-            json.dumps({"action": "approve"})
-        )
+    captured: dict[str, Any] = {}
+    desktop, bell, prefix = _ui_patches()
 
     with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
-        ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="",
-        ),
+        _respond_after_gate_creation("approve", captured=captured),
+        desktop,
+        bell,
+        prefix,
     ):
-        result = handle_plan_approval(plan_file, "session")
+        result = handle_plan_approval(str(plan), "session")
 
-    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
-    assert captured_kwargs["agent_timestamp"] == "20260512094333"
-    assert captured_kwargs["agent_root_timestamp"] == "20260512090000"
-
-
-def test_handle_plan_approval_forwards_agent_runtime(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Plan notifications include the planner elapsed runtime when provided."""
-    import json
-
-    plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    captured_kwargs: dict[str, object] = {}
-
-    def _fake_notify(**kwargs: object) -> None:
-        captured_kwargs.update(kwargs)
-        response_dir = Path(str(kwargs["response_dir"]))
-        (response_dir / "plan_response.json").write_text(
-            json.dumps({"action": "approve"})
-        )
-
-    with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
-        ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="",
-        ),
-    ):
-        result = handle_plan_approval(plan_file, "session", agent_runtime="4m32s")
-
-    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
-    assert captured_kwargs["agent_runtime"] == "4m32s"
-
-
-def test_handle_plan_approval_forwards_agent_vcs_tag(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Plan notifications include the planner's VCS workflow tag when provided."""
-    import json
-
-    plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    captured_kwargs: dict[str, object] = {}
-
-    def _fake_notify(**kwargs: object) -> None:
-        captured_kwargs.update(kwargs)
-        response_dir = Path(str(kwargs["response_dir"]))
-        (response_dir / "plan_response.json").write_text(
-            json.dumps({"action": "approve"})
-        )
-
-    with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
-        ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="",
-        ),
-    ):
-        result = handle_plan_approval(
-            plan_file,
-            "session",
-            agent_vcs_tag="#gh:sase ",
-        )
-
-    assert result == PlanApprovalResult(action="approve", plan_file=plan_file)
-    assert captured_kwargs["agent_vcs_tag"] == "#gh:sase "
+    assert result is not None
+    action_data = captured["request"]["presentation"]["action_data"]
+    assert action_data["agent_timestamp"] == "20260512094333"
+    assert action_data["agent_root_timestamp"] == "20260512090000"
 
 
 def test_handle_plan_approval_none_plan_file() -> None:
-    """Test that handle_plan_approval returns None when plan_file is None."""
-    with patch(
-        "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-        return_value=None,
-    ):
-        result = handle_plan_approval(None, "session-123")
-    assert result is None
+    assert handle_plan_approval(None, "session-123") is None
 
 
 def test_handle_plan_approval_approve_with_options(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test isinstance validation and whitespace trimming of custom approval fields."""
-    import json
-
-    plan_file = str(tmp_path / "plan.md")
-    Path(plan_file).write_text("# Plan")
-    session_id = "test-options-session"
+    """Custom approval fields survive the neutral command boundary."""
+    plan = tmp_path / "plan.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
-
-    def _fake_notify(**kwargs: object) -> None:
-        response_dir = Path(str(kwargs["response_dir"]))
-        (response_dir / "plan_response.json").write_text(
-            json.dumps(
-                {
-                    "action": "approve",
-                    "commit_plan": False,
-                    "run_coder": True,
-                    "coder_prompt": "  #review+  ",
-                }
-            )
-        )
+    desktop, bell, prefix = _ui_patches()
 
     with (
-        patch(
-            "sase.main.plan_approve_handler.get_auto_plan_approval_action",
-            return_value=None,
+        _respond_after_gate_creation(
+            "approve",
+            input_data={
+                "commit_plan": False,
+                "run_coder": True,
+                "coder_prompt": "  #review+  ",
+            },
         ),
-        patch(
-            "sase.notifications.senders.notify_plan_approval",
-            side_effect=_fake_notify,
-        ),
-        patch("sase.main.plan_approve_handler.send_desktop_notification"),
-        patch("sase.main.plan_approve_handler.ring_tmux_bell"),
-        patch(
-            "sase.main.plan_approve_handler.get_tmux_prefix",
-            return_value="",
-        ),
+        desktop,
+        bell,
+        prefix,
     ):
-        result = handle_plan_approval(plan_file, session_id)
+        result = handle_plan_approval(str(plan), "test-options-session")
 
     assert result is not None
     assert result.action == "approve"
     assert result.commit_plan is False
     assert result.run_coder is True
-    assert result.coder_prompt == "#review+"  # whitespace trimmed
+    assert result.coder_prompt == "#review+"

@@ -7,7 +7,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ._directive_time import parse_absolute_time, parse_duration
-from ._directive_types import AUTO_MODES, AUTO_MODES_ORDERED
 from ._exceptions import DirectiveError
 from .effort import EFFORT_LEVELS_ORDERED, is_valid_effort, split_model_effort
 
@@ -338,19 +337,24 @@ def resolve_reasoning_effort(
 
 
 def resolve_auto_mode(expanded_args: dict[str, str]) -> str | None:
-    """Resolve and validate the ``%auto`` directive mode."""
+    """Return a compatibility mode while retaining validation for adapters."""
     if "auto" not in expanded_args:
         return None
 
     raw_auto_mode = expanded_args["auto"] or "plan"
     if raw_auto_mode == "true":
         raw_auto_mode = "plan"
-    if raw_auto_mode not in AUTO_MODES:
-        raise DirectiveError(
-            f"Unknown %auto mode '{raw_auto_mode}'; valid modes are: "
-            f"{', '.join(AUTO_MODES_ORDERED)}"
-        )
     return raw_auto_mode
+
+
+def resolve_auto_argument(expanded_args: dict[str, str]) -> tuple[bool, str | None]:
+    """Return presence plus the opaque optional ``%auto`` argument."""
+    if "auto" not in expanded_args:
+        return False, None
+    raw = expanded_args["auto"]
+    if raw in {"", "true"}:
+        return True, None
+    return True, raw
 
 
 def _validate_model_alias_prefix(model: str, *, had_alias_prefix: bool) -> str:

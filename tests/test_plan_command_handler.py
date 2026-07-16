@@ -260,8 +260,8 @@ phases: []
             "epic",
             "phases-empty",
         ),
-        (VALID_TALE, "epic", "epic", "tier-mismatch"),
-        (VALID_EPIC, "tale", "tale", "tier-mismatch"),
+        (VALID_TALE, "epic", "tale", "invalid-auto-argument"),
+        (VALID_EPIC, "tale", "epic", "invalid-auto-argument"),
     ],
 )
 def test_plan_command_rejects_invalid_or_auto_mismatched_plan_without_side_effects(
@@ -292,9 +292,12 @@ def test_plan_command_rejects_invalid_or_auto_mismatched_plan_without_side_effec
 
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert f"error [{expected_code}]" in captured.err
-    assert f"Expected {expected_tier} frontmatter schema" in captured.err
-    assert "Validation failed" in captured.err
+    assert f"error [{expected_code}]" in captured.err.lower()
+    if expected_code == "invalid-auto-argument":
+        assert f"conflicts with the authored {expected_tier} plan tier" in captured.err
+    else:
+        assert f"Expected {expected_tier} frontmatter schema" in captured.err
+        assert "Validation failed" in captured.err
     assert plan_file.read_text(encoding="utf-8") == content
     assert not (artifacts_dir / ".sase_plan_pending").exists()
     assert not (artifacts_dir.parents[1] / ".ace_refresh_pulse").exists()
