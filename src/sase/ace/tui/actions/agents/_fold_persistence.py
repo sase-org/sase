@@ -23,7 +23,7 @@ _FLUSH_TIMEOUT_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
-class AgentGroupFoldIntent:
+class _AgentGroupFoldIntent:
     """One pre-load group-fold mutation that must win over disk state."""
 
     mode: GroupingMode
@@ -34,7 +34,7 @@ class AgentGroupFoldIntent:
 
 
 @dataclass(frozen=True)
-class AgentPanelFoldIntent:
+class _AgentPanelFoldIntent:
     """One pre-load whole-panel mutation."""
 
     panel_key: PanelKey
@@ -42,12 +42,12 @@ class AgentPanelFoldIntent:
 
 
 @dataclass(frozen=True)
-class AgentPanelFoldsClearIntent:
+class _AgentPanelFoldsClearIntent:
     """A split-to-merged transition clearing every whole-panel fold."""
 
 
 type AgentFoldIntent = (
-    AgentGroupFoldIntent | AgentPanelFoldIntent | AgentPanelFoldsClearIntent
+    _AgentGroupFoldIntent | _AgentPanelFoldIntent | _AgentPanelFoldsClearIntent
 )
 
 
@@ -119,7 +119,7 @@ class AgentFoldPersistenceMixin:
             merged=bool(getattr(self, "_agent_panels_grouped", False)),
         )
         self._agents_fold_state_changed(
-            AgentGroupFoldIntent(
+            _AgentGroupFoldIntent(
                 mode=mode,
                 panel_key=scope.panel_key,
                 merged=scope.merged,
@@ -136,12 +136,12 @@ class AgentFoldPersistenceMixin:
     ) -> None:
         """Journal and schedule persistence for a whole-panel mutation."""
         self._agents_fold_state_changed(
-            AgentPanelFoldIntent(panel_key=panel_key, collapsed=collapsed)
+            _AgentPanelFoldIntent(panel_key=panel_key, collapsed=collapsed)
         )
 
     def _record_agents_panel_folds_cleared(self) -> None:
         """Journal a layout transition that semantically clears all panels."""
-        self._agents_fold_state_changed(AgentPanelFoldsClearIntent())
+        self._agents_fold_state_changed(_AgentPanelFoldsClearIntent())
 
     def _agents_fold_state_changed(
         self,
@@ -187,10 +187,10 @@ class AgentFoldPersistenceMixin:
             AgentPanelFoldScope,
         )
 
-        if isinstance(intent, AgentPanelFoldsClearIntent):
+        if isinstance(intent, _AgentPanelFoldsClearIntent):
             self._collapsed_panel_keys.clear()  # type: ignore[attr-defined]
             return
-        if isinstance(intent, AgentPanelFoldIntent):
+        if isinstance(intent, _AgentPanelFoldIntent):
             collapsed = self._collapsed_panel_keys  # type: ignore[attr-defined]
             if intent.collapsed:
                 collapsed.add(intent.panel_key)
@@ -419,7 +419,4 @@ class AgentFoldPersistenceMixin:
 
 __all__ = [
     "AgentFoldPersistenceMixin",
-    "AgentGroupFoldIntent",
-    "AgentPanelFoldIntent",
-    "AgentPanelFoldsClearIntent",
 ]

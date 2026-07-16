@@ -40,7 +40,7 @@ class SddGitCommandError(subprocess.CalledProcessError):
         return f"{message}: {detail}" if detail else message
 
 
-def is_retryable_git_lock_error(
+def _is_retryable_git_lock_error(
     returncode: int,
     stderr: str | bytes | None,
 ) -> bool:
@@ -79,7 +79,7 @@ def run_sdd_git_write(
             env=env,
             always_log=retry_attempt > 0,
         )
-        if not is_retryable_git_lock_error(result.returncode, result.stderr):
+        if not _is_retryable_git_lock_error(result.returncode, result.stderr):
             return _checked_result(result, check=check)
         if retry_attempt >= len(delays):
             return _checked_result(result, check=check)

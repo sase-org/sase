@@ -30,8 +30,8 @@ from .inventory_project_picker import (
 )
 from .project_management_actions import ProjectManagementActionsMixin
 from .project_inventory_counts import (
-    _ProjectCountsLoadResult,
-    _collect_project_inventory_counts,
+    ProjectCountsLoadResult,
+    collect_project_inventory_counts,
 )
 from .project_list_controller import ProjectListControllerMixin
 from .project_management_rendering import (
@@ -288,8 +288,8 @@ class ProjectsPane(
         projects_root = self._projects_root_path()
         records = tuple(self._records)
 
-        def task() -> _ProjectCountsLoadResult:
-            return _collect_project_inventory_counts(projects_root, records)
+        def task() -> ProjectCountsLoadResult:
+            return collect_project_inventory_counts(projects_root, records)
 
         self._inventory_worker = self.run_worker(
             task,
@@ -304,7 +304,7 @@ class ProjectsPane(
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             self._inventory_loading = False
-            if isinstance(result, _ProjectCountsLoadResult):
+            if isinstance(result, ProjectCountsLoadResult):
                 self._inventory_counts = result.counts
                 self._inventory_error = "; ".join(result.errors)
             else:
@@ -451,8 +451,8 @@ __all__ = [
     "ProjectLifecycleBlockedError",
     "ProjectsPane",
     "ProjectsSubTab",
-    "_ProjectCountsLoadResult",
-    "_collect_project_inventory_counts",
+    "ProjectCountsLoadResult",
+    "collect_project_inventory_counts",
     "delete_project_locked",
     "list_project_records",
     "set_project_aliases_locked",

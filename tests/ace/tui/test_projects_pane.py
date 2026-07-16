@@ -18,7 +18,7 @@ from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.project_inventory_panes import RepoInventoryPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
-from sase.ace.tui.modals.projects_pane import _ProjectCountsLoadResult
+from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
 
@@ -53,8 +53,8 @@ def _patch_panes(monkeypatch: pytest.MonkeyPatch) -> None:
         ],
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult({}),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult({}),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_inventory_panes.collect_repo_inventory",

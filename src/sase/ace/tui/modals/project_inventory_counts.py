@@ -17,15 +17,15 @@ from .project_management_rendering import ProjectInventoryCounts
 
 
 @dataclass(frozen=True)
-class _ProjectCountsLoadResult:
+class ProjectCountsLoadResult:
     counts: dict[str, ProjectInventoryCounts]
     errors: tuple[str, ...] = ()
 
 
-def _collect_project_inventory_counts(
+def collect_project_inventory_counts(
     projects_root: Path,
     project_records: Sequence[ProjectRecordWire],
-) -> _ProjectCountsLoadResult:
+) -> ProjectCountsLoadResult:
     """Join repo and workspace inventories into per-project aggregates."""
 
     project_keys = {record.project_name for record in project_records}
@@ -97,10 +97,10 @@ def _collect_project_inventory_counts(
             claimed_workspace_count=claimed_workspace_counts[key],
             issue_messages=tuple(issue_messages[key]),
         )
-    return _ProjectCountsLoadResult(counts, tuple(errors))
+    return ProjectCountsLoadResult(counts, tuple(errors))
 
 
 __all__ = [
-    "_ProjectCountsLoadResult",
-    "_collect_project_inventory_counts",
+    "ProjectCountsLoadResult",
+    "collect_project_inventory_counts",
 ]

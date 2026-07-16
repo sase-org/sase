@@ -6,7 +6,7 @@ import pytest
 
 from sase.core.project_lifecycle_wire import ProjectRecordWire
 from sase.ace.tui.modals.project_management_rendering import ProjectInventoryCounts
-from sase.ace.tui.modals.projects_pane import _ProjectCountsLoadResult
+from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult
 from sase.repo_inventory import RepoInventory, RepoInventoryIssue, RepoRecord
 from sase.workspace_provider.inventory import (
     WorkspaceInventory,
@@ -160,8 +160,8 @@ def _patch_project_records(
         if record.is_project
     }
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult(counts),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult(counts),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_inventory_panes.collect_repo_inventory",

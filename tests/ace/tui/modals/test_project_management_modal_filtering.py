@@ -13,7 +13,7 @@ from sase.ace.tui.modals.project_management_rendering import (
 )
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
-    _ProjectCountsLoadResult,
+    ProjectCountsLoadResult,
 )
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 
@@ -52,8 +52,8 @@ async def test_projects_subtab_lists_true_projects_in_both_states(
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult({}),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult({}),
     )
 
     app = ProjectsPaneTestApp(projects_root=tmp_path)
@@ -162,8 +162,8 @@ async def test_project_inventory_counts_load_off_thread_and_render(
         claimed_workspace_count=2,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult({"alpha": counts}),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult({"alpha": counts}),
     )
 
     app = ProjectsPaneTestApp(projects_root=tmp_path)
@@ -191,8 +191,8 @@ async def test_projects_subtabs_are_clickable(
         lambda *_args, **_kwargs: [make_project_record("alpha")],
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult({}),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult({}),
     )
 
     app = ProjectsPaneTestApp(projects_root=tmp_path)
@@ -226,8 +226,8 @@ async def test_project_management_reload_preserves_load_failure_status(
         list_records,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult({}),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult({}),
     )
 
     app = ProjectsPaneTestApp(projects_root=tmp_path)

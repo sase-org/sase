@@ -14,7 +14,7 @@ from sase.ace.tui.models.agent_fold_persistence import (
     EMPTY_AGENTS_FOLD_STATE,
     load_agents_fold_state,
     save_agents_fold_state,
-    serialize_agents_fold_state,
+    _serialize_agents_fold_state,
 )
 from sase.ace.tui.models.agent_group_fold import (
     AgentPanelFoldScope,
@@ -75,7 +75,7 @@ def test_deterministic_round_trip_covers_modes_panels_and_layouts(
 
 
 def test_empty_state_omits_empty_collections() -> None:
-    assert serialize_agents_fold_state(EMPTY_AGENTS_FOLD_STATE) == (
+    assert _serialize_agents_fold_state(EMPTY_AGENTS_FOLD_STATE) == (
         '{"schema_version":1}\n'
     )
 

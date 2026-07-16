@@ -20,7 +20,7 @@ from sase.ace.tui.modals.project_inventory_rendering import (
 from sase.ace.tui.modals.project_management_rendering import ProjectInventoryCounts
 from sase.ace.tui.modals.projects_pane import (
     ProjectsPane,
-    _ProjectCountsLoadResult,
+    ProjectCountsLoadResult,
 )
 from sase.repo_inventory import RepoInventory, RepoInventoryIssue, RepoRecord
 from sase.workspace_provider.inventory import (
@@ -153,8 +153,8 @@ def _patch_inventory_data(
         "beta": ProjectInventoryCounts(repo_count=1, workspace_count=1),
     }
     monkeypatch.setattr(
-        "sase.ace.tui.modals.projects_pane._collect_project_inventory_counts",
-        lambda *_args: _ProjectCountsLoadResult(counts),
+        "sase.ace.tui.modals.projects_pane.collect_project_inventory_counts",
+        lambda *_args: ProjectCountsLoadResult(counts),
     )
     monkeypatch.setattr(
         "sase.ace.tui.modals.project_inventory_panes.collect_repo_inventory",
