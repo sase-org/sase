@@ -171,8 +171,6 @@ _lint-pyscripts: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping)
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
-        --epic-symbol 'sase-6d(resolve_content_layout)' \
-        --epic-symbol 'sase-6d(resolve_content_layout_from_cwd)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

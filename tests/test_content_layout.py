@@ -4,18 +4,17 @@ import pytest
 
 from sase.content_layout import (
     LayoutCollisionError,
+    _resolve_content_layout,
     chezmoi_source_path,
     discover_project_root,
     display_path,
-    resolve_content_layout,
-    resolve_content_layout_from_cwd,
     resolve_project_layout,
 )
 from sase.core.paths import shorten_path
 
 
 def test_project_home_and_chezmoi_named_paths_are_canonical() -> None:
-    layout = resolve_content_layout(
+    layout = _resolve_content_layout(
         project_root="/workspace/demo",
         home_root="/home/alice",
         chezmoi_source_root="/dotfiles/home",
@@ -68,7 +67,7 @@ def test_path_classes_separate_tracked_generated_and_runtime_content() -> None:
 
 
 def test_missing_project_root_keeps_home_layout_available() -> None:
-    layout = resolve_content_layout(home_root="/home/alice")
+    layout = _resolve_content_layout(home_root="/home/alice")
 
     assert layout.project is None
     assert layout.home.namespace_root.path == Path("/home/alice/sase")
@@ -127,7 +126,7 @@ def test_xprompt_directories_use_canonical_first_wins(tmp_path: Path) -> None:
 
 
 def test_xprompt_priority_contract_covers_every_source_and_shared_steps() -> None:
-    layout = resolve_content_layout(
+    layout = _resolve_content_layout(
         project_root="/repo",
         home_root="/home/alice",
         project="demo",
@@ -197,9 +196,8 @@ def test_discover_project_root_resolves_symlinked_working_tree(
     )
 
 
-def test_deleted_cwd_degrades_to_home_only_layout(
+def test_discover_project_root_degrades_for_deleted_cwd(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     def deleted_cwd(cls: type[Path]) -> Path:
         raise FileNotFoundError("cwd was removed")
@@ -207,7 +205,6 @@ def test_deleted_cwd_degrades_to_home_only_layout(
     monkeypatch.setattr(Path, "cwd", classmethod(deleted_cwd))
 
     assert discover_project_root() is None
-    assert resolve_content_layout_from_cwd(home_root=tmp_path).project is None
 
 
 def test_chezmoi_remap_handles_canonical_legacy_and_external_paths() -> None:

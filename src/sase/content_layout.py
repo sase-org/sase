@@ -30,7 +30,7 @@ from sase.core.rust import require_rust_binding
 _PROJECT_MARKERS = (".git", ".hg", ".jj")
 
 
-def resolve_content_layout(
+def _resolve_content_layout(
     *,
     project_root: Path | str | None = None,
     home_root: Path | str | None = None,
@@ -59,7 +59,7 @@ def resolve_project_layout(
     home_root: Path | str | None = None,
 ) -> ProjectContentLayout:
     """Return named canonical/legacy paths for one project root."""
-    layout = resolve_content_layout(project_root=root, home_root=home_root)
+    layout = _resolve_content_layout(project_root=root, home_root=home_root)
     if layout.project is None:  # pragma: no cover - guarded by explicit root
         raise RuntimeError("Rust layout omitted an explicit project root")
     return layout.project
@@ -67,7 +67,7 @@ def resolve_project_layout(
 
 def resolve_home_layout(root: Path | str | None = None) -> HomeContentLayout:
     """Return named canonical/legacy paths for the user's home root."""
-    return resolve_content_layout(home_root=root).home
+    return _resolve_content_layout(home_root=root).home
 
 
 def resolve_chezmoi_layout(
@@ -76,7 +76,7 @@ def resolve_chezmoi_layout(
     home_root: Path | str | None = None,
 ) -> ChezmoiContentLayout:
     """Return source-tree paths corresponding to the home layout."""
-    layout = resolve_content_layout(
+    layout = _resolve_content_layout(
         home_root=home_root,
         chezmoi_source_root=source_root,
     )
@@ -114,21 +114,6 @@ def discover_project_root(start: Path | str | None = None) -> Path | None:
         if _is_project_root(parent):
             return parent
     return None
-
-
-def resolve_content_layout_from_cwd(
-    *,
-    home_root: Path | str | None = None,
-    chezmoi_source_root: Path | str | None = None,
-    project: str | None = None,
-) -> SaseContentLayout:
-    """Resolve the layout for the project containing the current directory."""
-    return resolve_content_layout(
-        project_root=discover_project_root(),
-        home_root=home_root,
-        chezmoi_source_root=chezmoi_source_root,
-        project=project,
-    )
 
 
 def resolve_project_config_read_path(
@@ -172,7 +157,7 @@ def resolve_xprompt_file_sources(
                 root = None
     else:
         root = Path(project_root)
-    layout = resolve_content_layout(
+    layout = _resolve_content_layout(
         project_root=root,
         home_root=home_root,
         project=project,
@@ -270,8 +255,6 @@ __all__ = [
     "discover_project_root",
     "display_path",
     "resolve_chezmoi_layout",
-    "resolve_content_layout",
-    "resolve_content_layout_from_cwd",
     "resolve_project_config_read_path",
     "resolve_project_config_write_path",
     "resolve_home_layout",
