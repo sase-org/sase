@@ -16,7 +16,10 @@ from ...models.agent_associated_plan import (
 )
 from ._agent_artifacts import append_artifact_path
 from ._agent_context_common import (
+    COLOR_EMPTY,
+    COLOR_PLAN_PRIMARY,
     COLOR_PLAN_SUBHEADER,
+    COLOR_REASON,
     COLOR_SUMMARY,
     append_context_lane_header,
     count_phrase,
@@ -25,24 +28,9 @@ from ._agent_context_common import (
 PLAN_SECTION_LABEL = "PLAN"
 PLAN_SECTION_MAX_WIDTH = 80
 PLAN_FIELD_LABEL_WIDTH = cell_len("  Title: ")
-PLAN_FIELD_LABEL_STYLE = "bold #87D7FF"
-PLAN_TITLE_VALUE_STYLE = "#D7D7FF underline"
-PLAN_GOAL_VALUE_STYLE = "italic #D7D7FF"
-PLAN_UNAVAILABLE_STYLE = "dim italic #878787"
 PLAN_MISSING_SUFFIX_STYLE = "dim italic #FF8787"
-PLAN_PHASE_COUNT_STYLE = "#AFAFD7"
-PLAN_PHASE_ORDINAL_STYLE = "dim #8787AF"
-PLAN_PHASE_GLYPH_STYLE = "#AF87FF"
-PLAN_PHASE_TITLE_STYLE = "bold #D7D7FF"
-PLAN_PHASE_ID_STYLE = "bold #5FD7D7"
-PLAN_PHASE_DEPENDENCY_STYLE = "dim #AFAFAF"
+PLAN_PHASE_ID_STYLE = "#AF87FF"
 PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
-PLAN_PHASE_DESCRIPTION_STYLE = "italic #AFAFAF"
-PLAN_TIER_STYLES = {
-    "plan": "bold #5FD7FF",
-    "tale": "bold #FFD75F",
-    "epic": "bold #AF87FF",
-}
 
 
 @dataclass(slots=True)
@@ -57,7 +45,7 @@ class ResponsivePlanSection:
         """Return the unwrapped styled lane used by header inspection."""
         text = self._lane_header()
         for label, value in self._rows():
-            text.append(label, style=PLAN_FIELD_LABEL_STYLE)
+            text.append(label, style=COLOR_SUMMARY)
             text.append_text(value)
             text.append("\n")
         if self.summary.phase_availability == "available":
@@ -78,7 +66,7 @@ class ResponsivePlanSection:
         for label, value in self._rows():
             value.overflow = "fold"
             value.no_wrap = False
-            table.add_row(Text(label, style=PLAN_FIELD_LABEL_STYLE), value)
+            table.add_row(Text(label, style=COLOR_SUMMARY), value)
         yield from console.render(table, options.update_width(width))
         render_options = options.update_width(width)
         if self.summary.phase_availability != "available":
@@ -96,7 +84,7 @@ class ResponsivePlanSection:
                     self._indented_phase_line(
                         Text(
                             phase.description,
-                            style=PLAN_PHASE_DESCRIPTION_STYLE,
+                            style=COLOR_REASON,
                             overflow="fold",
                             no_wrap=False,
                         )
@@ -118,39 +106,39 @@ class ResponsivePlanSection:
         text = Text()
         tier = self.summary.effective_tier
         if tier is None:
-            text.append("tier unavailable", style=PLAN_UNAVAILABLE_STYLE)
+            text.append("tier unavailable", style=COLOR_EMPTY)
             return text
 
-        text.append(tier, style=PLAN_TIER_STYLES[tier])
+        text.append(tier, style=COLOR_SUMMARY)
         if self.summary.phase_availability == "available":
             text.append(" · ", style=COLOR_SUMMARY)
             text.append(
                 count_phrase(len(self.summary.phases), "phase"),
-                style=PLAN_PHASE_COUNT_STYLE,
+                style=COLOR_SUMMARY,
             )
         elif self.summary.phase_availability != "not-applicable":
             text.append(" · ", style=COLOR_SUMMARY)
-            text.append("phases unavailable", style=PLAN_UNAVAILABLE_STYLE)
+            text.append("phases unavailable", style=COLOR_EMPTY)
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
             ("  Title: ", self._title_value()),
-            ("  Goal: ", self._goal_value()),
-            ("  Path: ", self._path_value()),
+            ("   Goal: ", self._goal_value()),
+            ("   Path: ", self._path_value()),
         )
 
     def _title_value(self) -> Text:
         if self.summary.title:
             text = Text()
-            text.append(self.summary.title, style=PLAN_TITLE_VALUE_STYLE)
+            text.append(self.summary.title, style=COLOR_PLAN_PRIMARY)
             return text
-        return Text("unavailable", style=PLAN_UNAVAILABLE_STYLE)
+        return Text("unavailable", style=COLOR_EMPTY)
 
     def _goal_value(self) -> Text:
         if self.summary.goal:
-            return Text(self.summary.goal, style=PLAN_GOAL_VALUE_STYLE)
-        return Text("unavailable", style=PLAN_UNAVAILABLE_STYLE)
+            return Text(self.summary.goal, style=COLOR_REASON)
+        return Text("unavailable", style=COLOR_EMPTY)
 
     def _path_value(self) -> Text:
         text = Text()
@@ -171,16 +159,16 @@ class ResponsivePlanSection:
         phase: AssociatedPlanPhaseSummary,
     ) -> Text:
         text = Text()
-        text.append(f"  {ordinal} ", style=PLAN_PHASE_ORDINAL_STYLE)
-        text.append("◆ ", style=PLAN_PHASE_GLYPH_STYLE)
-        text.append(phase.title, style=PLAN_PHASE_TITLE_STYLE)
+        text.append(f"  {ordinal} ", style=COLOR_SUMMARY)
+        text.append("◆ ", style=COLOR_PLAN_SUBHEADER)
+        text.append(phase.title, style=COLOR_PLAN_PRIMARY)
         text.append("\n")
         text.append("    ")
         text.append_text(ResponsivePlanSection._phase_metadata(phase))
         text.append("\n")
         if phase.description:
             text.append("    ")
-            text.append(phase.description, style=PLAN_PHASE_DESCRIPTION_STYLE)
+            text.append(phase.description, style=COLOR_REASON)
             text.append("\n")
         return text
 
@@ -192,7 +180,7 @@ class ResponsivePlanSection:
         ordinal_text = f"  {ordinal} "
         title = Text(
             phase.title,
-            style=PLAN_PHASE_TITLE_STYLE,
+            style=COLOR_PLAN_PRIMARY,
             overflow="fold",
             no_wrap=False,
         )
@@ -201,8 +189,8 @@ class ResponsivePlanSection:
         table.add_column(width=cell_len("◆ "), no_wrap=True)
         table.add_column(overflow="fold")
         table.add_row(
-            Text(ordinal_text, style=PLAN_PHASE_ORDINAL_STYLE),
-            Text("◆ ", style=PLAN_PHASE_GLYPH_STYLE),
+            Text(ordinal_text, style=COLOR_SUMMARY),
+            Text("◆ ", style=COLOR_PLAN_SUBHEADER),
             title,
         )
         return table
@@ -210,16 +198,16 @@ class ResponsivePlanSection:
     @staticmethod
     def _phase_metadata(phase: AssociatedPlanPhaseSummary) -> Text:
         text = Text(phase.id, style=PLAN_PHASE_ID_STYLE)
-        text.append(" · ", style=PLAN_PHASE_DEPENDENCY_STYLE)
+        text.append(" · ", style=COLOR_SUMMARY)
         if phase.depends_on:
             text.append(
                 f"after {', '.join(phase.depends_on)}",
-                style=PLAN_PHASE_DEPENDENCY_STYLE,
+                style=COLOR_SUMMARY,
             )
         else:
-            text.append("no dependencies", style=PLAN_PHASE_DEPENDENCY_STYLE)
+            text.append("no dependencies", style=COLOR_SUMMARY)
         if phase.model:
-            text.append(" · model ", style=PLAN_PHASE_DEPENDENCY_STYLE)
+            text.append(" · model ", style=COLOR_SUMMARY)
             text.append(phase.model, style=PLAN_PHASE_MODEL_STYLE)
         text.overflow = "fold"
         text.no_wrap = False

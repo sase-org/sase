@@ -244,6 +244,25 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
     assert len({plan_style, memory_style, skills_style, workspaces_style}) == 4
 
 
+def test_context_lane_header_details_share_the_summary_style() -> None:
+    text = Text()
+    append_agent_context_section(
+        text,
+        plan_section=_plan_section(),
+        memory_reads=(_memory_event(),),
+        skill_uses=(_skill_event(),),
+        opened_workspaces=(_workspace_event(),),
+    )
+
+    for details in (
+        "tale",
+        "1 read · 1 file",
+        "1 use · 1 skill",
+        "1 open · 1 repo",
+    ):
+        assert _span_style_for(text, details) == _agent_context_common.COLOR_SUMMARY
+
+
 def test_context_rows_share_columns() -> None:
     text = Text()
     append_agent_context_section(

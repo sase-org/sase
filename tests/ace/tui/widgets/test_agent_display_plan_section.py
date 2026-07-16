@@ -25,16 +25,25 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
+    COLOR_EMPTY,
+    COLOR_MEMORY_PRIMARY,
+    COLOR_MEMORY_SUBHEADER,
+    COLOR_PLAN_PRIMARY,
+    COLOR_PLAN_SUBHEADER,
+    COLOR_REASON,
+    COLOR_SKILL_NAME,
+    COLOR_SKILLS_SUBHEADER,
+    COLOR_SUMMARY,
+    COLOR_WORKSPACE_NAME,
+    COLOR_WORKSPACE_SUBHEADER,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     PLAN_FIELD_LABEL_WIDTH,
-    PLAN_PHASE_DESCRIPTION_STYLE,
-    PLAN_PHASE_GLYPH_STYLE,
     PLAN_PHASE_ID_STYLE,
     PLAN_PHASE_MODEL_STYLE,
-    PLAN_PHASE_ORDINAL_STYLE,
-    PLAN_PHASE_TITLE_STYLE,
-    PLAN_PHASE_COUNT_STYLE,
     PLAN_SECTION_MAX_WIDTH,
+    ResponsivePlanSection,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
@@ -126,7 +135,9 @@ def _rendered_text_with_style(
 def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
     lines = _render_header(header, width=width)
     start = next(
-        index for index, line in enumerate(lines) if line.startswith("  Goal:")
+        index
+        for index, line in enumerate(lines)
+        if line[:PLAN_FIELD_LABEL_WIDTH].strip() == "Goal:"
     )
     goal_lines = [lines[start]]
     continuation_prefix = " " * PLAN_FIELD_LABEL_WIDTH
@@ -140,7 +151,9 @@ def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
 def _rendered_title_lines(header: AgentHeader, *, width: int) -> list[str]:
     lines = _render_header(header, width=width)
     start = next(
-        index for index, line in enumerate(lines) if line.startswith("  Title:")
+        index
+        for index, line in enumerate(lines)
+        if line[:PLAN_FIELD_LABEL_WIDTH].strip() == "Title:"
     )
     title_lines = [lines[start]]
     continuation_prefix = " " * PLAN_FIELD_LABEL_WIDTH
@@ -159,6 +172,24 @@ def _reconstruct_folded_token(lines: list[str]) -> str:
     return "".join(line[PLAN_FIELD_LABEL_WIDTH:].rstrip() for line in lines)
 
 
+def _covering_style(header: AgentHeader, needle: str) -> Style:
+    start = header.plain.index(needle)
+    end = start + len(needle)
+    styles = [
+        Style.parse(str(span.style))
+        for span in header.spans
+        if span.start <= start and span.end >= end
+    ]
+    assert len(styles) == 1
+    return styles[0]
+
+
+def _style_color(style: str):  # type: ignore[no-untyped-def]
+    color = Style.parse(style).color
+    assert color is not None
+    return color.get_truecolor()
+
+
 def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     agent = make_agent(agent_name="planner", output_variables={"result": "ok"})
     header, _ = build_header_text(
@@ -171,19 +202,86 @@ def test_plan_lane_follows_optional_sections_inside_sase_context() -> None:
     assert plain.index("OUTPUT VARIABLES") < plain.index("SASE CONTEXT")
     assert plain.index("SASE CONTEXT") < plain.index("▸ PLAN · plan")
     assert plain.index("▸ PLAN · plan") < plain.index("  Title:")
-    assert plain.index("  Title:") < plain.index("  Goal:") < plain.index("  Path:")
+    assert plain.index("  Title:") < plain.index("   Goal:") < plain.index("   Path:")
     assert plain.count("Title:") == 1
     assert plain.count("Goal:") == 1
     assert "Tier:" not in plain
     assert "SASE PLAN" not in plain
     assert plain.splitlines()[1].startswith("ChangeSpec:")
     assert_span_covers(header, "▸ PLAN", "bold #AF87FF")
-    assert_span_covers(header, "Title: ", "bold #87D7FF")
-    assert_span_covers(header, "Required plan titles", "#D7D7FF underline")
-    assert_span_covers(header, "Goal: ", "bold #87D7FF")
-    assert_span_covers(
-        header, "Make agent intent immediately legible.", "italic #D7D7FF"
+    assert_span_covers(header, "Title: ", COLOR_SUMMARY)
+    assert_span_covers(header, "Required plan titles", COLOR_PLAN_PRIMARY)
+    assert_span_covers(header, "Goal: ", COLOR_SUMMARY)
+    assert_span_covers(header, "Make agent intent immediately legible.", COLOR_REASON)
+
+
+def test_plan_field_labels_align_colons_in_the_shared_column() -> None:
+    section = ResponsivePlanSection(_plan_summary())
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=section.summary),
     )
+
+    for lines in (
+        section.logical_text.plain.splitlines(),
+        _render_header(header, width=120),
+    ):
+        labels = [
+            line[:PLAN_FIELD_LABEL_WIDTH]
+            for line in lines
+            if line[:PLAN_FIELD_LABEL_WIDTH].strip() in {"Title:", "Goal:", "Path:"}
+        ]
+        assert labels == ["  Title: ", "   Goal: ", "   Path: "]
+        assert {cell_len(label) for label in labels} == {PLAN_FIELD_LABEL_WIDTH}
+        assert {label.index(":") for label in labels} == {7}
+
+
+def test_title_and_goal_values_have_no_competing_decoration() -> None:
+    header, _ = build_header_text(
+        make_agent(agent_name="planner"),
+        summary=DetailHeaderSummary(associated_plan=_plan_summary()),
+    )
+
+    title_style = _covering_style(header, "Required plan titles")
+    goal_style = _covering_style(header, "Make agent intent immediately legible.")
+    assert title_style == Style.parse(COLOR_PLAN_PRIMARY)
+    assert title_style.underline is not True
+    assert goal_style == Style.parse(COLOR_REASON)
+    assert goal_style.italic is not True
+
+
+def test_plan_palette_is_distinct_from_every_other_lane_palette() -> None:
+    lane_palette = (
+        COLOR_PLAN_SUBHEADER,
+        COLOR_MEMORY_SUBHEADER,
+        COLOR_SKILLS_SUBHEADER,
+        COLOR_WORKSPACE_SUBHEADER,
+        COLOR_PLAN_PRIMARY,
+        COLOR_MEMORY_PRIMARY,
+        COLOR_SKILL_NAME,
+        COLOR_WORKSPACE_NAME,
+    )
+    lane_colors = {_style_color(style) for style in lane_palette}
+    assert len(lane_colors) == len(lane_palette)
+
+    plan_text = ResponsivePlanSection(_epic_summary()).logical_text
+    plan_colors = {
+        color.get_truecolor()
+        for span in plan_text.spans
+        if (color := Style.parse(str(span.style)).color) is not None
+    }
+    other_lane_colors = {
+        _style_color(style)
+        for style in (
+            COLOR_MEMORY_SUBHEADER,
+            COLOR_SKILLS_SUBHEADER,
+            COLOR_WORKSPACE_SUBHEADER,
+            COLOR_MEMORY_PRIMARY,
+            COLOR_SKILL_NAME,
+            COLOR_WORKSPACE_NAME,
+        )
+    }
+    assert plan_colors.isdisjoint(other_lane_colors)
 
 
 @pytest.mark.parametrize(
@@ -353,16 +451,16 @@ def test_epic_phase_roadmap_has_canonical_order_content_and_styles() -> None:
     assert "    render · after core · model codex/gpt-5.6-sol\n" in plain
     assert "  3 ◆ Responsive verification\n" in plain
     assert "    verify · after core, render\n" in plain
-    assert_span_covers(header, "3 phases", PLAN_PHASE_COUNT_STYLE)
-    assert_span_covers(header, "  1 ", PLAN_PHASE_ORDINAL_STYLE)
-    assert_span_covers(header, "◆ ", PLAN_PHASE_GLYPH_STYLE)
-    assert_span_covers(header, "Planner and safety checks", PLAN_PHASE_TITLE_STYLE)
+    assert_span_covers(header, "3 phases", COLOR_SUMMARY)
+    assert_span_covers(header, "  1 ", COLOR_SUMMARY)
+    assert_span_covers(header, "◆ ", COLOR_PLAN_SUBHEADER)
+    assert_span_covers(header, "Planner and safety checks", COLOR_PLAN_PRIMARY)
     assert_span_covers(header, "core", PLAN_PHASE_ID_STYLE)
     assert_span_covers(header, "codex/gpt-5.6-sol", PLAN_PHASE_MODEL_STYLE)
     assert_span_covers(
         header,
         "Establish the canonical normalized data model.",
-        PLAN_PHASE_DESCRIPTION_STYLE,
+        COLOR_REASON,
     )
 
 
@@ -415,15 +513,8 @@ def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
     assert "◆" not in header.plain
 
 
-@pytest.mark.parametrize(
-    ("tier", "style"),
-    [
-        ("plan", "bold #5FD7FF"),
-        ("tale", "bold #FFD75F"),
-        ("epic", "bold #AF87FF"),
-    ],
-)
-def test_tier_values_have_distinct_restrained_styles(tier: str, style: str) -> None:
+@pytest.mark.parametrize("tier", ["plan", "tale", "epic"])
+def test_tier_values_use_uniform_dim_header_details_style(tier: str) -> None:
     header, _ = build_header_text(
         make_agent(agent_name="planner"),
         summary=DetailHeaderSummary(
@@ -435,7 +526,7 @@ def test_tier_values_have_distinct_restrained_styles(tier: str, style: str) -> N
     start = header.plain.index(f"▸ PLAN · {tier}") + len("▸ PLAN · ")
     end = start + len(tier)
     assert any(
-        span.start <= start and span.end >= end and str(span.style) == style
+        span.start <= start and span.end >= end and str(span.style) == COLOR_SUMMARY
         for span in header.spans
     )
 
@@ -496,7 +587,7 @@ def test_long_ascii_and_wide_unicode_titles_fold_without_loss(title: str) -> Non
         styled_title = _rendered_text_with_style(
             header,
             width=width,
-            style="#D7D7FF underline",
+            style=COLOR_PLAN_PRIMARY,
         )
         if " " in title:
             assert styled_title.replace(" ", "") == title.replace(" ", "")
@@ -615,7 +706,7 @@ def test_missing_or_damaged_plan_keeps_section_with_quiet_fallbacks() -> None:
     assert "▸ PLAN · tier unavailable" in header.plain
     assert "Tier:" not in header.plain
     assert "Path: ~/missing plan.md (missing)" in header.plain
-    assert_span_covers(header, "unavailable", "dim italic #878787")
+    assert_span_covers(header, "unavailable", COLOR_EMPTY)
     assert_span_covers(header, "(missing)", "dim italic #FF8787")
 
 
@@ -632,7 +723,7 @@ def test_known_invalid_epic_renders_one_quiet_unavailable_phase_state() -> None:
 
     assert header.plain.count("phases unavailable") == 1
     assert "◆" not in header.plain
-    assert_span_covers(header, "unavailable", "dim italic #878787")
+    assert_span_covers(header, "unavailable", COLOR_EMPTY)
 
 
 def test_header_append_interface_preserves_section_and_suffix() -> None:
