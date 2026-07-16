@@ -7,6 +7,7 @@ from io import StringIO
 import pytest
 from rich.cells import cell_len
 from rich.console import Console
+from rich.style import Style
 
 from sase.ace.tui.models.agent_associated_plan import (
     _AgentPlanEnrichment,
@@ -34,7 +35,6 @@ from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     PLAN_PHASE_TITLE_STYLE,
     PLAN_PHASES_LABEL_STYLE,
     PLAN_SECTION_MAX_WIDTH,
-    PLAN_TITLE_VALUE_STYLE,
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import assert_span_covers
@@ -110,6 +110,19 @@ def _render_header(header: AgentHeader, *, width: int) -> list[str]:
     return output.getvalue().splitlines()
 
 
+def _rendered_text_with_style(
+    header: AgentHeader,
+    *,
+    width: int,
+    style: str,
+) -> str:
+    console = Console(width=width, color_system=None)
+    expected = Style.parse(style)
+    return "".join(
+        segment.text for segment in console.render(header) if segment.style == expected
+    )
+
+
 def _rendered_goal_lines(header: AgentHeader, *, width: int) -> list[str]:
     lines = _render_header(header, width=width)
     start = next(index for index, line in enumerate(lines) if line.startswith("Goal:"))
@@ -164,7 +177,7 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
     assert plain.splitlines()[1].startswith("ChangeSpec:")
     assert_span_covers(header, "SASE PLAN", "bold #D7AF5F underline")
     assert_span_covers(header, "Title: ", "bold #87D7FF")
-    assert_span_covers(header, "Required plan titles", PLAN_TITLE_VALUE_STYLE)
+    assert_span_covers(header, "Required plan titles", "#D7D7FF underline")
     assert_span_covers(header, "Goal: ", "bold #87D7FF")
     assert_span_covers(
         header, "Make agent intent immediately legible.", "italic #D7D7FF"
@@ -453,6 +466,22 @@ def test_long_ascii_and_wide_unicode_titles_fold_without_loss(title: str) -> Non
         line.startswith(" " * PLAN_FIELD_LABEL_WIDTH) for line in narrow_lines[1:]
     )
     assert "…" not in "".join(narrow_lines)
+    assert (
+        _rendered_text_with_style(
+            header,
+            width=120,
+            style="#D7D7FF underline",
+        )
+        == title
+    )
+    assert (
+        _rendered_text_with_style(
+            header,
+            width=24,
+            style="#D7D7FF underline",
+        )
+        == title
+    )
 
 
 @pytest.mark.parametrize(
