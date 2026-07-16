@@ -53,7 +53,11 @@ def append_agent_context_section(
     if memory_reads:
         if rendered_lane:
             text.append("\n")
-        append_agent_memory_reads_section(text, events=memory_reads)
+        append_agent_memory_reads_section(
+            text,
+            events=memory_reads,
+            hint_state=hint_state,
+        )
         rendered_lane = True
     if skill_uses:
         if rendered_lane:

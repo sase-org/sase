@@ -6,6 +6,7 @@ from rich.text import Text
 
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 
+from ._agent_display_state import HeaderHintState
 from ._agent_context_common import (
     COLOR_EMPTY,
     COLOR_FRONTMATTER,
@@ -45,6 +46,7 @@ def append_agent_memory_reads_section(
     *,
     events: tuple[MemoryReadDisplayEvent, ...] = (),
     show_empty: bool = False,
+    hint_state: HeaderHintState | None = None,
 ) -> None:
     """Append a MEMORY sub-section listing the family's audited reads."""
     if not events:
@@ -76,6 +78,12 @@ def append_agent_memory_reads_section(
     show_role_column = any(item.agent_label for item in visible)
     for item in visible:
         event = item.event
+        hint_label = None
+        if hint_state is not None:
+            hint_number = hint_state.hint_counter
+            hint_state.hint_mappings[hint_number] = event.resolved_path
+            hint_state.hint_counter += 1
+            hint_label = Text(f"[{hint_number}] ", style="bold #FFFF00")
         reason_indent = append_lane_row(
             text,
             timestamp=event.timestamp,
@@ -85,6 +93,7 @@ def append_agent_memory_reads_section(
             primary_style=COLOR_MEMORY_PRIMARY,
             role_label=item.agent_label,
             show_role_column=show_role_column,
+            hint_label=hint_label,
         )
         if event.frontmatter_stripped:
             text.append(f"  {FRONTMATTER_MARKER}", style=COLOR_FRONTMATTER)

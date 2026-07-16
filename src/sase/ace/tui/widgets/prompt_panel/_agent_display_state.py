@@ -51,6 +51,7 @@ class AgentHintRender:
     file_hints: dict[int, str]
     tool_call_reports: dict[str, SlowToolCallReportSpec]
     commit_views: dict[int, CommitViewSpec] = field(default_factory=dict)
+    header_enrichment_pending: bool = False
 
 
 @dataclass(frozen=True)

@@ -15,6 +15,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     AgentHintRender,
     CommitViewSpec,
 )
+from sase.ace.tui.widgets.prompt_panel._messages import AgentDetailHeaderEnriched
 
 
 def _agent() -> Agent:
@@ -39,6 +40,7 @@ class _RecordingAgentDetail:
             tuple[tuple[Any, ...], dict[str, Any]]
         ] = []
         self.update_display_with_hints_calls: list[Agent] = []
+        self.refresh_detail_header_from_cache_calls: list[Agent] = []
         self.show_empty_calls = 0
         self.commit_view = CommitViewSpec(
             short_sha="abc1234",
@@ -70,6 +72,9 @@ class _RecordingAgentDetail:
         self.update_display_with_hints_calls.append(agent)
         return self.hint_render
 
+    def refresh_detail_header_from_cache(self, agent: Agent) -> None:
+        self.refresh_detail_header_from_cache_calls.append(agent)
+
     def show_empty(self) -> None:
         self.show_empty_calls += 1
 
@@ -84,6 +89,7 @@ class _FakeApp(DetailMixin):
         *,
         hint_mode_active: bool = True,
         current_tab: str = "agents",
+        hint_input_value: str = "",
     ) -> None:
         self.agent = _agent()
         self.detail = _RecordingAgentDetail()
@@ -104,9 +110,11 @@ class _FakeApp(DetailMixin):
             {"old-tool-call": object()},
         )
         self.footer_updates: list[Agent | None] = []
+        self.hint_input = type("_HintInput", (), {"value": hint_input_value})()
         self._widgets: dict[str, Any] = {
             "#agent-detail-panel": self.detail,
             "#keybinding-footer": self.footer,
+            "#hint-input": self.hint_input,
         }
 
     def query_one(self, selector: str, _type: Any = None) -> Any:
@@ -193,3 +201,34 @@ def test_panel_hint_mode_keeps_agent_detail_free_of_file_hints() -> None:
 
     assert app.detail.update_display_with_hints_calls == []
     assert len(app.detail.update_display_calls) == 1
+
+
+def test_header_enrichment_completion_refreshes_active_view_hints() -> None:
+    app = _FakeApp(hint_mode_active=True)
+
+    app.on_agent_detail_header_enriched(AgentDetailHeaderEnriched(app.agent.identity))
+
+    assert app.detail.update_display_with_hints_calls == [app.agent]
+    assert app.detail.refresh_detail_header_from_cache_calls == []
+    assert app._hint_mappings == app.detail.hint_render.file_hints
+    assert app._hint_commit_views == app.detail.hint_render.commit_views
+    assert app._hint_tool_call_reports == app.detail.hint_render.tool_call_reports
+
+
+def test_header_enrichment_completion_keeps_typed_hint_numbers_stable() -> None:
+    app = _FakeApp(hint_mode_active=True, hint_input_value="2")
+
+    app.on_agent_detail_header_enriched(AgentDetailHeaderEnriched(app.agent.identity))
+
+    assert app.detail.update_display_with_hints_calls == []
+    assert app.detail.refresh_detail_header_from_cache_calls == []
+    assert app._hint_mappings == {1: "/tmp/project/old.py"}
+
+
+def test_header_enrichment_completion_uses_plain_refresh_without_hint_mode() -> None:
+    app = _FakeApp(hint_mode_active=False)
+
+    app.on_agent_detail_header_enriched(AgentDetailHeaderEnriched(app.agent.identity))
+
+    assert app.detail.update_display_with_hints_calls == []
+    assert app.detail.refresh_detail_header_from_cache_calls == [app.agent]

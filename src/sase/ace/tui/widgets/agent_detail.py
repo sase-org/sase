@@ -152,20 +152,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prompt_panel.attempt_pinned_number = attempt_number
         generation = self._agent_detail_generation
 
-        def is_current(
-            agent_identity: tuple[Any, ...],
-            worker_generation: int,
-            attempt_view_mode: str,
-            attempt_pinned_number: int | None,
-        ) -> bool:
-            return (
-                self._agent_detail_generation == worker_generation
-                and self._current_agent is not None
-                and self._current_agent.identity == agent_identity
-                and self._attempt_view_mode == attempt_view_mode
-                and self._current_attempt_number == attempt_pinned_number
-            )
-
         set_render_context = getattr(
             prompt_panel, "set_agent_detail_render_context", None
         )
@@ -174,7 +160,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 generation=generation,
                 attempt_view_mode=self._attempt_view_mode,
                 attempt_pinned_number=attempt_number,
-                is_current=is_current,
+                is_current=self._is_agent_detail_render_current,
             )
 
         if self._should_render_workflow_detail_async(agent, attempt_number):
@@ -183,7 +169,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 generation=generation,
                 attempt_view_mode=self._attempt_view_mode,
                 attempt_pinned_number=attempt_number,
-                is_current=is_current,
+                is_current=self._is_agent_detail_render_current,
             )
         else:
             prompt_panel.update_display(agent)
@@ -266,6 +252,22 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             and not agent.appears_as_agent
         )
 
+    def _is_agent_detail_render_current(
+        self,
+        agent_identity: tuple[Any, ...],
+        worker_generation: int,
+        attempt_view_mode: str,
+        attempt_pinned_number: int | None,
+    ) -> bool:
+        """Return whether an async prompt result still matches the detail view."""
+        return (
+            self._agent_detail_generation == worker_generation
+            and self._current_agent is not None
+            and self._current_agent.identity == agent_identity
+            and self._attempt_view_mode == attempt_view_mode
+            and self._current_attempt_number == attempt_pinned_number
+        )
+
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
         """Re-render the prompt panel with file path hints.
 
@@ -283,7 +285,34 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """
         self._agent_detail_generation += 1
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        cancel_slow_tick = getattr(prompt_panel, "_cancel_slow_tool_render_tick", None)
+        if callable(cancel_slow_tick):
+            cancel_slow_tick()
+        prompt_panel.attempt_view_mode = self._attempt_view_mode
+        prompt_panel.attempt_pinned_number = self._current_attempt_number
+        generation = self._agent_detail_generation
+
+        set_render_context = getattr(
+            prompt_panel, "set_agent_detail_render_context", None
+        )
+        if callable(set_render_context):
+            set_render_context(
+                generation=generation,
+                attempt_view_mode=self._attempt_view_mode,
+                attempt_pinned_number=self._current_attempt_number,
+                is_current=self._is_agent_detail_render_current,
+            )
         return prompt_panel.update_display_with_hints(agent)
+
+    def refresh_detail_header_from_cache(self, agent: Agent) -> None:
+        """Apply cached header enrichment without advancing the generation."""
+        if (
+            self._current_agent is None
+            or self._current_agent.identity != agent.identity
+        ):
+            return
+        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel.refresh_detail_header_from_cache(agent)
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""

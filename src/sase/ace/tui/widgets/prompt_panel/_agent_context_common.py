@@ -130,6 +130,7 @@ def append_lane_row(
     primary_style: str,
     role_label: str | None = None,
     show_role_column: bool = False,
+    hint_label: Text | None = None,
 ) -> int:
     # PLAN is a descriptive lane rather than an event log, so it deliberately
     # bypasses this shared timestamp/actor row shape. MEMORY, SKILLS, and
@@ -144,8 +145,12 @@ def append_lane_row(
         text.append(column, style=COLOR_ROLE)
         extra_indent = len(column)
     text.append(f"{glyph}{_ROW_GLYPH_SEPARATOR}", style=glyph_style)
+    hint_indent = 0
+    if hint_label is not None:
+        text.append_text(hint_label)
+        hint_indent = cell_len(hint_label.plain)
     text.append(primary, style=primary_style)
-    return CONTEXT_REASON_INDENT + extra_indent
+    return CONTEXT_REASON_INDENT + extra_indent + hint_indent
 
 
 def _split_token_by_cells(token: str, width: int) -> tuple[str, str]:

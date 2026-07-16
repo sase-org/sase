@@ -23,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
+    cache_detail_header_summary,
 )
 from sase.ace.tui.widgets.file_panel import _diff as diff_mod
 from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
@@ -496,6 +497,11 @@ def test_agent_hint_mode_includes_deltas_paths(tmp_path: Path) -> None:
         workspace_dir=str(workspace_dir),
     )
     panel = _FakePromptPanel()
+    cache_detail_header_summary(
+        panel,
+        agent,
+        build_detail_header_summary(agent),
+    )
 
     result = panel.update_display_with_hints(agent)
 

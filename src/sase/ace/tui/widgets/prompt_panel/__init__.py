@@ -28,6 +28,9 @@ class AgentPromptPanel(
     _slow_tool_tick_agent: Agent | None = None
 
     def _configure_slow_tool_render_tick(self, agent: Agent) -> None:
+        if getattr(self, "_agent_hint_mode_rendered", False):
+            self._cancel_slow_tool_render_tick()
+            return
         if self.attempt_pinned_number is not None:
             self._cancel_slow_tool_render_tick()
             return
@@ -61,6 +64,9 @@ class AgentPromptPanel(
         self._slow_tool_tick_agent = None
 
     def _on_slow_tool_render_tick(self) -> None:
+        if getattr(self, "_agent_hint_mode_rendered", False):
+            self._cancel_slow_tool_render_tick()
+            return
         agent = self._slow_tool_tick_agent
         if agent is None:
             self._cancel_slow_tool_render_tick()

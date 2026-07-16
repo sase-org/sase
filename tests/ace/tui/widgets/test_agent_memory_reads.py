@@ -17,6 +17,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_memory_reads import (
     MAX_VISIBLE_READS,
     append_agent_memory_reads_section,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 
 
@@ -60,6 +61,15 @@ def _display(
     return MemoryReadDisplayEvent(event=event, agent_label=label)
 
 
+def _hint_state(start: int = 1) -> HeaderHintState:
+    return HeaderHintState(
+        hint_counter=start,
+        hint_mappings={},
+        workspace_dir=None,
+        tool_call_reports={},
+    )
+
+
 def test_empty_events_appends_nothing() -> None:
     text = Text()
     append_agent_memory_reads_section(text, events=())
@@ -87,6 +97,50 @@ def test_single_event_renders_timestamp_path_and_reason() -> None:
     assert "↳ needed commit hook contract for runtime parity refactor" in plain
     assert "last 14:22:08" not in plain
     assert "+ " not in plain
+    assert "[1]" not in plain
+
+
+def test_hint_state_maps_each_visible_event_and_aligns_reason() -> None:
+    first = _event(
+        canonical_path="tui_perf.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        reason="needed latency rules",
+        read_id="read-1",
+    )
+    second = _event(
+        canonical_path="tui_perf.md",
+        timestamp="2026-05-24T14:21:08+00:00",
+        reason="re-read before implementation",
+        read_id="read-2",
+    )
+    state = _hint_state(start=4)
+    text = Text()
+
+    append_agent_memory_reads_section(
+        text,
+        events=(_display(first), _display(second)),
+        hint_state=state,
+    )
+
+    assert "◇ [4] tui_perf.md" in text.plain
+    assert "◇ [5] tui_perf.md" in text.plain
+    assert state.hint_mappings == {
+        4: first.resolved_path,
+        5: second.resolved_path,
+    }
+    assert state.hint_counter == 6
+    lines = text.plain.splitlines()
+    first_row = next(line for line in lines if "[4] tui_perf.md" in line)
+    first_reason = next(line for line in lines if "needed latency rules" in line)
+    assert first_reason.index("↳") == first_row.index("tui_perf.md")
+
+    marker_start = text.plain.index("[4] ")
+    marker_styles = [
+        str(span.style).lower()
+        for span in text.spans
+        if span.start <= marker_start and span.end >= marker_start + len("[4] ")
+    ]
+    assert marker_styles == ["bold #ffff00"]
 
 
 def test_overflow_renders_truncation_footer() -> None:
@@ -111,6 +165,30 @@ def test_overflow_renders_truncation_footer() -> None:
     # Earliest visible footer uses HH:MM of the last (oldest) event.
     earliest_hhmm = events[-1].timestamp[11:16]
     assert f"· {earliest_hhmm} earliest" in plain
+
+
+def test_overflow_line_gets_no_hint() -> None:
+    events = tuple(
+        _event(
+            canonical_path=f"file_{index}.md",
+            timestamp=f"2026-05-24T14:{30 - index:02d}:00+00:00",
+            read_id=f"id-{index}",
+        )
+        for index in range(MAX_VISIBLE_READS + 2)
+    )
+    state = _hint_state()
+    text = Text()
+
+    append_agent_memory_reads_section(
+        text,
+        events=tuple(_display(event) for event in events),
+        hint_state=state,
+    )
+
+    assert len(state.hint_mappings) == MAX_VISIBLE_READS
+    assert text.plain.count("[") == MAX_VISIBLE_READS
+    overflow_line = next(line for line in text.plain.splitlines() if "+ 2 more" in line)
+    assert "[" not in overflow_line
 
 
 def test_long_reason_is_wrapped_without_truncation() -> None:

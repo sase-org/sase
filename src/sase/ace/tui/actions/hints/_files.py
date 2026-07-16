@@ -77,7 +77,11 @@ class FileViewingMixin(HintMixinBase):
         hint_mappings = hint_render.file_hints
         commit_views = hint_render.commit_views
 
-        if not hint_mappings and not commit_views:
+        if (
+            not hint_mappings
+            and not commit_views
+            and not hint_render.header_enrichment_pending
+        ):
             self.notify(  # type: ignore[attr-defined]
                 "No files or commits found in agent details", severity="warning"
             )

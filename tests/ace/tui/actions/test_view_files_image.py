@@ -16,7 +16,10 @@ from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.widgets import HintInputBar
-from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
+    AgentHintRender,
+    CommitViewSpec,
+)
 
 
 class _SuspendRecorder:
@@ -46,8 +49,69 @@ class _ViewApp(InputProcessingMixin, FileViewingMixin):
         return self.suspend_recorder
 
 
+class _PendingHintContainer:
+    is_attached = True
+
+    def __init__(self) -> None:
+        self.mounted: list[object] = []
+
+    def mount(self, widget: object) -> None:
+        self.mounted.append(widget)
+
+
+class _PendingAgentDetail:
+    def update_display_with_hints(self, _agent: object) -> AgentHintRender:
+        return AgentHintRender(
+            file_hints={},
+            tool_call_reports={},
+            header_enrichment_pending=True,
+        )
+
+
+class _PendingAgentViewApp(FileViewingMixin):
+    def __init__(self) -> None:
+        self.agent = SimpleNamespace(cl_name="pending-agent")
+        self.detail = _PendingAgentDetail()
+        self.container = _PendingHintContainer()
+        self.current_tab = "agents"
+        self._hint_mode_active = False
+        self._hint_mode_hints_for = None
+        self._hint_mappings = {}
+        self._hint_tool_call_reports = {}
+        self._hint_commit_views = {}
+        self.notify = MagicMock()
+        self._refresh_agents_display = MagicMock()
+
+    def _refocus_existing_hint_bar(self) -> bool:
+        return False
+
+    def _get_selected_agent(self) -> object:
+        return self.agent
+
+    def query_one(self, selector: str, _type: object = None) -> object:
+        del _type
+        if selector == "#agent-detail-panel":
+            return self.detail
+        if selector == "#agent-detail-container":
+            return self.container
+        raise AssertionError(selector)
+
+
 def _make_app(*paths: str) -> _ViewApp:
     return _ViewApp({i + 1: path for i, path in enumerate(paths)})
+
+
+def test_cold_agent_hint_render_keeps_view_mode_open_for_enrichment() -> None:
+    app = _PendingAgentViewApp()
+
+    app._view_agent_files()
+
+    app.notify.assert_not_called()
+    app._refresh_agents_display.assert_not_called()
+    assert app._hint_mode_active
+    assert app._hint_changespec_name == "pending-agent"
+    assert len(app.container.mounted) == 1
+    assert isinstance(app.container.mounted[0], HintInputBar)
 
 
 def _commit_spec(

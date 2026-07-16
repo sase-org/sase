@@ -20,6 +20,7 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
+from ._messages import AgentDetailHeaderEnriched
 from ..file_panel._linked_deltas import (
     compute_linked_delta_groups,
     should_refresh_linked_delta_groups,
@@ -368,6 +369,9 @@ class AgentDisplayWorkerMixin:
         )
         if request is None:
             return
+        summary = cast(Any, worker.result)
+        cache_detail_header_summary(self, request.agent, summary)
+
         if not request.is_current(
             request.agent_identity,
             request.generation,
@@ -376,9 +380,12 @@ class AgentDisplayWorkerMixin:
         ):
             return
 
-        summary = cast(Any, worker.result)
-        cache_detail_header_summary(self, request.agent, summary)
-        self._update_display_impl(request.agent)  # type: ignore[attr-defined]
+        post_message = getattr(self, "post_message", None)
+        if callable(post_message):
+            post_message(AgentDetailHeaderEnriched(request.agent_identity))
+        else:
+            # Mixin-only consumers have no Textual message path.
+            self._update_display_impl(request.agent)  # type: ignore[attr-defined]
         configure_slow_tick = getattr(self, "_configure_slow_tool_render_tick", None)
         if callable(configure_slow_tick):
             configure_slow_tick(request.agent)

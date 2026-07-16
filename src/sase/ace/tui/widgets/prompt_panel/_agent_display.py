@@ -34,6 +34,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             agent: The Agent to display.
         """
         with tui_trace("widget.prompt_panel.update_display"):
+            self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
             self._reset_markdown_render_cache_for_agent(agent)
             self._update_display_impl(agent)
             self._start_agent_detail_header_enrichment_from_context(agent)
@@ -50,6 +51,17 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         with tui_trace("widget.prompt_panel.refresh_slow_tool_metadata_from_cache"):
             self._update_display_impl(agent)
 
+    def refresh_detail_header_from_cache(self, agent: Agent) -> None:
+        """Re-render after async detail-header enrichment populated the cache."""
+        with tui_trace("widget.prompt_panel.refresh_detail_header_from_cache"):
+            self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
+            self._update_display_impl(agent)
+            configure_slow_tick = getattr(
+                self, "_configure_slow_tool_render_tick", None
+            )
+            if callable(configure_slow_tick):
+                configure_slow_tick(agent)
+
     def update_header_only(self, agent: Agent) -> None:
         """Render only the agent-details header + inline error traceback.
 
@@ -60,6 +72,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
+            self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
             cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
             if callable(cancel_slow_tick):
                 cancel_slow_tick()

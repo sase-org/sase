@@ -1,13 +1,15 @@
 """Agent display with file-path hints for the agent prompt panel."""
 
+from collections.abc import Callable
+
 from rich.text import Text
 
-from sase.project_display_names import humanize_vcs_refs_in_text
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
+from ...util.trace import tui_trace
 from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
     get_phase_label,
@@ -17,8 +19,6 @@ from ._agent_display_content import (
 )
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
-    build_detail_header_summary,
-    cache_detail_header_summary,
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
@@ -37,6 +37,7 @@ def _render_reply_with_hints(
     hint_counter: int,
     hint_mappings: dict[int, str],
     workspace_dir: str | None,
+    humanize_text: Callable[[str], str],
 ) -> int:
     """Render one agent's reply content with file hints into a Text."""
     chunks = agent.get_timestamped_reply_chunks()
@@ -45,7 +46,7 @@ def _render_reply_with_hints(
             target.append_text(render_timestamp_divider(ts))
             content = chunk_text.strip()
             if content:
-                content = humanize_vcs_refs_in_text(content)
+                content = humanize_text(content)
                 hint_counter = append_text_with_file_hints(
                     target,
                     content + "\n",
@@ -57,7 +58,7 @@ def _render_reply_with_hints(
         return hint_counter
     live_reply = agent.get_live_reply_content()
     if live_reply:
-        live_reply = humanize_vcs_refs_in_text(live_reply)
+        live_reply = humanize_text(live_reply)
         return append_text_with_file_hints(
             target,
             live_reply + "\n",
@@ -67,7 +68,7 @@ def _render_reply_with_hints(
         )
     response_content = agent.get_response_content()
     if response_content:
-        response_content = humanize_vcs_refs_in_text(response_content)
+        response_content = humanize_text(response_content)
         return append_text_with_file_hints(
             target,
             response_content + "\n",
@@ -82,6 +83,11 @@ class AgentHintsDisplayMixin:
     """Mixin providing hint-annotated agent display for AgentPromptPanel."""
 
     def update_display_with_hints(self, agent: Agent) -> AgentHintRender:
+        """Render the agent display with hints and trace the keystroke path."""
+        with tui_trace("widget.prompt_panel.update_display_with_hints"):
+            return self._update_display_with_hints_impl(agent)
+
+    def _update_display_with_hints_impl(self, agent: Agent) -> AgentHintRender:
         """Render agent display with ``[N]`` file path hints.
 
         Same visual structure as :meth:`update_display` but scans xprompt,
@@ -112,6 +118,12 @@ class AgentHintsDisplayMixin:
             self.update_display(agent)  # type: ignore[attr-defined]
             return AgentHintRender(file_hints={}, tool_call_reports={})
 
+        self._agent_hint_mode_rendered = True  # type: ignore[attr-defined]
+        cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
+        if callable(cancel_slow_tick):
+            cancel_slow_tick()
+        self._reset_markdown_render_cache_for_agent(agent)  # type: ignore[attr-defined]
+        humanize_text = self._humanize_display_text  # type: ignore[attr-defined]
         workspace_dir = resolve_agent_workspace_dir(
             agent.effective_workspace_num,
             agent.project_file,
@@ -129,10 +141,8 @@ class AgentHintsDisplayMixin:
             tool_call_reports=tool_call_reports,
         )
         summary = get_cached_detail_header_summary(self, agent)
-        if summary is None:
-            summary = build_detail_header_summary(agent)
-            cache_detail_header_summary(self, agent, summary)
-        publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
+        if summary is not None:
+            publish_opened_workspaces_cache(self, agent, summary.opened_workspaces)
         agent_status_buckets = (
             agent_status_buckets_for_app(getattr(self, "app", None))
             if agent.waiting_for
@@ -161,7 +171,7 @@ class AgentHintsDisplayMixin:
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
             source_xprompt = raw_xprompt
-            raw_xprompt = humanize_vcs_refs_in_text(source_xprompt)
+            raw_xprompt = humanize_text(source_xprompt)
             append_section_heading(header_text, "AGENT XPROMPT")
             xprompt_start = len(header_text.plain)
             hint_counter = append_text_with_file_hints(
@@ -199,7 +209,7 @@ class AgentHintsDisplayMixin:
 
         prompt_content = get_prompt_content(agent)
         if prompt_content:
-            prompt_content = humanize_vcs_refs_in_text(prompt_content)
+            prompt_content = humanize_text(prompt_content)
             hint_counter = append_text_with_file_hints(
                 header_text,
                 prompt_content + "\n",
@@ -228,6 +238,7 @@ class AgentHintsDisplayMixin:
                     hint_counter,
                     hint_mappings,
                     workspace_dir,
+                    humanize_text,
                 )
 
                 # Follow-up phases
@@ -244,6 +255,7 @@ class AgentHintsDisplayMixin:
                         hint_counter,
                         hint_mappings,
                         workspace_dir,
+                        humanize_text,
                     )
             # AGENT CHAT section for completed agents (with hints)
             elif agent.status in ("DONE", "FAILED"):
@@ -269,7 +281,7 @@ class AgentHintsDisplayMixin:
                         header_text.append_text(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            content = humanize_vcs_refs_in_text(content)
+                            content = humanize_text(content)
                             hint_counter = append_text_with_file_hints(
                                 header_text,
                                 content + "\n",
@@ -279,7 +291,7 @@ class AgentHintsDisplayMixin:
                             )
                             header_text.append("\n")
                 elif response_content:
-                    response_content = humanize_vcs_refs_in_text(response_content)
+                    response_content = humanize_text(response_content)
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         response_content + "\n",
@@ -303,7 +315,7 @@ class AgentHintsDisplayMixin:
                         header_text.append_text(render_timestamp_divider(ts))
                         content = chunk_text.strip()
                         if content:
-                            content = humanize_vcs_refs_in_text(content)
+                            content = humanize_text(content)
                             hint_counter = append_text_with_file_hints(
                                 header_text,
                                 content + "\n",
@@ -313,7 +325,7 @@ class AgentHintsDisplayMixin:
                             )
                             header_text.append("\n")
                 elif live_reply:
-                    live_reply = humanize_vcs_refs_in_text(live_reply)
+                    live_reply = humanize_text(live_reply)
                     hint_counter = append_text_with_file_hints(
                         header_text,
                         live_reply + "\n",
@@ -330,8 +342,11 @@ class AgentHintsDisplayMixin:
             header_text.append("No prompt file found.\n", style="dim italic")
 
         self.update(header_text)  # type: ignore[attr-defined]
+        if summary is None:
+            self._start_agent_detail_header_enrichment_from_context(agent)  # type: ignore[attr-defined]
         return AgentHintRender(
             file_hints=hint_mappings,
             tool_call_reports=tool_call_reports,
             commit_views=header_hint_state.commit_views,
+            header_enrichment_pending=summary is None,
         )

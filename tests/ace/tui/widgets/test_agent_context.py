@@ -19,6 +19,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_context import (
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
     ResponsivePlanSection,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
@@ -273,6 +274,31 @@ def test_context_rows_share_columns() -> None:
     assert memory_reason.index("↳") == skill_reason.index("↳")
     assert memory_reason.index("↳") == workspace_reason.index("↳")
     assert memory_reason.index("↳") == memory_row.index("generated_skills.md")
+
+
+def test_context_hints_apply_only_to_memory_rows() -> None:
+    text = Text()
+    hint_state = HeaderHintState(
+        hint_counter=8,
+        hint_mappings={},
+        workspace_dir=None,
+        tool_call_reports={},
+    )
+
+    append_agent_context_section(
+        text,
+        memory_reads=(_memory_event(),),
+        skill_uses=(_skill_event(),),
+        opened_workspaces=(_workspace_event(),),
+        hint_state=hint_state,
+    )
+
+    assert "◇ [8] generated_skills.md" in text.plain
+    assert "◆ sase_plan" in text.plain
+    assert "▣ sase-core" in text.plain
+    assert "[9]" not in text.plain
+    assert hint_state.hint_mappings == {8: "/tmp/test/memory/generated_skills.md"}
+    assert hint_state.hint_counter == 9
 
 
 def test_workspace_lane_overflow_shows_earliest_open() -> None:

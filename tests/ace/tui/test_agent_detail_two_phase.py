@@ -287,6 +287,8 @@ def test_hint_render_advances_generation_and_rejects_prior_render_context() -> N
     assert detail._agent_detail_generation == 8
     assert prompt_panel.hint_render_generations == [8]
     assert not is_current(agent.identity, 7, "merged", None)
+    assert prompt_panel.render_context["generation"] == 8
+    assert prompt_panel.render_context["is_current"](agent.identity, 8, "merged", None)
 
     detail.update_display_with_hints(agent)
 

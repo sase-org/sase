@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 from ...models.agent_groups import GroupingMode, status_bucket_for
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
+from ...widgets.prompt_panel._messages import AgentDetailHeaderEnriched
 from .._widget_visibility import set_widget_hidden, widget_has_class
 from ._display_helpers import TabName
 from ._loading_helpers import DISMISSABLE_STATUSES
@@ -159,6 +160,36 @@ class DetailMixin:
         self._hint_mappings = hint_render.file_hints
         self._hint_commit_views = hint_render.commit_views
         self._hint_tool_call_reports = hint_render.tool_call_reports
+
+    def on_agent_detail_header_enriched(
+        self,
+        message: AgentDetailHeaderEnriched,
+    ) -> None:
+        """Repaint an enriched header without clobbering active view hints."""
+        from textual.css.query import NoMatches
+        from textual.widgets import Input
+
+        from ...widgets import AgentDetail
+
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if current_agent is None or current_agent.identity != message.agent_identity:
+            return
+
+        try:
+            agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except (NoMatches, KeyError, LookupError):
+            return
+
+        if self._should_render_agent_detail_with_hints():
+            try:
+                hint_input = self.query_one("#hint-input", Input)  # type: ignore[attr-defined]
+            except (NoMatches, KeyError, LookupError):
+                hint_input = None
+            if hint_input is None or not hint_input.value:
+                self._render_agent_detail_with_hints(agent_detail, current_agent)
+        else:
+            agent_detail.refresh_detail_header_from_cache(current_agent)
+        message.stop()
 
     def _should_show_agents_onboarding(self) -> bool:
         """Return True when the Agents tab has no visible rows to select."""

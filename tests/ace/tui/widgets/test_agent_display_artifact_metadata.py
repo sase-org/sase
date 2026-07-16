@@ -11,6 +11,7 @@ from sase.ace.tui.models._loaders._meta_enrichment import enrich_agent_from_meta
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     build_detail_header_summary,
     build_header_text,
+    cache_detail_header_summary,
 )
 from tests.ace.tui.widgets._agent_display_helpers import (
     FakePromptPanel,
@@ -233,6 +234,11 @@ class TestAgentArtifactMetadata:
         )
         enrich_agent_from_meta(agent, str(artifacts_dir))
         panel = FakePromptPanel()
+        cache_detail_header_summary(
+            panel,
+            agent,
+            build_detail_header_summary(agent),
+        )
 
         result = panel.update_display_with_hints(agent)
 
