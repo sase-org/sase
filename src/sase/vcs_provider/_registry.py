@@ -201,6 +201,17 @@ def get_vcs_provider(cwd: str) -> VCSProvider:
     return _create_provider_for(vcs_name, cwd)
 
 
+def supports_issues(cwd: str) -> bool:
+    """Return whether the provider selected for *cwd* has full issue support.
+
+    The probe is structural and never calls the remote tracker.  Provider
+    discovery errors remain visible to the caller; only a successfully loaded
+    provider with all issue operations reports support.
+    """
+    provider = get_vcs_provider(cwd)
+    return isinstance(provider, VCSPluginManager) and provider.supports_issues()
+
+
 def _find_plugin_class(vcs_name: str) -> type | None:
     """Look up a VCS plugin class by name from ``sase_vcs`` entry points.
 

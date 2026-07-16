@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
+    from ._types import IssueListState, IssueState, IssueWire
+
 hookspec = pluggy.HookspecMarker("sase_vcs")
 hookimpl = pluggy.HookimplMarker("sase_vcs")
 
@@ -176,6 +178,42 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_abort_sync(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    # --- Optional issue-tracker operations ---
+
+    @hookspec(firstresult=True)
+    def vcs_list_issues(
+        self,
+        cwd: str,
+        state: "IssueListState",
+        limit: int,
+    ) -> list["IssueWire"]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_get_issue(self, number: int, cwd: str) -> "IssueWire": ...
+
+    @hookspec(firstresult=True)
+    def vcs_create_issue(
+        self,
+        title: str,
+        body: str,
+        labels: Sequence[str],
+        cwd: str,
+    ) -> "IssueWire": ...
+
+    @hookspec(firstresult=True)
+    def vcs_update_issue(
+        self,
+        number: int,
+        cwd: str,
+        title: str | None,
+        body: str | None,
+        state: "IssueState | None",
+        labels: Sequence[str] | None,
+    ) -> "IssueWire": ...
+
+    @hookspec(firstresult=True)
+    def vcs_get_issue_url(self, number: int, cwd: str) -> str: ...
 
     # --- Google-internal operations ---
 

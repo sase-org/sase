@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
+    from ._types import IssueListState, IssueState, IssueWire
+
 
 class VCSProvider(ABC):
     """Abstract interface for version control system operations.
@@ -334,6 +336,52 @@ class VCSProvider(ABC):
     def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
         """Abort a sync/rebase in progress and restore the previous state."""
         raise NotImplementedError("abort_sync is not supported by this VCS provider")
+
+    # --- Optional issue-tracker operations ---
+
+    def list_issues(
+        self,
+        cwd: str,
+        state: "IssueListState" = "open",
+        limit: int = 100,
+    ) -> list["IssueWire"]:
+        """List tracker issues for the repository at *cwd*.
+
+        ``state`` accepts ``"open"``, ``"closed"``, or ``"all"`` and
+        ``limit <= 0`` means unbounded.
+        """
+        raise NotImplementedError("list_issues is not supported by this VCS provider")
+
+    def get_issue(self, number: int, cwd: str) -> "IssueWire":
+        """Return one tracker issue by repository-local number."""
+        raise NotImplementedError("get_issue is not supported by this VCS provider")
+
+    def create_issue(
+        self,
+        title: str,
+        body: str,
+        labels: Sequence[str],
+        cwd: str,
+    ) -> "IssueWire":
+        """Create a tracker issue and return its normalized wire record."""
+        raise NotImplementedError("create_issue is not supported by this VCS provider")
+
+    def update_issue(
+        self,
+        number: int,
+        cwd: str,
+        *,
+        title: str | None = None,
+        body: str | None = None,
+        state: "IssueState | None" = None,
+        labels: Sequence[str] | None = None,
+    ) -> "IssueWire":
+        """Update supplied tracker fields and return the refreshed issue."""
+        raise NotImplementedError("update_issue is not supported by this VCS provider")
+
+    def get_issue_url(self, number: int, cwd: str) -> str:
+        """Return the browser URL for an issue without fetching its details."""
+        raise NotImplementedError("get_issue_url is not supported by this VCS provider")
 
     # --- Google-internal methods (default raises NotImplementedError) ---
 

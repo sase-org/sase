@@ -1,6 +1,33 @@
 """Internal data types for VCS provider implementations."""
 
 from dataclasses import dataclass
+from typing import Literal
+
+IssueState = Literal["open", "closed"]
+IssueListState = Literal["open", "closed", "all"]
+
+
+@dataclass(frozen=True)
+class IssueWire:
+    """Provider-neutral representation of an external tracker issue.
+
+    The record deliberately lives at the Python provider boundary rather than
+    in :mod:`sase.core`: tracker commands and their JSON normalization are
+    host/plugin concerns today.  Tuple-valued collections keep the frozen wire
+    record immutable and safe to cache in the TUI.
+    """
+
+    number: int
+    title: str
+    state: IssueState
+    body: str = ""
+    labels: tuple[str, ...] = ()
+    assignees: tuple[str, ...] = ()
+    author: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    url: str = ""
+    comment_count: int = 0
 
 
 @dataclass

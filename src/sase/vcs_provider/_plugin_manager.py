@@ -11,6 +11,17 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
     from sase.core.vcs_repo_stats_wire import VcsRepoStatsWire
 
+    from ._types import IssueListState, IssueState, IssueWire
+
+
+_ISSUE_OPERATION_HOOKS = (
+    "vcs_list_issues",
+    "vcs_get_issue",
+    "vcs_create_issue",
+    "vcs_update_issue",
+    "vcs_get_issue_url",
+)
+
 
 class VCSPluginManager(VCSProvider):
     """Wraps a :class:`pluggy.PluginManager` while implementing the
@@ -290,6 +301,90 @@ class VCSPluginManager(VCSProvider):
 
     def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_abort_sync", cwd=cwd)
+
+    # --- Optional issue-tracker operations ---
+
+    def supports_issues(self) -> bool:
+        """Probe issue support without executing a remote tracker command.
+
+        Older plugins simply have no implementations for the new hooks, which
+        pluggy exposes as empty hook implementation lists.  All operations are
+        required so a partial implementation cannot claim CRUD capability.
+        """
+        return all(
+            bool(getattr(self._pm.hook, hook_name).get_hookimpls())
+            for hook_name in _ISSUE_OPERATION_HOOKS
+        )
+
+    def list_issues(
+        self,
+        cwd: str,
+        state: "IssueListState" = "open",
+        limit: int = 100,
+    ) -> list["IssueWire"]:
+        result = self._pm.hook.vcs_list_issues(cwd=cwd, state=state, limit=limit)
+        if result is None:
+            raise NotImplementedError(
+                "list_issues is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    def get_issue(self, number: int, cwd: str) -> "IssueWire":
+        result = self._pm.hook.vcs_get_issue(number=number, cwd=cwd)
+        if result is None:
+            raise NotImplementedError("get_issue is not supported by this VCS provider")
+        return result  # type: ignore[return-value]
+
+    def create_issue(
+        self,
+        title: str,
+        body: str,
+        labels: Sequence[str],
+        cwd: str,
+    ) -> "IssueWire":
+        result = self._pm.hook.vcs_create_issue(
+            title=title,
+            body=body,
+            labels=labels,
+            cwd=cwd,
+        )
+        if result is None:
+            raise NotImplementedError(
+                "create_issue is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    def update_issue(
+        self,
+        number: int,
+        cwd: str,
+        *,
+        title: str | None = None,
+        body: str | None = None,
+        state: "IssueState | None" = None,
+        labels: Sequence[str] | None = None,
+    ) -> "IssueWire":
+        result = self._pm.hook.vcs_update_issue(
+            number=number,
+            cwd=cwd,
+            title=title,
+            body=body,
+            state=state,
+            labels=labels,
+        )
+        if result is None:
+            raise NotImplementedError(
+                "update_issue is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    def get_issue_url(self, number: int, cwd: str) -> str:
+        result = self._pm.hook.vcs_get_issue_url(number=number, cwd=cwd)
+        if result is None:
+            raise NotImplementedError(
+                "get_issue_url is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
 
     # --- Google-internal methods ---
 
