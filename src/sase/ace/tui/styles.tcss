@@ -205,8 +205,8 @@
 }
 
 #plans-list-panel {
-    width: 48%;
-    min-width: 46;
+    width: 55%;
+    min-width: 56;
     height: 100%;
     border: round #AF87FF;
 }

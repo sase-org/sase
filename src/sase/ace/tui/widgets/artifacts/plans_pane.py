@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from rich.text import Text
@@ -304,7 +305,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         snapshot = self._snapshot
         if snapshot is None or snapshot.project != self.project_scope:
             label = "Loading plans…" if self._loading else "Plans have not loaded yet."
-            options.append(Option(label, disabled=True))
+            options.append(Option(_single_line_text(label), disabled=True))
             return options, rows
 
         options.append(_section_option("Proposals", len(snapshot.proposals)))
@@ -321,10 +322,21 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 proposal.project,
                 proposal=proposal,
             )
-            options.append(Option(_proposal_text(proposal), id=option_id))
+            options.append(
+                Option(
+                    _proposal_text(
+                        proposal,
+                        project_badge=_project_badge(snapshot, proposal.project),
+                    ),
+                    id=option_id,
+                )
+            )
         if not snapshot.proposals:
             options.append(
-                Option(Text("  No pending proposals", style="dim"), disabled=True)
+                Option(
+                    _single_line_text("  No pending proposals", style="dim"),
+                    disabled=True,
+                )
             )
 
         options.append(_section_option("Epics", len(snapshot.epics)))
@@ -345,6 +357,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                         project=project,
                         ready_ids=snapshot.ready_ids,
                         blocked_ids=snapshot.blocked_ids,
+                        project_badge=_project_badge(snapshot, project),
                     ),
                     id=option_id,
                 )
@@ -377,7 +390,12 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                     )
                 )
         if not snapshot.epics:
-            options.append(Option(Text("  No epic beads", style="dim"), disabled=True))
+            options.append(
+                Option(
+                    _single_line_text("  No epic beads", style="dim"),
+                    disabled=True,
+                )
+            )
 
         options.append(_section_option("Plan archive", len(snapshot.archive)))
         archive_entries: tuple[ProjectArchive, ...] = snapshot.archive
@@ -392,10 +410,21 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 project,
                 archive=match,
             )
-            options.append(Option(_archive_text(match), id=option_id))
+            options.append(
+                Option(
+                    _archive_text(
+                        match,
+                        project_badge=_project_badge(snapshot, project),
+                    ),
+                    id=option_id,
+                )
+            )
         if not snapshot.archive:
             options.append(
-                Option(Text("  No committed plans", style="dim"), disabled=True)
+                Option(
+                    _single_line_text("  No committed plans", style="dim"),
+                    disabled=True,
+                )
             )
         return options, rows
 
@@ -537,11 +566,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             text.append(archive_label, style="#00D7AF")
             if snapshot.errors:
                 text.append("  ·  ", style="dim")
-                count = len(snapshot.errors)
-                text.append(
-                    f"{count} project load {'error' if count == 1 else 'errors'}",
-                    style="bold #FF5F5F",
+                error_projects = ", ".join(
+                    snapshot.display_names.get(project, project)
+                    for project in sorted(snapshot.errors)
                 )
+                text.append(f"Load errors: {error_projects}", style="bold #FF5F5F")
         return text
 
     def _hints_text(self) -> Text:
@@ -657,7 +686,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
 
 def _section_option(label: str, count: int) -> Option:
-    text = Text()
+    text = _single_line_text()
     text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     text.append(f"({count}) ", style="dim")
     text.append("─" * 8, style="dim #5F5F87")
@@ -677,14 +706,19 @@ def _row_option_id(
     return f"{kind}:{identity}"
 
 
-def _proposal_text(proposal: PlanProposal) -> Text:
-    text = Text()
+def _proposal_text(
+    proposal: PlanProposal,
+    *,
+    project_badge: str | None = None,
+) -> Text:
+    text = _single_line_text()
     text.append("◆ ", style="bold #FFD700")
     text.append(proposal.title, style="bold white")
     text.append(f"  {proposal.tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    text.append(f"  {proposal.age}", style="dim")
-    if proposal.agent != "-":
-        text.append(f"  {proposal.agent}", style="dim #87D7FF")
+    age = _compact_inventory_age(proposal.age)
+    if age:
+        text.append(f"  {age}", style="dim")
+    _append_project_badge(text, project_badge)
     return text
 
 
@@ -696,8 +730,9 @@ def _epic_text(
     project: str,
     ready_ids: frozenset[tuple[str, str]],
     blocked_ids: frozenset[tuple[str, str]],
+    project_badge: str | None = None,
 ) -> Text:
-    text = Text()
+    text = _single_line_text()
     text.append(
         "▾ " if expanded else "▸ ",
         style=f"bold {ARTIFACTS_ACCENTS['plans']}",
@@ -706,7 +741,7 @@ def _epic_text(
     text.append(f" {epic.id} ", style="bold #FFD700")
     text.append(epic.title, style="bold white")
     closed = sum(phase.status == Status.CLOSED for phase in phases)
-    text.append(f"  {closed}/{len(phases)} phases", style="#87D7FF")
+    text.append(f"  {closed}/{len(phases)}", style="#87D7FF")
     issue_key = (project, epic.id)
     if issue_key in blocked_ids:
         text.append("  BLOCKED", style="bold #FF5F5F")
@@ -714,10 +749,10 @@ def _epic_text(
         text.append("  READY", style="bold #5FD787")
     elif epic.is_ready_to_work:
         text.append("  LAUNCHED", style="bold #00D7AF")
-    if epic.changespec_name:
-        text.append(f"  {epic.changespec_name}", style="bold #00D7AF")
-    if epic.changespec_bug_id:
-        text.append(f"  #{epic.changespec_bug_id}", style="bold #FF875F")
+    age = _compact_relative_age(epic.created_at)
+    if age:
+        text.append(f"  {age}", style="dim")
+    _append_project_badge(text, project_badge)
     return text
 
 
@@ -728,7 +763,7 @@ def _phase_text(
     ready_ids: frozenset[tuple[str, str]],
     blocked_ids: frozenset[tuple[str, str]],
 ) -> Text:
-    text = Text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
+    text = _single_line_text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
     text.append(_status_glyph(phase.status), style=_status_style(phase.status))
     text.append(f" {phase.id} ", style="bold #FFD700")
     text.append(phase.title, style="white")
@@ -739,22 +774,83 @@ def _phase_text(
         text.append("  ready", style="bold #5FD787")
     elif phase.status == Status.IN_PROGRESS:
         text.append("  active", style="bold #FFD700")
-    if phase.model:
-        text.append(f"  {phase.model}", style="dim #87D7FF")
     return text
 
 
-def _archive_text(match: PlanSearchMatch) -> Text:
+def _archive_text(
+    match: PlanSearchMatch,
+    *,
+    project_badge: str | None = None,
+) -> Text:
     plan = match.plan
-    text = Text("▤ ", style="bold #00D7AF")
+    text = _single_line_text("▤ ", style="bold #00D7AF")
     text.append(plan.title or plan.name, style="white")
     text.append(f"  {plan.kind}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     if plan.status:
         status_style = "#5FD787" if plan.status in {"done", "approved"} else "#FFD700"
         text.append(f"  {plan.status}", style=f"bold {status_style}")
     if plan.created_at:
-        text.append(f"  {plan.created_at[:10]}", style="dim")
+        text.append(f"  {_compact_plan_date(plan.created_at)}", style="dim")
+    _append_project_badge(text, project_badge)
     return text
+
+
+def _single_line_text(text: str = "", *, style: str = "") -> Text:
+    return Text(text, style=style, no_wrap=True, overflow="ellipsis")
+
+
+def _project_badge(snapshot: PlansSnapshot, project: str) -> str | None:
+    if snapshot.project is not None:
+        return None
+    return snapshot.display_names.get(project, project)
+
+
+def _append_project_badge(text: Text, project_badge: str | None) -> None:
+    if project_badge:
+        text.append(f"  [{project_badge}]", style="dim")
+
+
+def _compact_inventory_age(age: str) -> str:
+    value = age.strip()
+    if value == "just now":
+        return "now"
+    return value.removesuffix(" ago")
+
+
+def _compact_relative_age(timestamp: str) -> str:
+    if not timestamp.strip():
+        return ""
+    try:
+        created = datetime.fromisoformat(timestamp.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+
+    from sase.core.time import get_timezone, local_now, to_local
+
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=get_timezone())
+    elapsed_seconds = max(0, int((local_now() - to_local(created)).total_seconds()))
+    if elapsed_seconds < 60:
+        return "now"
+    minutes = elapsed_seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    if days < 30:
+        return f"{days}d"
+    if days < 365:
+        return f"{days // 30}mo"
+    return f"{days // 365}y"
+
+
+def _compact_plan_date(timestamp: str) -> str:
+    date = timestamp.strip()[:10]
+    if len(date) == 10 and date[4] == "-" and date[7] == "-":
+        return date[5:]
+    return date
 
 
 def _proposal_markdown(proposal: PlanProposal) -> str:

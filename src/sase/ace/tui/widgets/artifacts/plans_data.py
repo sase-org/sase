@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from sase.bead.model import Issue
@@ -92,7 +93,16 @@ def load_plans_snapshot(
     resolved = _resolve_projects(project)
     project_names = tuple(item.project for item in resolved)
     enabled_projects = frozenset(project_names)
-    proposals = _load_proposals(project, enabled_projects)
+    proposals = tuple(
+        sorted(
+            _load_proposals(project, enabled_projects),
+            key=lambda proposal: (
+                _timestamp_recency_key(proposal.timestamp),
+                proposal.notification.id,
+                proposal.project,
+            ),
+        )
+    )
     beads_by_project: dict[str, Path | None] = {}
     plans_by_project: dict[str, Path | None] = {}
     store_keys: list[tuple[str, object]] = []
@@ -121,7 +131,7 @@ def load_plans_snapshot(
     if not force and previous is not None and previous.source_key == source_key:
         return previous
 
-    from sase.bead.model import BeadTier, IssueType, Status
+    from sase.bead.model import BeadTier, IssueType
 
     epics: list[ProjectIssue] = []
     phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]] = {}
@@ -146,21 +156,10 @@ def load_plans_snapshot(
         except Exception as exc:
             _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
         else:
-            project_epics = sorted(
-                (
-                    issue
-                    for issue in issues
-                    if issue.issue_type == IssueType.PLAN
-                    and issue.tier == BeadTier.EPIC
-                ),
-                key=lambda issue: (
-                    {
-                        Status.IN_PROGRESS: 0,
-                        Status.OPEN: 1,
-                        Status.CLOSED: 2,
-                    }[issue.status],
-                    issue.id,
-                ),
+            project_epics = tuple(
+                issue
+                for issue in issues
+                if issue.issue_type == IssueType.PLAN and issue.tier == BeadTier.EPIC
             )
             epics.extend(ProjectIssue(project_name, issue) for issue in project_epics)
             for epic in project_epics:
@@ -190,12 +189,8 @@ def load_plans_snapshot(
 
     epics.sort(
         key=lambda item: (
-            {
-                Status.IN_PROGRESS: 0,
-                Status.OPEN: 1,
-                Status.CLOSED: 2,
-            }[item.issue.status],
-            item.issue.id,
+            _timestamp_recency_key(item.issue.created_at),
+            _hierarchical_id_key(item.issue.id),
             item.project,
         )
     )
@@ -428,6 +423,22 @@ def _hierarchical_id_key(issue_id: str) -> tuple[object, ...]:
     for part in issue_id.split("."):
         parts.append((0, int(part)) if part.isdigit() else (1, part))
     return tuple(parts)
+
+
+def _timestamp_recency_key(timestamp: str) -> tuple[bool, float]:
+    """Sort valid timestamps newest-first and missing/invalid values last."""
+    value = timestamp.strip()
+    if not value:
+        return True, 0.0
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return True, 0.0
+    if parsed.tzinfo is None:
+        from sase.core.time import get_timezone
+
+        parsed = parsed.replace(tzinfo=get_timezone())
+    return False, -parsed.timestamp()
 
 
 __all__ = [

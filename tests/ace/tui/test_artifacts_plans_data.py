@@ -8,9 +8,13 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.tui.widgets.artifacts import plans_data
-from sase.ace.tui.widgets.artifacts.plans_data import load_plans_snapshot
+from sase.ace.tui.widgets.artifacts.plans_data import (
+    PlanProposal,
+    load_plans_snapshot,
+)
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.notifications.models import Notification
 from sase.plan_search.model import Plan, PlanSearchMatch
 
 
@@ -247,3 +251,87 @@ def test_all_projects_archive_is_capped_after_recent_merge(
     assert len(snapshot.archive) == 100
     assert snapshot.archive_truncated is True
     assert {entry.project for entry in snapshot.archive} == {"beta", "gamma"}
+
+
+def test_snapshot_sorts_proposals_and_epics_newest_first(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "alpha"
+
+    def proposal(proposal_id: str, timestamp: str) -> PlanProposal:
+        notification = Notification(
+            id=proposal_id,
+            timestamp=timestamp,
+            sender="planner",
+        )
+        return PlanProposal(
+            project="alpha",
+            notification=notification,
+            title=proposal_id,
+            tier="epic",
+            age="2m ago",
+            timestamp=timestamp,
+            plan_path=str(tmp_path / f"{proposal_id}.md"),
+            content="",
+            agent="planner",
+            provider_model="codex/gpt-5",
+        )
+
+    def epic(issue_id: str, created_at: str) -> Issue:
+        return Issue(
+            id=issue_id,
+            title=issue_id,
+            issue_type=IssueType.PLAN,
+            tier=BeadTier.EPIC,
+            created_at=created_at,
+        )
+
+    monkeypatch.setattr(
+        plans_data,
+        "_resolve_projects",
+        lambda _scope: (_project("alpha"),),
+    )
+    monkeypatch.setattr(
+        plans_data, "_project_beads_dir", lambda _project: root / "beads"
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_load_proposals",
+        lambda _scope, _enabled: (
+            proposal("proposal-missing", ""),
+            proposal("proposal-b", "2026-07-16T12:00:00Z"),
+            proposal("proposal-a", "2026-07-16T12:00:00Z"),
+            proposal("proposal-old", "2026-07-15T12:00:00Z"),
+        ),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_load_project_beads",
+        lambda _root: (
+            [
+                epic("alpha-9", "2026-07-16T12:00:00Z"),
+                epic("alpha-2", ""),
+                epic("alpha-8", "2026-07-16T12:00:00Z"),
+                epic("alpha-1", "2026-07-15T12:00:00Z"),
+            ],
+            frozenset(),
+            frozenset(),
+        ),
+    )
+    monkeypatch.setattr(plans_data, "_load_project_archive", lambda _root: ())
+
+    snapshot = load_plans_snapshot("alpha", force=True)
+
+    assert [item.notification.id for item in snapshot.proposals] == [
+        "proposal-a",
+        "proposal-b",
+        "proposal-old",
+        "proposal-missing",
+    ]
+    assert [item.issue.id for item in snapshot.epics] == [
+        "alpha-8",
+        "alpha-9",
+        "alpha-1",
+        "alpha-2",
+    ]

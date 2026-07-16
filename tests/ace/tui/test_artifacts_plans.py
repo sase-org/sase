@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+from rich.console import Console
 from textual.widgets import OptionList
 
 from sase.ace.testing import AcePage
@@ -20,6 +22,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     ProjectIssue,
     load_plans_snapshot,
 )
+from sase.ace.tui.widgets.artifacts import plans_pane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.bead.model import BeadTier, Dependency, Issue, IssueType, Status
 from sase.bead.project import BeadProject
@@ -499,3 +502,130 @@ async def test_all_project_bead_actions_route_to_selected_row_project(
         page.app.action_plans_open_bug()
         assert tracked.call_args.args[2] == str(tmp_path / "beta-workspace")
         assert tracked.call_args.kwargs["dedup_key"] == "plans:bug:beta:42"
+
+
+def test_plan_list_rows_are_compact_single_line_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    proposal = snapshot.proposals[0]
+    epic = replace(
+        snapshot.epics[0].issue,
+        title="A very long epic title that must never wrap onto a second row",
+        created_at="2026-05-16T12:00:00Z",
+    )
+    phases = tuple(
+        replace(
+            item.issue,
+            title="A very long phase title that must never wrap onto a second row",
+        )
+        for item in snapshot.phases_by_epic[("alpha", "alpha-1")]
+    )
+    monkeypatch.setattr(
+        "sase.core.time.local_now",
+        lambda: datetime(2026, 7, 16, 12, 0, 0),
+    )
+
+    labels = (
+        plans_pane._proposal_text(proposal),
+        plans_pane._epic_text(
+            epic,
+            phases,
+            expanded=False,
+            project="alpha",
+            ready_ids=snapshot.ready_ids,
+            blocked_ids=snapshot.blocked_ids,
+        ),
+        plans_pane._phase_text(
+            phases[0],
+            project="alpha",
+            ready_ids=snapshot.ready_ids,
+            blocked_ids=snapshot.blocked_ids,
+        ),
+        plans_pane._archive_text(snapshot.archive[0].match),
+    )
+    console = Console(width=24)
+
+    for label in labels:
+        assert label.no_wrap is True
+        assert label.overflow == "ellipsis"
+        assert len(label.wrap(console, 24)) == 1
+        assert "\n" not in label.plain
+
+    assert labels[0].plain.endswith("epic  2m")
+    assert "phases" not in labels[1].plain
+    assert "alpha-cl" not in labels[1].plain
+    assert "#42" not in labels[1].plain
+    assert labels[1].plain.endswith("READY  2mo")
+    assert "codex/gpt-5" not in labels[2].plain
+    assert labels[3].plain.endswith("epic  done  07-14")
+
+
+def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> None:
+    single = _snapshot(tmp_path)
+    all_projects = _all_projects_snapshot(tmp_path)
+    proposal = all_projects.proposals[0]
+    epic = all_projects.epics[0].issue
+    phases = tuple(
+        item.issue for item in all_projects.phases_by_epic[("beta", epic.id)]
+    )
+    archive = all_projects.archive[0].match
+
+    all_labels = (
+        plans_pane._proposal_text(
+            proposal,
+            project_badge=plans_pane._project_badge(all_projects, "beta"),
+        ),
+        plans_pane._epic_text(
+            epic,
+            phases,
+            expanded=False,
+            project="beta",
+            ready_ids=all_projects.ready_ids,
+            blocked_ids=all_projects.blocked_ids,
+            project_badge=plans_pane._project_badge(all_projects, "beta"),
+        ),
+        plans_pane._archive_text(
+            archive,
+            project_badge=plans_pane._project_badge(all_projects, "beta"),
+        ),
+    )
+    single_labels = (
+        plans_pane._proposal_text(
+            single.proposals[0],
+            project_badge=plans_pane._project_badge(single, "alpha"),
+        ),
+        plans_pane._epic_text(
+            single.epics[0].issue,
+            tuple(
+                item.issue
+                for item in single.phases_by_epic[("alpha", single.epics[0].issue.id)]
+            ),
+            expanded=False,
+            project="alpha",
+            ready_ids=single.ready_ids,
+            blocked_ids=single.blocked_ids,
+            project_badge=plans_pane._project_badge(single, "alpha"),
+        ),
+        plans_pane._archive_text(
+            single.archive[0].match,
+            project_badge=plans_pane._project_badge(single, "alpha"),
+        ),
+    )
+
+    assert all(label.plain.endswith("[Beta]") for label in all_labels)
+    assert all("[Alpha]" not in label.plain for label in single_labels)
+
+
+def test_all_projects_status_names_projects_with_load_errors(tmp_path: Path) -> None:
+    pane = ArtifactsPlansPane()
+    pane._snapshot = replace(
+        _all_projects_snapshot(tmp_path),
+        errors={"beta": "Unable to read beads"},
+    )
+
+    status = pane._status_text().plain
+
+    assert status.startswith("2 projects")
+    assert "Load errors: Beta" in status
