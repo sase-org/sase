@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from ...models.agent_groups import GroupingMode
 from ...util.trace import tui_trace
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ...widgets import AgentList
+    from ..navigation.jump_hints import BannerJumpTarget, PanelJumpTarget
 
 
 class PanelRefreshMixin:
@@ -92,8 +93,8 @@ class PanelRefreshMixin:
         self,
         *,
         jump_hints: dict[int, str] | None,
-        banner_jump_hints: dict[tuple[Literal["banner"], int, tuple[str, ...]], str]
-        | None = None,
+        banner_jump_hints: dict[BannerJumpTarget, str] | None = None,
+        panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
     ) -> None:
         """Mount/unmount AgentList widgets to match :attr:`_panel_group`."""
         with tui_trace(
@@ -102,15 +103,17 @@ class PanelRefreshMixin:
             panels=len(self._panel_group.panel_keys),
         ):
             self._refresh_panel_widgets_impl(
-                jump_hints=jump_hints, banner_jump_hints=banner_jump_hints
+                jump_hints=jump_hints,
+                banner_jump_hints=banner_jump_hints,
+                panel_jump_hints=panel_jump_hints,
             )
 
     def _refresh_panel_widgets_impl(
         self,
         *,
         jump_hints: dict[int, str] | None,
-        banner_jump_hints: dict[tuple[Literal["banner"], int, tuple[str, ...]], str]
-        | None = None,
+        banner_jump_hints: dict[BannerJumpTarget, str] | None = None,
+        panel_jump_hints: dict[PanelJumpTarget, str] | None = None,
     ) -> None:
         from textual.css.query import NoMatches
 
@@ -176,6 +179,11 @@ class PanelRefreshMixin:
                 merge_tag_panels=merge_tag_panels,
                 counts=counts,
                 collapsed=panel_collapsed,
+                jump_hint=(
+                    panel_jump_hints.get(("panel", key))
+                    if panel_collapsed and panel_jump_hints
+                    else None
+                ),
             )
             if idx == 0:
                 widget.remove_class("agent-panel-separated")
@@ -280,6 +288,11 @@ class PanelRefreshMixin:
             if getattr(self, "_entry_jump_mode_active", False)
             else None
         )
+        panel_jump_hints = (
+            dict(getattr(self, "_entry_jump_panel_to_hint", {}))
+            if getattr(self, "_entry_jump_mode_active", False)
+            else None
+        )
 
         focused_idx = self._panel_group.focused_idx
         marked = self._marked_agents
@@ -333,6 +346,11 @@ class PanelRefreshMixin:
                 merge_tag_panels=merge_tag_panels,
                 counts=counts,
                 collapsed=panel_collapsed,
+                jump_hint=(
+                    panel_jump_hints.get(("panel", key))
+                    if panel_collapsed and panel_jump_hints
+                    else None
+                ),
             )
 
             local_idx = -1

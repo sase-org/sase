@@ -163,6 +163,35 @@ async def test_agents_collapsed_panel_png_snapshot(
             title="ACE agents collapsed panel",
         )
 
+        normal_width = collapsed_widget._requested_width
+        await page.press("apostrophe")
+        await page.wait_for(
+            lambda _screen: Text.from_markup(
+                collapsed_widget.border_title
+            ).plain.startswith("[3] ▸ ")
+        )
+        await wait_for_visual_idle(page)
+        assert page.app._entry_jump_mode_active is True
+        assert collapsed_widget._requested_width == normal_width + 4
+        assert (
+            Text.from_markup(collapsed_widget.border_title).plain
+            == "[3] ▸ #chop · 2 [R1 W1]"
+        )
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_collapsed_panel_jump_hints_120x40",
+            title="ACE agents collapsed panel jump hints",
+        )
+
+        await page.press("escape")
+        await page.wait_for(
+            lambda _screen: Text.from_markup(
+                collapsed_widget.border_title
+            ).plain.startswith("▸ ")
+        )
+        assert collapsed_widget._requested_width == normal_width
+
 
 async def test_agents_unread_highlight_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,

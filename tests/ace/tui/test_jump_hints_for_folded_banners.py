@@ -1,9 +1,9 @@
-"""Jump hints cover collapsed group banners on the Agents tab.
+"""Jump hints cover collapsed group banners and whole panels on the Agents tab.
 
 Pressing ``'`` should paint a ``[x]`` chip next to every collapsed banner
 row alongside the visible-agent chips, so a single keystroke can either
-land on an agent or focus a folded group banner. Expanded banners stay
-hint-less because they are not selectable.
+land on an agent, focus a folded group banner, or focus a collapsed panel
+header. Expanded banners and panel titles stay hint-less.
 """
 
 from __future__ import annotations
@@ -30,23 +30,31 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         *,
         collapsed: list[tuple[str, ...]] | None = None,
         collapsed_by_panel: dict[str | None, list[tuple[str, ...]]] | None = None,
+        collapsed_panels: set[str | None] | None = None,
         patch_result: bool = True,
     ) -> None:
         self.current_tab = "agents"
         self.current_idx = 0
+        self.current_attempt_number: int | None = 7
         self._agents = agents
         self._group_fold_registry = AgentGroupFoldRegistry()
         for key in collapsed or []:
             self._group_fold_registry.collapse(key)
         for panel_key, keys in (collapsed_by_panel or {}).items():
             self._group_fold_registry.for_panel(panel_key).collapse_keys(keys)
-        self._panel_group = AgentPanelGroup.from_agents(agents)
+        self._collapsed_panel_keys = set(collapsed_panels or ())
+        self._panel_group = AgentPanelGroup.from_agents(
+            agents,
+            collapsed_panel_keys=self._collapsed_panel_keys,
+        )
         self._current_group_key: tuple[str, ...] | None = None
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index: dict[str, int] = {}
         self._entry_jump_index_to_hint: dict[int, str] = {}
         self._entry_jump_hint_to_banner: dict[str, Any] = {}
         self._entry_jump_banner_to_hint: dict[Any, str] = {}
+        self._entry_jump_hint_to_panel: dict[str, Any] = {}
+        self._entry_jump_panel_to_hint: dict[Any, str] = {}
         self._entry_jump_index_stack: dict[str, list[int]] = {}
         self._entry_jump_forward_index_stack: dict[str, list[Any]] = {}
         self._entry_jump_agents_anchor_stack: list[Any] = []
@@ -75,6 +83,15 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         from sase.ace.tui.models.agent_panels import panel_key_per_agent
 
         return panel_key_per_agent(self._agents)
+
+    def _snap_current_idx_to_focused_panel(
+        self, keys_per_agent: list[str | None], focused_key: str | None
+    ) -> None:
+        for index, panel_key in enumerate(keys_per_agent):
+            if panel_key == focused_key:
+                self.current_idx = index
+                return
+        self.current_idx = 0
 
     # The mixin would normally drive a full refresh; tests don't render, but
     # unread assertions need to know whether refresh fallback was requested.
@@ -159,6 +176,49 @@ def test_jump_targets_skips_expanded_banners() -> None:
     banner_targets = [t for t in targets if t[0] == "banner"]
     assert banner_targets == []
     assert all(t[0] == "agent" for t in targets)
+
+
+def test_jump_targets_include_collapsed_panels_in_render_order() -> None:
+    agents = [
+        _agent(project="alpha", cl="a1", name="hidden-group"),
+        _agent(project="beta", cl="b1", name="visible"),
+        _agent(project="chop", cl="c1", name="hidden-one", tag="chop"),
+        _agent(project="chop", cl="c2", name="hidden-two", tag="chop"),
+        _agent(project="zoom", cl="z1", name="hidden-zoom", tag="zoom"),
+    ]
+    app = _StubApp(
+        agents,
+        collapsed=[("alpha",)],
+        collapsed_panels={"chop", "zoom"},
+    )
+
+    assert app._panel_group.panel_keys == [None, "chop", "zoom"]
+    assert app._jump_candidate_targets() == [
+        ("banner", 0, ("alpha",)),
+        ("agent", 1),
+        ("panel", "chop"),
+        ("panel", "zoom"),
+    ]
+
+
+def test_collapsed_panel_maps_use_stable_keys_including_untagged() -> None:
+    agents = [
+        _agent(project="home", cl="u1", name="untagged"),
+        _agent(project="apple", cl="a1", name="visible", tag="apple"),
+        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+    ]
+    app = _StubApp(agents, collapsed_panels={None, "chop"})
+
+    app._begin_agents_jump_mode()
+
+    assert app._entry_jump_hint_to_panel == {
+        "2": ("panel", None),
+        "3": ("panel", "chop"),
+    }
+    assert app._entry_jump_panel_to_hint == {
+        ("panel", None): "2",
+        ("panel", "chop"): "3",
+    }
 
 
 def test_jump_dispatch_banner_sets_group_key() -> None:
@@ -374,6 +434,48 @@ def test_jump_dispatch_banner_arms_manual_departure_without_acknowledging_agent(
     notification_dismiss.assert_not_called()
 
 
+def test_jump_dispatch_panel_reanchors_without_acknowledging_hidden_agent(
+    notification_dismiss: Mock,
+) -> None:
+    agents = [
+        _agent(
+            project="home",
+            cl="source",
+            name="manual",
+            status="DONE",
+            raw_suffix="manual",
+        ),
+        _agent(
+            project="chop",
+            cl="hidden",
+            name="hidden",
+            tag="chop",
+            status="DONE",
+            raw_suffix="hidden",
+        ),
+    ]
+    app = _StubApp(agents, collapsed_panels={"chop"})
+    source, hidden = agents
+    app._unread_completed_agent_ids.update({source.identity, hidden.identity})
+    app._manual_unread_agent_ids.add(source.identity)
+
+    app._begin_agents_jump_mode()
+    hint = app._entry_jump_panel_to_hint[("panel", "chop")]
+    handled = app._handle_entry_jump_key(hint)
+
+    assert handled is True
+    assert app._panel_group.focused_key == "chop"
+    assert app.current_idx == 1
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert source.identity in app._unread_completed_agent_ids
+    assert source.identity not in app._manual_unread_agent_ids
+    assert hidden.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == []
+    notification_dismiss.assert_not_called()
+
+
 def test_jump_mode_entry_guard_warns_without_entering() -> None:
     agents = [
         _agent(project="alpha", cl="a1", name="a1"),
@@ -413,6 +515,26 @@ def test_jump_selection_guard_keeps_current_agent() -> None:
         "Close the artifact viewer before switching agents",
         severity="warning",
     )
+
+
+def test_panel_jump_selection_guard_keeps_focus_and_backing_agent() -> None:
+    agents = [
+        _agent(project="home", cl="u1", name="source"),
+        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+    ]
+    app = _StubApp(agents, collapsed_panels={"chop"})
+    app._begin_agents_jump_mode()
+    hint = app._entry_jump_panel_to_hint[("panel", "chop")]
+    app.artifact_viewer_guard_active = True
+
+    handled = app._handle_entry_jump_key(hint)
+
+    assert handled is True
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._entry_jump_mode_active is False
+    assert app._entry_jump_hint_to_panel == {}
+    assert app._entry_jump_panel_to_hint == {}
 
 
 def test_back_jump_restores_agent_anchor() -> None:
@@ -517,6 +639,72 @@ def test_agent_forward_jump_restores_panel_and_banner_anchors() -> None:
     assert app.current_idx == 0
     assert app._entry_jump_agents_anchor_stack == [("banner", 1, ("alpha",))]
     assert app._entry_jump_agents_forward_anchor_stack == []
+
+
+def test_panel_anchor_round_trips_through_back_and_forward_history() -> None:
+    agents = [
+        _agent(project="home", cl="u1", name="source"),
+        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+    ]
+    app = _StubApp(agents, collapsed_panels={"chop"})
+
+    app._begin_agents_jump_mode()
+    app._handle_entry_jump_key(app._entry_jump_panel_to_hint[("panel", "chop")])
+    assert app._current_agents_jump_anchor() == ("panel", "chop")
+
+    app._begin_agents_jump_mode()
+    app._handle_entry_jump_key("apostrophe")
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._entry_jump_agents_forward_anchor_stack == [("panel", "chop")]
+
+    app.action_jump_to_entry_forward()
+    assert app._panel_group.focused_key == "chop"
+    assert app.current_idx == 1
+    assert app.current_attempt_number is None
+    assert app._current_group_key is None
+    assert app._entry_jump_agents_anchor_stack == [("agent", 0, 0)]
+    assert app._entry_jump_agents_forward_anchor_stack == []
+
+
+@pytest.mark.parametrize("fast", [False, True])
+def test_no_history_apostrophe_can_select_first_collapsed_panel(fast: bool) -> None:
+    agents = [_agent(project="home", cl="u1", name="hidden")]
+    app = _StubApp(agents, collapsed_panels={None})
+
+    if fast:
+        app.action_jump_to_entry_fast()
+    else:
+        app._begin_agents_jump_mode()
+        app._handle_entry_jump_key("apostrophe")
+
+    assert app._panel_group.focused_key is None
+    assert app.current_idx == 0
+    assert app._current_agents_jump_anchor() == ("panel", None)
+    assert app._entry_jump_mode_active is False
+    assert app.jump_footer_updates == (0 if fast else 1)
+
+
+def test_stale_panel_anchor_is_discarded_after_expansion_or_removal() -> None:
+    agents = [
+        _agent(project="home", cl="u1", name="source"),
+        _agent(project="chop", cl="c1", name="hidden", tag="chop"),
+    ]
+    app = _StubApp(agents, collapsed_panels={"chop"})
+    app._entry_jump_agents_anchor_stack = [("panel", "chop")]
+    app._collapsed_panel_keys.clear()
+
+    assert app._restore_agents_jump_anchor() is False
+    assert app._entry_jump_agents_anchor_stack == []
+    assert app._panel_group.focused_key is None
+
+    app._collapsed_panel_keys.add("chop")
+    app._entry_jump_agents_anchor_stack = [("panel", "chop")]
+    app._panel_group = AgentPanelGroup.from_agents([agents[0]])
+
+    assert app._restore_agents_jump_anchor() is False
+    assert app._entry_jump_agents_anchor_stack == []
+    assert app._panel_group.focused_key is None
 
 
 def test_fast_jump_pops_agent_anchor_stack_lifo() -> None:

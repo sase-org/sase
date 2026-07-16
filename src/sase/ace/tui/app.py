@@ -449,6 +449,8 @@ class AceApp(
         self._entry_jump_index_to_hint = {}
         self._entry_jump_hint_to_banner = {}
         self._entry_jump_banner_to_hint = {}
+        self._entry_jump_hint_to_panel = {}
+        self._entry_jump_panel_to_hint = {}
         self._entry_jump_hint_to_changespec_banner = {}
         self._entry_jump_changespec_banner_to_hint = {}
 

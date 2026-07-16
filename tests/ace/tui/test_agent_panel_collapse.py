@@ -228,6 +228,7 @@ def test_hidden_panel_rows_are_omitted_from_cross_panel_consumers() -> None:
     assert ("agent", 2) not in targets
     assert ("agent", 0) in targets
     assert ("agent", 3) in targets
+    assert ("panel", "alpha") in targets
 
 
 def test_panel_collapse_state_prunes_and_clears_on_grouping_toggle() -> None:

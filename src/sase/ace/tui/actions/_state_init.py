@@ -272,10 +272,13 @@ class StateInitMixin:
             AgentJumpAnchor,
             BannerJumpTarget,
             EntryJumpAnchor,
+            PanelJumpTarget,
         )
 
         self._entry_jump_hint_to_banner: dict[str, BannerJumpTarget] = {}
         self._entry_jump_banner_to_hint: dict[BannerJumpTarget, str] = {}
+        self._entry_jump_hint_to_panel: dict[str, PanelJumpTarget] = {}
+        self._entry_jump_panel_to_hint: dict[PanelJumpTarget, str] = {}
 
         # ChangeSpecs-tab banner jump-hint maps for grouped mode.  Banner identity
         # is the group key tuple — there's no panel scope on ChangeSpecs so the

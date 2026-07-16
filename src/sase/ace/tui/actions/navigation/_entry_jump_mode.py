@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from ._entry_jump_agents import EntryJumpAgentHistoryMixin
-from .jump_hints import BannerJumpTarget, JumpTarget, build_jump_hint_maps
+from .jump_hints import (
+    BannerJumpTarget,
+    JumpTarget,
+    PanelJumpTarget,
+    build_jump_hint_maps,
+)
 
 
 class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
@@ -72,7 +77,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._refresh_current_tab()  # type: ignore[attr-defined]
 
     def _prepare_agents_jump_maps(self) -> bool:
-        """Allocate agent-row and collapsed-banner hints without rendering them."""
+        """Allocate agent-row, banner, and collapsed-panel hints without rendering."""
         guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
         if callable(guard) and guard():
             return False
@@ -87,22 +92,29 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         agent_idx_to_hint: dict[int, str] = {}
         banner_hint_to_target: dict[str, BannerJumpTarget] = {}
         banner_to_hint: dict[BannerJumpTarget, str] = {}
+        panel_hint_to_target: dict[str, PanelJumpTarget] = {}
+        panel_to_hint: dict[PanelJumpTarget, str] = {}
         for hint, target in hint_to_target.items():
             if target[0] == "agent":
                 agent_hint_to_idx[hint] = target[1]
                 agent_idx_to_hint[target[1]] = hint
-            else:
+            elif target[0] == "banner":
                 banner_hint_to_target[hint] = target
                 banner_to_hint[target] = hint
+            else:
+                panel_hint_to_target[hint] = target
+                panel_to_hint[target] = hint
 
         self._entry_jump_hint_to_index = agent_hint_to_idx
         self._entry_jump_index_to_hint = agent_idx_to_hint
         self._entry_jump_hint_to_banner = banner_hint_to_target
         self._entry_jump_banner_to_hint = banner_to_hint
+        self._entry_jump_hint_to_panel = panel_hint_to_target
+        self._entry_jump_panel_to_hint = panel_to_hint
         return True
 
     def _begin_agents_jump_mode(self) -> None:
-        """Allocate hints across visible agents + collapsed banners (agents tab)."""
+        """Allocate hints across visible agents, banners, and panel headers."""
         if not self._prepare_agents_jump_maps():
             return
         self._entry_jump_mode_active = True
@@ -141,9 +153,9 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
         Walks each tag panel's grouping tree (mirroring
         :func:`_refresh_panel_widgets`) so hint characters march down the
-        screen in the same order they're rendered.  Collapsed banners
-        contribute ``("banner", panel_idx, group_key)`` targets;
-        non-collapsed banners are non-selectable and excluded.
+        screen in the same order they're rendered.  Collapsed whole panels
+        contribute ``("panel", panel_key)`` targets and skip their hidden tree;
+        collapsed in-panel banners contribute panel-scoped banner targets.
         """
         from ...models.agent_groups import GroupingMode, build_agent_tree
         from ..agents._fold_scope import panel_fold_registry
@@ -156,6 +168,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):
             if key in collapsed_keys:
+                targets.append(("panel", key))
                 continue
             registry = panel_fold_registry(self, key)
             global_indices, panel_agents = rendered_panel_slice(self, key)
@@ -175,6 +188,8 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         self._entry_jump_index_to_hint = {}
         self._entry_jump_hint_to_banner = {}
         self._entry_jump_banner_to_hint = {}
+        self._entry_jump_hint_to_panel = {}
+        self._entry_jump_panel_to_hint = {}
         self._entry_jump_hint_to_changespec_banner = {}
         self._entry_jump_changespec_banner_to_hint = {}
         if self.current_tab == "agents":

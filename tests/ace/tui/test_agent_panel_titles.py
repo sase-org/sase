@@ -138,6 +138,25 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
     assert title.plain == "▸ #chop · 3 [R1 W2]"
 
 
+def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        counts=AgentPanelCounts(running=1, waiting=2),
+        collapsed=True,
+        jump_hint="x",
+    )
+
+    assert title.plain == "[x] ▸ #chop · 3 [R1 W2]"
+    _assert_title_span(
+        title,
+        start=0,
+        end=4,
+        style="bold #FFFF00",
+        text="[x] ",
+    )
+
+
 def _assert_title_span(
     title: Text, *, start: int, end: int, style: str, text: str
 ) -> None:

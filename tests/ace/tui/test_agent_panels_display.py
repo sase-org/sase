@@ -103,6 +103,8 @@ class _FakeApp(AgentDisplayMixin):
         self._marked_agents = set()
         self._entry_jump_mode_active = False
         self._entry_jump_index_to_hint = {}
+        self._entry_jump_banner_to_hint = {}
+        self._entry_jump_panel_to_hint = {}
         self._countdown_remaining = 0
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._current_group_key = None
@@ -227,6 +229,32 @@ def test_collapsed_untagged_panel_moves_last_and_stays_fixed() -> None:
     assert untagged.styles.height.unit is Unit.CELLS
     assert untagged.styles.height.value == 2.0
     assert "-collapsed-panel" in untagged._classes
+
+
+def test_collapsed_panel_hint_routes_by_key_in_full_and_selective_refreshes() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
+    app._collapsed_panel_keys.add("banana")
+    app._sync_panel_group()
+    target = ("panel", "banana")
+
+    app._refresh_panel_widgets(
+        jump_hints=None,
+        panel_jump_hints={target: "7"},
+    )
+
+    banana = app._panel_widgets["agent-list-panel-2"]
+    assert getattr(banana.border_title, "plain", "") == "[7] ▸ #banana · 1 [R1]"
+
+    app._entry_jump_mode_active = True
+    app._entry_jump_panel_to_hint = {target: "x"}
+    assert app._refresh_affected_panel_widgets({"banana"}) is True
+    assert getattr(banana.border_title, "plain", "") == "[x] ▸ #banana · 1 [R1]"
+
+    app._entry_jump_mode_active = False
+    app._entry_jump_panel_to_hint = {}
+    assert app._refresh_affected_panel_widgets({"banana"}) is True
+    assert getattr(banana.border_title, "plain", "") == "▸ #banana · 1 [R1]"
 
 
 def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:

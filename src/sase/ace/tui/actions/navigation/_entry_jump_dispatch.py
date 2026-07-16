@@ -101,22 +101,64 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
 
         if self.current_tab == "agents":
             banner_target = self._entry_jump_hint_to_banner.get(key)
+            panel_target = self._entry_jump_hint_to_panel.get(key)
             agent_target = self._entry_jump_hint_to_index.get(key)
-            if banner_target is None and agent_target is None:
+            if banner_target is None and panel_target is None and agent_target is None:
                 self._exit_entry_jump_mode()
                 return True
+            target_panel_idx = None
+            if panel_target is not None:
+                target_panel_idx = self._agents_jump_panel_idx_for_key(panel_target[1])
+                if target_panel_idx is None or panel_target[1] not in getattr(
+                    self, "_collapsed_panel_keys", set()
+                ):
+                    self._exit_entry_jump_mode()
+                    return True
             guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
             if callable(guard) and guard():
                 self._exit_entry_jump_mode()
                 return True
             old_idx = self.current_idx
             old_group_key = getattr(self, "_current_group_key", None)
+            panel_group = getattr(self, "_panel_group", None)
+            old_panel_collapsed = (
+                panel_group is not None
+                and panel_group.focused_key
+                in getattr(self, "_collapsed_panel_keys", set())
+            )
             old_agent = (
                 self._agents[old_idx]
-                if old_group_key is None and 0 <= old_idx < len(self._agents)
+                if (
+                    old_group_key is None
+                    and not old_panel_collapsed
+                    and 0 <= old_idx < len(self._agents)
+                )
                 else None
             )
-            if banner_target is not None:
+            if panel_target is not None:
+                assert target_panel_idx is not None
+                panel_key = panel_target[1]
+                self._remember_agents_jump_origin_if_changed(
+                    target_idx=None,
+                    target_panel_idx=target_panel_idx,
+                    target_group_key=None,
+                )
+                if old_agent is not None:
+                    arm_manual = getattr(
+                        self, "_arm_manual_unread_after_departure", None
+                    )
+                    if callable(arm_manual):
+                        arm_manual(old_agent)
+                if target_panel_idx != self._panel_group.focused_idx:
+                    self._panel_group.focused_idx = target_panel_idx
+                self._current_group_key = None
+                self.current_attempt_number = None
+                keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+                self._snap_current_idx_to_focused_panel(  # type: ignore[attr-defined]
+                    keys_per_agent,
+                    panel_key,
+                )
+            elif banner_target is not None:
                 _, panel_idx, group_key = banner_target
                 self._remember_agents_jump_origin_if_changed(
                     target_idx=None,

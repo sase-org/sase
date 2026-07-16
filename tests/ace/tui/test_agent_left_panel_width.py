@@ -95,6 +95,24 @@ def test_collapsed_agent_list_requests_only_title_width() -> None:
     assert widget._requested_width == title.cell_len + 4
 
 
+def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
+    widget = AgentList()
+    normal_title = Text("▸ #finished · 12 [D12]")
+    hinted_title = Text("[x] ▸ #finished · 12 [D12]")
+
+    widget.border_title = normal_title
+    widget.render_collapsed()
+    normal_width = widget._requested_width
+
+    widget.border_title = hinted_title
+    widget.render_collapsed()
+    assert widget._requested_width == normal_width + 4
+
+    widget.border_title = normal_title
+    widget.render_collapsed()
+    assert widget._requested_width == normal_width
+
+
 def test_collapsing_widest_panel_drops_aggregated_width() -> None:
     formerly_wide = _FakeAgentList(132)
     remaining = _FakeAgentList(78)

@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panel_index import AgentPanelIndex
     from ...models.agent_panels import AgentPanelGroup, PanelKey
+    from ..navigation.jump_hints import BannerJumpTarget, PanelJumpTarget
 
 from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
@@ -77,7 +78,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     # Banner-target inverse map; agents-tab jump mode populates this when
     # the user presses ``'`` and ``_jump_candidate_targets`` includes any
     # collapsed banners.
-    _entry_jump_banner_to_hint: dict[tuple[Any, int, tuple[str, ...]], str]
+    _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
+    _entry_jump_panel_to_hint: dict[PanelJumpTarget, str]
 
     # Group fold + tag-driven panel collection (see startup.py).
     _group_fold_registry: AgentGroupFoldRegistry
@@ -489,10 +491,16 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 if self._entry_jump_mode_active
                 else None
             )
+            panel_jump_hints = (
+                dict(self._entry_jump_panel_to_hint)
+                if self._entry_jump_mode_active
+                else None
+            )
 
             self._refresh_panel_widgets(
                 jump_hints=jump_hints,
                 banner_jump_hints=banner_jump_hints,
+                panel_jump_hints=panel_jump_hints,
             )
             log.debug(
                 "agents display refresh list phase: elapsed=%.3fs agents=%d",

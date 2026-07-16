@@ -36,10 +36,16 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
         return any(kind == "banner" and payload == group_key for kind, payload in stops)
 
     def _current_agents_jump_anchor(self) -> AgentJumpAnchor | None:
-        """Snapshot the agents-tab cursor as an agent row or collapsed banner."""
+        """Snapshot the agents cursor as a panel, agent row, or group banner."""
         panel_idx = self._current_agents_panel_idx()
         if panel_idx is None:
             return None
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is not None:
+            panel_key = panel_group.panel_keys[panel_idx]
+            if panel_key in getattr(self, "_collapsed_panel_keys", set()):
+                return ("panel", panel_key)
 
         group_key = getattr(self, "_current_group_key", None)
         if group_key is not None and self._current_agents_banner_is_selectable(
@@ -103,6 +109,22 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             return panel_idx == 0
         return 0 <= panel_idx < len(panel_group.panel_keys)
 
+    def _agents_jump_panel_idx_for_key(self, panel_key: str | None) -> int | None:
+        """Resolve a stable panel key against the current rendered panel order."""
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return 0 if panel_key is None else None
+        try:
+            return panel_group.panel_keys.index(panel_key)
+        except ValueError:
+            return None
+
+    def _agents_jump_panel_anchor_is_valid(self, panel_key: str | None) -> bool:
+        """Return whether a whole-panel anchor still names a collapsed panel."""
+        return self._agents_jump_panel_idx_for_key(
+            panel_key
+        ) is not None and panel_key in getattr(self, "_collapsed_panel_keys", set())
+
     def _agents_jump_banner_anchor_is_valid(
         self,
         *,
@@ -159,6 +181,9 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             agent_valid = 0 <= agent_idx < len(self._agents)
             return agent_valid and self._agents_jump_anchor_panel_is_valid(target_panel)
 
+        if anchor[0] == "panel":
+            return self._agents_jump_panel_anchor_is_valid(anchor[1])
+
         _, target_panel, group_key = anchor
         return self._agents_jump_banner_anchor_is_valid(
             panel_idx=target_panel,
@@ -192,10 +217,23 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             self._focus_agents_jump_anchor_panel(target_panel)
             self._current_group_key = None
             self.current_idx = agent_idx
-        else:
+        elif anchor[0] == "banner":
             _, target_panel, group_key = anchor
             self._focus_agents_jump_anchor_panel(target_panel)
             self._current_group_key = group_key
+        else:
+            _, panel_key = anchor
+            panel_idx = self._agents_jump_panel_idx_for_key(panel_key)
+            if panel_idx is None:
+                return
+            self._focus_agents_jump_anchor_panel(panel_idx)
+            self._current_group_key = None
+            self.current_attempt_number = None
+            keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]
+            self._snap_current_idx_to_focused_panel(  # type: ignore[attr-defined]
+                keys_per_agent,
+                panel_key,
+            )
 
     def _restore_agents_jump_anchor(self) -> bool:
         """Pop and restore the latest agents-tab anchor.  Returns True on success."""

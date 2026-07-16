@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from .jump_hints import AgentJumpAnchor, BannerJumpTarget, EntryJumpAnchor
+from .jump_hints import (
+    AgentJumpAnchor,
+    BannerJumpTarget,
+    EntryJumpAnchor,
+    PanelJumpTarget,
+)
 
 if TYPE_CHECKING:
     from ....changespec import ChangeSpec
@@ -33,6 +38,7 @@ class NavigationMixinBase:
     # Type hints for attributes accessed from AceApp (defined at runtime)
     changespecs: list[ChangeSpec]
     current_idx: int
+    current_attempt_number: int | None
     current_tab: TabName
     hooks_collapsed: FoldLevel
     commits_collapsed: FoldLevel
@@ -65,15 +71,15 @@ class NavigationMixinBase:
     # because two banners in different panels can share a ``group_key``.
     _entry_jump_hint_to_banner: dict[str, BannerJumpTarget]
     _entry_jump_banner_to_hint: dict[BannerJumpTarget, str]
+    _entry_jump_hint_to_panel: dict[str, PanelJumpTarget]
+    _entry_jump_panel_to_hint: dict[PanelJumpTarget, str]
     # ChangeSpecs-tab banner jump-hint maps (grouped mode only).  Banner key is
     # the tuple group identity; ChangeSpecs have no panel scope.
     _entry_jump_hint_to_changespec_banner: dict[str, tuple[str, ...]]
     _entry_jump_changespec_banner_to_hint: dict[tuple[str, ...], str]
     _current_changespec_group_key: tuple[str, ...] | None
-    # Back-jump anchors for the agents tab: ``("agent", agent_idx, panel_idx)``
-    # when the cursor was on an agent row, ``("banner", panel_idx, group_key)``
-    # when it was on a banner row.  Independent of the int stack shared with
-    # ChangeSpecs/AXE tabs because banner anchors need panel scope.
+    # Back-jump anchors for the agents tab distinguish agent rows, in-panel
+    # group banners, and stable-key collapsed whole-panel headers.
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
     _entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor]
     _jump_all_last_position: JumpAllResult | None
