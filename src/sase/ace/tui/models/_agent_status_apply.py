@@ -171,6 +171,24 @@ def apply_status_overrides(
                 if approved_status is not None:
                     agent.status = approved_status
         elif (
+            agent.is_family_member_child
+            and agent.raw_suffix is None
+            and agent.parent_timestamp
+        ):
+            # Synthetic planner rows survive repeated in-memory normalization.
+            # Refresh them from the root just like concrete main-agent steps so
+            # newly reloaded durable metadata can advance their semantic state.
+            parent = parent_by_suffix.get(agent.parent_timestamp)
+            if (
+                parent
+                and is_root_plan_workflow(parent)
+                and canonical_plan_chain_suffix(agent.role_suffix)
+                == root_child_suffix(parent)
+            ):
+                sync_planner_child_from_parent(
+                    parent, agent, all_agents, children_by_parent
+                )
+        elif (
             is_feedback_agent(agent)
             and agent.status in {"DONE", "RUNNING"}
             and is_awaiting_plan_review(agent)

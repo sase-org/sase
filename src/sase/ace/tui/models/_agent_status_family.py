@@ -26,6 +26,7 @@ from .agent import Agent, AgentType
 APPROVED_PLAN_ACTIONS = frozenset({"approve", "tale", "epic", "commit"})
 APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
+EPIC_CREATED_STATUS = "EPIC CREATED"
 
 
 def append_unique_timestamps(target: list[datetime], source: list[datetime]) -> None:
@@ -229,6 +230,8 @@ def has_family_followup_child(
     parent: Agent,
     all_agents: list[Agent],
     children_by_parent: dict[str, list[Agent]] | None = None,
+    *,
+    exclude: Agent | None = None,
 ) -> bool:
     if not parent.raw_suffix:
         return False
@@ -239,6 +242,7 @@ def has_family_followup_child(
     )
     return any(
         child is not parent
+        and child is not exclude
         and child.parent_timestamp == parent.raw_suffix
         and child.is_family_member_child
         for child in children
@@ -283,6 +287,19 @@ def _approved_planner_status(
     ):
         return TALE_APPROVED_STATUS
     return PLAN_APPROVED_STATUS
+
+
+def _approved_epic_planner_status(parent: Agent) -> str | None:
+    """Return the durable host-owned epic handoff status for a planner row."""
+    is_epic_approved = parent.plan_action == "epic" or parent.status in {
+        EPIC_APPROVED_STATUS,
+        EPIC_CREATED_STATUS,
+    }
+    if not is_epic_approved:
+        return None
+    if parent.epic_bead_id:
+        return EPIC_CREATED_STATUS
+    return EPIC_APPROVED_STATUS
 
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
@@ -394,6 +411,8 @@ def planner_child_status(
     parent: Agent,
     all_agents: list[Agent] | None = None,
     children_by_parent: dict[str, list[Agent]] | None = None,
+    *,
+    logical_child: Agent | None = None,
 ) -> str:
     """Status for the logical planner child derived from a family root."""
     if parent.status in {"STARTING", "WAITING", "RUNNING", "FAILED", "PLAN REJECTED"}:
@@ -401,10 +420,16 @@ def planner_child_status(
     if parent.status in {"QUESTION", "ANSWERED"}:
         return parent.status
     has_followup_child = all_agents is not None and has_family_followup_child(
-        parent, all_agents, children_by_parent
+        parent,
+        all_agents,
+        children_by_parent,
+        exclude=logical_child,
     )
     if has_followup_child and parent.questions_times and not parent.plan_times:
         return "ANSWERED"
+    epic_status = _approved_epic_planner_status(parent)
+    if epic_status is not None:
+        return epic_status
     approved_status = _approved_planner_status(parent, all_agents, children_by_parent)
     if approved_status is not None:
         return approved_status
@@ -442,7 +467,12 @@ def sync_planner_child_from_parent(
     children_by_parent: dict[str, list[Agent]] | None = None,
 ) -> None:
     """Copy root planner metadata onto a concrete or synthetic planner child."""
-    child.status = planner_child_status(parent, all_agents, children_by_parent)
+    child.status = planner_child_status(
+        parent,
+        all_agents,
+        children_by_parent,
+        logical_child=child,
+    )
     freeze_time = _answered_asker_freeze_time(
         parent, child.status, all_agents, children_by_parent
     )

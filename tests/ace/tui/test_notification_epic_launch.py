@@ -8,6 +8,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.ace.tui.actions.agents._notification_epic_launch import (
     submit_epic_launch_task,
 )
@@ -104,6 +106,55 @@ def test_tracked_epic_launch_streams_and_backfills_metadata(tmp_path: Path) -> N
         "2 phase agents + land agent",
         title="Epic sase-64 launched",
     )
+
+
+@pytest.mark.parametrize(
+    ("returncode", "output"),
+    [
+        (1, "Epic: sase-64\n"),
+        (0, "✓ Archived        /plans/202607/epic.md (committed)\n"),
+    ],
+    ids=["failed-command", "missing-epic-id"],
+)
+def test_tracked_epic_launch_does_not_backfill_unsuccessful_output(
+    tmp_path: Path,
+    returncode: int,
+    output: str,
+) -> None:
+    plan = tmp_path / "epic.md"
+    plan.write_text("# Epic\n", encoding="utf-8")
+    notification = _notification(tmp_path, plan)
+    app = MagicMock()
+    app._task_queue.get_running_for_key.return_value = None
+    app._submit_tracked_task.return_value = SimpleNamespace(task_id="task")
+
+    with patch(
+        "sase.ace.tui.actions.agents._notification_epic_launch.resolve_epic_launch_cwd",
+        return_value=tmp_path,
+    ):
+        owned = submit_epic_launch_task(
+            app,
+            notification,
+            plan_file=str(plan),
+            phase_count=1,
+        )
+        assert owned is True
+        work = app._submit_tracked_task.call_args.args[3]
+        reporter = MagicMock()
+        reporter.run.return_value = subprocess.CompletedProcess(
+            [],
+            returncode,
+            stdout=output,
+        )
+
+        result = work(reporter)
+
+    assert result.success is False
+    meta = json.loads(
+        (tmp_path / "artifacts" / "agent_meta.json").read_text(encoding="utf-8")
+    )
+    assert "epic_bead_id" not in meta
+    assert "epic_started_at" not in meta
 
 
 def test_tracked_epic_launch_deduplicates_by_plan_path(tmp_path: Path) -> None:
