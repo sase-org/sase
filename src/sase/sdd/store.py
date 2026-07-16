@@ -1,26 +1,32 @@
-"""Provider-owned SDD storage resolution and materialization."""
+"""Public facade for provider-owned SDD storage."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import logging
 from pathlib import Path
-import subprocess
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sase.workspace_provider import SddSidecarPreflight
 
 from sase.sdd._paths import get_primary_workspace_dir
-from sase.sdd._store_adoption import (
-    adopt_provider_store,
-    cleanup_staging,
-    clone_matches_record,
-    legacy_adoption_needed,
-    materialization_lock,
-    new_staging_path,
+from sase.sdd._store_materialization import (
+    SddInitOutcome,
+    _ensure_materialized_store_initialized,
+    _finalize_existing_store,
+    _is_remote_backed_record,
+    _is_sidecar_record,
+    _legacy_adoption_needed,
+    _materialize_sdd_store,
+    _positive_result,
+    _provider_materialization_result,
+    _provider_options,
+    _sdd_creation_authorized,
+    _usable_primary_record,
+    create_and_materialize_sdd_store as _create_and_materialize_sdd_store,
+    materialize_sdd_store as _materialize_store,
+    preflight_sdd_sidecar as _preflight_sdd_sidecar,
+    refresh_materialized_store as _refresh_materialized_store,
 )
-from sase.sdd._store_link import ensure_workspace_sdd_clone as _ensure_sdd_clone
 from sase.sdd._store_records import (
     coerce_sdd_store_record,
     delete_sdd_store_record,
@@ -35,22 +41,33 @@ from sase.sdd._store_records import (
     store_not_materialized_message,
     write_sdd_store_record,
 )
+from sase.sdd._store_resolution import (
+    _resolve_sdd_storage,
+    _sdd_dir_for_storage,
+    detect_vcs_name as _detect_vcs_name,
+    materialized_sdd_clone as _materialized_sdd_clone,
+    provider_sdd_storage_policy as _provider_sdd_storage_policy,
+    resolve_sdd_store as _resolve_sdd_store,
+)
 from sase.sdd._store_types import (
     _STORAGE_VALUES,
-    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_IN_TREE,
     SDD_STORAGE_LOCAL,
     SDD_STORAGE_SEPARATE_REPO,
+    SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORE_RECORD_FILENAME,
     SddMaterializationError,
-    SddSidecar,
     SddPushAfterCommit,
+    SddSidecar,
     SddStorage,
     SddStore,
     SddStoreRecord,
 )
-
-_logger = logging.getLogger(__name__)
+from sase.sdd._store_workspace import (
+    _inherited_sdd_record_owner_anchor,
+    ensure_sdd_kind_clone as _ensure_sdd_kind_clone,
+    ensure_workspace_sdd_clone as _ensure_workspace_sdd_clone,
+)
 
 _coerce_sdd_store_record = coerce_sdd_store_record
 _is_materialized_record = is_materialized_record
@@ -101,16 +118,6 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
-class SddInitOutcome:
-    """Result of provider-owned SDD initialization."""
-
-    store: SddStore
-    repo: str | None
-    remote_url: str | None
-    created: bool
-
-
 def resolve_sdd_dir(workspace_dir: str | Path, workspace_num: int) -> Path:
     """Resolve the effective SDD root without network or filesystem writes."""
 
@@ -128,69 +135,20 @@ def resolve_sdd_kind_dir(
 def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
     """Resolve provider-owned storage policy and concrete filesystem paths."""
 
-    storage, record, _primary = _resolve_sdd_storage(workspace_dir, workspace_num)
-    if storage == SDD_STORAGE_SIDECAR_REPOS:
-        assert record is not None and record.plans is not None
-        assert record.research is not None
-        from sase.linked_repos import sidecar_repo_clone_dir
-
-        plans_dir = Path(sidecar_repo_clone_dir(workspace_dir, "plans"))
-        research_dir = Path(sidecar_repo_clone_dir(workspace_dir, "research"))
-        return SddStore(
-            storage=storage,
-            sdd_dir=plans_dir,
-            repo_root=plans_dir,
-            provider=record.provider,
-            remote_url=record.plans.remote_url,
-            research_dir=research_dir,
-            research_remote_url=record.research.remote_url,
-        )
-
-    sdd_dir = _sdd_dir_for_storage(workspace_dir, workspace_num, storage)
-    provider: str | None = None
-    remote_url: str | None = None
-    if _is_materialized_record(record) and storage == SDD_STORAGE_SEPARATE_REPO:
-        assert record is not None
-        provider = record.provider
-        remote_url = record.remote_url
-    return SddStore(
-        storage=storage,
-        sdd_dir=sdd_dir,
-        repo_root=sdd_dir,
-        provider=provider,
-        remote_url=remote_url,
+    return _resolve_sdd_store(
+        workspace_dir,
+        workspace_num,
+        primary_workspace_resolver=get_primary_workspace_dir,
     )
 
 
-def materialized_sdd_clone(
-    primary_workspace_dir: str | Path,
-) -> Path | None:
+def materialized_sdd_clone(primary_workspace_dir: str | Path) -> Path | None:
     """Return the primary sidecar clone when its store was materialized."""
 
-    primary = Path(primary_workspace_dir).expanduser()
-    record = read_sdd_store_record(primary)
-    if not _is_materialized_record(record):
-        return None
-
-    assert record is not None
-    if record.is_sidecar_storage:
-        if record.plans is None:
-            return None
-        from sase.linked_repos import sidecar_repo_clone_dir
-
-        clone = Path(sidecar_repo_clone_dir(primary, "plans"))
-        store = resolve_sdd_store(primary, 1)
-        from sase.sdd._store_link import is_matching_store_clone
-
-        return (
-            clone if clone.is_dir() and is_matching_store_clone(clone, store) else None
-        )
-
-    clone = primary / ".sase" / "sdd"
-    if not clone.is_dir():
-        return None
-
-    return clone if clone_matches_record(clone, record) else None
+    return _materialized_sdd_clone(
+        primary_workspace_dir,
+        primary_workspace_resolver=get_primary_workspace_dir,
+    )
 
 
 def materialize_sdd_store(
@@ -207,12 +165,11 @@ def materialize_sdd_store(
     while ``False`` still permits discovery but must prevent remote creation.
     """
 
-    store, _created = _materialize_sdd_store(
+    return _materialize_store(
         workspace_dir,
         workspace_num,
         sdd_creation_authorized=sdd_creation_authorized,
     )
-    return store
 
 
 def preflight_sdd_sidecar(
@@ -220,35 +177,8 @@ def preflight_sdd_sidecar(
     workspace_num: int,
 ) -> SddSidecarPreflight:
     """Return authoritative, read-only provider discovery for explicit init."""
-    from sase.workspace_provider import (
-        SddSidecarPreflight,
-        preflight_sdd_sidecar as dispatch,
-    )
 
-    workspace = Path(workspace_dir).expanduser()
-    primary = Path(
-        get_primary_workspace_dir(str(workspace), workspace_num)
-    ).expanduser()
-    record = read_sdd_store_record(primary)
-
-    options = _provider_options(
-        workspace,
-        workspace_num,
-        policy=SDD_STORAGE_SEPARATE_REPO,
-        existing_record=(
-            cast(SddStoreRecord, record) if _is_materialized_record(record) else None
-        ),
-    )
-    try:
-        result = dispatch(str(primary), str(workspace), options)
-    except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
-        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
-    if not isinstance(result, SddSidecarPreflight):
-        raise SddMaterializationError(
-            "The workspace provider does not support authoritative SDD sidecar "
-            "preflight. Update the provider plugin and rerun `sase repo init`."
-        )
-    return result
+    return _preflight_sdd_sidecar(workspace_dir, workspace_num)
 
 
 def create_and_materialize_sdd_store(
@@ -257,158 +187,7 @@ def create_and_materialize_sdd_store(
 ) -> SddInitOutcome:
     """Compatibility name for the unified provider-owned materialization path."""
 
-    store, created = _materialize_sdd_store(workspace_dir, workspace_num)
-    primary = Path(get_primary_workspace_dir(str(Path(workspace_dir)), workspace_num))
-    record = read_sdd_store_record(primary)
-    return SddInitOutcome(
-        store=store,
-        repo=record.repo if record else None,
-        remote_url=record.remote_url if record else None,
-        created=created,
-    )
-
-
-def _materialize_sdd_store(
-    workspace_dir: str | Path,
-    workspace_num: int,
-    *,
-    sdd_creation_authorized: bool | None = None,
-) -> tuple[SddStore, bool]:
-    workspace = Path(workspace_dir).expanduser()
-    primary = Path(
-        get_primary_workspace_dir(str(workspace), workspace_num)
-    ).expanduser()
-    record = read_sdd_store_record(primary)
-
-    creation_authorized: bool | None = None
-    if _is_remote_backed_record(record):
-        creation_authorized = _sdd_creation_authorized(
-            primary,
-            requested=sdd_creation_authorized,
-        )
-
-    if _is_sidecar_record(record):
-        ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
-        return resolve_sdd_store(workspace, workspace_num), False
-
-    if _usable_primary_record(primary, record) and not _legacy_adoption_needed(
-        primary, workspace, record
-    ):
-        return _finalize_existing_store(primary, workspace, workspace_num), False
-
-    policy = (
-        None
-        if _is_materialized_record(record)
-        else _provider_sdd_storage_policy(workspace)
-    )
-    if policy != SDD_STORAGE_SEPARATE_REPO and not _is_materialized_record(record):
-        return resolve_sdd_store(workspace, workspace_num), False
-
-    if creation_authorized is None:
-        creation_authorized = _sdd_creation_authorized(
-            primary,
-            requested=sdd_creation_authorized,
-        )
-
-    with materialization_lock(primary):
-        record = read_sdd_store_record(primary)
-        usable_record = _usable_primary_record(primary, record)
-        if usable_record and not _legacy_adoption_needed(primary, workspace, record):
-            return _finalize_existing_store(primary, workspace, workspace_num), False
-
-        # Only recognized negative records are stale cache entries. Foreign or
-        # malformed records fail while loading, before this replacement path.
-        # Positive records remain authoritative until a transaction succeeds.
-        if (
-            not _is_materialized_record(record)
-            and sdd_store_record_path(primary).exists()
-        ):
-            delete_sdd_store_record(primary)
-
-        staging = new_staging_path(primary)
-        try:
-            if usable_record:
-                assert record is not None
-                normalized = record
-                created = False
-            else:
-                result = _provider_materialization_result(
-                    primary,
-                    workspace,
-                    workspace_num,
-                    policy=policy,
-                    existing_record=(
-                        cast(SddStoreRecord, record)
-                        if _is_materialized_record(record)
-                        else None
-                    ),
-                    staging=staging,
-                    sdd_creation_authorized=creation_authorized,
-                )
-                normalized = normalize_sdd_store_record(result)
-                created = bool(result.get("created"))
-            if not _is_materialized_record(normalized):
-                raise SddMaterializationError(
-                    "The workspace provider did not create or find the required "
-                    "sidecar SDD repository. Update the provider plugin and rerun "
-                    "`sase repo init`."
-                )
-            if not normalized.remote_url:
-                raise SddMaterializationError(
-                    "The workspace provider returned no sidecar clone URL. Update "
-                    "the provider plugin and rerun `sase repo init`."
-                )
-
-            adopt_provider_store(primary, workspace, normalized, staging)
-            write_sdd_store_record(primary, normalized)
-            try:
-                ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
-            except Exception:
-                delete_sdd_store_record(primary)
-                raise
-
-            store = resolve_sdd_store(workspace, workspace_num)
-            _refresh_materialized_store(store.sdd_dir)
-            _ensure_materialized_store_initialized(store)
-            return resolve_sdd_store(workspace, workspace_num), created
-        finally:
-            cleanup_staging(staging)
-
-
-def _usable_primary_record(primary: Path, record: SddStoreRecord | None) -> bool:
-    return bool(
-        _is_materialized_record(record)
-        and clone_matches_record(
-            primary / ".sase" / "sdd", cast(SddStoreRecord, record)
-        )
-    )
-
-
-def _legacy_adoption_needed(
-    primary: Path,
-    workspace: Path,
-    record: SddStoreRecord | None,
-) -> bool:
-    return bool(
-        _is_materialized_record(record)
-        and legacy_adoption_needed(
-            primary,
-            workspace,
-            cast(SddStoreRecord, record),
-        )
-    )
-
-
-def _finalize_existing_store(
-    primary: Path,
-    workspace: Path,
-    workspace_num: int,
-) -> SddStore:
-    ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
-    store = resolve_sdd_store(workspace, workspace_num)
-    _refresh_materialized_store(store.sdd_dir)
-    _ensure_materialized_store_initialized(store)
-    return resolve_sdd_store(workspace, workspace_num)
+    return _create_and_materialize_sdd_store(workspace_dir, workspace_num)
 
 
 def ensure_workspace_sdd_clone(
@@ -419,22 +198,12 @@ def ensure_workspace_sdd_clone(
 ) -> None:
     """Ensure a workspace-local clone, optionally failing the setup transaction."""
 
-    owner_anchor = _inherited_sdd_record_owner_anchor(workspace_dir, workspace_num)
-    if owner_anchor is not None:
-        ensure_workspace_sdd_clone(owner_anchor, workspace_num, strict=strict)
-        return
-
-    store = resolve_sdd_store(workspace_dir, workspace_num)
-    if store.is_sidecar_storage:
-        ensure_sdd_kind_clone(workspace_dir, workspace_num, "plans", strict=strict)
-        return
-
-    _ensure_sdd_clone(
+    _ensure_workspace_sdd_clone(
         workspace_dir,
         workspace_num,
-        resolve_store=resolve_sdd_store,
-        primary_workspace_dir=get_primary_workspace_dir,
         strict=strict,
+        resolve_store=resolve_sdd_store,
+        primary_workspace_resolver=get_primary_workspace_dir,
     )
 
 
@@ -447,302 +216,11 @@ def ensure_sdd_kind_clone(
 ) -> Path:
     """Materialize and synchronize the sidecar clone backing *kind*."""
 
-    owner_anchor = _inherited_sdd_record_owner_anchor(workspace_dir, workspace_num)
-    if owner_anchor is not None:
-        return ensure_sdd_kind_clone(owner_anchor, workspace_num, kind, strict=strict)
-
-    store = resolve_sdd_store(workspace_dir, workspace_num)
-    root = store.kind_root(kind)
-    if not store.is_sidecar_storage:
-        if store.storage == SDD_STORAGE_SEPARATE_REPO:
-            ensure_workspace_sdd_clone(workspace_dir, workspace_num, strict=strict)
-        return root
-
-    remote_url = store.research_remote_url if kind == "research" else store.remote_url
-    if remote_url is None:
-        if strict:
-            raise SddMaterializationError(f"no remote URL recorded for SDD kind {kind}")
-        return root
-
-    from sase.sdd._store_link import ensure_sidecar_sdd_clone
-
-    ensure_sidecar_sdd_clone(
-        root if kind != "beads" else root.parent,
-        remote_url,
-        strict=strict,
-    )
-    return root
-
-
-def _resolve_sdd_storage(
-    workspace_dir: str | Path,
-    workspace_num: int,
-) -> tuple[SddStorage, SddStoreRecord | None, Path]:
-    workspace = Path(workspace_dir).expanduser()
-    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
-    record = read_sdd_store_record(primary)
-    if _is_materialized_record(record):
-        assert record is not None
-        return record.storage, record, primary
-
-    policy = _provider_sdd_storage_policy(workspace)
-    storage = policy if policy in _STORAGE_VALUES else SDD_STORAGE_LOCAL
-    return cast(SddStorage, storage), record, primary
-
-
-def _inherited_sdd_record_owner_anchor(
-    workspace_dir: str | Path,
-    workspace_num: int,
-) -> Path | None:
-    """Return the owning checkout when a nested repo inherited its SDD record."""
-
-    workspace = Path(workspace_dir).expanduser().resolve(strict=False)
-    primary = Path(get_primary_workspace_dir(str(workspace), workspace_num))
-    record = read_sdd_store_record(primary)
-    if not _is_materialized_record(record):
-        return None
-
-    try:
-        from sase.workspace_provider.marker import find_marker_from_cwd
-
-        found = find_marker_from_cwd(str(workspace))
-    except Exception:
-        return None
-    if found is None:
-        return None
-
-    checkout_dir, marker = found
-    owner_anchor = Path(checkout_dir).expanduser().resolve(strict=False)
-    if owner_anchor == workspace:
-        return None
-
-    marker_primary = (
-        Path(marker.primary_workspace_dir).expanduser().resolve(strict=False)
-    )
-    if Path(primary).expanduser().resolve(strict=False) != marker_primary:
-        return None
-    return owner_anchor
-
-
-def _sdd_dir_for_storage(
-    workspace_dir: str | Path,
-    workspace_num: int,
-    storage: SddStorage,
-) -> Path:
-    workspace = Path(workspace_dir)
-    if storage == SDD_STORAGE_IN_TREE:
-        return workspace / "sdd"
-    if storage == SDD_STORAGE_SEPARATE_REPO:
-        return workspace / ".sase" / "sdd"
-    primary = get_primary_workspace_dir(str(workspace), workspace_num)
-    return Path(primary) / ".sase" / "sdd"
-
-
-def _is_sidecar_record(record: SddStoreRecord | None) -> bool:
-    return bool(
-        _is_materialized_record(record)
-        and record is not None
-        and record.is_sidecar_storage
-    )
-
-
-def _is_remote_backed_record(record: SddStoreRecord | None) -> bool:
-    return bool(
-        _is_materialized_record(record)
-        and record is not None
-        and record.storage in {SDD_STORAGE_SEPARATE_REPO, SDD_STORAGE_SIDECAR_REPOS}
-    )
-
-
-def _sdd_creation_authorized(
-    primary: Path,
-    *,
-    requested: bool | None,
-) -> bool:
-    """Require repository-local management before any remote SDD use."""
-
-    from sase.project_management import project_management_status
-
-    management = project_management_status(primary / "sase.yml")
-    if management.error is not None:
-        raise SddMaterializationError(management.error)
-    if not management.is_sase_managed:
-        raise SddMaterializationError(
-            "SDD materialization refused: repository is not SASE-managed; set "
-            "is_sase_managed: true in the target repository's sase.yml to "
-            "enable it"
-        )
-    return requested is not False
-
-
-def _provider_sdd_storage_policy(workspace_dir: str | Path) -> SddStorage | None:
-    vcs_name = _detect_vcs_name(workspace_dir)
-    if not vcs_name:
-        return None
-    try:
-        from sase.workspace_provider import get_sdd_storage_policy_by_vcs
-
-        policy = get_sdd_storage_policy_by_vcs(vcs_name)
-    except Exception as exc:
-        raise SddMaterializationError(
-            f"could not resolve SDD storage policy for workspace provider "
-            f"{vcs_name!r}: {str(exc) or type(exc).__name__}"
-        ) from exc
-    if policy is None or policy == "":
-        return None
-    if policy not in _STORAGE_VALUES:
-        raise SddMaterializationError(
-            f"workspace provider {vcs_name!r} declared invalid SDD storage policy "
-            f"{policy!r}"
-        )
-    return cast(SddStorage, policy)
-
-
-def _detect_vcs_name(workspace_dir: str | Path) -> str | None:
-    try:
-        from sase.vcs_provider import detect_vcs
-
-        return detect_vcs(str(Path(workspace_dir).expanduser()))
-    except Exception:
-        return None
-
-
-def _provider_materialization_result(
-    primary: Path,
-    workspace: Path,
-    workspace_num: int,
-    *,
-    policy: SddStorage | None,
-    existing_record: SddStoreRecord | None,
-    staging: Path,
-    sdd_creation_authorized: bool,
-) -> dict[str, Any]:
-    options = _provider_options(
-        workspace,
+    return _ensure_sdd_kind_clone(
+        workspace_dir,
         workspace_num,
-        policy=policy,
-        existing_record=existing_record,
+        kind,
+        strict=strict,
+        resolve_store=resolve_sdd_store,
+        primary_workspace_resolver=get_primary_workspace_dir,
     )
-    options.update(
-        {
-            "workspace_num": workspace_num,
-            "staging_dir": str(staging),
-            "create": True,
-            "sdd_creation_authorized": sdd_creation_authorized,
-        }
-    )
-
-    try:
-        from sase.workspace_provider import materialize_sdd_store as dispatch
-
-        result = dispatch(str(primary), str(workspace), options)
-    except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
-        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
-
-    if _positive_result(result):
-        return cast(dict[str, Any], result)
-
-    # Compatibility adapter for provider releases that still split discovery and
-    # creation. The authoritative core still fails closed if the adapter cannot
-    # return a positive record.
-    try:
-        from sase.workspace_provider import create_sdd_remote
-
-        compatibility_result = create_sdd_remote(str(primary), str(workspace), options)
-    except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
-        raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
-    if not _positive_result(compatibility_result):
-        raise SddMaterializationError(
-            "The provider plugin did not materialize the mandatory sidecar SDD "
-            "repository. Update the provider plugin and rerun `sase repo init`."
-        )
-    return cast(dict[str, Any], compatibility_result)
-
-
-def _provider_options(
-    workspace: Path,
-    workspace_num: int,
-    *,
-    policy: SddStorage | None,
-    existing_record: SddStoreRecord | None,
-) -> dict[str, object]:
-    options: dict[str, object] = {
-        "workspace_num": workspace_num,
-        "provider_policy": policy or "",
-        "vcs_name": _detect_vcs_name(workspace) or "",
-    }
-    if existing_record is not None:
-        if existing_record.repo:
-            options["sdd_repo"] = existing_record.repo
-        if existing_record.host:
-            options["sdd_host"] = existing_record.host
-        if existing_record.remote_url:
-            options["sdd_remote_url"] = existing_record.remote_url
-    return options
-
-
-def _positive_result(result: object) -> bool:
-    if not isinstance(result, dict):
-        return False
-    try:
-        return _is_materialized_record(normalize_sdd_store_record(result))
-    except (TypeError, ValueError):
-        return False
-
-
-def _refresh_materialized_store(sdd_dir: Path) -> None:
-    """Best-effort fast-forward refresh for an existing materialized clone."""
-
-    if not (sdd_dir / ".git").is_dir():
-        return
-    try:
-        from sase.sdd._commit import network_git_timeout
-
-        result = subprocess.run(
-            ["git", "pull", "--ff-only"],
-            cwd=sdd_dir,
-            capture_output=True,
-            text=True,
-            timeout=network_git_timeout(),
-            check=False,
-        )
-    except Exception:
-        _logger.warning("Failed to refresh materialized SDD store", exc_info=True)
-        return
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
-        _logger.warning(
-            "Failed to refresh materialized SDD store in %s: %s",
-            sdd_dir,
-            detail or f"git pull exited {result.returncode}",
-        )
-
-
-def _ensure_materialized_store_initialized(store: SddStore) -> None:
-    """Create generated guides and bead files inside a materialized store."""
-
-    from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject
-    from sase.sdd._bead_ignore import ensure_bead_store_gitignore
-    from sase.sdd._commit import commit_sdd_store_files
-    from sase.sdd.files import ensure_sdd_initialized
-
-    sdd_dir = store.sdd_dir
-    sdd_dir.mkdir(parents=True, exist_ok=True)
-    changed_paths: list[Path] = list(ensure_sdd_initialized(sdd_dir))
-    gitignore = ensure_bead_store_gitignore(sdd_dir)
-    if gitignore is not None:
-        changed_paths.append(gitignore)
-
-    beads_dir = sdd_dir / BEADS_DIRNAME_NON_VC
-    if not beads_dir.is_dir():
-        with BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC):
-            pass
-        changed_paths.append(beads_dir)
-
-    if changed_paths:
-        commit_sdd_store_files(
-            store,
-            "Initialize SDD store",
-            auto_commit_type="beads",
-            paths=changed_paths,
-        )
