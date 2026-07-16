@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shlex
 from collections.abc import Mapping, Sequence
@@ -595,6 +594,17 @@ def _canonical_plan_project_name(value: str) -> str | None:
     return value
 
 
+def resolve_plan_primary_workspace(action_data: Mapping[str, str]) -> str | None:
+    """Resolve the canonical primary workspace for a plan notification."""
+    project_name = _plan_action_project_name(action_data)
+    if project_name is None:
+        return None
+
+    from sase.running_field import get_workspace_directory
+
+    return get_workspace_directory(project_name, 1)
+
+
 def _resolve_project_timestamp_artifacts_dir(
     project_name: str,
     workflow_dir: str,
@@ -648,7 +658,6 @@ def _archive_plan_for_approval(
     if not notification.host_files:
         return None
     try:
-        from sase.running_field import get_workspace_directory
         from sase.sdd.files import (
             commit_sdd_store_files,
             ensure_bare_git_sdd_initialized,
@@ -660,8 +669,9 @@ def _archive_plan_for_approval(
         if not project_dir:
             return None
         artifacts_dir = resolve_plan_agent_artifacts_dir(notification.host_action_data)
-        project_basename = os.path.basename(str(project_dir))
-        workspace_dir = get_workspace_directory(project_basename, 1)
+        workspace_dir = resolve_plan_primary_workspace(notification.host_action_data)
+        if workspace_dir is None:
+            return None
         sdd_store = materialize_sdd_store(workspace_dir, 1)
         if sdd_store.is_in_tree:
             ensure_bare_git_sdd_initialized(

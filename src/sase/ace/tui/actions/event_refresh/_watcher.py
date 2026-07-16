@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 from sase.core.paths import sase_projects_dir, sase_subdir
@@ -34,7 +35,7 @@ class EventWatcherRefreshMixin(EventArtifactDeltaMixin):
             callback = (
                 self._on_artifact_change
                 if changed_paths is None
-                else lambda: self._on_artifact_change(changed_paths)
+                else partial(self._on_artifact_change, changed_paths)
             )
             self.set_timer(  # type: ignore[attr-defined]
                 delay,

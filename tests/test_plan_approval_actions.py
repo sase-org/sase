@@ -11,6 +11,7 @@ from sase.plan_approval_actions import (
     _archive_plan_for_approval,
     execute_plan_approval_response,
     resolve_plan_agent_artifacts_dir,
+    resolve_plan_primary_workspace,
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
@@ -37,6 +38,30 @@ def test_resolve_plan_agent_artifacts_dir_from_project_file_and_timestamp(
     assert resolved == str(artifact_dir)
 
 
+def test_resolve_plan_primary_workspace_prefers_agent_project_file(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "primary"
+    with patch(
+        "sase.running_field.get_workspace_directory",
+        return_value=str(primary),
+    ) as get_workspace_directory:
+        resolved = resolve_plan_primary_workspace(
+            {
+                "project_dir": str(tmp_path / "sase_10"),
+                "agent_project_file": str(
+                    tmp_path
+                    / "projects"
+                    / "gh_sase-org__sase"
+                    / "gh_sase-org__sase.sase"
+                ),
+            }
+        )
+
+    assert resolved == str(primary)
+    get_workspace_directory.assert_called_once_with("gh_sase-org__sase", 1)
+
+
 def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
     tmp_path: Path,
 ) -> None:
@@ -47,14 +72,19 @@ def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
     context = PlanApprovalActionContext(
         id="plan-approval",
         host_files=(str(plan),),
-        host_action_data={"project_dir": str(workspace)},
+        host_action_data={
+            "project_dir": str(tmp_path / "sase_10"),
+            "agent_project_file": str(
+                tmp_path / "projects" / "canonical" / "canonical.sase"
+            ),
+        },
     )
 
     with (
         patch(
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
-        ),
+        ) as get_workspace_directory,
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202608"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
@@ -66,6 +96,7 @@ def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
         saved = _archive_plan_for_approval(context, "tale")
 
     assert saved is None
+    get_workspace_directory.assert_called_once_with("canonical", 1)
     assert not (workspace / "sdd" / "plans" / "202608" / "plan.md").exists()
 
 

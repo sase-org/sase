@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sase.core.agent_artifact_paths import resolve_agent_artifact_path
 
@@ -160,7 +160,7 @@ class AgentReviveExecutionMixin(AgentReviveStateMixin, ArtifactRestorationMixin)
         # selection step once the async apply has completed.
         self._refilter_agents()  # type: ignore[attr-defined]
 
-        def _on_revive_loaded(agent: Agent = agent, scope: Any = scope) -> None:
+        def _on_revive_loaded() -> None:
             if self.current_tab != "agents":
                 return
             try:

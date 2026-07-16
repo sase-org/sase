@@ -383,7 +383,12 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         timestamp="2026-05-01T12:00:00-04:00",
         sender="test",
         action="PlanApproval",
-        action_data={"project_dir": str(workspace)},
+        action_data={
+            "project_dir": str(tmp_path / "sase_10"),
+            "agent_project_file": str(
+                tmp_path / "projects" / "canonical" / "canonical.sase"
+            ),
+        },
         files=[str(plan_file)],
     )
 
@@ -395,7 +400,7 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         patch(
             "sase.running_field.get_workspace_directory",
             return_value=str(workspace),
-        ),
+        ) as get_workspace_directory,
         patched_sdd_policy("in_tree"),
         patch("sase.sdd.files.get_yyyymm", return_value="202605"),
         patch("sase.sdd.files.ensure_bare_git_sdd_initialized") as ensure_sdd,
@@ -403,6 +408,7 @@ def test_archive_plan_for_approval_uses_version_controlled_sdd_dir(
         saved = _archive_plan_for_approval(notification, "epic")
 
     assert saved == str(workspace / "sdd" / "plans" / "202605" / "plan.md")
+    get_workspace_directory.assert_called_once_with("canonical", 1)
     assert Path(saved).read_text(encoding="utf-8").startswith("---\ncreate_time:")
     assert "tier: epic" in Path(saved).read_text(encoding="utf-8")
     assert not (workspace / ".sase" / "sdd" / "plans").exists()

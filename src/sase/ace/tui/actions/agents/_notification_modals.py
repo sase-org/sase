@@ -333,15 +333,15 @@ def _archive_plan_for_approval(
     notification: Notification, action: str = "approve"
 ) -> str | None:
     """Best-effort copy of an approved plan into the workspace plan archive."""
-    import os
-
     project_dir = notification.action_data.get("project_dir")
     if not project_dir or not notification.files:
         return None
 
     try:
-        from sase.plan_approval_actions import resolve_plan_agent_artifacts_dir
-        from sase.running_field import get_workspace_directory
+        from sase.plan_approval_actions import (
+            resolve_plan_agent_artifacts_dir,
+            resolve_plan_primary_workspace,
+        )
         from sase.sdd.files import (
             commit_sdd_store_files,
             ensure_bare_git_sdd_initialized,
@@ -349,8 +349,9 @@ def _archive_plan_for_approval(
         from sase.sdd.plan_archive import archive_plan_file
         from sase.sdd.store import materialize_sdd_store
 
-        project_basename = os.path.basename(str(project_dir))
-        workspace_dir = get_workspace_directory(project_basename, 1)
+        workspace_dir = resolve_plan_primary_workspace(notification.action_data)
+        if workspace_dir is None:
+            return None
         sdd_store = materialize_sdd_store(workspace_dir, 1)
         if sdd_store.is_in_tree:
             ensure_bare_git_sdd_initialized(
