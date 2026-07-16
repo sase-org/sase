@@ -29,6 +29,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "Artifact Sub-tabs",
             [
                 (
+                    "1 / 2 / 3 / 4",
+                    "Jump: PRs, Commits, Bugs, Plans",
+                ),
+                (
                     f"{d(a.cycle_artifacts_subtab_reverse)} / {d(a.cycle_artifacts_subtab)}",
                     "Previous / next: PRs, Commits, Bugs, Plans",
                 ),
@@ -303,7 +307,10 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             "Queries",
             [
                 (d(a.edit_query), "Edit search query"),
-                ("0-9", "Load saved query"),
+                (
+                    f"{d(a.open_saved_query_picker)}1-9 / {d(a.open_saved_query_picker)}0",
+                    "Choose saved PR query",
+                ),
                 (d(a.prev_query), "Previous query"),
                 (d(a.next_query), "Next query"),
             ],

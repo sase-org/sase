@@ -54,6 +54,7 @@ class ArtifactsView(Vertical):
         yield PanelTabStrip(
             _ARTIFACT_TABS,
             self._current_subtab,
+            show_numbers=True,
             uppercase_active=True,
             id="artifacts-subtabs",
         )

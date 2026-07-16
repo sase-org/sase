@@ -62,6 +62,7 @@ from .prompt_history_modal import (
 )
 from .prompt_submit_choice_modal import PromptSubmitChoice, PromptSubmitChoiceModal
 from .query_edit_modal import QueryEditModal
+from .saved_query_picker import SavedQueryPickerModal
 from .quit_confirm_modal import QuitConfirmModal
 from .quit_options_modal import QuitOption, QuitOptionsModal
 from .stashed_prompts_modal import StashRestoreResult, StashedPromptsModal
@@ -236,6 +237,7 @@ __all__ = [
     "PromptSubmitChoice",
     "PromptSubmitChoiceModal",
     "QueryEditModal",
+    "SavedQueryPickerModal",
     "QuitConfirmModal",
     "QuitOption",
     "QuitOptionsModal",

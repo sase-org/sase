@@ -24,6 +24,7 @@ class ChangeSpecQueryMixin:
     _all_changespecs: list[ChangeSpec]
     _query_history: QueryHistoryStacks
     _query_selections: dict[str, str]
+    _saved_queries: dict[str, str]
 
     def _save_current_query(self) -> None:
         """Save the current query as the last used query."""
@@ -44,9 +45,8 @@ class ChangeSpecQueryMixin:
 
         from ....query import parse_query, to_canonical_string
         from ....query_history import push_to_prev_stack, save_query_history
-        from ....saved_queries import load_saved_queries
 
-        queries = load_saved_queries()
+        queries = self._saved_queries
         if slot not in queries:
             self.notify(f"No query saved in slot {slot}", severity="warning")  # type: ignore[attr-defined]
             return
@@ -70,6 +70,28 @@ class ChangeSpecQueryMixin:
             self._save_current_query()
         except Exception as e:
             self.notify(f"Error loading query: {e}", severity="error")  # type: ignore[attr-defined]
+
+    def action_open_saved_query_picker(self) -> None:
+        """Open the cached saved-query chooser on the Artifacts PRs pane."""
+        if (
+            self.current_tab != "changespecs"
+            or getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
+            return
+
+        from ...modals import SavedQueryPickerModal
+
+        def _load_slot(slot: str | None) -> None:
+            if slot is not None:
+                self._load_saved_query(slot)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            SavedQueryPickerModal(
+                dict(self._saved_queries),
+                self.canonical_query_string,  # type: ignore[attr-defined]
+            ),
+            _load_slot,
+        )
 
     # --- Saved Query Actions ---
 

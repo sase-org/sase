@@ -200,6 +200,7 @@ ace:
       cycle_grouping_mode_reverse: "O"
       # Queries
       edit_query: "slash"
+      open_saved_query_picker: "asterisk"
       prev_query: "circumflex_accent"
       next_query: "underscore"
       # Display / misc

@@ -114,6 +114,24 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
     )
 
 
+def test_saved_query_picker_and_slots_are_pr_only() -> None:
+    catalog = _catalog_by_id()
+    picker = catalog["app.open_saved_query_picker"]
+    slot = catalog["saved_query.3"]
+
+    for spec in (picker, slot):
+        assert is_command_available(
+            spec,
+            CommandContext(tab="changespecs", artifacts_subtab="prs"),
+        )
+        assert not is_command_available(
+            spec,
+            CommandContext(tab="changespecs", artifacts_subtab="commits"),
+        )
+        assert not is_command_available(spec, CommandContext(tab="agents"))
+        assert not is_command_available(spec, CommandContext(tab="axe"))
+
+
 def test_show_diff_hidden_when_no_cl_selected() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.show_diff"]

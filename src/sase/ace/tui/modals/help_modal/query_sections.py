@@ -1,5 +1,7 @@
 """Query history and saved queries section builders for the help modal."""
 
+from collections.abc import Mapping
+
 from rich.text import Text
 
 from ....query_history import load_query_history
@@ -11,6 +13,9 @@ from .bindings import CONTENT_WIDTH
 def add_saved_queries_section(
     text: Text,
     active_query: str | None,
+    *,
+    queries: Mapping[str, str] | None = None,
+    saved_query_prefix: str = "*",
     content_width: int = CONTENT_WIDTH,
 ) -> None:
     """Add the saved queries section (ChangeSpecs tab only).
@@ -20,7 +25,8 @@ def add_saved_queries_section(
         active_query: The current active query string for highlighting.
         content_width: The content width for formatting.
     """
-    queries = load_saved_queries()
+    if queries is None:
+        queries = load_saved_queries()
 
     # Section header
     text.append("\n")
@@ -38,24 +44,25 @@ def add_saved_queries_section(
         text.append(" \u2502", style="dim #FFD700")
         text.append("\n")
     else:
-        # Calculate max query lengths:
-        # Content area after [slot] and spacing: content_width - 5 = 45 chars
-        # Active indicator " ● active": 9 chars
-        slot_prefix_width = 5  # "[0]" (3) + "  " (2)
+        # Calculate max query lengths after the configured [prefix+slot] badge.
         active_indicator_width = 9  # " ● active"
-        max_query_active = content_width - slot_prefix_width - active_indicator_width
-        max_query_inactive = content_width - slot_prefix_width
 
         for slot in KEY_ORDER[1:] + KEY_ORDER[:1]:
             if slot in queries:
                 query = queries[slot]
                 is_active = active_query is not None and query == active_query
+                slot_badge = f"[{saved_query_prefix}{slot}]"
+                slot_prefix_width = len(slot_badge) + 2
+                max_query_active = (
+                    content_width - slot_prefix_width - active_indicator_width
+                )
+                max_query_inactive = content_width - slot_prefix_width
 
                 text.append("  \u2502  ", style="dim #FFD700")
 
                 # Slot number with styling
                 slot_style = "bold #00FF00" if is_active else "#3CB371"
-                text.append(f"[{slot}]", style=slot_style)
+                text.append(slot_badge, style=slot_style)
                 text.append("  ", style="")
 
                 # Query with syntax highlighting (truncated if needed)

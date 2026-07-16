@@ -2,7 +2,7 @@
 
 Phase 1 deliverables (see ``sdd/tales/202604/tui_command_palette.md``):
 build a single source-of-truth command catalog for every configurable
-keymap (app actions, saved-query digits, built-in mode subcommands, and
+keymap (app actions, saved-query sequences, built-in mode subcommands, and
 custom mode commands) along with pure applicability predicates over a
 small ``CommandContext``.
 
@@ -16,6 +16,7 @@ from sase.ace.tui.commands.catalog import (
     get_command_by_id,
     iter_app_commands,
     iter_digit_commands,
+    iter_saved_query_commands,
     iter_mode_commands,
     sort_specs_by_category,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "is_command_available",
     "iter_app_commands",
     "iter_digit_commands",
+    "iter_saved_query_commands",
     "iter_mode_commands",
     "sort_specs_by_category",
 ]

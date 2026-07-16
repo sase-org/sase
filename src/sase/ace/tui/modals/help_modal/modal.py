@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, cast
 
 from rich.text import Text
@@ -57,23 +57,6 @@ _TAB_CLASSES: dict[TabName, str] = {
 }
 
 
-def _create_load_query_action(slot: str) -> Callable[[HelpModal], None]:
-    """Create an action method for loading a saved query slot.
-
-    Args:
-        slot: The query slot number (0-9).
-
-    Returns:
-        An action method that loads the saved query and closes the modal.
-    """
-
-    def action(self: HelpModal) -> None:
-        self.dismiss(None)
-        getattr(cast("AceApp", self.app), f"action_load_saved_query_{slot}")()
-
-    return action
-
-
 def _modal_key_display(key: str) -> str:
     display = key_display_name(key)
     if display in {"Tab", "Shift+Tab"}:
@@ -92,17 +75,6 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         ("right_square_bracket", "next_help_tab", "Next Help Tab"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
-        # Saved query keybindings (work from any tab)
-        Binding("1", "load_query_1", "Load Q1", show=False),
-        Binding("2", "load_query_2", "Load Q2", show=False),
-        Binding("3", "load_query_3", "Load Q3", show=False),
-        Binding("4", "load_query_4", "Load Q4", show=False),
-        Binding("5", "load_query_5", "Load Q5", show=False),
-        Binding("6", "load_query_6", "Load Q6", show=False),
-        Binding("7", "load_query_7", "Load Q7", show=False),
-        Binding("8", "load_query_8", "Load Q8", show=False),
-        Binding("9", "load_query_9", "Load Q9", show=False),
-        Binding("0", "load_query_0", "Load Q0", show=False),
         # Query history navigation (ChangeSpecs tab only)
         Binding("circumflex_accent", "go_prev_query", "Prev Query", show=False),
         Binding("underscore", "go_next_query", "Next Query", show=False),
@@ -114,6 +86,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         active_query: str | None = None,
         *,
         registry: KeymapRegistry | None = None,
+        saved_queries: Mapping[str, str] | None = None,
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
     ) -> None:
@@ -123,6 +96,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
             current_tab: The currently active app tab name.
             active_query: The current canonical query string (for highlighting).
             registry: Active keymap registry; defaults are used outside an app.
+            saved_queries: Cached saved-query snapshot; falls back to storage only
+                for standalone construction outside the app.
             agents_launch_targets_available: Agents guide launch-target state.
             agents_plugins_installed: Agents guide plugin-install state.
         """
@@ -130,6 +105,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._current_tab = current_tab
         self._active_query = active_query
         self._registry = registry
+        self._saved_queries = dict(saved_queries) if saved_queries is not None else None
         self._agents_launch_targets_available = agents_launch_targets_available
         self._agents_plugins_installed = agents_plugins_installed
         self._active_panel_tab: HelpPanelTab = _HELP_KEYMAPS_TAB
@@ -205,8 +181,13 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         """Build the left column content."""
         text = Text()
 
-        # Add saved queries section (works from any tab)
-        add_saved_queries_section(text, self._active_query)
+        km = self._get_km()
+        add_saved_queries_section(
+            text,
+            self._active_query,
+            queries=self._saved_queries,
+            saved_query_prefix=key_display_name(km.app.open_saved_query_picker),
+        )
         # Query history is ChangeSpecs-tab only
         if self._current_tab == "changespecs":
             km = self._get_km()
@@ -276,6 +257,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         active_query: str | None,
         *,
         registry: KeymapRegistry | None = None,
+        saved_queries: Mapping[str, str] | None = None,
         agents_launch_targets_available: bool = False,
         agents_plugins_installed: bool = True,
     ) -> None:
@@ -284,6 +266,8 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         self._active_query = active_query
         if registry is not None:
             self._registry = registry
+        if saved_queries is not None:
+            self._saved_queries = dict(saved_queries)
         self._agents_launch_targets_available = agents_launch_targets_available
         self._agents_plugins_installed = agents_plugins_installed
 
@@ -375,39 +359,32 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         from textual.binding import BindingsMap
 
         km = self._get_km()
-        new_bindings = (
-            [
-                ("escape", "close", "Close"),
-                ("q", "close", "Close"),
-                ("question_mark", "close", "Close"),
-                ("left_square_bracket", "prev_help_tab", "Prev Help Tab"),
-                ("right_square_bracket", "next_help_tab", "Next Help Tab"),
-                ("ctrl+d", "scroll_down", "Scroll down"),
-                ("ctrl+u", "scroll_up", "Scroll up"),
-            ]
-            + [
-                Binding(str(d), f"load_query_{d}", f"Load Q{d}", show=False)
-                for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
-            ]
-            + [
-                Binding(km.app.prev_query, "go_prev_query", "Prev Query", show=False),
-                Binding(km.app.next_query, "go_next_query", "Next Query", show=False),
-                Binding(
-                    km.app.next_tab,
-                    "next_tab",
-                    "Next Tab",
-                    show=False,
-                    priority=True,
-                ),
-                Binding(
-                    km.app.prev_tab,
-                    "prev_tab",
-                    "Prev Tab",
-                    show=False,
-                    priority=True,
-                ),
-            ]
-        )
+        new_bindings = [
+            ("escape", "close", "Close"),
+            ("q", "close", "Close"),
+            ("question_mark", "close", "Close"),
+            ("left_square_bracket", "prev_help_tab", "Prev Help Tab"),
+            ("right_square_bracket", "next_help_tab", "Next Help Tab"),
+            ("ctrl+d", "scroll_down", "Scroll down"),
+            ("ctrl+u", "scroll_up", "Scroll up"),
+        ] + [
+            Binding(km.app.prev_query, "go_prev_query", "Prev Query", show=False),
+            Binding(km.app.next_query, "go_next_query", "Next Query", show=False),
+            Binding(
+                km.app.next_tab,
+                "next_tab",
+                "Next Tab",
+                show=False,
+                priority=True,
+            ),
+            Binding(
+                km.app.prev_tab,
+                "prev_tab",
+                "Prev Tab",
+                show=False,
+                priority=True,
+            ),
+        ]
         self._bindings = BindingsMap(new_bindings)
 
     def action_close(self) -> None:
@@ -473,19 +450,6 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
     def action_prev_tab(self) -> None:
         """Switch the underlying ACE app to the previous tab."""
         cast("AceApp", self.app).action_prev_tab()
-
-    # --- Saved query actions (work from any tab) ---
-    # These are generated using a factory to reduce repetition
-    action_load_query_0 = _create_load_query_action("0")
-    action_load_query_1 = _create_load_query_action("1")
-    action_load_query_2 = _create_load_query_action("2")
-    action_load_query_3 = _create_load_query_action("3")
-    action_load_query_4 = _create_load_query_action("4")
-    action_load_query_5 = _create_load_query_action("5")
-    action_load_query_6 = _create_load_query_action("6")
-    action_load_query_7 = _create_load_query_action("7")
-    action_load_query_8 = _create_load_query_action("8")
-    action_load_query_9 = _create_load_query_action("9")
 
     # --- Query history navigation actions (ChangeSpecs tab only) ---
 

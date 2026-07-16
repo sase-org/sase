@@ -4,7 +4,7 @@ Builds a single source-of-truth list of :class:`CommandSpec` entries
 from a :class:`KeymapRegistry`. Coverage:
 
 - Every field in :class:`AppKeymaps` (one ``app.<field>`` command).
-- The 10 saved-query digit bindings ``0``..``9``.
+- The 10 saved-query picker sequences (configured prefix + ``0``..``9``).
 - Every key in each built-in mode (fold / copy nested per-tab /
   leader / bang).
 - Every valid user-defined custom mode command.
@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.artifact_tabs import ARTIFACTS_SUBTAB_ORDER
 from sase.ace.tui.commands._app_metadata import (
     APP_COMMAND_META as _APP_COMMAND_META,
     ensure_metadata_covers_app_keymaps,
@@ -68,20 +69,33 @@ def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         )
 
 
-def iter_digit_commands() -> Iterator[CommandSpec]:
-    """Yield the 10 saved-query digit commands."""
+def iter_saved_query_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
+    """Yield the 10 saved-query commands behind the configured picker key."""
+    prefix = registry.app.open_saved_query_picker
     for d in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0):
         key = str(d)
+        sequence = (prefix, key)
         yield CommandSpec(
             id=f"saved_query.{d}",
             label=f"Load saved query {d}",
-            key_sequence=(key,),
-            key_display=key,
+            key_sequence=sequence,
+            key_display=_format_key_sequence(sequence),
             category="Saved Queries",
-            tabs=ALL_TABS,
+            tabs=CL_ONLY,
             executor=CommandExecutor(kind="saved_query", digit=d),
             aliases=(f"q{d}", f"query {d}"),
         )
+
+
+def iter_digit_commands(
+    registry: KeymapRegistry | None = None,
+) -> Iterator[CommandSpec]:
+    """Compatibility alias for saved-query command catalog callers."""
+    if registry is None:
+        from sase.ace.tui.keymaps import load_keymap_registry
+
+        registry = load_keymap_registry({})
+    yield from iter_saved_query_commands(registry)
 
 
 def _iter_projects_command() -> Iterator[CommandSpec]:
@@ -106,18 +120,15 @@ def _iter_projects_command() -> Iterator[CommandSpec]:
 
 
 def _iter_artifacts_subtab_commands() -> Iterator[CommandSpec]:
-    """Yield keyless direct jumps for every Artifacts sub-tab."""
-    for subtab, label in (
-        ("prs", "PRs"),
-        ("commits", "Commits"),
-        ("bugs", "Bugs"),
-        ("plans", "Plans"),
-    ):
+    """Yield numbered direct jumps for every Artifacts sub-tab."""
+    for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1):
+        label = "PRs" if subtab == "prs" else subtab.title()
+        key = str(index)
         yield CommandSpec(
             id=f"artifacts.{subtab}",
             label=f"Show Artifacts: {label}",
-            key_sequence=(),
-            key_display="",
+            key_sequence=(key,),
+            key_display=key,
             category="Tabs",
             tabs=CL_ONLY,
             executor=CommandExecutor(
@@ -176,13 +187,14 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """Construct the full catalog from a :class:`KeymapRegistry`.
 
     Order is deterministic: app commands (in ``_APP_COMMAND_META``
-    order), then digit bindings, the keyless Tasks, Logs, and Projects commands, then
+    order), then saved-query sequences, numbered Artifacts jumps, the keyless
+    Tasks, Logs, and Projects commands, then
     mode commands (fold, copy, leader, bang, custom; each in registry
     insertion order).
     """
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
-    catalog.extend(iter_digit_commands())
+    catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())
     catalog.extend(_iter_logs_command())

@@ -36,6 +36,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         *PLANS_ARTIFACT_ACTIONS,
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
+        *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
         "pick_artifacts_project",
         "next_tab",
         "prev_tab",

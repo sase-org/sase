@@ -4,7 +4,7 @@ Verifies that :func:`build_command_catalog` produces a stable list of
 :class:`CommandSpec` entries that:
 
 - Cover every :class:`AppKeymaps` field exactly once.
-- Include all 10 saved-query digit bindings.
+- Include all 10 saved-query picker sequences.
 - Cover every built-in mode subkey (fold, copy nested per-tab, leader,
   bang) and every valid user-defined custom mode command.
 - Carry a non-empty key sequence and a stable id.
@@ -192,13 +192,35 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     assert "zoom" in spec.aliases
 
 
-# --- Digit commands ---
+# --- Saved-query commands ---
 
 
-def test_digit_commands_cover_all_ten() -> None:
-    digits = list(iter_digit_commands())
-    assert {c.id for c in digits} == {f"saved_query.{d}" for d in range(10)}
-    assert all(c.executor.kind == "saved_query" for c in digits)
+def test_saved_query_commands_cover_all_prefixed_slots() -> None:
+    queries = list(iter_digit_commands(_registry()))
+    assert {c.id for c in queries} == {f"saved_query.{d}" for d in range(10)}
+    assert all(c.executor.kind == "saved_query" for c in queries)
+    assert all(c.key_sequence[0] == "asterisk" for c in queries)
+    assert {c.key_display for c in queries} == {
+        "*1",
+        "*2",
+        "*3",
+        "*4",
+        "*5",
+        "*6",
+        "*7",
+        "*8",
+        "*9",
+        "*0",
+    }
+
+
+def test_saved_query_commands_follow_configured_picker_prefix() -> None:
+    registry = load_keymap_registry(
+        {"keymaps": {"app": {"open_saved_query_picker": "P"}}}
+    )
+    queries = list(iter_digit_commands(registry))
+    assert queries[0].key_sequence == ("P", "1")
+    assert queries[0].key_display == "P1"
 
 
 # --- Built-in mode coverage ---
@@ -527,10 +549,6 @@ def test_command_specs_are_well_formed() -> None:
             "logs",
             "projects",
             "tasks",
-            "artifacts.prs",
-            "artifacts.commits",
-            "artifacts.bugs",
-            "artifacts.plans",
         }:
             # These retired standalone panels are intentionally keyless:
             # searchable commands with no direct binding that open the

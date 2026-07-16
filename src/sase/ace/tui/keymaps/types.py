@@ -62,6 +62,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("refresh", "Refresh", False),
     ("sync", "Sync", False),
     ("edit_query", "Edit Query", False),
+    ("open_saved_query_picker", "Saved Queries", False),
     ("edit_spec", "Edit Spec", False),
     ("scroll_detail_down", "Scroll Down", False),
     ("scroll_detail_up", "Scroll Up", False),
@@ -181,6 +182,7 @@ _KEY_DISPLAY: dict[str, str] = {
     "apostrophe": "'",
     "grave_accent": "`",
     "slash": "/",
+    "asterisk": "*",
     "at": "@",
     "plus": "+",
     "space": "Space",
@@ -398,6 +400,7 @@ class AppKeymaps:
     toggle_thinking_reverse: str
     # Queries
     edit_query: str
+    open_saved_query_picker: str
     prev_query: str
     next_query: str
     # Display / misc

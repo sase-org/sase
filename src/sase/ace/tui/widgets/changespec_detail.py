@@ -102,9 +102,18 @@ class SearchQueryPanel(Static):
                 break
 
         if matched_slot is not None:
-            # Build indicator matching help modal style: [slot]
+            # Build indicator matching the configured saved-query picker.
+            prefix = "*"
+            registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
+            if registry is not None:
+                from ..keymaps import key_display_name
+
+                prefix = key_display_name(registry.app.open_saved_query_picker)
             indicator = Text()
-            indicator.append(f"[{matched_slot}]", style="bold #00FF00")
+            indicator.append(
+                f"[{prefix}{matched_slot}]",
+                style="bold #00FF00",
+            )
 
             # Calculate padding for right-alignment
             left_len = len(text.plain)

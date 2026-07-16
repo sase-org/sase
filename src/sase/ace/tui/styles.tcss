@@ -3104,6 +3104,68 @@ BgCmdList > .option-list--option-highlighted {
     height: auto;
 }
 
+/* ===== Saved Query Picker Styling ===== */
+
+SavedQueryPickerModal {
+    align: center middle;
+}
+
+SavedQueryPickerModal > #saved-query-picker-container {
+    width: 82;
+    max-width: 94%;
+    height: auto;
+    max-height: 80%;
+    border: round #FFD700;
+    background: $surface;
+    padding: 1 2;
+}
+
+SavedQueryPickerModal #saved-query-picker-title {
+    height: 1;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+SavedQueryPickerModal #saved-query-picker-list {
+    height: auto;
+    max-height: 12;
+    border-top: solid #00D7AF;
+    border-bottom: solid #00D7AF;
+    padding: 1 0;
+    scrollbar-gutter: stable;
+}
+
+SavedQueryPickerModal #saved-query-picker-list.-empty {
+    display: none;
+}
+
+SavedQueryPickerModal #saved-query-picker-list > .option-list--option {
+    height: 1;
+    padding: 0 1;
+}
+
+SavedQueryPickerModal #saved-query-picker-list > .option-list--option-highlighted {
+    background: #183A3A;
+    color: $text;
+    text-style: bold;
+}
+
+SavedQueryPickerModal #saved-query-picker-empty {
+    height: auto;
+    min-height: 5;
+    content-align: center middle;
+    border-top: solid #00D7AF;
+    border-bottom: solid #00D7AF;
+    padding: 1 2;
+}
+
+SavedQueryPickerModal #saved-query-picker-footer {
+    height: auto;
+    text-align: center;
+    margin-top: 1;
+    color: $text-muted;
+}
+
 /* ===== Help Modal Styling ===== */
 
 HelpModal {

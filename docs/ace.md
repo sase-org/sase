@@ -65,9 +65,10 @@ project/ChangeSpec launch hint appears only when a launchable target exists — 
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
 
-Within Artifacts, `[` / `]` cycles **PRs · Commits · Bugs · Plans**. Press `p` in Commits, Bugs, or Plans to change the
-shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains query-scoped and retains
-the existing ChangeSpec workflow.
+Within Artifacts, the strip is numbered **1 PRs · 2 Commits · 3 Bugs · 4 Plans**. Press `1`–`4` to jump directly to a
+sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is visible. Press `p` in Commits, Bugs, or
+Plans to change the shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains
+query-scoped and retains the existing ChangeSpec workflow.
 
 ## Keybindings: Artifacts / PRs
 
@@ -912,7 +913,10 @@ To save a query, prefix with `#`:
 
 ### Saved Queries
 
-Press `1`-`9` or `0` to instantly load a saved query. These also work from within the help modal (`?`).
+On the PRs sub-tab, press `*` to open the saved-query chooser. Press a populated slot (`1`–`9`, then `0`), move with
+`j`/`k` or the arrow keys and press `Enter`, or click a row. `q`/`Esc` closes the chooser without changing the query.
+The chooser shows the saved query text and marks the active query; an empty chooser also repeats the save syntax. Bare
+digits no longer load saved queries, and the chooser is unavailable from Agents, Axe, Commits, Bugs, and Plans.
 
 ### Query History
 

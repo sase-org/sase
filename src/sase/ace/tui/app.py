@@ -325,6 +325,20 @@ class AceApp(
         }:
             if self.current_tab != ARTIFACTS_TAB:
                 return False
+        if action in {
+            "show_artifacts_prs",
+            "show_artifacts_commits",
+            "show_artifacts_bugs",
+            "show_artifacts_plans",
+        }:
+            if self.current_tab != ARTIFACTS_TAB:
+                return False
+        if action == "open_saved_query_picker":
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab != "prs"
+            ):
+                return False
         if action in PLANS_ARTIFACT_ACTIONS:
             if (
                 self.current_tab != ARTIFACTS_TAB
@@ -505,6 +519,7 @@ class AceApp(
                 new_tab,
                 self.canonical_query_string,
                 registry=self._keymap_registry,
+                saved_queries=dict(self._saved_queries),
                 agents_launch_targets_available=(
                     self._agents_onboarding_launch_targets_available
                 ),

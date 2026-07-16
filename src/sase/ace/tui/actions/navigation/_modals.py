@@ -52,6 +52,7 @@ class NavigationModalMixin(NavigationMixinBase):
                 current_tab=self.current_tab,
                 active_query=self.canonical_query_string,  # type: ignore[attr-defined]
                 registry=self._keymap_registry,
+                saved_queries=dict(self._saved_queries),
                 agents_launch_targets_available=getattr(
                     self,
                     "_agents_onboarding_launch_targets_available",

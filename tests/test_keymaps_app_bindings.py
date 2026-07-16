@@ -1,13 +1,16 @@
 """Tests for ace TUI app binding construction."""
 
-from sase.ace.tui.keymaps import build_app_bindings
+from dataclasses import fields
+
+from sase.ace.tui.bindings import DEFAULT_BINDINGS
+from sase.ace.tui.keymaps import AppKeymaps, build_app_bindings
 from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 120 configurable + 10 digit bindings."""
+    """Bindings contain every configurable action plus four fixed tab jumps."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == 130
+    assert len(bindings) == len(fields(AppKeymaps)) + 4
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:
@@ -132,10 +135,40 @@ def test_build_app_bindings_preserves_compound_key() -> None:
     assert by_action["open_command_palette"].key == "colon,semicolon"
 
 
-def test_build_app_bindings_digit_keys() -> None:
-    """Digit bindings 0-9 are always appended."""
+def test_build_app_bindings_number_artifacts_and_prefix_saved_queries() -> None:
+    """Bare digits jump Artifacts panes; saved queries use the configured star."""
     bindings = build_app_bindings(default_app_keymaps())
-    digit_actions = [b for b in bindings if b.action.startswith("load_saved_query")]
-    assert len(digit_actions) == 10
-    digit_keys = {b.key for b in digit_actions}
-    assert digit_keys == {str(d) for d in range(10)}
+    by_action = {binding.action: binding for binding in bindings}
+
+    assert {
+        by_action[f"show_artifacts_{subtab}"].key: subtab
+        for subtab in ("prs", "commits", "bugs", "plans")
+    } == {"1": "prs", "2": "commits", "3": "bugs", "4": "plans"}
+    assert by_action["open_saved_query_picker"].key == "asterisk"
+    assert {
+        binding.key
+        for binding in bindings
+        if len(binding.key) == 1 and binding.key.isdigit()
+    } == {"1", "2", "3", "4"}
+    assert not any(
+        binding.action.startswith("load_saved_query") for binding in bindings
+    )
+
+
+def test_fallback_bindings_match_numbered_artifacts_and_saved_query_picker() -> None:
+    """Class-level bindings preserve runtime behavior before registry wiring."""
+    by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
+
+    assert [
+        (by_action[f"show_artifacts_{subtab}"].key, subtab)
+        for subtab in ("prs", "commits", "bugs", "plans")
+    ] == [("1", "prs"), ("2", "commits"), ("3", "bugs"), ("4", "plans")]
+    assert by_action["open_saved_query_picker"].key == "asterisk"
+    assert {
+        binding.key
+        for binding in DEFAULT_BINDINGS
+        if len(binding.key) == 1 and binding.key.isdigit()
+    } == {"1", "2", "3", "4"}
+    assert not any(
+        binding.action.startswith("load_saved_query") for binding in DEFAULT_BINDINGS
+    )

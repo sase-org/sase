@@ -250,6 +250,12 @@ def test_open_command_palette_default_binding() -> None:
     assert reg.app.open_command_palette == "colon,semicolon"
 
 
+def test_saved_query_picker_default_binding() -> None:
+    """The PR-only saved-query chooser uses Textual's canonical star key."""
+    reg = load_keymap_registry({})
+    assert reg.app.open_saved_query_picker == "asterisk"
+
+
 def test_start_last_vcs_xprompt_editor_default_binding() -> None:
     """Ctrl+G opens the last VCS xprompt directly in the editor."""
     reg = load_keymap_registry({})

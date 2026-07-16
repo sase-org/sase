@@ -15,6 +15,7 @@ from types import MappingProxyType
 import yaml  # type: ignore[import-untyped]
 from textual.binding import Binding
 
+from sase.ace.tui.artifact_tabs import ARTIFACTS_SUBTAB_ORDER
 from sase.ace.tui.keymaps.types import (
     _BUILTIN_MODE_CLASSES,
     _KEY_DISPLAY,
@@ -361,10 +362,15 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 # Binding builder
 # ---------------------------------------------------------------------------
 
-# Non-configurable digit bindings for saved queries.
-_DIGIT_BINDINGS: list[Binding] = [
-    Binding(str(d), f"load_saved_query_{d}", f"Load Q{d}", show=False)
-    for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0]
+# Non-configurable numbered Artifacts sub-tab bindings.
+_ARTIFACT_SUBTAB_BINDINGS: list[Binding] = [
+    Binding(
+        str(index),
+        f"show_artifacts_{subtab}",
+        f"Show {subtab.title()}",
+        show=False,
+    )
+    for index, subtab in enumerate(ARTIFACTS_SUBTAB_ORDER, start=1)
 ]
 
 
@@ -372,7 +378,7 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     """Generate the Textual ``Binding`` list from an ``AppKeymaps`` instance.
 
     Preserves the original binding order, descriptions, and priority flags.
-    Appends the 10 non-configurable digit bindings for saved queries.
+    Appends the four non-configurable numbered Artifacts sub-tab bindings.
 
     Returns:
         List of ``Binding`` objects suitable for ``App.BINDINGS``.
@@ -381,7 +387,7 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
     for action, desc, priority in _BINDING_META:
         key = getattr(app_km, action)
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
-    bindings.extend(_DIGIT_BINDINGS)
+    bindings.extend(_ARTIFACT_SUBTAB_BINDINGS)
     return bindings
 
 

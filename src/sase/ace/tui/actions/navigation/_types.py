@@ -83,6 +83,7 @@ class NavigationMixinBase:
     _sibling_keys: dict[str, str]
     _all_changespecs: list[ChangeSpec]
     _query_history: QueryHistoryStacks
+    _saved_queries: dict[str, str]
     query_string: str
     parsed_query: QueryExpr
     _axe_current_view: AxeViewType
