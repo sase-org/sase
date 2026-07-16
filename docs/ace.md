@@ -16,18 +16,18 @@ suffixes.
 
 ### CLI Options
 
-| Option                     | Description                                                                 |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                      |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)              |
-| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                     |
-| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path             |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                             |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                              |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)              |
-| `-t`, `--tab`              | Tab to focus on startup (`changespecs`, `agents`, `axe`; default: `agents`) |
-| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control   |
+| Option                     | Description                                                                             |
+| -------------------------- | --------------------------------------------------------------------------------------- |
+| `QUERY` (positional)       | Query string for filtering ChangeSpecs                                                  |
+| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                          |
+| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                 |
+| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path                         |
+| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                            |
+| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                         |
+| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                          |
+| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                          |
+| `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` is a legacy alias) |
+| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control               |
 
 When profiling is enabled, ACE writes text output to `PATH` or `$SASE_TMPDIR/ace_profile_<ts>.txt`, prints the shortened
 path on exit, and copies that path when a clipboard tool is available.
@@ -48,11 +48,11 @@ shortened path to the system clipboard (`pbcopy`, `wl-copy`, `xclip`, or `xsel` 
 
 ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
-| Tab                   | Description                                                |
-| --------------------- | ---------------------------------------------------------- |
-| **Agents**            | View running and completed agents, their files and prompts |
-| **PRs** (ChangeSpecs) | Browse and act on ChangeSpecs matching the current query   |
-| **Axe**               | Monitor the Axe daemon and background commands             |
+| Tab           | Description                                                   |
+| ------------- | ------------------------------------------------------------- |
+| **Agents**    | View running and completed agents, their files and prompts    |
+| **Artifacts** | Browse PRs, commits, bugs, and plans in four focused sub-tabs |
+| **Axe**       | Monitor the Axe daemon and background commands                |
 
 Agents is the first tab and the startup default. Each tab has a contextual guide: press `,?` (leader mode) to open the
 current tab's guide modal, which summarizes what the tab shows and its most useful keybindings. While the guide or the
@@ -65,7 +65,11 @@ project/ChangeSpec launch hint appears only when a launchable target exists — 
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
 
-## Keybindings: PRs Tab
+Within Artifacts, `[` / `]` cycles **PRs · Commits · Bugs · Plans**. Press `p` in Commits, Bugs, or Plans to change the
+shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains query-scoped and retains
+the existing ChangeSpec workflow.
+
+## Keybindings: Artifacts / PRs
 
 ### Navigation
 

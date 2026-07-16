@@ -38,21 +38,41 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
     assert "The full tour of this tab" in card
 
 
-def test_tab_quickstart_tabs_share_keymap_rows_only() -> None:
+def test_artifacts_quickstart_advertises_every_subtab() -> None:
     registry = load_keymap_registry({})
 
     agents = TabQuickStart.render_content(registry, tab="agents")
     changespecs = TabQuickStart.render_content(registry, tab="changespecs")
+    agents_card = _section_plain(agents, "#agent-quickstart-card")
+    artifacts_card = _section_plain(changespecs, "#changespec-quickstart-card")
 
-    assert _section_plain(agents, "#agent-quickstart-card") == _section_plain(
-        changespecs, "#changespec-quickstart-card"
-    )
+    assert "Browse Artifacts: PRs · Commits · Bugs · Plans" in artifacts_card
+    assert "Browse Artifacts" not in agents_card
     assert _section_plain(agents, "#agent-quickstart-hero") != _section_plain(
         changespecs, "#changespec-quickstart-hero"
     )
     assert _section_plain(agents, "#agent-quickstart-footer") != _section_plain(
         changespecs, "#changespec-quickstart-footer"
     )
+
+
+def test_artifacts_quickstart_uses_configured_subtab_keys() -> None:
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "cycle_artifacts_subtab_reverse": "f8",
+                    "cycle_artifacts_subtab": "f9",
+                }
+            }
+        }
+    )
+
+    sections = TabQuickStart.render_content(registry, tab="changespecs")
+    card = _section_plain(sections, "#changespec-quickstart-card")
+
+    assert "f8" in card
+    assert "f9" in card
 
 
 def test_tab_quickstart_no_match_callout_is_prs_only() -> None:

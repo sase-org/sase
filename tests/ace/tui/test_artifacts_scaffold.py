@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 from textual.widgets import ContentSwitcher
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.artifacts import _ArtifactsProjectChoices
@@ -23,6 +24,7 @@ from sase.ace.tui.widgets import (
     CommitsPane,
 )
 from sase.ace.tui.widgets.artifacts import ARTIFACTS_PANE_IDS, ArtifactsView
+from sase.ace.tui.widgets.artifacts import ARTIFACTS_ACCENTS
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.ace.tui.widgets.panel_tab_strip import PanelTabStrip
 from sase.vcs_log.models import VcsLogResult
@@ -57,6 +59,8 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert commits.artifacts_active is True
         assert page.app.check_action("change_status", ()) is False
         assert page.app.check_action("next_changespec", ()) is False
+        footer = page.query_one_widget("#keybinding-content", Static)
+        assert footer.content.plain == ""
 
         old_idx = page.app.current_idx
         await page.press("j")
@@ -88,6 +92,30 @@ async def test_click_message_and_reactivation_keep_lazy_pane_state() -> None:
         assert commits.first_activation_count == 1
         assert commits.activation_count == 2
         assert commits.has_class("test-selection-state")
+
+
+async def test_non_pr_panes_do_not_collect_during_pr_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **_kwargs: calls.append("commits") or VcsLogResult((), (), ()),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
+        lambda *_args, **_kwargs: calls.append("bugs"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda *_args, **_kwargs: calls.append("plans"),
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.pause()
+        assert page.app.current_artifacts_subtab == "prs"
+        assert calls == []
 
 
 async def test_scope_inventory_is_lazy_and_picker_updates_all_placeholders(
@@ -169,4 +197,10 @@ def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:
     # The mounted interaction tests cover rendering; this unit assertion keeps
     # the public pane-id map exhaustive for later feature phases.
     assert tuple(ARTIFACTS_PANE_IDS) == ("prs", "commits", "bugs", "plans")
+    assert ARTIFACTS_ACCENTS == {
+        "prs": "#00D7AF",
+        "commits": "#FFD700",
+        "bugs": "#FF5F5F",
+        "plans": "#AF87FF",
+    }
     assert view.current_subtab == "prs"

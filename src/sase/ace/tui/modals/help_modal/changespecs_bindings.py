@@ -70,6 +70,24 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Plans Pane",
+            [
+                (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
+                (d(a.plans_view_selected), "Open selected plan or bead"),
+                (
+                    f"{d(a.plans_expand)} / {d(a.plans_collapse)}",
+                    "Expand / collapse epic phases",
+                ),
+                (d(a.plans_cycle_status), "Cycle selected bead status"),
+                (d(a.plans_edit_bead), "Edit selected bead"),
+                (d(a.plans_launch_epic), "Launch ready epic work"),
+                (d(a.plans_approve), "Approve selected proposal"),
+                (d(a.plans_reject), "Reject selected proposal"),
+                (d(a.plans_open_bug), "Open linked external bug"),
+                (d(a.plans_refresh), "Refresh plans and beads"),
+            ],
+        ),
+        (
             "Navigation",
             [
                 (

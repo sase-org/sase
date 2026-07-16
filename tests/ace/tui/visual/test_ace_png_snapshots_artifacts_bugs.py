@@ -43,7 +43,7 @@ def _issue() -> IssueWire:
     )
 
 
-def _snapshot(*, supported: bool = True) -> BugSnapshot:
+def _snapshot(*, supported: bool = True, populated: bool = True) -> BugSnapshot:
     linked_pr = make_changespec(name="fix_rotated_token")
     linked_pr.bug = "42"
     epic = Issue(
@@ -61,8 +61,12 @@ def _snapshot(*, supported: bool = True) -> BugSnapshot:
         project_file="/state/alpha/alpha.sase",
         cwd="/repos/alpha",
         state_filter="open",
-        issues=(issue,) if supported else (),
-        links=((42, BugLinks("42", (epic,), (linked_pr,))),) if supported else (),
+        issues=(issue,) if supported and populated else (),
+        links=(
+            ((42, BugLinks("42", (epic,), (linked_pr,))),)
+            if supported and populated
+            else ()
+        ),
         supported=supported,
     )
 
@@ -123,4 +127,27 @@ async def test_artifacts_bugs_unsupported_png_snapshot(
             page,
             "artifacts_bugs_unsupported_120x40",
             title="ACE Artifacts Bugs unsupported",
+        )
+
+
+async def test_artifacts_bugs_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot",
+        lambda *_a, **_kw: _snapshot(populated=False),
+    )
+
+    async with AcePage(query='"visual"') as page:
+        await wait_for_startup(page)
+        await _open_bugs(page)
+        await wait_for_svg_contains(page, "No open issues")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_bugs_empty_120x40",
+            title="ACE Artifacts Bugs empty",
         )

@@ -44,12 +44,20 @@ class ArtifactsPlansActionsMixin:
     def action_plans_next(self) -> None:
         pane = self._plans_pane()
         if pane is not None:
-            pane.move_selection(1)
+            self._begin_artifacts_navigation("next")  # type: ignore[attr-defined]
+            try:
+                pane.move_selection(1)
+            finally:
+                self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_plans_prev(self) -> None:
         pane = self._plans_pane()
         if pane is not None:
-            pane.move_selection(-1)
+            self._begin_artifacts_navigation("prev")  # type: ignore[attr-defined]
+            try:
+                pane.move_selection(-1)
+            finally:
+                self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_plans_expand(self) -> None:
         pane = self._plans_pane()

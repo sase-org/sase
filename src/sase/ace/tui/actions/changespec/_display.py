@@ -250,7 +250,10 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
         # off-tab (e.g. inotify-driven reload while the user is on
         # Agents), the writes here would clobber the active tab's
         # bindings and flicker.
-        if self.current_tab != "changespecs":
+        if (
+            self.current_tab != "changespecs"
+            or getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
             return
         if getattr(self, "_fold_mode_active", False):
             footer_widget.update_fold_bindings()  # type: ignore[attr-defined]
@@ -271,7 +274,10 @@ class ChangeSpecDisplayMixin(ChangeSpecOnboardingMixin):
         """Footer update for the empty-list branch (no selected ChangeSpec)."""
         # See ``_apply_detail_panel_update`` — never write the shared
         # footer when this refresh fires off-tab.
-        if self.current_tab != "changespecs":
+        if (
+            self.current_tab != "changespecs"
+            or getattr(self, "current_artifacts_subtab", "prs") != "prs"
+        ):
             return
         if getattr(self, "_fold_mode_active", False):
             return

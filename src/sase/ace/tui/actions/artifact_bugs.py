@@ -79,12 +79,20 @@ class ArtifactBugsMixin:
     def action_next_bug(self) -> None:
         pane = self._bugs_pane()
         if self._bugs_active() and pane is not None:
-            pane.move_selection(1)
+            self._begin_artifacts_navigation("next")  # type: ignore[attr-defined]
+            try:
+                pane.move_selection(1)
+            finally:
+                self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_prev_bug(self) -> None:
         pane = self._bugs_pane()
         if self._bugs_active() and pane is not None:
-            pane.move_selection(-1)
+            self._begin_artifacts_navigation("prev")  # type: ignore[attr-defined]
+            try:
+                pane.move_selection(-1)
+            finally:
+                self._finish_artifacts_navigation()  # type: ignore[attr-defined]
 
     def action_cycle_bug_filter(self) -> None:
         pane = self._bugs_pane()

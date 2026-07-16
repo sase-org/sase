@@ -214,6 +214,29 @@ class CommitsTimeline(OptionList):
     def action_refresh(self) -> None:
         self._request("refresh")
 
+    def _move_cursor(self, direction: Literal["next", "prev"]) -> None:
+        app = self.app
+        begin = getattr(app, "_begin_artifacts_navigation", None)
+        finish = getattr(app, "_finish_artifacts_navigation", None)
+        if callable(begin):
+            begin(direction)
+        try:
+            if direction == "next":
+                super().action_cursor_down()
+            else:
+                super().action_cursor_up()
+        finally:
+            if callable(finish):
+                finish()
+
+    def action_cursor_down(self) -> None:
+        """Move immediately while recording opt-in key-to-paint latency."""
+        self._move_cursor("next")
+
+    def action_cursor_up(self) -> None:
+        """Move immediately while recording opt-in key-to-paint latency."""
+        self._move_cursor("prev")
+
 
 class CommitsPane(ArtifactsPaneLifecycle, Vertical):
     """Lazy, cached, interactive view over the existing VCS-log backend."""

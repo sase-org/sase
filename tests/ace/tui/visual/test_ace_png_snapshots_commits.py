@@ -60,3 +60,35 @@ async def test_commits_timeline_and_detail_png_snapshot(
             "artifacts_commits_timeline_detail_120x40",
             title="ACE Artifacts Commits timeline",
         )
+
+
+async def test_commits_empty_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    result = commits_module.VcsLogResult((), (), ())
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: _ArtifactsProjectChoices((), (), {}),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="changespecs",
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "commits")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        await wait_for_svg_contains(page, "No commits match")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_commits_empty_120x40",
+            title="ACE Artifacts Commits empty",
+        )

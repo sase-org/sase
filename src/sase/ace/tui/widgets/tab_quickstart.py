@@ -148,7 +148,7 @@ class TabQuickStart(VerticalScroll):
                 total_changespecs=no_match_total,
             ),
             f"#{prefix}-quickstart-hero": cls._build_hero(tab),
-            f"#{prefix}-quickstart-card": cls._build_card(registry),
+            f"#{prefix}-quickstart-card": cls._build_card(registry, tab=tab),
             f"#{prefix}-quickstart-footer": cls._build_footer(tab),
         }
 
@@ -163,9 +163,9 @@ class TabQuickStart(VerticalScroll):
         return text
 
     @classmethod
-    def _build_card(cls, registry: KeymapRegistry) -> Text:
+    def _build_card(cls, registry: KeymapRegistry, *, tab: TabQuickStartTab) -> Text:
         app = registry.app
-        rows: tuple[tuple[tuple[str, ...], str], ...] = (
+        rows: list[tuple[tuple[str, ...], str]] = [
             (
                 (key_display_name(app.start_agent_home),),
                 "Launch your first agent from the home-workspace prompt bar.",
@@ -195,7 +195,18 @@ class TabQuickStart(VerticalScroll):
                 (key_display_name(app.open_command_palette),),
                 "Command palette: fuzzy-run any command.",
             ),
-        )
+        ]
+        if tab == "changespecs":
+            rows.insert(
+                3,
+                (
+                    (
+                        key_display_name(app.cycle_artifacts_subtab_reverse),
+                        key_display_name(app.cycle_artifacts_subtab),
+                    ),
+                    "Browse Artifacts: PRs · Commits · Bugs · Plans.",
+                ),
+            )
 
         column_width = max(cls._keycap_width(labels) for labels, _ in rows)
         text = Text()

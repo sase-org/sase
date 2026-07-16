@@ -451,6 +451,9 @@ class AceApp(
                 self._refresh_display()
             else:
                 self._ensure_artifacts_project_choices()
+                self.query_one(
+                    "#keybinding-footer", KeybindingFooter
+                ).show_artifacts_pane()
         elif new_tab == "agents":
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
@@ -522,3 +525,4 @@ class AceApp(
             self._refresh_display()
         else:
             self._ensure_artifacts_project_choices()
+            self.query_one("#keybinding-footer", KeybindingFooter).show_artifacts_pane()

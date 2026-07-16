@@ -144,6 +144,23 @@ class ArtifactsMixin(ArtifactsPlansActionsMixin):
             (index + step) % len(ARTIFACTS_SUBTAB_ORDER)
         ]
 
+    def _begin_artifacts_navigation(self, direction: str) -> None:
+        """Start activity-gate and key-to-paint tracking for a pane cursor."""
+        perf_begin = getattr(self, "_jk_perf_begin", None)
+        if callable(perf_begin):
+            perf_begin(f"{self.current_artifacts_subtab}.{direction}")
+        record_navigation = getattr(self, "_record_jk_navigation", None)
+        if callable(record_navigation):
+            record_navigation()
+
+    def _finish_artifacts_navigation(self) -> None:
+        """Finish key-to-paint tracking after a pane cursor has moved."""
+        perf = getattr(self, "_jk_perf", None)
+        if perf is None:
+            return
+        perf.mark_model_updated()
+        self.call_after_refresh(perf.mark_painted)  # type: ignore[attr-defined]
+
     def action_cycle_artifacts_subtab(self) -> None:
         """Move to the next Artifacts sub-tab with wraparound."""
         self._cycle_artifacts_subtab(1)
