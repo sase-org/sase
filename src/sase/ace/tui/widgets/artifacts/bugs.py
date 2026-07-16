@@ -21,6 +21,7 @@ from sase.vcs_provider import IssueListState, IssueWire
 
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ...util.debounce import DetailPanelDebouncer
+from ...util.pump_tasks import spawn_pump_free_task
 from .bugs_rendering import BUG_ACCENT, issue_meta, issue_row
 from .lifecycle import ArtifactsPaneLifecycle
 
@@ -236,7 +237,16 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
                     self._pending_force = False
                     self.schedule_load(force=pending_force)
 
-        self.app.call_later(_runner)
+        task = spawn_pump_free_task(
+            self.app,
+            _runner(),
+            name="sase-artifacts-bugs-auto-load",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            # Keep automatic loading retryable when called without a running
+            # event loop (notably narrow fallback and unit-test callers).
+            self._loading = False
 
     def accept_snapshot(self, snapshot: BugSnapshot) -> None:
         """Cache and paint a snapshot on the UI thread when it is current."""

@@ -91,7 +91,7 @@ class AgentIndexMaintenanceMixin(AgentLoadingStateMixin):
             return
         self._artifact_index_maintenance_pending = False
         self._artifact_index_maintenance_running = True
-        self.call_later(self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
+        self._spawn_artifact_index_maintenance_task()
 
     async def _run_artifact_index_maintenance(self) -> None:
         """Run the latest queued maintenance request in a worker thread."""

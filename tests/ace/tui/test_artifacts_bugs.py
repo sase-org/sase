@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Coroutine
+import threading
+from typing import Any
+
 import pluggy
 import pytest
 
@@ -152,6 +157,94 @@ async def test_bugs_load_lazily_navigate_filter_and_jump_links(
             )
         )
         assert calls[-1] == "closed"
+
+
+async def test_bugs_automatic_load_is_pump_free_and_coalesces_bursts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    calls: list[bool] = []
+
+    def collect(_project: str, _state: str, _changespecs: object) -> BugSnapshot:
+        call_number = len(calls) + 1
+        calls.append(call_number > 1)
+        if call_number == 1:
+            started.set()
+            assert release.wait(timeout=5.0)
+        return _snapshot((_issue(call_number),))
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.bugs.collect_bug_snapshot", collect
+    )
+
+    try:
+        async with AcePage() as page:
+            pane = await _open_bugs(page)
+            await page.wait_for(lambda _state: started.is_set())
+            assert any(
+                task.get_name() == "sase-artifacts-bugs-auto-load"
+                for task in page.app._pump_free_async_tasks
+            )
+
+            pump_advanced: list[bool] = []
+            page.app.call_later(lambda: pump_advanced.append(True))
+            await page.wait_for(lambda _state: bool(pump_advanced))
+
+            pane.schedule_load()
+            pane.schedule_load(force=True)
+            pane.schedule_load()
+            assert pane._pending_load is True
+            assert pane._pending_force is True
+
+            release.set()
+            await page.wait_for(
+                lambda _state: (
+                    len(calls) == 2
+                    and not pane._loading
+                    and pane.selected_issue == _issue(2)
+                )
+            )
+            await asyncio.sleep(0)
+            assert len(calls) == 2
+            assert pane._pending_load is False
+            assert pane._pending_force is False
+    finally:
+        release.set()
+
+
+async def test_bugs_automatic_load_spawn_failure_remains_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def fail_spawn(
+        _owner: object,
+        coro: Coroutine[Any, Any, object],
+        *,
+        name: str,
+        registry_attr: str,
+    ) -> None:
+        nonlocal attempts
+        del name, registry_attr
+        attempts += 1
+        coro.close()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.bugs.spawn_pump_free_task",
+        fail_spawn,
+    )
+
+    async with AcePage() as page:
+        pane = await _open_bugs(page)
+        await page.pause()
+        assert attempts >= 1
+        assert pane._loading is False
+
+        previous_attempts = attempts
+        pane.schedule_load(force=True)
+        assert attempts == previous_attempts + 1
+        assert pane._loading is False
 
 
 async def test_bug_create_and_state_toggle_are_tracked_tasks(
