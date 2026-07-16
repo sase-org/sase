@@ -265,10 +265,11 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
 
         The catalog build touches disk (project enumeration + provider
         detection), so it must never run synchronously inside key handling
-        (``memory/tui_perf.md``). Building once in a background thread populates
-        the module-level cache in :mod:`sase.xprompt.vcs_project_completion`, so
-        the first ``#+`` opens the menu instantly. Gated on the real app's
-        completion-settings capability so lightweight test harnesses skip it.
+        (``sase/memory/tui_perf.md``). Building once in a background thread
+        populates the module-level cache in
+        :mod:`sase.xprompt.vcs_project_completion`, so the first ``#+`` opens
+        the menu instantly. Gated on the real app's completion-settings
+        capability so lightweight test harnesses skip it.
         """
         if getattr(self, "_vcs_project_catalog_warmed", False):
             return

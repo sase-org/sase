@@ -21,13 +21,13 @@ def _xprompts() -> dict[str, Workflow]:
                 )
             ],
             steps=[WorkflowStep(name="prompt", prompt_part="Review {{ diff }}.")],
-            source_path="/home/visual/.xprompts/review.md",
+            source_path="/home/visual/sase/xprompts/review.md",
         ),
         "ship": Workflow(
             name="ship",
             description="Ship the current change end-to-end.",
             steps=[WorkflowStep(name="run", agent="ship the change")],
-            source_path="/home/visual/.xprompts/ship.yml",
+            source_path="/home/visual/sase/xprompts/ship.yml",
         ),
     }
 
@@ -45,7 +45,7 @@ def _patch_xprompt_sources(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.xprompt_browser_pane.classify_source",
         lambda source_path: (
-            "Home ~/.xprompts/",
+            "Home ~/sase/xprompts/",
             source_path.replace("/home/visual", "~"),
             True,
         ),

@@ -160,9 +160,9 @@ want to "be thorough," that is a sign the markdown form was already sufficient.
 ## The Plugin Path
 
 XPrompts also ship from `sase_xprompts` entry-point packages. That is how `crs`, `fix_hook`, and the commit workflows
-become overridable: the built-in `commit.yml` is at priority 9 in the discovery order, a plugin's commit XPrompt is at
-priority 8, and a project-local `xprompts/commit.md` wins at priority 1 or 2. Disabling resource plugins is a single env
-var (`SASE_DISABLE_PLUGINS`, `SASE_DISABLE_PLUGIN_XPROMPTS`) — useful when debugging which copy of an XPrompt is
+become overridable: the built-in `commit.yml` is at priority 17 in the discovery order, a plugin's commit XPrompt is at
+priority 15, and a project-local `sase/xprompts/commit.md` wins at priority 1. Disabling resource plugins is a single
+env var (`SASE_DISABLE_PLUGINS`, `SASE_DISABLE_PLUGIN_XPROMPTS`) — useful when debugging which copy of an XPrompt is
 actually being expanded.
 
 `sase xprompt expand --trace '#myprompt'` prints the full expansion trace to stderr: every resolved reference, its

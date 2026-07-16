@@ -26,8 +26,8 @@ class TestGetDefaultEffort:
     @patch("sase.llm_provider.config.load_merged_config")
     def test_merged_value_is_returned(self, mock_config: object) -> None:
         # load_merged_config already layers default_config.yml -> plugin
-        # defaults -> ~/.config/sase/sase.yml -> overlays -> ./sase.yml, so the
-        # getter just reads whatever that single merge point resolves to.
+        # defaults -> ~/.config/sase/sase.yml -> overlays -> ./sase/sase.yml,
+        # so the getter just reads whatever that single merge point resolves to.
         mock_config.return_value = _mock_config(default_effort="xhigh")  # type: ignore[union-attr]
         assert _get_default_effort() == "xhigh"
 

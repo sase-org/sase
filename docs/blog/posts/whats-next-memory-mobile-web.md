@@ -38,8 +38,8 @@ The direction, sketched in
 is a two-layer system:
 
 1. **Canonical zettel** — curated, human-readable, linked knowledge objects with stable IDs.
-2. **SASE memory projections** — generated views of those zettel for agents: flat `memory/` notes, audited read indexes,
-   skills, project plans, review checklists.
+2. **SASE memory projections** — generated views of those zettel for agents: flat `sase/memory/` notes, audited read
+   indexes, skills, project plans, review checklists.
 
 Agents propose facts via an inbox (`.sase/memory/inbox/`) and humans (or distillation workflows) promote them into
 canonical zettel. Agent-initiated retrieval (`sase memory search`, `sase memory show`, `sase memory related`) lets a

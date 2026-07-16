@@ -52,21 +52,21 @@ def _xprompt_rows() -> list[UnifiedSaveLocation]:
     return [
         _location(
             "Project (sase)",
-            "~/.config/sase/xprompts/sase",
+            "~/sase/xprompts/sase",
             "Project",
             names=frozenset({"commit", "propose", "review"}),
         ),
         _location(
-            "CWD .xprompts/",
-            "./.xprompts",
+            "CWD sase/xprompts/",
+            "./sase/xprompts",
             "CWD directories",
             names=frozenset({"lint", "test"}),
             precedence=1,
             will_create=True,
         ),
         _location(
-            "Home ~/.xprompts/",
-            "~/.xprompts",
+            "Home ~/sase/xprompts/",
+            "~/sase/xprompts",
             "Home directories",
             names=frozenset({"daily", "review"}),
             precedence=2,
@@ -100,8 +100,8 @@ def _snippet_rows() -> list[UnifiedSaveLocation]:
             location_type="config",
         ),
         _location(
-            "Local sase.yml",
-            "./sase.yml",
+            "Local sase/sase.yml",
+            "./sase/sase.yml",
             "Config files",
             names=frozenset({"fix"}),
             location_type="config",

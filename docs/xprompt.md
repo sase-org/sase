@@ -954,9 +954,9 @@ Config-based xprompts follow project and home file sources and precede plugin/pa
 project `sase/sase.yml` wins over user overlays and base config.
 
 Standalone workflows must be defined as YAML files in an `sase/xprompts/` directory (project or home), a compatibility
-`xprompts/` directory, a project plugin, or a built-in package. Top-level `workflows:` blocks in `sase.yml` or
-`sase_*.yml` overlays are no longer supported and will be ignored by the runtime; move any such definitions into
-`sase/xprompts/<name>.yml` files.
+`xprompts/` directory, a project plugin, or a built-in package. Top-level `workflows:` blocks in project
+`sase/sase.yml`, global `sase.yml`, or `sase_*.yml` overlays are no longer supported and will be ignored by the runtime;
+move any such definitions into `sase/xprompts/<name>.yml` files.
 
 ## Local Configuration Files
 

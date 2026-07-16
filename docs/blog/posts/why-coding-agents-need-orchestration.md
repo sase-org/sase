@@ -231,7 +231,7 @@ Review the diff and call out risks.
 ```
 
 That is an xprompt swarm. It is readable. It does not need a workflow engine. It can sit happily in
-`xprompts/three_phase.md` until the day it needs Bash, Python, or step outputs.
+`sase/xprompts/three_phase.md` until the day it needs Bash, Python, or step outputs.
 
 > **Friction note:** XPrompt discovery is intentionally flexible: repo-local, user-local, config-defined,
 > plugin-shipped, and built-in sources all participate. That is powerful, but the mental model can get slippery. Use

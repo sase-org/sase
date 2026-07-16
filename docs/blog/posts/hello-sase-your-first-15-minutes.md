@@ -133,7 +133,7 @@ state.
 ## Step 6 — Reuse the prompt as an XPrompt (≈3 minutes)
 
 A one-off prompt is fine once. The second time you find yourself reaching for it, wrap it as an **XPrompt** so you're
-not retyping the same paragraph forever. Create `xprompts/til.md` in the directory where you run `sase`:
+not retyping the same paragraph forever. Create `sase/xprompts/til.md` in the directory where you run `sase`:
 
 ```markdown
 Append one Today-I-Learned entry to `til.md` about something useful in this workspace. Keep it to two sentences. If the

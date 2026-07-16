@@ -195,7 +195,8 @@ async def test_unified_markdown_result_writes_typed_name_authoritatively(
 
 
 async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
-    config = tmp_path / "sase.yml"
+    config = tmp_path / "sase" / "sase.yml"
+    config.parent.mkdir()
     config.write_text("theme: dark\n", encoding="utf-8")
     harness = _SaveHarness()
     target = UnifiedXPromptSaveResult(
@@ -205,7 +206,7 @@ async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
         location_path=str(config),
         target_format=SaveTargetFormat.CONFIG,
         entry_name="review",
-        display_path="./sase.yml",
+        display_path="./sase/sase.yml",
         exists=False,
         frontmatter=PromptFrontmatter(description="Review code"),
     )
@@ -222,7 +223,8 @@ async def test_unified_config_result_inserts_xprompt(tmp_path: Path) -> None:
 async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(
     tmp_path: Path,
 ) -> None:
-    config = tmp_path / "sase.yml"
+    config = tmp_path / "sase" / "sase.yml"
+    config.parent.mkdir()
     config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
     harness = _SaveHarness()
     target = UnifiedXPromptSaveResult(
@@ -232,7 +234,7 @@ async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(
         location_path=str(config),
         target_format=None,
         entry_name="review",
-        display_path="./sase.yml",
+        display_path="./sase/sase.yml",
         exists=False,
         frontmatter=PromptFrontmatter(),
     )
