@@ -222,6 +222,12 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Create a notification (reads JSON from stdin or uses flags)",
     )
     create_parser.add_argument(
+        "-g",
+        "--gate",
+        action="store_true",
+        help="Create a durable command-backed gate from the stdin request spec",
+    )
+    create_parser.add_argument(
         "-s",
         "--sender",
         default=None,

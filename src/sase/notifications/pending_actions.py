@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_subdir
+from sase.notification_gates.registry import adapter_for_kind, registered_gate_kinds
 from sase.notifications.models import Notification
 
 PENDING_ACTIONS_PATH: Path | None = None
@@ -24,12 +25,10 @@ PENDING_ACTION_PREFIX_LEN = 8
 STALE_THRESHOLD_SECONDS = 24 * 60 * 60
 
 _ACTION_KIND_BY_NOTIFICATION_ACTION = {
-    "PlanApproval": "plan_approval",
-    "HITL": "hitl",
-    "UserQuestion": "user_question",
-    "LaunchApproval": "launch_approval",
-    "memory_review": "memory_review",
+    adapter.action: adapter.pending_action_kind
+    for adapter in (adapter_for_kind(kind) for kind in registered_gate_kinds())
 }
+_ACTION_KIND_BY_NOTIFICATION_ACTION["memory_review"] = "memory_review"
 
 
 @dataclass(frozen=True)
@@ -183,6 +182,16 @@ def mark_already_handled(
         return True
 
 
+def unregister_notification(notification_id: str) -> bool:
+    """Remove a gate action during creation compensation."""
+    with _locked_store() as store:
+        key = _find_entry_key(store, notification_id)
+        if key is None:
+            return False
+        del store["actions"][key]
+        return True
+
+
 def mark_plan_approval_auto_handled(
     *,
     plan_file: str,
@@ -306,58 +315,28 @@ def _notification_is_stale(notification: Notification, now: float) -> bool:
 
 
 def _externally_handled(notification: Notification) -> bool:
-    if notification.action == "PlanApproval":
-        response_dir = _action_path(notification, "response_dir")
-        if response_dir is None:
-            return False
-        return (
-            (response_dir / "plan_response.json").exists()
-            or (response_dir / "plan_approved.marker").exists()
-            or (
-                response_dir.is_dir()
-                and not (response_dir / "plan_request.json").exists()
-            )
-        )
-    if notification.action == "HITL":
-        artifacts_dir = _action_path(notification, "artifacts_dir")
-        if artifacts_dir is None:
-            return False
-        return (artifacts_dir / "hitl_response.json").exists() or (
-            artifacts_dir.is_dir()
-            and not (artifacts_dir / "hitl_request.json").exists()
-        )
-    if notification.action == "UserQuestion":
-        response_dir = _action_path(notification, "response_dir")
-        if response_dir is None:
-            return False
-        return (response_dir / "question_response.json").exists() or (
-            response_dir.is_dir()
-            and not (response_dir / "question_request.json").exists()
-        )
-    if notification.action == "LaunchApproval":
-        response_dir = _action_path(notification, "response_dir")
-        if response_dir is None:
-            return False
-        return (response_dir / "launch_response.json").exists() or (
-            response_dir.is_dir()
-            and not (response_dir / "launch_request.json").exists()
-        )
-    return False
+    from sase.notification_gates.paths import resolve_notification_bundle
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None:
+        return False
+    if bundle.response.exists() or bundle.cancellation.exists():
+        return True
+    if (
+        notification.action == "PlanApproval"
+        and (bundle.root / "plan_approved.marker").exists()
+    ):
+        return True
+    return bundle.root.is_dir() and not bundle.request.exists()
 
 
 def _required_target_missing(notification: Notification) -> bool:
-    if notification.action in {"PlanApproval", "UserQuestion", "LaunchApproval"}:
-        return _action_path(notification, "response_dir") is None
-    if notification.action == "HITL":
-        return _action_path(notification, "artifacts_dir") is None
-    return False
+    from sase.notification_gates.paths import resolve_notification_bundle
+    from sase.notification_gates.registry import adapter_for_action
 
-
-def _action_path(notification: Notification, key: str) -> Path | None:
-    value = notification.action_data.get(key)
-    if value is None or not value.strip():
-        return None
-    return Path(value).expanduser()
+    if adapter_for_action(notification.action) is None:
+        return False
+    return resolve_notification_bundle(notification) is None
 
 
 def _merge_legacy_telegram(store: dict[str, Any]) -> None:
@@ -504,10 +483,27 @@ def _write_store(store: dict[str, Any]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(store, f, indent=2, sort_keys=True)
             f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp_path, store_path)
+        _fsync_dir(store_path.parent)
     except BaseException:
         Path(tmp_path).unlink(missing_ok=True)
         raise
+
+
+def _fsync_dir(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 __all__ = [
@@ -520,4 +516,5 @@ __all__ = [
     "read_pending_action_store",
     "register_notification",
     "resolve_prefix",
+    "unregister_notification",
 ]

@@ -123,6 +123,21 @@ def append_notification(n: Notification) -> None:
     _invalidate_load_cache()
 
 
+def append_notification_strict(n: Notification) -> None:
+    """Append a gate notification and require pending registration to succeed.
+
+    Unlike the compatibility-oriented :func:`append_notification`, this function
+    deliberately propagates pending-store failures so the gate service can
+    compensate an already-appended row instead of reporting partial success.
+    """
+    _ensure_notifications_dir()
+    _rust_append_notification(_notifications_path(), n)
+    _invalidate_load_cache()
+    from sase.notifications.pending_actions import register_notification
+
+    register_notification(n)
+
+
 def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     """Load notifications from the JSONL file with shared locking.
 

@@ -89,6 +89,25 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "update.dev_root, not an agent artifact directory."
         ),
     ),
+    "src/sase/notification_gates/executor.py:_remove_untrusted_terminal": DirOpReview(
+        exemption=(
+            "Removes only an untrusted response/cancellation path created inside "
+            "a SASE-owned interaction_requests bundle by its command; interaction "
+            "bundles are not agent artifact directories."
+        ),
+    ),
+    "src/sase/notification_gates/service.py:_start_gate_creation": DirOpReview(
+        exemption=(
+            "Compensates an unpublished interaction_requests bundle after gate "
+            "creation fails; interaction bundles are not agent artifact directories."
+        ),
+    ),
+    "src/sase/notification_gates/service.py:create_gate": DirOpReview(
+        exemption=(
+            "Repairs an initializing or failed interaction_requests bundle before "
+            "retry; interaction bundles are not agent artifact directories."
+        ),
+    ),
     "src/sase/sdd/_store_adoption.py:cleanup_staging": DirOpReview(
         exemption=(
             "Removes only provider-owned SDD materialization staging and recovery "

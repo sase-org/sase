@@ -7,6 +7,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.notification_gates.paths import (
+    ResolvedGateBundle,
+    resolve_notification_bundle,
+)
 from sase.notifications.models import Notification
 
 AnswerState = Literal["awaiting", "answered", "expired", "unavailable"]
@@ -59,16 +63,16 @@ def is_question_notification(notification: Notification) -> bool:
 
 def question_answer_state(notification: Notification) -> AnswerState:
     """Derive question state using the pending-action filesystem rules."""
-    response_dir = _response_dir(notification)
-    if response_dir is None:
+    bundle = _question_bundle(notification)
+    if bundle is None:
         return "unavailable"
 
     try:
-        if (response_dir / "question_response.json").exists():
+        if bundle.response.exists():
             return "answered"
-        if (response_dir / "question_request.json").exists():
+        if bundle.request.exists():
             return "awaiting"
-        if response_dir.is_dir():
+        if bundle.root.is_dir():
             return "expired"
     except OSError:
         return "unavailable"
@@ -81,7 +85,7 @@ def build_question_summary(notification: Notification) -> QuestionSummary | None
         return None
 
     fallback_note = _fallback_note(notification)
-    response_dir = _response_dir(notification)
+    bundle = _question_bundle(notification)
     answer_state = question_answer_state(notification)
     base = QuestionSummary(
         asker_cl_name=_clean_text(notification.action_data.get("agent_cl_name")),
@@ -91,13 +95,15 @@ def build_question_summary(notification: Notification) -> QuestionSummary | None
         detail_available=False,
         fallback_note=fallback_note,
     )
-    if response_dir is None:
+    if bundle is None:
         return base
 
     questions: tuple[QuestionEntry, ...] = ()
     request_ok = False
     try:
-        request_data = _read_json_object(response_dir / "question_request.json")
+        request_data = _read_json_object(bundle.request)
+        if not bundle.legacy and isinstance(request_data.get("payload"), dict):
+            request_data = request_data["payload"]
         questions = _parse_questions(request_data)
         request_ok = True
         request_session_id = _clean_text(request_data.get("session_id"))
@@ -117,7 +123,9 @@ def build_question_summary(notification: Notification) -> QuestionSummary | None
     global_note: str | None = None
     response_ok = False
     try:
-        response_data = _read_json_object(response_dir / "question_response.json")
+        response_data = _read_json_object(bundle.response)
+        if not bundle.legacy and isinstance(response_data.get("result"), dict):
+            response_data = response_data["result"]
         answers, global_note = _parse_answers(response_data)
         response_ok = True
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -136,9 +144,8 @@ def build_question_summary(notification: Notification) -> QuestionSummary | None
     )
 
 
-def _response_dir(notification: Notification) -> Path | None:
-    value = _clean_text(notification.action_data.get("response_dir"))
-    return Path(value).expanduser() if value is not None else None
+def _question_bundle(notification: Notification) -> ResolvedGateBundle | None:
+    return resolve_notification_bundle(notification)
 
 
 def _fallback_note(notification: Notification) -> str:
