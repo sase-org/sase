@@ -11,7 +11,7 @@ from sase.xprompt.workflow_loader import _load_workflow_from_file
 from sase.xprompt.workflow_validator import validate_workflow
 
 
-XPROMPTS_DIR = Path(__file__).resolve().parents[1] / "xprompts"
+XPROMPTS_DIR = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
 
 
 def _launch_step(workflow_name: str, step_name: str) -> str:

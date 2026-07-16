@@ -60,15 +60,15 @@ mentor_profiles:
           # keep-sorted start
           - focus_name: config_schema_sync
             description: >
-              When new config fields are added or changed (in default_config.yml, sase.yml, or code), check that
+              When new config fields are added or changed (in default_config.yml, sase/sase.yml, or code), check that
               src/sase/config/sase.schema.json is updated to match. Missing schema updates break yaml-language-server
               LSP validation in editors. This is the single most common gotcha in this repo.
           - focus_name: cross_repo_impact
             description: >
               When renaming files, changing config structure, or modifying shared interfaces, check whether maintained
-              sibling repos (../sase-github, ../sase-telegram, ../sase-nvim, and ../sase-core when backend behavior is
-              involved) or chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding updates.
-              Also check importlib.resources paths, error messages, docstrings, and docs/ for stale references.
+              linked repos (sase-github, sase-telegram, sase-nvim, and sase-core when backend behavior is involved) or
+              chezmoi configs (~/.local/share/chezmoi/home/dot_config/sase/) need corresponding updates. Also check
+              importlib.resources paths, error messages, docstrings, and docs/ for stale references.
           - focus_name: keymap_config_sync
             description: >
               When keymaps or leader mode keys are changed in code (e.g. in src/sase/ace/tui/keymaps/), check that

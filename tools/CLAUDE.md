@@ -27,8 +27,8 @@ said, there are a few exceptions:
 - When a symbol is used by a non-Python file or another reference that Symvision cannot discover, it can be ignored by
   adding the `# symvision: <path_with_reference>` pragma comment on the line above the symbol definition. The
   `<path_with_reference>` should be the path to the file that references the symbol, relative to the root of the
-  repository. For example, if a symbol is used by `xprompts/foo.yaml`, the pragma comment would be
-  `# symvision: xprompts/foo.yaml`. Pragmas must not point at test or test-support paths: references from tests and
+  repository. For example, if a symbol is used by `sase/xprompts/foo.yaml`, the pragma comment would be
+  `# symvision: sase/xprompts/foo.yaml`. Pragmas must not point at test or test-support paths: references from tests and
   testing utilities are not sufficient to keep a public symbol "used." If a symbol is only exercised by tests, delete
   it, make it private and call it from a non-test path, or add a non-test pragma target instead.
 - When a symbol is consumed by another repository, use a repository URI pragma such as

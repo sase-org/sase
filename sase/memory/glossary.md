@@ -21,8 +21,8 @@ An agent instruction file is a `.md` file that an agent CLI reads automatically 
 contains it. For example, the `AGENTS.md` file is the name of the agent instruction file that is supported by codex.
 sase supports one agent instruction file per supported agent CLI (ex: `CLAUDE.md` for claude, `GEMINI.md` for
 antigravity, etc...). The `sase init` command, which is run automatically as a sase post-commit hook, initializes the
-top-level agent instruction files using memories in the memory/ directory and ensures that all agent instruction files
-in the same directory contain the same contents.
+top-level agent instruction files using memories in the sase/memory/ directory and ensures that all agent instruction
+files in the same directory contain the same contents.
 
 **Agent Neighbors**  
 An agent neighbor is any agent that is in the same agent hood as another agent. For example, agents named `foo`,
@@ -56,7 +56,7 @@ materialized for a workspace are repo checkouts, not additional workspaces.
 Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
 
 **xprompt**  
-Triggered with `#foo` in agent prompts. Defined in an xprompts/ directory (.md or .yml file) or in
+Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or .yml file) or in
 ~/.config/sase/sase.yml (`xprompts` field).
 
 **xprompt Part**  

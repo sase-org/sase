@@ -1,36 +1,37 @@
 # SASE Memory
 
-The `memory/` directory holds agent-facing project context. It separates compact, always-loaded notes from detailed
+The `sase/memory/` directory holds agent-facing project context. It separates compact, always-loaded notes from detailed
 reference notes that agents read only when relevant.
 
 ![How SASE memory files are used](assets/memory-directory-map.png)
 
 ## How Memory Files Are Used
 
-- Non-README Markdown files live directly under `memory/` and use YAML frontmatter for `type`, `parent`, and
+- Non-README Markdown files live directly under `sase/memory/` and use YAML frontmatter for `type`, `parent`, and
   `description`.
 - `type: short` notes are Tier 1 context. `sase memory init` inlines them into `AGENTS.md`, then copies that exact
   content to each provider instruction shim.
 - `type: long` notes are detailed reference material for Tier 2. They require a `description` and are fetched explicitly
   with audited `sase memory read` calls.
-- `memory/sase.md` is generated from SASE configuration and captures linked repositories plus workspace rules.
-- `memory/README.md` is generated from the notes themselves, including the statistics below.
+- `sase/memory/sase.md` is generated from SASE configuration and captures linked repositories plus workspace rules.
+- `sase/memory/README.md` is generated from the notes themselves, including the statistics below.
 
 ### Frontmatter Schema
 
 - `type`: `short` for always-loaded notes or `long` for read-on-demand reference notes.
-- `parent`: `AGENTS.md` for top-level notes, or `memory/<note>.md` when a long note belongs under another long note.
+- `parent`: `AGENTS.md` for top-level notes, or `sase/memory/<note>.md` when a long note belongs under another long
+  note.
 - `description`: required for long notes and used in generated agent instructions and this README.
 
 ### Linking
 
-- `@memory/<note>.md` loads a note into agent context when the root instruction file is read.
-- Plain `memory/<note>.md` mentions keep a note discoverable without loading it automatically.
+- `@sase/memory/<note>.md` loads a note into agent context when the root instruction file is read.
+- Plain `sase/memory/<note>.md` mentions keep a note discoverable without loading it automatically.
 - Long notes parented under another long note are reachable through that parent for validation.
 
 ## Memory Notes
 
-### `memory/build_and_run.md`
+### `sase/memory/build_and_run.md`
 
 - Type: `short`
 - Description: No description set.
@@ -38,23 +39,23 @@ reference notes that agents read only when relevant.
 - Lines: 41
 - Approx. tokens: 475
 
-### `memory/glossary.md`
+### `sase/memory/glossary.md`
 
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 71
-- Approx. tokens: 1122
+- Approx. tokens: 1124
 
-### `memory/gotchas.md`
+### `sase/memory/gotchas.md`
 
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
 - Lines: 21
-- Approx. tokens: 264
+- Approx. tokens: 266
 
-### `memory/rust_core_backend_boundary.md`
+### `sase/memory/rust_core_backend_boundary.md`
 
 - Type: `short`
 - Description: No description set.
@@ -62,7 +63,7 @@ reference notes that agents read only when relevant.
 - Lines: 17
 - Approx. tokens: 188
 
-### `memory/sase.md`
+### `sase/memory/sase.md`
 
 - Type: `short`
 - Description: No description set.
@@ -70,7 +71,7 @@ reference notes that agents read only when relevant.
 - Lines: 38
 - Approx. tokens: 551
 
-### `memory/cli_rules.md`
+### `sase/memory/cli_rules.md`
 
 - Type: `long`
 - Description: Read anytime new CLI subcommands or options are added.
@@ -78,7 +79,7 @@ reference notes that agents read only when relevant.
 - Lines: 27
 - Approx. tokens: 379
 
-### `memory/generated_skills.md`
+### `sase/memory/generated_skills.md`
 
 - Type: `long`
 - Description: Read when working with sase agent skills (aka xprompt skills), which are generated from source templates
@@ -87,7 +88,7 @@ reference notes that agents read only when relevant.
 - Lines: 43
 - Approx. tokens: 498
 
-### `memory/symvision.md`
+### `sase/memory/symvision.md`
 
 - Type: `long`
 - Description: Read before fixing Symvision lint failures, including unused symbols, private misuse, pragmas, and epic
@@ -96,7 +97,7 @@ reference notes that agents read only when relevant.
 - Lines: 82
 - Approx. tokens: 1243
 
-### `memory/tui_perf.md`
+### `sase/memory/tui_perf.md`
 
 - Type: `long`
 - Description: Read before changing anything that affects TUI performance or responsiveness (navigation, refresh,
@@ -105,7 +106,7 @@ reference notes that agents read only when relevant.
 - Lines: 72
 - Approx. tokens: 1410
 
-### `memory/xprompts.md`
+### `sase/memory/xprompts.md`
 
 - Type: `long`
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh VCS workflow blocks.
@@ -119,7 +120,7 @@ reference notes that agents read only when relevant.
 - Short notes: 5
 - Long notes: 5
 - Total lines: 487
-- Total approx. tokens: 7346
+- Total approx. tokens: 7350
 
 ## Commands
 

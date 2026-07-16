@@ -152,17 +152,17 @@
     },
     "memory_sase_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for generated memory/sase.md files.",
+      "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/sase.md files.",
       "default": null
     },
     "memory_readme_template": {
       "type": ["string", "null"],
-      "description": "Optional root-relative path to the Jinja2 template used for generated memory/README.md files.",
+      "description": "Optional root-relative path to the Jinja2 template used for generated sase/memory/README.md files.",
       "default": null
     },
     "is_sase_managed": {
       "type": "boolean",
-      "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase.yml is consulted.",
+      "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase/sase.yml is consulted.",
       "default": false
     },
     "agent_family": {
@@ -801,7 +801,7 @@
           },
           "projects": {
             "type": "array",
-            "description": "Only match changespecs belonging to these projects. Auto-populated for local sase.yml profiles.",
+            "description": "Only match changespecs belonging to these projects. Auto-populated for local sase/sase.yml profiles.",
             "items": {
               "type": "string"
             }

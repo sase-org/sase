@@ -102,7 +102,7 @@ def test_xprompt_swarm_expands_local_helpers_before_splitting() -> None:
 
 
 def test_checked_in_reads_xprompt_uses_direct_local_helper() -> None:
-    reads_path = Path(__file__).resolve().parents[1] / "xprompts" / "reads.md"
+    reads_path = Path(__file__).resolve().parents[1] / "sase" / "xprompts" / "reads.md"
     source = reads_path.read_text(encoding="utf-8")
 
     assert '#{{ "_" }}article_search_agent' not in source

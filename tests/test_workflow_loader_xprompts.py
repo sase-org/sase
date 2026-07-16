@@ -88,7 +88,7 @@ steps:
 
 def test_bundled_audit_workflows_validate() -> None:
     """Regression: checked-in audit workflows satisfy validator rules."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
+    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
 
     for name in ("audit_recent_bugs", "audit_recent_improvements"):
         workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
@@ -99,7 +99,7 @@ def test_bundled_audit_workflows_validate() -> None:
 
 def test_disowned_agent_launcher_workflows_are_hidden() -> None:
     """Repo-local launchers hide only their parent workflow row."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
+    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
 
     for name in (
         "audit_recent_bugs",
@@ -115,7 +115,7 @@ def test_disowned_agent_launcher_workflows_are_hidden() -> None:
 
 def test_notification_suppressed_launcher_steps_are_hidden() -> None:
     """Bundled launchers hide every executable step to suppress notifications."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "xprompts"
+    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
 
     for name in (
         "audit_recent_bugs",

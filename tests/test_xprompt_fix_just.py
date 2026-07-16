@@ -7,7 +7,7 @@ from sase.xprompt.workflow_loader import _load_workflow_from_file
 
 def test_fix_just_bootstraps_workspace_before_other_just_commands() -> None:
     here = Path(__file__).resolve().parent.parent
-    workflow_path = here / "xprompts" / "fix_just.yml"
+    workflow_path = here / "sase" / "xprompts" / "fix_just.yml"
 
     wf = _load_workflow_from_file(workflow_path)
     assert wf is not None

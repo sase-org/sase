@@ -18,7 +18,9 @@ _PR_ENV_KEYS = ("SASE_COMMIT_METHOD", "SASE_PR_NAME", "SASE_PR_STATUS")
 
 
 def _load_fix_just_workflow() -> Workflow:
-    workflow_path = Path(__file__).resolve().parents[1] / "xprompts" / "fix_just.yml"
+    workflow_path = (
+        Path(__file__).resolve().parents[1] / "sase" / "xprompts" / "fix_just.yml"
+    )
     workflow = _load_workflow_from_file(workflow_path)
     assert workflow is not None
     return workflow

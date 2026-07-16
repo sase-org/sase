@@ -349,14 +349,14 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
 ) -> None:  # type: ignore[no-untyped-def]
     """``#gh:sase-org/sase`` resolves to the ``sase`` workspace's workflows.
 
-    Phase 2 regression: confirms the migrated Athena workflows in
-    ``xprompts/`` are visible through the known-project workspace fallback
+    Confirms the migrated SASE workflows in ``sase/xprompts/`` are visible
+    through the known-project workspace fallback
     once the resolver has normalized ``sase-org/sase`` to the registered
     ``sase`` project name.
     """
     workspace = tmp_path / "sase"
     other_cwd = tmp_path / "other"
-    xprompts = workspace / "xprompts"
+    xprompts = workspace / "sase" / "xprompts"
     xprompts.mkdir(parents=True)
     other_cwd.mkdir()
     for name in ("refresh_docs", "audit_recent_bugs", "audit_recent_improvements"):
