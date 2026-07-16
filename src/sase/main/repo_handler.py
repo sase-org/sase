@@ -1,231 +1,66 @@
-"""Handler for the ``sase repo`` CLI command."""
+"""Facade and dispatcher for the ``sase repo`` CLI command."""
 
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from collections.abc import Sequence
-import json
-import os
 from pathlib import Path
 import sys
 
-from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
-from rich.text import Text
-
 from sase.config.core import load_merged_config
-from sase.main.workspace_handler_context import ProjectContext
 from sase.repo_inventory import (
-    RepoCloneRecord,
     RepoInventory,
-    RepoInventoryProjectNotFoundError,
     RepoKind,
     RepoRecord,
     collect_repo_inventory,
 )
-from sase.repo_open_log import append_repo_open_event, build_repo_open_event
 from sase.workspace_provider.marker import find_marker_from_cwd
-from sase.workspace_provider.store import WorkspaceStore
+
+from .repo_handler_common import (
+    RepoOpenResolutionError,
+    ambiguous_repo_error,
+    clone_for_workspace,
+    is_relative_to,
+    match_repo_record,
+    resolve_list_workspace_num,
+    validate_workspace_context,
+)
+from .repo_handler_list import (
+    compact_path,
+    handle_list_command,
+    inventory_json_payload,
+    print_human,
+    print_inventory_issues_stderr,
+    repo_panel,
+)
+from .repo_handler_open import (
+    handle_open_command,
+    record_repo_open,
+    repo_target_context,
+    resolve_open_workspace_num,
+)
+from .repo_handler_path import (
+    handle_path_command,
+    match_repo_path_record,
+    resolve_legacy_sdd_repo_path,
+    sidecar_role_disabled,
+)
+from .workspace_handler_context import ProjectContext
 
 
-class _RepoOpenResolutionError(ValueError):
-    """Raised when a repository or workspace context cannot be resolved."""
-
-
-_KIND_STYLES = {
-    "primary": "bold #00D7AF",
-    "sidecar": "bold #AF87FF",
-    "linked": "bold #87D7FF",
-    "external": "bold #FFAF00",
-}
-
-
-def _print_human(
-    inventory: RepoInventory,
-    *,
-    workspace_num: int,
-    project: str | None,
-    console: Console | None = None,
-) -> None:
-    output = console or Console()
-    grouped: dict[str, list[RepoRecord]] = defaultdict(list)
-    for record in inventory.records:
-        grouped[record.project].append(record)
-
-    if project is not None:
-        output.print(
-            _repo_panel(
-                grouped.get(project, list(inventory.records)),
-                project=project,
-                workspace_num=workspace_num,
-            )
-        )
-    elif grouped:
-        for project_name in sorted(grouped, key=str.casefold):
-            output.print(
-                _repo_panel(
-                    grouped[project_name],
-                    project=project_name,
-                    workspace_num=workspace_num,
-                )
-            )
-    else:
-        output.print(Text("No repositories found.", style="dim"))
-
-    if inventory.issues:
-        warnings = Text()
-        for index, issue in enumerate(inventory.issues):
-            if index:
-                warnings.append("\n")
-            warnings.append(f"[{issue.project}] ", style="bold #FFD700")
-            warnings.append(issue.message, style="dim")
-        output.print(
-            Panel(
-                warnings,
-                title="Inventory warnings",
-                border_style="#FFD700",
-                box=box.ROUNDED,
-            )
-        )
-
-
-def _repo_panel(
-    records: Sequence[RepoRecord],
-    *,
-    project: str,
-    workspace_num: int,
-) -> Panel:
-    table = Table(
-        box=box.SIMPLE_HEAD,
-        expand=True,
-        pad_edge=False,
-        show_edge=False,
-    )
-    table.add_column("NAME", style="bold", no_wrap=True)
-    table.add_column("KIND", no_wrap=True)
-    table.add_column("CLONED", justify="center", no_wrap=True)
-    table.add_column("WORKSPACES", justify="right", no_wrap=True)
-    table.add_column("PATH", overflow="ellipsis", no_wrap=True, ratio=1)
-
-    for record in records:
-        clone = _clone_for_workspace(record, workspace_num)
-        cloned_count = sum(item.exists for item in record.clones)
-        total_count = len(record.clones)
-        if not record.clones:
-            cloned_count = int(record.exists)
-            total_count = 1
-        table.add_row(
-            Text(record.name),
-            Text(record.kind, style=_KIND_STYLES[record.kind]),
-            Text(
-                "✓" if clone.exists else "✗",
-                style="green" if clone.exists else "#FFD700",
-            ),
-            f"{cloned_count}/{total_count}",
-            Text(_compact_path(clone.path), style="dim" if clone.exists else "#FFD700"),
-        )
-
-    if not records:
-        table.add_row(Text("No repositories found.", style="dim"), "", "", "", "")
-
-    return Panel(
-        table,
-        title=f"Repos · {project} · workspace #{workspace_num}",
-        title_align="left",
-        border_style="#00D7AF",
-        box=box.ROUNDED,
-    )
-
-
-def _compact_path(path: str, *, max_len: int = 72) -> str:
-    value = path or "-"
-    home = str(Path.home())
-    if value == home or value.startswith(f"{home}/"):
-        value = f"~{value[len(home) :]}"
-    if len(value) <= max_len:
-        return value
-    return f"…{value[-(max_len - 1) :]}"
-
-
-def _clone_for_workspace(record: RepoRecord, workspace_num: int) -> RepoCloneRecord:
-    clone = record.clone_for_workspace(workspace_num)
-    if clone is not None:
-        return clone
-    if workspace_num == 0:
-        # Compatibility for callers constructing the pre-enrichment record
-        # shape, including ACE fixtures and third-party consumers.
-        return RepoCloneRecord(0, record.path, record.exists)
-    raise _RepoOpenResolutionError(
-        f"workspace #{workspace_num} is not registered for project '{record.project}'"
-    )
-
-
-def _handle_list(args: argparse.Namespace) -> int:
-    from . import workspace_handler as workspace_commands
-
-    all_projects = bool(getattr(args, "all_projects", False))
-    requested_project = getattr(args, "project", None)
-    if all_projects and requested_project:
-        print("--all cannot be combined with --project", file=sys.stderr)
-        return 2
-
-    if all_projects:
-        inventory = collect_repo_inventory(include_disabled=True)
-        if getattr(args, "json", False):
-            payload = _inventory_json_payload(inventory, workspace_num=0)
-            payload["all_projects"] = True
-            print(json.dumps(payload, indent=2, sort_keys=True))
-            _print_inventory_issues_stderr(inventory)
-        else:
-            _print_human(inventory, workspace_num=0, project=None)
-        return 0
-
-    ctx = workspace_commands._resolve_project_context(requested_project)
-    try:
-        workspace_num = _resolve_list_workspace_num(
-            ctx,
-            getattr(args, "workspace", None),
-        )
-    except _RepoOpenResolutionError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    try:
-        inventory = collect_repo_inventory(project=ctx.project_name)
-    except RepoInventoryProjectNotFoundError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    try:
-        display_project = next(
-            (record.project for record in inventory.records),
-            ctx.project_name,
-        )
-        _validate_workspace_context(
-            inventory.records,
-            project=display_project,
-            workspace_num=workspace_num,
-        )
-    except _RepoOpenResolutionError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    if getattr(args, "json", False):
-        payload = _inventory_json_payload(inventory, workspace_num=workspace_num)
-        payload["project"] = display_project
-        payload["workspace_num"] = workspace_num
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        _print_inventory_issues_stderr(inventory)
-    else:
-        _print_human(
-            inventory,
-            workspace_num=workspace_num,
-            project=display_project,
-        )
-    return 0
+# Compatibility aliases for callers that imported the old module's helpers.
+_RepoOpenResolutionError = RepoOpenResolutionError
+_ambiguous_repo_error = ambiguous_repo_error
+_clone_for_workspace = clone_for_workspace
+_compact_path = compact_path
+_inventory_json_payload = inventory_json_payload
+_is_relative_to = is_relative_to
+_match_repo_path_record = match_repo_path_record
+_match_repo_record = match_repo_record
+_print_human = print_human
+_print_inventory_issues_stderr = print_inventory_issues_stderr
+_repo_panel = repo_panel
+_resolve_legacy_sdd_repo_path = resolve_legacy_sdd_repo_path
+_validate_workspace_context = validate_workspace_context
 
 
 def _resolve_list_workspace_num(
@@ -234,141 +69,90 @@ def _resolve_list_workspace_num(
     *,
     cwd: Path | None = None,
 ) -> int:
-    if requested_workspace is not None:
-        workspace_num = int(requested_workspace)
-        if workspace_num < 0:
-            raise _RepoOpenResolutionError(
-                f"workspace number must be >= 0, got {workspace_num}"
-            )
-        return workspace_num
-
-    found = find_marker_from_cwd(str((cwd or Path.cwd()).resolve(strict=False)))
-    if found is None:
-        return 0
-    _, marker = found
-    marker_primary = Path(marker.primary_workspace_dir).resolve(strict=False)
-    host_primary = Path(host_ctx.primary_workspace_dir).resolve(strict=False)
-    if marker_primary != host_primary:
-        return 0
-    return marker.workspace_num if marker.workspace_num >= 0 else 0
+    return resolve_list_workspace_num(
+        host_ctx,
+        requested_workspace,
+        find_marker=find_marker_from_cwd,
+        cwd=cwd,
+    )
 
 
-def _validate_workspace_context(
-    records: Sequence[RepoRecord],
+def _resolve_open_workspace_num(
+    host_ctx: ProjectContext,
+    requested_workspace: int | None,
     *,
-    project: str,
+    cwd: Path | None = None,
+) -> int:
+    return resolve_open_workspace_num(
+        host_ctx,
+        requested_workspace,
+        find_marker=find_marker_from_cwd,
+        cwd=cwd,
+    )
+
+
+def _repo_target_context(
+    host_ctx: ProjectContext,
+    repo: RepoRecord,
+) -> ProjectContext:
+    return repo_target_context(host_ctx, repo, load_config=load_merged_config)
+
+
+def _record_repo_open(
+    *,
+    host_ctx: ProjectContext,
+    repo_name: str,
+    repo_kind: RepoKind,
     workspace_num: int,
+    path: str,
+    reason: str,
 ) -> None:
-    if not records or workspace_num == 0:
-        return
-    registered = sorted(
-        {clone.workspace_num for record in records for clone in record.clones}
-    )
-    if workspace_num in registered:
-        return
-    candidates = ", ".join(str(item) for item in registered) or "0"
-    raise _RepoOpenResolutionError(
-        f"workspace #{workspace_num} is not registered for project '{project}'. "
-        f"Registered workspaces: {candidates}"
-    )
-
-
-def _inventory_json_payload(
-    inventory: RepoInventory,
-    *,
-    workspace_num: int,
-) -> dict[str, object]:
-    return {
-        "repos": [
-            record.to_json_dict(workspace_num=workspace_num)
-            for record in inventory.records
-        ],
-        "issues": [issue.to_json_dict() for issue in inventory.issues],
-    }
-
-
-def _print_inventory_issues_stderr(inventory: RepoInventory) -> None:
-    for issue in inventory.issues:
-        print(f"warning [{issue.project}]: {issue.message}", file=sys.stderr)
-
-
-def _handle_open(args: argparse.Namespace) -> int:
-    from .repo_open_external import ExternalRepoOpenError, open_external_repo
-    from . import workspace_handler as workspace_commands
-    from .workspace_handler_list import (
-        normalize_repo_open_reason,
-        prepare_opened_checkout,
-    )
-
-    try:
-        reason = normalize_repo_open_reason(getattr(args, "reason", None))
-    except ValueError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    host_ctx = workspace_commands._resolve_project_context(
-        getattr(args, "project", None)
-    )
-    try:
-        workspace_num = _resolve_open_workspace_num(
-            host_ctx,
-            getattr(args, "workspace", None),
-        )
-        inventory = collect_repo_inventory(project=host_ctx.project_name)
-        repo = _match_repo_record(
-            getattr(args, "repo", ""),
-            host_ctx=host_ctx,
-            inventory=inventory,
-        )
-    except (RepoInventoryProjectNotFoundError, _RepoOpenResolutionError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    if repo is None:
-        try:
-            external = open_external_repo(
-                getattr(args, "repo", ""),
-                host_ctx=host_ctx,
-                workspace_num=workspace_num,
-                inventory=inventory,
-                reason=reason,
-                resolve_checkout=workspace_commands._resolve_checkout_path,
-            )
-        except ExternalRepoOpenError as exc:
-            print(str(exc), file=sys.stderr)
-            return 2
-
-        _record_repo_open(
-            host_ctx=host_ctx,
-            repo_name=external.canonical_name,
-            repo_kind="external",
-            workspace_num=workspace_num,
-            path=external.path,
-            reason=reason,
-        )
-        print(external.path)
-        return 0
-
-    target_ctx = _repo_target_context(host_ctx, repo)
-    path = prepare_opened_checkout(
-        target_ctx,
-        workspace_num,
-        reason=reason,
-        resolve_checkout=workspace_commands._resolve_checkout_path,
-    )
-    if path is None:
-        return 1
-
-    _record_repo_open(
+    record_repo_open(
         host_ctx=host_ctx,
-        repo_name=repo.name,
-        repo_kind=repo.kind,
+        repo_name=repo_name,
+        repo_kind=repo_kind,
         workspace_num=workspace_num,
         path=path,
         reason=reason,
     )
-    print(path)
-    return 0
+
+
+def _sidecar_role_disabled(
+    role: str,
+    *,
+    primary_workspace_dir: str,
+) -> bool:
+    return sidecar_role_disabled(
+        role,
+        primary_workspace_dir=primary_workspace_dir,
+    )
+
+
+def _handle_list(args: argparse.Namespace) -> int:
+    from . import workspace_handler as workspace_commands
+
+    return handle_list_command(
+        args,
+        collect_inventory=collect_repo_inventory,
+        resolve_project_context=workspace_commands._resolve_project_context,
+        resolve_workspace_num=_resolve_list_workspace_num,
+        validate_workspace=_validate_workspace_context,
+    )
+
+
+def _handle_open(args: argparse.Namespace) -> int:
+    from . import workspace_handler as workspace_commands
+
+    return handle_open_command(
+        args,
+        collect_inventory=collect_repo_inventory,
+        resolve_project_context=workspace_commands._resolve_project_context,
+        resolve_checkout=workspace_commands._resolve_checkout_path,
+        resolve_workspace_num=_resolve_open_workspace_num,
+        match_repo=_match_repo_record,
+        target_context=_repo_target_context,
+        record_repo_open=_record_repo_open,
+    )
 
 
 def _handle_log(args: argparse.Namespace) -> int:
@@ -390,288 +174,14 @@ def _handle_log(args: argparse.Namespace) -> int:
 def _handle_path(args: argparse.Namespace) -> int:
     from . import workspace_handler as workspace_commands
 
-    host_ctx = workspace_commands._resolve_project_context(
-        getattr(args, "project", None)
+    return handle_path_command(
+        args,
+        collect_inventory=collect_repo_inventory,
+        resolve_project_context=workspace_commands._resolve_project_context,
+        resolve_workspace_num=_resolve_list_workspace_num,
+        validate_workspace=_validate_workspace_context,
+        sidecar_role_disabled=_sidecar_role_disabled,
     )
-    requested = str(getattr(args, "repo", "")).strip()
-    if not requested:
-        print("repository name must not be empty", file=sys.stderr)
-        return 2
-
-    try:
-        workspace_num = _resolve_list_workspace_num(
-            host_ctx,
-            getattr(args, "workspace", None),
-        )
-        inventory = collect_repo_inventory(project=host_ctx.project_name)
-        _validate_workspace_context(
-            inventory.records,
-            project=host_ctx.project_name,
-            workspace_num=workspace_num,
-        )
-        repo = _match_repo_path_record(
-            requested,
-            host_ctx=host_ctx,
-            inventory=inventory,
-        )
-    except (RepoInventoryProjectNotFoundError, _RepoOpenResolutionError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-
-    if repo is not None and repo.kind in {"linked", "external"}:
-        print(
-            f"Repository '{requested}' is {repo.kind}; use "
-            f'`sase repo open {requested} --reason "<reason>"` instead.',
-            file=sys.stderr,
-        )
-        return 2
-
-    path: str | Path
-    try:
-        if repo is not None:
-            clone = _clone_for_workspace(repo, workspace_num)
-            path = clone.path
-            if repo.kind == "sidecar" and getattr(args, "ensure", False):
-                from sase.linked_repos import materialize_linked_repo_workspace
-
-                path = materialize_linked_repo_workspace(
-                    primary_dir=repo.path,
-                    workspace_dir=path,
-                    workspace_num=workspace_num,
-                    expected_remote_url=repo.remote_url,
-                )
-        elif requested in {"plans", "research"} and not _sidecar_role_disabled(
-            requested,
-            primary_workspace_dir=host_ctx.primary_workspace_dir,
-        ):
-            path = _resolve_legacy_sdd_repo_path(
-                requested,
-                inventory=inventory,
-                workspace_num=workspace_num,
-                ensure=bool(getattr(args, "ensure", False)),
-            )
-        else:
-            raise _RepoOpenResolutionError(
-                f"Repository '{requested}' is not a primary or sidecar repository "
-                f"for project '{host_ctx.project_name}'"
-            )
-    except _RepoOpenResolutionError as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    except (OSError, RuntimeError, ValueError) as exc:
-        print(str(exc), file=sys.stderr)
-        return 1
-
-    print(Path(path).expanduser().resolve(strict=False))
-    return 0
-
-
-def _match_repo_path_record(
-    name: str,
-    *,
-    host_ctx: ProjectContext,
-    inventory: RepoInventory,
-) -> RepoRecord | None:
-    repo = _match_repo_record(name, host_ctx=host_ctx, inventory=inventory)
-    if repo is not None:
-        return repo
-
-    matches = [
-        record
-        for record in inventory.records
-        if record.kind == "external" and name in {record.name, record.slug}
-    ]
-    if len(matches) == 1:
-        return matches[0]
-    if len(matches) > 1:
-        raise _ambiguous_repo_error(name, matches)
-    return None
-
-
-def _resolve_legacy_sdd_repo_path(
-    kind: str,
-    *,
-    inventory: RepoInventory,
-    workspace_num: int,
-    ensure: bool,
-) -> Path:
-    from sase.sdd.store import ensure_sdd_kind_clone, resolve_sdd_kind_dir
-
-    primary_records = [
-        record for record in inventory.records if record.kind == "primary"
-    ]
-    if len(primary_records) != 1:
-        raise _RepoOpenResolutionError(
-            "Unable to identify the project's primary repository"
-        )
-    workspace_dir = _clone_for_workspace(primary_records[0], workspace_num).path
-    if ensure:
-        ensure_sdd_kind_clone(workspace_dir, workspace_num, kind, strict=True)
-    return resolve_sdd_kind_dir(workspace_dir, workspace_num, kind)
-
-
-def _sidecar_role_disabled(
-    role: str,
-    *,
-    primary_workspace_dir: str,
-) -> bool:
-    from sase._linked_repo_config import (
-        merged_sidecar_entries_from_config,
-        resolution_config,
-    )
-
-    try:
-        config = resolution_config(primary_workspace_dir, None)
-        entries = merged_sidecar_entries_from_config(
-            config,
-            primary_workspace_dir=primary_workspace_dir,
-        )
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return any(
-        entry.get("name") == role and entry.get("disabled") is True for entry in entries
-    )
-
-
-def _resolve_open_workspace_num(
-    host_ctx: ProjectContext,
-    requested_workspace: int | None,
-    *,
-    cwd: Path | None = None,
-) -> int:
-    if requested_workspace is not None:
-        workspace_num = int(requested_workspace)
-        if workspace_num < 0:
-            raise _RepoOpenResolutionError(
-                f"workspace number must be >= 0, got {workspace_num}"
-            )
-        return workspace_num
-
-    cwd_path = (cwd or Path.cwd()).resolve(strict=False)
-    found = find_marker_from_cwd(str(cwd_path))
-    if found is not None:
-        _, marker = found
-        marker_primary = Path(marker.primary_workspace_dir).resolve(strict=False)
-        host_primary = Path(host_ctx.primary_workspace_dir).resolve(strict=False)
-        if marker_primary != host_primary:
-            raise _RepoOpenResolutionError(
-                "Current directory belongs to a different project's workspace; "
-                "pass -w/--workspace."
-            )
-        if marker.workspace_num < 0:
-            raise _RepoOpenResolutionError(
-                f"workspace marker has invalid number {marker.workspace_num}"
-            )
-        return marker.workspace_num
-
-    host_primary = Path(host_ctx.primary_workspace_dir).resolve(strict=False)
-    if _is_relative_to(cwd_path, host_primary):
-        return 0
-    raise _RepoOpenResolutionError(
-        "Unable to infer workspace from current directory; pass -w/--workspace."
-    )
-
-
-def _match_repo_record(
-    name: str,
-    *,
-    host_ctx: ProjectContext,
-    inventory: RepoInventory,
-) -> RepoRecord | None:
-    """Return an exact tier-1 inventory match without guessing.
-
-    Materialized external rows are intentionally excluded: they re-enter the
-    external resolver so reopen semantics never run the linked-repo cleaner.
-    """
-
-    requested = name.strip()
-    secondary_matches = [
-        record
-        for record in inventory.records
-        if record.kind in {"sidecar", "linked"}
-        and requested in {record.name, record.slug}
-    ]
-    if len(secondary_matches) == 1:
-        return secondary_matches[0]
-    if len(secondary_matches) > 1:
-        raise _ambiguous_repo_error(requested, secondary_matches)
-
-    primary_matches = [
-        record
-        for record in inventory.records
-        if record.kind == "primary"
-        and requested in {record.name, host_ctx.project_name}
-    ]
-    if len(primary_matches) == 1:
-        return primary_matches[0]
-    if len(primary_matches) > 1:
-        raise _ambiguous_repo_error(requested, primary_matches)
-
-    return None
-
-
-def _ambiguous_repo_error(
-    requested: str,
-    matches: list[RepoRecord],
-) -> _RepoOpenResolutionError:
-    candidates = ", ".join(
-        f"{record.kind} '{record.name}' ({record.path})" for record in matches
-    )
-    return _RepoOpenResolutionError(
-        f"Repo name '{requested}' is ambiguous: {candidates}"
-    )
-
-
-def _repo_target_context(
-    host_ctx: ProjectContext,
-    repo: RepoRecord,
-) -> ProjectContext:
-    if repo.kind == "primary":
-        return host_ctx
-    primary_clone = repo.clone_for_workspace(0)
-    primary_dir = primary_clone.path if primary_clone is not None else repo.path
-    return ProjectContext(
-        project_name=repo.name,
-        project_file=host_ctx.project_file,
-        primary_workspace_dir=primary_dir,
-        store=WorkspaceStore(primary_dir, config=load_merged_config()),
-        is_sibling=True,
-        is_configured_linked_repo=True,
-        linked_host_primary_workspace_dir=host_ctx.primary_workspace_dir,
-        linked_repo_remote_url=repo.remote_url,
-    )
-
-
-def _record_repo_open(
-    *,
-    host_ctx: ProjectContext,
-    repo_name: str,
-    repo_kind: RepoKind,
-    workspace_num: int,
-    path: str,
-    reason: str,
-) -> None:
-    try:
-        event = build_repo_open_event(
-            project=host_ctx.project_name,
-            repo=repo_name,
-            repo_kind=repo_kind,
-            workspace_num=workspace_num,
-            path=path,
-            reason=reason,
-            cwd=Path(os.getcwd()),
-        )
-        append_repo_open_event(event)
-    except Exception as exc:
-        print(f"Warning: unable to record repo open: {exc}", file=sys.stderr)
-
-
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return False
-    return True
 
 
 def _handle_init(args: argparse.Namespace) -> int:
