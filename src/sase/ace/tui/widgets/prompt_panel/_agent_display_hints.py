@@ -8,6 +8,7 @@ from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
+from ...util.xprompt_syntax import apply_xprompt_overlays
 from ._agent_display_content import (
     get_phase_label,
     get_prompt_content,
@@ -22,6 +23,7 @@ from ._agent_display_header_summary import (
     publish_opened_workspaces_cache,
 )
 from ._agent_display_state import AgentHintRender, HeaderHintState
+from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._file_path_hints import (
     append_text_with_file_hints,
     resolve_agent_workspace_dir,
@@ -158,8 +160,10 @@ class AgentHintsDisplayMixin:
         # AGENT XPROMPT section (with file path hints)
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
-            raw_xprompt = humanize_vcs_refs_in_text(raw_xprompt)
+            source_xprompt = raw_xprompt
+            raw_xprompt = humanize_vcs_refs_in_text(source_xprompt)
             append_section_heading(header_text, "AGENT XPROMPT")
+            xprompt_start = len(header_text.plain)
             hint_counter = append_text_with_file_hints(
                 header_text,
                 raw_xprompt + "\n",
@@ -167,6 +171,25 @@ class AgentHintsDisplayMixin:
                 hint_mappings,
                 workspace_dir,
             )
+            xprompt_source = header_text.plain[xprompt_start:]
+            hint_spans = [
+                span for span in header_text.spans if span.end > xprompt_start
+            ]
+            try:
+                apply_xprompt_overlays(
+                    header_text,
+                    xprompt_source,
+                    region_start=xprompt_start,
+                    known_skills=known_xprompt_skill_names(
+                        self,
+                        agent,
+                        source_xprompt,
+                    ),
+                )
+                for span in hint_spans:
+                    header_text.stylize(span.style, span.start, span.end)
+            except Exception:
+                pass
             header_text.append("\n")
             header_text.append("\u2500" * 50 + "\n", style="dim")
             header_text.append("\n")

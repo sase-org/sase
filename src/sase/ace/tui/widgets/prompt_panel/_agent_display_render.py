@@ -17,6 +17,7 @@ from ...agent_completion import agent_status_buckets_for_app
 from ...models.agent import Agent, AgentType
 from ...tools.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
+from ...util.xprompt_syntax import highlight_prompt_text
 from ._agent_display_attempts import (
     AgentAttemptDisplayMixin,
     render_merged_attempt_history,
@@ -35,10 +36,13 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     publish_opened_workspaces_cache,
 )
+from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._helpers import append_section_heading, format_output
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
 _HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...]]
+_XPROMPT_HIGHLIGHT_CACHE_LIMIT = 24
+_XPromptHighlightCacheKey = tuple[int, int, frozenset[str]]
 
 
 class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
@@ -67,6 +71,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             humanize_cache = getattr(self, "_agent_humanized_text_cache", None)
             if humanize_cache is not None:
                 humanize_cache.clear()
+            xprompt_cache = getattr(self, "_agent_xprompt_highlight_cache", None)
+            if xprompt_cache is not None:
+                xprompt_cache.clear()
             self._agent_markdown_render_cache_identity = identity
 
     def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
@@ -79,6 +86,40 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             cache = {}
             self._agent_humanized_text_cache = cache
         return cache
+
+    def _xprompt_highlight_cache(self) -> dict[_XPromptHighlightCacheKey, Text]:
+        cache = getattr(self, "_agent_xprompt_highlight_cache", None)
+        if cache is None:
+            cache = {}
+            self._agent_xprompt_highlight_cache = cache
+        return cache
+
+    def _render_xprompt(
+        self,
+        agent: Agent,
+        raw_xprompt: str,
+        humanized_xprompt: str,
+    ) -> Text:
+        known_skills = known_xprompt_skill_names(self, agent, raw_xprompt)
+        key = (
+            len(humanized_xprompt),
+            hash(humanized_xprompt),
+            known_skills,
+        )
+        cache = self._xprompt_highlight_cache()
+        cached = cache.pop(key, None)
+        if cached is not None:
+            cache[key] = cached
+            return cached
+
+        highlighted = highlight_prompt_text(
+            humanized_xprompt,
+            known_skills=known_skills,
+        )
+        cache[key] = highlighted
+        if len(cache) > _XPROMPT_HIGHLIGHT_CACHE_LIMIT:
+            cache.pop(next(iter(cache)))
+        return highlighted
 
     def _humanize_display_text(self, content: str) -> str:
         if "#" not in content:
@@ -149,9 +190,12 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         # AGENT XPROMPT section
         raw_xprompt = agent.get_raw_xprompt_content()
         if raw_xprompt:
-            raw_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
+            humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             append_section_heading(header_text, "AGENT XPROMPT")
-            header_text.append(f"{raw_xprompt}\n")
+            header_text.append_text(
+                self._render_xprompt(agent, raw_xprompt, humanized_xprompt)
+            )
+            header_text.append("\n")
             header_text.append("\n")
             header_text.append("\u2500" * 50 + "\n", style="dim")
             header_text.append("\n")

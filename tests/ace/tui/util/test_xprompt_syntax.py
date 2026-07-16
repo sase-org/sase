@@ -57,6 +57,29 @@ def test_highlights_known_directives_aliases_and_arguments_only() -> None:
     )
 
 
+def test_highlights_only_known_skills_when_catalog_is_supplied() -> None:
+    source = "Use /sase_plan but leave /unknown literal"
+
+    without_catalog = highlight_prompt_text(source)
+    with_catalog = highlight_prompt_text(
+        source,
+        known_skills=frozenset({"sase_plan"}),
+    )
+
+    assert XPROMPT_TOKEN_STYLES["skill"] not in _styles_at(
+        without_catalog,
+        "/sase_plan",
+    )
+    assert XPROMPT_TOKEN_STYLES["skill"] in _styles_at(
+        with_catalog,
+        "/sase_plan",
+    )
+    assert XPROMPT_TOKEN_STYLES["skill"] not in _styles_at(
+        with_catalog,
+        "/unknown",
+    )
+
+
 def test_highlights_alt_structure_and_segment_separator() -> None:
     highlighted = highlight_prompt_text("%{one | nested(x | y) | three}\n---\n")
 

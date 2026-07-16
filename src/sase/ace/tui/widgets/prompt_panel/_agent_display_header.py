@@ -107,6 +107,15 @@ class _AgentHeaderRenderable:
         self._text.append_text(text)
         return self
 
+    def stylize(
+        self,
+        style: StyleType,
+        start: int = 0,
+        end: int | None = None,
+    ) -> None:
+        """Apply a Rich style to a logical header range."""
+        self._text.stylize(style, start, end)
+
     def __rich_console__(
         self,
         _console: Console,
