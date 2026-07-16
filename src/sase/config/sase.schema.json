@@ -292,9 +292,15 @@
               "description": "Show a persistent top-bar badge while SASE core or installed plugins have updates available",
               "default": true
             },
+            "check_interval_minutes": {
+              "type": "number",
+              "description": "Interval between update-check eligibility attempts in a running ACE session. Positive-indicator and in-flight guards may suppress work on an attempt.",
+              "exclusiveMinimum": 0,
+              "default": 10
+            },
             "check_ttl_minutes": {
               "type": "number",
-              "description": "Minimum age before a cached update status is refreshed during automatic ACE-session checks. This cache TTL is separate from the fixed ten-minute session check cadence and takes precedence over check_ttl_hours when both are set.",
+              "description": "Minimum age before a cached update status is refreshed during automatic ACE-session checks. This cache TTL is separate from the configured session check cadence and takes precedence over check_ttl_hours when both are set.",
               "minimum": 0,
               "default": 10
             },

@@ -60,6 +60,7 @@ class StartupMixin(
     _agents_onboarding_plugins_refresh_running: bool
     _agents_onboarding_plugins_refresh_pending: bool
     _automatic_update_check_in_flight: bool
+    _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
     _refresh_timer: Timer | None
     _countdown_timer: Timer | None

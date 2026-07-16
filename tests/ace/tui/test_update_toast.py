@@ -128,7 +128,7 @@ class _AutomaticCheckApp(UpdateToastMixin):
         self.notifications.append({"message": message, **kwargs})
 
 
-def test_startup_registers_one_fixed_interval_and_off_thread_worker() -> None:
+def test_startup_registers_one_default_interval_and_off_thread_worker() -> None:
     app = _AutomaticCheckApp()
 
     app._schedule_startup_update_toast_check()
@@ -142,6 +142,25 @@ def test_startup_registers_one_fixed_interval_and_off_thread_worker() -> None:
     assert len(app.workers) == 1
     assert app.workers[0][0] == app._run_startup_update_toast_check
     assert app.workers[0][1]["thread"] is True
+
+
+def test_timer_registration_uses_in_memory_interval_without_loading_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _AutomaticCheckApp()
+    app._automatic_update_check_interval_seconds = 90.0
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: pytest.fail("timer registration must not reload config"),
+    )
+
+    app._start_periodic_update_checks()
+    app._start_periodic_update_checks()
+
+    assert [(interval, name) for interval, _callback, name in app.intervals] == [
+        (90.0, "automatic-update-check")
+    ]
 
 
 def test_periodic_tick_skips_positive_indicator_and_in_flight_check() -> None:
@@ -296,7 +315,7 @@ def test_indicator_disabled_skips_periodic_status_but_keeps_startup_toast(
     assert app._automatic_update_check_in_flight is False
 
 
-def test_check_ttl_is_passed_without_changing_fixed_interval(
+def test_check_ttl_is_passed_without_changing_configured_interval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -315,11 +334,12 @@ def test_check_ttl_is_passed_without_changing_fixed_interval(
 
     monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
     app = _AutomaticCheckApp()
+    app._automatic_update_check_interval_seconds = 1800.0
 
     app._schedule_startup_update_toast_check()
     app.workers[0][0]()
 
-    assert app.intervals[0][0] == 600.0
+    assert app.intervals[0][0] == 1800.0
     assert captured == {"ttl_seconds": 0.0}
     assert app._automatic_update_check_in_flight is False
 
@@ -720,6 +740,51 @@ def test_load_update_toast_config_minutes_take_precedence_over_hours(
     config = update_toast._load_update_toast_config()
 
     assert config.check_ttl_seconds == 600.0
+
+
+@pytest.mark.parametrize(
+    ("minutes", "expected_seconds"),
+    [(30, 1800.0), (0.25, 15.0)],
+)
+def test_resolve_check_interval_seconds_converts_positive_minutes(
+    minutes: object,
+    expected_seconds: float,
+) -> None:
+    assert (
+        update_toast.resolve_check_interval_seconds({"check_interval_minutes": minutes})
+        == expected_seconds
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "not-a-number",
+        "30",
+        True,
+        False,
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+        0,
+        -1,
+        10**400,
+        [],
+        {},
+    ],
+)
+def test_resolve_check_interval_seconds_falls_back_for_invalid_values(
+    value: object,
+) -> None:
+    assert (
+        update_toast.resolve_check_interval_seconds({"check_interval_minutes": value})
+        == 600.0
+    )
+
+
+def test_resolve_check_interval_seconds_falls_back_when_missing() -> None:
+    assert update_toast.resolve_check_interval_seconds({}) == 600.0
 
 
 def test_startup_update_check_passes_default_ttl_seconds(

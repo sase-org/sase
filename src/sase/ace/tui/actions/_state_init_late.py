@@ -96,6 +96,12 @@ def init_late_startup_state(
 
     merged = load_merged_config()
     ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+    updates_cfg = ace_cfg.get("updates", {}) if isinstance(ace_cfg, dict) else {}
+    from .update_toast import resolve_check_interval_seconds
+
+    self._automatic_update_check_interval_seconds = resolve_check_interval_seconds(
+        updates_cfg if isinstance(updates_cfg, dict) else {}
+    )
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

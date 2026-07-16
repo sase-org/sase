@@ -136,6 +136,29 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
     assert app._post_mount_background_loads_started is True
 
 
+def test_startup_configures_periodic_update_interval_from_loaded_config() -> None:
+    with patch(
+        "sase.config.load_merged_config",
+        return_value={"ace": {"updates": {"check_interval_minutes": 1.5}}},
+    ):
+        app = AceApp()
+    intervals: list[tuple[float, object, str | None]] = []
+
+    with patch.object(
+        app,
+        "set_interval",
+        side_effect=lambda seconds, callback, **kwargs: (
+            intervals.append((seconds, callback, kwargs.get("name"))) or MagicMock()
+        ),
+    ):
+        app._start_periodic_update_checks()
+
+    assert app._automatic_update_check_interval_seconds == 90.0
+    assert intervals == [
+        (90.0, app._on_periodic_update_check, "automatic-update-check")
+    ]
+
+
 @pytest.mark.asyncio
 async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -> None:
     """Axe startup should complete even while agents startup is still running."""

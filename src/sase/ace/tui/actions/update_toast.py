@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -91,6 +92,7 @@ class UpdateToastMixin:
 
     _update_toast_shown: bool
     _automatic_update_check_in_flight: bool
+    _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
 
     def _schedule_startup_update_toast_check(self) -> None:
@@ -99,12 +101,16 @@ class UpdateToastMixin:
         self._schedule_automatic_update_check(periodic=False)
 
     def _start_periodic_update_checks(self) -> None:
-        """Register the fixed session timer once."""
+        """Register the configured session timer once."""
         if getattr(self, "_automatic_update_check_timer", None) is not None:
             return
         try:
             self._automatic_update_check_timer = self.set_interval(  # type: ignore[attr-defined]
-                _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS,
+                getattr(
+                    self,
+                    "_automatic_update_check_interval_seconds",
+                    _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS,
+                ),
                 self._on_periodic_update_check,
                 name=_AUTOMATIC_UPDATE_CHECK_TIMER_NAME,
             )
@@ -357,6 +363,19 @@ def _resolve_check_ttl_seconds(updates: dict[str, Any]) -> float:
     return DEFAULT_UPDATE_STATUS_TTL_SECONDS
 
 
+def resolve_check_interval_seconds(updates: dict[str, Any]) -> float:
+    """Resolve the positive, finite ACE session check interval in seconds."""
+    default_minutes = _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS / 60.0
+    minutes = _coerce_strict_positive_finite_float(
+        updates.get("check_interval_minutes"),
+        default=default_minutes,
+    )
+    seconds = minutes * 60.0
+    if not math.isfinite(seconds) or seconds <= 0:
+        return _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
+    return seconds
+
+
 def _incoming_commits_enabled(updates: dict[str, Any]) -> bool:
     incoming = updates.get("incoming_commits")
     if not isinstance(incoming, dict):
@@ -550,6 +569,16 @@ def _coerce_positive_float(value: object, *, default: float) -> float:
     return default
 
 
+def _coerce_strict_positive_finite_float(value: object, *, default: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    try:
+        parsed = float(value)
+    except OverflowError:
+        return default
+    return parsed if math.isfinite(parsed) and parsed > 0 else default
+
+
 def _ellipsize(value: str, width: int) -> str:
     if width <= 0 or len(value) <= width:
         return value
@@ -563,4 +592,5 @@ _fetch_incoming_commits = fetch_incoming_commits
 
 __all__ = [
     "UpdateToastMixin",
+    "resolve_check_interval_seconds",
 ]
