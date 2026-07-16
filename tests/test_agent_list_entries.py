@@ -10,6 +10,7 @@ from sase.agents.cli_list import _agent_to_json
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentMetaWire,
+    DoneMarkerWire,
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
@@ -198,6 +199,39 @@ def test_children_summary_is_preserved() -> None:
 
     assert running.children.badge == "×2"
     assert running.children.status_counts == (("Running", 2),)
+
+
+def test_completed_epic_parent_is_terminal_despite_running_bucket() -> None:
+    entry = _build_agent_list_entry(
+        _agent(status="EPIC APPROVED"),
+        record=_record(
+            has_done_marker=True,
+            done=DoneMarkerWire(outcome="epic_approved"),
+        ),
+    )
+
+    assert entry.status == "EPIC APPROVED"
+    assert entry.status_bucket == "Running"
+    assert entry.has_done_marker is True
+    assert entry.is_terminal is True
+
+
+def test_live_epic_parent_is_not_terminal() -> None:
+    entry = _build_agent_list_entry(
+        _agent(),
+        record=_record(
+            agent_meta=AgentMetaWire(
+                plan=True,
+                plan_approved=True,
+                plan_action="epic",
+            ),
+        ),
+    )
+
+    assert entry.status == "EPIC APPROVED"
+    assert entry.status_bucket == "Running"
+    assert entry.has_done_marker is False
+    assert entry.is_terminal is False
 
 
 def test_missing_artifact_markers_are_safe() -> None:

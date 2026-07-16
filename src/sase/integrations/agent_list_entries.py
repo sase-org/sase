@@ -158,10 +158,16 @@ class AgentListEntry:
     error: str | None = None
     traceback: str | None = None
     has_file_changes: bool = False
+    has_done_marker: bool = False
 
     @property
     def is_terminal(self) -> bool:
-        return self.status_bucket in _TERMINAL_BUCKETS
+        # Completion and display bucketing are separate concepts.  In
+        # particular, a completed EPIC APPROVED parent intentionally retains
+        # the Running bucket so its handoff state remains visible in history,
+        # but it is no longer a live agent and must not appear in active-only
+        # integration views.
+        return self.has_done_marker or self.status_bucket in _TERMINAL_BUCKETS
 
     @property
     def needs_user_action(self) -> bool:
@@ -397,6 +403,9 @@ def _build_agent_list_entry(
         error=_first_text(_text(done, "error"), _workflow_error(record)),
         traceback=_first_text(_text(done, "traceback"), _workflow_traceback(record)),
         has_file_changes=has_file_changes,
+        has_done_marker=(
+            record.has_done_marker if record is not None else done is not None
+        ),
     )
 
 
