@@ -72,6 +72,15 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("cycle_artifacts_subtab", "Next Artifact", False),
     ("cycle_artifacts_subtab_reverse", "Previous Artifact", False),
     ("pick_artifacts_project", "Project Scope", False),
+    ("commits_next", "Next Commit", False),
+    ("commits_prev", "Previous Commit", False),
+    ("commits_view_selected", "View Commit", False),
+    ("commits_copy_sha", "Copy Commit SHA", False),
+    ("commits_filters", "Commit Filters", False),
+    ("commits_toggle_sdd", "Toggle Commit SDD", False),
+    ("commits_toggle_all_projects", "Toggle All Projects", False),
+    ("commits_fetch", "Fetch Commits", False),
+    ("commits_refresh", "Refresh Commits", False),
     ("plans_next", "Next Plan", False),
     ("plans_prev", "Previous Plan", False),
     ("plans_view_selected", "View Plan", False),
@@ -293,6 +302,17 @@ class AppKeymaps:
     cycle_artifacts_subtab: str
     cycle_artifacts_subtab_reverse: str
     pick_artifacts_project: str
+    # Commits sub-tab
+    commits_next: str
+    commits_prev: str
+    commits_view_selected: str
+    commits_copy_sha: str
+    commits_filters: str
+    commits_toggle_sdd: str
+    commits_toggle_all_projects: str
+    commits_fetch: str
+    commits_refresh: str
+    # Plans sub-tab
     plans_next: str
     plans_prev: str
     plans_view_selected: str

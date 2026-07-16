@@ -59,6 +59,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert commits.artifacts_active is True
         assert page.app.check_action("change_status", ()) is False
         assert page.app.check_action("next_changespec", ()) is False
+        assert page.app.check_action("commits_refresh", ()) is True
+        assert page.app.check_action("refresh_bugs", ()) is False
+        assert page.app.check_action("plans_refresh", ()) is False
         footer = page.query_one_widget("#keybinding-content", Static)
         assert footer.content.plain == ""
 
@@ -68,6 +71,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "prs")
+        assert page.app.check_action("commits_refresh", ()) is False
         assert prs.activation_count == 2
         assert commits.deactivation_count == 1
 
@@ -190,6 +194,13 @@ async def test_palette_has_direct_jump_for_every_artifacts_subtab() -> None:
         assert context.artifacts_subtab == "bugs"
         assert is_command_available(by_id["artifacts.prs"], context)
         assert not is_command_available(by_id["app.change_status"], context)
+        assert not is_command_available(by_id["app.commits_refresh"], context)
+
+        execute_command(page.app, by_id["artifacts.commits"])
+        await page.expect_state("artifacts_subtab", "commits")
+        context = extract_command_context(page.app)
+        assert is_command_available(by_id["app.commits_refresh"], context)
+        assert not is_command_available(by_id["app.refresh_bugs"], context)
 
 
 def test_subtab_strip_labels_and_accents_cover_all_panes() -> None:

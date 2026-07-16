@@ -115,6 +115,20 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+_COMMITS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.commits_next",
+        "app.commits_prev",
+        "app.commits_view_selected",
+        "app.commits_copy_sha",
+        "app.commits_filters",
+        "app.commits_toggle_sdd",
+        "app.commits_toggle_all_projects",
+        "app.commits_fetch",
+        "app.commits_refresh",
+    }
+)
+
 _BUG_COMMANDS: frozenset[str] = frozenset(
     {
         "app.next_bug",
@@ -171,6 +185,8 @@ def _get_base_status(status: str) -> str:
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id in _BUG_COMMANDS:
         return ctx.artifacts_subtab == "bugs"
+    if spec.id in _COMMITS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "commits"
     if ctx.artifacts_subtab != "prs":
         if spec.id in _PLANS_ARTIFACT_COMMANDS:
             return ctx.artifacts_subtab == "plans"

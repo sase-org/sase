@@ -13,6 +13,7 @@ from textual.widgets import Input, Static
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
+from sase.ace.tui.modals.help_modal import HelpModal
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
@@ -131,6 +132,11 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
         await page.wait_for(lambda _state: pane.result is result)
         await page.wait_for(lambda _state: bool(diff_calls))
         detail = pane.query_one("#commits-detail", Static)
+        footer = pane.query_one("#commits-footer", Static)
+        assert footer.content.plain == (
+            "j/k navigate  enter view  y copy  f filters  d SDD  "
+            "a all  F fetch  R refresh  p project"
+        )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
         assert "feat: interactive timeline" in _rendered_text(detail.content)
 
@@ -177,3 +183,44 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
         await page.wait_for(
             lambda _state: any(call["force_fetch"] is True for call in calls)
         )
+
+
+async def test_commits_refresh_override_drives_action_footer_and_help(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"keymaps": {"app": {"commits_refresh": "f2"}}}},
+    )
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: _DIFF)
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "commits")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+
+        footer = pane.query_one("#commits-footer", Static)
+        assert "f2 refresh" in footer.content.plain
+        assert "R refresh" not in footer.content.plain
+
+        baseline = len(calls)
+        await page.press("R")
+        await page.pause()
+        assert len(calls) == baseline
+
+        await page.press("f2")
+        await page.wait_for(lambda _state: len(calls) == baseline + 1)
+
+        await page.press("question_mark")
+        await page.expect_modal("HelpModal")
+        modal = page.app.screen
+        assert isinstance(modal, HelpModal)
+        assert "F / f2" in modal._build_left_column().plain

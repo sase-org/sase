@@ -1,7 +1,7 @@
 # Query Language Reference
 
 The ChangeSpec query language filters ChangeSpecs using boolean expressions that combine string matching, property
-filters, and operational shorthands. It is used by the PRs tab in `sase ace [query]` and by other ChangeSpec filters
+filters, and operational shorthands. It is used by the PRs sub-tab in `sase ace [query]` and by other ChangeSpec filters
 such as `sase axe start --query`.
 
 Normal query surfaces use active-project ChangeSpec discovery. Inactive projects are omitted from CLI search and

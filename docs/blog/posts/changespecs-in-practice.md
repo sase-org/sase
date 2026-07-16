@@ -142,7 +142,7 @@ They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
 ## Advanced ACE Operations
 
-The PRs tab in [ACE](../../ace.md) is built around ChangeSpec navigation. The high-leverage moves:
+The PRs sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around ChangeSpec navigation. The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and `BY_STATUS`. Sibling workspaces
   (`foobar_1` / `foobar_2`) share an L1 banner inside each L0 bucket.
@@ -183,6 +183,6 @@ by SASE and is not normally edited by hand.
 - [ChangeSpec format](../../change_spec.md) — every field, every state transition, complete examples.
 - [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE review modal, apply modes,
   file-snapshot semantics.
-- [ACE TUI](../../ace.md) — the full keybinding reference for the PRs, Agents, and Axe tabs.
+- [ACE TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents, and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md) — turn an
   existing Telegram chat into a two-way control surface for plans, agents, and generated artifacts.

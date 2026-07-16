@@ -108,6 +108,7 @@ class ArtifactsView(Vertical):
             pane.set_keymap_registry(registry)
         for plans_pane in self.query(ArtifactsPlansPane):
             plans_pane.set_keymap_registry(registry)
+        self.query_one(CommitsPane).set_keymap_registry(registry)
         self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
     def set_project_scope(

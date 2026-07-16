@@ -70,6 +70,21 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding("p", "pick_artifacts_project", "Project Scope", show=False),
+    # Commits sub-tab actions.
+    Binding("j", "commits_next", "Next Commit", show=False),
+    Binding("k", "commits_prev", "Previous Commit", show=False),
+    Binding("enter", "commits_view_selected", "View Commit", show=False),
+    Binding("y", "commits_copy_sha", "Copy Commit SHA", show=False),
+    Binding("f", "commits_filters", "Commit Filters", show=False),
+    Binding("d", "commits_toggle_sdd", "Toggle Commit SDD", show=False),
+    Binding(
+        "a",
+        "commits_toggle_all_projects",
+        "Toggle All Projects",
+        show=False,
+    ),
+    Binding("F", "commits_fetch", "Fetch Commits", show=False),
+    Binding("R", "commits_refresh", "Refresh Commits", show=False),
     # Plans sub-tab actions.
     Binding("j", "plans_next", "Next Plan", show=False),
     Binding("k", "plans_prev", "Previous Plan", show=False),

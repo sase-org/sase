@@ -98,6 +98,16 @@ ace:
       cycle_artifacts_subtab: "right_square_bracket"
       cycle_artifacts_subtab_reverse: "left_square_bracket"
       pick_artifacts_project: "p"
+      # Commits sub-tab
+      commits_next: "j"
+      commits_prev: "k"
+      commits_view_selected: "enter"
+      commits_copy_sha: "y"
+      commits_filters: "f"
+      commits_toggle_sdd: "d"
+      commits_toggle_all_projects: "a"
+      commits_fetch: "F"
+      commits_refresh: "R"
       # Plans sub-tab
       plans_next: "j"
       plans_prev: "k"

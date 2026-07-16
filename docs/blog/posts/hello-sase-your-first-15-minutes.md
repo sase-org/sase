@@ -120,7 +120,8 @@ sase agent list
 
 Now the agent has permission to make a visible diff in its isolated numbered workspace. Your own repositories and the
 `home` primary checkout stay untouched unless you explicitly bring changes back. When the agent commits its work, SASE's
-commit workflow records a ChangeSpec that you can review on ACE's PRs tab before landing or submitting anything.
+commit workflow records a ChangeSpec that you can review in ACE's Artifacts tab, under PRs, before landing or submitting
+anything.
 
 For your own repositories, use `#git:<name>` to target a managed project or `#git:<bare-repo-path>` to register an
 existing bare repository. Provider plugins add other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The

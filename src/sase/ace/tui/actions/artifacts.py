@@ -15,6 +15,10 @@ from ..widgets.artifacts import (
     ArtifactsView,
 )
 from .artifact_bugs import BUG_ARTIFACT_ACTIONS
+from .artifacts_commits import (
+    COMMITS_ARTIFACT_ACTIONS,
+    ArtifactsCommitsActionsMixin,
+)
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
@@ -28,6 +32,7 @@ if TYPE_CHECKING:
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
         *BUG_ARTIFACT_ACTIONS,
+        *COMMITS_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
@@ -109,7 +114,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
     )
 
 
-class ArtifactsMixin(ArtifactsPlansActionsMixin):
+class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
     """Actions shared by the Artifacts scaffold and future concrete panes."""
 
     current_tab: Any
@@ -294,6 +299,7 @@ class ArtifactsMixin(ArtifactsPlansActionsMixin):
 
 __all__ = [
     "ArtifactsMixin",
+    "COMMITS_ARTIFACT_ACTIONS",
     "NON_PRS_ARTIFACT_ACTIONS",
     "PLANS_ARTIFACT_ACTIONS",
     "_ArtifactsProjectChoices",

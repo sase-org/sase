@@ -290,6 +290,7 @@ class AceApp(
                 return False
         from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
+            COMMITS_ARTIFACT_ACTIONS,
             NON_PRS_ARTIFACT_ACTIONS,
             PLANS_ARTIFACT_ACTIONS,
         )
@@ -305,12 +306,18 @@ class AceApp(
                 self.current_tab == ARTIFACTS_TAB
                 and self.current_artifacts_subtab == "bugs"
             )
+        if action in COMMITS_ARTIFACT_ACTIONS:
+            return (
+                self.current_tab == ARTIFACTS_TAB
+                and self.current_artifacts_subtab == "commits"
+            )
         if (
             action == "refresh"
             and self.current_tab == ARTIFACTS_TAB
-            and self.current_artifacts_subtab == "bugs"
+            and self.current_artifacts_subtab in {"bugs", "commits"}
         ):
-            # ``y`` is the Bugs copy action; explicit tracker refresh is ``R``.
+            # ``y`` copies the selected Bugs/Commits artifact; explicit pane
+            # refresh is registry-backed and defaults to ``R``.
             return False
         if action in {
             "cycle_artifacts_subtab",

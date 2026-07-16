@@ -21,6 +21,7 @@ from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
 from .panes import ArtifactsPaneLifecycle
 from .plans_data import PlanProposal, PlansSnapshot, load_plans_snapshot
+from .types import ARTIFACTS_ACCENTS
 
 if TYPE_CHECKING:
     from ...app import AceApp
@@ -456,10 +457,13 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
     def _scope_text(self) -> Text:
         text = Text()
-        text.append(" Plans ", style="bold #1a1a1a on #AF87FF")
+        text.append(
+            " Plans ",
+            style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}",
+        )
         text.append("  Project scope  ", style="dim")
         label = self._project_display_name or self.project_scope or "Pick a project"
-        text.append(f" {label} ", style="bold #AF87FF")
+        text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
         text.append("  ·  ", style="dim")
         text.append(
             f"{key_display_name(self._registry.app.pick_artifacts_project)} change",
@@ -482,7 +486,9 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             )
             text.append(f"{len(snapshot.proposals)} proposals", style="#FFD700")
             text.append("  ·  ", style="dim")
-            text.append(f"{len(snapshot.epics)} epics", style="#AF87FF")
+            text.append(
+                f"{len(snapshot.epics)} epics", style=ARTIFACTS_ACCENTS["plans"]
+            )
             text.append("  ·  ", style="dim")
             text.append(f"{phase_count} phases", style="#87D7FF")
             text.append("  ·  ", style="dim")
@@ -509,7 +515,9 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         for index, (key, label) in enumerate(parts):
             if index:
                 text.append("  ", style="dim")
-            text.append(key_display_name(key), style="bold #AF87FF")
+            text.append(
+                key_display_name(key), style=f"bold {ARTIFACTS_ACCENTS['plans']}"
+            )
             text.append(f" {label}", style="dim")
         return text
 
@@ -575,7 +583,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
 def _section_option(label: str, count: int) -> Option:
     text = Text()
-    text.append(f"── {label} ", style="bold #AF87FF")
+    text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     text.append(f"({count}) ", style="dim")
     text.append("─" * 8, style="dim #5F5F87")
     return Option(
@@ -587,7 +595,7 @@ def _proposal_text(proposal: PlanProposal) -> Text:
     text = Text()
     text.append("◆ ", style="bold #FFD700")
     text.append(proposal.title, style="bold white")
-    text.append(f"  {proposal.tier}", style="bold #AF87FF")
+    text.append(f"  {proposal.tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     text.append(f"  {proposal.age}", style="dim")
     if proposal.agent != "-":
         text.append(f"  {proposal.agent}", style="dim #87D7FF")
@@ -603,7 +611,10 @@ def _epic_text(
     blocked_ids: frozenset[str],
 ) -> Text:
     text = Text()
-    text.append("▾ " if expanded else "▸ ", style="bold #AF87FF")
+    text.append(
+        "▾ " if expanded else "▸ ",
+        style=f"bold {ARTIFACTS_ACCENTS['plans']}",
+    )
     text.append(_status_glyph(epic.status), style=_status_style(epic.status))
     text.append(f" {epic.id} ", style="bold #FFD700")
     text.append(epic.title, style="bold white")
@@ -628,7 +639,7 @@ def _phase_text(
     ready_ids: frozenset[str],
     blocked_ids: frozenset[str],
 ) -> Text:
-    text = Text("   ↳ ", style="dim #AF87FF")
+    text = Text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
     text.append(_status_glyph(phase.status), style=_status_style(phase.status))
     text.append(f" {phase.id} ", style="bold #FFD700")
     text.append(phase.title, style="white")
@@ -647,7 +658,7 @@ def _archive_text(match: PlanSearchMatch) -> Text:
     plan = match.plan
     text = Text("▤ ", style="bold #00D7AF")
     text.append(plan.title or plan.name, style="white")
-    text.append(f"  {plan.kind}", style="bold #AF87FF")
+    text.append(f"  {plan.kind}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     if plan.status:
         status_style = "#5FD787" if plan.status in {"done", "approved"} else "#FFD700"
         text.append(f"  {plan.status}", style=f"bold {status_style}")

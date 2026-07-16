@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 import os
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import Group, RenderableType
 from rich.text import Text
@@ -17,6 +17,7 @@ from textual.widgets import OptionList, Static
 from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
 from sase.ace.tui.widgets.prompt_panel._agent_commits import load_commit_diff_text
@@ -45,14 +46,6 @@ if TYPE_CHECKING:
     from sase.ace.tui.actions.task_actions import TrackedTaskCompletion
 
 CommitCollector = Callable[..., VcsLogResult]
-_TimelineAction = Literal[
-    "copy",
-    "fetch",
-    "filters",
-    "refresh",
-    "toggle_all",
-    "toggle_sdd",
-]
 
 
 @dataclass(frozen=True)
@@ -65,28 +58,23 @@ class _CollectionSpec:
 
 
 class CommitsTimeline(OptionList):
-    """Day-grouped commit rows with local vim-style actions."""
+    """Day-grouped commit rows controlled by app-level Commits actions."""
 
+    # Enter is registry-driven at the app level. Keep OptionList's arrow/page
+    # bindings for accessibility while preventing its fixed Enter binding from
+    # bypassing a configured ``commits_view_selected`` override.
     BINDINGS = [
-        *OptionList.BINDINGS,
-        Binding("j", "cursor_down", "Next commit", show=False),
-        Binding("k", "cursor_up", "Previous commit", show=False),
-        Binding("y", "copy_sha", "Copy SHA", show=False),
-        Binding("f", "filters", "Filters", show=False),
-        Binding("d", "toggle_sdd", "Toggle SDD", show=False),
-        Binding("a", "toggle_all", "Toggle all projects", show=False),
-        Binding("F", "fetch", "Fetch", show=False),
-        Binding("R", "refresh", "Refresh", show=False),
+        Binding("down", "cursor_down", "Down", show=False),
+        Binding("end", "last", "Last", show=False),
+        Binding("home", "first", "First", show=False),
+        Binding("pagedown", "page_down", "Page Down", show=False),
+        Binding("pageup", "page_up", "Page Up", show=False),
+        Binding("up", "cursor_up", "Up", show=False),
     ]
 
     class SelectionChanged(Message):
         def __init__(self, commit_index: int) -> None:
             self.commit_index = commit_index
-            super().__init__()
-
-    class ActionRequested(Message):
-        def __init__(self, action: _TimelineAction) -> None:
-            self.action = action
             super().__init__()
 
     def __init__(self, **kwargs: Any) -> None:
@@ -193,50 +181,6 @@ class CommitsTimeline(OptionList):
             self.post_message(self.SelectionChanged(index))
             self.post_message(CommitsPane.OpenRequested(index))
 
-    def _request(self, action: _TimelineAction) -> None:
-        self.post_message(self.ActionRequested(action))
-
-    def action_copy_sha(self) -> None:
-        self._request("copy")
-
-    def action_filters(self) -> None:
-        self._request("filters")
-
-    def action_toggle_sdd(self) -> None:
-        self._request("toggle_sdd")
-
-    def action_toggle_all(self) -> None:
-        self._request("toggle_all")
-
-    def action_fetch(self) -> None:
-        self._request("fetch")
-
-    def action_refresh(self) -> None:
-        self._request("refresh")
-
-    def _move_cursor(self, direction: Literal["next", "prev"]) -> None:
-        app = self.app
-        begin = getattr(app, "_begin_artifacts_navigation", None)
-        finish = getattr(app, "_finish_artifacts_navigation", None)
-        if callable(begin):
-            begin(direction)
-        try:
-            if direction == "next":
-                super().action_cursor_down()
-            else:
-                super().action_cursor_up()
-        finally:
-            if callable(finish):
-                finish()
-
-    def action_cursor_down(self) -> None:
-        """Move immediately while recording opt-in key-to-paint latency."""
-        self._move_cursor("next")
-
-    def action_cursor_up(self) -> None:
-        """Move immediately while recording opt-in key-to-paint latency."""
-        self._move_cursor("prev")
-
 
 class CommitsPane(ArtifactsPaneLifecycle, Vertical):
     """Lazy, cached, interactive view over the existing VCS-log backend."""
@@ -255,6 +199,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         super().__init__(**kwargs)
         self._init_artifacts_lifecycle()
         self._collector = collector or run_vcs_log
+        self._registry = load_keymap_registry({})
         self.project_scope: str | None = None
         self._project_display_name: str | None = None
         self._project_file: str = ""
@@ -278,11 +223,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         with Horizontal(id="commits-main"):
             with Vertical(id="commits-list-container"):
                 yield CommitsTimeline(id="commits-timeline")
-                yield Static(
-                    "j/k navigate  enter view  y copy  f filters  d SDD  "
-                    "a all  F fetch  R refresh  p project",
-                    id="commits-footer",
-                )
+                yield Static(self._hints_text(), id="commits-footer")
             with Vertical(id="commits-detail-container"):
                 with VerticalScroll(id="commits-detail-scroll"):
                     yield Static(
@@ -301,6 +242,20 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             self._detail_debouncer.cancel()
         self._cancel_worker(self._collection_worker)
         self._cancel_worker(self._diff_worker)
+
+    def set_keymap_registry(self, registry: KeymapRegistry) -> None:
+        """Use configured Commits actions in the pane's hint bar."""
+        self._registry = registry
+        if self.is_mounted:
+            self.query_one("#commits-footer", Static).update(self._hints_text())
+
+    def move_selection(self, step: int) -> None:
+        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        timeline.focus()
+        if step > 0:
+            timeline.action_cursor_down()
+        else:
+            timeline.action_cursor_up()
 
     def set_project_scope(
         self,
@@ -460,6 +415,29 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             )
         return text
 
+    def _hints_text(self) -> Text:
+        a = self._registry.app
+        view_key = key_display_name(a.commits_view_selected)
+        if view_key == "Enter":
+            view_key = view_key.lower()
+        text = Text(
+            f"{key_display_name(a.commits_next)}/"
+            f"{key_display_name(a.commits_prev)} navigate  {view_key} view"
+        )
+        for key, label in (
+            (a.commits_copy_sha, "copy"),
+            (a.commits_filters, "filters"),
+            (a.commits_toggle_sdd, "SDD"),
+            (a.commits_toggle_all_projects, "all"),
+            (a.commits_fetch, "fetch"),
+            (a.commits_refresh, "refresh"),
+            (a.pick_artifacts_project, "project"),
+        ):
+            text.append("  ")
+            text.append(key_display_name(key))
+            text.append(f" {label}")
+        return text
+
     def _filter_chips(self) -> tuple[str, ...]:
         chips: list[str] = []
         if self.filters.authors:
@@ -487,25 +465,11 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
 
         self._detail_debouncer.schedule(_render)
 
-    def on_commits_timeline_action_requested(
-        self, event: CommitsTimeline.ActionRequested
-    ) -> None:
-        event.stop()
-        actions: dict[_TimelineAction, Callable[[], None]] = {
-            "copy": self.action_copy_sha,
-            "fetch": self.action_fetch,
-            "filters": self.action_filters,
-            "refresh": self.action_refresh_commits,
-            "toggle_all": self.action_toggle_all_projects,
-            "toggle_sdd": self.action_toggle_sdd,
-        }
-        actions[event.action]()
-
     def on_commits_pane_open_requested(self, event: OpenRequested) -> None:
         event.stop()
         self.open_commit(event.commit_index)
 
-    def action_copy_sha(self) -> None:
+    def copy_selected_sha(self) -> None:
         from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
 
         entry = self._selected_entry()
@@ -516,7 +480,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         else:
             self.notify("Failed to copy to clipboard", severity="error")
 
-    def action_filters(self) -> None:
+    def show_filters(self) -> None:
         from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
 
         repo_names = (
@@ -533,18 +497,18 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
 
         self.app.push_screen(CommitFiltersModal(self.filters, repo_names), _apply)
 
-    def action_toggle_sdd(self) -> None:
+    def toggle_sdd(self) -> None:
         self.include_sdd = not self.include_sdd
         self._state_changed()
 
-    def action_toggle_all_projects(self) -> None:
+    def toggle_all_projects(self) -> None:
         self.all_projects = not self.all_projects
         self._state_changed()
 
-    def action_refresh_commits(self) -> None:
+    def refresh_commits(self) -> None:
         self._schedule_collection()
 
-    def action_fetch(self) -> None:
+    def fetch_commits(self) -> None:
         from sase.ace.tui.actions.task_actions import TrackedTaskResult
 
         spec = self._collection_spec()
@@ -604,6 +568,10 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             return
         specs = tuple(self._view_spec(entry) for entry in result.commits)
         self.app.push_screen(CommitViewModal(specs, initial_index=commit_index))
+
+    def open_selected_commit(self) -> None:
+        if self._selected_commit_index is not None:
+            self.open_commit(self._selected_commit_index)
 
     def _view_spec(self, entry: AggregatedCommitWire) -> CommitViewSpec:
         repo = (

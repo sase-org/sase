@@ -59,8 +59,8 @@ current tab's guide modal, which summarizes what the tab shows and its most usef
 `?` help modal is open, the configured tab-switch keys still switch ACE tabs and refresh the modal content in place. By
 default those keys are `Tab` and `Shift+Tab`; if you remap them, the modals follow the configured keys.
 
-On first use, empty tabs render onboarding states instead of blank panels: the PRs tab shows a getting-started card when
-no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
+On first use, empty tabs render onboarding states instead of blank panels: the PRs sub-tab shows a getting-started card
+when no ChangeSpecs or saved queries exist yet, and the Agents tab walks through launching a first agent — the
 project/ChangeSpec launch hint appears only when a launchable target exists — and can recommend installing plugins from
 the Admin Center when no third-party plugins are installed. Onboarding cards carry "learn more" links into the published
 docs.
@@ -85,8 +85,8 @@ the existing ChangeSpec workflow.
 | `g` / `G`           | Scroll detail panel to top / bottom                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll detail panel down / up (half page)                                          |
 
-> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents and PRs tabs (each tab
-> keeps its own in-session mode). On the AXE tab it is a silent no-op. See
+> **Note:** `o`/`O` ("organize") cycles the L0 grouping bucket forward / reverse on the Agents tab and the PRs sub-tab
+> (each surface keeps its own in-session mode). On the AXE tab it is a silent no-op. See
 > [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
@@ -114,9 +114,9 @@ the existing ChangeSpec workflow.
 
 ### PR Grouping and Folding
 
-The PRs tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner row
-above each bucket. `BY_PROJECT` is the startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the current
-session.
+The PRs sub-tab is always grouped — the renderer walks one of `BY_PROJECT`, `BY_DATE`, or `BY_STATUS` and emits a banner
+row above each bucket. `BY_PROJECT` is the startup default; `o` cycles `BY_PROJECT → BY_DATE → BY_STATUS` for the
+current session.
 
 | Mode         | L0 buckets                                                                   | Notes                                                                                                                                                                                                                                                                                                       |
 | ------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -129,7 +129,7 @@ In `BY_DATE` mode, PRs sort newest-first within each date bucket. `Today` and `Y
 `This Week` uses calendar-day subgroups; `Earlier` uses Monday-start week ranges. PRs without a parseable TIMESTAMPS
 entry fall into `(no timestamp)` under `Earlier`.
 
-The active grouping mode is shown in the PRs-tab info-panel header as a `[group: <label>]` badge.
+The active grouping mode is shown in the PRs sub-tab's info-panel header as a `[group: <label>]` badge.
 
 | Key | Action                                                                                                                                 |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -300,9 +300,9 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
 | `Ctrl+F` / `Ctrl+B` | Scroll prompt panel down / up                                                                         |
 
-> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents and PRs tabs (each tab keeps
-> its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their conventional
-> vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
+> **Note:** `o`/`O` ("organize") cycles the grouping mode forward / reverse on the Agents tab and the PRs sub-tab (each
+> surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
+> conventional vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It can jump among
 visible ancestors, descendants, and neighbors in the same immediate namespace, such as `foo.bar` and `foo.baz`. Dotless
@@ -910,7 +910,7 @@ Press `1`-`9` or `0` to instantly load a saved query. These also work from withi
 | `^` | Navigate to previous query in history |
 | `_` | Navigate to next query in history     |
 
-Query history is available on the PRs tab and tracks queries as you switch between them.
+Query history is available on the PRs sub-tab and tracks queries as you switch between them.
 
 See [`docs/query_language.md`](query_language.md) for the full query syntax reference, including boolean expressions,
 status shorthands, property filters, and searchable fields.
@@ -921,7 +921,7 @@ These work on all tabs:
 
 | Key                 | Action                                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------------ |
-| `Tab` / `Shift+Tab` | Switch between Agents, PRs, and Axe tabs                                                         |
+| `Tab` / `Shift+Tab` | Switch between Agents, Artifacts, and Axe tabs                                                   |
 | `#`                 | Open SASE Admin Center (Config, Logs, Projects, Tasks, Updates, XPrompts; `1`–`6` jump to a tab) |
 | `.`                 | Toggle visibility of hidden items (reverted PRs, non-run agents, or axe commands)                |
 | `:` / `;`           | Open the context-aware [Command Palette](#command-palette)                                       |
@@ -961,7 +961,7 @@ can search by command label, key sequence (e.g. `%n`, `,A`, `zc`), category, or 
   row (not a group banner) is focused.
 - Each row shows the keybinding, the command label, and a category badge such as `Navigation`, `PR Actions`,
   `Agent Actions`, `Copy`, or `Leader`.
-- A title-bar badge (`Agents`, `PRs`, or `AXE`) reflects the current tab.
+- A title-bar badge (`Agents`, `Artifacts`, or `AXE`) reflects the current tab.
 
 **Keybindings inside the palette:**
 
@@ -1145,7 +1145,7 @@ notification action types are supported:
 | -------------------- | --------------- | ------------------------------------------------------------------------------- |
 | `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
-| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs tab                               |
+| `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs sub-tab                           |
 | `JumpToMentorReview` | Mentors         | Jumps to the ChangeSpec and opens mentor review output when available           |
 | `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
@@ -1227,9 +1227,9 @@ Press `Ctrl+O` to start the guided creation flow:
 
 ## Jump All Modal
 
-Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across Agents, PRs, and Axe tabs
-with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab and
-focuses it.
+Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries across Agents, Artifacts, and
+Axe tabs with single-keypress hint characters for instant navigation. Selecting an entry switches to the appropriate tab
+and focuses it.
 
 Hint characters are drawn from an extended alphabet — lowercase `a`–`z` first, then uppercase `A`–`Z` — so modals with
 many entries can still fit a unique single-keypress hint per row without resorting to multi-character hints.
@@ -1239,8 +1239,8 @@ many entries can still fit a unique single-keypress hint per row without resorti
 | Hint char   | Jump to the corresponding entry |
 | `Esc` / `q` | Close modal                     |
 
-The modal groups entries by tab (Agents, PRs, Axe) and shows contextual information for each: PR names and statuses,
-agent names with running indicators, and Axe lumberjack/command labels.
+The modal groups entries by tab (Agents, Artifacts, Axe) and shows contextual information for each: PR names and
+statuses, agent names with running indicators, and Axe lumberjack/command labels.
 
 ### Jump Back
 
@@ -1257,7 +1257,7 @@ The single-tab variant (`'` apostrophe) shows entries only from the current tab 
 
 ## Mentor Comment Stats in PR List
 
-When a ChangeSpec has completed mentor reviews with comments, the PRs tab list entry shows inline stats:
+When a ChangeSpec has completed mentor reviews with comments, its PRs sub-tab list entry shows inline stats:
 
 - **checkmark + count** (e.g., `✓3`) — number of accepted comments
 - **dot + count** (e.g., `●2`) — number of unread comments
@@ -1267,7 +1267,7 @@ the Mentor Review modal.
 
 ## Tab Bar Display
 
-The tab bar renders plain tab labels (`Agents`, `PRs`, `AXE`). Per-bucket counts live inside each tab's body — for
+The tab bar renders plain tab labels (`Agents`, `Artifacts`, `AXE`). Per-bucket counts live inside each tab's body — for
 example the per-panel count summaries on the Agents tab — rather than as suffixes on the tab title itself.
 
 ### Background Task Indicator
