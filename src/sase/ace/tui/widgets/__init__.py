@@ -13,6 +13,7 @@ from .axe_onboarding import AxeOnboarding
 from .artifacts import (
     ARTIFACTS_SUBTAB_ORDER,
     ArtifactPlaceholderPane,
+    ArtifactsPlansPane,
     ArtifactsPrsPane,
     ArtifactsSubTab,
     ArtifactsView,
@@ -65,6 +66,7 @@ __all__ = [
     "AxeOnboarding",
     "ARTIFACTS_SUBTAB_ORDER",
     "ArtifactPlaceholderPane",
+    "ArtifactsPlansPane",
     "ArtifactsPrsPane",
     "ArtifactsSubTab",
     "ArtifactsView",

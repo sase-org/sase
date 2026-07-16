@@ -5,9 +5,9 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 87 configurable + 10 digit bindings."""
+    """build_app_bindings produces 99 configurable + 10 digit bindings."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == 97
+    assert len(bindings) == 109
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:
@@ -72,10 +72,11 @@ def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
 
 
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
-    """Default ``s`` is intentionally shared by PR status and Agents save."""
+    """Default ``s`` is shared by PR, Plans, and Agents status/save actions."""
     bindings = build_app_bindings(default_app_keymaps())
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",
+        "plans_cycle_status",
         "save_marked_agents",
     ]
 
@@ -100,6 +101,10 @@ def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
     assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"
     assert by_action["toggle_agent_unread"].key == "U"
+    assert [b.action for b in bindings if b.key == "A"] == [
+        "plans_approve",
+        "accept_proposal",
+    ]
 
 
 def test_ctrl_o_and_ctrl_k_bind_jump_stack_navigation() -> None:

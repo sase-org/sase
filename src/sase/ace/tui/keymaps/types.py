@@ -51,6 +51,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("edit_hooks", "Edit Hooks", False),
     ("start_fold_mode", "Fold", False),
     ("zoom_panel", "Zoom", False),
+    ("plans_approve", "Approve Plan", False),
     ("accept_proposal", "Accept", False),
     ("rebase", "Rebase", False),
     ("start_rewind", "Rewind", False),
@@ -71,6 +72,17 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("cycle_artifacts_subtab", "Next Artifact", False),
     ("cycle_artifacts_subtab_reverse", "Previous Artifact", False),
     ("pick_artifacts_project", "Project Scope", False),
+    ("plans_next", "Next Plan", False),
+    ("plans_prev", "Previous Plan", False),
+    ("plans_view_selected", "View Plan", False),
+    ("plans_expand", "Expand Epic", False),
+    ("plans_collapse", "Collapse Epic", False),
+    ("plans_cycle_status", "Bead Status", False),
+    ("plans_edit_bead", "Edit Bead", False),
+    ("plans_launch_epic", "Launch Epic", False),
+    ("plans_reject", "Reject Plan", False),
+    ("plans_open_bug", "Open Bug", False),
+    ("plans_refresh", "Refresh Plans", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
@@ -269,6 +281,18 @@ class AppKeymaps:
     cycle_artifacts_subtab: str
     cycle_artifacts_subtab_reverse: str
     pick_artifacts_project: str
+    plans_next: str
+    plans_prev: str
+    plans_view_selected: str
+    plans_expand: str
+    plans_collapse: str
+    plans_cycle_status: str
+    plans_edit_bead: str
+    plans_launch_epic: str
+    plans_approve: str
+    plans_reject: str
+    plans_open_bug: str
+    plans_refresh: str
     # ChangeSpec actions
     quit: str
     change_status: str

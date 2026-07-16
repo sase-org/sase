@@ -14,6 +14,7 @@ from ..widgets.artifacts import (
     ArtifactsSubTab,
     ArtifactsView,
 )
+from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
     from ..modals.inventory_project_picker import InventoryProjectChoice
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
 # navigation/scope controls.
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
+        *PLANS_ARTIFACT_ACTIONS,
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",
         "pick_artifacts_project",
@@ -105,7 +107,7 @@ def _collect_artifacts_project_choices() -> _ArtifactsProjectChoices:
     )
 
 
-class ArtifactsMixin:
+class ArtifactsMixin(ArtifactsPlansActionsMixin):
     """Actions shared by the Artifacts scaffold and future concrete panes."""
 
     current_tab: Any
@@ -274,6 +276,7 @@ class ArtifactsMixin:
 __all__ = [
     "ArtifactsMixin",
     "NON_PRS_ARTIFACT_ACTIONS",
+    "PLANS_ARTIFACT_ACTIONS",
     "_ArtifactsProjectChoices",
     "_collect_artifacts_project_choices",
 ]

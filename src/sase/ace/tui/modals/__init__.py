@@ -24,6 +24,7 @@ from .agent_cleanup_modal import (
 )
 from .command_history_modal import CommandHistoryModal
 from .command_input_modal import CommandInputModal
+from .bead_edit_modal import BeadEditModal, BeadEditResult
 from .command_palette_modal import CommandPaletteModal
 from .commit_view_modal import CommitViewModal
 from .confirm_action_modal import ConfirmActionModal
@@ -188,6 +189,8 @@ __all__ = [
     "CommandHistoryModal",
     "ConfirmActionModal",
     "CommandInputModal",
+    "BeadEditModal",
+    "BeadEditResult",
     "CommandPaletteModal",
     "CommitViewModal",
     "CustomModelInputModal",

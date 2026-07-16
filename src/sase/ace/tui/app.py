@@ -281,7 +281,10 @@ class AceApp(
 
             if isinstance(self.focused, VimTextArea):
                 return False
-        from .actions.artifacts import NON_PRS_ARTIFACT_ACTIONS
+        from .actions.artifacts import (
+            NON_PRS_ARTIFACT_ACTIONS,
+            PLANS_ARTIFACT_ACTIONS,
+        )
 
         if (
             self.current_tab == ARTIFACTS_TAB
@@ -294,6 +297,12 @@ class AceApp(
             "cycle_artifacts_subtab_reverse",
         }:
             if self.current_tab != ARTIFACTS_TAB:
+                return False
+        if action in PLANS_ARTIFACT_ACTIONS:
+            if (
+                self.current_tab != ARTIFACTS_TAB
+                or self.current_artifacts_subtab != "plans"
+            ):
                 return False
         if action == "pick_artifacts_project":
             if (

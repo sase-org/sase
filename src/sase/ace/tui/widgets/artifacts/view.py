@@ -18,6 +18,7 @@ from .panes import (
     ArtifactsPaneLifecycle,
     ArtifactsPrsPane,
 )
+from .plans_pane import ArtifactsPlansPane
 from .types import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_PANE_IDS,
@@ -53,11 +54,12 @@ class ArtifactsView(Vertical):
         ):
             yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
             yield CommitsPane(id=ARTIFACTS_PANE_IDS["commits"])
-            for subtab in ARTIFACTS_SUBTAB_ORDER[2:]:
+            for subtab in ARTIFACTS_SUBTAB_ORDER[2:-1]:
                 yield ArtifactPlaceholderPane(
                     subtab,
                     id=ARTIFACTS_PANE_IDS[subtab],
                 )
+            yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
 
     def on_mount(self) -> None:
         # The PR pane is the only eager lifecycle. Its existing widgets are
@@ -104,9 +106,11 @@ class ArtifactsView(Vertical):
         self._pane(self._current_subtab).request_refresh()
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
-        """Forward configured key display to placeholder panes."""
+        """Forward configured key display to project-backed panes."""
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_keymap_registry(registry)
+        for plans_pane in self.query(ArtifactsPlansPane):
+            plans_pane.set_keymap_registry(registry)
 
     def set_project_scope(
         self,
@@ -123,6 +127,8 @@ class ArtifactsView(Vertical):
         )
         for pane in self.query(ArtifactPlaceholderPane):
             pane.set_project_scope(project, display_name=display_name)
+        for plans_pane in self.query(ArtifactsPlansPane):
+            plans_pane.set_project_scope(project, display_name=display_name)
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:

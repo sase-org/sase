@@ -6,6 +6,7 @@ from .panes import (
     ArtifactsPaneLifecycle,
     ArtifactsPrsPane,
 )
+from .plans_pane import ArtifactsPlansPane, PlanRow
 from .types import (
     ARTIFACTS_ACCENTS,
     ARTIFACTS_PANE_IDS,
@@ -21,10 +22,12 @@ __all__ = [
     "ARTIFACTS_SUBTAB_ORDER",
     "ArtifactPlaceholderPane",
     "ArtifactsPaneLifecycle",
+    "ArtifactsPlansPane",
     "ArtifactsPrsPane",
     "ArtifactsSubTab",
     "ArtifactsView",
     "CommitsPane",
     "CommitsTimeline",
     "DEFAULT_ARTIFACTS_SUBTAB",
+    "PlanRow",
 ]
