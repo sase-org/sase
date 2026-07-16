@@ -65,9 +65,21 @@ def _all_choices() -> _ArtifactsProjectChoices:
 
 
 def _snapshot(tmp_path: Path) -> PlansSnapshot:
+    proposal_frontmatter = {
+        "title": "Ship the plan browser",
+        "tier": "epic",
+        "status": "wip",
+        "create_time": "2026-07-06 11:58:00",
+        "goal": "Make plans readable and actionable across every enabled project.",
+        "reviewer": "platform-ui",
+    }
+    proposal_body = (
+        "# Ship the plan browser\n\n"
+        "Aggregate every enabled project while keeping `inline code` readable."
+    )
     notification = Notification(
         id="proposal-1",
-        timestamp="2026-07-15T12:00:00+00:00",
+        timestamp="2026-07-06T11:58:00+00:00",
         sender="planner",
         files=[str(tmp_path / "proposal.md")],
         action="PlanApproval",
@@ -81,9 +93,19 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         age="2m ago",
         timestamp=notification.timestamp,
         plan_path=notification.files[0],
-        content="# Ship the plan browser\n\nProposal body.",
-        frontmatter={},
-        body="# Ship the plan browser\n\nProposal body.",
+        content=(
+            "---\n"
+            "title: Ship the plan browser\n"
+            "tier: epic\n"
+            "status: wip\n"
+            "create_time: 2026-07-06 11:58:00\n"
+            "goal: Make plans readable and actionable across every enabled project.\n"
+            "reviewer: platform-ui\n"
+            "---\n"
+            f"{proposal_body}"
+        ),
+        frontmatter=proposal_frontmatter,
+        body=proposal_body,
         agent="alpha.plan",
         provider_model="codex/gpt-5",
     )
@@ -96,6 +118,8 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         description="Build the Plans pane.",
         changespec_name="alpha-cl",
         changespec_bug_id="42",
+        created_at="2026-06-30T12:00:00Z",
+        updated_at="2026-07-05T15:30:00Z",
     )
     first = Issue(
         id="alpha-1.1",
@@ -103,6 +127,8 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         issue_type=IssueType.PHASE,
         parent_id=epic.id,
         model="codex/gpt-5",
+        created_at="2026-07-01T09:00:00Z",
+        updated_at="2026-07-05T10:00:00Z",
     )
     second = Issue(
         id="alpha-1.2",
@@ -113,9 +139,11 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
             Dependency(
                 issue_id="alpha-1.2",
                 depends_on_id="alpha-1.1",
-                created_at="2026-07-15T12:00:00Z",
+                created_at="2026-07-02T09:00:00Z",
             )
         ],
+        created_at="2026-07-02T09:00:00Z",
+        updated_at="2026-07-05T11:00:00Z",
     )
     archive = PlanSearchMatch(
         plan=Plan(
@@ -126,11 +154,17 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
             name="archive",
             title="Archived rollout",
             status="done",
-            created_at="2026-07-14 10:00:00",
+            created_at="2026-07-04 10:00:00",
             prompt_link="",
             summary="The archived plan summary.",
             body="# Rollout\n\nDone.",
-            frontmatter={"tier": "epic", "status": "done"},
+            frontmatter={
+                "title": "Archived rollout",
+                "tier": "epic",
+                "status": "done",
+                "create_time": "2026-07-04 10:00:00",
+                "goal": "Record a completed rollout with its full plan metadata.",
+            },
         ),
         matched_fields=[],
         score=1.0,
@@ -569,7 +603,7 @@ def test_plan_list_rows_are_compact_single_line_labels(
     assert "#42" not in labels[1].plain
     assert labels[1].plain.endswith("READY  2mo")
     assert "codex/gpt-5" not in labels[2].plain
-    assert labels[3].plain.endswith("epic  done  07-14")
+    assert labels[3].plain.endswith("epic  done  07-04")
 
 
 def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> None:

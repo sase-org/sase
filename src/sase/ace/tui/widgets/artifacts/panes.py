@@ -55,8 +55,8 @@ _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {
     ),
     "plans": (
         "Plans",
-        "Plan proposals, epic progress, and the bead dependency graph will live here.",
-        "Pick a project to establish the plans-sidecar scope for this pane.",
+        "Plan proposals, epic progress, and committed plans across enabled projects.",
+        "All enabled projects are included by default; pick one to narrow the scope.",
     ),
 }
 
