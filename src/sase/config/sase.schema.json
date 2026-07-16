@@ -309,6 +309,12 @@
               "description": "Legacy/deprecated cache TTL for automatic ACE-session update checks. Prefer check_ttl_minutes, which overrides this when both are set.",
               "minimum": 0
             },
+            "recompute_interval_minutes": {
+              "type": "number",
+              "description": "Minimum snapshot age before a periodic ACE-session check may perform a full network update-status recompute. Checks between full recomputes only revalidate cached status locally.",
+              "exclusiveMinimum": 0,
+              "default": 60
+            },
             "incoming_commits": {
               "type": "object",
               "description": "Incoming commit previews shown on the ACE Updates tab for SASE core and installed plugin updates",

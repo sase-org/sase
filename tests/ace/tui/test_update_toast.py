@@ -252,7 +252,9 @@ def test_periodic_update_sets_surfaces_once_then_stops_status_work(
     monkeypatch.setattr(
         update_toast,
         "_load_update_toast_config",
-        lambda: update_toast._UpdateToastConfig(),
+        lambda: update_toast._UpdateToastConfig(
+            recompute_interval_seconds=10**12,
+        ),
     )
 
     def get_status(**_kwargs: object) -> UpdateStatus:
@@ -342,6 +344,57 @@ def test_check_ttl_is_passed_without_changing_configured_interval(
     assert app.intervals[0][0] == 1800.0
     assert captured == {"ttl_seconds": 0.0}
     assert app._automatic_update_check_in_flight is False
+
+
+def test_periodic_check_revalidates_stale_ttl_snapshot_without_compute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    status = _status(count=0)
+    calls: list[dict[str, object]] = []
+
+    def get_status(**kwargs: object) -> UpdateStatus:
+        calls.append(dict(kwargs))
+        return status
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+
+    result = update_toast._get_automatic_update_status(
+        update_toast._UpdateToastConfig(
+            check_ttl_seconds=600.0,
+            recompute_interval_seconds=3600.0,
+        ),
+        periodic=True,
+        now=700.0,
+    )
+
+    assert result == status
+    assert calls == [{"revalidate_only": True}]
+
+
+def test_periodic_check_recomputes_when_configured_interval_elapses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cached = _status(count=0)
+    recomputed = UpdateStatus(checked_at=700.0, components=())
+    calls: list[dict[str, object]] = []
+
+    def get_status(**kwargs: object) -> UpdateStatus:
+        calls.append(dict(kwargs))
+        return cached if len(calls) == 1 else recomputed
+
+    monkeypatch.setattr(update_toast, "get_cached_update_status", get_status)
+
+    result = update_toast._get_automatic_update_status(
+        update_toast._UpdateToastConfig(recompute_interval_seconds=600.0),
+        periodic=True,
+        now=700.0,
+    )
+
+    assert result == recomputed
+    assert calls == [
+        {"revalidate_only": True},
+        {"ttl_seconds": 0.0},
+    ]
 
 
 def test_update_toast_message_recommends_update_keymap() -> None:
@@ -646,6 +699,7 @@ def test_load_update_toast_config_defaults_to_ten_minutes(
     assert config.indicator is True
     assert config.post_update_toast_diffstat is True
     assert config.check_ttl_seconds == 600.0
+    assert config.recompute_interval_seconds == 3600.0
     assert config.incoming_commits_enabled is True
     assert config.startup_toast_max_commits == 20
 
@@ -742,6 +796,20 @@ def test_load_update_toast_config_minutes_take_precedence_over_hours(
     assert config.check_ttl_seconds == 600.0
 
 
+def test_load_update_toast_config_recompute_interval_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "load_merged_config",
+        lambda: {"ace": {"updates": {"recompute_interval_minutes": 30}}},
+    )
+
+    config = update_toast._load_update_toast_config()
+
+    assert config.recompute_interval_seconds == 1800.0
+
+
 @pytest.mark.parametrize(
     ("minutes", "expected_seconds"),
     [(30, 1800.0), (0.25, 15.0)],
@@ -810,7 +878,7 @@ def test_startup_update_check_passes_default_ttl_seconds(
 
     _App()._run_startup_update_toast_check()
 
-    assert captured["ttl_seconds"] == 600.0
+    assert captured == {"ttl_seconds": 600.0}
 
 
 async def test_startup_update_toast_appears_once_in_tui(

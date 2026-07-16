@@ -69,6 +69,7 @@ ace:
     indicator: true
     check_interval_minutes: 10
     check_ttl_minutes: 10
+    recompute_interval_minutes: 60
     incoming_commits:
       enabled: true
       max_per_repo: 7

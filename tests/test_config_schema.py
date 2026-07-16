@@ -273,6 +273,25 @@ def test_config_schema_rejects_nonpositive_ace_update_check_interval(
         )
 
 
+@pytest.mark.parametrize("minutes", [60, 0.25])
+def test_config_schema_accepts_positive_ace_update_recompute_interval(
+    minutes: float,
+) -> None:
+    Draft7Validator(_schema()).validate(
+        {"ace": {"updates": {"recompute_interval_minutes": minutes}}}
+    )
+
+
+@pytest.mark.parametrize("minutes", [0, -1])
+def test_config_schema_rejects_nonpositive_ace_update_recompute_interval(
+    minutes: float,
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {"ace": {"updates": {"recompute_interval_minutes": minutes}}}
+        )
+
+
 def test_config_schema_rejects_worker_models_mapping() -> None:
     """``worker_models`` was removed by the model-alias migration (epic sase-5d)."""
     schema = _schema()

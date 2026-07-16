@@ -455,6 +455,42 @@ def test_get_cached_update_status_uses_fresh_snapshot_without_compute(
     assert result == status
 
 
+def test_get_cached_update_status_revalidate_only_uses_stale_snapshot(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "status.json"
+    status = UpdateStatus(checked_at=100.0, components=())
+    write_update_status_snapshot(status, path=path)
+
+    def _compute(**_kwargs: object) -> UpdateStatus:
+        raise AssertionError("revalidate-only mode must never compute")
+
+    result = get_cached_update_status(
+        path=path,
+        now=10_000.0,
+        ttl_seconds=20.0,
+        revalidate_only=True,
+        compute_fn=_compute,
+    )
+
+    assert result == status
+
+
+def test_get_cached_update_status_revalidate_only_does_not_compute_on_miss(
+    tmp_path: Path,
+) -> None:
+    def _compute(**_kwargs: object) -> UpdateStatus:
+        raise AssertionError("revalidate-only mode must never compute")
+
+    result = get_cached_update_status(
+        path=tmp_path / "missing.json",
+        revalidate_only=True,
+        compute_fn=_compute,
+    )
+
+    assert result is None
+
+
 def test_get_cached_update_status_falls_back_to_snapshot_on_compute_failure(
     tmp_path: Path,
 ) -> None:

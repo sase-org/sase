@@ -1,4 +1,4 @@
-"""Snapshot cache for startup update-status checks."""
+"""Snapshot cache for automatic update-status checks."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ def update_status_snapshot_is_fresh(
     now: float | None = None,
     ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS,
 ) -> bool:
-    """Return whether *status* is inside the startup-check TTL."""
+    """Return whether *status* is inside the requested cache TTL."""
     check_now = time.time() if now is None else now
     age = check_now - status.checked_at
     return 0 <= age < ttl_seconds
@@ -142,6 +142,7 @@ def get_cached_update_status(
     ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS,
     offline: bool = False,
     refresh: bool = False,
+    revalidate_only: bool = False,
     now: float | None = None,
     path: Path | None = None,
     compute_fn: ComputeStatusFn = compute_update_status,
@@ -149,16 +150,23 @@ def get_cached_update_status(
     is_newer_fn: IsNewerFn = is_newer,
     git_classifier_fn: GitClassifierFn = classify_git_upstream,
 ) -> UpdateStatus | None:
-    """Return a TTL-gated update status, using a snapshot fallback on failure."""
+    """Return a cached update status, optionally recomputing when it is stale.
+
+    When ``revalidate_only`` is true, this function never calls ``compute_fn``.
+    It returns the locally revalidated snapshot regardless of its age, or
+    ``None`` when no usable snapshot exists.
+    """
     check_now = time.time() if now is None else now
     cached = read_update_status_snapshot(path=path)
-    if (
-        cached is not None
-        and not refresh
-        and update_status_snapshot_is_fresh(
-            cached,
-            now=check_now,
-            ttl_seconds=ttl_seconds,
+    if cached is not None and (
+        revalidate_only
+        or (
+            not refresh
+            and update_status_snapshot_is_fresh(
+                cached,
+                now=check_now,
+                ttl_seconds=ttl_seconds,
+            )
         )
     ):
         return revalidate_update_status(
@@ -167,6 +175,8 @@ def get_cached_update_status(
             is_newer_fn=is_newer_fn,
             git_classifier_fn=git_classifier_fn,
         )
+    if revalidate_only:
+        return None
 
     try:
         status = compute_fn(offline=offline, refresh=refresh, now=check_now)

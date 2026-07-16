@@ -25,6 +25,7 @@ from sase.updates import (
     get_cached_update_status,
     read_update_status_snapshot,
     revalidate_update_status,
+    update_status_snapshot_is_fresh,
 )
 
 from ..modals.config_center_modal import (
@@ -49,6 +50,8 @@ _DEFAULT_STARTUP_TOAST_MAX_COMMITS = 20
 _STARTUP_TOAST_DEADLINE_SECONDS = 8.0
 _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS = 600.0
 _AUTOMATIC_UPDATE_CHECK_TIMER_NAME = "automatic-update-check"
+_DEFAULT_RECOMPUTE_INTERVAL_MINUTES = 60.0
+_DEFAULT_RECOMPUTE_INTERVAL_SECONDS = _DEFAULT_RECOMPUTE_INTERVAL_MINUTES * 60.0
 _COMMIT_SUBJECT_WIDTH = 58
 
 FetchIncomingCommitsFn = Callable[..., IncomingCommits]
@@ -63,6 +66,7 @@ class _UpdateToastConfig:
     post_update_toast_diffstat: bool = True
     indicator: bool = True
     check_ttl_seconds: float = DEFAULT_UPDATE_STATUS_TTL_SECONDS
+    recompute_interval_seconds: float = _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
     incoming_commits_enabled: bool = True
     startup_toast_max_commits: int = _DEFAULT_STARTUP_TOAST_MAX_COMMITS
 
@@ -187,7 +191,7 @@ class UpdateToastMixin:
             return None
         if not config.startup_toast and not config.indicator:
             return None
-        status = get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
+        status = _get_automatic_update_status(config, periodic=periodic)
         if status is None:
             return None
 
@@ -337,6 +341,7 @@ def _load_update_toast_config() -> _UpdateToastConfig:
         ),
         indicator=_coerce_bool(updates.get("indicator"), default=True),
         check_ttl_seconds=_resolve_check_ttl_seconds(updates),
+        recompute_interval_seconds=_resolve_recompute_interval_seconds(updates),
         incoming_commits_enabled=_incoming_commits_enabled(updates),
         startup_toast_max_commits=_coerce_nonnegative_int(
             updates.get("startup_toast_max_commits"),
@@ -374,6 +379,42 @@ def resolve_check_interval_seconds(updates: dict[str, Any]) -> float:
     if not math.isfinite(seconds) or seconds <= 0:
         return _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
     return seconds
+
+
+def _resolve_recompute_interval_seconds(updates: dict[str, Any]) -> float:
+    """Resolve the cadence for periodic full network recomputes."""
+    minutes = _coerce_strict_positive_finite_float(
+        updates.get("recompute_interval_minutes"),
+        default=_DEFAULT_RECOMPUTE_INTERVAL_MINUTES,
+    )
+    seconds = minutes * 60.0
+    if not math.isfinite(seconds) or seconds <= 0:
+        return _DEFAULT_RECOMPUTE_INTERVAL_SECONDS
+    return seconds
+
+
+def _get_automatic_update_status(
+    config: _UpdateToastConfig,
+    *,
+    periodic: bool,
+    now: float | None = None,
+) -> UpdateStatus | None:
+    """Load automatic status with separate startup and periodic cadences."""
+    if not periodic:
+        return get_cached_update_status(ttl_seconds=config.check_ttl_seconds)
+
+    status = get_cached_update_status(revalidate_only=True)
+    if status is not None and update_status_snapshot_is_fresh(
+        status,
+        now=now,
+        ttl_seconds=config.recompute_interval_seconds,
+    ):
+        return status
+
+    # A zero TTL forces the existing network recompute path without forwarding
+    # ``refresh=True`` into lower caches. Missing snapshots are also initialized
+    # here so a failed startup check can recover during a long-running session.
+    return get_cached_update_status(ttl_seconds=0.0)
 
 
 def _incoming_commits_enabled(updates: dict[str, Any]) -> bool:

@@ -255,7 +255,9 @@ ace:
     incoming_commits:
       enabled: true # show incoming commit subjects in the Updates tab
       max_per_repo: 7 # cap subjects per repository
+    check_interval_minutes: 10 # attempt a periodic check this often
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
+    recompute_interval_minutes: 60 # periodic full network recompute cadence
   keymaps:
     app:
       next_changespec: "j"
@@ -294,14 +296,16 @@ ace:
 
 #### `ace.updates`
 
-| Field                           | Type | Default | Description                                                                                 |
-| ------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
-| `startup_toast`                 | bool | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind. |
-| `post_update_toast`             | bool | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.         |
-| `indicator`                     | bool | `true`  | Show the top-bar Updates badge when cached update status reports available updates.         |
-| `incoming_commits.enabled`      | bool | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.              |
-| `incoming_commits.max_per_repo` | int  | `7`     | Maximum incoming commit subjects to show per repository.                                    |
-| `check_ttl_minutes`             | int  | `10`    | Minimum age before startup update checks revalidate latest-version status.                  |
+| Field                           | Type   | Default | Description                                                                                                                    |
+| ------------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `startup_toast`                 | bool   | `true`  | Show the startup toast when cached update status says SASE or installed plugins are behind.                                    |
+| `post_update_toast`             | bool   | `true`  | Show a one-shot toast after a full SASE self-update restarts ACE into the new code.                                            |
+| `indicator`                     | bool   | `true`  | Show the top-bar Updates badge when cached update status reports available updates.                                            |
+| `incoming_commits.enabled`      | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                 |
+| `incoming_commits.max_per_repo` | int    | `7`     | Maximum incoming commit subjects to show per repository.                                                                       |
+| `check_interval_minutes`        | number | `10`    | Interval between periodic update-check attempts in a running ACE session.                                                      |
+| `check_ttl_minutes`             | number | `10`    | Minimum age before a startup update check recomputes cached status.                                                            |
+| `recompute_interval_minutes`    | number | `60`    | Minimum snapshot age before a periodic check may perform a full network recompute; intervening checks only revalidate locally. |
 
 #### `ace.keymaps`
 
