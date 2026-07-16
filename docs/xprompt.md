@@ -10,6 +10,9 @@ Use xprompts when you want to:
 - Parameterize prompts with typed, validated arguments.
 - Compose prompts from smaller building blocks using `#name(args)` syntax.
 
+![SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative expansion, and directive
+extraction into runtime outcomes](images/xprompt-resolution-infographic.png)
+
 There are two related paths to keep separate:
 
 ```text

@@ -28,15 +28,15 @@ their sidecar prompts, target docs, insertion points, visual language, and seman
 
 | Doc                        | Final image                                         | Insertion point / status                                                                                | Rationale                                                                                                                     |
 | -------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `docs/xprompt.md`          | `docs/images/xprompt-resolution-infographic.png`    | Pending regeneration; `docs/xprompt.md` currently uses a text pipeline instead of the stale PNG.        | Readers need the reference-resolution model before entering CLI and syntax reference sections.                                |
+| `docs/xprompt.md`          | `docs/images/xprompt-resolution-infographic.png`    | Embedded after the introductory use-case list and before the authoritative text pipeline.               | Readers need the reference-resolution model before entering CLI and syntax reference sections.                                |
 | `docs/workflow_spec.md`    | `docs/images/workflow-execution-infographic.png`    | After the opening paragraph and before `## Table of Contents`.                                          | The doc immediately becomes a format reference; the diagram should establish the execution model first.                       |
 | `docs/commit_workflows.md` | `docs/images/commit-workflow-infographic.png`       | Candidate insertion after the `## Overview` table and before `## How It Works`; currently not embedded. | The table defines the three outputs; the diagram should bridge from that summary into orchestration details once regenerated. |
 | `docs/beads.md`            | `docs/images/bead-epic-work-infographic.png`        | After the opening paragraph and before `## Table of Contents`.                                          | The data model, storage model, readiness, and epic execution flow need a single orientation map before command examples.      |
 | `docs/rust_backend.md`     | `docs/images/rust-backend-boundary-infographic.png` | At the start of `## Architecture`, before the existing ASCII diagram.                                   | The section already owns the Python facade and Rust extension boundary, and the image can summarize ownership before details. |
 
-Current sidecar prompt files and target doc embeds match the insertion points above except for the xprompt-resolution
-and commit-workflow infographics, whose PNGs are stale and intentionally not embedded in their target docs. The four
-1672x941 images and the 1600x900 Rust-backend image are all 16:9 PNGs.
+Current sidecar prompt files and target doc embeds match the insertion points above except for the commit-workflow
+infographic, whose PNG is stale and intentionally not embedded in its target doc. The four 1672x941 images and the
+1600x900 Rust-backend image are all 16:9 PNGs.
 
 ## Per-Doc Guardrails
 

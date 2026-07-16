@@ -7,61 +7,60 @@ pdf: false
 ## Target
 
 - Document: `docs/xprompt.md`
-- Intended insertion point: after the introductory "Use xprompts when you want to" list and before
-  `## Table of Contents`.
+- Insertion point: after the introductory use-case list and before the authoritative text pipeline.
 - Final asset path: `docs/images/xprompt-resolution-infographic.png`
-- Current status: prompt is updated, but the committed PNG is stale and is not embedded in `docs/xprompt.md`.
+- Final size: 1672×941 PNG, sRGB.
+- Status: regenerated, deterministically labeled, reviewed, and embedded.
 
 ## Intended Alt Text
 
-Diagram showing user prompt references flowing through xprompt resolution stages into inline prompt text, standalone
-workflows, workflow graphs, or multi-agent fan-out.
+SASE xprompt inputs flowing through workspace dispatch, first-wins discovery, iterative expansion, and directive
+extraction into runtime outcomes.
 
 ## Final GPT Image Prompt
 
-This prompt intentionally asks the image model for a no-text structural base. The committed PNG includes deterministic
-labels added afterward, as recorded in the post-processing notes.
+The built-in GPT Image tool generated a completely text-free structural base. All visible labels in the committed PNG
+were added locally afterward.
 
+```text
 Use case: infographic-diagram
+Asset type: text-free structural base for a technical documentation infographic; final deterministic labels will be added locally.
+Primary request: Create a polished, completely text-free landscape architecture infographic base showing a software prompt-resolution system flowing left to right from inputs, through a resolver, to outcomes.
+Scene/backdrop: very light neutral warm-gray background, crisp flat vector-like panels, thin slate outlines, subtle paper texture, high contrast, generous whitespace.
+Composition/framing: 16:9 landscape. Three zones. Left: one tall rounded input panel with exactly four spacious blank card rows, plus one separate protected-content callout card below. Center: one large resolver panel with a blank workspace-dispatch pre-stage at top, a short two-step horizontal prelude, then a large dashed iterative-loop group containing exactly five stacked blank processing rows and a narrow sidebar with seventeen small blank priority rungs. Below the loop, exactly three blank post-processing rows arranged cleanly. Right: one tall outcomes panel with exactly three runtime outcome cards plus one visually separate dashed developer-tool card. Show arrows connecting the zones and a loop-back arrow around the five central rows. Leave every panel and card blank and light enough for dark labels.
+Style/medium: flat vector-like technical architecture illustration rendered as a high-resolution raster; softly rounded rectangles; restrained teal, blue, amber, green, purple, and slate accents; minimal shadows; no dark mode; no decorative gradients.
+Constraints: absolutely no readable text, pseudo-text, glyphs, letters, numerals, logos, watermarks, terminal screenshots, code snippets, fake UI lines, or decorative icons resembling letters. Preserve wide blank label zones. Keep arrows unambiguous and fully within canvas. No cropping.
+```
 
-Asset type: documentation infographic for GitHub Markdown, final PNG will be post-processed with deterministic labels.
+## Deterministic Post-Processing Record
 
-Primary request: Create a clean landscape 16:9 architecture infographic base illustrating SASE xprompt resolution from
-prompt inputs through a resolver pipeline to output/runtime outcomes. Use a light neutral background, crisp flat
-vector-like panels, thin outlines, arrows, swimlanes, and simple abstract icons only. Leave generous blank whitespace
-inside every box for labels that will be added later. Include no readable text, no pseudo-text, no logos, no terminal
-screenshots, no code snippets, and no watermarks.
+The selected 1672×941 base was kept at full opacity. A transparent SVG overlay supplied the exact labels, backing
+panels, loop arrow, stage arrows, and protected-content connection. ImageMagick 7 rendered the overlay using DejaVu Sans
+for prose and Fira Code for paths and commands, then composited and stripped the final PNG:
 
-Composition: 1672x941-ish 16:9. Three main zones left to right. Left zone: a prompt-input panel with five blank card
-rows and one separate protected-content callout card below it. Include a visible arrow from the protected-content
-callout toward the resolver pipeline. Middle zone: large resolver panel with a top pre-stage area for workspace
-dispatch, then a vertical processing pipeline. Show a loop/iteration visual around the central
-parse/lookup/validate/render cluster, plus a sidebar stack for discovery priority with many small blank rungs. Add
-arrows between stages, including an early alias/masking sequence and a later post-expansion/directives/memory sequence.
-Right zone: outputs panel with four blank output cards; visually distinguish the workflow graph/explain card as a
-developer tool rather than a runtime output. Use a restrained multi-accent palette with teal, blue, amber, green,
-purple, and slate accents. Professional technical docs architecture diagram style, readable at documentation width, no
-dark theme, and no gradients that reduce label contrast.
+```bash
+magick -background none "$LABELS_SVG" "$LABELS_PNG"
+magick "$BASE_PNG" "$LABELS_PNG" -compose over -composite \
+  -strip -colorspace sRGB docs/images/xprompt-resolution-infographic.png
+```
 
-## Post-Processing Notes
+The deterministic label groups are:
 
-- The GPT-generated image was used as a low-opacity structural base with no model-generated text.
-- Deterministic SVG labels and diagram panels were rendered to PNG with ImageMagick using DejaVu Sans fonts so technical
-  terminology stays exact and readable.
-- The revised labels follow the documented resolver order: workspace dispatch, alias substitution, protected-content
-  masking, iterative reference expansion, discovery lookup, argument parsing with `$(cmd)`, typed-input validation,
-  Jinja2/legacy rendering, unmasking, directive extraction, and final expanded prompt text.
-- The discovery sidebar records the documented priority stack, including project-local paths, user paths, config,
-  `sase.yml`, plugins, and the two package-provided xprompt locations.
-- Runtime outputs are separated from the developer-tool output: inline expansion, standalone workflow launch,
-  multi-agent fan-out, and `sase xprompt graph`/`explain`.
+- Inputs: `#name / #name(args)`, `#!name`, `%directives`, and `#cd / #gh / #git refs`; the obsolete keyword-trigger and
+  dynamic-memory rows are absent.
+- Launch setup: workspace dispatch occurs before xprompt expansion; bare prompts default to `#git:home`.
+- Expansion: alias substitution → protected-text masking → iterative parse, lookup, argument/`$(cmd)` processing,
+  typed-input validation, and Jinja2/legacy rendering → unmask → directive extraction → expanded prompt text.
+- Discovery: all 17 rows from `docs/xprompt.md`, in first-wins order, with canonical project/home paths preceding their
+  corresponding legacy compatibility paths and package/plugin sources kept distinct.
+- Outcomes: inline expansion, standalone workflow launch, depth-capped multi-agent fan-out, and a visually separate
+  developer-tools card for `sase xprompt graph` / `sase xprompt explain`.
 
-## Audit Notes
+## Final Review
 
-- As of the current docs review, `docs/xprompt.md` uses an inline text pipeline as the authoritative resolver-order
-  reference.
-- Before re-embedding `docs/images/xprompt-resolution-infographic.png`, regenerate or relabel the PNG so it removes the
-  obsolete keyword-trigger row, shows aliases before masking, shows iterative expansion, separates directive extraction
-  from rendering, and describes multi-agent fan-out as depth-capped rather than one-level-only.
-- Check the regenerated asset against `docs/xprompt.md`, `docs/images/xprompt-resolution-infographic.critique.md`, and
-  the nearby xprompt/multi-agent implementation references before embedding it again.
+- Full-resolution inspection confirmed legible labels, uncropped panels, high-contrast text, and no generated
+  pseudo-text.
+- The protected-content callout points to the mask stage, the iterative stages flow downward with a loop-back arrow, and
+  developer tooling is visually separate from runtime outcomes.
+- Every technical label was compared with the launch/expansion pipelines and discovery table in `docs/xprompt.md`.
+- Final SHA-256: `a2b5e5e55e8af32966cb59e6806982c15d7fc19ff70583e327d6a8a280b19174`.

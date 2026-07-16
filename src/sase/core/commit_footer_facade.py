@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
 from sase.core.rust import require_rust_binding
 
@@ -20,7 +20,7 @@ class LinkedCommitTagValue:
     reference_id: str | None = None
 
 
-CommitTagValue: TypeAlias = str | LinkedCommitTagValue
+type CommitTagValue = str | LinkedCommitTagValue
 
 
 @dataclass(frozen=True)
