@@ -34,13 +34,13 @@ def test_memory_plan_missing_tree_reports_create_actions_without_writing(
     plan = plan_memory()
 
     assert {action.operation for action in plan.actions} == {"create"}
-    assert project_root / "memory" / "sase.md" in {
+    assert project_root / "sase" / "memory" / "sase.md" in {
         action.path for action in plan.actions
     }
     assert project_root / "AGENTS.md" in {action.path for action in plan.actions}
     assert all(action.new_content is not None for action in plan.actions)
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
 
 
 def test_memory_plan_non_project_reports_home_only_actions(
@@ -72,12 +72,12 @@ linked_repos:
     action_paths = {action.path for action in plan.actions}
 
     assert plan.blockers == ()
-    assert home_root / "memory" / "sase.md" in action_paths
+    assert home_root / "sase" / "memory" / "sase.md" in action_paths
     assert home_root / "AGENTS.md" in action_paths
-    assert project_root / "memory" / "sase.md" not in action_paths
+    assert project_root / "sase" / "memory" / "sase.md" not in action_paths
     assert project_root / "AGENTS.md" not in action_paths
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
 
 
 def test_memory_check_missing_tree_reports_drift_without_writing(
@@ -99,8 +99,8 @@ def test_memory_check_missing_tree_reports_drift_without_writing(
 
     assert run_memory(check=True) == 1
 
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
     out = capsys.readouterr().out
     assert "SASE initialization check" in out
     assert "Needs attention:" in out
@@ -309,7 +309,7 @@ def test_memory_plan_preserves_existing_user_agents_file(
     (project_root / "sase.yml").unlink()
     write(
         project_root / "AGENTS.md",
-        "# Custom Instructions\n\n@memory/sase.md\n",
+        "# Custom Instructions\n\n@sase/memory/sase.md\n",
     )
 
     plan = plan_memory()
@@ -351,7 +351,7 @@ linked_repos:
 
     assert plan.actions == ()
     assert any("cannot generate project memory" in blocker for blocker in plan.blockers)
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
 
 
 def test_memory_check_blockers_render_through_shared_output(
@@ -386,4 +386,90 @@ linked_repos:
     assert "Blockers:" in captured.out
     assert "cannot generate project memory" in captured.out
     assert captured.err == ""
+    assert not (project_root / "sase" / "memory").exists()
+
+
+def test_memory_init_migrates_legacy_tree_and_rewrites_parent_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    legacy_note = project_root / "memory" / "detail.md"
+    legacy_parent = project_root / "memory" / "parent.md"
+    write(
+        legacy_parent,
+        "---\ntype: long\nparent: AGENTS.md\ndescription: Parent.\n---\n# Parent\n",
+    )
+    write(
+        legacy_note,
+        "---\n"
+        "type: long\n"
+        "parent: memory/parent.md\n"
+        "description: Detail.\n"
+        "---\n"
+        "# Detail\n",
+    )
+    legacy_asset = project_root / "memory" / "assets" / "custom.txt"
+    write(legacy_asset, "custom bytes\n")
+
+    plan = plan_memory()
+    changes = {(action.operation, action.path) for action in plan.actions}
+
+    assert plan.blockers == ()
+    assert ("create", project_root / "sase" / "memory" / "detail.md") in changes
+    assert (
+        "create",
+        project_root / "sase" / "memory" / "assets" / "custom.txt",
+    ) in changes
+    assert ("delete", legacy_note) in changes
+    assert ("delete", legacy_parent) in changes
+    assert ("delete", legacy_asset) in changes
+
+    assert run_memory() == 0
+
     assert not (project_root / "memory").exists()
+    migrated_note = (project_root / "sase" / "memory" / "detail.md").read_text(
+        encoding="utf-8"
+    )
+    assert "parent: sase/memory/parent.md" in migrated_note
+    assert (project_root / "sase" / "memory" / "assets" / "custom.txt").read_text(
+        encoding="utf-8"
+    ) == "custom bytes\n"
+    assert plan_memory().actions == ()
+
+
+def test_memory_init_blocks_nonidentical_canonical_and_legacy_trees(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = tmp_path / "project"
+    home_root = tmp_path / "home"
+    config_dir = tmp_path / "config"
+    project_root.mkdir()
+    home_root.mkdir()
+    patch_standard_paths(
+        monkeypatch,
+        project_root=project_root,
+        home_root=home_root,
+        config_dir=config_dir,
+    )
+    write(project_root / "sase" / "memory" / "detail.md", "canonical\n")
+    write(project_root / "memory" / "detail.md", "legacy\n")
+
+    plan = plan_memory()
+
+    assert any(
+        "non-identical canonical and legacy trees" in item for item in plan.blockers
+    )
+    assert run_memory() == 1
+    assert not (home_root / "sase" / "memory").exists()

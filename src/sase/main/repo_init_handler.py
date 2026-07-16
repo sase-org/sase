@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TextIO
 
 from sase._linked_repo_config import DEFAULT_RESEARCH_DESCRIPTION
 from sase.config import ConfigEditError, set_key
+from sase.content_layout import LayoutCollisionError, resolve_project_layout
 from sase.project_management import ProjectManagementStatus, project_management_status
 
 from .init_plan import InitAction, InitPlan
@@ -555,7 +556,15 @@ def _repo_project_management(
     path: str | Path | None,
 ) -> tuple[Path, ProjectManagementStatus]:
     project_root = _resolve_project_root(path)
-    config_path = project_root / "sase.yml"
+    compatible = resolve_project_layout(project_root).config
+    try:
+        config_path = compatible.resolve_read("project config") or compatible.write_path
+    except LayoutCollisionError as exc:
+        return project_root, ProjectManagementStatus(
+            compatible.write_path,
+            False,
+            str(exc),
+        )
     return project_root, project_management_status(config_path)
 
 

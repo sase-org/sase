@@ -1,4 +1,4 @@
-"""Tests for generated ``memory/*.md`` Markdown templates."""
+"""Tests for generated ``sase/memory/*.md`` Markdown templates."""
 
 from __future__ import annotations
 
@@ -97,8 +97,10 @@ def test_root_memory_templates_beat_user_templates(
 
     assert run_handler() == 0
 
-    sase_memory = (home_root / "memory" / "sase.md").read_text(encoding="utf-8")
-    readme = (home_root / "memory" / "README.md").read_text(encoding="utf-8")
+    sase_memory = (home_root / "sase" / "memory" / "sase.md").read_text(
+        encoding="utf-8"
+    )
+    readme = (home_root / "sase" / "memory" / "README.md").read_text(encoding="utf-8")
     assert "Root SASE." in sase_memory
     assert "User SASE." not in sase_memory
     assert "Root README." in readme
@@ -136,9 +138,12 @@ def test_user_memory_templates_resolve_from_chezmoi_source_config_dir(
 
     assert run_handler() == 0
 
-    assert "Chezmoi SASE." in (chezmoi_home / "memory" / "sase.md").read_text()
-    assert "Chezmoi README." in (chezmoi_home / "memory" / "README.md").read_text()
-    assert chezmoi_home / "memory" / "sase.md" in deployed
+    assert "Chezmoi SASE." in (chezmoi_home / "sase" / "memory" / "sase.md").read_text()
+    assert (
+        "Chezmoi README."
+        in (chezmoi_home / "sase" / "memory" / "README.md").read_text()
+    )
+    assert chezmoi_home / "sase" / "memory" / "sase.md" in deployed
 
 
 def test_default_sase_template_names_linked_and_sidecar_repositories(
@@ -159,7 +164,7 @@ linked_repos:
 
     assert run_handler() == 0
 
-    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    memory = (project_root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
     assert "Configured linked and sidecar repositories for this context:" in memory
 
 
@@ -223,8 +228,8 @@ def test_invalid_memory_template_blocks_without_writing(
 
     assert any(expected_error in blocker for blocker in plan.blockers)
     assert run_handler() == 1
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
 
 
 @pytest.mark.parametrize(
@@ -250,8 +255,8 @@ def test_invalid_sase_template_structure_blocks_without_writing(
 
     assert any("short memory note" in blocker for blocker in plan.blockers)
     assert run_handler() == 1
-    assert not (project_root / "memory").exists()
-    assert not (home_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
 
 
 def test_custom_sase_template_round_trips_into_agents(
@@ -271,6 +276,6 @@ def test_custom_sase_template_round_trips_into_agents(
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     parsed = parse_amd_agents_document(agents)
-    assert parsed.short_memory_paths == ("memory/sase.md",)
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
     assert "Custom SASE frame." in agents
     assert plan_memory().actions == ()

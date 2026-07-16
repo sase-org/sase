@@ -23,9 +23,13 @@ from sase.memory.notes import (
     discover_memory_notes,
     render_memory_note_references,
 )
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
+)
 
 _AGENTS_LONG_MEMORY_RE = re.compile(
-    r"^\*\*`(?P<path>memory/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
+    r"^\*\*`(?P<path>(?:sase/)?memory/[^`]+\.md)`\*\*[ \t]*\n(?P<body>.*?)(?=\n\n|\Z)",
     re.MULTILINE | re.DOTALL,
 )
 
@@ -51,7 +55,9 @@ def _existing_agents_long_descriptions(root: Path) -> dict[str, str]:
         body = " ".join(body.split())
         body = re.sub(r"\s+_Read when\b.*?_$", "", body).strip()
         if body:
-            descriptions[match.group("path")] = body
+            descriptions[canonical_memory_reference(match.group("path")).as_posix()] = (
+                body
+            )
     return descriptions
 
 
@@ -98,9 +104,11 @@ def _long_memory_description(
     return note_path.stem.replace("_", " ").replace("-", " ").strip().capitalize()
 
 
-def _long_memory_descriptions(root: Path) -> dict[str, str]:
+def _long_memory_descriptions(
+    root: Path, *, source_memory_root: Path | None = None
+) -> dict[str, str]:
     existing_agents_descriptions = _existing_agents_long_descriptions(root)
-    notes = discover_memory_notes(root)
+    notes = discover_memory_notes(root, source_memory_root=source_memory_root)
     return {
         note.relative_path: _long_memory_description(
             root / note.path,
@@ -115,16 +123,20 @@ def _long_memory_descriptions(root: Path) -> dict[str, str]:
 
 
 def _long_memory_description_updates(
-    root: Path, descriptions: dict[str, str]
+    root: Path,
+    descriptions: dict[str, str],
+    *,
+    source_memory_root: Path | None = None,
 ) -> tuple[AmdLongMemoryDescriptionUpdate, ...]:
     updates: list[AmdLongMemoryDescriptionUpdate] = []
-    for note in discover_memory_notes(root):
+    for note in discover_memory_notes(root, source_memory_root=source_memory_root):
         if note.type != "long":
             continue
+        source_path = root / note.source_relative_path
         path = root / note.path
         rel = note.relative_path
         description = descriptions[rel]
-        text, error = read_text(path)
+        text, error = read_text(source_path)
         if error is not None or text is None:
             continue
         content = apply_memory_frontmatter(
@@ -148,18 +160,20 @@ def _long_memory_description_updates(
 def _short_memory_bodies(
     root: Path,
     generated_short_notes: Mapping[str, str],
+    *,
+    source_memory_root: Path | None = None,
 ) -> dict[str, str]:
     """Return short-note bodies to inline, keyed by root-relative path.
 
     Bodies discovered on disk are overlaid with the freshly generated bodies in
-    *generated_short_notes* (for example ``memory/sase.md``) so a single
+    *generated_short_notes* (for example ``sase/memory/sase.md``) so a single
     ``sase memory init`` pass inlines the just-written note content rather than a
     stale on-disk copy. The result is sorted by path so the rendered ``AGENTS.md``
     section order is deterministic.
     """
     bodies: dict[str, str] = {
         note.relative_path: note.body
-        for note in discover_memory_notes(root)
+        for note in discover_memory_notes(root, source_memory_root=source_memory_root)
         if note.type == "short"
     }
     bodies.update(generated_short_notes)
@@ -184,10 +198,11 @@ def _render_managed_agents(
     *,
     long_memory_descriptions: dict[str, str] | None = None,
     short_memory_bodies: Mapping[str, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[str | None, str | None]:
     """Render the project-managed AMD ``AGENTS.md`` content for *root*."""
     existing_descriptions = _existing_agents_long_descriptions(root)
-    notes = discover_memory_notes(root)
+    notes = discover_memory_notes(root, source_memory_root=source_memory_root)
     top_level_long_notes = tuple(
         sorted(
             (
@@ -264,7 +279,7 @@ def plan_minimal_agents_sync(
     generated_short_notes: Mapping[str, str],
 ) -> AmdMemorySyncPlan:
     """Plan the create-if-missing fallback agent document from its template."""
-    relative_path = "memory/sase.md"
+    relative_path = (CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md").as_posix()
     body = generated_short_notes.get(relative_path, "")
     tier1_sections = inline_memory_section(relative_path, body, number=1).rstrip("\n")
     rendered, render_error = render_agents_template(
@@ -293,12 +308,13 @@ def plan_amd_memory_sync(
     *,
     derive_project_title: bool = False,
     generated_short_notes: Mapping[str, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> AmdMemorySyncPlan:
     """Plan AMD-managed memory block synchronization for ``sase memory init``.
 
     *generated_short_notes* maps a root-relative short-note path to its freshly
     generated body so the rendered ``AGENTS.md`` inlines current content (e.g.
-    ``memory/sase.md``) in a single pass instead of a stale on-disk copy.
+    ``sase/memory/sase.md``) in a single pass instead of a stale on-disk copy.
     """
     root = root or Path.cwd()
     title, title_error = resolve_amd_h1_title(
@@ -317,7 +333,11 @@ def plan_amd_memory_sync(
             generated_short_notes=generated_short_notes or {},
         )
 
-    short_memory_bodies = _short_memory_bodies(root, generated_short_notes or {})
+    short_memory_bodies = _short_memory_bodies(
+        root,
+        generated_short_notes or {},
+        source_memory_root=source_memory_root,
+    )
     structure_blockers = _short_memory_structure_blockers(short_memory_bodies)
     if structure_blockers:
         return AmdMemorySyncPlan(
@@ -327,13 +347,20 @@ def plan_amd_memory_sync(
             blockers=structure_blockers,
         )
 
-    descriptions = _long_memory_descriptions(root)
-    updates = _long_memory_description_updates(root, descriptions)
+    descriptions = _long_memory_descriptions(
+        root, source_memory_root=source_memory_root
+    )
+    updates = _long_memory_description_updates(
+        root,
+        descriptions,
+        source_memory_root=source_memory_root,
+    )
     agents_content, template_error = _render_managed_agents(
         root,
         title,
         long_memory_descriptions=descriptions,
         short_memory_bodies=short_memory_bodies,
+        source_memory_root=source_memory_root,
     )
     if template_error is not None or agents_content is None:
         return AmdMemorySyncPlan(

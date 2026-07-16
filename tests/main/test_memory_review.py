@@ -170,7 +170,7 @@ def test_memory_review_approve_writes_canonical_file(
     handle_memory_review_command(args)
 
     payload = json.loads(capsys.readouterr().out)
-    canonical_path = tmp_path / "memory" / "memory.md"
+    canonical_path = tmp_path / "sase" / "memory" / "memory.md"
     assert payload["event"]["event_type"] == "approved"
     assert payload["canonical_path"] == str(canonical_path)
     assert canonical_path.read_text(encoding="utf-8").startswith(
@@ -210,7 +210,7 @@ def test_memory_review_approve_with_edited_file_records_edited_event(
     assert payload["event"]["event_type"] == "approved_with_edits"
     assert reviewed_path.name == "reviewed.md"
     assert reviewed_path.read_text(encoding="utf-8") == "Edited body\n"
-    assert "Edited body\n" in (tmp_path / "memory" / "memory.md").read_text(
+    assert "Edited body\n" in (tmp_path / "sase" / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 
@@ -262,7 +262,7 @@ def test_memory_review_edit_uses_fake_editor_then_approves(
     payload = json.loads(capsys.readouterr().out)
     assert payload["event"]["event_type"] == "approved_with_edits"
     assert Path(payload["reviewed_path"]).read_text(encoding="utf-8") == "Editor body\n"
-    assert "Editor body\n" in (tmp_path / "memory" / "memory.md").read_text(
+    assert "Editor body\n" in (tmp_path / "sase" / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 

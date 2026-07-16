@@ -71,17 +71,17 @@ def test_enable_project_memory_writes_management_marker_before_all_planning(
     calls: list[str] = []
 
     def plan_memory(args: argparse.Namespace) -> InitPlan:
-        assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+        assert (project_root / "sase" / "sase.yml").read_text(encoding="utf-8") == (
             "is_sase_managed: true\n"
         )
         return _plan(
             "memory",
-            actions=(_changed_action("sase.yml"),),
+            actions=(_changed_action("sase/sase.yml"),),
             summary="mark repository as SASE-managed",
         )
 
     def plan_sdd(args: argparse.Namespace) -> InitPlan:
-        assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+        assert (project_root / "sase" / "sase.yml").read_text(encoding="utf-8") == (
             "is_sase_managed: true\n"
         )
         return _plan(

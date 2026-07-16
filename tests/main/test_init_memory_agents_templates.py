@@ -19,6 +19,20 @@ from tests.main.init_memory_handler_helpers import (
 )
 
 
+def test_amd_parser_normalizes_legacy_memory_references() -> None:
+    parsed = parse_amd_agents_document(
+        "## Tier 1 (short-term) Memory\n\n"
+        "- @memory/sase.md\n\n"
+        "## Tier 2 (long-term) Memory\n\n"
+        "**`memory/detail.md`**  \nDetails.\n"
+    )
+
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
+    assert tuple(entry.path for entry in parsed.long_memory_entries) == (
+        "sase/memory/detail.md",
+    )
+
+
 def _managed_template(marker: str) -> str:
     return f"""# {{{{ title }}}}
 
@@ -60,7 +74,7 @@ def test_project_template_override_renders_and_round_trips(
         _managed_template("Project template frame."),
     )
     write(
-        project_root / "memory" / "detail.md",
+        project_root / "sase" / "memory" / "detail.md",
         long_note("# Detail\n", description="Detailed reference."),
     )
 
@@ -71,9 +85,9 @@ def test_project_template_override_renders_and_round_trips(
     parsed = parse_amd_agents_document(agents)
     assert parsed.has_short_section
     assert parsed.has_long_section
-    assert parsed.short_memory_paths == ("memory/sase.md",)
+    assert parsed.short_memory_paths == ("sase/memory/sase.md",)
     assert tuple(entry.path for entry in parsed.long_memory_entries) == (
-        "memory/detail.md",
+        "sase/memory/detail.md",
     )
     assert plan_memory().actions == ()
 
@@ -220,7 +234,7 @@ def test_invalid_minimal_template_blocks_without_writing(
     )
     assert run_handler() == 1
     assert not (home_root / "AGENTS.md").exists()
-    assert not (home_root / "memory" / "sase.md").exists()
+    assert not (home_root / "sase" / "memory" / "sase.md").exists()
 
 
 @pytest.mark.parametrize(
@@ -290,4 +304,4 @@ def test_invalid_managed_template_blocks_without_writing(
     assert any(expected_error in blocker for blocker in plan.blockers)
     assert run_handler() == 1
     assert not (project_root / "AGENTS.md").exists()
-    assert not (project_root / "memory" / "sase.md").exists()
+    assert not (project_root / "sase" / "memory" / "sase.md").exists()

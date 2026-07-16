@@ -22,13 +22,13 @@ from tests.main.init_memory_handler_helpers import (
 def test_memory_reference_validation_uses_rendered_overlay(tmp_path: Path) -> None:
     root = tmp_path / "project"
     root.mkdir()
-    write(root / "AGENTS.md", "@memory/generated.md\n")
-    write(root / "memory" / "detail.md", "# Detail\n")
+    write(root / "AGENTS.md", "@sase/memory/generated.md\n")
+    write(root / "sase" / "memory" / "detail.md", "# Detail\n")
 
     unreferenced = unreferenced_memory_files(
         root,
         overlay={
-            root / "memory" / "generated.md": "@memory/detail.md\n",
+            root / "sase" / "memory" / "generated.md": "@sase/memory/detail.md\n",
         },
     )
 
@@ -56,7 +56,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     )
     write(project_root / "AGENTS.md", "# Stale Instructions\n")
     write(
-        project_root / "memory" / "detail.md",
+        project_root / "sase" / "memory" / "detail.md",
         "---\ntype: long\nparent: AGENTS.md\n---\n# Detail\n",
     )
 
@@ -66,7 +66,7 @@ def test_memory_plan_uses_amd_agents_overlay_when_project_is_opted_in(
     assert ("overwrite", project_root / "AGENTS.md") in {
         (action.operation, action.path) for action in plan.actions
     }
-    assert ("update", project_root / "memory" / "detail.md") in {
+    assert ("update", project_root / "sase" / "memory" / "detail.md") in {
         (action.operation, action.path) for action in plan.actions
     }
 
@@ -91,13 +91,13 @@ def test_memory_plan_repairs_unreferenced_long_memory_without_title(
         project_root / "sase.yml",
         "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
     )
-    write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
+    write(project_root / "AGENTS.md", "# Agent Instructions\n\n@sase/memory/sase.md\n")
     write(
-        project_root / "memory" / "sase.md",
+        project_root / "sase" / "memory" / "sase.md",
         "---\ntype: short\nparent: AGENTS.md\n---\n# SASE\n",
     )
     write(
-        project_root / "memory" / "cli_rules.md",
+        project_root / "sase" / "memory" / "cli_rules.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
@@ -129,9 +129,9 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
         project_root / "sase.yml",
         "is_sase_managed: true\nsdd:\n  version_controlled: true\n",
     )
-    write(project_root / "AGENTS.md", "# Agent Instructions\n\n@memory/sase.md\n")
+    write(project_root / "AGENTS.md", "# Agent Instructions\n\n@sase/memory/sase.md\n")
     write(
-        project_root / "memory" / "cli_rules.md",
+        project_root / "sase" / "memory" / "cli_rules.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )
@@ -144,7 +144,7 @@ def test_memory_apply_repairs_unreferenced_long_memory_without_title(
     assert first_line.endswith(" - Agent Instructions")
     assert "## Tier 1 (short-term) Memory" in agents
     assert "## Tier 2 (long-term) Memory" in agents
-    assert "**`memory/cli_rules.md`**" in agents
+    assert "**`sase/memory/cli_rules.md`**" in agents
     # The repaired graph must validate cleanly on a follow-up run.
     assert run_memory() == 0
     assert plan_memory().actions == ()
@@ -170,7 +170,7 @@ def test_memory_plan_invalid_amd_title_still_blocks(
         "is_sase_managed: true\namd_h1_title: 123\n",
     )
     write(
-        project_root / "memory" / "cli_rules.md",
+        project_root / "sase" / "memory" / "cli_rules.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: CLI rules reference.\n---\n"
         "# CLI Rules\n",
     )

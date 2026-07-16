@@ -105,6 +105,7 @@ def enable_sase_management(config_path: Path) -> _ProjectManagementUpdate:
     if updated_text == current_text:
         return _ProjectManagementUpdate(False)
     try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(updated_text, encoding="utf-8")
     except OSError as exc:
         return _ProjectManagementUpdate(

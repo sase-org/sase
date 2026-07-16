@@ -24,6 +24,7 @@ from sase.memory.proposals import (
     read_memory_proposals,
     validate_memory_proposal_target,
 )
+from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT, memory_write_root
 from sase.memory.review_tui._callbacks import (
     ApproveCallback,
     EditCallback,
@@ -86,6 +87,7 @@ class MemoryReviewTuiApp(App[None]):
         self._reject_callback = reject_callback or default_reject
         self._edit_callback = edit_callback or default_edit
         self._cwd = (cwd or Path.cwd()).resolve(strict=False)
+        self._memory_root = memory_write_root(self._cwd)
         self._all_states: tuple[MemoryProposalState, ...] = ()
         self._states: tuple[MemoryProposalState, ...] = ()
         self._events: tuple[MemoryProposalLedgerEvent, ...] = ()
@@ -381,7 +383,7 @@ class MemoryReviewTuiApp(App[None]):
 
     def _target_summary(self, state: MemoryProposalState, body: str) -> TargetSummary:
         target_path = self._target_overrides.get(state.proposal_id, state.target_path)
-        canonical_path = self._cwd / "memory" / target_path
+        canonical_path = self._memory_root / target_path
         try:
             existing = canonical_path.read_text(encoding="utf-8")
         except FileNotFoundError:
@@ -403,7 +405,7 @@ class MemoryReviewTuiApp(App[None]):
             difflib.unified_diff(
                 existing.splitlines(),
                 body.splitlines(),
-                fromfile=f"memory/{target_path}",
+                fromfile=(CANONICAL_MEMORY_RELATIVE_ROOT / target_path).as_posix(),
                 tofile=state.proposal_id,
                 lineterm="",
             )

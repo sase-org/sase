@@ -8,13 +8,19 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import ceil
 from pathlib import Path
 import re
 from typing import Literal
 
 from sase.memory.notes import AGENTS_PARENT, MemoryNote, parse_memory_note_text
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
+    memory_note_relative_path,
+    memory_read_root,
+)
 
 ReferenceKind = Literal["loaded", "plain"]
 MemoryEntryStatus = Literal["loaded", "referenced", "available", "missing"]
@@ -32,7 +38,9 @@ INSTRUCTION_ROOT_FILENAMES = (
 LOADED_INSTRUCTION_ROOT_FILENAMES = ("AGENTS.md",)
 
 _AT_REF_RE = re.compile(r"(?:^|(?<=\s)|(?<=[\"'`(]))@([^\s,;:()[\]{}\"'`]+)")
-_MEMORY_PATH_RE = re.compile(r"(?<![\w./-])(memory/[^\s,;:()[\]{}\"'`/]+?\.md)")
+_MEMORY_PATH_RE = re.compile(
+    r"(?<![\w./-])((?:sase/)?memory/[^\s,;:()[\]{}\"'`/]+?\.md)"
+)
 _INLINED_SHORT_MEMORY_RE = re.compile(
     r"^###[ \t]+(?:.*[ \t])?\(([A-Za-z0-9_.-]+)\)[ \t]*$",
     re.MULTILINE,
@@ -188,13 +196,20 @@ def _parse_references(text: str) -> tuple[_ParsedMemoryReference, ...]:
 
 
 def _iter_memory_files(
-    root: Path, *, overlay: Mapping[Path, str] | None = None
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
     root_resolved = root.resolve(strict=False)
     overlay_files = _normalize_overlay(overlay)
-    memory_root = root_resolved / "memory"
+    memory_root = (
+        source_memory_root.resolve(strict=False)
+        if source_memory_root is not None
+        else memory_read_root(root_resolved)
+    )
     results: list[Path] = []
-    if memory_root.exists():
+    if memory_root is not None and memory_root.exists():
         results.extend(
             path.resolve(strict=False)
             for path in memory_root.glob("*.md")
@@ -205,6 +220,19 @@ def _iter_memory_files(
         for path in overlay_files
         if _inside_root(root_resolved, path) and _is_memory_path(root_resolved, path)
     )
+    canonical_overlay_names = {
+        path.name
+        for path in overlay_files
+        if path.parent == root_resolved / CANONICAL_MEMORY_RELATIVE_ROOT
+    }
+    results = [
+        path
+        for path in results
+        if not (
+            path.parent == root_resolved / "memory"
+            and path.name in canonical_overlay_names
+        )
+    ]
     return tuple(sorted(set(results), key=lambda path: path.as_posix()))
 
 
@@ -265,10 +293,12 @@ def _inside_root(root: Path, path: Path) -> bool:
 def _is_memory_path(root: Path, path: Path) -> bool:
     if path.suffix != ".md":
         return False
-    memory_root = root / "memory"
     try:
-        relative = path.relative_to(memory_root)
+        root_relative = path.relative_to(root)
     except ValueError:
+        return False
+    relative = memory_note_relative_path(root_relative)
+    if relative is None:
         return False
     return len(relative.parts) == 1 and relative.name != "README.md"
 
@@ -299,6 +329,7 @@ def _resolve_reference(
     token: str,
     *,
     overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> _ResolvedReference | None:
     """Resolve ``token`` using init-memory root containment rules."""
     if token.startswith(("http://", "https://")):
@@ -308,7 +339,13 @@ def _resolve_reference(
     root_resolved = root.resolve(strict=False)
     source_resolved = source.resolve(strict=False)
     in_root_candidates: list[Path] = []
-    for candidate in _candidate_paths(root_resolved, source_resolved, token):
+    candidates = list(_candidate_paths(root_resolved, source_resolved, token))
+    memory_relative = memory_note_relative_path(Path(token))
+    if memory_relative is not None:
+        selected_memory_root = source_memory_root or memory_read_root(root_resolved)
+        if selected_memory_root is not None:
+            candidates.insert(1, selected_memory_root / memory_relative)
+    for candidate in candidates:
         resolved = candidate.resolve(strict=False)
         if not _inside_root(root_resolved, resolved):
             continue
@@ -326,6 +363,7 @@ def _references_from_file(
     source: Path,
     *,
     overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[tuple[_ParsedMemoryReference, _ResolvedReference], ...]:
     overlay_files = _normalize_overlay(overlay)
     text = _read_text(source, overlay_files)
@@ -339,6 +377,7 @@ def _references_from_file(
             source,
             parsed.token,
             overlay=overlay_files,
+            source_memory_root=source_memory_root,
         )
         if target is None:
             continue
@@ -377,7 +416,15 @@ def _memory_note_for_init(
         relative_path = path.resolve(strict=False).relative_to(root)
     except ValueError:
         return None
-    return parse_memory_note_text(text, relative_path)
+    note = parse_memory_note_text(
+        text,
+        canonical_memory_reference(relative_path),
+    )
+    return replace(
+        note,
+        parent=canonical_memory_reference(note.parent).as_posix(),
+        source_path=relative_path,
+    )
 
 
 def _is_short_memory_note(
@@ -396,6 +443,7 @@ def _inlined_short_memory_files(
     source: Path,
     *,
     overlay: Mapping[Path, str],
+    source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
     """Return short notes inlined as ``### [N. ]Title (file)`` sections.
 
@@ -408,8 +456,14 @@ def _inlined_short_memory_files(
         return ()
     targets: list[Path] = []
     for match in _INLINED_SHORT_MEMORY_RE.finditer(text):
-        token = f"memory/{match.group(1)}.md"
-        resolved = _resolve_reference(root, source, token, overlay=overlay)
+        token = f"sase/memory/{match.group(1)}.md"
+        resolved = _resolve_reference(
+            root,
+            source,
+            token,
+            overlay=overlay,
+            source_memory_root=source_memory_root,
+        )
         if (
             resolved is not None
             and resolved.exists
@@ -430,12 +484,17 @@ def _children_by_parent_for_init(
         for path in memory_files
         if (note := _memory_note_for_init(root, path, overlay=overlay)) is not None
     }
+    path_by_reference = {
+        note.relative_path: path for path, note in notes_by_path.items()
+    }
     children_by_parent: dict[Path, list[Path]] = {}
     for path, note in notes_by_path.items():
         if note.type != "long" or note.parent == AGENTS_PARENT:
             continue
 
-        parent_path = (root / note.parent).resolve(strict=False)
+        parent_path = path_by_reference.get(note.parent)
+        if parent_path is None:
+            continue
         parent_note = notes_by_path.get(parent_path)
         if parent_note is None or parent_note.type != "long":
             continue
@@ -473,8 +532,20 @@ def build_memory_inventory(
 ) -> MemoryInventory:
     root_resolved = (Path.cwd() if root is None else root).resolve(strict=False)
     context_roots = _context_roots(root_resolved, home_root)
+    memory_roots_by_root = {
+        context_root.root: memory_read_root(
+            context_root.root,
+            label=f"{context_root.kind} memory",
+        )
+        for context_root in context_roots
+    }
     memory_files_by_root = {
-        context_root.root: set(_iter_memory_files(context_root.root))
+        context_root.root: set(
+            _iter_memory_files(
+                context_root.root,
+                source_memory_root=memory_roots_by_root[context_root.root],
+            )
+        )
         for context_root in context_roots
     }
     memory_files = {
@@ -498,7 +569,10 @@ def build_memory_inventory(
             loaded_instruction_files.add(instruction_root)
             queue.append((context_root, instruction_root))
             for target in _inlined_short_memory_files(
-                context_root.root, instruction_root, overlay={}
+                context_root.root,
+                instruction_root,
+                overlay={},
+                source_memory_root=memory_roots_by_root[context_root.root],
             ):
                 if target in memory_files_by_root[context_root.root]:
                     inlined_short_memory_files.add(target)
@@ -512,7 +586,11 @@ def build_memory_inventory(
             continue
         visited.add(visit_key)
 
-        for parsed, resolved in _references_from_file(context_root.root, source):
+        for parsed, resolved in _references_from_file(
+            context_root.root,
+            source,
+            source_memory_root=memory_roots_by_root[context_root.root],
+        ):
             if parsed.kind == "loaded":
                 _record_reference(
                     references_by_target,
@@ -598,7 +676,10 @@ def build_memory_inventory(
 
 
 def _reachable_memory_files_for_init(
-    root: Path, *, overlay: Mapping[Path, str] | None = None
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
     """Return init-memory reachability from ``AGENTS.md``.
 
@@ -611,7 +692,13 @@ def _reachable_memory_files_for_init(
     if not _path_exists(agents_path, overlay_files):
         return ()
 
-    memory_files = set(_iter_memory_files(root_resolved, overlay=overlay_files))
+    memory_files = set(
+        _iter_memory_files(
+            root_resolved,
+            overlay=overlay_files,
+            source_memory_root=source_memory_root,
+        )
+    )
     child_memory_files = _children_by_parent_for_init(
         root_resolved,
         memory_files,
@@ -632,6 +719,7 @@ def _reachable_memory_files_for_init(
             root_resolved,
             agents_path,
             overlay=overlay_files,
+            source_memory_root=source_memory_root,
         )
         if resolved.exists
     )
@@ -650,6 +738,7 @@ def _reachable_memory_files_for_init(
                 root_resolved,
                 path,
                 overlay=overlay_files,
+                source_memory_root=source_memory_root,
             )
             if resolved.exists
         )
@@ -658,9 +747,24 @@ def _reachable_memory_files_for_init(
 
 
 def unreferenced_memory_files_for_init(
-    root: Path, *, overlay: Mapping[Path, str] | None = None
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
     overlay_files = _normalize_overlay(overlay)
-    memory_files = set(_iter_memory_files(root, overlay=overlay_files))
-    reachable = set(_reachable_memory_files_for_init(root, overlay=overlay_files))
+    memory_files = set(
+        _iter_memory_files(
+            root,
+            overlay=overlay_files,
+            source_memory_root=source_memory_root,
+        )
+    )
+    reachable = set(
+        _reachable_memory_files_for_init(
+            root,
+            overlay=overlay_files,
+            source_memory_root=source_memory_root,
+        )
+    )
     return tuple(sorted(memory_files - reachable, key=lambda path: path.as_posix()))

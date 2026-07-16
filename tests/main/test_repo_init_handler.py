@@ -126,7 +126,7 @@ def test_bare_init_enable_management_also_writes_managed_sidecar_entries(
 
     assert run_init_onboarding(args, specs=(spec,)) == 0
 
-    config = (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert "is_sase_managed: true" in config
     assert "name: plans" in config
     assert "name: research" in config

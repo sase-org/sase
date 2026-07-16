@@ -48,9 +48,11 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
     # A merged/global opt-in must not authorize project writes.
     write(config_dir / "sase.yml", "is_sase_managed: true\n")
     agents_content = "# Custom Project Instructions\n\nDo not replace this.\n"
-    memory_content = "---\ntype: long\nparent: memory/missing.md\n---\n# Existing\n"
+    memory_content = (
+        "---\ntype: long\nparent: sase/memory/missing.md\n---\n# Existing\n"
+    )
     write(project_root / "AGENTS.md", agents_content)
-    write(project_root / "memory" / "existing.md", memory_content)
+    write(project_root / "sase" / "memory" / "existing.md", memory_content)
 
     plan = plan_memory()
 
@@ -65,10 +67,10 @@ def test_unmanaged_project_does_not_manage_memory_or_root_agents(
 
     assert run_memory() == 0
     assert (project_root / "AGENTS.md").read_text(encoding="utf-8") == agents_content
-    assert (project_root / "memory" / "existing.md").read_text(
+    assert (project_root / "sase" / "memory" / "existing.md").read_text(
         encoding="utf-8"
     ) == memory_content
-    assert not (project_root / "memory" / "sase.md").exists()
+    assert not (project_root / "sase" / "memory" / "sase.md").exists()
     for filename in PROVIDER_SHIM_FILES:
         assert (project_root / filename).read_text(encoding="utf-8") == agents_content
 
@@ -92,10 +94,10 @@ def test_enable_project_memory_creates_local_config_before_initializing(
 
     assert run_memory(enable_project_memory=True) == 0
 
-    assert (project_root / "sase.yml").read_text(encoding="utf-8") == (
+    assert (project_root / "sase" / "sase.yml").read_text(encoding="utf-8") == (
         "is_sase_managed: true\n"
     )
-    assert (project_root / "memory" / "sase.md").is_file()
+    assert (project_root / "sase" / "memory" / "sase.md").is_file()
     assert (project_root / "AGENTS.md").is_file()
 
 
@@ -121,7 +123,8 @@ def test_enable_project_memory_preserves_existing_local_config(
 
     assert run_memory(enable_project_memory=True) == 0
 
-    config_text = (project_root / "sase.yml").read_text(encoding="utf-8")
+    assert not (project_root / "sase.yml").exists()
+    config_text = (project_root / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert config_text == (
         "# Keep this comment\nlinked_repos: []\nis_sase_managed: true # opt in\n"
     )
@@ -184,9 +187,9 @@ def test_invalid_project_memory_opt_in_blocks_without_writes(
     assert plan.actions == ()
     assert any(expected_error in blocker for blocker in plan.blockers)
     assert run_memory() == 1
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
     assert not (project_root / "AGENTS.md").exists()
-    assert not (home_root / "memory").exists()
+    assert not (home_root / "sase" / "memory").exists()
 
 
 def test_unmanaged_project_copies_root_and_nested_agents_only(
@@ -224,5 +227,5 @@ def test_unmanaged_project_copies_root_and_nested_agents_only(
     )
     for filename in set(PROVIDER_SHIM_FILES) - {"CLAUDE.md"}:
         assert not (standalone / filename).exists()
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
     assert plan_memory().actions == ()

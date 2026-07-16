@@ -96,12 +96,16 @@ def _entry_dirty_paths(entry: _PorcelainStatusEntry) -> tuple[DirtyPath, ...]:
 
 def classify(
     entries: Iterable[_PorcelainStatusEntry],
-    memory_rel: str | Path,
+    memory_rel: str | Path | Iterable[str | Path],
     *,
     source_paths: Iterable[str | Path] = (),
 ) -> tuple[tuple[DirtyPath, ...], tuple[DirtyPath, ...]]:
     """Partition dirty paths into foldable and unrelated buckets."""
-    memory_prefix = _normalize_memory_rel(memory_rel)
+    memory_prefixes: tuple[str, ...]
+    if isinstance(memory_rel, (str, Path)):
+        memory_prefixes = (_normalize_memory_rel(memory_rel),)
+    else:
+        memory_prefixes = tuple(_normalize_memory_rel(path) for path in memory_rel)
     source_keys = {
         Path(source_path).as_posix().strip("/") for source_path in source_paths
     }
@@ -115,7 +119,10 @@ def classify(
             seen.add(dirty_path.path)
             normalized_path = Path(dirty_path.path).as_posix().strip("/")
             if (
-                _is_under(normalized_path, memory_prefix)
+                any(
+                    _is_under(normalized_path, memory_prefix)
+                    for memory_prefix in memory_prefixes
+                )
                 or normalized_path in source_keys
             ):
                 memory_dirty.append(dirty_path)

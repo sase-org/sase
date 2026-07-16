@@ -176,7 +176,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-6d(resolve_content_layout)' \
         --epic-symbol 'sase-6d(resolve_content_layout_from_cwd)' \
         --epic-symbol 'sase-6d(resolve_home_layout)' \
-        --epic-symbol 'sase-6d(resolve_project_layout)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

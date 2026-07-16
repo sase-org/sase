@@ -46,7 +46,7 @@ def handle_memory_read_command(args: argparse.Namespace) -> None:
 
 
 def _render_memory_read_output(content: MemoryReadContent) -> str:
-    notes = discover_memory_notes(content.path.memory_root.parent)
+    notes = discover_memory_notes(content.path.content_root)
     children_section = render_children_section(notes, content.path.note)
     if not children_section:
         return content.body

@@ -38,35 +38,56 @@ def _long_note(body: str = "# Foo\n", *, description: str = "Foo.") -> str:
 
 
 def test_validate_memory_read_path_allows_flat_long_markdown(tmp_path: Path) -> None:
-    _write(tmp_path / "memory" / "foo.md", _long_note())
+    _write(tmp_path / "sase" / "memory" / "foo.md", _long_note())
 
     result = validate_memory_read_path("foo.md", project_root=tmp_path)
 
     assert result.canonical_path == "foo.md"
-    assert result.path == tmp_path / "memory" / "foo.md"
-    assert result.note.relative_path == "memory/foo.md"
+    assert result.path == tmp_path / "sase" / "memory" / "foo.md"
+    assert result.note.relative_path == "sase/memory/foo.md"
     assert result.note.type == "long"
-    assert result.resolved_path == (tmp_path / "memory" / "foo.md").resolve()
+    assert result.resolved_path == (tmp_path / "sase" / "memory" / "foo.md").resolve()
 
 
 def test_validate_memory_read_path_accepts_optional_memory_prefix(
     tmp_path: Path,
 ) -> None:
     _write(
-        tmp_path / "memory" / "foo.md",
+        tmp_path / "sase" / "memory" / "foo.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: Foo.\n---\n# Foo\n",
     )
 
-    result = validate_memory_read_path("memory/foo.md", project_root=tmp_path)
+    result = validate_memory_read_path("sase/memory/foo.md", project_root=tmp_path)
 
     assert result.canonical_path == "foo.md"
+    assert result.path == tmp_path / "sase" / "memory" / "foo.md"
+
+
+def test_validate_memory_read_path_reads_legacy_tree_as_compatibility_fallback(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "memory" / "foo.md", _long_note())
+
+    result = validate_memory_read_path("foo.md", project_root=tmp_path)
+
     assert result.path == tmp_path / "memory" / "foo.md"
+    assert result.note.relative_path == "sase/memory/foo.md"
+
+
+def test_validate_memory_read_path_rejects_canonical_legacy_collision(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "foo.md", _long_note())
+    _write(tmp_path / "memory" / "foo.md", _long_note())
+
+    with pytest.raises(MemoryReadPathError, match="multiple canonical/legacy"):
+        validate_memory_read_path("foo.md", project_root=tmp_path)
 
 
 def test_validate_memory_read_path_rejects_nested_legacy_long_markdown(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "memory" / "long" / "foo.md", _long_note())
+    _write(tmp_path / "sase" / "memory" / "long" / "foo.md", _long_note())
 
     with pytest.raises(MemoryReadPathError, match="flat"):
         validate_memory_read_path("long/foo.md", project_root=tmp_path)
@@ -77,8 +98,8 @@ def test_validate_memory_read_path_prefers_project_over_home(
 ) -> None:
     project = tmp_path / "project"
     home = tmp_path / "home"
-    _write(project / "memory" / "foo.md", _long_note("# Project\n"))
-    _write(home / "memory" / "foo.md", _long_note("# Home\n"))
+    _write(project / "sase" / "memory" / "foo.md", _long_note("# Project\n"))
+    _write(home / "sase" / "memory" / "foo.md", _long_note("# Home\n"))
 
     result = validate_memory_read_path(
         "foo.md",
@@ -86,8 +107,8 @@ def test_validate_memory_read_path_prefers_project_over_home(
         home_root=home,
     )
 
-    assert result.path == project / "memory" / "foo.md"
-    assert result.resolved_path == (project / "memory" / "foo.md").resolve()
+    assert result.path == project / "sase" / "memory" / "foo.md"
+    assert result.resolved_path == (project / "sase" / "memory" / "foo.md").resolve()
 
 
 def test_validate_memory_read_path_falls_back_to_home(
@@ -95,7 +116,7 @@ def test_validate_memory_read_path_falls_back_to_home(
 ) -> None:
     project = tmp_path / "project"
     home = tmp_path / "home"
-    _write(home / "memory" / "foo.md", _long_note("# Home\n"))
+    _write(home / "sase" / "memory" / "foo.md", _long_note("# Home\n"))
 
     result = validate_memory_read_path(
         "foo.md",
@@ -103,15 +124,15 @@ def test_validate_memory_read_path_falls_back_to_home(
         home_root=home,
     )
 
-    assert result.memory_root == home / "memory"
-    assert result.path == home / "memory" / "foo.md"
-    assert result.resolved_path == (home / "memory" / "foo.md").resolve()
+    assert result.memory_root == home / "sase" / "memory"
+    assert result.path == home / "sase" / "memory" / "foo.md"
+    assert result.resolved_path == (home / "sase" / "memory" / "foo.md").resolve()
 
 
 def test_validate_memory_read_path_dedupes_project_and_home_roots(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "memory" / "foo.md", _long_note())
+    _write(tmp_path / "sase" / "memory" / "foo.md", _long_note())
 
     result = validate_memory_read_path(
         "foo.md",
@@ -119,14 +140,14 @@ def test_validate_memory_read_path_dedupes_project_and_home_roots(
         home_root=tmp_path,
     )
 
-    assert result.memory_root == tmp_path / "memory"
-    assert result.path == tmp_path / "memory" / "foo.md"
+    assert result.memory_root == tmp_path / "sase" / "memory"
+    assert result.path == tmp_path / "sase" / "memory" / "foo.md"
 
 
 def test_validate_memory_read_path_rejects_nested_legacy_short_path(
     tmp_path: Path,
 ) -> None:
-    _write(tmp_path / "memory" / "short" / "foo.md", "# Foo\n")
+    _write(tmp_path / "sase" / "memory" / "short" / "foo.md", "# Foo\n")
 
     with pytest.raises(MemoryReadPathError, match="flat"):
         validate_memory_read_path("short/foo.md", project_root=tmp_path)
@@ -134,7 +155,7 @@ def test_validate_memory_read_path_rejects_nested_legacy_short_path(
 
 def test_validate_memory_read_path_rejects_flat_short_memory(tmp_path: Path) -> None:
     _write(
-        tmp_path / "memory" / "foo.md",
+        tmp_path / "sase" / "memory" / "foo.md",
         "---\ntype: short\nparent: AGENTS.md\n---\n# Foo\n",
     )
 
@@ -143,14 +164,14 @@ def test_validate_memory_read_path_rejects_flat_short_memory(tmp_path: Path) -> 
 
 
 def test_validate_memory_read_path_rejects_traversal(tmp_path: Path) -> None:
-    _write(tmp_path / "memory" / "foo.md", _long_note())
+    _write(tmp_path / "sase" / "memory" / "foo.md", _long_note())
 
     with pytest.raises(MemoryReadPathError, match="traversal"):
         validate_memory_read_path("foo/../foo.md", project_root=tmp_path)
 
 
 def test_validate_memory_read_path_rejects_absolute_paths(tmp_path: Path) -> None:
-    target = tmp_path / "memory" / "foo.md"
+    target = tmp_path / "sase" / "memory" / "foo.md"
     _write(target, _long_note())
 
     with pytest.raises(MemoryReadPathError, match="relative"):
@@ -165,7 +186,7 @@ def test_validate_memory_read_path_rejects_missing_files(tmp_path: Path) -> None
 def test_validate_memory_read_path_rejects_outside_symlink(tmp_path: Path) -> None:
     outside = tmp_path / "outside.md"
     outside.write_text("# Outside\n", encoding="utf-8")
-    link = tmp_path / "memory" / "linked.md"
+    link = tmp_path / "sase" / "memory" / "linked.md"
     link.parent.mkdir(parents=True, exist_ok=True)
     try:
         link.symlink_to(outside)
@@ -183,9 +204,9 @@ def test_validate_memory_read_path_rejects_project_symlink_before_home_fallback(
     home = tmp_path / "home"
     outside = tmp_path / "outside.md"
     outside.write_text("# Outside\n", encoding="utf-8")
-    link = project / "memory" / "linked.md"
+    link = project / "sase" / "memory" / "linked.md"
     link.parent.mkdir(parents=True, exist_ok=True)
-    _write(home / "memory" / "linked.md", _long_note("# Home\n"))
+    _write(home / "sase" / "memory" / "linked.md", _long_note("# Home\n"))
     try:
         link.symlink_to(outside)
     except OSError as exc:
@@ -200,7 +221,7 @@ def test_validate_memory_read_path_rejects_project_symlink_before_home_fallback(
 
 
 def test_validate_memory_read_path_rejects_non_markdown(tmp_path: Path) -> None:
-    _write(tmp_path / "memory" / "foo.txt", "Foo\n")
+    _write(tmp_path / "sase" / "memory" / "foo.txt", "Foo\n")
 
     with pytest.raises(MemoryReadPathError, match=r"\.md"):
         validate_memory_read_path("foo.txt", project_root=tmp_path)
@@ -225,7 +246,7 @@ def test_strip_leading_frontmatter_preserves_no_frontmatter_text() -> None:
 
 
 def test_read_memory_content_tracks_byte_count_and_stripping(tmp_path: Path) -> None:
-    _write(tmp_path / "memory" / "foo.md", _long_note("Café\n"))
+    _write(tmp_path / "sase" / "memory" / "foo.md", _long_note("Café\n"))
     path = validate_memory_read_path("foo.md", project_root=tmp_path)
 
     content = read_memory_content(path)
@@ -368,6 +389,6 @@ def test_memory_read_aggregation_groups_by_path_and_agent(tmp_path: Path) -> Non
 
 
 def _memory_content(tmp_path: Path, relative_path: str):
-    _write(tmp_path / "memory" / relative_path, _long_note("# Body\n"))
+    _write(tmp_path / "sase" / "memory" / relative_path, _long_note("# Body\n"))
     path = validate_memory_read_path(relative_path, project_root=tmp_path)
     return read_memory_content(path)

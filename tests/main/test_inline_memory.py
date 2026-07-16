@@ -8,7 +8,7 @@ from sase.amd.inline_memory import (
     validate_short_memory_structure,
 )
 
-# A fixture resembling ``memory/build_and_run.md``: an H1 title, a fenced bash
+# A fixture resembling ``sase/memory/build_and_run.md``: an H1 title, a fenced bash
 # block whose comment lines start with ``#``, plus an H2 and a nested H3.
 BUILD_AND_RUN_BODY = """# Build & Run Commands
 
@@ -90,33 +90,33 @@ def test_validate_fails_for_h4_or_deeper() -> None:
 def test_inline_shifts_headings_down_two_levels() -> None:
     body = "# Title\n\n## Section\n\n### Subsection\n"
     expected = "### Title (x)\n\n#### Section\n\n##### Subsection\n"
-    assert inline_memory_section("memory/x.md", body) == expected
+    assert inline_memory_section("sase/memory/x.md", body) == expected
 
 
 def test_inline_strips_h1_and_emits_header() -> None:
     body = "# Just A Title\n"
-    assert inline_memory_section("memory/x.md", body) == "### Just A Title (x)\n"
+    assert inline_memory_section("sase/memory/x.md", body) == "### Just A Title (x)\n"
 
 
 def test_inline_keeps_title_parentheses_before_basename() -> None:
     body = "# Foo (bar)\n"
-    assert inline_memory_section("memory/build_and_run.md", body) == (
+    assert inline_memory_section("sase/memory/build_and_run.md", body) == (
         "### Foo (bar) (build_and_run)\n"
     )
 
 
 def test_inline_can_prefix_numbered_header() -> None:
-    assert inline_memory_section("memory/x.md", "# Title\n", number=1) == (
+    assert inline_memory_section("sase/memory/x.md", "# Title\n", number=1) == (
         "### 1. Title (x)\n"
     )
-    assert inline_memory_section("memory/x.md", "# Title\n", number=12) == (
+    assert inline_memory_section("sase/memory/x.md", "# Title\n", number=12) == (
         "### 12. Title (x)\n"
     )
 
 
 def test_inline_can_number_parenthesized_title() -> None:
     body = "# Foo (bar)\n"
-    assert inline_memory_section("memory/build_and_run.md", body, number=3) == (
+    assert inline_memory_section("sase/memory/build_and_run.md", body, number=3) == (
         "### 3. Foo (bar) (build_and_run)\n"
     )
 
@@ -139,14 +139,15 @@ def test_inline_copies_code_fences_verbatim() -> None:
         "There is no point if only bead files changed.\n"
     )
     assert (
-        inline_memory_section("memory/build_and_run.md", BUILD_AND_RUN_BODY) == expected
+        inline_memory_section("sase/memory/build_and_run.md", BUILD_AND_RUN_BODY)
+        == expected
     )
 
 
 def test_inline_keeps_fenced_hash_lines_untouched() -> None:
     # A ``#`` at column zero inside a fence must be neither stripped nor shifted.
     body = "# Title\n\n```sh\n# shell comment\necho hi\n```\n"
-    section = inline_memory_section("memory/x.md", body)
+    section = inline_memory_section("sase/memory/x.md", body)
     assert "# shell comment" in section
     assert "## shell comment" not in section
     assert section == "### Title (x)\n\n```sh\n# shell comment\necho hi\n```\n"
@@ -154,11 +155,13 @@ def test_inline_keeps_fenced_hash_lines_untouched() -> None:
 
 def test_inline_without_title_omits_parenthetical() -> None:
     body = "no heading here\n"
-    assert inline_memory_section("memory/x.md", body) == "### x\n\nno heading here\n"
+    assert (
+        inline_memory_section("sase/memory/x.md", body) == "### x\n\nno heading here\n"
+    )
 
 
 def test_inline_without_title_can_prefix_numbered_header() -> None:
     body = "no heading here\n"
-    assert inline_memory_section("memory/x.md", body, number=1) == (
+    assert inline_memory_section("sase/memory/x.md", body, number=1) == (
         "### 1. x\n\nno heading here\n"
     )

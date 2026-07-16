@@ -40,11 +40,11 @@ def _note(
 def test_parse_note_without_frontmatter_marks_required_fields_missing() -> None:
     note = parse_memory_note_text(
         "# Build\n\nBody stays exact.\n",
-        "memory/build_and_run.md",
+        "sase/memory/build_and_run.md",
     )
 
-    assert note.path == Path("memory/build_and_run.md")
-    assert note.relative_path == "memory/build_and_run.md"
+    assert note.path == Path("sase/memory/build_and_run.md")
+    assert note.relative_path == "sase/memory/build_and_run.md"
     assert note.type is None
     assert note.type_source == "missing"
     assert note.parent == AGENTS_PARENT
@@ -57,18 +57,18 @@ def test_parse_flat_note_strips_frontmatter_and_normalizes_description() -> None
     note = parse_memory_note_text(
         "---\n"
         "type: long\n"
-        "parent: memory/hub.md\n"
+        "parent: sase/memory/hub.md\n"
         "description: |\n"
         "  Child note\n"
         "  details.\n"
         "---\n"
         "# Child\n",
-        "memory/child.md",
+        "sase/memory/child.md",
     )
 
     assert note.type == "long"
     assert note.type_source == "frontmatter"
-    assert note.parent == "memory/hub.md"
+    assert note.parent == "sase/memory/hub.md"
     assert note.parent_source == "frontmatter"
     assert note.description == "Child note details."
     assert note.body == "# Child\n"
@@ -96,55 +96,75 @@ def test_apply_memory_frontmatter_drops_keywords_and_preserves_other_extra() -> 
 
 
 def test_discover_memory_notes_reads_flat_layout_only(tmp_path: Path) -> None:
-    _write(tmp_path / "memory" / "README.md", "# Memory\n")
+    _write(tmp_path / "sase" / "memory" / "README.md", "# Memory\n")
     _write(
-        tmp_path / "memory" / "flat.md",
+        tmp_path / "sase" / "memory" / "flat.md",
         "---\ntype: long\nparent: AGENTS.md\ndescription: Flat note.\n---\n# Flat\n",
     )
-    _write(tmp_path / "memory" / "short" / "base.md", "# Base\n")
-    _write(tmp_path / "memory" / "long" / "nested" / "detail.md", "# Detail\n")
+    _write(tmp_path / "sase" / "memory" / "short" / "base.md", "# Base\n")
+    _write(tmp_path / "sase" / "memory" / "long" / "nested" / "detail.md", "# Detail\n")
 
     notes = discover_memory_notes(tmp_path)
 
-    assert tuple(note.relative_path for note in notes) == ("memory/flat.md",)
+    assert tuple(note.relative_path for note in notes) == ("sase/memory/flat.md",)
     assert tuple(note.type for note in notes) == ("long",)
 
 
+def test_discover_memory_notes_reads_legacy_tree_with_canonical_references(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "memory" / "child.md",
+        "---\n"
+        "type: long\n"
+        "parent: memory/parent.md\n"
+        "description: Legacy child.\n"
+        "---\n"
+        "# Child\n",
+    )
+
+    (note,) = discover_memory_notes(tmp_path)
+
+    assert note.relative_path == "sase/memory/child.md"
+    assert note.source_relative_path == Path("memory/child.md")
+    assert note.parent == "sase/memory/parent.md"
+
+
 def test_children_and_reference_rendering_match_agents_shape() -> None:
-    hub = _note("memory/hub.md", description="Hub.")
+    hub = _note("sase/memory/hub.md", description="Hub.")
     child_b = _note(
-        "memory/child_b.md",
-        parent="memory/hub.md",
+        "sase/memory/child_b.md",
+        parent="sase/memory/hub.md",
         description="Beta child.",
     )
     child_a = _note(
-        "memory/child_a.md",
-        parent="memory/hub.md",
+        "sase/memory/child_a.md",
+        parent="sase/memory/hub.md",
         description="Alpha child.",
     )
     short_child = _note(
-        "memory/short_child.md",
+        "sase/memory/short_child.md",
         note_type="short",
-        parent="memory/hub.md",
+        parent="sase/memory/hub.md",
         description=None,
     )
 
     children = _children_of((child_b, hub, short_child, child_a), hub)
 
     assert tuple(note.relative_path for note in children) == (
-        "memory/child_a.md",
-        "memory/child_b.md",
+        "sase/memory/child_a.md",
+        "sase/memory/child_b.md",
     )
     assert render_memory_note_references(children) == (
-        "**`memory/child_a.md`**  \n"
+        "**`sase/memory/child_a.md`**  \n"
         "Alpha child.\n\n"
-        "**`memory/child_b.md`**  \n"
+        "**`sase/memory/child_b.md`**  \n"
         "Beta child."
     )
     assert render_children_section((child_b, hub, short_child, child_a), hub) == (
         "## Children\n\n"
-        "**`memory/child_a.md`**  \n"
+        "**`sase/memory/child_a.md`**  \n"
         "Alpha child.\n\n"
-        "**`memory/child_b.md`**  \n"
+        "**`sase/memory/child_b.md`**  \n"
         "Beta child.\n"
     )

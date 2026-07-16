@@ -113,8 +113,8 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Read and audit a long-term memory file",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Read a long-term memory markdown file from project memory/, "
-            "falling back to ~/memory/ when the project file is absent. "
+            "Read a long-term memory markdown file from project sase/memory/, "
+            "falling back to ~/sase/memory/ when the project file is absent. "
             "Pass a flat note name such as generated_skills.md. Leading YAML "
             "frontmatter is stripped before printing, child notes are listed "
             "when present, and each read appends an attributable "
@@ -130,7 +130,7 @@ def register_memory_parser(subparsers: argparse._SubParsersAction) -> None:
         "memory_path",
         metavar="memory-relative-path",
         help=(
-            "Path relative to project memory/ or ~/memory/, for example "
+            "Path relative to project sase/memory/ or ~/sase/memory/, for example "
             "generated_skills.md"
         ),
     )

@@ -15,9 +15,16 @@ from .models import MemoryRootResult
 
 
 def unreferenced_memory_files(
-    root: Path, *, overlay: Mapping[Path, str] | None = None
+    root: Path,
+    *,
+    overlay: Mapping[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[Path, ...]:
-    return unreferenced_memory_files_for_init(root, overlay=overlay)
+    return unreferenced_memory_files_for_init(
+        root,
+        overlay=overlay,
+        source_memory_root=source_memory_root,
+    )
 
 
 def print_validation_errors(results: tuple[MemoryRootResult, ...]) -> None:

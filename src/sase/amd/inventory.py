@@ -56,7 +56,9 @@ _PRUNED_DIR_NAMES = frozenset(
     }
 )
 _H1_RE = re.compile(r"^\s*#\s+(.+?)\s*$", re.MULTILINE)
-_MEMORY_REF_RE = re.compile(r"(?P<loaded>@)?(?P<path>memory/[A-Za-z0-9_.-]+\.md)")
+_MEMORY_REF_RE = re.compile(
+    r"(?P<loaded>@)?(?P<path>(?:sase/)?memory/[A-Za-z0-9_.-]+\.md)"
+)
 _SCOPE_ORDER: dict[AmdScope, int] = {
     "project": 0,
     "project-subdir": 1,

@@ -14,6 +14,10 @@ from sase.amd.init import (
     plan_minimal_agents_sync,
 )
 from sase.amd.inventory import discover_project_agent_docs
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    memory_layout,
+)
 
 from .inventory import unreferenced_memory_files
 from .models import (
@@ -36,7 +40,139 @@ class _MemoryRootContext:
     expected_files: tuple[MemoryExpectedFile, ...]
     shim_plan: ProviderShimPlan
     additional_shim_plans: tuple[ProviderShimPlan, ...]
+    memory_delete_paths: tuple[Path, ...] = ()
+    source_memory_root: Path | None = None
     blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _MemoryMigrationPlan:
+    source_memory_root: Path
+    expected_files: tuple[MemoryExpectedFile, ...] = ()
+    delete_paths: tuple[Path, ...] = ()
+    blockers: tuple[str, ...] = ()
+
+
+def _tree_files(root: Path) -> tuple[Path, ...]:
+    if not root.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            (path for path in root.rglob("*") if path.is_file()),
+            key=lambda path: path.as_posix(),
+        )
+    )
+
+
+def _tree_symlinks(root: Path) -> tuple[Path, ...]:
+    if not root.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            (path for path in root.rglob("*") if path.is_symlink()),
+            key=lambda path: path.as_posix(),
+        )
+    )
+
+
+def _relative_file_map(root: Path) -> dict[Path, Path]:
+    return {path.relative_to(root): path for path in _tree_files(root)}
+
+
+def _identical_memory_trees(canonical: Path, legacy: Path) -> bool:
+    canonical_files = _relative_file_map(canonical)
+    legacy_files = _relative_file_map(legacy)
+    if canonical_files.keys() != legacy_files.keys():
+        return False
+    try:
+        return all(
+            canonical_files[relative].read_bytes()
+            == legacy_files[relative].read_bytes()
+            for relative in canonical_files
+        )
+    except OSError:
+        return False
+
+
+def _memory_migration_plan(root: Path) -> _MemoryMigrationPlan:
+    compatible = memory_layout(root)
+    canonical = compatible.canonical.path
+    legacy = compatible.legacy[0].path
+    canonical_exists = canonical.exists()
+    legacy_exists = legacy.exists()
+
+    if canonical_exists and not canonical.is_dir():
+        return _MemoryMigrationPlan(
+            source_memory_root=canonical,
+            blockers=(f"{canonical}: canonical memory path is not a directory",),
+        )
+    if legacy_exists and not legacy.is_dir():
+        return _MemoryMigrationPlan(
+            source_memory_root=canonical,
+            blockers=(f"{legacy}: legacy memory path is not a directory",),
+        )
+    if not legacy_exists:
+        return _MemoryMigrationPlan(source_memory_root=canonical)
+
+    legacy_symlinks = _tree_symlinks(legacy)
+    if legacy_symlinks:
+        rendered = ", ".join(str(path) for path in legacy_symlinks)
+        return _MemoryMigrationPlan(
+            source_memory_root=legacy,
+            blockers=(
+                "legacy memory tree contains symlinks that cannot be migrated "
+                f"safely: {rendered}",
+            ),
+        )
+
+    legacy_files = _tree_files(legacy)
+    delete_paths = tuple(reversed(legacy_files))
+    if canonical_exists:
+        if not _identical_memory_trees(canonical, legacy):
+            return _MemoryMigrationPlan(
+                source_memory_root=canonical,
+                blockers=(
+                    f"memory exists in non-identical canonical and legacy trees: "
+                    f"{canonical}, {legacy}; reconcile them before running init",
+                ),
+            )
+        return _MemoryMigrationPlan(
+            source_memory_root=canonical,
+            delete_paths=delete_paths,
+        )
+
+    expected: list[MemoryExpectedFile] = []
+    blockers: list[str] = []
+    for source in legacy_files:
+        relative = source.relative_to(legacy)
+        try:
+            content = source.read_bytes()
+        except OSError as exc:
+            blockers.append(f"{source}: failed to read legacy memory file: {exc}")
+            continue
+        expected.append(
+            MemoryExpectedFile(
+                path=canonical / relative,
+                content=content,
+                detail="migrate legacy memory file",
+            )
+        )
+    return _MemoryMigrationPlan(
+        source_memory_root=legacy,
+        expected_files=tuple(expected),
+        delete_paths=delete_paths,
+        blockers=tuple(blockers),
+    )
+
+
+def _merge_expected_files(
+    *groups: Iterable[MemoryExpectedFile],
+) -> tuple[MemoryExpectedFile, ...]:
+    merged: dict[Path, MemoryExpectedFile] = {}
+    for group in groups:
+        for expected in group:
+            merged[expected.path.resolve(strict=False)] = expected
+    return tuple(merged.values())
 
 
 def _amd_sync_plan(
@@ -45,6 +181,7 @@ def _amd_sync_plan(
     enable_amd: bool,
     derive_project_title: bool,
     generated_short_notes: dict[str, str],
+    source_memory_root: Path,
 ) -> AmdMemorySyncPlan | None:
     if not enable_amd:
         return plan_minimal_agents_sync(
@@ -55,6 +192,7 @@ def _amd_sync_plan(
         root,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes,
+        source_memory_root=source_memory_root,
     )
 
 
@@ -179,9 +317,14 @@ def _is_memory_markdown_path(root: Path, path: Path) -> bool:
         relative = path.resolve(strict=False).relative_to(root_resolved)
     except ValueError:
         return False
-    if path.suffix != ".md" or not relative.parts or relative.parts[0] != "memory":
+    if path.suffix != ".md":
         return False
-    return len(relative.parts) == 2 and relative.name != "README.md"
+    memory_prefix = CANONICAL_MEMORY_RELATIVE_ROOT.parts
+    return (
+        relative.parts[: len(memory_prefix)] == memory_prefix
+        and len(relative.parts) == len(memory_prefix) + 1
+        and relative.name != "README.md"
+    )
 
 
 def _validation_overlay_for_expected_files(
@@ -257,6 +400,17 @@ def memory_root_context(
             ),
         )
 
+    migration = _memory_migration_plan(root)
+    if migration.blockers:
+        return _MemoryRootContext(
+            amd_sync=None,
+            expected_files=(),
+            shim_plan=ProviderShimPlan(writes=(), deletes=()),
+            additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
+            blockers=migration.blockers,
+        )
+
     generated_sase_body, sase_render_error = render_generated_sase_memory_body(
         root, linked_entries, project_name=project_name
     )
@@ -266,13 +420,17 @@ def memory_root_context(
             expected_files=(),
             shim_plan=ProviderShimPlan(writes=(), deletes=()),
             additional_shim_plans=(),
-            blockers=(sase_render_error or "failed to render memory/sase.md template",),
+            source_memory_root=migration.source_memory_root,
+            blockers=(
+                sase_render_error or "failed to render sase/memory/sase.md template",
+            ),
         )
     amd_sync = _amd_sync_plan(
         root,
         enable_amd=enable_amd,
         derive_project_title=derive_project_title,
         generated_short_notes=generated_short_notes(generated_sase_body),
+        source_memory_root=migration.source_memory_root,
     )
     expected_files, expected_error = render_expected_memory_files(
         root,
@@ -280,6 +438,7 @@ def memory_root_context(
         project_name=project_name,
         amd_sync=amd_sync,
         generated_sase_body=generated_sase_body,
+        source_memory_root=migration.source_memory_root,
     )
     if expected_error is not None:
         return _MemoryRootContext(
@@ -287,8 +446,13 @@ def memory_root_context(
             expected_files=(),
             shim_plan=ProviderShimPlan(writes=(), deletes=()),
             additional_shim_plans=(),
+            source_memory_root=migration.source_memory_root,
             blockers=(expected_error,),
         )
+    expected_files = _merge_expected_files(
+        migration.expected_files,
+        expected_files,
+    )
     shim_plan = provider_shim_plan(
         root,
         agents_content=_final_agents_content(root, expected_files),
@@ -304,6 +468,8 @@ def memory_root_context(
         expected_files=expected_files,
         shim_plan=shim_plan,
         additional_shim_plans=additional_shim_plans,
+        memory_delete_paths=migration.delete_paths,
+        source_memory_root=migration.source_memory_root,
     )
 
 
@@ -335,9 +501,23 @@ def plan_memory_root(
             _compare_expected_memory_files(context.expected_files)
             + _provider_shim_changes(context.shim_plan)
             + _provider_shim_plan_changes(context.additional_shim_plans)
+            + tuple(
+                MemoryFileChange(
+                    path=path,
+                    operation="delete",
+                    detail="remove migrated legacy memory file",
+                )
+                for path in context.memory_delete_paths
+            )
         ),
         unreferenced=(
-            unreferenced_memory_files(root, overlay=overlay) if manage_memory else ()
+            unreferenced_memory_files(
+                root,
+                overlay=overlay,
+                source_memory_root=context.source_memory_root,
+            )
+            if manage_memory
+            else ()
         ),
         blockers=(
             context.blockers

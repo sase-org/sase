@@ -12,6 +12,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from sase.main._init_chezmoi_deploy import skip_pull_push_without_upstream
+from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT, memory_write_root
 
 from .commit_message import build_fold_commit_message
 from .constants import COMMAND_LABEL, MEMORY_FOLD_DEFAULT_PREFIX, PROJECT_COMMIT_MESSAGE
@@ -63,7 +64,10 @@ def capture_pre_init_git_state(project_root: Path) -> PreInitGitState | None:
         return None
 
     entries = parse_status_z(status.stdout)
-    memory_dirty, other_dirty = classify(entries, "memory")
+    memory_dirty, other_dirty = classify(
+        entries,
+        (CANONICAL_MEMORY_RELATIVE_ROOT, Path("memory")),
+    )
     return PreInitGitState(
         git_root=git_root,
         memory_dirty=memory_dirty,
@@ -236,7 +240,10 @@ def deploy_to_project_repo(
 
     source_dirty, other_dirty = partition_source_paths(
         other_dirty,
-        _repo_relative_source_paths(git_root, project_result.fold_source_paths),
+        _repo_relative_source_paths(
+            git_root,
+            (*project_result.fold_source_paths, *owned_paths),
+        ),
     )
     fold_dirty = (*memory_dirty, *source_dirty)
 
@@ -273,7 +280,11 @@ def deploy_to_project_repo(
             *project_result.written_paths,
             *project_result.deleted_paths,
             *owned_paths,
-            *((project_result.root / "memory" / "sase.md",) if manage_memory else ()),
+            *(
+                (memory_write_root(project_result.root) / "sase.md",)
+                if manage_memory
+                else ()
+            ),
             *(git_root / dirty_path.path for dirty_path in fold_dirty),
         )
     )

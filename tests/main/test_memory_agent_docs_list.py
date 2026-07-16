@@ -63,10 +63,10 @@ def managed_agents(
             "",
             "## Tier 2 (long-term) Memory",
             "",
-            "Prose mentions @memory/prose.md and memory/prose.md.",
+            "Prose mentions @sase/memory/prose.md and sase/memory/prose.md.",
             "",
             *long_markers[:1],
-            "**`memory/generated_skills.md`**  ",
+            "**`sase/memory/generated_skills.md`**  ",
             "Skill pipeline notes.",
             *long_markers[1:],
             "",
@@ -94,7 +94,7 @@ def test_build_inventory_scans_project_agents_from_vcs_root_and_prunes(
     write_shims(project, content=root_agents)
     write(
         project / "tools" / "AGENTS.md",
-        "# Tools Instructions\n\n@memory/tools.md\n",
+        "# Tools Instructions\n\n@sase/memory/tools.md\n",
     )
     write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"))
     write(project / ".sase" / "AGENTS.md", "# Ignored\n")
@@ -301,7 +301,7 @@ def test_build_inventory_counts_inlined_short_memory_headers(tmp_path: Path) -> 
                 "",
                 "## Tier 2 (long-term) Memory",
                 "",
-                "**`memory/generated_skills.md`**  ",
+                "**`sase/memory/generated_skills.md`**  ",
                 "Skill pipeline notes.",
                 "",
             ]
@@ -334,7 +334,7 @@ def test_build_inventory_reports_partial_visible_amd_structure(tmp_path: Path) -
                 "",
                 "## Tier 1 (short-term) Memory",
                 "",
-                "- @memory/sase.md",
+                "- @sase/memory/sase.md",
                 "",
             ]
         ),
@@ -360,7 +360,7 @@ def test_build_inventory_uses_broad_memory_counts_for_custom_documents(
     (project / ".git").mkdir(parents=True)
     write(
         project / "AGENTS.md",
-        "# Custom Instructions\n\n@memory/base.md\nmemory/detail.md\n",
+        "# Custom Instructions\n\n@sase/memory/base.md\nsase/memory/detail.md\n",
     )
 
     inventory = _build_amd_inventory(
@@ -384,7 +384,7 @@ def test_render_agent_docs_inventory_outputs_compact_rich_table(
     root_agents = managed_agents("Root Instructions")
     write(project / "AGENTS.md", root_agents)
     write_shims(project, content=root_agents)
-    tools_agents = "# Tools Instructions\n\n@memory/tools.md\n"
+    tools_agents = "# Tools Instructions\n\n@sase/memory/tools.md\n"
     write(project / "tools" / "AGENTS.md", tools_agents)
     write_shims(project / "tools", ("CLAUDE.md", "GEMINI.md"), content=tools_agents)
     inventory = _build_amd_inventory(

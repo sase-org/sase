@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import textwrap
 from typing import Any, Literal, cast
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
+    memory_read_root,
+)
+
 AGENTS_PARENT = "AGENTS.md"
-MEMORY_DIR = "memory"
+MEMORY_DIR = CANONICAL_MEMORY_RELATIVE_ROOT.as_posix()
 README_FILENAME = "README.md"
 
 MemoryNoteType = Literal["short", "long"]
@@ -40,11 +46,17 @@ class MemoryNote:
     frontmatter: Mapping[str, Any]
     type_source: MemoryNoteTypeSource
     parent_source: MemoryNoteParentSource
+    source_path: Path | None = None
 
     @property
     def relative_path(self) -> str:
         """Return the root-relative note path in POSIX form."""
         return self.path.as_posix()
+
+    @property
+    def source_relative_path(self) -> Path:
+        """Return the root-relative on-disk source used to read this note."""
+        return self.source_path or self.path
 
 
 @dataclass(frozen=True)
@@ -149,8 +161,12 @@ def parse_memory_note_text(text: str, path: str | Path) -> MemoryNote:
     )
 
 
-def _iter_discoverable_memory_paths(root: Path) -> tuple[Path, ...]:
-    memory_root = root / MEMORY_DIR
+def _iter_discoverable_memory_paths(
+    root: Path, *, source_memory_root: Path | None = None
+) -> tuple[Path, ...]:
+    memory_root = source_memory_root or memory_read_root(root)
+    if memory_root is None:
+        return ()
     if not memory_root.exists():
         return ()
 
@@ -163,16 +179,31 @@ def _iter_discoverable_memory_paths(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(set(paths), key=lambda path: path.as_posix()))
 
 
-def discover_memory_notes(root: Path) -> tuple[MemoryNote, ...]:
+def discover_memory_notes(
+    root: Path, *, source_memory_root: Path | None = None
+) -> tuple[MemoryNote, ...]:
     """Discover flat memory notes under ``root``."""
     root_resolved = root.resolve(strict=False)
     notes: list[MemoryNote] = []
-    for path in _iter_discoverable_memory_paths(root_resolved):
-        relative_path = path.relative_to(root_resolved)
+    memory_root = (
+        source_memory_root.resolve(strict=False)
+        if source_memory_root is not None
+        else None
+    )
+    for path in _iter_discoverable_memory_paths(
+        root_resolved, source_memory_root=memory_root
+    ):
+        source_relative_path = path.relative_to(root_resolved)
+        note_relative_path = path.relative_to(memory_root or path.parent)
+        parsed = parse_memory_note_text(
+            path.read_text(encoding="utf-8"),
+            CANONICAL_MEMORY_RELATIVE_ROOT / note_relative_path,
+        )
         notes.append(
-            parse_memory_note_text(
-                path.read_text(encoding="utf-8"),
-                relative_path,
+            replace(
+                parsed,
+                parent=canonical_memory_reference(parsed.parent).as_posix(),
+                source_path=source_relative_path,
             )
         )
     return tuple(notes)

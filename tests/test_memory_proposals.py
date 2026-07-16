@@ -326,7 +326,7 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
         ledger_path=ledger_path,
     )
 
-    canonical_path = tmp_path / "memory" / "memory.md"
+    canonical_path = tmp_path / "sase" / "memory" / "memory.md"
     assert result.event.event_type == "approved"
     assert result.state.status == "approved"
     assert result.canonical_path == canonical_path
@@ -347,7 +347,7 @@ def test_approve_memory_proposal_writes_canonical_file_and_event(
 
 def test_approve_memory_proposal_refuses_existing_target(tmp_path: Path) -> None:
     ledger_path = tmp_path / "state" / "memory_proposals.jsonl"
-    _write(tmp_path / "memory" / "memory.md", "existing\n")
+    _write(tmp_path / "sase" / "memory" / "memory.md", "existing\n")
     proposal = create_memory_proposal(
         title="Memory",
         body="Body\n",
@@ -404,7 +404,7 @@ def test_approve_memory_proposal_with_edited_file_records_edits(
     assert result.state.status == "approved_with_edits"
     assert result.reviewed_path == reviewed_path
     assert reviewed_path.read_text(encoding="utf-8") == "Edited body\n"
-    assert "Edited body\n" in (tmp_path / "memory" / "memory.md").read_text(
+    assert "Edited body\n" in (tmp_path / "sase" / "memory" / "memory.md").read_text(
         encoding="utf-8"
     )
 

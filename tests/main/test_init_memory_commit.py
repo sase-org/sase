@@ -160,7 +160,10 @@ def test_init_memory_default_commits_and_pushes_project_changes(
         for cmd in deploy_git_calls
         if cmd[0] == "git" and cmd[cmd.index("git") + 3] == "add"
     ]
-    assert project_root / "memory" / "assets" / "memory-directory-map.png" in add_paths
+    assert (
+        project_root / "sase" / "memory" / "assets" / "memory-directory-map.png"
+        in add_paths
+    )
     commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
     assert commit_calls
     message = commit_calls[0][commit_calls[0].index("-m") + 1]
@@ -179,7 +182,8 @@ def test_enable_project_memory_stages_created_local_config(
     assert run_handler(no_commit=False, enable_project_memory=True) == 0
 
     assert any(
-        "add" in cmd and Path(cmd[-1]) == project_root / "sase.yml" for cmd in git_calls
+        "add" in cmd and Path(cmd[-1]) == project_root / "sase" / "sase.yml"
+        for cmd in git_calls
     )
 
 
@@ -277,13 +281,13 @@ def test_init_memory_folds_memory_dirty_with_message(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "obsidian.md",
+        project_root / "sase" / "memory" / "obsidian.md",
         short_note("# Obsidian\n\nObsidian vault workflow."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b" M memory/obsidian.md\0",
+        status_stdout=b" M sase/memory/obsidian.md\0",
     )
 
     before_hook_calls: list[str] = []
@@ -303,7 +307,8 @@ def test_init_memory_folds_memory_dirty_with_message(
 
     assert before_hook_calls == [str(project_root)]
     assert any(
-        "add" in cmd and cmd[-1].endswith("memory/obsidian.md") for cmd in git_calls
+        "add" in cmd and cmd[-1].endswith("sase/memory/obsidian.md")
+        for cmd in git_calls
     )
     commit_calls = [cmd for cmd in git_calls if "commit" in cmd and "-m" in cmd]
     message = commit_calls[0][commit_calls[0].index("-m") + 1]
@@ -438,13 +443,13 @@ def test_init_memory_folds_memory_dirty_preserves_conventional_message(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "new_note.md",
+        project_root / "sase" / "memory" / "new_note.md",
         short_note("# New Memory\n\nNew memory."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b"A  memory/new_note.md\0",
+        status_stdout=b"A  sase/memory/new_note.md\0",
     )
     monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
 
@@ -467,13 +472,13 @@ def test_init_memory_folds_memory_dirty_with_tty_prompt(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "obsidian.md",
+        project_root / "sase" / "memory" / "obsidian.md",
         short_note("# Obsidian\n\nObsidian vault workflow."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b" M memory/obsidian.md\0",
+        status_stdout=b" M sase/memory/obsidian.md\0",
     )
     monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", lambda cwd: True)
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
@@ -494,13 +499,13 @@ def test_init_memory_memory_dirty_non_tty_without_message_refuses(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "obsidian.md",
+        project_root / "sase" / "memory" / "obsidian.md",
         short_note("# Obsidian\n\nObsidian vault workflow."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b" M memory/obsidian.md\0",
+        status_stdout=b" M sase/memory/obsidian.md\0",
     )
     before_hook = MagicMock(return_value=True)
     monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", before_hook)
@@ -519,13 +524,13 @@ def test_init_memory_memory_dirty_empty_prompt_aborts_before_staging(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "obsidian.md",
+        project_root / "sase" / "memory" / "obsidian.md",
         short_note("# Obsidian\n\nObsidian vault workflow."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b" M memory/obsidian.md\0",
+        status_stdout=b" M sase/memory/obsidian.md\0",
     )
     monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", MagicMock())
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)
@@ -543,13 +548,13 @@ def test_init_memory_memory_dirty_eof_prompt_aborts_before_staging(
 ) -> None:
     project_root, _home_root, _config_dir = _prepare_project(tmp_path, monkeypatch)
     write(
-        project_root / "memory" / "obsidian.md",
+        project_root / "sase" / "memory" / "obsidian.md",
         short_note("# Obsidian\n\nObsidian vault workflow."),
     )
     git_calls = _install_successful_git(
         monkeypatch,
         project_root,
-        status_stdout=b" M memory/obsidian.md\0",
+        status_stdout=b" M sase/memory/obsidian.md\0",
     )
     monkeypatch.setattr(init_memory_handler, "run_before_commit_hook", MagicMock())
     monkeypatch.setattr(init_memory_handler, "_stdin_is_tty", lambda: True)

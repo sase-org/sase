@@ -7,8 +7,14 @@ import fcntl
 import hashlib
 from pathlib import Path
 
+from sase.content_layout import LayoutCollisionError
 from sase.memory.locks import locked_file
 from sase.memory.notes import AGENTS_PARENT, apply_memory_frontmatter
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    memory_layout,
+    memory_write_root,
+)
 from sase.memory.proposals.identity import require_proposal_reviewer
 from sase.memory.proposals.ledger import (
     append_event_to_ledger_unlocked,
@@ -138,7 +144,25 @@ def approve_memory_proposal(
             if target is not None
             else state.target_path
         )
-        canonical_path = cwd_path / "memory" / target_path
+        compatible_memory = memory_layout(cwd_path)
+        legacy_target = compatible_memory.legacy[0].path / target_path
+        if legacy_target.exists():
+            raise MemoryProposalTargetError(
+                f"memory proposal target already exists: {target_path}"
+            )
+        try:
+            selected_memory = compatible_memory.resolve_read("project memory")
+        except LayoutCollisionError as exc:
+            raise MemoryProposalTargetError(str(exc)) from exc
+        if (
+            selected_memory is not None
+            and selected_memory != compatible_memory.canonical.path
+        ):
+            raise MemoryProposalTargetError(
+                "legacy memory content must be migrated with `sase memory init` "
+                "before approving a proposal"
+            )
+        canonical_path = memory_write_root(cwd_path) / target_path
         body, reviewed_path = _approval_body_and_reviewed_path(
             state,
             edited_file=edited_file,
@@ -285,7 +309,9 @@ def _approval_reachability_warnings(
         from sase.memory.inventory import build_memory_inventory
 
         inventory = build_memory_inventory(cwd)
-        entry = inventory.entry_for(f"memory/{state.target_path}")
+        entry = inventory.entry_for(
+            (CANONICAL_MEMORY_RELATIVE_ROOT / state.target_path).as_posix()
+        )
     except Exception:
         return tuple(warnings)
 

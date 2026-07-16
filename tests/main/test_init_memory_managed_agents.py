@@ -34,7 +34,7 @@ def test_init_memory_overwrites_provider_shims(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "AGENTS.md", "@memory/sase.md\n")
+    write(project_root / "AGENTS.md", "@sase/memory/sase.md\n")
     write(project_root / "CLAUDE.md", "old instructions\n")
 
     assert run_handler() == 0
@@ -62,14 +62,14 @@ def test_init_memory_allows_transitive_memory_references(
     )
     write(
         project_root / "AGENTS.md",
-        "@memory/sase.md\n\nmemory/index.md\n",
+        "@sase/memory/sase.md\n\nsase/memory/index.md\n",
     )
     write(
-        project_root / "memory" / "index.md",
-        long_note("# Index\n\n@memory/detail.md\n", description="Index."),
+        project_root / "sase" / "memory" / "index.md",
+        long_note("# Index\n\n@sase/memory/detail.md\n", description="Index."),
     )
     write(
-        project_root / "memory" / "detail.md",
+        project_root / "sase" / "memory" / "detail.md",
         long_note("# Detail\n", description="Detail."),
     )
 
@@ -95,9 +95,9 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         project_root / "sase.yml",
         'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
-    write(project_root / "memory" / "extra.md", short_note("# Extra\n"))
+    write(project_root / "sase" / "memory" / "extra.md", short_note("# Extra\n"))
     write(
-        project_root / "memory" / "described.md",
+        project_root / "sase" / "memory" / "described.md",
         long_note(
             "# Described\n",
             description="Existing description.",
@@ -105,7 +105,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         ),
     )
     write(
-        project_root / "memory" / "curated.md",
+        project_root / "sase" / "memory" / "curated.md",
         long_note(
             "# Curated\n\nFallback body should not be used.\n",
             description=None,
@@ -114,7 +114,7 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     write(
         project_root / "AGENTS.md",
         "# Previous\n\n"
-        "**`memory/curated.md`**  \n"
+        "**`sase/memory/curated.md`**  \n"
         "Curated description survives. _Read when touching curated memory._\n",
     )
 
@@ -124,22 +124,24 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
     assert agents.startswith("# Managed Instructions\n")
     assert "## Tier 1 (short-term) Memory" in agents
     assert "The following memories contains core (always loaded) context:" in agents
-    # Short memory is inlined (no ``@memory/...`` imports) under H3 headers.
+    # Short memory is inlined (no ``@sase/memory/...`` imports) under H3 headers.
     assert "### 1. Extra (extra)" in agents
     assert "### 2. SASE = Structured Agentic Software Engineering (sase)" in agents
-    assert "@memory/extra.md" not in agents
-    assert "@memory/sase.md" not in agents
+    assert "@sase/memory/extra.md" not in agents
+    assert "@sase/memory/sase.md" not in agents
     assert "## Tier 2 (dynamic) Memory" not in agents
     assert "## Dynamic Memory Files" not in agents
     assert "### DYNAMIC MEMORY" not in agents
     assert "## Tier 2 (long-term) Memory" in agents
     assert "## Tier 3 (long-term) Memory" not in agents
     assert "#### Long-Term Memory Files" not in agents
-    assert "**`memory/curated.md`**  \nCurated description survives." in agents
-    assert "**`memory/described.md`**  \nExisting description." in agents
+    assert "**`sase/memory/curated.md`**  \nCurated description survives." in agents
+    assert "**`sase/memory/described.md`**  \nExisting description." in agents
     assert ("sase-" + "amd:") not in agents
 
-    curated = (project_root / "memory" / "curated.md").read_text(encoding="utf-8")
+    curated = (project_root / "sase" / "memory" / "curated.md").read_text(
+        encoding="utf-8"
+    )
     assert curated.startswith(
         "---\n"
         "type: long\n"
@@ -147,7 +149,9 @@ def test_init_memory_syncs_amd_agents_and_long_memory_descriptions(
         "description: Curated description survives.\n"
         "---\n"
     )
-    described = (project_root / "memory" / "described.md").read_text(encoding="utf-8")
+    described = (project_root / "sase" / "memory" / "described.md").read_text(
+        encoding="utf-8"
+    )
     assert "description: Existing description." in described
     assert "keywords:" not in described
     assert "owner: docs" in described
@@ -192,7 +196,7 @@ def test_init_memory_managed_agents_wraps_long_memory_descriptions(
         'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(
-        project_root / "memory" / "generated_skills.md",
+        project_root / "sase" / "memory" / "generated_skills.md",
         long_note(
             "# Generated Skills\n",
             description=(
@@ -248,7 +252,7 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
         'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     write(
-        project_root / "memory" / "described.md",
+        project_root / "sase" / "memory" / "described.md",
         long_note("# Described\n", description="A long note."),
     )
 
@@ -256,9 +260,9 @@ def test_init_memory_managed_agents_inline_short_memory_is_single_pass_idempoten
 
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
-    assert "@memory/sase.md" not in agents
+    assert "@sase/memory/sase.md" not in agents
 
-    # ``memory/sase.md`` is regenerated every run, and its *fresh* body is the one
+    # ``sase/memory/sase.md`` is regenerated every run, and its *fresh* body is the one
     # inlined into ``AGENTS.md``; a follow-up plan must therefore be a no-op.
     plan = plan_memory()
     assert plan.blockers == ()
@@ -286,11 +290,14 @@ def test_init_memory_rejects_short_memory_with_deep_heading(
         'is_sase_managed: true\namd_h1_title: "Managed Instructions"\n',
     )
     # A short note with an H4 heading cannot be inlined and must block init.
-    write(project_root / "memory" / "bad.md", short_note("# Bad\n\n#### Too Deep\n"))
+    write(
+        project_root / "sase" / "memory" / "bad.md",
+        short_note("# Bad\n\n#### Too Deep\n"),
+    )
 
     assert run_handler() == 1
     err = capsys.readouterr().err
-    assert "memory/bad.md" in err
+    assert "sase/memory/bad.md" in err
     assert "deeper than H3" in err
 
 
@@ -310,17 +317,17 @@ def test_init_memory_rejects_unreferenced_memory_files(
         home_root=home_root,
         config_dir=config_dir,
     )
-    write(project_root / "AGENTS.md", "@memory/sase.md\n")
+    write(project_root / "AGENTS.md", "@sase/memory/sase.md\n")
     # Parented under a memory note that does not exist, so managed instructions
     # (which only reference short notes and top-level ``parent: AGENTS.md`` long
     # notes) cannot make it reachable.
     write(
-        project_root / "memory" / "orphan.md",
-        "---\ntype: long\nparent: memory/ghost.md\ndescription: Orphan.\n---\n"
+        project_root / "sase" / "memory" / "orphan.md",
+        "---\ntype: long\nparent: sase/memory/ghost.md\ndescription: Orphan.\n---\n"
         "# Orphan\n",
     )
 
     assert run_handler() == 1
     err = capsys.readouterr().err
     assert "unreferenced memory files" in err
-    assert "memory/orphan.md" in err
+    assert "sase/memory/orphan.md" in err

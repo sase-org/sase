@@ -73,6 +73,35 @@ def _delete_provider_shim_plan_paths(
     return tuple(path for plan in plans for path in _delete_provider_shim_paths(plan))
 
 
+def _delete_migrated_memory_paths(
+    paths: Iterable[Path], *, root: Path
+) -> tuple[Path, ...]:
+    deleted: list[Path] = []
+    for path in paths:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            continue
+        deleted.append(path)
+
+    legacy_root = root / "memory"
+    if legacy_root.is_dir():
+        for directory in sorted(
+            (path for path in legacy_root.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts),
+            reverse=True,
+        ):
+            try:
+                directory.rmdir()
+            except OSError:
+                pass
+        try:
+            legacy_root.rmdir()
+        except OSError:
+            pass
+    return tuple(deleted)
+
+
 def _fold_source_paths(
     plans: Iterable[ProviderShimPlan],
     *,
@@ -126,7 +155,11 @@ def initialize_memory_root(
     written = _apply_expected_memory_files(context.expected_files)
     written = (*written, *_apply_provider_shim_plan(context.shim_plan))
     written = (*written, *_apply_provider_shim_plans(context.additional_shim_plans))
-    deleted = _delete_provider_shim_paths(context.shim_plan)
+    deleted = _delete_migrated_memory_paths(
+        context.memory_delete_paths,
+        root=root,
+    )
+    deleted = (*deleted, *_delete_provider_shim_paths(context.shim_plan))
     deleted = (
         *deleted,
         *_delete_provider_shim_plan_paths(context.additional_shim_plans),
@@ -139,7 +172,16 @@ def initialize_memory_root(
     return MemoryRootResult(
         root=root,
         written_paths=written,
-        unreferenced=unreferenced_memory_files(root) if manage_memory else (),
+        unreferenced=(
+            unreferenced_memory_files(
+                root,
+                source_memory_root=(
+                    root / "sase" / "memory" if manage_memory else None
+                ),
+            )
+            if manage_memory
+            else ()
+        ),
         deleted_paths=deleted,
         fold_source_paths=fold_source_paths,
     )

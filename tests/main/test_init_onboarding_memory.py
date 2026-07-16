@@ -175,9 +175,10 @@ def test_bare_init_does_not_create_unmanaged_project_memory_or_agents(
         == 0
     )
 
+    assert not (project_root / "sase" / "memory").exists()
     assert not (project_root / "memory").exists()
     assert not (project_root / "AGENTS.md").exists()
-    assert (home_root / "memory" / "sase.md").exists()
+    assert (home_root / "sase" / "memory" / "sase.md").exists()
     assert (home_root / "AGENTS.md").exists()
 
 
@@ -228,5 +229,6 @@ def test_bare_init_yes_repairs_unreferenced_long_memory(
     assert exit_code == 0
     agents = (project_root / "AGENTS.md").read_text(encoding="utf-8")
     assert "## Tier 2 (long-term) Memory" in agents
-    assert "**`memory/cli_rules.md`**" in agents
-    assert (project_root / "memory" / "sase.md").exists()
+    assert "**`sase/memory/cli_rules.md`**" in agents
+    assert (project_root / "sase" / "memory" / "sase.md").exists()
+    assert not (project_root / "memory").exists()

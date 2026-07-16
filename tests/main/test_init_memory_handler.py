@@ -67,8 +67,8 @@ sibling_repos:
     out = capsys.readouterr().out
     assert "init memory: initialized memory" in out
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
-    home_memory = (home_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "sase" / "memory" / "sase.md").read_text()
     assert "`core`: Local Rust core." in project_memory
     assert "`github`: Global GitHub plugin." not in project_memory
     assert "../local-core" not in project_memory
@@ -110,18 +110,18 @@ sibling_repos:
         assert 'sase repo open <linked_repo> -r "<reason>"' not in memory
 
     for root in (project_root, home_root):
-        assert not (root / "memory" / "long").exists()
-        assert (root / "memory" / "README.md").is_file()
-        readme = (root / "memory" / "README.md").read_text()
+        assert not (root / "sase" / "memory" / "long").exists()
+        assert (root / "sase" / "memory" / "README.md").is_file()
+        readme = (root / "sase" / "memory" / "README.md").read_text()
         assert "`sase memory list`" in readme
         assert "`sase memory init`" in readme
         assert "`memory_sase_template`" in readme
         assert "`memory_readme_template`" in readme
-        assert "Non-README Markdown files live directly under `memory/`" in readme
+        assert "Non-README Markdown files live directly under `sase/memory/`" in readme
         assert "`type: long` notes are detailed reference material" in readme
         agents = (root / "AGENTS.md").read_text()
         assert "### 1. SASE = Structured Agentic Software Engineering (sase)" in agents
-        assert "@memory/sase.md" not in agents
+        assert "@sase/memory/sase.md" not in agents
         # Provider files are byte-for-byte copies of ``AGENTS.md``.
         for filename in PROVIDER_SHIM_FILES:
             assert (root / filename).read_text() == agents
@@ -159,7 +159,7 @@ linked_repos:
 
     assert run_handler() == 0
 
-    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    memory = (project_root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
     assert "`core`: Always-present core." not in memory
     assert "`plugin`: Lazy plugin." in memory
     assert "project--research" not in memory
@@ -205,8 +205,8 @@ repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
-    home_memory = (home_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "sase" / "memory" / "sase.md").read_text()
     assert (
         "- `sase--research`: Durable SASE research reports and generated media."
         in project_memory
@@ -248,7 +248,7 @@ repos:
 
     assert run_handler() == 0
 
-    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    memory = (project_root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
     assert "- `project--artifacts`: Lazy project artifacts." in memory
 
 
@@ -278,7 +278,7 @@ linked_repos: []
 
     assert run_handler() == 0
 
-    memory = (project_root / "memory" / "sase.md").read_text(encoding="utf-8")
+    memory = (project_root / "sase" / "memory" / "sase.md").read_text(encoding="utf-8")
     assert "project--research" not in memory
 
 
@@ -316,9 +316,9 @@ linked_repos:
     out = capsys.readouterr().out
     assert "project memory target" not in out
     assert "home memory target" in out
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
     assert not (project_root / "AGENTS.md").exists()
-    assert (home_root / "memory" / "sase.md").exists()
+    assert (home_root / "sase" / "memory" / "sase.md").exists()
     assert (home_root / "AGENTS.md").exists()
     git_run.assert_not_called()
 
@@ -343,12 +343,14 @@ def test_init_memory_renders_data_driven_readme_and_asset(
         "# Reference\n\nDetailed reference.\n",
         description="Detailed reference note.",
     )
-    write(project_root / "memory" / "extra.md", extra_note)
-    write(project_root / "memory" / "reference.md", reference_note)
+    write(project_root / "sase" / "memory" / "extra.md", extra_note)
+    write(project_root / "sase" / "memory" / "reference.md", reference_note)
 
     assert run_handler() == 0
 
-    readme = (project_root / "memory" / "README.md").read_text(encoding="utf-8")
+    readme = (project_root / "sase" / "memory" / "README.md").read_text(
+        encoding="utf-8"
+    )
     assert (
         "![How SASE memory files are used](assets/memory-directory-map.png)" in readme
     )
@@ -356,19 +358,21 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert "## Memory Notes" in readme
     assert "## Statistics" in readme
     assert "## Commands" in readme
-    assert readme.index("### `memory/extra.md`") < readme.index("### `memory/sase.md`")
-    assert readme.index("### `memory/sase.md`") < readme.index(
-        "### `memory/reference.md`"
+    assert readme.index("### `sase/memory/extra.md`") < readme.index(
+        "### `sase/memory/sase.md`"
+    )
+    assert readme.index("### `sase/memory/sase.md`") < readme.index(
+        "### `sase/memory/reference.md`"
     )
     assert "- Type: `short`" in readme
     assert "- Type: `long`" in readme
     assert "- Description: Detailed reference note." in readme
     assert "- Parent: `AGENTS.md`" in readme
     extra_stats = stats_for_text(
-        (project_root / "memory" / "extra.md").read_text(encoding="utf-8")
+        (project_root / "sase" / "memory" / "extra.md").read_text(encoding="utf-8")
     )
     reference_stats = stats_for_text(
-        (project_root / "memory" / "reference.md").read_text(encoding="utf-8")
+        (project_root / "sase" / "memory" / "reference.md").read_text(encoding="utf-8")
     )
     assert f"- Lines: {extra_stats.line_count}" in readme
     assert f"- Approx. tokens: {extra_stats.approx_token_count}" in readme
@@ -378,7 +382,9 @@ def test_init_memory_renders_data_driven_readme_and_asset(
     assert "- Short notes: 2" in readme
     assert "- Long notes: 1" in readme
 
-    asset_path = project_root / "memory" / "assets" / "memory-directory-map.png"
+    asset_path = (
+        project_root / "sase" / "memory" / "assets" / "memory-directory-map.png"
+    )
     expected_asset = read_memory_directory_map_bytes()
     assert asset_path.read_bytes() == expected_asset
     assert run_handler(check=True) == 0
@@ -433,7 +439,7 @@ linked_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     project_memory_line = single_line(project_memory)
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
@@ -476,7 +482,7 @@ linked_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     project_memory_line = single_line(project_memory)
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
         project_memory
@@ -533,7 +539,7 @@ linked_repos:
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     assert "- `shared`: Static shared checkout." in single_line(project_memory)
     assert str((tmp_path / "primary" / "shared").resolve(strict=False)) not in (
         project_memory
@@ -562,8 +568,8 @@ def test_init_memory_project_memory_includes_workspace_section(
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
-    home_memory = (home_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
+    home_memory = (home_root / "sase" / "memory" / "sase.md").read_text()
     assert SASE_MEMORY_HEADER in project_memory
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
@@ -619,7 +625,7 @@ def test_init_memory_project_memory_uses_managed_checkout_marker_name(
 
     assert run_handler() == 0
 
-    project_memory = (project_root / "memory" / "sase.md").read_text()
+    project_memory = (project_root / "sase" / "memory" / "sase.md").read_text()
     assert "## Ephemeral `project_<N>` Workspace Directories" in project_memory
     assert "full clones of the project repo" in project_memory
     assert "project_10_<N>" not in project_memory
@@ -655,7 +661,7 @@ linked_repos:
     err = capsys.readouterr().err
     assert "cannot generate project memory" in err
     assert "field 'description'" in err
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()
 
 
 def test_init_memory_reports_missing_sidecar_descriptions(
@@ -689,4 +695,4 @@ repos:
     assert "cannot generate project memory" in err
     assert "repos.sidecar[0] ('research')" in err
     assert "field 'description'" in err
-    assert not (project_root / "memory").exists()
+    assert not (project_root / "sase" / "memory").exists()

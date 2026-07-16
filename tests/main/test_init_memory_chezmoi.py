@@ -68,8 +68,8 @@ sibling_repos:
 
     assert run_handler() == 0
 
-    assert not (home_root / "memory").exists()
-    chezmoi_memory = (chezmoi_home / "memory" / "sase.md").read_text()
+    assert not (home_root / "sase" / "memory").exists()
+    chezmoi_memory = (chezmoi_home / "sase" / "memory" / "sase.md").read_text()
     assert "`telegram`: Telegram workflow plugin." in chezmoi_memory
     assert "/global/telegram" not in chezmoi_memory
     assert "Static-path linked repositories (`workspace.strategy: none`)" not in (
@@ -93,7 +93,7 @@ sibling_repos:
     for filename in PROVIDER_SHIM_FILES:
         assert (chezmoi_home / filename).read_text() == agents
         assert not (chezmoi_home / f"{filename}.tmpl").exists()
-    assert chezmoi_home / "memory" / "sase.md" in deployed
+    assert chezmoi_home / "sase" / "memory" / "sase.md" in deployed
     assert chezmoi_home / "CLAUDE.md" in deployed
 
 
@@ -160,5 +160,5 @@ def test_init_memory_deferred_chezmoi_collects_paths_without_deploy(
         assert run_handler() == 0
 
     deploy_mock.assert_not_called()
-    assert chezmoi_home / "memory" / "sase.md" in deferred.paths
+    assert chezmoi_home / "sase" / "memory" / "sase.md" in deferred.paths
     assert chezmoi_home / "CLAUDE.md" in deferred.paths

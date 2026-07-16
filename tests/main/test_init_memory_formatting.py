@@ -46,10 +46,10 @@ linked_repos:
     assert run_memory() == 0
 
     generated = [
-        project_root / "memory" / "sase.md",
-        project_root / "memory" / "README.md",
-        home_root / "memory" / "sase.md",
-        home_root / "memory" / "README.md",
+        project_root / "sase" / "memory" / "sase.md",
+        project_root / "sase" / "memory" / "README.md",
+        home_root / "sase" / "memory" / "sase.md",
+        home_root / "sase" / "memory" / "README.md",
     ]
     before = {path: path.read_text(encoding="utf-8") for path in generated}
     result = subprocess.run(
@@ -93,8 +93,8 @@ def test_init_memory_generated_markdown_passes_prettier_check(
     assert run_memory() == 0
 
     generated = [
-        project_root / "memory" / "sase.md",
-        project_root / "memory" / "README.md",
+        project_root / "sase" / "memory" / "sase.md",
+        project_root / "sase" / "memory" / "README.md",
     ]
     assert all(path.read_bytes().endswith(b"\n") for path in generated)
     result = subprocess.run(
@@ -116,8 +116,8 @@ def test_init_memory_generated_markdown_passes_prettier_check(
 
 def test_format_adds_hard_break_for_bold_label_description() -> None:
     assert (
-        format_generated_memory_markdown("**`memory/foo.md`**\nRead this note.\n")
-        == "**`memory/foo.md`**  \nRead this note.\n"
+        format_generated_memory_markdown("**`sase/memory/foo.md`**\nRead this note.\n")
+        == "**`sase/memory/foo.md`**  \nRead this note.\n"
     )
 
 

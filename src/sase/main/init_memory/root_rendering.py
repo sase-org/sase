@@ -19,13 +19,18 @@ from sase.memory.notes import (
     discover_memory_notes,
     parse_memory_note_text,
 )
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
+    memory_write_root,
+)
 
 from .formatting import format_generated_memory_markdown
 from .models import LinkedRepoMemoryEntry, MemoryExpectedFile
 
 MEMORY_DIRECTORY_MAP_FILENAME = "memory-directory-map.png"
 MEMORY_DIRECTORY_MAP_RELATIVE_PATH = (
-    Path("memory") / "assets" / MEMORY_DIRECTORY_MAP_FILENAME
+    CANONICAL_MEMORY_RELATIVE_ROOT / "assets" / MEMORY_DIRECTORY_MAP_FILENAME
 )
 MEMORY_SASE_TEMPLATE_FILENAME = "memory-sase.template.md"
 MEMORY_README_TEMPLATE_FILENAME = "memory-README.template.md"
@@ -79,7 +84,7 @@ def _render_sase_memory(
         override_path=override,
     )
     if render_error is not None or rendered is None:
-        return None, render_error or "failed to render memory/sase.md template"
+        return None, render_error or "failed to render sase/memory/sase.md template"
     formatted = format_generated_memory_markdown(rendered)
     structure_error = validate_short_memory_structure(formatted)
     if structure_error is not None:
@@ -93,7 +98,7 @@ def _render_sase_memory(
 
 
 def _generated_sase_memory_relative_path() -> Path:
-    return Path("memory") / "sase.md"
+    return CANONICAL_MEMORY_RELATIVE_ROOT / "sase.md"
 
 
 def render_generated_sase_memory_body(
@@ -102,7 +107,7 @@ def render_generated_sase_memory_body(
     *,
     project_name: str | None = None,
 ) -> tuple[str | None, str | None]:
-    """Render the stable ``memory/sase.md`` body or return a blocker."""
+    """Render the stable ``sase/memory/sase.md`` body or return a blocker."""
     return _render_sase_memory(root, entries, project_name=project_name)
 
 
@@ -135,7 +140,7 @@ def _memory_note_overlay_by_relative_path(
             relative = resolved.relative_to(root_resolved)
         except ValueError:
             relative = path
-        result[relative.as_posix()] = content
+        result[canonical_memory_reference(relative).as_posix()] = content
     return result
 
 
@@ -150,10 +155,13 @@ def _discover_memory_readme_notes(
     root: Path,
     *,
     overlay: dict[Path, str],
+    source_memory_root: Path | None = None,
 ) -> tuple[_MemoryReadmeNote, ...]:
     text_by_relative_path = {
-        note.relative_path: _read_memory_note_text(root, note.relative_path)
-        for note in discover_memory_notes(root)
+        note.relative_path: _read_memory_note_text(
+            root, note.source_relative_path.as_posix()
+        )
+        for note in discover_memory_notes(root, source_memory_root=source_memory_root)
     }
     text_by_relative_path.update(_memory_note_overlay_by_relative_path(root, overlay))
 
@@ -210,8 +218,13 @@ def _render_memory_readme(
     root: Path,
     *,
     overlay: dict[Path, str] | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[str | None, str | None]:
-    note_rows = _discover_memory_readme_notes(root, overlay=overlay or {})
+    note_rows = _discover_memory_readme_notes(
+        root,
+        overlay=overlay or {},
+        source_memory_root=source_memory_root,
+    )
     override, resolve_error = resolve_markdown_template_override(
         root,
         key="memory_readme_template",
@@ -234,7 +247,7 @@ def _render_memory_readme(
         override_path=override,
     )
     if render_error is not None or rendered is None:
-        return None, render_error or "failed to render memory/README.md template"
+        return None, render_error or "failed to render sase/memory/README.md template"
     return format_generated_memory_markdown(rendered), None
 
 
@@ -245,13 +258,14 @@ def render_expected_memory_files(
     project_name: str | None = None,
     amd_sync: AmdMemorySyncPlan | None = None,
     generated_sase_body: str | None = None,
+    source_memory_root: Path | None = None,
 ) -> tuple[tuple[MemoryExpectedFile, ...], str | None]:
     if generated_sase_body is None:
         generated_sase_body, render_error = render_generated_sase_memory_body(
             root, linked_entries, project_name=project_name
         )
         if render_error is not None or generated_sase_body is None:
-            return (), render_error or "failed to render memory/sase.md template"
+            return (), render_error or "failed to render sase/memory/sase.md template"
     generated_sase_path = root / _generated_sase_memory_relative_path()
     generated_sase_content = _generated_sase_memory_content(generated_sase_body)
     note_overlay = {generated_sase_path: generated_sase_content}
@@ -259,9 +273,13 @@ def render_expected_memory_files(
         note_overlay.update(
             {update.path: update.content for update in amd_sync.description_updates}
         )
-    rendered_readme, readme_error = _render_memory_readme(root, overlay=note_overlay)
+    rendered_readme, readme_error = _render_memory_readme(
+        root,
+        overlay=note_overlay,
+        source_memory_root=source_memory_root,
+    )
     if readme_error is not None or rendered_readme is None:
-        return (), readme_error or "failed to render memory/README.md template"
+        return (), readme_error or "failed to render sase/memory/README.md template"
     expected: list[MemoryExpectedFile] = [
         MemoryExpectedFile(
             path=generated_sase_path,
@@ -269,7 +287,7 @@ def render_expected_memory_files(
             detail="generated SASE memory",
         ),
         MemoryExpectedFile(
-            path=root / "memory" / "README.md",
+            path=memory_write_root(root) / "README.md",
             content=rendered_readme,
             detail="memory README",
         ),

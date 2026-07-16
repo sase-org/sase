@@ -10,6 +10,7 @@ import subprocess
 from typing import Any
 
 from sase._linked_repo_config import REPOS_SIDECAR_CONFIG_KEY
+from sase.content_layout import resolve_project_layout
 from sase.linked_repos import (
     LINKED_REPOS_CONFIG_KEY,
     REPOS_CONFIG_KEY,
@@ -24,7 +25,13 @@ _WORKSPACE_SUFFIX_RE = re.compile(r"_\d+$")
 
 
 def project_config_path() -> Path:
-    return Path.cwd() / "sase.yml"
+    return resolve_project_layout(Path.cwd()).config.write_path
+
+
+def project_config_read_path() -> Path:
+    """Return the compatible project config source, defaulting to canonical."""
+    compatible = resolve_project_layout(Path.cwd()).config
+    return compatible.resolve_read("project config") or compatible.write_path
 
 
 def _project_name_from_checkout_marker(root: Path) -> str | None:

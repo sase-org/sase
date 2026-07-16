@@ -25,7 +25,9 @@ from .init_memory.config import (
     project_config_path as _project_config_path,
     project_memory_name as _project_memory_name,
     linked_entries_from_config as _linked_entries_from_config,
+    project_config_read_path as _project_config_read_path,
 )
+from sase.memory.paths import memory_write_root
 from sase.project_management import enable_sase_management, project_management_status
 from .init_memory.constants import COMMAND_LABEL
 from .init_memory.git_state import PreInitGitState
@@ -72,7 +74,7 @@ def _home_memory_path(use_chezmoi: bool) -> Path:
 
 def _sase_memory_path(root: Path) -> Path:
     """Return the generated SASE memory path for ``root``."""
-    return root / "memory" / "sase.md"
+    return memory_write_root(root) / "sase.md"
 
 
 def _global_config_path(use_chezmoi: bool) -> Path:
@@ -96,7 +98,7 @@ def _load_memory_inputs(args: argparse.Namespace) -> _MemoryInitInputs:
     project_root = Path.cwd()
     is_project_dir = is_project_directory(project_root)
     primary_root = _primary_workspace_root_for_memory(project_root)
-    project_config = _project_config_path()
+    project_config = _project_config_read_path()
     global_config = _global_config_path(use_chezmoi)
 
     project_entries: tuple[_LinkedRepoMemoryEntry, ...]
@@ -172,16 +174,43 @@ def prepare_project_memory_opt_in(args: argparse.Namespace) -> bool:
     no_commit = bool(getattr(args, "no_commit", False))
     git_state = None if no_commit else _capture_pre_init_git_state(project_root)
     config_path = _project_config_path()
+    config_source_path = _project_config_read_path()
     config_existed = config_path.exists()
+    migrated_config = config_source_path != config_path and config_source_path.is_file()
+    if migrated_config:
+        try:
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_bytes(config_source_path.read_bytes())
+        except OSError as exc:
+            print(
+                f"{COMMAND_LABEL}: failed to migrate {config_source_path} "
+                f"to {config_path}: {exc}",
+                file=sys.stderr,
+            )
+            return False
     update = enable_sase_management(config_path)
     if update.error is not None:
+        if migrated_config:
+            config_path.unlink(missing_ok=True)
         print(update.error, file=sys.stderr)
         return False
+    if migrated_config:
+        try:
+            config_source_path.unlink()
+        except OSError as exc:
+            config_path.unlink(missing_ok=True)
+            print(
+                f"{COMMAND_LABEL}: failed to remove migrated config "
+                f"{config_source_path}: {exc}",
+                file=sys.stderr,
+            )
+            return False
 
     args._project_memory_opt_in_prepared = True
-    args._project_config_changed = update.changed
+    args._project_config_changed = update.changed or migrated_config
     args._project_config_git_state = git_state
-    if update.changed:
+    args._project_config_migrated_from = config_source_path if migrated_config else None
+    if update.changed or migrated_config:
         args._project_config_operation = "update" if config_existed else "create"
         print(
             f"{COMMAND_LABEL}: {args._project_config_operation}d {config_path} "
@@ -432,7 +461,14 @@ def run_init_memory(args: argparse.Namespace) -> int:
             git_state=git_state,
             message=getattr(args, "message", None),
             owned_paths=(
-                (_project_config_path(),)
+                tuple(
+                    path
+                    for path in (
+                        _project_config_path(),
+                        getattr(args, "_project_config_migrated_from", None),
+                    )
+                    if path is not None
+                )
                 if getattr(args, "_project_config_changed", False)
                 else ()
             ),

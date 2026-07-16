@@ -22,9 +22,16 @@ from sase.agent.identity import (
     require_agent_identity as _require_agent_identity,
 )
 from sase.core.paths import sase_projects_dir
+from sase.content_layout import LayoutCollisionError
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
-from sase.memory.notes import MEMORY_DIR, MemoryNote, parse_memory_note_text
+from sase.memory.notes import MemoryNote, parse_memory_note_text
+from sase.memory.paths import (
+    CANONICAL_MEMORY_RELATIVE_ROOT,
+    LEGACY_MEMORY_RELATIVE_ROOT,
+    canonical_memory_reference,
+    memory_read_root,
+)
 from sase.project_aliases import resolve_project_alias_ref
 
 READ_LOG_SCHEMA_VERSION = 1
@@ -48,6 +55,7 @@ class ValidatedMemoryPath:
     path: Path
     resolved_path: Path
     note: MemoryNote
+    content_root: Path
 
 
 @dataclass(frozen=True)
@@ -111,7 +119,7 @@ def validate_memory_read_path(
     """Validate and canonicalize a path relative to an allowed memory root."""
     raw_path = Path(memory_relative_path)
     if raw_path.is_absolute():
-        raise MemoryReadPathError("memory read path must be relative to memory/")
+        raise MemoryReadPathError("memory read path must be relative to sase/memory/")
 
     parts = _normalize_memory_read_parts(raw_path)
     if not parts or parts == (".",):
@@ -123,8 +131,9 @@ def validate_memory_read_path(
     if not _is_flat_note_path(parts):
         raise MemoryReadPathError("memory read path must be a flat .md note name")
 
-    for memory_root in _memory_read_roots(project_root, home_root):
+    for content_root, memory_root in _memory_read_roots(project_root, home_root):
         path = _validate_memory_read_candidate(
+            content_root=content_root,
             memory_root=memory_root,
             parts=parts,
             raw_path=raw_path,
@@ -137,8 +146,12 @@ def validate_memory_read_path(
 
 def _normalize_memory_read_parts(raw_path: Path) -> tuple[str, ...]:
     parts = raw_path.parts
-    if parts and parts[0] == MEMORY_DIR:
-        return parts[1:]
+    for prefix in (
+        CANONICAL_MEMORY_RELATIVE_ROOT.parts,
+        LEGACY_MEMORY_RELATIVE_ROOT.parts,
+    ):
+        if parts[: len(prefix)] == prefix:
+            return parts[len(prefix) :]
     return parts
 
 
@@ -149,22 +162,32 @@ def _is_flat_note_path(parts: tuple[str, ...]) -> bool:
 def _memory_read_roots(
     project_root: Path | None,
     home_root: Path | None,
-) -> tuple[Path, ...]:
+) -> tuple[tuple[Path, Path], ...]:
     root = (project_root or Path.cwd()).resolve(strict=False)
-    roots = [root / "memory"]
-    seen = {roots[0].resolve(strict=False)}
+    content_roots = [root]
 
     if home_root is not None:
-        home_memory_root = home_root.expanduser().resolve(strict=False) / "memory"
-        resolved_home_memory_root = home_memory_root.resolve(strict=False)
-        if resolved_home_memory_root not in seen:
-            roots.append(home_memory_root)
+        resolved_home_root = home_root.expanduser().resolve(strict=False)
+        if resolved_home_root != root:
+            content_roots.append(resolved_home_root)
 
+    roots: list[tuple[Path, Path]] = []
+    for content_root in content_roots:
+        try:
+            selected = memory_read_root(
+                content_root,
+                label=f"memory for {content_root}",
+            )
+        except LayoutCollisionError as exc:
+            raise MemoryReadPathError(str(exc)) from exc
+        if selected is not None:
+            roots.append((content_root, selected))
     return tuple(roots)
 
 
 def _validate_memory_read_candidate(
     *,
+    content_root: Path,
     memory_root: Path,
     parts: tuple[str, ...],
     raw_path: Path,
@@ -189,7 +212,7 @@ def _validate_memory_read_candidate(
         raise MemoryReadPathError(f"memory path is not a file: {raw_path.as_posix()}")
     if not _is_relative_to(resolved, allowed_root):
         raise MemoryReadPathError(
-            "memory file resolves outside the allowed memory/ directory"
+            "memory file resolves outside the allowed sase/memory/ directory"
         )
 
     note = _read_validated_memory_note(
@@ -214,6 +237,7 @@ def _validate_memory_read_candidate(
         path=candidate,
         resolved_path=resolved,
         note=note,
+        content_root=content_root,
     )
 
 
@@ -229,8 +253,22 @@ def _read_validated_memory_note(
         raise MemoryReadPathError(
             f"memory file does not exist: {raw_path.as_posix()}"
         ) from exc
-    root = memory_root.parent
-    return parse_memory_note_text(text, path.relative_to(root))
+    relative = path.relative_to(memory_root)
+    note = parse_memory_note_text(
+        text,
+        CANONICAL_MEMORY_RELATIVE_ROOT / relative,
+    )
+    return MemoryNote(
+        path=note.path,
+        type=note.type,
+        parent=canonical_memory_reference(note.parent).as_posix(),
+        description=note.description,
+        body=note.body,
+        frontmatter=note.frontmatter,
+        type_source=note.type_source,
+        parent_source=note.parent_source,
+        source_path=None,
+    )
 
 
 def _has_broken_symlink_component(path: Path, root: Path) -> bool:

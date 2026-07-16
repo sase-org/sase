@@ -242,7 +242,7 @@ async def test_memory_review_tui_approve_dispatches_domain_approval(
         await pilot.pause()
 
     assert calls == [(proposal_id, None, None)]
-    assert (tmp_path / "memory" / "first.md").exists()
+    assert (tmp_path / "sase" / "memory" / "first.md").exists()
     assert read_memory_proposals()[0].status == "approved"
 
 
@@ -288,4 +288,4 @@ async def test_memory_review_tui_target_edit_feeds_approval_target(
         await pilot.pause()
 
     assert calls == [(proposal_id, "renamed.md", None)]
-    assert (tmp_path / "memory" / "renamed.md").exists()
+    assert (tmp_path / "sase" / "memory" / "renamed.md").exists()
