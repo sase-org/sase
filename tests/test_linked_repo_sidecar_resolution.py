@@ -1,0 +1,378 @@
+"""Tests for linked repository sidecar resolution and defaults."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from sase._linked_repo_config import (
+    _merge_resolution_config,
+    merged_sidecar_entries_from_config,
+)
+from sase.linked_repos import (
+    resolve_linked_repos_for_project,
+    sdd_sidecar_clone_dirname,
+)
+from sase.sdd.store import write_sdd_store_record
+from tests._linked_repo_resolution_helpers import _project_file, _set_github_origin
+
+
+def test_configured_sidecar_resolves_role_slug_and_remote(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    _set_github_origin(primary, "https://github.com/sase-org/sase.git")
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "workspace": {"root": "adjacent"},
+            "repos": {
+                "sidecar": [
+                    {
+                        "name": "research",
+                        "repo": "sase-org/shared-research",
+                        "visibility": "private",
+                    }
+                ]
+            },
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert len(resolution.repos) == 1
+    repo = resolution.repos[0]
+    assert repo.name == "research"
+    assert repo.kind == "sidecar"
+    assert repo.slug == "shared-research"
+    assert repo.remote_url == "git@github.com:sase-org/shared-research.git"
+    assert repo.primary_dir == str((primary / "sase" / "repos" / "research").resolve())
+    assert repo.workspace_dir == str(
+        (tmp_path / "sase_4" / "sase" / "repos" / "research").resolve()
+    )
+
+
+def test_configured_sidecar_ignores_poisoned_store_remote(tmp_path: Path) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "https://github.com/acme/widget.git")
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:acme/widget--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={
+            "repos": {
+                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+            }
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert len(resolution.repos) == 1
+    assert resolution.repos[0].remote_url == (
+        "git@github.com:sase-org/sase--research.git"
+    )
+
+
+def test_configured_sidecar_preserves_consistent_store_remote(tmp_path: Path) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "https://github.com/acme/widget.git")
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "https://github.com/sase-org/sase--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={
+            "repos": {
+                "sidecar": [{"name": "research", "repo": "sase-org/sase--research"}]
+            }
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert resolution.repos[0].remote_url == (
+        "git@github.com:sase-org/sase--research.git"
+    )
+
+
+def test_unpinned_configured_sidecar_ignores_stale_store_repo(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "widget"
+    primary.mkdir()
+    _set_github_origin(primary, "git@github.com:acme/widget.git")
+    project_file = _project_file(tmp_path / "project.sase", primary)
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "acme/widget--plans",
+                    "remote_url": "git@github.com:acme/widget--plans.git",
+                },
+                "research": {
+                    "repo": "sase-org/sase--research",
+                    "remote_url": "git@github.com:sase-org/sase--research.git",
+                },
+            },
+        },
+    )
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=0,
+        config={"repos": {"sidecar": [{"name": "research"}]}},
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert len(resolution.repos) == 1
+    repo = resolution.repos[0]
+    assert repo.name == "research"
+    assert repo.slug == "widget--research"
+    assert repo.remote_url == "git@github.com:acme/widget--research.git"
+
+
+def test_disabled_sidecar_suppresses_matching_implicit_default(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / "sase"
+    plans = tmp_path / "sase--plans"
+    research = tmp_path / "sase--research"
+    for path in (primary, plans, research):
+        path.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "workspace": {"root": "adjacent"},
+            "repos": {"sidecar": [{"name": "research", "disabled": True}]},
+        },
+        materialize=False,
+    )
+
+    assert [repo.name for repo in resolution.repos] == ["sase--plans"]
+
+
+def test_project_sidecar_entry_overrides_global_entry_by_role(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    merged = _merge_resolution_config(
+        {
+            "repos": {
+                "sidecar": [
+                    {
+                        "name": "research",
+                        "repo": "sase-org/shared-research",
+                        "visibility": "public",
+                    }
+                ]
+            }
+        },
+        {
+            "repos": {
+                "sidecar": [
+                    {
+                        "name": "research",
+                        "visibility": "private",
+                        "disabled": True,
+                    }
+                ]
+            }
+        },
+    )
+
+    entries = merged_sidecar_entries_from_config(
+        merged,
+        primary_workspace_dir=str(primary),
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["repo"] == "sase-org/shared-research"
+    assert entries[0]["visibility"] == "private"
+    assert entries[0]["disabled"] is True
+
+
+def test_managed_project_injects_only_default_plans_sidecar(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    plans = tmp_path / "sase--plans"
+    for path in (primary, plans):
+        path.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "workspace": {"root": "adjacent"},
+            "linked_repos": [],
+        },
+        materialize=False,
+    )
+
+    assert resolution.warnings == ()
+    assert [(repo.name, repo.auto_clone) for repo in resolution.repos] == [
+        ("sase--plans", True),
+    ]
+    assert [Path(repo.workspace_dir) for repo in resolution.repos] == [
+        tmp_path / "sase_4" / "sase" / "repos" / "plans",
+    ]
+
+
+def test_default_sidecars_honor_override_and_opt_out(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    override = tmp_path / "custom-research"
+    for path in (primary, override):
+        path.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    overridden = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "linked_repos": [
+                {
+                    "name": "sase--research",
+                    "path": "../custom-research",
+                    "auto_clone": True,
+                }
+            ],
+        },
+        materialize=False,
+    )
+    assert [repo.name for repo in overridden.repos] == ["sase--research"]
+    assert overridden.repos[0].primary_dir == str(override.resolve())
+    assert overridden.repos[0].auto_clone is True
+
+    opted_out = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={
+            "is_sase_managed": True,
+            "default_linked_repos": False,
+            "linked_repos": [],
+        },
+        materialize=False,
+    )
+    assert opted_out.repos == ()
+    assert opted_out.warnings == ()
+
+
+def test_missing_default_sidecars_are_skipped_quietly(tmp_path: Path) -> None:
+    primary = tmp_path / "sase"
+    primary.mkdir()
+    project_file = _project_file(tmp_path / "project.sase", primary)
+
+    resolution = resolve_linked_repos_for_project(
+        project_file=str(project_file),
+        workspace_dir=str(primary),
+        workspace_num=4,
+        config={"is_sase_managed": True, "linked_repos": []},
+        materialize=False,
+    )
+
+    assert resolution.repos == ()
+    assert resolution.warnings == ()
+
+
+def test_sidecar_dirname_uses_defaults_and_store_record(tmp_path: Path) -> None:
+    primary = tmp_path / "main"
+    primary.mkdir()
+
+    assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) == "plans"
+    assert sdd_sidecar_clone_dirname(primary, "main--research", config={}) == "research"
+    assert sdd_sidecar_clone_dirname(primary, "core", config={}) is None
+
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/custom-plans",
+                    "remote_url": "git@example.com:owner/custom-plans.git",
+                },
+                "research": {
+                    "repo": "custom-research",
+                    "remote_url": "git@example.com:owner/custom-research.git",
+                },
+            },
+        },
+    )
+
+    assert sdd_sidecar_clone_dirname(primary, "custom-plans", config={}) == "plans"
+    assert (
+        sdd_sidecar_clone_dirname(primary, "custom-research", config={}) == "research"
+    )
+    assert sdd_sidecar_clone_dirname(primary, "main--plans", config={}) is None
+
+    pinned_config = {
+        "repos": {"sidecar": [{"name": "research", "repo": "owner/shared-research"}]}
+    }
+    assert (
+        sdd_sidecar_clone_dirname(primary, "research", config=pinned_config)
+        == "research"
+    )
+    assert (
+        sdd_sidecar_clone_dirname(primary, "shared-research", config=pinned_config)
+        == "research"
+    )
+    assert (
+        sdd_sidecar_clone_dirname(primary, "custom-research", config=pinned_config)
+        is None
+    )
