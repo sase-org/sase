@@ -147,27 +147,6 @@ class TestNotifyPlanApproval:
         assert loaded[0].action_data["agent_vcs_tag"] == "#gh:sase "
 
 
-class TestNotifyUserQuestion:
-    def test_includes_root_timestamp_when_provided(
-        self, temp_notifications_dir: Path
-    ) -> None:
-        from sase.notifications.senders import notify_user_question
-
-        notify_user_question(
-            response_dir="/tmp/response",
-            session_id="session",
-            notes="question?",
-            agent_cl_name="cl",
-            agent_timestamp="20260512094333",
-            agent_root_timestamp="20260512090000",
-        )
-
-        loaded = load_notifications()
-        assert len(loaded) == 1
-        assert loaded[0].action_data["agent_timestamp"] == "20260512094333"
-        assert loaded[0].action_data["agent_root_timestamp"] == "20260512090000"
-
-
 class TestNotifyMemoryProposed:
     def test_emits_memory_review_action_data(
         self, temp_notifications_dir: Path

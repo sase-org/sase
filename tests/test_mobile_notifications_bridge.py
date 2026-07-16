@@ -21,6 +21,8 @@ from sase.integrations.mobile_notifications import (
     resolve_mobile_notification_detail,
 )
 from sase.notifications.models import Notification
+from sase.notifications.store import load_notifications
+from sase.user_question_actions import create_user_question_gate
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
@@ -669,3 +671,38 @@ def test_execute_mobile_question_action_rejects_invalid_option_without_write(
             raise AssertionError("expected invalid option error")
 
     assert not (response_dir / "question_response.json").exists()
+
+
+def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
+    gate = create_user_question_gate(
+        [
+            {
+                "question": "Which path?",
+                "options": [{"id": "fast", "label": "Fast"}],
+            }
+        ],
+        session_id="mobile-question",
+    )
+    notification = load_notifications()[0]
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([notification]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=notification.id,
+            prefix="mobile-q",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_question_action(
+            "mobile-q", "answer", selected_option_id="fast"
+        )
+
+    assert result.response_file == "response.json"
+    assert result.response_json["choice_id"] == "submit"
+    assert result.response_json["result"]["answers"][0]["selected"] == ["Fast"]
+    assert gate.response_path.is_file()

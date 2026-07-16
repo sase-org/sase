@@ -70,6 +70,8 @@ def question_answer_state(notification: Notification) -> AnswerState:
     try:
         if bundle.response.exists():
             return "answered"
+        if bundle.cancellation.exists():
+            return "expired"
         if bundle.request.exists():
             return "awaiting"
         if bundle.root.is_dir():

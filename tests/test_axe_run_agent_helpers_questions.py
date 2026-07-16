@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +15,19 @@ from sase.core.agent_scan_wire import (
     AgentMetaWire,
     WorkflowStateWire,
 )
+
+
+def _valid_response(question: str = "do thing?") -> dict[str, object]:
+    return {
+        "answers": [
+            {
+                "question": question,
+                "selected": ["Other"],
+                "custom_feedback": "Proceed",
+            }
+        ],
+        "global_note": "",
+    }
 
 
 def _run_questions_flow(
@@ -42,12 +56,19 @@ def _run_questions_flow(
             request_path = marker_seen.get("payload", {}).get("request_path")
             if session_id and isinstance(request_path, str):
                 response_dir = os.path.dirname(request_path)
-                with open(
-                    os.path.join(response_dir, "question_response.json"),
-                    "w",
-                    encoding="utf-8",
-                ) as f:
-                    json.dump(send_response_after, f)
+                from sase.user_question_actions import (
+                    UserQuestionActionContext,
+                    execute_user_question_response,
+                )
+
+                execute_user_question_response(
+                    UserQuestionActionContext(
+                        notification_id=None,
+                        host_action_data={"response_dir": response_dir},
+                    ),
+                    send_response_after,
+                    source="test",
+                )
         if kill_after is not None:
             kill_after()
 
@@ -85,20 +106,16 @@ def test_pending_question_marker_created_during_poll_and_deleted_on_response(
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda title, body: None,
     )
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question",
-        lambda **kwargs: None,
-    )
 
     questions = [{"question": "do thing?", "options": []}]
     result, marker_payload = _run_questions_flow(
         tmp_path,
         questions,
-        send_response_after={"answers": [], "global_note": ""},
+        send_response_after=_valid_response(),
     )
 
     assert result is not None
-    assert result["answers"] == []
+    assert result["answers"] == _valid_response()["answers"]
     assert result["global_note"] == ""
     assert marker_payload is not None
     assert marker_payload["session_id"] == result["_question_session_id"]
@@ -128,10 +145,6 @@ def test_pending_question_marker_updates_artifact_index_on_create_and_delete(
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda title, body: None,
     )
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question",
-        lambda **kwargs: None,
-    )
     calls: list[str] = []
     monkeypatch.setattr(
         "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
@@ -141,7 +154,7 @@ def test_pending_question_marker_updates_artifact_index_on_create_and_delete(
     result, _marker_payload = _run_questions_flow(
         tmp_path,
         [{"question": "do thing?", "options": []}],
-        send_response_after={"answers": [], "global_note": ""},
+        send_response_after=_valid_response(),
     )
 
     assert result is not None
@@ -158,9 +171,6 @@ def test_answer_keeps_question_marker_until_runner_slot_claim(tmp_path, monkeypa
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda title, body: None,
     )
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question", lambda **kwargs: None
-    )
     marker_path = tmp_path / "pending_question.json"
     observations: list[bool] = []
 
@@ -173,7 +183,7 @@ def test_answer_keeps_question_marker_until_runner_slot_claim(tmp_path, monkeypa
     result, _marker = _run_questions_flow(
         tmp_path,
         [{"question": "do thing?", "options": []}],
-        send_response_after={"answers": [], "global_note": ""},
+        send_response_after=_valid_response(),
         reacquire_runner_slot=reacquire,
     )
 
@@ -193,9 +203,6 @@ def test_kill_while_answered_question_is_queued_cleans_both_markers(
     monkeypatch.setattr(
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda title, body: None,
-    )
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question", lambda **kwargs: None
     )
     running_record = AgentArtifactRecordWire(
         project_name="proj",
@@ -245,7 +252,7 @@ def test_kill_while_answered_question_is_queued_cleans_both_markers(
         _run_questions_flow(
             tmp_path,
             [{"question": "do thing?", "options": []}],
-            send_response_after={"answers": [], "global_note": ""},
+            send_response_after=_valid_response(),
             reacquire_runner_slot=reacquire,
         )
 
@@ -273,26 +280,21 @@ def test_questions_flow_passes_agent_root_timestamp(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260512094333")
     monkeypatch.setenv("SASE_AGENT_ROOT_TIMESTAMP", "20260512090000")
-    captured_kwargs: dict[str, object] = {}
-
-    def _capture_notify(**kwargs: object) -> None:
-        captured_kwargs.update(kwargs)
-
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question",
-        _capture_notify,
-    )
-
     questions = [{"question": "do thing?", "options": []}]
     result, _marker_payload = _run_questions_flow(
         tmp_path,
         questions,
-        send_response_after={"answers": [], "global_note": ""},
+        send_response_after=_valid_response(),
     )
 
     assert result is not None
-    assert captured_kwargs["agent_timestamp"] == "20260512094333"
-    assert captured_kwargs["agent_root_timestamp"] == "20260512090000"
+    request = json.loads(Path(result["_question_request_path"]).read_text())
+    assert request["presentation"]["action_data"]["agent_timestamp"] == (
+        "20260512094333"
+    )
+    assert request["presentation"]["action_data"]["agent_root_timestamp"] == (
+        "20260512090000"
+    )
 
 
 def test_pending_question_marker_deleted_on_kill(tmp_path, monkeypatch):
@@ -313,10 +315,6 @@ def test_pending_question_marker_deleted_on_kill(tmp_path, monkeypatch):
         "sase.main.plan_approve_handler.send_desktop_notification",
         lambda title, body: None,
     )
-    monkeypatch.setattr(
-        "sase.notifications.senders.notify_user_question",
-        lambda **kwargs: None,
-    )
 
     kill_flag = {"killed": False}
     monkeypatch.setattr(
@@ -336,6 +334,7 @@ def test_pending_question_marker_deleted_on_kill(tmp_path, monkeypatch):
 
     assert result is None
     assert marker_payload is not None  # Existed during the poll
+    assert (Path(marker_payload["request_path"]).parent / "cancellation.json").is_file()
     assert not (tmp_path / "pending_question.json").exists()
 
 
@@ -354,10 +353,11 @@ def test_pending_question_marker_not_written_for_auto_approve(tmp_path, monkeypa
     ]
     result = handle_questions_flow(questions, str(tmp_path))
 
-    assert result == {
-        "answers": [
-            {"question": "ok?", "selected": ["yes"], "custom_feedback": None},
-        ],
-        "global_note": "",
-    }
+    assert result is not None
+    assert result["answers"] == [
+        {"question": "ok?", "selected": ["yes"], "custom_feedback": None},
+    ]
+    assert result["global_note"] == ""
+    assert Path(result["_question_request_path"]).name == "request.json"
+    assert Path(result["_question_response_path"]).name == "response.json"
     assert not (tmp_path / "pending_question.json").exists()

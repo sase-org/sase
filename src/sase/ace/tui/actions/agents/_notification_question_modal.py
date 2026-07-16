@@ -2,18 +2,29 @@
 
 from __future__ import annotations
 
-import json
+import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from ._notification_modal_responses import write_workflow_action_response
 from ._notification_utils import refresh_notification_agent_or_request
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
 
     from ...models import Agent
+
+
+log = logging.getLogger(__name__)
+_QuestionTaskSeverity = Literal["warning", "error"]
+
+
+@dataclass(frozen=True)
+class _QuestionResponseTaskOutcome:
+    message: str
+    success: bool
+    severity: _QuestionTaskSeverity | None = None
 
 
 def handle_user_question(app: object, notification: Notification) -> bool:
@@ -27,15 +38,18 @@ def handle_user_question(app: object, notification: Notification) -> bool:
     Returns:
         True if the user question modal was pushed.
     """
-    response_dir = notification.action_data.get("response_dir")
-    if not response_dir:
-        app.notify("No response_dir in notification", severity="warning")  # type: ignore[attr-defined]
+    from sase.notification_gates.paths import resolve_notification_bundle
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None:
+        app.notify("No question request in notification", severity="warning")  # type: ignore[attr-defined]
         return False
 
     return _open_user_question_modal(
         app,
-        response_dir,
+        str(bundle.root),
         notification_id=notification.id,
+        action_data=dict(notification.action_data),
         on_response_written=lambda: _on_user_question_response_written(
             app, notification
         ),
@@ -43,9 +57,6 @@ def handle_user_question(app: object, notification: Notification) -> bool:
 
 
 def _on_user_question_response_written(app: object, notification: Notification) -> None:
-    from sase.notifications import mark_dismissed
-
-    mark_dismissed(notification.id)
     _mark_answered_for_notification(app, notification)
 
 
@@ -73,7 +84,11 @@ def open_user_question_modal_from_marker(
     """
     if agent is None:
         return _open_user_question_modal(
-            app, response_dir, notification_id=None, on_response_written=None
+            app,
+            response_dir,
+            notification_id=None,
+            action_data={"response_dir": response_dir},
+            on_response_written=None,
         )
 
     matched = agent
@@ -82,7 +97,11 @@ def open_user_question_modal_from_marker(
         _mark_marker_agent_answered(app, matched)
 
     return _open_user_question_modal(
-        app, response_dir, notification_id=None, on_response_written=on_written
+        app,
+        response_dir,
+        notification_id=None,
+        action_data={"response_dir": response_dir},
+        on_response_written=on_written,
     )
 
 
@@ -91,21 +110,19 @@ def _open_user_question_modal(
     response_dir: str,
     *,
     notification_id: str | None,
+    action_data: dict[str, str],
     on_response_written: Callable[[], None] | None,
 ) -> bool:
     from ...modals import UserQuestionModal, UserQuestionResult
+    from sase.user_question_actions import (
+        UserQuestionActionError,
+        read_user_question_request,
+    )
 
     response_path = Path(response_dir)
-    request_path = response_path / "question_request.json"
-
-    if not request_path.exists():
-        app.notify("User question request expired or not found", severity="warning")  # type: ignore[attr-defined]
-        return False
-
     try:
-        with open(request_path, encoding="utf-8") as f:
-            request_data = json.load(f)
-    except Exception as e:
+        request_data = read_user_question_request(response_path)
+    except UserQuestionActionError as e:
         app.notify(f"Error reading question request: {e}", severity="error")  # type: ignore[attr-defined]
         return False
 
@@ -129,24 +146,120 @@ def _open_user_question_modal(
             "global_note": result.global_note,
         }
 
-        question_response_path = response_path / "question_response.json"
-        try:
-            write_workflow_action_response(
-                question_response_path,
-                response_data,
-                action_kind="user_question",
-                notification_id=notification_id or str(question_response_path),
-            )
-            app.notify("Sent question response")  # type: ignore[attr-defined]
-        except Exception as e:
-            app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
-            return
-
-        if on_response_written is not None:
-            on_response_written()
+        _submit_question_response_task(
+            app,
+            response_dir=response_path,
+            notification_id=notification_id,
+            action_data=action_data,
+            response_data=response_data,
+            on_response_written=on_response_written,
+        )
 
     app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
     return True
+
+
+def _submit_question_response_task(
+    app: object,
+    *,
+    response_dir: Path,
+    notification_id: str | None,
+    action_data: dict[str, str],
+    response_data: dict[str, object],
+    on_response_written: Callable[[], None] | None,
+) -> None:
+    """Run the hashed question command as tracked background work in ACE."""
+    from sase.ace.tui.actions.task_actions import TrackedTaskResult
+
+    request_id = action_data.get("request_id") or response_dir.name
+    dedup_key = f"question-response:{request_id}"
+
+    def task_body() -> _QuestionResponseTaskOutcome:
+        from sase.user_question_actions import (
+            UserQuestionActionContext,
+            UserQuestionActionError,
+            execute_user_question_response,
+        )
+
+        context_data = dict(action_data)
+        context_data.setdefault("response_dir", str(response_dir))
+        try:
+            result = execute_user_question_response(
+                UserQuestionActionContext(
+                    notification_id=notification_id,
+                    host_action_data=context_data,
+                ),
+                response_data,
+                source="tui",
+            )
+        except UserQuestionActionError as exc:
+            severity: _QuestionTaskSeverity = (
+                "warning" if exc.code == "conflict_already_handled" else "error"
+            )
+            message = (
+                "Question was already answered"
+                if exc.code == "conflict_already_handled"
+                else str(exc)
+            )
+            return _QuestionResponseTaskOutcome(message, False, severity)
+        return _QuestionResponseTaskOutcome(result.message, True)
+
+    def tracked_body() -> TrackedTaskResult[_QuestionResponseTaskOutcome]:
+        outcome = task_body()
+        return TrackedTaskResult(
+            success=outcome.success,
+            message=outcome.message,
+            payload=outcome,
+            error=None if outcome.success else outcome.message,
+        )
+
+    def finish(completion: object) -> None:
+        outcome = getattr(completion, "payload", None)
+        if not isinstance(outcome, _QuestionResponseTaskOutcome):
+            if not bool(getattr(completion, "success", False)):
+                app.notify(  # type: ignore[attr-defined]
+                    str(getattr(completion, "message", "Question response failed")),
+                    severity="error",
+                )
+            return
+        _finish_question_response_task(app, outcome, on_response_written)
+
+    submit = getattr(app, "_submit_tracked_task", None)
+    if callable(submit):
+        try:
+            submit(
+                "question",
+                f"question {request_id}",
+                str(response_dir),
+                tracked_body,
+                display_name=f"answer question {request_id}",
+                dedup_key=dedup_key,
+                duplicate_message="Question response is already being processed",
+                on_complete=finish,
+                reload_on_complete=False,
+                notify_on_complete=False,
+            )
+            return
+        except Exception:
+            log.debug("Falling back to synchronous question response", exc_info=True)
+
+    _finish_question_response_task(app, task_body(), on_response_written)
+
+
+def _finish_question_response_task(
+    app: object,
+    outcome: _QuestionResponseTaskOutcome,
+    on_response_written: Callable[[], None] | None,
+) -> None:
+    if outcome.success and on_response_written is not None:
+        on_response_written()
+    if outcome.severity is None:
+        app.notify(outcome.message)  # type: ignore[attr-defined]
+    else:
+        app.notify(outcome.message, severity=outcome.severity)  # type: ignore[attr-defined]
+    refresh_count = getattr(app, "_refresh_notification_count", None)
+    if callable(refresh_count):
+        refresh_count()
 
 
 def _mark_answered_for_notification(app: object, notification: Notification) -> None:

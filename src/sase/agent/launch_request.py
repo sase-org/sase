@@ -47,7 +47,7 @@ LaunchRequestStatus = Literal[
 
 
 @dataclass(frozen=True)
-class LaunchRequestOutcome:
+class _LaunchRequestOutcome:
     """Deterministic terminal result observed by an agent-side requester."""
 
     status: LaunchRequestStatus
@@ -183,7 +183,7 @@ def wait_for_launch_approval(
     request: LaunchRequestCreationResult,
     *,
     poll_interval: float = 0.2,
-) -> LaunchRequestOutcome:
+) -> _LaunchRequestOutcome:
     """Wait mechanically for a launch gate and translate its neutral response."""
     from sase.notification_gates.models import GateError
     from sase.notification_gates.poller import wait_for_gate
@@ -213,7 +213,7 @@ def wait_for_launch_approval(
         status: LaunchRequestStatus = (
             "timed_out" if result.status == "timed_out" else "cancelled"
         )
-        return LaunchRequestOutcome(
+        return _LaunchRequestOutcome(
             status=status,
             request_id=request.request_id,
             notification_id=request.notification_id,
@@ -364,7 +364,7 @@ def execute_launch_gate_command(choice: str) -> int:
 
 def _launch_outcome_from_response(
     request: LaunchRequestCreationResult, response: dict[str, Any]
-) -> LaunchRequestOutcome:
+) -> _LaunchRequestOutcome:
     choice_id = response.get("choice_id")
     result = response.get("result")
     if not isinstance(choice_id, str) or not isinstance(result, dict):
@@ -402,7 +402,7 @@ def _launch_outcome_from_response(
             str(request.response_path),
             f"unsupported launch response choice: {choice_id}",
         )
-    return LaunchRequestOutcome(
+    return _LaunchRequestOutcome(
         status=status,
         request_id=request.request_id,
         notification_id=request.notification_id,
@@ -704,7 +704,6 @@ __all__ = [
     "LAUNCH_REQUEST_SCHEMA_VERSION",
     "LaunchRequestCreationResult",
     "LaunchRequestError",
-    "LaunchRequestOutcome",
     "LaunchRequestStatus",
     "cancel_launch_approval_request",
     "create_launch_approval_request",

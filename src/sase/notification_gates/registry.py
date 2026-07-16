@@ -82,6 +82,21 @@ class GateAdapter:
         """Regenerate adapter-owned previews after an edit."""
         del bundle_path
 
+    def automatic_input(self, spec: GateSpec) -> dict[str, Any]:
+        """Return adapter-owned input for a common automatic resolution."""
+        if self.kind == "question":
+            from sase.user_question_actions import automatic_question_response
+
+            try:
+                return automatic_question_response(spec.payload)
+            except Exception as exc:
+                if isinstance(exc, GateError):
+                    raise
+                code = getattr(exc, "code", "invalid_auto_input")
+                target = getattr(exc, "target", "auto")
+                raise GateError(str(code), str(target), str(exc)) from exc
+        return {}
+
 
 _ADAPTERS = (
     GateAdapter(
@@ -308,8 +323,11 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         ) from exc
     if adapter.kind == "launch":
         _validate_launch_spec(spec)
+    if adapter.kind == "question":
+        _validate_question_spec(spec)
     if spec.auto.enabled:
         adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
+        adapter.automatic_input(spec)
 
 
 def _validate_launch_spec(spec: GateSpec) -> None:
@@ -372,6 +390,96 @@ def _validate_launch_spec(spec: GateSpec) -> None:
             "invalid_launch_payload",
             "payload.dispatch.cwd",
             "launch payload requires a cwd",
+        )
+
+
+def _validate_question_spec(spec: GateSpec) -> None:
+    """Keep UserQuestion gates on the registered complete-form contract."""
+    from sase.user_question_actions import (
+        QUESTION_CHOICE_ID,
+        QUESTION_COMMAND_PATH,
+        QUESTION_CONTINUATION_MODE,
+        UserQuestionActionError,
+        question_gate_command_script,
+        question_response_schema,
+        validate_user_questions,
+    )
+
+    if spec.continuation_mode != QUESTION_CONTINUATION_MODE:
+        raise GateError(
+            "invalid_question_continuation",
+            "continuation_mode",
+            f"question gates require {QUESTION_CONTINUATION_MODE}",
+        )
+    try:
+        questions = validate_user_questions(spec.payload.get("questions"))
+    except UserQuestionActionError as exc:
+        raise GateError(exc.code, exc.target, str(exc)) from exc
+    session_id = spec.payload.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        raise GateError(
+            "invalid_question_payload",
+            "payload.session_id",
+            "question session id is required",
+        )
+    if spec.request_id is not None and session_id != spec.request_id:
+        raise GateError(
+            "invalid_question_payload",
+            "payload.session_id",
+            "question session id must match request id",
+        )
+    if len(spec.choices) != 1:
+        raise GateError(
+            "invalid_question_choices",
+            "choices",
+            "question gates require one submit choice",
+        )
+    choice = spec.choices[0]
+    if choice.id != QUESTION_CHOICE_ID or choice.command.argv != (
+        QUESTION_COMMAND_PATH,
+    ):
+        raise GateError(
+            "invalid_question_choices",
+            "choices",
+            "question gates require the registered submit command",
+        )
+    expected_schema = question_response_schema(questions)
+    if (
+        choice.input_schema != expected_schema
+        or choice.result_schema != expected_schema
+    ):
+        raise GateError(
+            "invalid_question_schema",
+            "choices.submit",
+            "question submit schemas must match the adapter input form",
+        )
+    resources = {resource.path: resource for resource in spec.resources}
+    if set(resources) != {QUESTION_COMMAND_PATH}:
+        raise GateError(
+            "invalid_question_resources",
+            "resources",
+            "question gates require only the registered submit command",
+        )
+    command = resources[QUESTION_COMMAND_PATH]
+    try:
+        content = (
+            command.content
+            if command.content is not None
+            else command.source.read_text(encoding="utf-8")
+            if command.source is not None
+            else None
+        )
+    except OSError as exc:
+        raise GateError(
+            "invalid_question_command",
+            QUESTION_COMMAND_PATH,
+            f"cannot read question command: {exc}",
+        ) from exc
+    if content != question_gate_command_script():
+        raise GateError(
+            "invalid_question_command",
+            QUESTION_COMMAND_PATH,
+            "question command does not match the registered adapter",
         )
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -14,7 +13,6 @@ from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.core.paths import sase_subdir
 from sase.main.qa_prompt import build_qa_round, merge_qa_for_prompt
 
 RunnerSlotReacquirer = Callable[[Callable[[], str]], str]
@@ -52,49 +50,51 @@ def handle_questions_flow(
         send_desktop_notification,
     )
 
-    if is_auto_approve_active():
-        answers = []
-        for q in questions:
-            options = q.get("options", [])
-            selected = [options[0]["label"]] if options else []
-            answers.append(
-                {
-                    "question": q.get("question", ""),
-                    "selected": selected,
-                    "custom_feedback": None,
-                }
-            )
-        return {"answers": answers, "global_note": ""}
-
     session_id = str(uuid.uuid4())
-    response_dir = str(sase_subdir("user_question") / session_id)
-    os.makedirs(response_dir, exist_ok=True)
-
-    request_data = {
-        "questions": questions,
-        "session_id": session_id,
-        "timestamp": time.time(),
-    }
-    request_path = os.path.join(response_dir, "question_request.json")
-    with open(request_path, "w", encoding="utf-8") as f:
-        json.dump(request_data, f, indent=2)
-
-    from sase.notifications.senders import notify_user_question
-
     agent_cl_name = os.environ.get("SASE_AGENT_CL_NAME")
     agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
     agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
     agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
-    q_summary = "; ".join(q.get("question", "?") for q in questions[:3])
-    notify_user_question(
-        response_dir=response_dir,
+    action_data = {
+        key: value
+        for key, value in {
+            "session_id": session_id,
+            "agent_cl_name": agent_cl_name,
+            "agent_project_file": agent_project_file,
+            "agent_timestamp": agent_timestamp,
+            "agent_root_timestamp": agent_root_timestamp,
+        }.items()
+        if value
+    }
+
+    from sase.user_question_actions import create_user_question_gate
+
+    gate = create_user_question_gate(
+        questions,
         session_id=session_id,
-        notes=q_summary,
-        agent_cl_name=agent_cl_name,
-        agent_project_file=agent_project_file,
-        agent_timestamp=agent_timestamp,
-        agent_root_timestamp=agent_root_timestamp,
+        producer={
+            "agent": os.environ.get("SASE_AGENT"),
+            "artifacts_dir": artifacts_dir,
+            **action_data,
+        },
+        action_data=action_data,
+        auto=is_auto_approve_active(),
     )
+    request_path = str(gate.request_path)
+    response_path = str(gate.response_path)
+
+    if gate.notification_id is None:
+        from sase.notification_gates.poller import poll_gate
+
+        terminal = poll_gate(gate.bundle_path)
+        if terminal is None or terminal.status != "responded":
+            return None
+        return _question_result(
+            terminal.payload,
+            request_path=request_path,
+            response_path=response_path,
+            session_id=session_id,
+        )
 
     prefix = get_tmux_prefix()
     send_desktop_notification(
@@ -117,32 +117,48 @@ def handle_questions_flow(
     except OSError:
         pass
 
-    response_path = os.path.join(response_dir, "question_response.json")
     try:
-        while True:
-            if was_killed():
-                return None
+        from sase.notification_gates.poller import wait_for_gate
 
-            if os.path.exists(response_path):
-                try:
-                    with open(response_path, encoding="utf-8") as f:
-                        response = json.load(f)
-                    if isinstance(response, dict):
-                        response["_question_request_path"] = request_path
-                        response["_question_response_path"] = response_path
-                        response["_question_session_id"] = session_id
-                    if marker_written and reacquire_runner_slot is not None:
-                        reacquire_runner_slot(
-                            lambda: _remove_pending_question_marker(
-                                artifacts_dir,
-                                claimed_at=run_started_at,
-                                strict=True,
-                            )
-                        )
-                    return response
-                except (json.JSONDecodeError, OSError):
-                    pass
-
-            time.sleep(0.5)
+        terminal = wait_for_gate(
+            gate.bundle_path,
+            poll_interval=0.2,
+            cancelled=was_killed,
+        )
+        if terminal.status != "responded":
+            return None
+        response = _question_result(
+            terminal.payload,
+            request_path=request_path,
+            response_path=response_path,
+            session_id=session_id,
+        )
+        if marker_written and reacquire_runner_slot is not None:
+            reacquire_runner_slot(
+                lambda: _remove_pending_question_marker(
+                    artifacts_dir,
+                    claimed_at=run_started_at,
+                    strict=True,
+                )
+            )
+        return response
     finally:
         _remove_pending_question_marker(artifacts_dir)
+
+
+def _question_result(
+    response: dict[str, Any],
+    *,
+    request_path: str,
+    response_path: str,
+    session_id: str,
+) -> dict[str, Any]:
+    """Translate a neutral gate response into legacy continuation data."""
+    result = response.get("result")
+    if not isinstance(result, dict):
+        raise ValueError("question gate response is missing its result")
+    translated = dict(result)
+    translated["_question_request_path"] = request_path
+    translated["_question_response_path"] = response_path
+    translated["_question_session_id"] = session_id
+    return translated

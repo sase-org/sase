@@ -2,6 +2,8 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -10,6 +12,56 @@ from sase.ace.tui.modals.user_question_modal import (
     _QuestionAnswer,
 )
 from sase.notifications import Notification
+from sase.notifications.store import load_notifications
+from sase.user_question_actions import create_user_question_gate
+
+
+def test_neutral_question_response_runs_as_tracked_background_task() -> None:
+    gate = create_user_question_gate(
+        [{"question": "Tracked?", "options": [{"label": "Yes"}]}],
+        session_id="tracked-question",
+    )
+    notification = load_notifications()[0]
+    captured: dict[str, Any] = {}
+    app = MagicMock()
+    app._agents = []
+    app._agent_status_overrides = {}
+    app._agent_pre_question_status = {}
+
+    def submit(*args: object, **kwargs: object) -> object:
+        captured["body"] = args[3]
+        captured["on_complete"] = kwargs["on_complete"]
+        return object()
+
+    app._submit_tracked_task = submit
+
+    from sase.ace.tui.actions.agents._notification_modals import handle_user_question
+
+    assert handle_user_question(app, notification) is True
+    on_dismiss = app.push_screen.call_args[0][1]
+    on_dismiss(
+        UserQuestionResult(
+            answers=[
+                _QuestionAnswer(
+                    question="Tracked?",
+                    selected=["Yes"],
+                    custom_feedback=None,
+                )
+            ],
+            global_note="",
+        )
+    )
+
+    assert not gate.response_path.exists()
+    tracked = captured["body"]()
+    captured["on_complete"](
+        SimpleNamespace(
+            payload=tracked.payload,
+            success=tracked.success,
+            message=tracked.message,
+        )
+    )
+    assert gate.response_path.is_file()
 
 
 def test_user_question_response_dismisses_notification_and_marks_answered(
@@ -20,7 +72,9 @@ def test_user_question_response_dismisses_notification_and_marks_answered(
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
-        json.dumps({"questions": [{"question": "Pick one"}]})
+        json.dumps(
+            {"questions": [{"question": "Pick one", "options": [{"label": "A"}]}]}
+        )
     )
 
     notification = Notification(
@@ -43,6 +97,7 @@ def test_user_question_response_dismisses_notification_and_marks_answered(
         raw_suffix="20260425120000",
     )
     app = MagicMock()
+    app._submit_tracked_task = None
     app._agents = [agent]
     app._agents_with_children = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
@@ -100,7 +155,9 @@ def test_user_question_response_marks_root_and_child_answered(
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
-        json.dumps({"questions": [{"question": "Pick one"}]})
+        json.dumps(
+            {"questions": [{"question": "Pick one", "options": [{"label": "A"}]}]}
+        )
     )
 
     notification = Notification(
@@ -135,6 +192,7 @@ def test_user_question_response_marks_root_and_child_answered(
         parent_workflow="my_cl.plan",
     )
     app = MagicMock()
+    app._submit_tracked_task = None
     app._agents = [root, child]
     app._agents_with_children = [root, child]
     app._agent_status_overrides = {
@@ -182,7 +240,13 @@ def test_open_user_question_modal_from_marker_marks_root_row(tmp_path: Path) -> 
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
-        json.dumps({"questions": [{"question": "Resume from marker?"}]})
+        json.dumps(
+            {
+                "questions": [
+                    {"question": "Resume from marker?", "options": [{"label": "yes"}]}
+                ]
+            }
+        )
     )
 
     root = Agent(
@@ -205,6 +269,7 @@ def test_open_user_question_modal_from_marker_marks_root_row(tmp_path: Path) -> 
         parent_workflow="my_cl.plan",
     )
     app = MagicMock()
+    app._submit_tracked_task = None
     app._agents = [root, child]
     app._agents_with_children = [root, child]
     app._agent_status_overrides = {
@@ -256,10 +321,17 @@ def test_open_user_question_modal_from_marker_dismissed_notification(
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
-        json.dumps({"questions": [{"question": "Resume from marker?"}]})
+        json.dumps(
+            {
+                "questions": [
+                    {"question": "Resume from marker?", "options": [{"label": "yes"}]}
+                ]
+            }
+        )
     )
 
     app = MagicMock()
+    app._submit_tracked_task = None
 
     from sase.ace.tui.actions.agents._notification_modals import (
         open_user_question_modal_from_marker,
@@ -303,7 +375,13 @@ def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> 
     response_dir = tmp_path / "response"
     response_dir.mkdir()
     (response_dir / "question_request.json").write_text(
-        json.dumps({"questions": [{"question": "Resume from marker?"}]})
+        json.dumps(
+            {
+                "questions": [
+                    {"question": "Resume from marker?", "options": [{"label": "yes"}]}
+                ]
+            }
+        )
     )
 
     agent = Agent(
@@ -315,6 +393,7 @@ def test_open_user_question_modal_from_marker_marks_answered(tmp_path: Path) -> 
         raw_suffix="20260425120000",
     )
     app = MagicMock()
+    app._submit_tracked_task = None
     app._agents = [agent]
     app._agent_status_overrides = {agent.identity: "QUESTION"}
     app._agent_pre_question_status = {agent.identity: "RUNNING"}

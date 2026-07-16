@@ -206,7 +206,12 @@ def _resolve_auto_gate(
     fingerprint: str,
 ) -> GateCreationResult:
     choice = adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
-    execution = execute_gate_choice(paths.root, choice.id, {}, source="auto_resolution")
+    execution = execute_gate_choice(
+        paths.root,
+        choice.id,
+        adapter.automatic_input(spec),
+        source="auto_resolution",
+    )
     result = _creation_result(
         spec,
         adapter,

@@ -192,41 +192,6 @@ def notify_hitl_request(
     NOTIFICATIONS_SENT.labels(type="hitl_request", status="ok").inc()
 
 
-def notify_user_question(
-    response_dir: str,
-    session_id: str,
-    notes: str,
-    agent_cl_name: str | None = None,
-    agent_project_file: str | None = None,
-    agent_timestamp: str | None = None,
-    agent_root_timestamp: str | None = None,
-) -> None:
-    """Send a notification when Claude Code asks a user question via hook."""
-    action_data: dict[str, str] = {
-        "response_dir": response_dir,
-        "session_id": session_id,
-    }
-    if agent_cl_name:
-        action_data["agent_cl_name"] = agent_cl_name
-    if agent_project_file:
-        action_data["agent_project_file"] = agent_project_file
-    if agent_timestamp:
-        action_data["agent_timestamp"] = agent_timestamp
-    if agent_root_timestamp:
-        action_data["agent_root_timestamp"] = agent_root_timestamp
-    n = Notification(
-        id=str(uuid4()),
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="question",
-        notes=[notes] if notes else ["Claude is asking a question"],
-        files=[],
-        action="UserQuestion",
-        action_data=action_data,
-    )
-    append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="user_question", status="ok").inc()
-
-
 def notify_plan_approval(
     plan_file: str,
     response_dir: str,
@@ -279,39 +244,3 @@ def notify_plan_approval(
     )
     append_notification(n)
     NOTIFICATIONS_SENT.labels(type="plan_approval", status="ok").inc()
-
-
-def notify_launch_approval(
-    *,
-    request_id: str,
-    response_dir: str,
-    source_surface: str,
-    slot_count: int,
-    preview_file: str | None = None,
-    request_file: str | None = None,
-) -> str:
-    """Send a notification for a pending launch approval request."""
-    notification_id = str(uuid4())
-    files = [path for path in (preview_file, request_file) if path]
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="launch",
-        notes=[
-            f"Launch approval requested: {slot_count} slot"
-            f"{'s' if slot_count != 1 else ''}",
-            f"Source: {source_surface}",
-        ],
-        files=files,
-        action="LaunchApproval",
-        action_data={
-            "response_dir": response_dir,
-            "request_id": request_id,
-            "source_surface": source_surface,
-            "slot_count": str(slot_count),
-        },
-        tags=normalize_notification_tags(["launch"]),
-    )
-    append_notification(n)
-    NOTIFICATIONS_SENT.labels(type="launch_approval", status="ok").inc()
-    return notification_id

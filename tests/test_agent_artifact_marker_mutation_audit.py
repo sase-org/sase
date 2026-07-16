@@ -195,7 +195,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     "src/sase/axe/run_agent_helpers_questions.py:handle_questions_flow": Review(
-        mutation_calls=("open", "dump", "open", "dump"),
+        mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
     (

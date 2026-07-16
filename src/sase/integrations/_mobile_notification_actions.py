@@ -163,8 +163,19 @@ def execute_mobile_question_action(
     custom_answer: str | None = None,
     global_note: str | None = None,
 ) -> MobilePlanActionResult:
-    """Write a user-question response and dismiss the notification."""
+    """Execute a complete user-question form through the shared gate path."""
     notification = _resolve_action_notification(prefix, "UserQuestion")
+    from sase.user_question_actions import (
+        UserQuestionActionContext,
+        UserQuestionActionError,
+        execute_user_question_response,
+        read_user_question_request,
+    )
+
+    context = UserQuestionActionContext(
+        notification_id=notification.id,
+        host_action_data=dict(notification.host_action_data),
+    )
     response_dir = Path(
         notification.host_action_data.get("response_dir", "")
     ).expanduser()
@@ -172,19 +183,10 @@ def execute_mobile_question_action(
         raise MobilePlanActionError(
             "invalid_request", "response_dir", "response_dir is missing"
         )
-    request_path = response_dir / "question_request.json"
     try:
-        request_data = json.loads(request_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise MobilePlanActionError(
-            "conflict_already_handled",
-            notification.id,
-            "question request was already consumed",
-        ) from exc
-    except json.JSONDecodeError as exc:
-        raise MobilePlanActionError(
-            "invalid_request", "question_request", "malformed question_request.json"
-        ) from exc
+        request_data = read_user_question_request(response_dir)
+    except UserQuestionActionError as exc:
+        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
 
     response_json = _question_response_json(
         request_data,
@@ -196,15 +198,20 @@ def execute_mobile_question_action(
         custom_answer=custom_answer,
         global_note=global_note,
     )
-    response_path = response_dir / "question_response.json"
-    _write_json_once(response_path, response_json, notification.id)
-    dismiss_notification_best_effort(notification.id)
+    try:
+        result = execute_user_question_response(
+            context,
+            response_json,
+            source="mobile",
+        )
+    except UserQuestionActionError as exc:
+        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
     return MobilePlanActionResult(
         prefix=prefix,
         notification_id=notification.id,
-        response_file="question_response.json",
-        response_json=response_json,
-        message="Question answered",
+        response_file=result.response_file,
+        response_json=result.response_json,
+        message=result.message,
     )
 
 

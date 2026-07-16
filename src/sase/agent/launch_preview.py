@@ -110,6 +110,7 @@ def build_launch_preview_request(
     }
 
 
+# symvision: demos/tapes/sase_ace_multi_model_fanout.tape
 def write_launch_preview_files(
     request: Mapping[str, Any],
     *,
