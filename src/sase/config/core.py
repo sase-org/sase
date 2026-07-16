@@ -12,6 +12,7 @@ unless local config loading has been disabled via ``set_include_local_config(Fal
 
 import importlib.resources
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -39,11 +40,31 @@ _plugin_configs_cache: list[dict[str, Any]] | None = None
 _merged_config_cache_token: tuple[Any, ...] | None = None
 _merged_config_cache_value: dict[str, Any] | None = None
 
+# Config freshness checks run from latency-sensitive render paths, so bound the
+# synchronous stat/glob work to one pass per short polling window.  Explicit
+# cache clears increment the generation to invalidate downstream caches keyed by
+# ``current_config_token()`` even when a rapid, same-size edit happens to retain
+# an otherwise-identical filesystem token.
+_CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
+_config_cache_generation = 0
+_current_config_token_cache_value: tuple[Any, ...] | None = None
+_current_config_token_cache_deadline = 0.0
+
+
+def _reset_current_config_token_cache() -> None:
+    """Force the next config-token lookup to inspect the filesystem."""
+    global _current_config_token_cache_value, _current_config_token_cache_deadline
+    _current_config_token_cache_value = None
+    _current_config_token_cache_deadline = 0.0
+
 
 def set_include_local_config(value: bool) -> None:
     """Enable or disable loading of the local CWD ``sase.yml``."""
     global _include_local_config
+    if _include_local_config == value:
+        return
     _include_local_config = value
+    _reset_current_config_token_cache()
 
 
 def stat_token(path: Path) -> tuple[str, int, int] | None:
@@ -58,14 +79,9 @@ def stat_token(path: Path) -> tuple[str, int, int] | None:
     return (str(path), st.st_mtime_ns, st.st_size)
 
 
-def current_config_token() -> tuple[Any, ...]:
-    """Compute the cache key for the current merged-config state.
-
-    Includes the include-local flag, cwd (when local config is enabled), and a
-    stat tuple per candidate file layer.  Bundled and plugin defaults aren't
-    keyed because they ship in packages and don't change at runtime.
-    """
-    parts: list[Any] = [_include_local_config]
+def _compute_current_config_token() -> tuple[Any, ...]:
+    """Inspect config sources and return their current cache key."""
+    parts: list[Any] = [_config_cache_generation, _include_local_config]
     if _include_local_config:
         try:
             parts.append(str(Path.cwd()))
@@ -81,6 +97,42 @@ def current_config_token() -> tuple[Any, ...]:
     parts.append(stat_token(local_path) if local_path is not None else None)
 
     return tuple(parts)
+
+
+def current_config_token() -> tuple[Any, ...]:
+    """Return the cache key for the current merged-config state.
+
+    Includes the include-local flag, cwd (when local config is enabled), and a
+    stat tuple per candidate file layer.  Bundled and plugin defaults aren't
+    keyed because they ship in packages and don't change at runtime.
+
+    Filesystem freshness is recomputed at most once per short polling window;
+    calls in between return the last token without performing stat/glob I/O.
+    """
+    global _current_config_token_cache_value, _current_config_token_cache_deadline
+    cached = _current_config_token_cache_value
+    if cached is not None and time.monotonic() < _current_config_token_cache_deadline:
+        return cached
+
+    token = _compute_current_config_token()
+    _current_config_token_cache_value = token
+    _current_config_token_cache_deadline = (
+        time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+    )
+    return token
+
+
+def clear_config_cache() -> None:
+    """Drop cached config layers and force the next freshness inspection."""
+    global _config_cache_generation
+    global _default_config_cache, _plugin_configs_cache
+    global _merged_config_cache_token, _merged_config_cache_value
+    _config_cache_generation += 1
+    _default_config_cache = None
+    _plugin_configs_cache = None
+    _merged_config_cache_token = None
+    _merged_config_cache_value = None
+    _reset_current_config_token_cache()
 
 
 def get_use_chezmoi() -> bool:

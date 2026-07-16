@@ -278,11 +278,10 @@ def _clear_config_caches() -> None:
     """
     from sase.config import core as config_core
     from sase.config import mentor as mentor_config
+    from sase.llm_provider import config as llm_provider_config
 
-    config_core._default_config_cache = None
-    config_core._plugin_configs_cache = None
-    config_core._merged_config_cache_token = None
-    config_core._merged_config_cache_value = None
+    config_core.clear_config_cache()
+    llm_provider_config._get_model_aliases_for_token.cache_clear()
 
     mentor_config._mentor_profiles_cache_token = None
     mentor_config._mentor_profiles_cache_value = None

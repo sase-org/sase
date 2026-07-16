@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.config import build_config_inventory, config_field_model
-from sase.config.core import current_config_token
+from sase.config.core import clear_config_cache, current_config_token
 
 from .config_pane_rendering import (
     abbreviate_path as _abbreviate_path,
@@ -100,6 +100,7 @@ def _clear_view_cache() -> None:
     global _cache_key, _cache_result
     _cache_key = None
     _cache_result = None
+    clear_config_cache()
 
 
 __all__ = [

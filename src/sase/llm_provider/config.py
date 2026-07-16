@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.config import load_merged_config
+from sase.config.core import current_config_token
 from sase.xprompt.effort import is_valid_effort
 
 if TYPE_CHECKING:
@@ -265,9 +267,15 @@ def model_alias_bucket_names() -> set[str]:
     return set(_custom_model_alias_buckets().values())
 
 
+@lru_cache(maxsize=1)
+def _get_model_aliases_for_token(_token: tuple[Any, ...]) -> dict[str, str]:
+    """Return configured aliases for one merged-config freshness token."""
+    return get_builtin_model_aliases() | get_custom_model_aliases()
+
+
 def _get_model_aliases() -> dict[str, str]:
     """Return merged configured aliases; custom aliases win collisions."""
-    return get_builtin_model_aliases() | get_custom_model_aliases()
+    return _get_model_aliases_for_token(current_config_token())
 
 
 def get_model_aliases() -> dict[str, str]:

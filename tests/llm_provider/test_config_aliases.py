@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.config import core as config_core
+from sase.llm_provider import config as llm_config
 from sase.llm_provider.config import (
     _get_model_aliases,
     coder_model_alias_for_provider,
@@ -229,6 +231,44 @@ def test_resolve_model_alias_handles_chains_and_cycles(
     assert resolve_model_alias("other") == "opus"
     assert resolve_model_alias("missing") == "missing"
     assert resolve_model_alias("a") == "a"
+
+
+def test_resolve_model_alias_reuses_aliases_without_config_io(tmp_path) -> None:
+    """Repeated alias resolution does not stat, glob, or re-read unchanged config."""
+    (tmp_path / "sase.yml").write_text(
+        "llm_provider:\n  model_aliases:\n    builtin:\n      default: claude/opus\n",
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch.object(
+            llm_config,
+            "get_llm_provider_config",
+            wraps=llm_config.get_llm_provider_config,
+        ) as load_provider_config,
+    ):
+        clear_count_before = load_provider_config.call_count
+        assert resolve_model_alias("default") == "claude/opus"
+        first_load_count = load_provider_config.call_count
+        assert first_load_count > clear_count_before
+
+        with (
+            patch.object(
+                config_core,
+                "stat_token",
+                side_effect=AssertionError("unexpected config stat"),
+            ),
+            patch.object(
+                config_core,
+                "_get_overlay_paths",
+                side_effect=AssertionError("unexpected config glob"),
+            ),
+        ):
+            assert resolve_model_alias("default") == "claude/opus"
+
+        assert load_provider_config.call_count == first_load_count
 
 
 def test_role_alias_helpers() -> None:

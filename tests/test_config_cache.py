@@ -10,7 +10,12 @@ from unittest.mock import patch
 import yaml
 from sase.config import core as config_core
 from sase.config import mentor as mentor_config
-from sase.config.core import load_merged_config, set_include_local_config
+from sase.config.core import (
+    clear_config_cache,
+    current_config_token,
+    load_merged_config,
+    set_include_local_config,
+)
 from sase.config.mentor import _load_mentor_profiles
 
 
@@ -39,9 +44,11 @@ def test_load_merged_config_invalidates_on_file_mtime_change(tmp_path: Path) -> 
     global_dir = tmp_path / "global"
     _write_user_config(global_dir, {"key": "v1"})
 
+    now = [10.0]
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         first = load_merged_config()
         assert first["key"] == "v1"
@@ -53,6 +60,7 @@ def test_load_merged_config_invalidates_on_file_mtime_change(tmp_path: Path) -> 
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
         second = load_merged_config()
 
@@ -96,10 +104,7 @@ def test_clear_config_cache_forces_reload(tmp_path: Path) -> None:
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
     ):
         first = load_merged_config()
-        config_core._default_config_cache = None
-        config_core._plugin_configs_cache = None
-        config_core._merged_config_cache_token = None
-        config_core._merged_config_cache_value = None
+        clear_config_cache()
         second = load_merged_config()
 
     # Distinct dicts because the cache was dropped between calls.
@@ -119,10 +124,12 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
         call_count["n"] += 1
         return real_loader()
 
+    now = [10.0]
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
         patch("sase.config.core._load_default_config", counting_loader),
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         load_merged_config()
         # Force a different cache token by editing the user file.
@@ -132,6 +139,7 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         load_merged_config()
 
     # Default layer loaded exactly once even though merged-config was rebuilt.
@@ -150,10 +158,12 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
         call_count["n"] += 1
         return real_loader()
 
+    now = [10.0]
     with (
         patch("sase.config.core.CONFIG_DIR", global_dir),
         patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
         patch("sase.config.core._load_plugin_configs", counting_loader),
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
         load_merged_config()
         sase_yml = global_dir / "sase.yml"
@@ -162,9 +172,44 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
         import os
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
         load_merged_config()
 
     assert call_count["n"] == 1
+
+
+def test_current_config_token_is_time_gated() -> None:
+    """Freshness I/O runs once within the polling window and again after expiry."""
+    now = [10.0]
+    tokens = iter([("token", 1), ("token", 2)])
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch(
+            "sase.config.core._compute_current_config_token",
+            side_effect=lambda: next(tokens),
+        ) as compute,
+    ):
+        first = current_config_token()
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
+        assert current_config_token() is first
+        assert compute.call_count == 1
+
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+        assert current_config_token() == ("token", 2)
+        assert compute.call_count == 2
+
+
+def test_clear_config_cache_resets_config_token_time_gate() -> None:
+    """An explicit clear forces immediate token recomputation within the window."""
+    with patch(
+        "sase.config.core._compute_current_config_token",
+        side_effect=[("token", 1), ("token", 2)],
+    ) as compute:
+        assert current_config_token() == ("token", 1)
+        clear_config_cache()
+        assert current_config_token() == ("token", 2)
+
+    assert compute.call_count == 2
 
 
 def test_mentor_profiles_cache_returns_same_list() -> None:

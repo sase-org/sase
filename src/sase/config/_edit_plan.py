@@ -17,6 +17,7 @@ from sase.config._edit_yaml import set_key, unset_key
 from sase.config.core import (
     DEPRECATED_TOP_LEVEL_KEYS,
     UNSUPPORTED_TOP_LEVEL_KEYS,
+    clear_config_cache,
     get_use_chezmoi,
 )
 from sase.config.inventory import ConfigDiagnostic, ConfigInventory
@@ -112,6 +113,7 @@ def apply_config_edit(plan: EditPlanResult) -> AppliedResult:
     created = not path.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(plan.new_text, encoding="utf-8")
+    clear_config_cache()
     return AppliedResult(
         path=str(path),
         op=plan.write_plan.op,
