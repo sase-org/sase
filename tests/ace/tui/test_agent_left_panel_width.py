@@ -113,6 +113,22 @@ def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
     assert widget._requested_width == normal_width
 
 
+def test_collapsed_agent_list_title_only_refresh_tracks_numeric_hint_width() -> None:
+    widget = AgentList()
+    normal_title = Text("▸ #tag · 1 [R1]")
+    hinted_title = Text("[12] ▸ #tag · 1 [R1]")
+
+    widget.border_title = normal_title
+    widget.render_collapsed()
+    normal_width = widget._requested_width
+
+    widget.update_border_title(hinted_title)
+    assert widget._requested_width == normal_width + 5
+
+    widget.update_border_title(normal_title)
+    assert widget._requested_width == normal_width
+
+
 def test_collapsing_widest_panel_drops_aggregated_width() -> None:
     formerly_wide = _FakeAgentList(132)
     remaining = _FakeAgentList(78)

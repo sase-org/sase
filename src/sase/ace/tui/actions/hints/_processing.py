@@ -12,6 +12,7 @@ from ....hint_types import EditHooksResult, ViewFilesResult
 from ....hints import (
     is_rerun_input,
     parse_edit_hooks_input,
+    parse_numeric_hint_selection,
     parse_test_targets,
     parse_view_input,
 )
@@ -67,23 +68,6 @@ def _write_selected_tool_call_reports(
     return _MaterializedReports(tuple(materialized), tuple(failed))
 
 
-def _expand_view_hint_part(part: str) -> list[int]:
-    if "-" in part and not part.startswith("-"):
-        start_text, end_text = part.split("-", 1)
-        try:
-            start = int(start_text)
-            end = int(end_text)
-        except ValueError:
-            return []
-        if start <= end:
-            return list(range(start, end + 1))
-        return []
-    try:
-        return [int(part)]
-    except ValueError:
-        return []
-
-
 def _parse_view_hint_selection(
     user_input: str,
     valid_hints: set[int],
@@ -104,10 +88,9 @@ def _parse_view_hint_selection(
         if not part:
             continue
 
-        for hint_num in _expand_view_hint_part(part):
-            if hint_num not in valid_hints:
-                invalid_hints.append(hint_num)
-                continue
+        parsed = parse_numeric_hint_selection(part, valid_hints)
+        invalid_hints.extend(parsed.unavailable)
+        for hint_num in parsed.numbers:
             if hint_num not in selected_hints:
                 selected_hints.append(hint_num)
 
@@ -119,6 +102,10 @@ class InputProcessingMixin(HintMixinBase):
 
     def on_hint_input_bar_submitted(self, event: HintInputBar.Submitted) -> None:
         """Handle hint input submission."""
+        if event.mode == "panels":
+            self._process_panel_fold_hint_input(event.value)  # type: ignore[attr-defined]
+            return
+
         self._remove_hint_input_bar()
 
         if event.mode == "view":
@@ -142,6 +129,9 @@ class InputProcessingMixin(HintMixinBase):
     def on_hint_input_bar_cancelled(self, event: HintInputBar.Cancelled) -> None:
         """Handle hint input cancellation."""
         del event  # unused
+        if getattr(self, "_panel_fold_hint_mode_active", False):
+            self._teardown_panel_fold_hint_mode()  # type: ignore[attr-defined]
+            return
         self._remove_hint_input_bar()
 
     def _remove_hint_input_bar(self) -> None:
@@ -518,36 +508,8 @@ class InputProcessingMixin(HintMixinBase):
             self.notify("No targets available", severity="warning")  # type: ignore[attr-defined]
             return
 
-        # Parse the input to get selected indices (1-based)
-        selected_indices: set[int] = set()
-        invalid_parts: list[str] = []
-
-        parts = user_input.split()
-        for part in parts:
-            if "-" in part and not part.startswith("-"):
-                # Range like "1-5"
-                try:
-                    start_str, end_str = part.split("-", 1)
-                    start = int(start_str)
-                    end = int(end_str)
-                    for i in range(start, end + 1):
-                        if 1 <= i <= len(targets):
-                            selected_indices.add(i)
-                        else:
-                            invalid_parts.append(str(i))
-                except ValueError:
-                    invalid_parts.append(part)
-            else:
-                # Single number
-                try:
-                    idx = int(part)
-                    if 1 <= idx <= len(targets):
-                        selected_indices.add(idx)
-                    else:
-                        invalid_parts.append(part)
-                except ValueError:
-                    invalid_parts.append(part)
-
+        parsed = parse_numeric_hint_selection(user_input, range(1, len(targets) + 1))
+        invalid_parts = [*parsed.malformed, *(str(i) for i in parsed.unavailable)]
         if invalid_parts:
             self.notify(  # type: ignore[attr-defined]
                 f"Invalid selections: {', '.join(invalid_parts)}",
@@ -555,12 +517,12 @@ class InputProcessingMixin(HintMixinBase):
             )
             return
 
-        if not selected_indices:
+        if not parsed.numbers:
             self.notify("No valid targets selected", severity="warning")  # type: ignore[attr-defined]
             return
 
         # Get the selected targets (convert 1-based to 0-based)
-        selected_targets = [targets[i - 1] for i in sorted(selected_indices)]
+        selected_targets = [targets[i - 1] for i in parsed.numbers]
 
         # Add them as hooks
         success = self._add_test_target_hooks(changespec, selected_targets)  # type: ignore[attr-defined]

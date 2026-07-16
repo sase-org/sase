@@ -78,6 +78,12 @@ def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
     assert reg.leader_mode.keys["toggle_agent_panel_grouping"] == "g"
 
 
+def test_leader_mode_includes_selected_panel_toggle() -> None:
+    reg = load_keymap_registry({})
+
+    assert reg.leader_mode.keys["toggle_selected_agent_panels"] == "H"
+
+
 def test_leader_mode_includes_jump_to_next_unread_done_agent() -> None:
     """LeaderModeKeymaps default includes the ``,j`` unread done jump."""
     reg = load_keymap_registry({})

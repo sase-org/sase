@@ -507,6 +507,7 @@ class LeaderModeKeymaps(ModeKeymaps):
             "agent_home": "h",
             "agent_from_cl": "space",
             "toggle_agent_panel_grouping": "g",
+            "toggle_selected_agent_panels": "H",
             "jump_to_next_unread_done_agent": "j",
             "jump_to_next_stopped_agent": "J",
             "full_history_refresh": "y",

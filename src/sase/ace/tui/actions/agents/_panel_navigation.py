@@ -173,6 +173,10 @@ class AgentPanelNavigationMixin:
         """Toggle Agents tab panels between tag-split and merged layouts."""
         if self.current_tab != "agents":
             return
+        if getattr(self, "_panel_fold_hint_mode_active", False):
+            self._teardown_panel_fold_hint_mode(  # type: ignore[attr-defined]
+                refresh_titles=False
+            )
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
         collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
         if collapsed_keys is not None:

@@ -218,6 +218,7 @@ class KeybindingModesMixin:
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
+            bindings.append((k("toggle_selected_agent_panels"), "toggle panels"))
             bindings.append((k("full_history_refresh"), "full history refresh"))
             if has_stopped_agent:
                 bindings.append((k("jump_to_next_stopped_agent"), "next stopped"))

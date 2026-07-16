@@ -24,6 +24,25 @@ def test_leader_repeat_last_override_updates_help_display() -> None:
         assert (",R", "Repeat last leader command") in pairs
 
 
+def test_agents_help_uses_configured_selected_panel_toggle_key() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {"keys": {"toggle_selected_agent_panels": "P"}}
+                }
+            }
+        }
+    )
+    pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert (",P", "Toggle selected panels by numeric hints") in pairs
+
+
 def test_help_panel_tab_switch_display_is_present() -> None:
     reg = load_keymap_registry({})
     cls_pairs = {

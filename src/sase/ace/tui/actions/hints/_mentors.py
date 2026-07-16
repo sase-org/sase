@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ....hints import parse_numeric_hint_selection
 from ....changespec import ChangeSpec
 from ...widgets import ChangeSpecDetail, HintInputBar
 from ._types import HintMixinBase
@@ -67,34 +68,8 @@ class MentorKillingMixin(HintMixinBase):
 
         mentor_hint_to_info = self._mentor_hint_to_info
 
-        # Parse hint numbers from input (space-separated, ranges like 1-3)
-        selected_hints: set[int] = set()
-        invalid_parts: list[str] = []
-
-        parts = user_input.split()
-        for part in parts:
-            if "-" in part and not part.startswith("-"):
-                try:
-                    start_str, end_str = part.split("-", 1)
-                    start = int(start_str)
-                    end = int(end_str)
-                    for i in range(start, end + 1):
-                        if i in mentor_hint_to_info:
-                            selected_hints.add(i)
-                        else:
-                            invalid_parts.append(str(i))
-                except ValueError:
-                    invalid_parts.append(part)
-            else:
-                try:
-                    idx = int(part)
-                    if idx in mentor_hint_to_info:
-                        selected_hints.add(idx)
-                    else:
-                        invalid_parts.append(part)
-                except ValueError:
-                    invalid_parts.append(part)
-
+        parsed = parse_numeric_hint_selection(user_input, mentor_hint_to_info)
+        invalid_parts = [*parsed.malformed, *(str(i) for i in parsed.unavailable)]
         if invalid_parts:
             self.notify(  # type: ignore[attr-defined]
                 f"Invalid hints: {', '.join(invalid_parts)}",
@@ -102,7 +77,7 @@ class MentorKillingMixin(HintMixinBase):
             )
             return
 
-        if not selected_hints:
+        if not parsed.numbers:
             self.notify("No valid selections", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -111,7 +86,7 @@ class MentorKillingMixin(HintMixinBase):
         entry_ids_to_delete: set[str] = set()
         lines_to_delete: dict[str, set[tuple[str, str]]] = {}
 
-        for hint in selected_hints:
+        for hint in parsed.numbers:
             entry_id = self._hint_to_entry_id[hint]
             mentor_name, profile_name = mentor_hint_to_info[hint]
 

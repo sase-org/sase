@@ -443,6 +443,9 @@ class AceApp(
         elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "prs":
             self._changespec_detail_debouncer.cancel()
 
+        if old_tab == "agents" and getattr(self, "_panel_fold_hint_mode_active", False):
+            self._teardown_panel_fold_hint_mode(refresh_titles=False)
+
         # Tab changes always cancel one-key jump mode.
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index = {}

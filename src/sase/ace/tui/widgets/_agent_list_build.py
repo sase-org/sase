@@ -393,8 +393,8 @@ def build_list(
     # Add padding for border, scrollbar, visual comfort (~8 cells)
     _PADDING = 8
     optimal_width = max(max_width, banner_width) + _PADDING
-    widget._requested_width = optimal_width
-    widget.post_message(widget.WidthChanged(optimal_width))
+    widget._content_requested_width = optimal_width
+    widget._refresh_requested_width()
 
     try:
         if highlighted_row is not None:

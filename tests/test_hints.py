@@ -5,9 +5,36 @@ from sase.ace.hints import (
     build_editor_args,
     is_rerun_input,
     parse_edit_hooks_input,
+    parse_numeric_hint_selection,
     parse_test_targets,
     parse_view_input,
 )
+
+
+def test_parse_numeric_hint_selection_preserves_order_and_deduplicates() -> None:
+    parsed = parse_numeric_hint_selection("3 1-3 7 2 7-8")
+
+    assert parsed.numbers == (3, 1, 2, 7, 8)
+    assert parsed.malformed == ()
+    assert parsed.unavailable == ()
+
+
+def test_parse_numeric_hint_selection_reports_syntax_and_availability() -> None:
+    parsed = parse_numeric_hint_selection(
+        "1 bad 4-2 2-5 0 1-2-3",
+        {1, 2, 4},
+    )
+
+    assert parsed.numbers == (1, 2, 4)
+    assert parsed.malformed == ("bad", "4-2", "0", "1-2-3")
+    assert parsed.unavailable == (3, 5)
+
+
+def test_parse_numeric_hint_selection_accepts_arbitrary_whitespace() -> None:
+    parsed = parse_numeric_hint_selection("  1\t3-4\n6  ")
+
+    assert parsed.numbers == (1, 3, 4, 6)
+
 
 # --- Tests for is_rerun_input ---
 

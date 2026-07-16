@@ -11,6 +11,10 @@ from textual.widgets import Input, Label, Static
 if TYPE_CHECKING:
     from ..app import AceApp
 
+HintInputMode = Literal[
+    "view", "hooks", "accept", "failed_hooks", "rewind", "mentors", "panels"
+]
+
 
 class _HintInput(Input):
     """Custom Input with readline-style key bindings."""
@@ -77,9 +81,7 @@ class HintInputBar(Static):
         def __init__(
             self,
             value: str,
-            mode: Literal[
-                "view", "hooks", "accept", "failed_hooks", "rewind", "mentors"
-            ],
+            mode: HintInputMode,
         ) -> None:
             """Initialize the message.
 
@@ -102,7 +104,7 @@ class HintInputBar(Static):
 
     def __init__(
         self,
-        mode: Literal["view", "hooks", "accept", "failed_hooks", "rewind", "mentors"],
+        mode: HintInputMode,
         placeholder: str | None = None,
         initial_value: str = "",
         **kwargs: Any,
@@ -148,6 +150,12 @@ class HintInputBar(Static):
                     placeholder="1-5 or 1 3 5 (delete entries/lines, kills running)",
                     id="hint-input",
                 )
+            elif self.mode == "panels":
+                yield Label("Panels: ", id="hint-label")
+                yield _HintInput(
+                    placeholder="1-3 or 1 3 (toggle panels)",
+                    id="hint-input",
+                )
             elif self.mode == "rewind":
                 yield Label("Rewind: ", id="hint-label")
                 placeholder = self._custom_placeholder or ""
@@ -180,6 +188,8 @@ class HintInputBar(Static):
             text.append("View: ", style="bold #87D7FF")
         elif self.mode == "failed_hooks":
             text.append("Failed Hooks: ", style="bold #87D7FF")
+        elif self.mode == "panels":
+            text.append("Panels: ", style="bold #87D7FF")
         else:
             text.append("Hooks: ", style="bold #87D7FF")
         return text

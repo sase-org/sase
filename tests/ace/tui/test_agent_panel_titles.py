@@ -157,6 +157,24 @@ def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
     )
 
 
+def test_panel_title_renders_multi_digit_numeric_selection_hint() -> None:
+    title = agent_panel_border_title(
+        None,
+        2,
+        counts=AgentPanelCounts(running=2),
+        selection_hint=12,
+    )
+
+    assert title.plain == "[12] (untagged) · 2 [R2]"
+    _assert_title_span(
+        title,
+        start=0,
+        end=5,
+        style="bold #FFFF00",
+        text="[12] ",
+    )
+
+
 def _assert_title_span(
     title: Text, *, start: int, end: int, style: str, text: str
 ) -> None:

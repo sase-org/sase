@@ -119,6 +119,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # at full-rebuild time.
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
         self._target_width: int = 0
+        self._content_requested_width: int = 0
         self._requested_width: int = 0
         self._panel_collapsed: bool = False
         # Per-agent tier-guide gutter styles, captured during ``update_list``
@@ -242,19 +243,30 @@ class AgentList(OptionList, inherit_bindings=False):
             self._row_by_agent_idx = {}
             self._banner_row_by_key = {}
             self._target_width = 0
+            self._content_requested_width = 0
             self._panel_collapsed = True
-
-            title = self.border_title
-            title_width = (
-                title.cell_len
-                if isinstance(title, Text)
-                else Text.from_markup(str(title or "")).cell_len
-            )
-            requested_width = title_width + 4
-            self._requested_width = requested_width
-            self.post_message(self.WidthChanged(requested_width))
+            self._refresh_requested_width()
         finally:
             self._programmatic_update = False
+
+    def update_border_title(self, title: Text | str) -> None:
+        """Set the panel title and include it in dynamic width negotiation."""
+        self.border_title = title
+        self._refresh_requested_width()
+
+    def _refresh_requested_width(self) -> None:
+        """Publish the larger of the rendered-content and border-title widths."""
+        title = self.border_title
+        title_width = (
+            title.cell_len
+            if isinstance(title, Text)
+            else Text.from_markup(str(title or "")).cell_len
+        )
+        requested_width = max(self._content_requested_width, title_width + 4)
+        if requested_width == self._requested_width:
+            return
+        self._requested_width = requested_width
+        self.post_message(self.WidthChanged(requested_width))
 
     def _compute_tier_styles(
         self,

@@ -143,8 +143,10 @@ class DetailMixin:
 
     def _should_render_agent_detail_with_hints(self) -> bool:
         """Return whether Agents-tab detail repaints must preserve view hints."""
-        return self.current_tab == "agents" and bool(
-            getattr(self, "_hint_mode_active", False)
+        return (
+            self.current_tab == "agents"
+            and bool(getattr(self, "_hint_mode_active", False))
+            and getattr(self, "_hint_mode_hints_for", None) != "panels"
         )
 
     def _render_agent_detail_with_hints(

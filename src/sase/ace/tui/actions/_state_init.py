@@ -477,6 +477,12 @@ class StateInitMixin:
         # as they were. The fields below drive a one-shot post-first-paint load,
         # pre-load mutation journal, and latest-generation off-thread writer.
         self._collapsed_panel_keys: set[PanelKey] = set()
+        # Numeric, set-oriented panel folding mode (leader ``,H``).  Its maps
+        # are deliberately separate from file hints and apostrophe jump hints.
+        self._panel_fold_hint_mode_active = False
+        self._panel_fold_hint_snapshot: tuple[PanelKey, ...] = ()
+        self._panel_fold_hint_to_key: dict[int, PanelKey] = {}
+        self._panel_fold_key_to_hint: dict[PanelKey, int] = {}
         self._agents_fold_state_load_started = False
         self._agents_fold_state_load_resolved = False
         self._agents_fold_state_loaded_snapshot: AgentsFoldStateSnapshot | None = None

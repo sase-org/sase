@@ -18,6 +18,7 @@ from ._marking import AgentMarkingMixin
 from ._navigation_order import AgentNavigationOrderMixin
 from ._notifications import AgentNotificationMixin
 from ._panels import AgentPanelsMixin
+from ._panel_hint_folding import AgentPanelHintFoldingMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
@@ -53,6 +54,7 @@ TabName = Literal["changespecs", "agents", "axe"]
 class AgentsMixinCore(
     AgentApproveMixin,
     AgentFoldPersistenceMixin,
+    AgentPanelHintFoldingMixin,
     AgentFoldingMixin,
     AgentGroupingMixin,
     AgentKillMixin,

@@ -36,6 +36,8 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
         self.notifications: list[str] = []
         self.refresh_count = 0
         self.toggle_panel_grouping_count = 0
+        self.toggle_selected_panels_count = 0
+        self.agent_footer_refresh_count = 0
         self.retry_edit_count = 0
         self.runners_count = 0
         self.revert_count = 0
@@ -70,6 +72,12 @@ class _FakeApp(LeaderModeMixin, ChangeSpecMixin):
 
     def action_toggle_agent_panel_grouping(self) -> None:
         self.toggle_panel_grouping_count += 1
+
+    def action_toggle_selected_agent_panels(self) -> None:
+        self.toggle_selected_panels_count += 1
+
+    def _refresh_agent_footer_bindings_only(self) -> None:
+        self.agent_footer_refresh_count += 1
 
     def _retry_edit_agent(self) -> None:
         self.retry_edit_count += 1

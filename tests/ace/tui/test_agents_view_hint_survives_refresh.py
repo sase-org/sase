@@ -96,6 +96,7 @@ class _FakeApp(DetailMixin):
         self._agents_first_load_done = True
         self._agent_search_query = ""
         self._hint_mode_active = hint_mode_active
+        self._hint_mode_hints_for: str | None = None
         self._hint_mappings = {1: "/tmp/project/old.py"}
         self._hint_commit_views = {}
         self._hint_tool_call_reports = cast(
@@ -182,3 +183,13 @@ def test_agent_detail_refresh_uses_plain_render_when_hint_mode_inactive() -> Non
     assert len(app.detail.update_display_calls) == 1
     assert app._hint_mappings == {1: "/tmp/project/old.py"}
     assert app.footer_updates == [app.agent]
+
+
+def test_panel_hint_mode_keeps_agent_detail_free_of_file_hints() -> None:
+    app = _FakeApp(hint_mode_active=True)
+    app._hint_mode_hints_for = "panels"
+
+    app._apply_agent_detail_update(app.detail, app.footer)  # type: ignore[arg-type]
+
+    assert app.detail.update_display_with_hints_calls == []
+    assert len(app.detail.update_display_calls) == 1

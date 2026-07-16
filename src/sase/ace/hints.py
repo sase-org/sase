@@ -4,6 +4,74 @@ This module provides functions to parse hint input from users.
 """
 
 import os
+from collections.abc import Collection
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class _NumericHintSelection:
+    """Parsed positive numeric hints with actionable diagnostics.
+
+    ``numbers`` preserves first-seen order and removes overlaps.  Tokens that
+    are not positive integers or inclusive ascending ranges are reported in
+    ``malformed``; syntactically valid numbers absent from ``available`` are
+    reported separately in ``unavailable``.
+    """
+
+    numbers: tuple[int, ...] = ()
+    malformed: tuple[str, ...] = ()
+    unavailable: tuple[int, ...] = ()
+
+
+def parse_numeric_hint_selection(
+    user_input: str,
+    available: Collection[int] | None = None,
+) -> _NumericHintSelection:
+    """Parse whitespace-delimited positive numbers and ascending ranges."""
+    available_set = set(available) if available is not None else None
+    numbers: list[int] = []
+    malformed: list[str] = []
+    unavailable: list[int] = []
+    seen_numbers: set[int] = set()
+    seen_malformed: set[str] = set()
+    seen_unavailable: set[int] = set()
+
+    for token in user_input.split():
+        expanded: range | tuple[int, ...]
+        if token.count("-") == 1 and not token.startswith("-"):
+            start_text, end_text = token.split("-", 1)
+            if not start_text.isdigit() or not end_text.isdigit():
+                expanded = ()
+            else:
+                start = int(start_text)
+                end = int(end_text)
+                expanded = range(start, end + 1) if 0 < start <= end else ()
+        elif token.isdigit() and int(token) > 0:
+            expanded = (int(token),)
+        else:
+            expanded = ()
+
+        if not expanded:
+            if token not in seen_malformed:
+                malformed.append(token)
+                seen_malformed.add(token)
+            continue
+
+        for number in expanded:
+            if available_set is not None and number not in available_set:
+                if number not in seen_unavailable:
+                    unavailable.append(number)
+                    seen_unavailable.add(number)
+                continue
+            if number not in seen_numbers:
+                numbers.append(number)
+                seen_numbers.add(number)
+
+    return _NumericHintSelection(
+        numbers=tuple(numbers),
+        malformed=tuple(malformed),
+        unavailable=tuple(unavailable),
+    )
 
 
 def _expand_hint_part(part: str) -> list[int]:
@@ -15,24 +83,10 @@ def _expand_hint_part(part: str) -> list[int]:
     Returns:
         List of integers (empty if invalid)
     """
-    if "-" in part and not part.startswith("-"):
-        # Range format: "1-10"
-        range_parts = part.split("-", 1)
-        if len(range_parts) == 2:
-            try:
-                start = int(range_parts[0])
-                end = int(range_parts[1])
-                if start <= end:
-                    return list(range(start, end + 1))
-            except ValueError:
-                pass
+    parsed = parse_numeric_hint_selection(part)
+    if parsed.malformed:
         return []
-    else:
-        # Single number
-        try:
-            return [int(part)]
-        except ValueError:
-            return []
+    return list(parsed.numbers)
 
 
 def _is_valid_hint_part(part: str) -> bool:
@@ -44,14 +98,7 @@ def _is_valid_hint_part(part: str) -> bool:
     Returns:
         True if the part is a valid hint (number or range)
     """
-    if "-" in part and not part.startswith("-"):
-        # Range format: check both parts are digits
-        range_parts = part.split("-", 1)
-        if len(range_parts) != 2:
-            return False
-        return range_parts[0].isdigit() and range_parts[1].isdigit()
-    else:
-        return part.isdigit()
+    return bool(_expand_hint_part(part))
 
 
 def is_rerun_input(user_input: str) -> bool:
@@ -136,15 +183,12 @@ def parse_view_input(
             continue
 
         # Expand the part (handles both single numbers and ranges)
-        hint_nums = _expand_hint_part(part)
-
-        for hint_num in hint_nums:
-            if hint_num in hint_mappings:
-                file_path = os.path.expanduser(hint_mappings[hint_num])
-                if file_path not in files_to_view:  # Avoid duplicates
-                    files_to_view.append(file_path)
-            else:
-                invalid_hints.append(hint_num)
+        parsed = parse_numeric_hint_selection(part, hint_mappings)
+        invalid_hints.extend(parsed.unavailable)
+        for hint_num in parsed.numbers:
+            file_path = os.path.expanduser(hint_mappings[hint_num])
+            if file_path not in files_to_view:  # Avoid duplicates
+                files_to_view.append(file_path)
 
     return files_to_view, open_in_editor, copy_to_clipboard, invalid_hints
 
@@ -175,16 +219,15 @@ def parse_edit_hooks_input(
             part = part[:-1]
 
         # Expand the part (handles both single numbers and ranges)
-        hint_nums = _expand_hint_part(part)
-
-        for hint_num in hint_nums:
-            if hint_num in hint_mappings:
-                if action == "delete":
+        parsed = parse_numeric_hint_selection(part, hint_mappings)
+        invalid_hints.extend(parsed.unavailable)
+        for hint_num in parsed.numbers:
+            if action == "delete":
+                if hint_num not in hints_to_delete:
                     hints_to_delete.append(hint_num)
-                else:
-                    hints_to_rerun.append(hint_num)
             else:
-                invalid_hints.append(hint_num)
+                if hint_num not in hints_to_rerun:
+                    hints_to_rerun.append(hint_num)
 
     return hints_to_rerun, hints_to_delete, invalid_hints
 

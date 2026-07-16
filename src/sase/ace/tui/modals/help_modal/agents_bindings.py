@@ -128,6 +128,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Toggle tag panels grouped/split",
                 ),
                 (
+                    f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_selected_agent_panels'))}",
+                    "Toggle selected panels by numeric hints",
+                ),
+                (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_unread_done_agent'))}",
                     "Jump to next unread done agent",
                 ),

@@ -6,9 +6,11 @@ from datetime import datetime
 
 import pytest
 from rich.text import Text
+from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets import HintInputBar
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -200,6 +202,37 @@ async def test_agents_collapsed_panel_png_snapshot(
             ).plain.startswith("▸ ")
         )
         assert collapsed_widget._requested_width == normal_width
+
+        await page.press("comma")
+        await page.press("H")
+        await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
+        hint_bar = page.app.query_one("#hint-input-bar", HintInputBar)
+        hint_input = hint_bar.query_one("#hint-input", Input)
+        panel_titles = [
+            Text.from_markup(widget.border_title).plain
+            for widget in container.query("AgentList")
+        ]
+        assert panel_titles[0].startswith("[1] ")
+        assert panel_titles[1].startswith("[2] ")
+        assert panel_titles[2].startswith("[3] ▸ ")
+        await wait_for_svg_contains(page, "Panels:")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_panel_fold_selection_120x40",
+            title="ACE agents panel fold selection",
+        )
+
+        hint_input.value = "1 3"
+        await page.press("enter")
+        await page.wait_for(lambda _screen: not page.app._panel_fold_hint_mode_active)
+        await wait_for_visual_idle(page)
+
+        assert page.app._collapsed_panel_keys == {None}
+        assert page.app._panel_group.panel_keys == ["chop", "keep", None]
+        assert page.app._panel_group.focused_key == "chop"
+        assert page.app._agents[page.app.current_idx].tag == "chop"
 
 
 async def test_agents_unread_highlight_png_snapshot(

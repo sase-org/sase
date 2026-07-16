@@ -16,6 +16,10 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def action_jump_to_entry(self) -> None:
         """Enter one-key jump mode for the current tab's left-panel entries."""
+        if self.current_tab == "agents" and getattr(
+            self, "_panel_fold_hint_mode_active", False
+        ):
+            self._teardown_panel_fold_hint_mode()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             self._begin_agents_jump_mode()
             return

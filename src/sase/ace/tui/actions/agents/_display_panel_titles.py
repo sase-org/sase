@@ -103,11 +103,13 @@ def agent_panel_border_title(
     counts: AgentPanelCounts | None = None,
     collapsed: bool = False,
     jump_hint: str | None = None,
+    selection_hint: int | None = None,
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
-    if jump_hint is not None:
-        title.append(f"[{jump_hint}] ", style="bold #FFFF00")
+    hint = selection_hint if selection_hint is not None else jump_hint
+    if hint is not None:
+        title.append(f"[{hint}] ", style="bold #FFFF00")
     if collapsed:
         title.append("▸ ", style=_PANEL_COUNT_STYLE)
     if merge_tag_panels:

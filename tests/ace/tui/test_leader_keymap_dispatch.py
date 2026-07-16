@@ -122,6 +122,29 @@ def test_leader_g_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
+def test_leader_h_uppercase_opens_and_repeats_selected_panel_toggle() -> None:
+    app = _FakeApp(current_tab="agents")
+
+    assert app._handle_leader_key("H") is True
+    assert app.toggle_selected_panels_count == 1
+    assert app.agent_footer_refresh_count == 1
+    assert app.refresh_count == 0
+    assert app._last_leader_key == "H"
+
+    app._leader_mode_active = True
+    assert app._handle_leader_key("comma") is True
+    assert app.toggle_selected_panels_count == 2
+    assert app.agent_footer_refresh_count == 2
+    assert app.refresh_count == 0
+
+
+def test_leader_h_uppercase_noops_on_non_agents_tabs() -> None:
+    app = _FakeApp(current_tab="changespecs")
+
+    assert app._handle_leader_key("H") is True
+    assert app.toggle_selected_panels_count == 0
+
+
 def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 

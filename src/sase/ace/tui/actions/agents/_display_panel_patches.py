@@ -277,13 +277,25 @@ class PanelPatchMixin:
         unread: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
-        counts = agent_panel_counts(slot.agents, unread)
-        widget.border_title = agent_panel_border_title(
-            agent_panel_key,
-            len(slot.agents),
-            merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
-            counts=counts,
-        )
+        title_builder = getattr(self, "_agent_panel_title", None)
+        title_setter = getattr(self, "_set_agent_panel_title", None)
+        if callable(title_builder) and callable(title_setter):
+            title_setter(
+                widget,
+                title_builder(
+                    agent_panel_key,
+                    slot.agents,
+                    merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                ),
+            )
+        else:
+            counts = agent_panel_counts(slot.agents, unread)
+            widget.border_title = agent_panel_border_title(
+                agent_panel_key,
+                len(slot.agents),
+                merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
+                counts=counts,
+            )
         self._update_agents_info_panel()  # type: ignore[attr-defined]
         self._record_display_patch_trace(display_cost="row_patch", count=1)
         return True
