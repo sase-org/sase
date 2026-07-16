@@ -11,7 +11,14 @@ from textual.binding import Binding
 from textual.widgets import Input, OptionList
 import yaml  # type: ignore[import-untyped]
 
-from sase.config import CHEZMOI_HOME, get_use_chezmoi
+from sase.config import get_use_chezmoi
+from sase.content_layout import (
+    discover_project_root,
+    resolve_chezmoi_layout,
+    resolve_home_layout,
+    resolve_project_layout,
+)
+from sase.config import CHEZMOI_HOME
 from sase.xprompt.loader import detect_project
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
@@ -92,11 +99,7 @@ def load_unified_save_locations(project: str | None) -> list[UnifiedSaveLocation
                 precedence=_precedence(source_group, location.label, ordinal),
                 namespace=(
                     effective_project
-                    if effective_project
-                    and (
-                        location.label.startswith(("CWD ", "Project ("))
-                        or location.label == "Local sase.yml"
-                    )
+                    if effective_project and (location.label.startswith("Project"))
                     else None
                 ),
             )
@@ -136,17 +139,21 @@ def _with_missing_standard_directories(
     locations: list[tuple[str, XPromptLocation]],
 ) -> list[tuple[str, XPromptLocation]]:
     existing = {location.path for _, location in locations}
-    cwd_dot = Path.cwd() / ".xprompts"
-    home_dot = (
-        CHEZMOI_HOME / "dot_xprompts"
+    project_root = discover_project_root() or Path.cwd()
+    project_dir = resolve_project_layout(project_root).xprompts.write_path
+    home_dir = (
+        resolve_chezmoi_layout(CHEZMOI_HOME).xprompts.write_path
         if get_use_chezmoi()
-        else Path.home() / ".xprompts"
+        else resolve_home_layout().xprompts.write_path
     )
     additions = [
-        ("Directories", XPromptLocation("CWD .xprompts/", str(cwd_dot), "directory")),
         (
             "Directories",
-            XPromptLocation("Home ~/.xprompts/", str(home_dot), "directory"),
+            XPromptLocation("Project sase/xprompts/", str(project_dir), "directory"),
+        ),
+        (
+            "Directories",
+            XPromptLocation("Home ~/sase/xprompts/", str(home_dir), "directory"),
         ),
     ]
     return locations + [item for item in additions if item[1].path not in existing]
@@ -159,7 +166,7 @@ def _display_group(source_group: str, label: str) -> str:
         return "Plugin directories"
     if source_group == "Config Files":
         return "Config files"
-    if label.startswith("Project ("):
+    if label.startswith("Project"):
         return "Project"
     if label.startswith("CWD "):
         return "CWD directories"
@@ -168,17 +175,13 @@ def _display_group(source_group: str, label: str) -> str:
 
 def _precedence(source_group: str, label: str, ordinal: int) -> int:
     """Map display locations onto loader first-wins discovery order."""
-    if label == "CWD .xprompts/":
+    if label == "Project sase/xprompts/":
         return 0
-    if label == "CWD xprompts/":
+    if label == "Home ~/sase/xprompts/":
         return 1
-    if label == "Home ~/.xprompts/":
+    if label.startswith("Project home ("):
         return 2
-    if label == "Home ~/xprompts/":
-        return 3
-    if label.startswith("Project ("):
-        return 4
-    if label == "Local sase.yml":
+    if label == "Project sase/sase.yml":
         return 10
     if label.startswith("User sase_"):
         return 20 - ordinal
@@ -199,6 +202,14 @@ def _writability_reason(
     path: Path,
     location_type: Literal["directory", "config"],
 ) -> str | None:
+    if (
+        location_type == "config"
+        and path.name == "sase.yml"
+        and path.parent.name == "sase"
+    ):
+        legacy = path.parent.parent / "sase.yml"
+        if legacy.is_file():
+            return "migrate legacy project config first"
     if path.exists():
         if location_type == "directory":
             if not path.is_dir():

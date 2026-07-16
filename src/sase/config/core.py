@@ -4,8 +4,8 @@ Loads ``default_config.yml`` (bundled in the package) as the base layer,
 then deep-merges plugin ``default_config.yml`` files, then
 ``~/.config/sase/sase.yml`` (with list replacement), then
 deep-merges any overlay files matching ``~/.config/sase/sase_*.yml`` (sorted
-alphabetically, with list concatenation) on top, then finally any local
-``sase.yml`` found in the current working directory (with list concatenation),
+alphabetically, with list concatenation) on top, then finally the current
+project's ``sase/sase.yml`` (with root-level ``sase.yml`` as a read fallback),
 unless local config loading has been disabled via ``set_include_local_config(False)``
 (e.g. for ``sase ace`` runs where the TUI should not inherit repo-level config).
 """
@@ -19,14 +19,16 @@ from typing import Any, Literal
 
 import yaml  # type: ignore[import-untyped]
 
+from sase.content_layout import discover_project_root, resolve_project_layout
+
 
 log = logging.getLogger(__name__)
 
 CONFIG_DIR = Path("~/.config/sase").expanduser()
 CHEZMOI_HOME = Path("~/.local/share/chezmoi/home").expanduser()
 
-# When False, _get_local_config_path() always returns None.
-# Set to False for `sase ace` so the TUI doesn't pick up a repo's sase.yml;
+# When False, get_local_config_path() always returns None.
+# Set to False for `sase ace` so the TUI doesn't pick up a repo's project config;
 # agent runs are separate processes and keep the default (True).
 _include_local_config: bool = True
 
@@ -59,7 +61,7 @@ def _reset_current_config_token_cache() -> None:
 
 
 def set_include_local_config(value: bool) -> None:
-    """Enable or disable loading of the local CWD ``sase.yml``."""
+    """Enable or disable loading of the current project's config."""
     global _include_local_config
     if _include_local_config == value:
         return
@@ -93,8 +95,12 @@ def _compute_current_config_token() -> tuple[Any, ...]:
     parts.append(stat_token(CONFIG_DIR / "sase.yml"))
     parts.append(tuple(stat_token(p) for p in _get_overlay_paths()))
 
-    local_path = _get_local_config_path()
-    parts.append(stat_token(local_path) if local_path is not None else None)
+    project_root = discover_project_root() if _include_local_config else None
+    if project_root is None:
+        parts.append(None)
+    else:
+        project_config = resolve_project_layout(project_root).config
+        parts.append(tuple(stat_token(path) for path in project_config.candidates))
 
     return tuple(parts)
 
@@ -239,26 +245,30 @@ def _get_overlay_paths() -> list[Path]:
     return sorted(CONFIG_DIR.glob("sase_*.yml"))
 
 
-def _get_local_config_path() -> Path | None:
-    """Return the path to a local ``sase.yml`` in the CWD, if it exists.
+def get_local_config_path() -> Path | None:
+    """Return the selected project-local config path, if one exists.
 
     Returns ``None`` when ``_include_local_config`` is ``False`` (e.g. during
     ``sase ace`` runs where the TUI shouldn't inherit repo-level config).
+    Canonical ``sase/sase.yml`` is preferred, root-level ``sase.yml`` remains
+    readable for compatibility, and coexistence raises a collision diagnostic.
     """
     if not _include_local_config:
         return None
-    try:
-        cwd = Path.cwd()
-    except FileNotFoundError:
-        # The axe daemon can outlive its CWD if a workspace it was launched
-        # from is wiped — in that case there cannot be a local override, so
-        # degrade gracefully instead of propagating the error to every caller
-        # of load_merged_config() (including get_timezone()).
+    project_root = discover_project_root()
+    if project_root is None:
         return None
-    local_path = cwd / "sase.yml"
-    if local_path.is_file():
-        return local_path
-    return None
+    return resolve_project_layout(project_root).config.resolve_read("project config")
+
+
+def _get_local_config_write_path() -> Path | None:
+    """Return the canonical destination for the current project's config."""
+    if not _include_local_config:
+        return None
+    project_root = discover_project_root()
+    if project_root is None:
+        return None
+    return resolve_project_layout(project_root).config.write_path
 
 
 def _load_plugin_configs() -> list[dict[str, Any]]:
@@ -342,7 +352,7 @@ def load_xprompts_by_source() -> list[tuple[str, dict[str, Any]]]:
             results.append((f"config_overlay:{overlay_path.name}", overlay["xprompts"]))
 
     # 5. Local config (highest priority among config sources)
-    local_path = _get_local_config_path()
+    local_path = get_local_config_path()
     if local_path:
         local_config = _load_yaml_file(local_path)
         if local_config and isinstance(local_config.get("xprompts"), dict):
@@ -359,7 +369,8 @@ def load_merged_config() -> dict[str, Any]:
     2. Plugin ``default_config.yml`` files (sorted by EP name, lists concatenate)
     3. ``sase.yml`` (user config — lists **replace** defaults)
     4. ``sase_*.yml`` overlays (sorted alphabetically — lists **concatenate**)
-    5. ``./sase.yml`` (local CWD config — lists **concatenate**, highest priority)
+    5. project ``sase/sase.yml`` (legacy ``sase.yml`` is read-compatible;
+       lists **concatenate**, highest priority)
 
     Returns at least the defaults even when no user config files exist.
 
@@ -412,7 +423,7 @@ def load_merged_config() -> dict[str, Any]:
     # 5. Local config (highest priority, lists concatenate so that
     #    project-specific entries *add to* rather than replace plugin/user lists
     #    — e.g. a repo's mentor_profiles should extend, not wipe, plugin profiles)
-    local_path = _get_local_config_path()
+    local_path = get_local_config_path()
     if local_path:
         local_config = _load_yaml_file(local_path)
         if local_config:
@@ -630,7 +641,7 @@ def load_config_layers() -> list[ConfigLayer]:
         )
 
     # 5. Local config
-    local_path = _get_local_config_path()
+    local_path = get_local_config_path()
     if local_path:
         local_present, local_data, local_error = load_yaml_file_with_metadata(
             local_path
@@ -654,7 +665,9 @@ def load_config_layers() -> list[ConfigLayer]:
         layers.append(
             ConfigLayer(
                 name="local",
-                path=str(Path.cwd() / "sase.yml"),
+                path=str(
+                    _get_local_config_write_path() or Path.cwd() / "sase" / "sase.yml"
+                ),
                 exists=False,
                 list_strategy="concatenate",
                 present=False,

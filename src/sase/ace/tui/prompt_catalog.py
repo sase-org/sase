@@ -17,6 +17,11 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     build_xprompt_assist_entries,
 )
 from sase.config.core import CONFIG_DIR, current_config_token, stat_token
+from sase.content_layout import (
+    discover_project_root,
+    resolve_project_layout,
+    resolve_xprompt_file_sources,
+)
 from sase.xprompt.loader import get_all_xprompts, get_xprompt_search_paths
 from sase.xprompt.snippet_bridge import (
     build_xprompt_snippet_entries_from_catalog,
@@ -103,9 +108,10 @@ def _prompt_source_token(projects: Iterable[str | None]) -> tuple[Any, ...]:
     """Return a cheap source token for editable prompt/snippet sources."""
     project_tuple = _normalize_prompt_catalog_projects(projects)
     project_dirs = [
-        _project_xprompt_dir(project)
+        directory
         for project in project_tuple
         if project is not None
+        for directory in _project_xprompt_dirs(project)
     ]
     return (
         ("projects", project_tuple),
@@ -121,10 +127,12 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
         CONFIG_DIR,
         *get_xprompt_search_paths(),
         *[
-            _project_xprompt_dir(project)
+            directory
             for project in _normalize_prompt_catalog_projects(projects)
             if project is not None
+            for directory in _project_xprompt_dirs(project)
         ],
+        *[path.parent for path in _project_config_paths()],
     ]
 
     watch_paths: dict[str, Path] = {}
@@ -161,9 +169,10 @@ def _prompt_source_roots(projects: Iterable[str | None]) -> tuple[Path, ...]:
     return (
         *tuple(path.expanduser() for path in get_xprompt_search_paths()),
         *tuple(
-            _project_xprompt_dir(project)
+            directory
             for project in _normalize_prompt_catalog_projects(projects)
             if project is not None
+            for directory in _project_xprompt_dirs(project)
         ),
     )
 
@@ -187,11 +196,26 @@ def _project_prompt_file_tokens(dirs: Iterable[Path]) -> tuple[Any, ...]:
     return _prompt_file_tokens(dirs)
 
 
-def _project_xprompt_dir(project: str) -> Path:
-    return CONFIG_DIR / "xprompts" / project
+def _project_xprompt_dirs(project: str) -> tuple[Path, ...]:
+    resolved = tuple(
+        source.path
+        for source in resolve_xprompt_file_sources(project=project)
+        if source.path is not None and source.scope == "home_project"
+    )
+    configured_legacy = CONFIG_DIR / "xprompts" / project
+    return tuple(dict.fromkeys((*resolved, configured_legacy)))
+
+
+def _project_config_paths() -> tuple[Path, ...]:
+    root = discover_project_root()
+    if root is None:
+        return ()
+    return resolve_project_layout(root).config.candidates
 
 
 def _is_config_source_path(path: Path) -> bool:
+    if path in _project_config_paths():
+        return True
     if path == CONFIG_DIR:
         return True
     if path.parent != CONFIG_DIR:

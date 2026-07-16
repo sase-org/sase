@@ -82,10 +82,10 @@ def group_browser_items(
         items_list.sort(key=lambda x: x.name)
 
     known_order = [
-        "CWD .xprompts/",
-        "CWD xprompts/",
-        "Home ~/.xprompts/",
-        "Home ~/xprompts/",
+        "Project sase/xprompts/",
+        "Project xprompts/ (legacy)",
+        "Home ~/sase/xprompts/",
+        "Home xprompts/ (legacy)",
     ]
 
     ordered: list[tuple[str, list[BrowserItem]]] = []
@@ -97,7 +97,10 @@ def group_browser_items(
             seen.add(category)
 
     for category in sorted(groups.keys()):
-        if category.startswith("Project (") and category not in seen:
+        if (
+            category.startswith(("Project (", "Project home ("))
+            and category not in seen
+        ):
             ordered.append((category, groups[category]))
             seen.add(category)
 

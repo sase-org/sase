@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import importlib.resources
-import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.ace.tui.widgets.xprompt_arg_assist import append_input_args
+from sase.content_layout import (
+    discover_project_root,
+    display_path,
+    resolve_home_layout,
+    resolve_project_config_read_path,
+    resolve_project_layout,
+)
 from sase.main.plugin_discovery import discover_plugin_resources
 from sase.xprompt.loader import (
     get_sase_package_default_xprompts_dir,
@@ -37,8 +43,11 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
     if source_path is None:
         return "Built-in", "", False
 
-    home = str(Path.home())
-    cwd = str(Path.cwd())
+    home_path = Path.home()
+    project_root = discover_project_root() or Path.cwd()
+    project_layout = resolve_project_layout(project_root, home_root=home_path)
+    home_layout = resolve_home_layout(home_path)
+    home = str(home_path)
     sase_pkg_dirs = [
         str(get_sase_package_xprompts_dir()),
         str(get_sase_package_default_xprompts_dir()),
@@ -72,39 +81,67 @@ def classify_source(source_path: str | None) -> tuple[str, str, bool]:
 
     # Local sase.yml in CWD
     if source_path == "local_config":
-        return "Local sase.yml", "./sase.yml", True
+        config_path = resolve_project_config_read_path(project_root)
+        display = (
+            display_path(config_path, project_root=project_root, home_root=home_path)
+            if config_path is not None
+            else "sase/sase.yml"
+        )
+        return "Project sase.yml", display, True
 
     # Project-local sase.yml loaded via get_all_project_local_prompts()
     if source_path.startswith("project_local_config:"):
         proj = source_path.removeprefix("project_local_config:")
-        return f"Project ({proj}) sase.yml", f"~/.sase/projects/{proj}/sase.yml", True
+        return f"Project ({proj}) sase.yml", "sase/sase.yml", True
 
     # Inside sase package (built-in)
     if any(source_path.startswith(pkg_dir) for pkg_dir in sase_pkg_dirs):
         return "Built-in", source_path.replace(home, "~"), False
 
-    # Project-specific: ~/.config/sase/xprompts/{proj}/
-    project_prefix = os.path.join(home, ".config", "sase", "xprompts")
-    if source_path.startswith(project_prefix + "/"):
-        remainder = source_path[len(project_prefix) + 1 :]
-        proj = remainder.split("/")[0]
-        return f"Project ({proj})", source_path.replace(home, "~"), True
+    path = Path(source_path)
+    for candidate in project_layout.xprompts.candidates:
+        try:
+            path.relative_to(candidate)
+        except ValueError:
+            continue
+        label = (
+            "Project sase/xprompts/"
+            if candidate == project_layout.xprompts.write_path
+            else "Project xprompts/ (legacy)"
+        )
+        return label, display_path(path, project_root=project_root), True
 
-    # CWD directories
-    cwd_hidden = os.path.join(cwd, ".xprompts")
-    cwd_visible = os.path.join(cwd, "xprompts")
-    if source_path.startswith(cwd_hidden + "/"):
-        return "CWD .xprompts/", source_path.replace(cwd, "."), True
-    if source_path.startswith(cwd_visible + "/"):
-        return "CWD xprompts/", source_path.replace(cwd, "."), True
+    home_candidates = home_layout.xprompts.candidates
+    for candidate in home_candidates:
+        try:
+            relative = path.relative_to(candidate)
+        except ValueError:
+            continue
+        if len(relative.parts) > 1:
+            return (
+                f"Project home ({relative.parts[0]})",
+                display_path(path, home_root=home_path),
+                True,
+            )
+        label = (
+            "Home ~/sase/xprompts/"
+            if candidate == home_layout.xprompts.write_path
+            else "Home xprompts/ (legacy)"
+        )
+        return label, display_path(path, home_root=home_path), True
 
-    # Home directories
-    home_hidden = os.path.join(home, ".xprompts")
-    home_visible = os.path.join(home, "xprompts")
-    if source_path.startswith(home_hidden + "/"):
-        return "Home ~/.xprompts/", source_path.replace(home, "~"), True
-    if source_path.startswith(home_visible + "/"):
-        return "Home ~/xprompts/", source_path.replace(home, "~"), True
+    legacy_project_home = home_path / ".config" / "sase" / "xprompts"
+    try:
+        relative = path.relative_to(legacy_project_home)
+    except ValueError:
+        pass
+    else:
+        project_name = relative.parts[0] if relative.parts else "unknown"
+        return (
+            f"Project home ({project_name}, legacy)",
+            display_path(path, home_root=home_path),
+            True,
+        )
 
     # Fallback
     return "Other", source_path.replace(home, "~"), True
@@ -194,7 +231,9 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
 
     # local_config → ./sase.yml in CWD
     if source_path == "local_config":
-        return str(Path.cwd() / "sase.yml")
+        project_root = discover_project_root() or Path.cwd()
+        path = resolve_project_config_read_path(project_root)
+        return str(path) if path is not None else None
 
     # project_local_config:{project} → project's workspace sase.yml
     if source_path.startswith("project_local_config:"):
@@ -204,7 +243,11 @@ def resolve_source_to_file_path(source_path: str | None) -> str | None:
         workspaces = get_known_project_workspaces()
         ws_dir = workspaces.get(project_name)
         if ws_dir:
-            return str(ws_dir / "sase.yml")
+            path = resolve_project_config_read_path(
+                ws_dir,
+                label=f"project config for {project_name}",
+            )
+            return str(path or resolve_project_layout(ws_dir).config.write_path)
         return None
 
     # config → user sase.yml

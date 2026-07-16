@@ -26,6 +26,7 @@ from .loader_sources import (
     get_sase_package_xprompts_dir,
     get_xprompt_search_paths,
     load_project_local_xprompts,
+    load_project_file_xprompts,
 )
 from .models import XPrompt
 
@@ -49,6 +50,7 @@ __all__ = [
     "get_xprompt_or_workflow",
     "get_xprompt_search_paths",
     "load_project_local_xprompts",
+    "load_project_file_xprompts",
     "load_xprompt_from_file",
     "load_xprompts_from_config",
     "load_xprompts_from_default_files",
@@ -89,7 +91,10 @@ def get_all_project_local_prompts() -> dict[str, "Workflow"]:
 
     all_workflows: dict[str, Workflow] = {}
     for project_name, ws_dir in get_known_project_workspaces().items():
-        xprompts = load_project_local_xprompts(ws_dir, project_name)
+        xprompts = {
+            **load_project_local_xprompts(ws_dir, project_name),
+            **load_project_file_xprompts(ws_dir, project_name),
+        }
         for name, xp in xprompts.items():
             all_workflows[name] = xprompt_to_workflow(xp)
     return all_workflows

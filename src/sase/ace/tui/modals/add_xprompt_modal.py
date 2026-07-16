@@ -21,7 +21,7 @@ class AddXPromptModal(ModalScreen[str | None]):
         ("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, default_path: str = ".xprompts/") -> None:
+    def __init__(self, default_path: str = "sase/xprompts/") -> None:
         super().__init__()
         self._default_path = default_path
 

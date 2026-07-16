@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import yaml  # type: ignore[import-untyped]
 
 from sase._git_remote import canonical_ssh_remote, parse_hosted_git_remote
+from sase.content_layout import resolve_project_config_read_path
 
 REPOS_CONFIG_KEY = "repos"
 REPOS_LINKED_CONFIG_KEY = "linked"
@@ -357,7 +358,9 @@ def _dedupe_entries(
 
 
 def read_project_local_config(primary_workspace_dir: str) -> dict[str, Any]:
-    path = Path(primary_workspace_dir) / "sase.yml"
+    path = resolve_project_config_read_path(primary_workspace_dir)
+    if path is None:
+        return {}
     try:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, yaml.YAMLError):

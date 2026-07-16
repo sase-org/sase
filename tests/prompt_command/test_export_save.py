@@ -160,7 +160,7 @@ def test_save_local_creates_loadable_xprompt(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="fix-parser"))
 
-    dest = tmp_path / ".xprompts" / "fix-parser.md"
+    dest = tmp_path / "sase" / "xprompts" / "fix-parser.md"
     xprompt = load_xprompt_from_file(dest)
     assert xprompt is not None
     assert xprompt.name == "fix-parser"
@@ -184,7 +184,7 @@ def test_save_tag_persists_prompt_tags_and_stays_loadable(
         _save_ns(_prompt_id(text), name="fix-auth-review", tag=["review"])
     )
 
-    dest = tmp_path / ".xprompts" / "fix-auth-review.md"
+    dest = tmp_path / "sase" / "xprompts" / "fix-auth-review.md"
     raw = dest.read_text(encoding="utf-8")
     # User tags live under prompt_tags, not the reserved semantic ``tags`` key,
     # so the loader does not raise on free-form labels.
@@ -210,7 +210,7 @@ def test_save_global_writes_home_xprompts(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="global-prompt", global_=True))
 
-    assert (tmp_path / ".xprompts" / "global-prompt.md").is_file()
+    assert (tmp_path / "sase" / "xprompts" / "global-prompt.md").is_file()
 
 
 def test_save_project_writes_config_dir(
@@ -224,7 +224,7 @@ def test_save_project_writes_config_dir(
 
     handle_prompt_save(_save_ns(_prompt_id(text), name="proj-prompt", project="bob"))
 
-    dest = tmp_path / ".config" / "sase" / "xprompts" / "bob" / "proj-prompt.md"
+    dest = tmp_path / "sase" / "xprompts" / "bob" / "proj-prompt.md"
     assert dest.is_file()
 
 
@@ -239,7 +239,9 @@ def test_save_auto_name_derives_slug(
 
     handle_prompt_save(_save_ns(_prompt_id(text)))
 
-    assert (tmp_path / ".xprompts" / "improve-the-launcher-startup-time.md").is_file()
+    assert (
+        tmp_path / "sase" / "xprompts" / "improve-the-launcher-startup-time.md"
+    ).is_file()
 
 
 def test_save_description_override(
@@ -257,7 +259,7 @@ def test_save_description_override(
         _save_ns(_prompt_id(text), name="custom", description="My summary")
     )
 
-    xprompt = load_xprompt_from_file(tmp_path / ".xprompts" / "custom.md")
+    xprompt = load_xprompt_from_file(tmp_path / "sase" / "xprompts" / "custom.md")
     assert xprompt is not None
     assert xprompt.description == "My summary"
 
@@ -281,7 +283,7 @@ def test_save_guards_overwrite(
 
     # --force replaces the existing file.
     handle_prompt_save(_save_ns(_prompt_id(text), name="dup", force=True))
-    assert (tmp_path / ".xprompts" / "dup.md").is_file()
+    assert (tmp_path / "sase" / "xprompts" / "dup.md").is_file()
 
 
 def test_save_global_and_project_are_mutually_exclusive(

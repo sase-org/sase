@@ -14,6 +14,7 @@ from sase.agent_family.custom_definitions.models import (
     AgentFamilyDefinition,
     AgentFamilyRoleDefinition,
 )
+from sase.content_layout import resolve_xprompt_file_sources
 from sase.core.paths import get_sase_tmpdir
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
@@ -121,7 +122,12 @@ def _load_definitions_from_files(
     validate_prompt_refs: bool,
 ) -> dict[str, AgentFamilyDefinition]:
     definitions: dict[str, AgentFamilyDefinition] = {}
-    for search_dir in reversed(get_xprompt_search_paths()):
+    search_paths = (
+        get_xprompt_search_paths()
+        if project is None
+        else get_xprompt_search_paths(project)
+    )
+    for search_dir in reversed(search_paths):
         definitions.update(
             _load_definitions_from_dir(
                 search_dir,
@@ -137,12 +143,21 @@ def _load_definitions_from_project_dir(
     *,
     validate_prompt_refs: bool,
 ) -> dict[str, AgentFamilyDefinition]:
-    project_dir = Path.home() / ".config" / "sase" / "xprompts" / project
-    return _load_definitions_from_dir(
-        project_dir,
-        project=project,
-        validate_prompt_refs=validate_prompt_refs,
-    )
+    definitions: dict[str, AgentFamilyDefinition] = {}
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(project=project)
+        if source.path is not None and source.scope == "home_project"
+    ]
+    for project_dir in reversed(project_dirs):
+        definitions.update(
+            _load_definitions_from_dir(
+                project_dir,
+                project=project,
+                validate_prompt_refs=validate_prompt_refs,
+            )
+        )
+    return definitions
 
 
 def _load_definitions_from_project_workspace(
@@ -154,7 +169,15 @@ def _load_definitions_from_project_workspace(
     if workspace_dir is None:
         return {}
     definitions: dict[str, AgentFamilyDefinition] = {}
-    for xprompt_dir in (workspace_dir / ".xprompts", workspace_dir / "xprompts"):
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(
+            project_root=workspace_dir,
+            project=project,
+        )
+        if source.path is not None and source.scope == "project"
+    ]
+    for xprompt_dir in reversed(project_dirs):
         definitions.update(
             _load_definitions_from_dir(
                 xprompt_dir,

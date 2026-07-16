@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 _NON_PROJECT_REPO_MESSAGE = "sase repo init: not a project directory (no VCS found); skipping repository initialization"
 _UNMANAGED_REPO_MESSAGE = (
     "Repository initialization skipped: repository is not SASE-managed; set "
-    "is_sase_managed: true in the target repository's sase.yml to enable it"
+    "is_sase_managed: true in the target repository's sase/sase.yml to enable it"
 )
 _COMMAND_LABEL = "repo init"
 
@@ -538,6 +538,23 @@ def _explicit_sidecar_config_update(config_path: Path) -> _ConfigUpdate:
             current_text,
             f"{config_path}: failed to update repos.sidecar: {exc}",
         )
+    if updated_text != current_text:
+        from sase.content_layout import resolve_project_config_write_path
+
+        project_root = (
+            config_path.parent.parent
+            if config_path.parent.name == "sase"
+            else config_path.parent
+        )
+        write_path = resolve_project_config_write_path(project_root)
+        if config_path != write_path:
+            return _ConfigUpdate(
+                config_path,
+                current_text,
+                current_text,
+                f"move legacy project config {config_path} to {write_path} "
+                "before running a config-writing init command",
+            )
     return _ConfigUpdate(
         config_path,
         current_text,
@@ -572,7 +589,11 @@ def _resolve_project_root(path: str | Path | None) -> Path:
     candidate = Path.cwd() if path is None else Path(path).expanduser()
     candidate = candidate.resolve(strict=False)
     if candidate.name == "sase.yml":
-        candidate = candidate.parent
+        candidate = (
+            candidate.parent.parent
+            if candidate.parent.name == "sase"
+            else candidate.parent
+        )
     if candidate.name == "sdd" and candidate.parent.name == ".sase":
         candidate = candidate.parent.parent
     if candidate.is_file():

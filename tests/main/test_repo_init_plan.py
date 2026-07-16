@@ -32,7 +32,9 @@ def _args(path: Path, **overrides: object) -> argparse.Namespace:
 def _mark_project(path: Path, *, managed: bool = True) -> None:
     subprocess.run(["git", "init", "-q", str(path)], check=True)
     if managed:
-        (path / "sase.yml").write_text("is_sase_managed: true\n", encoding="utf-8")
+        config = path / "sase" / "sase.yml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("is_sase_managed: true\n", encoding="utf-8")
 
 
 def test_plan_providerless_project_includes_store_config_and_ignore_actions(
@@ -198,7 +200,9 @@ def test_unmanaged_plan_skips_before_provider_calls(
 ) -> None:
     _mark_project(tmp_path, managed=False)
     if config_text is not None:
-        (tmp_path / "sase.yml").write_text(config_text, encoding="utf-8")
+        config = tmp_path / "sase" / "sase.yml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(config_text, encoding="utf-8")
     provider_calls: list[Path] = []
     monkeypatch.setattr(
         "sase.main.repo_init_handler._project_provider_sdd_policy",
@@ -291,7 +295,7 @@ def test_run_uses_materialized_path_and_updates_project_wiring(
 
     assert run_repo_init(_args(tmp_path)) == 0
     assert (sdd_dir / "README.md").is_file()
-    assert "name: plans" in (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    assert "name: plans" in (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert (tmp_path / ".gitignore").read_text(encoding="utf-8") == "/sase/repos/\n"
 
 

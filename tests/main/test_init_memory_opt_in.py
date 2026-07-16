@@ -116,8 +116,9 @@ def test_enable_project_memory_preserves_existing_local_config(
         home_root=home_root,
         config_dir=config_dir,
     )
+    (project_root / "sase.yml").unlink()
     write(
-        project_root / "sase.yml",
+        project_root / "sase" / "sase.yml",
         "# Keep this comment\nlinked_repos: []\nis_sase_managed: false # opt in\n",
     )
 

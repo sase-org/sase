@@ -258,6 +258,31 @@ def test_higher_priority_dir_md_overrides_lower_dir_md() -> None:
         assert result["shared"].content == "From high dir"
 
 
+def test_canonical_project_xprompt_overrides_legacy_sources(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    canonical = tmp_path / "sase" / "xprompts"
+    hidden = tmp_path / ".xprompts"
+    visible = tmp_path / "xprompts"
+    for directory, content in (
+        (canonical, "canonical"),
+        (hidden, "hidden legacy"),
+        (visible, "visible legacy"),
+    ):
+        directory.mkdir(parents=True)
+        (directory / "shared.md").write_text(content, encoding="utf-8")
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    from sase.xprompt.loader import load_xprompts_from_files
+
+    result = load_xprompts_from_files(project="demo")
+
+    assert result["demo/shared"].content == "canonical"
+    assert result["demo/shared"].source_path == str(canonical / "shared.md")
+
+
 # Tests for get_all_xprompts integration
 
 
@@ -394,7 +419,7 @@ def test_config_xprompt_overrides_default_file_xprompt(tmp_path: Path) -> None:
     """Config-defined xprompts keep overriding package default markdown files."""
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
-        patch("sase.config.core._get_local_config_path", return_value=None),
+        patch("sase.config.core.get_local_config_path", return_value=None),
         patch(
             "sase.xprompt.loader_sources.load_xprompts_by_source",
             return_value=[("config", {"research_swarm": "From config"})],
@@ -414,7 +439,7 @@ def test_review_xprompts_load_from_default_config(tmp_path: Path) -> None:
     """Default config xprompts load as built-ins with parsed inputs."""
     with (
         patch("sase.config.core.CONFIG_DIR", tmp_path),
-        patch("sase.config.core._get_local_config_path", return_value=None),
+        patch("sase.config.core.get_local_config_path", return_value=None),
         patch("sase.main.plugin_discovery.is_plugin_disabled", return_value=True),
         patch("sase.xprompt.loader.detect_project", return_value=None),
         patch("sase.xprompt.loader_sources.get_xprompt_search_paths", return_value=[]),

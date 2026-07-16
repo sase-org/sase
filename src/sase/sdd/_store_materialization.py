@@ -300,14 +300,21 @@ def resolve_sdd_creation_authorization(
     """Require repository-local management before any remote SDD use."""
 
     from sase.project_management import project_management_status
+    from sase.content_layout import (
+        resolve_project_config_read_path,
+        resolve_project_config_write_path,
+    )
 
-    management = project_management_status(primary / "sase.yml")
+    config_path = resolve_project_config_read_path(primary)
+    if config_path is None:
+        config_path = resolve_project_config_write_path(primary)
+    management = project_management_status(config_path)
     if management.error is not None:
         raise SddMaterializationError(management.error)
     if not management.is_sase_managed:
         raise SddMaterializationError(
             "SDD materialization refused: repository is not SASE-managed; set "
-            "is_sase_managed: true in the target repository's sase.yml to "
+            "is_sase_managed: true in the target repository's sase/sase.yml to "
             "enable it"
         )
     return requested is not False

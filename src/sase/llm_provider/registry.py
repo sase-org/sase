@@ -515,10 +515,14 @@ def _str_list(value: Any) -> list[str]:
 
 
 def _config_fingerprint() -> dict[str, Any]:
-    paths = (
-        os.path.expanduser("~/.config/sase/sase.yml"),
-        os.path.join(os.getcwd(), "sase.yml"),
-    )
+    from sase.content_layout import discover_project_root, resolve_project_layout
+
+    paths = [os.path.expanduser("~/.config/sase/sase.yml")]
+    project_root = discover_project_root()
+    if project_root is not None:
+        paths.extend(
+            str(path) for path in resolve_project_layout(project_root).config.candidates
+        )
     result: dict[str, Any] = {}
     for raw_path in paths:
         try:

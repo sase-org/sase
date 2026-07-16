@@ -187,6 +187,32 @@ def test_yml_files_discovered_as_workflow_files() -> None:
         assert "real_workflow.yml" in filenames
 
 
+def test_canonical_workflow_and_steps_override_legacy_sources(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    canonical = tmp_path / "sase" / "xprompts"
+    legacy = tmp_path / ".xprompts"
+    for directory, command in ((canonical, "canonical"), (legacy, "legacy")):
+        (directory / "steps").mkdir(parents=True)
+        (directory / "steps" / "shared.yml").write_text(
+            f"bash: echo {command}\n",
+            encoding="utf-8",
+        )
+        (directory / "ship.yml").write_text(
+            "steps:\n  - name: run\n    use: shared\n",
+            encoding="utf-8",
+        )
+    (tmp_path / ".git").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    workflows = get_all_workflows(project="demo")
+
+    workflow = workflows["demo/ship"]
+    assert workflow.source_path == str(canonical / "ship.yml")
+    assert workflow.steps[0].bash == "echo canonical"
+
+
 def test_get_all_workflows_file_overrides_plugin() -> None:
     """File-backed workflows override plugin workflows with the same name."""
     plugin_workflow = Workflow(
@@ -284,7 +310,7 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
     """Project-scoped workflows load from the known primary checkout."""
     workspace = tmp_path / "sase"
     other_cwd = tmp_path / "other"
-    xprompts = workspace / "xprompts"
+    xprompts = workspace / "sase" / "xprompts"
     xprompts.mkdir(parents=True)
     other_cwd.mkdir()
     (xprompts / "fix_just.yml").write_text(

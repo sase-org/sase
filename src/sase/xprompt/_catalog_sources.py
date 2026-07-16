@@ -6,6 +6,10 @@ import importlib.resources
 import logging
 from pathlib import Path
 
+from sase.content_layout import (
+    discover_project_root,
+    resolve_project_config_read_path,
+)
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     get_all_workflows,
@@ -13,6 +17,7 @@ from sase.xprompt.loader import (
     get_known_project_workspaces,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
+    load_project_file_xprompts,
     load_project_local_xprompts,
 )
 from sase.xprompt.models import XPrompt, xprompt_to_workflow
@@ -33,7 +38,10 @@ def gather_entries() -> list[CatalogEntry]:
 
     for project, workspace in get_known_project_workspaces().items():
         try:
-            project_xprompts = load_project_local_xprompts(workspace, project)
+            project_xprompts = {
+                **load_project_local_xprompts(workspace, project),
+                **load_project_file_xprompts(workspace, project),
+            }
         except Exception:
             log.debug(
                 "Failed to load project-local xprompts for %s",
@@ -73,7 +81,10 @@ def gather_structured_entries() -> list[StructuredCatalogSource]:
 
     for project, workspace in get_known_project_workspaces().items():
         try:
-            project_xprompts = load_project_local_xprompts(workspace, project)
+            project_xprompts = {
+                **load_project_local_xprompts(workspace, project),
+                **load_project_file_xprompts(workspace, project),
+            }
         except Exception:
             log.debug(
                 "Failed to load project-local xprompts for %s",
@@ -249,14 +260,18 @@ def _source_definition_path(source: str, project: str | None) -> Path | None:
             return None
 
     if source == "local_config":
-        return Path.cwd() / "sase.yml"
+        root = discover_project_root() or Path.cwd()
+        return resolve_project_config_read_path(root)
 
     if source.startswith("project_local_config:"):
         project_name = source.removeprefix("project_local_config:")
         workspace = get_known_project_workspaces().get(project_name)
         if workspace is None:
             return None
-        return workspace / "sase.yml"
+        return resolve_project_config_read_path(
+            workspace,
+            label=f"project config for {project_name}",
+        )
 
     config_dir = Path.home() / ".config" / "sase"
     if source == "config":

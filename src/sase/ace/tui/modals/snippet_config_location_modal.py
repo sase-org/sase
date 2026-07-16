@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml  # type: ignore[import-untyped]
 
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
+from sase.content_layout import discover_project_root, resolve_project_layout
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,10 @@ def _short_display_path(path: str) -> str:
 
 
 def _writability_reason(path: Path) -> str | None:
+    if path.name == "sase.yml" and path.parent.name == "sase":
+        legacy = path.parent.parent / "sase.yml"
+        if legacy.is_file():
+            return "migrate legacy project config first"
     if path.exists():
         if not path.is_file():
             return "not a file"
@@ -70,9 +75,9 @@ def load_snippet_config_locations(
             (f"User {overlay.name}", overlay)
             for overlay in sorted(config_dir.glob("sase_*.yml"))
         )
-    local_config = Path.cwd() / "sase.yml"
-    if local_config.is_file():
-        candidates.append(("Local sase.yml", local_config))
+    project_root = discover_project_root() or Path.cwd()
+    local_config = resolve_project_layout(project_root).config.write_path
+    candidates.append(("Project sase/sase.yml", local_config))
     return [
         SnippetConfigLocation(
             label=label,

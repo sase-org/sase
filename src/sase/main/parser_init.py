@@ -10,7 +10,7 @@ def add_enable_project_memory_argument(parser: argparse.ArgumentParser) -> None:
         "--enable-project-memory",
         action="store_true",
         help=(
-            "Create or update ./sase.yml with is_sase_managed: true, enabling "
+            "Create or update sase/sase.yml with is_sase_managed: true, enabling "
             "managed project memory (cannot be combined with --check)"
         ),
     )

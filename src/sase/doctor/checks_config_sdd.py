@@ -171,7 +171,16 @@ def _sdd_storage_issues(context: DoctorContext) -> list[_StorageIssue]:
 
     cwd = context.cwd.expanduser().resolve(strict=False)
     primary = Path(get_primary_workspace_dir(str(cwd), 1)).resolve(strict=False)
-    config = _read_sdd_config(primary / "sase.yml")
+    from sase.content_layout import (
+        LayoutCollisionError,
+        resolve_project_config_read_path,
+    )
+
+    try:
+        config_path = resolve_project_config_read_path(primary)
+    except LayoutCollisionError as exc:
+        return [_StorageIssue("error", "project-config-collision", str(exc))]
+    config = _read_sdd_config(config_path) if config_path is not None else {}
     issues: list[_StorageIssue] = []
 
     for key in ("storage", "version_controlled"):

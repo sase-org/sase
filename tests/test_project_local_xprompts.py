@@ -221,4 +221,4 @@ class TestClassifySourceProjectLocal:
             return_value={"myproj": tmp_path},
         ):
             result = resolve_source_to_file_path("project_local_config:myproj")
-            assert result == str(tmp_path / "sase.yml")
+            assert result == str(tmp_path / "sase" / "sase.yml")

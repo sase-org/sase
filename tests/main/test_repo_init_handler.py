@@ -40,7 +40,9 @@ def _git_init(path: Path) -> None:
 
 def _mark_managed_project(path: Path, config: str = "is_sase_managed: true\n") -> None:
     _git_init(path)
-    (path / "sase.yml").write_text(config, encoding="utf-8")
+    config_path = path / "sase" / "sase.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(config, encoding="utf-8")
 
 
 def _preflight(
@@ -85,7 +87,7 @@ def test_repo_init_writes_managed_sidecar_config_local_store_and_gitignore(
 
     assert run_repo_init(_args(tmp_path)) == 0
 
-    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == (
+    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == (
         "# keep\n"
         "is_sase_managed: true\n"
         "repos:\n"
@@ -158,7 +160,7 @@ def test_repo_init_appends_plans_without_losing_disabled_research_comments(
 
     assert run_repo_init(_args(tmp_path)) == 0
 
-    text = (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    text = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert "# keep" in text
     assert "name: research # shared" in text
     assert text.count("name: plans") == 1
@@ -193,7 +195,7 @@ def test_repo_init_preserves_existing_managed_sidecar_entries_verbatim(
 
     assert run_repo_init(_args(tmp_path)) == 0
 
-    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == config
+    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == config
 
 
 def test_repo_init_commits_only_owned_project_wiring(
@@ -210,7 +212,7 @@ def test_repo_init_commits_only_owned_project_wiring(
         check=True,
     )
     subprocess.run(
-        ["git", "-C", str(tmp_path), "add", "sase.yml"],
+        ["git", "-C", str(tmp_path), "add", "sase/sase.yml"],
         check=True,
     )
     subprocess.run(
@@ -248,7 +250,7 @@ def test_repo_init_commits_only_owned_project_wiring(
         check=True,
     ).stdout.splitlines()
     assert subject == "chore: initialize SASE repositories"
-    assert names == [".gitignore", "sase.yml"]
+    assert names == [".gitignore", "sase/sase.yml"]
     assert unrelated.exists()
 
 
@@ -418,7 +420,7 @@ def test_noninteractive_bare_init_defers_missing_sidecar_creation(
 
     assert run_init_onboarding(args, specs=(spec,), stdin=StringIO()) == 0
 
-    config = (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    config = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     stderr = capsys.readouterr().err
     assert "name: research" in config
     assert "acme/widget--research is missing" in stderr
@@ -552,7 +554,7 @@ def test_repo_init_check_is_read_only_and_does_not_preflight(
         lambda *_args: pytest.fail("check must not probe the network"),
     )
 
-    before = (tmp_path / "sase.yml").read_text(encoding="utf-8")
+    before = (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8")
     assert run_repo_init(_args(tmp_path, check=True)) == 1
-    assert (tmp_path / "sase.yml").read_text(encoding="utf-8") == before
+    assert (tmp_path / "sase" / "sase.yml").read_text(encoding="utf-8") == before
     assert not (tmp_path / ".gitignore").exists()

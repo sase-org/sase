@@ -179,6 +179,10 @@ def test_assist_adapter_filters_project_entries(tmp_path: Path) -> None:
             side_effect=[{"local": project_xp}, {"other": other_xp}],
         ),
         patch(
+            "sase.xprompt.catalog.load_project_file_xprompts",
+            return_value={},
+        ),
+        patch(
             "sase.xprompt.catalog.get_sase_package_xprompts_dir",
             return_value=tmp_path / "pkg",
         ),

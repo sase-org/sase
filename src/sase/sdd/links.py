@@ -502,7 +502,8 @@ def _looks_like_project_root(path: Path) -> bool:
     if has_flat_months:
         return False
     has_project_marker = (
-        (path / "sase.yml").is_file()
+        (path / "sase" / "sase.yml").is_file()
+        or (path / "sase.yml").is_file()
         or (path / ".git").exists()
         or (path / "sdd").is_dir()
         or (path / ".sase" / "sdd").is_dir()

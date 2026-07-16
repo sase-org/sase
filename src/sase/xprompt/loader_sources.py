@@ -9,6 +9,10 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.config import load_xprompts_by_source
+from sase.content_layout import (
+    resolve_project_config_read_path,
+    resolve_xprompt_file_sources,
+)
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
 from sase.core.project_lifecycle_wire import (
@@ -158,7 +162,11 @@ def get_sase_package_default_xprompts_dir() -> Path:
     return candidate
 
 
-def get_xprompt_search_paths() -> list[Path]:
+def get_xprompt_search_paths(
+    project: str | None = None,
+    *,
+    project_root: Path | None = None,
+) -> list[Path]:
     """Get the ordered list of directories to search for xprompt files.
 
     Priority order (first wins on name conflict):
@@ -173,17 +181,14 @@ def get_xprompt_search_paths() -> list[Path]:
     Returns:
         List of directory paths to search, in priority order.
     """
-    cwd = Path.cwd()
-    home = Path.home()
-
-    paths = [
-        cwd / ".xprompts",
-        cwd / "xprompts",
-        home / ".xprompts",
-        home / "xprompts",
+    return [
+        source.path
+        for source in resolve_xprompt_file_sources(
+            project_root=project_root,
+            project=project,
+        )
+        if source.path is not None
     ]
-
-    return paths
 
 
 def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
@@ -199,9 +204,24 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
         Dictionary mapping xprompt name to XPrompt object.
         Earlier priority sources override later ones.
     """
-    cwd = Path.cwd()
-    cwd_dirs = {cwd / ".xprompts", cwd / "xprompts"}
-    search_paths = get_xprompt_search_paths()
+    sources = resolve_xprompt_file_sources(project=project)
+    namespaced_dirs = {
+        source.path
+        for source in sources
+        if source.path is not None and source.project_namespaced
+    }
+    search_paths = (
+        get_xprompt_search_paths()
+        if project is None
+        else get_xprompt_search_paths(project)
+    )
+    if not namespaced_dirs:
+        cwd = Path.cwd()
+        namespaced_dirs = {
+            cwd / "sase" / "xprompts",
+            cwd / ".xprompts",
+            cwd / "xprompts",
+        }
     xprompts: dict[str, XPrompt] = {}
 
     # Process directories in reverse priority order (lowest first),
@@ -210,7 +230,7 @@ def load_xprompts_from_files(project: str | None = None) -> dict[str, XPrompt]:
         if not search_dir.is_dir():
             continue
 
-        is_local = search_dir in cwd_dirs
+        is_local = search_dir in namespaced_dirs
         for md_file in search_dir.glob("*.md"):
             if md_file.is_file():
                 xprompt = load_xprompt_from_file(md_file)
@@ -388,18 +408,21 @@ def load_xprompts_from_project(project: str) -> dict[str, XPrompt]:
         Dictionary mapping namespaced xprompt name to XPrompt object.
         Returns empty dict if directory doesn't exist.
     """
-    project_dir = Path.home() / ".config" / "sase" / "xprompts" / project
-    if not project_dir.is_dir():
-        return {}
-
     xprompts: dict[str, XPrompt] = {}
-
-    for md_file in project_dir.glob("*.md"):
-        if md_file.is_file():
-            xprompt = load_xprompt_from_file(md_file)
-            if xprompt:
-                ns = namespace_xprompt(project, xprompt)
-                xprompts[ns.name] = ns
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(project=project)
+        if source.path is not None and source.scope == "home_project"
+    ]
+    for project_dir in reversed(project_dirs):
+        if not project_dir.is_dir():
+            continue
+        for md_file in project_dir.glob("*.md"):
+            if md_file.is_file():
+                xprompt = load_xprompt_from_file(md_file)
+                if xprompt:
+                    ns = namespace_xprompt(project, xprompt)
+                    xprompts[ns.name] = ns
 
     return xprompts
 
@@ -475,8 +498,11 @@ def load_project_local_xprompts(
     ``_include_local_config`` flag.  Returns xprompts namespaced with
     ``{project}/``.
     """
-    sase_yml = workspace_dir / "sase.yml"
-    if not sase_yml.is_file():
+    sase_yml = resolve_project_config_read_path(
+        workspace_dir,
+        label=f"project config for {project}",
+    )
+    if sase_yml is None:
         return {}
 
     try:
@@ -500,3 +526,31 @@ def load_project_local_xprompts(
         f"{project}/{name}": namespace_xprompt(project, xp)
         for name, xp in parsed.items()
     }
+
+
+def load_project_file_xprompts(
+    workspace_dir: Path,
+    project: str,
+) -> dict[str, XPrompt]:
+    """Load namespaced Markdown xprompts from one known project workspace."""
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(
+            project_root=workspace_dir,
+            project=project,
+        )
+        if source.path is not None and source.scope == "project"
+    ]
+    xprompts: dict[str, XPrompt] = {}
+    for project_dir in reversed(project_dirs):
+        if not project_dir.is_dir():
+            continue
+        for md_file in project_dir.glob("*.md"):
+            if not md_file.is_file():
+                continue
+            xprompt = load_xprompt_from_file(md_file)
+            if xprompt is None:
+                continue
+            namespaced = namespace_xprompt(project, xprompt)
+            xprompts[namespaced.name] = namespaced
+    return xprompts

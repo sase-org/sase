@@ -357,7 +357,7 @@ def plan_init_memory(args: argparse.Namespace) -> InitPlan:
     )
     if getattr(args, "_project_config_changed", False):
         config_action = InitAction(
-            path=_project_config_path(),
+            path=_project_config_path(for_write=True),
             operation=getattr(args, "_project_config_operation", "update"),
             detail="mark repository as SASE-managed in sase.yml",
         )

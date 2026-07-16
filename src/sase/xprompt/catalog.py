@@ -16,6 +16,7 @@ from sase.xprompt.loader import (
     get_known_project_workspaces,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
+    load_project_file_xprompts,
     load_project_local_xprompts,
 )
 from sase.xprompt.models import XPrompt
@@ -80,6 +81,7 @@ _CATALOG_SOURCE_DEPENDENCIES = (
     get_known_project_workspaces,
     get_sase_package_default_xprompts_dir,
     get_sase_package_xprompts_dir,
+    load_project_file_xprompts,
     load_project_local_xprompts,
 )
 
@@ -182,6 +184,7 @@ def _sync_catalog_source_dependencies() -> None:
         get_sase_package_default_xprompts_dir
     )
     _sources.get_sase_package_xprompts_dir = get_sase_package_xprompts_dir
+    _sources.load_project_file_xprompts = load_project_file_xprompts
     _sources.load_project_local_xprompts = load_project_local_xprompts
 
 

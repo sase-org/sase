@@ -150,7 +150,11 @@ def _entries_from_config(config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 
 def _read_primary_local_config(primary_dir: str) -> dict[str, Any]:
-    path = Path(primary_dir).expanduser() / "sase.yml"
+    from sase.content_layout import resolve_project_config_read_path
+
+    path = resolve_project_config_read_path(Path(primary_dir).expanduser())
+    if path is None:
+        return {}
     try:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, yaml.YAMLError):

@@ -211,7 +211,7 @@ class ConfigCenterModal(ModalScreen[None]):
             )
             yield _ConfigCenterHeaderDivider(id="config-center-divider")
             with ContentSwitcher(initial=self._active_tab, id="config-center-switcher"):
-                yield ConfigPane(id="config")
+                yield ConfigPane(project=self._project, id="config")
                 yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
                 yield TasksPane(id="tasks")

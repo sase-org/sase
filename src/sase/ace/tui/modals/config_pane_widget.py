@@ -77,11 +77,13 @@ class ConfigPane(Vertical):
         self,
         *,
         local_paths: tuple[str, ...] = (),
+        project: str | None = None,
         auto_load: bool = True,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._local_paths = tuple(local_paths)
+        self._project = project
         self._auto_load = auto_load
         self._view: ConfigPaneView | None = None
         self._error: str | None = None
@@ -139,12 +141,24 @@ class ConfigPane(Vertical):
         self._error = None
         self._sync_state_visibility()
         local_paths = self._local_paths
+        project = self._project
 
         def task() -> Any:
             from . import config_pane as public_config_pane
 
+            resolved_local_paths = local_paths
+            if not resolved_local_paths and project is not None:
+                from sase.content_layout import resolve_project_layout
+                from sase.xprompt.loader import get_known_project_workspaces
+
+                workspace = get_known_project_workspaces().get(project)
+                if workspace is not None:
+                    config = resolve_project_layout(workspace).config
+                    read_path = config.resolve_read(f"project config for {project}")
+                    if read_path is None or read_path == config.write_path:
+                        resolved_local_paths = (str(config.write_path),)
             return public_config_pane._load_config_view(
-                local_paths=local_paths, force=force
+                local_paths=resolved_local_paths, force=force
             )
 
         self._worker = self.run_worker(task, thread=True, exclusive=True)

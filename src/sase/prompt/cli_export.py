@@ -229,12 +229,19 @@ def handle_prompt_save(args: argparse.Namespace) -> None:
 
 
 def _save_target_dir(*, project: str | None, use_global: bool, prog: str) -> Path:
+    from sase.content_layout import (
+        discover_project_root,
+        resolve_home_layout,
+        resolve_project_layout,
+    )
+
     if project is not None:
         _reject_path_token(project, label="project", prog=prog)
-        return Path.home() / ".config" / "sase" / "xprompts" / project
+        return resolve_home_layout().xprompts.write_path / project
     if use_global:
-        return Path.home() / ".xprompts"
-    return Path.cwd() / ".xprompts"
+        return resolve_home_layout().xprompts.write_path
+    root = discover_project_root() or Path.cwd()
+    return resolve_project_layout(root).xprompts.write_path
 
 
 def _build_save_content(

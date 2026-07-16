@@ -5,13 +5,33 @@ from __future__ import annotations
 from typing import Any
 
 from sase.config.core import DEPRECATED_TOP_LEVEL_KEYS, load_config_layers
+from sase.content_layout import LayoutCollisionError
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.doctor.checks_config_common import MAX_DETAIL_ROWS
 
 
 def check_config_layers() -> DiagnosticCheck:
     """Report config layer visibility and parse/unsupported-key problems."""
-    layers = load_config_layers()
+    try:
+        layers = load_config_layers()
+    except LayoutCollisionError as exc:
+        return DiagnosticCheck(
+            id="config.layers",
+            group="config",
+            status="ERROR",
+            title="Config layers",
+            summary="project config exists in canonical and legacy locations",
+            details=(str(exc),),
+            next_steps=(
+                "Move the legacy project config to sase/sase.yml, then rerun "
+                "`sase config layers`.",
+            ),
+            data={
+                "layers": [],
+                "problem_count": 1,
+                "collision_paths": [str(path) for path in exc.paths],
+            },
+        )
     layer_rows: list[dict[str, Any]] = []
     problems: list[str] = []
     for layer in layers:

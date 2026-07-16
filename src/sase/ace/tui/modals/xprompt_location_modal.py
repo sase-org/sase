@@ -19,6 +19,12 @@ from textual.widgets.option_list import Option
 
 from sase.ace.hints import build_editor_args
 from sase.config import CHEZMOI_HOME, CONFIG_DIR, get_use_chezmoi
+from sase.content_layout import (
+    discover_project_root,
+    resolve_chezmoi_layout,
+    resolve_home_layout,
+    resolve_project_layout,
+)
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
@@ -68,64 +74,42 @@ def get_all_xprompt_locations(
     cwd = Path.cwd()
     home = Path.home()
     chezmoi = get_use_chezmoi()
+    project_root = discover_project_root() or cwd
+    project_layout = resolve_project_layout(project_root, home_root=home)
+    home_xprompts = (
+        resolve_chezmoi_layout(CHEZMOI_HOME, home_root=home).xprompts.write_path
+        if chezmoi
+        else resolve_home_layout(home).xprompts.write_path
+    )
 
     directories: list[XPromptLocation] = []
     configs: list[XPromptLocation] = []
     plugin_dirs: list[XPromptLocation] = []
     builtin: list[XPromptLocation] = []
 
-    # --- 1. xprompts directories ---
-    # .xprompts/ (CWD) — only if exists
-    cwd_dot_xprompts = cwd / ".xprompts"
-    if cwd_dot_xprompts.is_dir():
-        directories.append(
-            XPromptLocation(
-                label="CWD .xprompts/",
-                path=str(cwd_dot_xprompts),
-                location_type="directory",
-            )
+    # --- 1. Canonical xprompt directories ---
+    directories.append(
+        XPromptLocation(
+            label="Project sase/xprompts/",
+            path=str(project_layout.xprompts.write_path),
+            location_type="directory",
         )
-    # xprompts/ (CWD) — only if exists
-    cwd_visible = cwd / "xprompts"
-    if cwd_visible.is_dir():
-        directories.append(
-            XPromptLocation(
-                label="CWD xprompts/",
-                path=str(cwd_visible),
-                location_type="directory",
-            )
+    )
+    directories.append(
+        XPromptLocation(
+            label="Home ~/sase/xprompts/",
+            path=str(home_xprompts),
+            location_type="directory",
         )
-    # ~/.xprompts/ — only if exists (remapped when chezmoi enabled)
-    home_dot_xprompts = CHEZMOI_HOME / "dot_xprompts" if chezmoi else home / ".xprompts"
-    if home_dot_xprompts.is_dir():
-        directories.append(
-            XPromptLocation(
-                label="Home ~/.xprompts/",
-                path=str(home_dot_xprompts),
-                location_type="directory",
-            )
-        )
-    # ~/xprompts/ — only if exists (remapped when chezmoi enabled)
-    home_visible = CHEZMOI_HOME / "xprompts" if chezmoi else home / "xprompts"
-    if home_visible.is_dir():
-        directories.append(
-            XPromptLocation(
-                label="Home ~/xprompts/",
-                path=str(home_visible),
-                location_type="directory",
-            )
-        )
-    # ~/.config/sase/xprompts/{project}/ — only if project detected and exists
+    )
     if effective_project:
-        project_dir = home / ".config" / "sase" / "xprompts" / effective_project
-        if project_dir.is_dir():
-            directories.append(
-                XPromptLocation(
-                    label=f"Project ({effective_project})",
-                    path=str(project_dir),
-                    location_type="directory",
-                )
+        directories.append(
+            XPromptLocation(
+                label=f"Project home ({effective_project})",
+                path=str(home_xprompts / effective_project),
+                location_type="directory",
             )
+        )
 
     # --- 2. Config files ---
     # ~/.config/sase/sase.yml — always show (remapped when chezmoi enabled)
@@ -151,16 +135,13 @@ def get_all_xprompt_locations(
                     location_type="config",
                 )
             )
-    # ./sase.yml (CWD) — only if exists
-    local_config = cwd / "sase.yml"
-    if local_config.is_file():
-        configs.append(
-            XPromptLocation(
-                label="Local sase.yml",
-                path=str(local_config),
-                location_type="config",
-            )
+    configs.append(
+        XPromptLocation(
+            label="Project sase/sase.yml",
+            path=str(project_layout.config.write_path),
+            location_type="config",
         )
+    )
 
     # --- 3. Plugin xprompts directories ---
     if not is_plugin_disabled("XPROMPTS"):

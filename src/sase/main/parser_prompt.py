@@ -241,7 +241,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--global",
         dest="global_",
         action="store_true",
-        help="Save to ~/.xprompts/ instead of the local ./.xprompts/",
+        help="Save to ~/sase/xprompts/ instead of the project sase/xprompts/",
     )
     save_parser.add_argument(
         "-n",
@@ -254,7 +254,7 @@ def register_prompt_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project",
         default=None,
         metavar="PROJECT",
-        help="Save to ~/.config/sase/xprompts/PROJECT/ for a project namespace",
+        help="Save to ~/sase/xprompts/PROJECT/ for a project namespace",
     )
     save_parser.add_argument(
         "-t",

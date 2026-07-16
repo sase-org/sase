@@ -82,7 +82,7 @@ class EditorMixin:
         """Suspend TUI and open editor for ad-hoc workflow YAML.
 
         Creates a YAML template, opens it in the user's editor, then saves the
-        result to ~/.xprompts/ for execution.
+        result to ~/sase/xprompts/ for execution.
 
         Returns:
             A (workflow_name, file_path) tuple, or None if cancelled/invalid.
@@ -148,8 +148,10 @@ class EditorMixin:
 
             workflow_name = default_name
 
-            # Save to ~/.xprompts/
-            xprompts_dir = os.path.expanduser("~/.xprompts")
+            # Save to the canonical home xprompt directory.
+            from sase.content_layout import resolve_home_layout
+
+            xprompts_dir = str(resolve_home_layout().xprompts.write_path)
             os.makedirs(xprompts_dir, exist_ok=True)
 
             dest_path = os.path.join(xprompts_dir, f"{workflow_name}.yml")

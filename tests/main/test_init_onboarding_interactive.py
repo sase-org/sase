@@ -219,7 +219,9 @@ def test_bare_onboarding_requires_resource_confirmation_even_with_yes(
     expected_prompt_count: int,
 ) -> None:
     (tmp_path / ".git").mkdir()
-    (tmp_path / "sase.yml").write_text("is_sase_managed: true\n", encoding="utf-8")
+    config = tmp_path / "sase" / "sase.yml"
+    config.parent.mkdir()
+    config.write_text("is_sase_managed: true\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     prompts: list[str] = []
     answers = iter(responses)

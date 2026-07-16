@@ -29,6 +29,26 @@ def test_config_layers_report_invalid_existing_yaml(tmp_path: Path) -> None:
     assert "sase.yml" in check.details[0]
 
 
+def test_config_layers_reports_project_layout_collision(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    canonical = project / "sase" / "sase.yml"
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("canonical: true\n", encoding="utf-8")
+    (project / "sase.yml").write_text("legacy: true\n", encoding="utf-8")
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path / "config"),
+        patch("sase.config.core.Path.cwd", return_value=project),
+    ):
+        check = check_config_layers()
+
+    assert check.status == "ERROR"
+    assert check.data["collision_paths"] == (
+        str(canonical),
+        str(project / "sase.yml"),
+    )
+
+
 def test_config_layers_warns_on_deprecated_sibling_repos(tmp_path: Path) -> None:
     """A legacy ``sibling_repos:`` config triggers a non-fatal doctor warning."""
     (tmp_path / "sase.yml").write_text(

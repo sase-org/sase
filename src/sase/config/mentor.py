@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.config.core import current_config_token, load_merged_config, stat_token
+from sase.config.core import (
+    current_config_token,
+    get_local_config_path,
+    load_merged_config,
+    stat_token,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +78,8 @@ def _get_local_profile_names() -> set[str]:
     """
     global _local_profile_names_cache_token, _local_profile_names_cache_value
 
-    try:
-        local_path = Path.cwd() / "sase.yml"
-    except FileNotFoundError:
+    local_path = get_local_config_path()
+    if local_path is None:
         return set()
     token = stat_token(local_path)
     if token is None:

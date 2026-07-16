@@ -8,6 +8,7 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from sase.agent_family.custom_definitions import is_agent_family_definition_mapping
+from sase.content_layout import discover_project_root, resolve_xprompt_file_sources
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
     detect_project,
@@ -33,14 +34,32 @@ from sase.xprompt.workflow_models import (
 log = logging.getLogger(__name__)
 
 
-def _get_step_search_dirs() -> list[Path]:
+def _get_step_search_dirs(
+    workflow_source_path: str | None = None,
+) -> list[Path]:
     """Get directories to search for step definition files.
 
     Returns ``steps/`` subdirectories of each xprompt search path, plus the
     internal package ``steps/`` directory.  Order matches the xprompt priority
     (CWD dirs first, internal last).
     """
-    dirs = [p / "steps" for p in get_xprompt_search_paths()]
+    project = detect_project()
+    source_root = (
+        discover_project_root(Path(workflow_source_path).parent)
+        if workflow_source_path is not None
+        else None
+    )
+    if project is None and source_root is None:
+        paths = get_xprompt_search_paths()
+    else:
+        paths = get_xprompt_search_paths(project, project_root=source_root)
+    dirs = [p / "steps" for p in paths]
+    if workflow_source_path is not None:
+        source = Path(workflow_source_path)
+        if source.is_absolute() or source.parent != Path("."):
+            source_steps = source.parent / "steps"
+            if source_steps not in dirs:
+                dirs.append(source_steps)
     dirs.append(get_sase_package_xprompts_dir() / "steps")
     return dirs
 
@@ -70,7 +89,7 @@ def _load_step_definition(
             )
         return None
 
-    for search_dir in _get_step_search_dirs():
+    for search_dir in _get_step_search_dirs(workflow_source_path):
         for ext in (".yml", ".yaml"):
             candidate = search_dir / f"{use_ref}{ext}"
             if candidate.is_file():
@@ -317,23 +336,40 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     return _load_workflow_from_mapping(file_path.stem, data, str(file_path))
 
 
-def _discover_workflow_files() -> list[tuple[Path, int, bool]]:
+def _discover_workflow_files(
+    project: str | None = None,
+) -> list[tuple[Path, int, bool]]:
     """Find all workflow files in search paths with priority and locality info.
 
     Returns:
         List of ``(file_path, priority, is_local)`` tuples.
         Lower *priority* wins.  *is_local* is ``True`` for CWD directories.
     """
-    cwd = Path.cwd()
-    cwd_dirs = {cwd / ".xprompts", cwd / "xprompts"}
-    search_paths = get_xprompt_search_paths()
+    sources = resolve_xprompt_file_sources(project=project)
+    namespaced_dirs = {
+        source.path
+        for source in sources
+        if source.path is not None and source.project_namespaced
+    }
+    search_paths = (
+        get_xprompt_search_paths()
+        if project is None
+        else get_xprompt_search_paths(project)
+    )
+    if not namespaced_dirs:
+        cwd = Path.cwd()
+        namespaced_dirs = {
+            cwd / "sase" / "xprompts",
+            cwd / ".xprompts",
+            cwd / "xprompts",
+        }
     results: list[tuple[Path, int, bool]] = []
 
     for priority, search_dir in enumerate(search_paths):
         if not search_dir.is_dir():
             continue
 
-        is_local = search_dir in cwd_dirs
+        is_local = search_dir in namespaced_dirs
         for yml_file in search_dir.glob("*.yml"):
             if yml_file.is_file():
                 results.append((yml_file, priority, is_local))
@@ -355,7 +391,7 @@ def _load_workflows_from_files(project: str | None = None) -> dict[str, Workflow
         Dictionary mapping workflow name to Workflow object.
         Earlier priority sources override later ones.
     """
-    discovered = _discover_workflow_files()
+    discovered = _discover_workflow_files(project)
 
     # Sort by priority (lower is higher priority)
     discovered.sort(key=lambda x: x[1])
@@ -478,24 +514,22 @@ def _load_workflows_from_project(project: str) -> dict[str, Workflow]:
         Dictionary mapping namespaced workflow name to Workflow object.
         Returns empty dict if directory doesn't exist.
     """
-    project_dir = Path.home() / ".config" / "sase" / "xprompts" / project
-    if not project_dir.is_dir():
-        return {}
-
     workflows: dict[str, Workflow] = {}
-    for yml_file in project_dir.glob("*.yml"):
-        if yml_file.is_file():
-            workflow = _load_workflow_from_file(yml_file)
-            if workflow:
-                ns = _namespace_workflow(project, workflow)
-                workflows[ns.name] = ns
-
-    for yaml_file in project_dir.glob("*.yaml"):
-        if yaml_file.is_file():
-            workflow = _load_workflow_from_file(yaml_file)
-            if workflow:
-                ns = _namespace_workflow(project, workflow)
-                if ns.name not in workflows:  # .yml takes precedence
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(project=project)
+        if source.path is not None and source.scope == "home_project"
+    ]
+    for project_dir in reversed(project_dirs):
+        if not project_dir.is_dir():
+            continue
+        for extension in ("*.yaml", "*.yml"):
+            for workflow_file in project_dir.glob(extension):
+                if not workflow_file.is_file():
+                    continue
+                workflow = _load_workflow_from_file(workflow_file)
+                if workflow:
+                    ns = _namespace_workflow(project, workflow)
                     workflows[ns.name] = ns
     return workflows
 
@@ -511,7 +545,15 @@ def _load_workflows_from_project_workspace(project: str) -> dict[str, Workflow]:
         return {}
 
     workflows: dict[str, Workflow] = {}
-    for xprompt_dir in (workspace_dir / ".xprompts", workspace_dir / "xprompts"):
+    project_dirs = [
+        source.path
+        for source in resolve_xprompt_file_sources(
+            project_root=workspace_dir,
+            project=project,
+        )
+        if source.path is not None and source.scope == "project"
+    ]
+    for xprompt_dir in project_dirs:
         if not xprompt_dir.is_dir():
             continue
 

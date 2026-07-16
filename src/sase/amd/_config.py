@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 import sase.config.core as config_core
+from sase.content_layout import resolve_project_config_read_path
 
 from ._shared import load_yaml_mapping
 
@@ -27,8 +28,8 @@ def _validate_amd_h1_title(raw: object, *, path: Path) -> tuple[str | None, str 
 
 
 def _load_project_amd_h1_title(root: Path) -> tuple[str | None, str | None]:
-    config_path = root / "sase.yml"
-    if not config_path.exists():
+    config_path = resolve_project_config_read_path(root)
+    if config_path is None:
         return None, None
     data, load_error = load_yaml_mapping(config_path)
     if load_error is not None:
@@ -84,8 +85,8 @@ def resolve_markdown_template_override(
     user_filename: str,
 ) -> tuple[Path | None, str | None]:
     """Resolve a project or user override for a Markdown template."""
-    project_config = root / "sase.yml"
-    if project_config.exists():
+    project_config = resolve_project_config_read_path(root)
+    if project_config is not None:
         data, load_error = load_yaml_mapping(project_config)
         if load_error is not None:
             return None, load_error

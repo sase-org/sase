@@ -131,6 +131,60 @@ def resolve_content_layout_from_cwd(
     )
 
 
+def resolve_project_config_read_path(
+    root: Path | str,
+    *,
+    label: str = "project config",
+) -> Path | None:
+    """Return the canonical-or-legacy config read path for *root*.
+
+    The shared layout contract deliberately treats project configuration as
+    exclusive state.  When both locations exist this helper raises
+    :class:`LayoutCollisionError` instead of silently merging them.
+    """
+    return resolve_project_layout(root).config.resolve_read(label)
+
+
+def resolve_project_config_write_path(root: Path | str) -> Path:
+    """Return the canonical project-config destination for *root*."""
+    return resolve_project_layout(root).config.write_path
+
+
+def resolve_xprompt_file_sources(
+    *,
+    project_root: Path | str | None = None,
+    home_root: Path | str | None = None,
+    project: str | None = None,
+) -> tuple[XpromptSource, ...]:
+    """Return ordered filesystem-backed xprompt/workflow sources.
+
+    The result is the Rust-owned first-wins order and includes canonical and
+    compatibility directories.  When *project_root* is omitted, the nearest
+    project containing the current directory is used so commands launched
+    below a checkout root still see that project's content.
+    """
+    if project_root is None:
+        root = discover_project_root()
+        if root is None:
+            try:
+                root = Path.cwd()
+            except OSError:
+                root = None
+    else:
+        root = Path(project_root)
+    layout = resolve_content_layout(
+        project_root=root,
+        home_root=home_root,
+        project=project,
+    )
+    return tuple(
+        source
+        for source in layout.xprompt_sources
+        if source.path is not None
+        and any(extension in source.formats for extension in ("md", "yml", "yaml"))
+    )
+
+
 def chezmoi_source_path(
     target: Path | str,
     *,
@@ -218,6 +272,9 @@ __all__ = [
     "resolve_chezmoi_layout",
     "resolve_content_layout",
     "resolve_content_layout_from_cwd",
+    "resolve_project_config_read_path",
+    "resolve_project_config_write_path",
     "resolve_home_layout",
     "resolve_project_layout",
+    "resolve_xprompt_file_sources",
 ]

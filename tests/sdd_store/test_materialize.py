@@ -245,7 +245,7 @@ def test_unmanaged_repo_refuses_materialization_before_provider_create(
 
     with pytest.raises(
         SddMaterializationError,
-        match=r"is_sase_managed: true.*target repository's sase.yml",
+        match=r"is_sase_managed: true.*target repository's sase/sase.yml",
     ):
         materialize_sdd_store(primary, 1)
 
