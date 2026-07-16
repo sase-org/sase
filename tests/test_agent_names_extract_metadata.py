@@ -1,0 +1,161 @@
+"""Metadata tests for agent directive extraction."""
+
+import json
+import os
+from pathlib import Path
+from unittest.mock import patch
+
+from tests._agent_names_extract_fixtures import mock_provider, run_extract
+
+
+class TestExtractDirectivesMetadata:
+    def test_preserves_completed_wait_across_refreshed_extract(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        timestamp = "2026-07-13T16:00:00+00:00"
+        (artifacts / "agent_meta.json").write_text(
+            json.dumps({"pid": 123, "wait_completed_at": timestamp}),
+            encoding="utf-8",
+        )
+
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(60s)\ndo stuff",
+        )
+
+        assert result["info"].meta["wait_completed_at"] == timestamp
+        assert result["meta"]["wait_completed_at"] == timestamp
+
+    def test_persists_wait_runners_metadata(self, tmp_path: Path) -> None:
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%wait(runners=0)\ndo stuff",
+        )
+
+        assert result["info"].wait_runners == 0
+        assert result["meta"]["wait_runners"] == 0
+
+    def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
+        """Auto-dismiss agents should not get an auto-assigned name."""
+        result = run_extract(tmp_path, env_auto_dismiss=True)
+        assert result["info"].name is None
+        assert "name" not in result["meta"]
+
+    def test_writes_hidden_when_auto_dismiss(self, tmp_path: Path) -> None:
+        """Auto-dismiss agents should be marked hidden in agent_meta.json."""
+        result = run_extract(tmp_path, env_auto_dismiss=True)
+        assert result["meta"].get("hidden") is True
+        assert result["info"].hidden is True
+
+    def test_normal_agent_gets_name(self, tmp_path: Path) -> None:
+        """Without auto-dismiss, agents get an auto-assigned name."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(tmp_path, env_auto_dismiss=False)
+        assert result["info"].name is not None
+        assert result["meta"].get("name") is not None
+
+    def test_normal_agent_not_hidden(self, tmp_path: Path) -> None:
+        """Without auto-dismiss, agents are not hidden."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(tmp_path, env_auto_dismiss=False)
+        assert result["meta"].get("hidden") is not True
+        assert result["info"].hidden is False
+
+    def test_metadata_records_workspace_dir_without_vcs_provider(
+        self, tmp_path: Path
+    ) -> None:
+        result = run_extract(tmp_path, env_auto_dismiss=True)
+        expected = str(tmp_path / "workspace")
+        assert result["meta"]["workspace_dir"] == expected
+        assert "vcs_provider" not in result["meta"]
+
+    def test_named_agent_writes_agent_metadata(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                prompt="%name:alpha do stuff",
+                cl_name="feature-branch",
+            )
+
+        meta = result["meta"]
+        assert meta["name"] == "alpha"
+        assert meta["changespec_name"] == "feature-branch"
+        assert meta["cl_name"] == "feature-branch"
+
+    def test_unnamed_auto_dismiss_agent_writes_basic_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts_dir = (
+            tmp_path
+            / ".sase"
+            / "projects"
+            / "proj"
+            / "artifacts"
+            / "ace-run"
+            / "20260505120000"
+        )
+        workspace = tmp_path / "workspace"
+        artifacts_dir.mkdir(parents=True)
+        workspace.mkdir()
+
+        from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+        with (
+            patch.dict(os.environ, {"SASE_AGENT_AUTO_DISMISS": "1"}, clear=False),
+            patch(
+                "sase.xprompt.process_xprompt_references", side_effect=lambda p, **kw: p
+            ),
+            patch(
+                "sase.llm_provider.registry.get_default_provider_name",
+                return_value="test",
+            ),
+            patch(
+                "sase.llm_provider.registry.get_provider",
+                return_value=mock_provider(),
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("test", "test-model"),
+            ),
+            patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        ):
+            info = extract_directives_and_write_meta(
+                "do stuff",
+                str(workspace),
+                str(artifacts_dir),
+                cl_name="feature-branch",
+            )
+
+        meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
+        assert info.name is None
+        assert "name" not in meta
+        assert meta["workspace_dir"] == str(workspace)
+        assert meta["changespec_name"] == "feature-branch"
+
+
+def test_auto_epic_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%auto:epic is plan-specific and does not enable full auto-approve."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = run_extract(tmp_path, prompt="%auto:epic\nDraft the epic")
+
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    assert result["meta"]["plan"] is True
+    assert result["meta"]["auto_approve_plan_action"] == "epic"
+    assert "approve" not in result["meta"]
+
+
+def test_auto_tale_writes_plan_auto_action(tmp_path: Path) -> None:
+    """%auto:tale is plan-specific and does not enable full auto-approve."""
+    with patch.object(Path, "home", return_value=tmp_path):
+        result = run_extract(tmp_path, prompt="%auto:tale\nDraft the tale")
+
+    assert result["info"].plan is True
+    assert result["info"].approve is False
+    assert result["meta"]["plan"] is True
+    assert result["meta"]["auto_approve_plan_action"] == "tale"
+    assert "approve" not in result["meta"]
