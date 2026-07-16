@@ -186,10 +186,11 @@ SASE keeps durable state outside any one chat session:
   deprecated aliases). SASE records those paths in environment variables and agent metadata so cross-repo work uses the
   same numbered workspace as the main checkout. Numbered linked checkouts live under
   `<host_workspace>/sase/repos/linked/<linked_repo>`, so two host projects cannot collide. `sase repo init` adds the
-  tracked `/sase/repos/` ignore rule. ACE ranks live context as `PLAN` → `MEMORY` → `SKILLS` → `WORKSPACES`: dirty
-  linked repos can appear in a non-terminal agent's `DELTAS` section, and linked workspaces opened inside the agent with
-  `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT` `WORKSPACES` lane and the `t` tmux chooser.
-  The host project and workspace are inferred from cwd; `sase repo log` exposes the durable open history.
+  tracked `/sase/repos/` ignore rule. ACE ranks live context as `PLAN` → `MEMORY` → `SKILLS` → `WORKSPACES` →
+  `ARTIFACTS`: dirty linked repos can appear in a non-terminal agent's `ARTIFACTS` lane under `Deltas`, and linked
+  workspaces opened inside the agent with `sase repo open <linked_repo> -r "<reason>"` appear in the `SASE CONTEXT`
+  `WORKSPACES` lane and the `t` tmux chooser. The host project and workspace are inferred from cwd; `sase repo log`
+  exposes the durable open history.
 - **Named-agent handoffs** - `%name` gives a producer a stable identity, and `%wait` starts consumers only after
   dependencies complete. A producer can publish small non-secret strings with `sase var set KEY=VALUE` before it exits;
   waited consumers load those values at startup as Jinja namespaces for prompt or workflow rendering, and ACE shows them

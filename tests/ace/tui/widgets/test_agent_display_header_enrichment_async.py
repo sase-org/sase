@@ -163,8 +163,8 @@ def test_successful_header_enrichment_repaints_from_cache(
     )
 
     plain = plain_of(panel.captured[-1])
-    assert "Deltas:\n  ~ src/foo.py  ~1\n" in plain
-    assert "Artifacts:\n  \u2022 artifact.txt\n" in plain
+    assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
+    assert "  Artifacts:\n    \u2022 artifact.txt\n" in plain
 
 
 def test_successful_header_enrichment_posts_completion_message(
@@ -415,4 +415,4 @@ def test_fresh_header_summary_cache_skips_second_worker(
 
     assert panel.worker_fn is None
     assert build_calls == [agent]
-    assert "Deltas:\n  ~ src/foo.py  ~1\n" in plain_of(panel.captured[-1])
+    assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain_of(panel.captured[-1])

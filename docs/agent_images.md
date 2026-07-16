@@ -160,9 +160,9 @@ all use the same list. Generated videos are stored as ordinary `file` artifacts,
 suffixes as `[video]` and the viewer opens them with terminal video playback. The panel is shown even for a single
 artifact so users can confirm the artifact label, kind, and path before opening it.
 
-The selected agent's prompt/detail header also includes an `ARTIFACTS` section for non-chat artifacts. Paths are shown
-relative to the agent workspace when possible, home-relative when appropriate, and with hint numbers when hint mode is
-active.
+The selected agent's prompt/detail header also includes non-chat artifacts in the bottom-ranked `SASE CONTEXT`
+`ARTIFACTS` lane, after its `Commits` and `Deltas` fields when present. Paths are shown relative to the agent workspace
+when possible, home-relative when appropriate, and with hint numbers when hint mode is active.
 
 The panel supports one-key selectors, `j`/`k` navigation, `m` to mark rows, `Enter` to open the marked set or
 highlighted row, `y` to copy highlighted Markdown contents, `Y` to copy the highlighted artifact path, and `A` to open

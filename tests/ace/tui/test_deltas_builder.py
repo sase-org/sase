@@ -58,6 +58,32 @@ class TestNoDeltas:
         assert text.plain == ""
 
 
+def test_default_entry_builder_options_match_changespec_output_byte_for_byte() -> None:
+    deltas = [
+        DeltaEntry(
+            path="src/example.py",
+            change_type="M",
+            line_stats=DeltaLineStats(modified=2),
+        )
+    ]
+    changespec_text = Text()
+    entries_text = Text()
+
+    build_deltas_section(
+        changespec_text,
+        _make_changespec(deltas=deltas),
+        FoldLevel.FULLY_EXPANDED,
+    )
+    build_delta_entries_section(
+        entries_text,
+        deltas,
+        FoldLevel.FULLY_EXPANDED,
+    )
+
+    assert entries_text.plain == changespec_text.plain
+    assert entries_text.spans == changespec_text.spans
+
+
 class TestCollapsed:
     def test_collapsed_renders_summary(self) -> None:
         cs = _make_changespec(deltas=_sample_deltas())

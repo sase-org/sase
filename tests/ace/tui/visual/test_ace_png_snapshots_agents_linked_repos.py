@@ -253,7 +253,6 @@ async def test_agents_commit_messages_panel_png_snapshot(
         assert_page_svg_contains(page, "agent_deltas.py")
         assert_page_svg_contains(page, "file_panel.py")
         assert_page_svg_contains(page, "sase-core")
-        assert_page_svg_contains(page, "lib.rs")
         assert_page_svg_contains(page, "files [1/3]")
         assert_page_svg_contains(page, "visual_project 1234567890ab")
         assert_page_svg_contains(page, "primary_001.diff")

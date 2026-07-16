@@ -26,6 +26,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     should_refresh_detail_header_summary,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
+    COLOR_ARTIFACTS_PRIMARY,
+    COLOR_ARTIFACTS_SUBHEADER,
     COLOR_EMPTY,
     COLOR_MEMORY_PRIMARY,
     COLOR_MEMORY_SUBHEADER,
@@ -256,10 +258,12 @@ def test_plan_palette_is_distinct_from_every_other_lane_palette() -> None:
         COLOR_MEMORY_SUBHEADER,
         COLOR_SKILLS_SUBHEADER,
         COLOR_WORKSPACE_SUBHEADER,
+        COLOR_ARTIFACTS_SUBHEADER,
         COLOR_PLAN_PRIMARY,
         COLOR_MEMORY_PRIMARY,
         COLOR_SKILL_NAME,
         COLOR_WORKSPACE_NAME,
+        COLOR_ARTIFACTS_PRIMARY,
     )
     lane_colors = {_style_color(style) for style in lane_palette}
     assert len(lane_colors) == len(lane_palette)
@@ -276,11 +280,13 @@ def test_plan_palette_is_distinct_from_every_other_lane_palette() -> None:
             COLOR_MEMORY_SUBHEADER,
             COLOR_SKILLS_SUBHEADER,
             COLOR_WORKSPACE_SUBHEADER,
+            COLOR_ARTIFACTS_SUBHEADER,
             COLOR_MEMORY_PRIMARY,
             COLOR_SKILL_NAME,
             COLOR_WORKSPACE_NAME,
         )
     }
+    assert _style_color(COLOR_ARTIFACTS_PRIMARY) in plan_colors
     assert plan_colors.isdisjoint(other_lane_colors)
 
 
@@ -316,10 +322,7 @@ def test_plan_lane_header_is_immediately_followed_by_title(
 def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.ace.tui.widgets.prompt_panel import _agent_artifacts
-    from sase.ace.tui.widgets.prompt_panel import _agent_commits
     from sase.ace.tui.widgets.prompt_panel import _agent_context
-    from sase.ace.tui.widgets.prompt_panel import _agent_deltas
     from sase.ace.tui.widgets.prompt_panel import _agent_display_header
     from sase.ace.tui.widgets.prompt_panel import _agent_slow_tools
 
@@ -334,29 +337,28 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
         "append_agent_output_variables_section",
         section("OUTPUT VARIABLES"),
     )
-    monkeypatch.setattr(
-        _agent_commits,
-        "append_agent_commits_section",
-        section("COMMITS"),
-    )
-    monkeypatch.setattr(
-        _agent_deltas,
-        "append_agent_deltas_section",
-        section("DELTAS"),
-    )
-    monkeypatch.setattr(
-        _agent_artifacts,
-        "append_agent_artifacts_section",
-        section("ARTIFACTS"),
-    )
 
-    def append_context(text, *, plan_section, **_kwargs):  # type: ignore[no-untyped-def]
+    def append_context(
+        text,
+        *,
+        plan_section,
+        agent,
+        delta_entries,
+        artifact_paths,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
         text.append("\nSASE CONTEXT\n")
         assert plan_section is not None
+        assert agent is not None
+        assert delta_entries
+        assert artifact_paths
         plan_start = len(text)
         text.append_text(plan_section.logical_text)
         plan_range = (plan_start, len(text))
-        text.append("\n▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n")
+        text.append(
+            "\n▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n\n"
+            "▸ ARTIFACTS\n  Commits:\n  Deltas:\n  Artifacts:\n"
+        )
         return plan_range
 
     monkeypatch.setattr(
@@ -377,7 +379,11 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
         pid=123,
         activity="editing",
         output_variables={"result": "ok"},
-        step_output={"meta_result": "ready"},
+        step_output={
+            "meta_result": "ready",
+            "meta_commit_message": "feat: output lane",
+            "meta_new_commit": "abc123",
+        },
         error_message="fixture error",
     )
     summary = DetailHeaderSummary(
@@ -386,6 +392,10 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
         memory_reads=(object(),),  # type: ignore[arg-type]
         skill_uses=(object(),),  # type: ignore[arg-type]
         opened_workspaces=(object(),),  # type: ignore[arg-type]
+        delta_entries=[object()],  # type: ignore[list-item]
+        artifact_paths=[
+            AgentArtifactPath("artifact.txt", "/tmp/artifact.txt"),
+        ],
         slow_tool_sources=(object(),),  # type: ignore[arg-type]
     )
 
@@ -412,15 +422,16 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
         assert plain.index(metadata_label) < context_index
     for section_label in (
         "OUTPUT VARIABLES",
-        "COMMITS",
-        "DELTAS",
-        "ARTIFACTS",
         "WORKFLOW VARIABLES",
     ):
         assert plain.index(section_label) < context_index
     assert context_index < plan_index
     for lane_label in ("▸ MEMORY", "▸ SKILLS", "▸ WORKSPACES"):
         assert plan_index < plain.index(lane_label)
+    assert plain.index("▸ WORKSPACES") < plain.index("▸ ARTIFACTS")
+    assert plain.index("▸ ARTIFACTS") < plain.index("Commits:")
+    assert plain.index("Commits:") < plain.index("Deltas:")
+    assert plain.index("Deltas:") < plain.index("Artifacts:")
     for section_label in (
         "SLOW TOOL CALLS",
         "ERROR",

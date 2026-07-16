@@ -1,4 +1,4 @@
-"""Agent-specific COMMITS helpers for the prompt panel header."""
+"""Agent-specific commit helpers for the prompt panel header."""
 
 from __future__ import annotations
 
@@ -24,12 +24,10 @@ from ._agent_context_common import (
     EXTERNAL_REPO_GLYPH,
     WORKSPACE_GLYPH,
 )
-from ._helpers import append_major_section_divider, append_section_heading
 
 if TYPE_CHECKING:
     from ._agent_display_state import CommitViewSpec, HeaderHintState
 
-_COLOR_HEADER = "bold #87D7FF"
 _COLOR_COMMIT_SHA = "dim #D7D7AF"
 _COLOR_COMMIT_SUBJECT = "#D7D7FF"
 
@@ -62,6 +60,15 @@ class CommitDiffInfo:
     is_primary: bool
     repo_kind: RepoKind = "linked"
     workspace_dir: str = ""
+
+
+@dataclass(frozen=True)
+class _AgentCommitGroup:
+    """Ordered commit rows attributed to one repository."""
+
+    repo_name: str
+    repo_kind: RepoKind
+    commits: tuple[_CommitLine, ...]
 
 
 class _RepoAttribution(NamedTuple):
@@ -378,7 +385,7 @@ def _persisted_commit_repo_name(
 def _persisted_commit_groups(
     agent: Agent,
     step_output: dict[str, Any] | None,
-) -> tuple[tuple[str, RepoKind, tuple[_CommitLine, ...]], ...]:
+) -> tuple[_AgentCommitGroup, ...]:
     if step_output is None:
         return ()
 
@@ -400,11 +407,15 @@ def _persisted_commit_groups(
 
         if grouped:
             primary_name = _primary_repo_name(agent, step_output)
-            ordered_groups: list[tuple[str, RepoKind, tuple[_CommitLine, ...]]] = []
+            ordered_groups: list[_AgentCommitGroup] = []
             primary_key: tuple[str, RepoKind] = (primary_name, "primary")
             if primary_key in grouped:
                 ordered_groups.append(
-                    (primary_name, "primary", tuple(grouped[primary_key]))
+                    _AgentCommitGroup(
+                        primary_name,
+                        "primary",
+                        tuple(grouped[primary_key]),
+                    )
                 )
             for repo_name, repo_kind in sorted(
                 group_order,
@@ -413,7 +424,11 @@ def _persisted_commit_groups(
                 if (repo_name, repo_kind) == primary_key:
                     continue
                 ordered_groups.append(
-                    (repo_name, repo_kind, tuple(grouped[(repo_name, repo_kind)]))
+                    _AgentCommitGroup(
+                        repo_name,
+                        repo_kind,
+                        tuple(grouped[(repo_name, repo_kind)]),
+                    )
                 )
             return tuple(ordered_groups)
 
@@ -422,12 +437,23 @@ def _persisted_commit_groups(
         return ()
     commit = persisted_commits[0]
     return (
-        (
+        _AgentCommitGroup(
             _persisted_commit_repo_name(agent, step_output),
             commit.view_spec.repo_kind,
             persisted_commits,
         ),
     )
+
+
+def agent_commit_groups(agent: Agent) -> tuple[_AgentCommitGroup, ...]:
+    """Return ordered in-memory commit rows grouped by source repository."""
+    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
+    return _persisted_commit_groups(agent, step_output)
+
+
+def count_agent_commit_groups(commit_groups: tuple[_AgentCommitGroup, ...]) -> int:
+    """Return the number of commit rows across attributed repository groups."""
+    return sum(len(group.commits) for group in commit_groups)
 
 
 def agent_commit_diffs(agent: Agent) -> list[CommitDiffInfo]:
@@ -501,11 +527,13 @@ def _append_commit_group(
     repo_kind: RepoKind,
     commits: tuple[_CommitLine, ...],
     hint_state: HeaderHintState | None = None,
+    *,
+    indent: str = "",
 ) -> None:
     if not commits:
         return
 
-    text.append("  ")
+    text.append(f"{indent}  ")
     external = repo_kind == "external"
     text.append(
         EXTERNAL_REPO_GLYPH if external else WORKSPACE_GLYPH,
@@ -518,7 +546,7 @@ def _append_commit_group(
     )
     text.append("\n")
     for commit in commits:
-        text.append("    ")
+        text.append(f"{indent}    ")
         if hint_state is not None:
             hint_number = hint_state.hint_counter
             text.append(f"[{hint_number}] ", style="bold #FFFF00")
@@ -531,31 +559,22 @@ def _append_commit_group(
         text.append("\n")
 
 
-def append_agent_commits_section(
+def append_agent_commit_groups(
     text: Text,
-    agent: Agent,
+    commit_groups: tuple[_AgentCommitGroup, ...],
     hint_state: HeaderHintState | None = None,
+    *,
+    indent: str = "",
 ) -> None:
-    """Append the persisted commit message, attributed to its source repo."""
-    step_output = agent.step_output if isinstance(agent.step_output, dict) else None
-    commit_groups = _persisted_commit_groups(agent, step_output)
-    if not commit_groups:
-        return
-
-    append_major_section_divider(text)
-    append_section_heading(
-        text,
-        "COMMITS:",
-        style=_COLOR_HEADER,
-        section_id="commits",
-    )
-    for repo_name, repo_kind, commits in commit_groups:
+    """Append commit rows attributed to their source repositories."""
+    for group in commit_groups:
         _append_commit_group(
             text,
-            repo_name,
-            repo_kind,
-            commits,
+            group.repo_name,
+            group.repo_kind,
+            group.commits,
             hint_state=hint_state,
+            indent=indent,
         )
 
 

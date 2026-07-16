@@ -461,26 +461,6 @@ def build_header_text(
 
     append_agent_output_variables_section(header_text, agent)
 
-    from ._agent_commits import append_agent_commits_section
-
-    append_agent_commits_section(header_text, agent, hint_state=hint_state)
-
-    if not cheap and summary is not None:
-        from ._agent_artifacts import append_agent_artifacts_section
-        from ._agent_deltas import append_agent_deltas_section
-
-        append_agent_deltas_section(
-            header_text,
-            delta_entries=summary.delta_entries,
-            linked_delta_groups=summary.linked_delta_groups,
-            hint_state=hint_state,
-        )
-        append_agent_artifacts_section(
-            header_text,
-            artifact_paths=summary.artifact_paths,
-            hint_state=hint_state,
-        )
-
     # Meta fields from step output
     if meta_fields:
         append_major_section_divider(header_text)
@@ -494,16 +474,7 @@ def build_header_text(
 
     plan_section: ResponsivePlanSection | None = None
     plan_section_range: tuple[int, int] | None = None
-    if (
-        not cheap
-        and summary is not None
-        and (
-            summary.associated_plan is not None
-            or summary.memory_reads
-            or summary.skill_uses
-            or summary.opened_workspaces
-        )
-    ):
+    if not cheap and summary is not None:
         from ._agent_context import append_agent_context_section
 
         if summary.associated_plan is not None:
@@ -514,6 +485,10 @@ def build_header_text(
             skill_uses=summary.skill_uses,
             opened_workspaces=summary.opened_workspaces,
             plan_section=plan_section,
+            agent=agent,
+            delta_entries=summary.delta_entries,
+            linked_delta_groups=summary.linked_delta_groups,
+            artifact_paths=summary.artifact_paths,
             hint_state=hint_state,
         )
 

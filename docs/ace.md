@@ -346,9 +346,10 @@ descendants.
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
-`SASE CONTEXT`, ahead of the audited `MEMORY`, `SKILLS`, and `WORKSPACES` event lanes. A plan alone is enough to show
-the context section. An epic phase worker never shows the `PLAN` lane. Instead, its launch metadata identifies the epic
-plan and exact phase bead, and ACE derives a single `Bead: <phase bead id> - <phase description>` row from that phase's
+`SASE CONTEXT`. The section ranks intent and inputs before outputs: `PLAN`, the audited `MEMORY`, `SKILLS`, and
+`WORKSPACES` event lanes, then the output-focused `ARTIFACTS` lane. A plan or any recorded output is enough to show the
+context section. An epic phase worker never shows the `PLAN` lane. Instead, its launch metadata identifies the epic plan
+and exact phase bead, and ACE derives a single `Bead: <phase bead id> - <phase description>` row from that phase's
 validated, frontmatter-ordered entry. Authored descriptions are normalized to one line; a missing description uses the
 same stable plan-and-phase pointer generated during deterministic bead creation. This modern path does not read the bead
 store, and missing, damaged, or out-of-range metadata falls back to the bare phase bead ID without exposing the epic
@@ -401,8 +402,8 @@ place after the editor exits.
 
 Configured `linked_repos` are recorded in agent metadata at launch time, while linked and external repos opened during a
 run are recorded in opened-repository markers. For non-terminal agents, ACE can include dirty opened repos in the agent
-detail `DELTAS` section. The folded summary counts primary and opened-repo changes together; the unfolded view groups
-linked and external entries under distinct glyphs and canonical repo names, and file hints resolve paths relative to the
+detail `SASE CONTEXT` `ARTIFACTS` lane under `Deltas`. The field counts primary and opened-repo changes together, groups
+linked and external entries under distinct glyphs and canonical repo names, and resolves file hints relative to the
 opened repo directory. Missing workspace directories, clean repos, and completed/failed agents are not part of this live
 delta display.
 
@@ -450,9 +451,9 @@ media from saved prompt artifacts, and explicit files saved with
 `sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
 the label, kind, and path are visible before launching the terminal viewer.
 
-The prompt/detail header includes an `ARTIFACTS` section for non-chat entries from the same list. Paths are made
-workspace-relative when possible, and hint mode assigns numbers to those paths so they can be opened with the normal
-file-hint flow.
+The prompt/detail header includes those non-chat entries in the bottom-ranked `SASE CONTEXT` `ARTIFACTS` lane, after its
+`Commits` and `Deltas` fields when those outputs exist. Paths are made workspace-relative when possible, and hint mode
+assigns numbers to those paths so they can be opened with the normal file-hint flow.
 
 Artifact panel controls:
 
@@ -1560,8 +1561,16 @@ also visible, and changing agents or entering/leaving a pinned attempt view rese
   dependency IDs, optional model, and optional description; these are static roadmap ordinals, not progress indicators.
   Every value wraps without truncation in the normal panel and metadata zoom view, and only the path participates in
   file hint mode. Invalid known epics show `phases unavailable` in the lane header without leaking partial entries;
-  tales do not show a phase roadmap. A plan alone renders `SASE CONTEXT`; when event lanes are present, the full order
-  is `PLAN`, `MEMORY`, `SKILLS`, then `WORKSPACES`.
+  tales do not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every combination of present lanes, the
+  full order is `PLAN`, `MEMORY`, `SKILLS`, `WORKSPACES`, then `ARTIFACTS`. `PLAN` is always first when present and
+  `ARTIFACTS` is always last when present.
+- **SASE CONTEXT / ARTIFACTS**: The bottom-ranked output lane groups `Commits`, `Deltas`, and `Artifacts` as compact
+  fields and summarizes only the present fields in its header. Commits persisted by the selected agent's post-run steps
+  are grouped by repository; primary workspace, linked-repo, sidecar, and external-repo commits retain their repository
+  identity. Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and group linked or external files by
+  repository. Artifact type remains visible through its icon shape, while every artifact icon and path uses the shared
+  blue output-lane/file-path palette. The lane is rendered atomically with full header enrichment, so it is omitted from
+  the immediate cheap navigation frame rather than appearing first with partial content.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.
@@ -1571,9 +1580,6 @@ also visible, and changing agents or entering/leaving a pinned attempt view rese
   waits add compact duration, target time, and countdown text when available. The final runner-slot stage shows the live
   running count and cap or explicit threshold, plus position among waiters currently eligible at that count. Ineligible
   waits are labeled directly, and `runners=0` is labeled as a drain barrier.
-- **COMMITS**: Commits persisted by the selected agent's post-run steps, grouped by repository. Primary workspace,
-  linked-repo, and SDD sidecar commits are attributed separately when the run metadata records enough path or repo
-  information.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
   root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section

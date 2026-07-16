@@ -506,7 +506,7 @@ def test_agent_hint_mode_includes_deltas_paths(tmp_path: Path) -> None:
     result = panel.update_display_with_hints(agent)
 
     plain = _plain_of(panel.captured[-1])
-    assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
+    assert "  Deltas:\n    ~ [1] src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
     assert result.file_hints[1] == str(workspace_dir / "src/foo.py")
 

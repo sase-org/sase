@@ -11,7 +11,10 @@ from sase.ace.tui.widgets.prompt_panel._agent_commits import (
     agent_commit_diffs,
     load_commit_diff_text,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
+    DetailHeaderSummary,
+    build_header_text,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_metadata_helpers import (
@@ -21,7 +24,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 
 
 class TestWorkflowVariablesHeader:
-    def test_commit_meta_renders_in_commits_section(self) -> None:
+    def test_cheap_header_omits_commits_until_full_context_render(self) -> None:
         agent = make_agent(
             step_output={
                 "meta_commit_message": "fix: align",
@@ -31,14 +34,27 @@ class TestWorkflowVariablesHeader:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ test\n" in header.plain
-        assert "    96a895335 fix: align\n" in header.plain
+        assert "SASE CONTEXT" not in header.plain
+        assert "Commits:" not in header.plain
+
+    def test_commit_meta_renders_in_commits_section(self) -> None:
+        agent = make_agent(
+            step_output={
+                "meta_commit_message": "fix: align",
+                "meta_new_commit": "96a895335",
+            }
+        )
+
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
+
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ test\n" in header.plain
+        assert "      96a895335 fix: align\n" in header.plain
         assert "WORKFLOW VARIABLES\n" not in header.plain
         assert "Commit Message:" not in header.plain
         assert "New Commit:" not in header.plain
         assert "Commit Cwd:" not in header.plain
-        assert_dim_divider_before(header, "COMMITS:\n")
+        assert_dim_divider_before(header, "SASE CONTEXT\n")
         assert header.plain.count(MAJOR_SECTION_RULE) == 2
 
     def test_commit_cwd_matching_primary_workspace_renders_primary_group(
@@ -55,11 +71,11 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ test\n" in header.plain
-        assert "    1234567890ab feat: add primary\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ test\n" in header.plain
+        assert "      1234567890ab feat: add primary\n" in header.plain
 
     def test_commit_primary_repo_label_uses_project_display_name(
         self,
@@ -82,7 +98,7 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
         commit_diffs = agent_commit_diffs(
             make_agent(
                 project_file=str(project_dir / "gh_acme__widgets.sase"),
@@ -100,7 +116,7 @@ class TestWorkflowVariablesHeader:
             )
         )
 
-        assert "  ▣ widgets\n" in header.plain
+        assert "    ▣ widgets\n" in header.plain
         assert "gh_acme__widgets" not in header.plain
         assert [diff.repo_name for diff in commit_diffs] == ["widgets"]
 
@@ -125,12 +141,12 @@ class TestWorkflowVariablesHeader:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ test\n" not in header.plain
-        assert "  ▣ sase-core\n" in header.plain
-        assert "    9f8e7d6c5b4a feat: linked core\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ test\n" not in header.plain
+        assert "    ▣ sase-core\n" in header.plain
+        assert "      9f8e7d6c5b4a feat: linked core\n" in header.plain
 
     def test_commit_cwd_matching_nested_linked_workspace_is_not_primary(
         self,
@@ -154,11 +170,15 @@ class TestWorkflowVariablesHeader:
         )
         hint_state = HeaderHintState(1, {}, str(primary), {})
 
-        header, _ = build_header_text(agent, cheap=True, hint_state=hint_state)
+        header, _ = build_header_text(
+            agent,
+            summary=DetailHeaderSummary(),
+            hint_state=hint_state,
+        )
 
-        assert "  ▣ bob-plugins\n" in header.plain
-        assert "  ▣ test\n" not in header.plain
-        assert "    [1] 9f8e7d6c5b4a fix: linked plugin\n" in header.plain
+        assert "    ▣ bob-plugins\n" in header.plain
+        assert "    ▣ test\n" not in header.plain
+        assert "      [1] 9f8e7d6c5b4a fix: linked plugin\n" in header.plain
         assert hint_state.commit_views[1].repo_name == "bob-plugins"
         assert hint_state.commit_views[1].is_primary is False
 
@@ -195,12 +215,14 @@ class TestWorkflowVariablesHeader:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert header.plain.index("  ▣ test\n") < header.plain.index("  ▣ sase-core\n")
-        assert "    111111111111 feat: primary workspace\n" in header.plain
-        assert "    222222222222 feat: linked core\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert header.plain.index("    ▣ test\n") < header.plain.index(
+            "    ▣ sase-core\n"
+        )
+        assert "      111111111111 feat: primary workspace\n" in header.plain
+        assert "      222222222222 feat: linked core\n" in header.plain
 
     def test_meta_commits_attribute_nested_linked_and_primary_workspaces(
         self,
@@ -232,13 +254,13 @@ class TestWorkflowVariablesHeader:
             ),
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert header.plain.index("  ▣ test\n") < header.plain.index(
-            "  ▣ bob-plugins\n"
+        assert header.plain.index("    ▣ test\n") < header.plain.index(
+            "    ▣ bob-plugins\n"
         )
-        assert "    111111111111 feat: primary workspace\n" in header.plain
-        assert "    222222222222 fix: linked plugin\n" in header.plain
+        assert "      111111111111 feat: primary workspace\n" in header.plain
+        assert "      222222222222 fix: linked plugin\n" in header.plain
 
     def test_meta_commits_same_cwd_render_one_group_with_multiple_rows(
         self,
@@ -263,11 +285,11 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert header.plain.count("  ▣ test\n") == 1
-        assert "    aaaaaaaaaaa1 feat: first primary\n" in header.plain
-        assert "    bbbbbbbbbbb2 fix: second primary\n" in header.plain
+        assert header.plain.count("    ▣ test\n") == 1
+        assert "      aaaaaaaaaaa1 feat: first primary\n" in header.plain
+        assert "      bbbbbbbbbbb2 fix: second primary\n" in header.plain
 
     def test_meta_commits_register_view_hints(
         self,
@@ -300,10 +322,14 @@ class TestWorkflowVariablesHeader:
             tool_call_reports={},
         )
 
-        header, _ = build_header_text(agent, cheap=True, hint_state=hint_state)
+        header, _ = build_header_text(
+            agent,
+            summary=DetailHeaderSummary(),
+            hint_state=hint_state,
+        )
 
-        assert "    [3] aaaaaaaaaaa1 feat: first primary\n" in header.plain
-        assert "    [4] bbbbbbbbbbb2 fix: second primary\n" in header.plain
+        assert "      [3] aaaaaaaaaaa1 feat: first primary\n" in header.plain
+        assert "      [4] bbbbbbbbbbb2 fix: second primary\n" in header.plain
         assert hint_state.hint_counter == 5
         assert hint_state.hint_mappings == {}
         assert hint_state.commit_views[3].sha == "aaaaaaaaaaa111ffff"
@@ -418,7 +444,11 @@ class TestWorkflowVariablesHeader:
             },
         )
         hint_state = HeaderHintState(1, {}, str(tmp_path), {})
-        build_header_text(agent, cheap=True, hint_state=hint_state)
+        build_header_text(
+            agent,
+            summary=DetailHeaderSummary(),
+            hint_state=hint_state,
+        )
 
         assert (
             load_commit_diff_text(hint_state.commit_views[1])
@@ -452,7 +482,11 @@ class TestWorkflowVariablesHeader:
             },
         )
         hint_state = HeaderHintState(1, {}, str(tmp_path), {})
-        build_header_text(agent, cheap=True, hint_state=hint_state)
+        build_header_text(
+            agent,
+            summary=DetailHeaderSummary(),
+            hint_state=hint_state,
+        )
 
         assert load_commit_diff_text(hint_state.commit_views[1]) == (
             "diff --git a/f b/f\n"
@@ -472,11 +506,11 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ sase-core\n" in header.plain
-        assert "    abcdef123456 fix: linked without metadata\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ sase-core\n" in header.plain
+        assert "      abcdef123456 fix: linked without metadata\n" in header.plain
 
     def test_meta_commits_unmatched_cwd_renders_basename_group(
         self,
@@ -496,11 +530,11 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ sase-core\n" in header.plain
-        assert "    abcdef123456 fix: linked without metadata\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ sase-core\n" in header.plain
+        assert "      abcdef123456 fix: linked without metadata\n" in header.plain
 
     def test_meta_commits_record_repo_name_overrides_cwd_group(
         self,
@@ -522,13 +556,13 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
         commit_diffs = agent_commit_diffs(agent)
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ sase-org/sase--sdd\n" in header.plain
-        assert "  ▣ test\n" not in header.plain
-        assert "    abcdef123456 Archive approved plan demo\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ sase-org/sase--sdd\n" in header.plain
+        assert "    ▣ test\n" not in header.plain
+        assert "      abcdef123456 Archive approved plan demo\n" in header.plain
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
             ("sase-org/sase--sdd", False)
         ]
@@ -551,11 +585,11 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
-        assert "  ▣ sdd\n" in header.plain
-        assert "    abcdef123456 Archive approved plan demo\n" in header.plain
+        assert "  Commits:\n" in header.plain
+        assert "    ▣ sdd\n" in header.plain
+        assert "      abcdef123456 Archive approved plan demo\n" in header.plain
 
     def test_sidecar_cwd_without_repo_name_is_non_primary(
         self,
@@ -577,10 +611,10 @@ class TestWorkflowVariablesHeader:
             },
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
         commit_diffs = agent_commit_diffs(agent)
 
-        assert "  ▣ research\n" in header.plain
+        assert "    ▣ research\n" in header.plain
         assert [(diff.repo_name, diff.is_primary) for diff in commit_diffs] == [
             ("research", False)
         ]
@@ -602,15 +636,17 @@ class TestWorkflowVariablesHeader:
             }
         )
 
-        header, _ = build_header_text(agent, cheap=True)
+        header, _ = build_header_text(agent, summary=DetailHeaderSummary())
 
-        assert "COMMITS:\n" in header.plain
+        assert "  Commits:\n" in header.plain
         assert "WORKFLOW VARIABLES\n" in header.plain
         assert "Result: ready\n" in header.plain
         assert "Commit Message:" not in header.plain
         assert "New Commit:" not in header.plain
         assert "Commit Cwd:" not in header.plain
-        assert "Commits:" not in header.plain
+        assert header.plain.index("WORKFLOW VARIABLES") < header.plain.index(
+            "SASE CONTEXT"
+        )
 
     def test_header_absent_when_no_meta_fields(self) -> None:
         agent = make_agent(step_output={"status": "ok"})
@@ -618,7 +654,7 @@ class TestWorkflowVariablesHeader:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "WORKFLOW VARIABLES" not in header.plain
-        assert "COMMITS:" not in header.plain
+        assert "Commits:" not in header.plain
         assert header.plain.count(MAJOR_SECTION_RULE) == 1
 
     def test_header_absent_when_no_step_output(self) -> None:
@@ -627,7 +663,7 @@ class TestWorkflowVariablesHeader:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "WORKFLOW VARIABLES" not in header.plain
-        assert "COMMITS:" not in header.plain
+        assert "Commits:" not in header.plain
         assert header.plain.count(MAJOR_SECTION_RULE) == 1
 
 
@@ -649,10 +685,10 @@ def test_external_commit_is_attributed_from_nested_clone_path(tmp_path: Path) ->
         },
     )
 
-    header, _ = build_header_text(agent, cheap=True)
+    header, _ = build_header_text(agent, summary=DetailHeaderSummary())
     commit_diffs = agent_commit_diffs(agent)
 
-    assert "  ◆ gh:pallets/click\n" in header.plain
+    assert "    ◆ gh:pallets/click\n" in header.plain
     assert [
         (diff.repo_name, diff.repo_kind, diff.is_primary, diff.workspace_dir)
         for diff in commit_diffs

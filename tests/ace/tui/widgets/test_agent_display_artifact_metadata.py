@@ -113,9 +113,10 @@ class TestAgentArtifactMetadata:
             summary=build_detail_header_summary(agent),
         )
 
-        assert header.plain.index("Deltas:\n") < header.plain.index("Artifacts:\n")
-        assert header.plain.index("Artifacts:\n") < header.plain.index("SASE CONTEXT")
         assert header.plain.index("SASE CONTEXT") < header.plain.index("▸ PLAN")
+        assert header.plain.index("▸ PLAN") < header.plain.index("▸ ARTIFACTS")
+        assert header.plain.index("▸ ARTIFACTS") < header.plain.index("Deltas:\n")
+        assert header.plain.index("Deltas:\n") < header.plain.index("Artifacts:\n")
         assert "SASE PLAN" not in header.plain
         assert "DELTAS:" not in header.plain
         assert "ARTIFACTS:" not in header.plain
@@ -246,9 +247,9 @@ class TestAgentArtifactMetadata:
         assert "SASE CONTEXT" in plain
         assert "▸ PLAN" in plain
         assert "SASE PLAN" not in plain
-        assert "Deltas:\n  ~ [1] src/foo.py  ~1\n" in plain
-        assert "Path: [2] sdd/plans/202605/plan.md\n" in plain
+        assert "Path: [1] sdd/plans/202605/plan.md\n" in plain
+        assert "  Deltas:\n    ~ [2] src/foo.py  ~1\n" in plain
         assert "Artifacts:" not in plain
         assert "ARTIFACTS:" not in plain
-        assert result.file_hints[1] == str(workspace / "src/foo.py")
-        assert result.file_hints[2] == str(sdd_plan)
+        assert result.file_hints[1] == str(sdd_plan)
+        assert result.file_hints[2] == str(workspace / "src/foo.py")

@@ -275,12 +275,13 @@ def test_update_display_header_renders_debounced_full_enrichment(
         plain = _plain_of(panel.captured[-1])
         assert plain.startswith("Name: unassigned\n")
         assert "Deltas:" not in plain
+        assert "Commits:" not in plain
         assert "AGENT CHAT" in plain
 
         cache_detail_header_summary(panel, agent, build_detail_header_summary(agent))
         panel.update_display(agent)
 
     plain = _plain_of(panel.captured[-1])
-    assert "Deltas:\n  ~ src/foo.py  ~1\n" in plain
+    assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
     assert "DELTAS:" not in plain
     assert "AGENT CHAT" in plain

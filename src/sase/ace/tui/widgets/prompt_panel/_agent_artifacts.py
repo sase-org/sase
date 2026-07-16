@@ -10,23 +10,24 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 
 from ...models.agent import Agent
-from ._helpers import append_section_heading
+from ._agent_context_common import (
+    COLOR_ARTIFACT_BASENAME,
+    COLOR_ARTIFACT_PATH,
+    COLOR_ARTIFACTS_SUBHEADER,
+)
 
 if TYPE_CHECKING:
     from ._agent_display_state import HeaderHintState
 
-_COLOR_HEADER = "bold #87D7FF"
-_COLOR_PATH = "#87AFFF"
-_COLOR_BASENAME = "bold #87AFFF"
 _COLOR_PATH_MISSING = "dim #87AFFF"
 _COLOR_BASENAME_MISSING = "dim #87AFFF"
 _COLOR_MISSING_SUFFIX = "dim italic #FF8787"
 _ICON_BY_VIEW_MODE = {
-    "image": ("▨", "bold #5FD7AF"),
-    "video": ("▶", "bold #FF875F"),
-    "pdf": ("▤", "bold #D7D7AF"),
-    "markdown": ("▤", "bold #D7D7AF"),
-    "text": ("•", "bold #FFD787"),
+    "image": "▨",
+    "video": "▶",
+    "pdf": "▤",
+    "markdown": "▤",
+    "text": "•",
 }
 _FALLBACK_ARTIFACT_ICON = _ICON_BY_VIEW_MODE["text"]
 
@@ -39,26 +40,18 @@ class AgentArtifactPath:
     view_mode: str = "text"
 
 
-def append_agent_artifacts_section(
+def append_agent_artifact_paths(
     text: Text,
     *,
     artifact_paths: list[AgentArtifactPath] | None = None,
     hint_state: HeaderHintState | None = None,
+    indent: str = "",
 ) -> None:
-    """Append the selected agent's artifact path list when available."""
+    """Append the selected agent's artifact path rows when available."""
     artifacts = artifact_paths or []
-    if not artifacts:
-        return
-
-    append_section_heading(
-        text,
-        "Artifacts:",
-        style=_COLOR_HEADER,
-        section_id="artifacts",
-    )
     for artifact in artifacts:
         icon, icon_style = _artifact_icon(artifact.view_mode, exists=artifact.exists)
-        text.append("  ")
+        text.append(indent)
         text.append(icon, style=icon_style)
         text.append(" ")
         if hint_state is not None:
@@ -150,7 +143,8 @@ def _dedupe_paths(
 
 
 def _artifact_icon(view_mode: str, *, exists: bool) -> tuple[str, str]:
-    icon, style = _ICON_BY_VIEW_MODE.get(view_mode, _FALLBACK_ARTIFACT_ICON)
+    icon = _ICON_BY_VIEW_MODE.get(view_mode, _FALLBACK_ARTIFACT_ICON)
+    style = COLOR_ARTIFACTS_SUBHEADER
     if not exists:
         style = f"dim {style}"
     return icon, style
@@ -158,8 +152,8 @@ def _artifact_icon(view_mode: str, *, exists: bool) -> tuple[str, str]:
 
 def append_artifact_path(text: Text, path: str, *, exists: bool = True) -> None:
     """Append a path with the DELTAS-style bold basename treatment."""
-    path_style = _COLOR_PATH if exists else _COLOR_PATH_MISSING
-    basename_style = _COLOR_BASENAME if exists else _COLOR_BASENAME_MISSING
+    path_style = COLOR_ARTIFACT_PATH if exists else _COLOR_PATH_MISSING
+    basename_style = COLOR_ARTIFACT_BASENAME if exists else _COLOR_BASENAME_MISSING
     dirname, basename = os.path.split(path)
     if dirname:
         text.append(dirname + "/", style=path_style)

@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+from itertools import product
 from zoneinfo import ZoneInfo
 
 import pytest
 from rich.text import Text
 
+from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.models.agent_associated_plan import AssociatedPlanSummary
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
-from sase.ace.tui.widgets.prompt_panel._agent_context_common import count_phrase
+from sase.ace.tui.widgets.prompt_panel._agent_artifacts import AgentArtifactPath
+from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
+    COLOR_ARTIFACT_BASENAME,
+    COLOR_ARTIFACTS_SUBHEADER,
+    COLOR_SUMMARY,
+    count_phrase,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_context import (
+    CONTEXT_LANE_ORDER,
     append_agent_context_section,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_plan_section import (
@@ -26,6 +35,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
     assert_logical_section_is_compact,
     assert_rendered_section_is_compact,
 )
+from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
 @pytest.fixture(autouse=True)
@@ -192,6 +202,91 @@ def test_workspaces_only_context_omits_empty_other_lanes() -> None:
     assert "none recorded" not in plain
 
 
+def test_artifacts_lane_groups_output_fields_and_counts() -> None:
+    text = Text()
+    agent = make_agent(
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: grouped outputs",
+                    "sha": "abcdef1234567890",
+                }
+            ]
+        }
+    )
+
+    append_agent_context_section(
+        text,
+        agent=agent,
+        delta_entries=[
+            DeltaEntry(
+                path="src/output.py",
+                change_type="M",
+                line_stats=DeltaLineStats(modified=2),
+            )
+        ],
+        artifact_paths=[
+            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        ],
+    )
+
+    plain = text.plain
+    assert "▸ ARTIFACTS · 1 commit · 1 file · 1 artifact\n" in plain
+    assert "  Commits:\n    ▣ test\n" in plain
+    assert "      abcdef123456 feat: grouped outputs\n" in plain
+    assert "  Deltas:\n    ~ src/output.py  ~2\n" in plain
+    assert "  Artifacts:\n    • reports/result.md\n" in plain
+
+
+def test_artifacts_lane_chrome_uses_its_palette_and_shared_path_idiom() -> None:
+    text = Text()
+    append_agent_context_section(
+        text,
+        plan_section=_plan_section(),
+        delta_entries=[DeltaEntry(path="src/output.py", change_type="M")],
+        artifact_paths=[
+            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        ],
+    )
+
+    assert _span_style_for(text, "▸ ARTIFACTS") == COLOR_ARTIFACTS_SUBHEADER
+    assert _span_style_for(text, "  Deltas:") == COLOR_SUMMARY
+    assert _span_style_for(text, "  Artifacts:") == COLOR_SUMMARY
+    assert _span_style_for(text, "•") == COLOR_ARTIFACTS_SUBHEADER
+    for basename in ("plan.md", "output.py", "result.md"):
+        assert _span_style_for(text, basename) == COLOR_ARTIFACT_BASENAME
+
+
+def test_context_lane_order_contract_holds_for_every_presence_combination() -> None:
+    for presence in product((False, True), repeat=len(CONTEXT_LANE_ORDER)):
+        enabled = dict(zip(CONTEXT_LANE_ORDER, presence, strict=True))
+        text = Text()
+        append_agent_context_section(
+            text,
+            plan_section=_plan_section() if enabled["PLAN"] else None,
+            memory_reads=(_memory_event(),) if enabled["MEMORY"] else (),
+            skill_uses=(_skill_event(),) if enabled["SKILLS"] else (),
+            opened_workspaces=((_workspace_event(),) if enabled["WORKSPACES"] else ()),
+            artifact_paths=(
+                [AgentArtifactPath("result.txt", "/tmp/result.txt")]
+                if enabled["ARTIFACTS"]
+                else None
+            ),
+        )
+
+        rendered_labels = [
+            line.removeprefix("▸ ").split(" ·", maxsplit=1)[0]
+            for line in text.plain.splitlines()
+            if line.startswith("▸ ")
+        ]
+        expected_labels = [label for label in CONTEXT_LANE_ORDER if enabled[label]]
+        assert rendered_labels == expected_labels
+        if enabled["PLAN"]:
+            assert rendered_labels[0] == "PLAN"
+        if enabled["ARTIFACTS"]:
+            assert rendered_labels[-1] == "ARTIFACTS"
+
+
 def test_context_lanes_render_in_parent_context_order() -> None:
     text = Text()
     append_agent_context_section(
@@ -200,6 +295,7 @@ def test_context_lanes_render_in_parent_context_order() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
+        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
     )
 
     plain = text.plain
@@ -207,6 +303,7 @@ def test_context_lanes_render_in_parent_context_order() -> None:
     assert plain.index("▸ PLAN") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
+    assert plain.index("▸ WORKSPACES") < plain.index("▸ ARTIFACTS")
     assert "needed generated skill rules" in plain
     assert "needed an implementation plan" in plain
     assert "needed to inspect core boundary" in plain
@@ -231,17 +328,31 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
+        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
     )
 
     plan_style = _span_style_for(text, "▸ PLAN").lower()
     memory_style = _span_style_for(text, "▸ MEMORY").lower()
     skills_style = _span_style_for(text, "▸ SKILLS").lower()
     workspaces_style = _span_style_for(text, "▸ WORKSPACES").lower()
+    artifacts_style = _span_style_for(text, "▸ ARTIFACTS").lower()
     assert plan_style == "bold #af87ff"
     assert memory_style == "bold #5fd7ff"
     assert skills_style == "bold #5fd75f"
     assert workspaces_style == "bold #ff87d7"
-    assert len({plan_style, memory_style, skills_style, workspaces_style}) == 4
+    assert artifacts_style == "bold #5f87ff"
+    assert (
+        len(
+            {
+                plan_style,
+                memory_style,
+                skills_style,
+                workspaces_style,
+                artifacts_style,
+            }
+        )
+        == 5
+    )
 
 
 def test_context_lane_header_details_share_the_summary_style() -> None:
@@ -252,6 +363,7 @@ def test_context_lane_header_details_share_the_summary_style() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
+        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
     )
 
     for details in (
@@ -259,6 +371,7 @@ def test_context_lane_header_details_share_the_summary_style() -> None:
         "1 read · 1 file",
         "1 use · 1 skill",
         "1 open · 1 repo",
+        "1 artifact",
     ):
         assert _span_style_for(text, details) == _agent_context_common.COLOR_SUMMARY
 

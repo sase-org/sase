@@ -11,6 +11,8 @@ from ..models.fold_state import FoldLevel
 from .file_panel._linked_deltas import LinkedDeltaGroup
 from .hint_tracker import HintTracker
 from .prompt_panel._agent_context_common import (
+    COLOR_ARTIFACT_BASENAME,
+    COLOR_ARTIFACT_PATH,
     COLOR_EXTERNAL_REPO_GLYPH,
     COLOR_EXTERNAL_REPO_NAME,
     COLOR_WORKSPACE_GLYPH,
@@ -20,8 +22,6 @@ from .prompt_panel._agent_context_common import (
 )
 
 _COLOR_HEADER = "bold #87D7FF"
-_COLOR_PATH = "#87AFFF"
-_COLOR_BASENAME = "bold #87AFFF"
 _COLOR_DIM_ITALIC = "italic #808080"
 
 _GLYPH_BY_TYPE = {"A": "+", "M": "~", "D": "-"}
@@ -77,8 +77,8 @@ def _append_path(text: Text, path: str) -> None:
     """Append a path with a bold-basename treatment."""
     dirname, basename = os.path.split(path)
     if dirname:
-        text.append(dirname + "/", style=_COLOR_PATH)
-    text.append(basename or path, style=_COLOR_BASENAME)
+        text.append(dirname + "/", style=COLOR_ARTIFACT_PATH)
+    text.append(basename or path, style=COLOR_ARTIFACT_BASENAME)
 
 
 def _counts(deltas: list[DeltaEntry]) -> tuple[int, int, int]:
@@ -88,13 +88,13 @@ def _counts(deltas: list[DeltaEntry]) -> tuple[int, int, int]:
     return added, modified, deleted
 
 
-def _append_summary(text: Text, deltas: list[DeltaEntry]) -> None:
+def _append_summary(text: Text, deltas: list[DeltaEntry], *, indent: str = "") -> None:
     """Append a one-line summary: ``+3 ~2 -1 (6 files)``."""
     added, modified, deleted = _counts(deltas)
     added_entries = [d for d in deltas if d.change_type == "A"]
     modified_entries = [d for d in deltas if d.change_type == "M"]
     deleted_entries = [d for d in deltas if d.change_type == "D"]
-    text.append("  ")
+    text.append(f"{indent}  ")
     text.append(f"+{added}", style=_GLYPH_STYLE["A"])
     _append_group_line_stats(text, added_entries)
     text.append(" ")
@@ -186,6 +186,8 @@ def build_delta_entries_section(
     *,
     header_label: str = "DELTAS:",
     linked_delta_groups: Sequence[LinkedDeltaGroup] | None = None,
+    indent: str = "",
+    header_style: str = _COLOR_HEADER,
 ) -> HintTracker:
     """Build a DELTAS section from already-computed entries."""
     tracker = hint_tracker or HintTracker(
@@ -206,12 +208,12 @@ def build_delta_entries_section(
     if not primary_deltas and not linked_groups:
         return tracker
 
-    text.append(header_label, style=_COLOR_HEADER)
+    text.append(f"{indent}{header_label}", style=header_style)
     if deltas_fold == FoldLevel.COLLAPSED:
         summary_deltas = list(primary_deltas)
         for group in linked_groups:
             summary_deltas.extend(group.entries)
-        _append_summary(text, summary_deltas)
+        _append_summary(text, summary_deltas, indent=indent)
         return tracker
 
     text.append("\n")
@@ -221,14 +223,25 @@ def build_delta_entries_section(
     for entry in sorted(primary_deltas, key=lambda e: e.path):
         if show_file_hints:
             hint_mappings[hint_counter] = _resolve_delta_path(entry.path, workspace_dir)
-            _append_entry(text, entry, hint_counter, show_line_stats=show_line_stats)
+            _append_entry(
+                text,
+                entry,
+                hint_counter,
+                indent=f"{indent}  ",
+                show_line_stats=show_line_stats,
+            )
             hint_counter += 1
         else:
-            _append_entry(text, entry, show_line_stats=show_line_stats)
+            _append_entry(
+                text,
+                entry,
+                indent=f"{indent}  ",
+                show_line_stats=show_line_stats,
+            )
 
     for group in linked_groups:
         external = group.kind == "external"
-        text.append("  ")
+        text.append(f"{indent}  ")
         text.append(
             EXTERNAL_REPO_GLYPH if external else WORKSPACE_GLYPH,
             style=(COLOR_EXTERNAL_REPO_GLYPH if external else COLOR_WORKSPACE_GLYPH),
@@ -249,7 +262,7 @@ def build_delta_entries_section(
                     text,
                     entry,
                     hint_counter,
-                    indent="    ",
+                    indent=f"{indent}    ",
                     show_line_stats=show_line_stats,
                 )
                 hint_counter += 1
@@ -257,7 +270,7 @@ def build_delta_entries_section(
                 _append_entry(
                     text,
                     entry,
-                    indent="    ",
+                    indent=f"{indent}    ",
                     show_line_stats=show_line_stats,
                 )
 

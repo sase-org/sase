@@ -169,7 +169,7 @@ def visible_agent_delta_entries(entries: Iterable[DeltaEntry]) -> list[DeltaEntr
     ]
 
 
-def _visible_linked_delta_groups(
+def visible_agent_linked_delta_groups(
     groups: Iterable[LinkedDeltaGroup],
 ) -> tuple[LinkedDeltaGroup, ...]:
     visible_groups: list[LinkedDeltaGroup] = []
@@ -322,10 +322,12 @@ def append_agent_deltas_section(
     delta_entries: list[DeltaEntry] | None = None,
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     hint_state: HeaderHintState | None = None,
+    indent: str = "",
+    header_style: str = "bold #87D7FF",
 ) -> None:
     """Append precomputed delta entries when available."""
     deltas = visible_agent_delta_entries(delta_entries or [])
-    linked_groups = _visible_linked_delta_groups(linked_delta_groups)
+    linked_groups = visible_agent_linked_delta_groups(linked_delta_groups)
     if not deltas and not linked_groups:
         return
 
@@ -337,6 +339,8 @@ def append_agent_deltas_section(
             FoldLevel.FULLY_EXPANDED,
             header_label="Deltas:",
             linked_delta_groups=linked_groups,
+            indent=indent,
+            header_style=header_style,
         )
         mark_section_heading(
             text,
@@ -362,6 +366,8 @@ def append_agent_deltas_section(
         workspace_dir=hint_state.workspace_dir,
         header_label="Deltas:",
         linked_delta_groups=linked_groups,
+        indent=indent,
+        header_style=header_style,
     )
     hint_state.hint_counter = tracker.counter
     hint_state.hint_mappings.clear()
