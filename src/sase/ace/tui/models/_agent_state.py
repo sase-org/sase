@@ -254,10 +254,6 @@ class AgentState:
     agent_family: str | None = None
     agent_family_role: str | None = None
     plan_chain_root: bool = False
-    # Display-only status labels from custom role definitions. These never
-    # replace the semantic ``status`` string used for bucketing/actions.
-    custom_role_label: str | None = None
-    custom_role_done_label: str | None = None
 
     # User-managed tag (no '@' prefix; at most one per agent).
     # Populated from ``~/.sase/agent_tags.json`` after agents are loaded.

@@ -7,7 +7,6 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from sase.agent_family.custom_definitions import is_agent_family_definition_mapping
 from sase.content_layout import discover_project_root, resolve_xprompt_file_sources
 from sase.main.plugin_discovery import discover_plugin_resources, is_plugin_disabled
 from sase.xprompt.loader import (
@@ -32,6 +31,11 @@ from sase.xprompt.workflow_models import (
 )
 
 log = logging.getLogger(__name__)
+
+_REMOVED_AGENT_FAMILY_KIND_ERROR = (
+    "kind: agent_family is no longer supported; attach family members manually "
+    "with %n(parent, suffix). Agent-initiated family launches use LaunchApproval."
+)
 
 
 def _get_step_search_dirs(
@@ -330,8 +334,8 @@ def _load_workflow_from_file(file_path: Path) -> Workflow | None:
     if not isinstance(data, dict):
         record_load_issue(file_path, "top-level YAML is not a mapping", kind="workflow")
         return None
-    if is_agent_family_definition_mapping(data):
-        return None
+    if data.get("kind") == "agent_family":
+        raise WorkflowValidationError(_REMOVED_AGENT_FAMILY_KIND_ERROR)
 
     return _load_workflow_from_mapping(file_path.stem, data, str(file_path))
 

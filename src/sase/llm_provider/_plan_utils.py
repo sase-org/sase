@@ -11,12 +11,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from sase.plan_approval_choices import (
-    default_member_ids_from_request_data,
-    plan_approval_member_request_payload,
-    selected_member_ids_from_response_data,
-)
-
 # Poll interval for plan approval responses (seconds)
 _POLL_INTERVAL = 0.5
 
@@ -32,7 +26,6 @@ class PlanApprovalResult:
     run_coder: bool = True
     coder_prompt: str | None = None
     coder_model: str | None = None
-    selected_member_ids: tuple[str, ...] | None = field(default=None, compare=False)
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
 
@@ -48,7 +41,6 @@ def _auto_approval_result(auto_action: str, plan_file: str) -> PlanApprovalResul
         action=auto_action,
         plan_file=plan_file,
         commit_plan=auto_action != "approve",
-        selected_member_ids=_auto_default_member_ids(),
         auto_approved=True,
     )
 
@@ -61,22 +53,6 @@ def _validated_auto_approval_result(
 
     resolved_action = resolve_plan_approval_choice(plan_file, auto_action)
     return _auto_approval_result(resolved_action, plan_file)
-
-
-def _auto_default_member_ids() -> tuple[str, ...]:
-    payload = plan_approval_member_request_payload()
-    return default_member_ids_from_request_data(payload, auto_mode=True)
-
-
-def _plan_approval_project_name(project_dir: str | None) -> str | None:
-    if not project_dir:
-        return None
-    try:
-        from sase.workspace_provider import get_workspace_name
-
-        return get_workspace_name(project_dir)
-    except Exception:
-        return None
 
 
 def add_create_time_frontmatter(
@@ -249,14 +225,10 @@ def handle_plan_approval(
         response_path.unlink()
 
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", ".")
-    member_payload = plan_approval_member_request_payload(
-        project=_plan_approval_project_name(project_dir)
-    )
     request_data = {
         "plan_file": plan_file,
         "session_id": session_id,
         "timestamp": time.time(),
-        **member_payload,
     }
     with open(request_path, "w", encoding="utf-8") as f:
         json.dump(request_data, f, indent=2)
@@ -267,16 +239,6 @@ def handle_plan_approval(
     agent_project_file = os.environ.get("SASE_AGENT_PROJECT_FILE")
     agent_timestamp = os.environ.get("SASE_AGENT_TIMESTAMP")
     agent_root_timestamp = os.environ.get("SASE_AGENT_ROOT_TIMESTAMP")
-    raw_default_member_ids = member_payload.get("default_member_ids")
-    default_member_ids = (
-        tuple(
-            member_id
-            for member_id in raw_default_member_ids
-            if isinstance(member_id, str)
-        )
-        if isinstance(raw_default_member_ids, list)
-        else ()
-    )
     notify_plan_approval(
         plan_file=plan_file,
         response_dir=str(response_dir),
@@ -291,7 +253,6 @@ def handle_plan_approval(
         agent_llm_provider=agent_llm_provider,
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
-        default_member_ids=default_member_ids,
     )
 
     # Desktop notification + tmux bell
@@ -318,16 +279,7 @@ def handle_plan_approval(
                     response_data = json.load(f)
 
                 if request_path.exists():
-                    try:
-                        with open(request_path, encoding="utf-8") as f:
-                            request_data = json.load(f)
-                        if not isinstance(request_data, dict):
-                            request_data = {}
-                    except (json.JSONDecodeError, OSError):
-                        request_data = {}
                     request_path.unlink()
-                else:
-                    request_data = {}
 
                 action = response_data.get("action")
                 if action in ("approve", "epic", "commit"):
@@ -350,10 +302,6 @@ def handle_plan_approval(
                         if isinstance(raw_model, str)
                         else None
                     )
-                    selected_member_ids = selected_member_ids_from_response_data(
-                        response_data,
-                        request_data,
-                    )
                     raw_epic_launch_owner = response_data.get("epic_launch_owner")
                     epic_launch_owner: Literal["host"] | None = None
                     if action == "epic" and raw_epic_launch_owner == "host":
@@ -370,7 +318,6 @@ def handle_plan_approval(
                         run_coder=run_coder,
                         coder_prompt=coder_prompt,
                         coder_model=coder_model,
-                        selected_member_ids=selected_member_ids,
                         epic_launch_owner=epic_launch_owner,
                     )
                 # Rejection with feedback: return result so caller

@@ -53,7 +53,6 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase plan approve\n"
             "  sase plan approve abcdef12 --kind approve\n"
             "  sase plan approve abcdef12 --kind tale --prompt 'Focus tests'\n"
-            "  sase plan approve abcdef12 --with tester\n"
             "  sase plan approve abcdef12 --kind commit"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -86,25 +85,6 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "--prompt",
         help="Optional extra prompt text for approve/tale coder follow-up",
     )
-    approve_parser.add_argument(
-        "-w",
-        "--with",
-        action="append",
-        default=[],
-        dest="with_members",
-        metavar="ROLE",
-        help="Run a custom family member for this approval (repeatable)",
-    )
-    approve_parser.add_argument(
-        "-W",
-        "--without",
-        action="append",
-        default=[],
-        dest="without_members",
-        metavar="ROLE",
-        help="Skip a default custom family member for this approval (repeatable)",
-    )
-
     links_parser = plan_subparsers.add_parser(
         "links",
         help="List, validate, or repair SDD prompt/plan links",

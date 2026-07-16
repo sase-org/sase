@@ -14,10 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
-from sase.agent_family import active_roles_after, evaluate_plan_approval_transition
 from sase.bead.epic_launch import build_epic_launch_argv
-from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
-from sase.axe.run_agent_exec_custom_roles import spawn_custom_role_followup
 from sase.axe.run_agent_exec_plan import (
     agent_name_for_suffix,
     record_workflow_metadata,
@@ -44,7 +41,6 @@ from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     plan_chain_agent_name,
 )
-from sase.plan_approval_choices import filter_roles_by_selected_member_ids
 
 if TYPE_CHECKING:
     from sase.axe.run_agent_exec import AgentExecContext, LoopState
@@ -53,10 +49,6 @@ logger = logging.getLogger(__name__)
 
 _EPIC_ID_LINE = re.compile(r"^Epic:\s+(\S+)\s*$")
 _EPIC_OUTPUT_TAIL_LINES = 40
-
-
-def _saved_chat_suffixes(state: LoopState) -> tuple[str, ...]:
-    return tuple(suffix for suffix, _path in state.saved_chat_paths if suffix)
 
 
 def _accepted_plan_action_for_meta(plan_result: Any) -> str:
@@ -309,33 +301,6 @@ def handle_accepted_plan(
         "plan_action",
         _accepted_plan_action_for_meta(plan_result),
     )
-    selected_member_ids = getattr(plan_result, "selected_member_ids", None)
-    if selected_member_ids is not None:
-        selected_member_ids = tuple(
-            member_id
-            for member_id in selected_member_ids
-            if isinstance(member_id, str) and member_id
-        )
-    state.selected_member_ids = selected_member_ids
-    active_after_plan = filter_roles_by_selected_member_ids(
-        active_roles_after("plan", project=ctx.project_name),
-        selected_member_ids,
-    )
-    transition = evaluate_plan_approval_transition(
-        action=plan_result.action,
-        commit_plan=plan_result.commit_plan,
-        run_coder=plan_result.run_coder,
-        feedback_count=len(state.feedback_bullets),
-        qa_round_count=len(state.qa_rounds),
-        saved_chat_suffixes=_saved_chat_suffixes(state),
-        visit_counts=state.custom_role_visit_counts,
-        custom_roles=active_after_plan,
-        auto_mode=bool(getattr(plan_result, "auto_approved", False)),
-    )
-    record_family_runtime_metadata(
-        state.current_artifacts_dir,
-        transition.runtime_metadata.as_meta_fields(),
-    )
     source_plan_agent_name = agent_name_for_suffix(
         ctx, state.current_role_suffix or PLAN_CHAIN_PLAN_SUFFIX
     )
@@ -512,40 +477,8 @@ def handle_accepted_plan(
     model_prefix = followup_model.model_prefix
     followup_base_meta = _plan_followup_base_meta(ctx.agent_meta)
 
-    if transition.custom_role is not None:
-        if transition.custom_role.cap_exhausted:
-            update_meta_field(
-                state.current_artifacts_dir,
-                "custom_role_cap_exhausted",
-                transition.custom_role.role.id,
-            )
-            return "custom_role_cap_exhausted"
-        spawn_custom_role_followup(
-            transition.custom_role,
-            ctx,
-            state,
-            base_meta=followup_base_meta,
-            plan_file=plan_result.plan_file,
-            source_artifacts=state.current_artifacts_dir,
-            outcome="success",
-            source_role="plan",
-            extra_relationships={
-                "sdd_prompt_path": str(state.sdd_spec_path)
-                if state.sdd_spec_path
-                else None,
-                "sdd_plan_path": str(sdd_plan_path) if sdd_plan_path else None,
-                "plan_committed": plan_committed,
-                "changespec_name": ctx.cl_name,
-                "source_plan_agent_name": source_plan_agent_name,
-                "plan_approval_selected_member_ids": list(selected_member_ids)
-                if selected_member_ids is not None
-                else None,
-            },
-        )
-        return None
-
     # Approve: spawn coder with plan as prompt
-    state.current_role_suffix = transition.role_suffix or PLAN_CHAIN_CODER_SUFFIX
+    state.current_role_suffix = PLAN_CHAIN_CODER_SUFFIX
 
     # Point SASE_PLAN at the committed in-repo plan file only when the approval
     # committed that file. No-commit approvals must hand off the archived plan
@@ -580,10 +513,6 @@ def handle_accepted_plan(
             "plan_committed": plan_committed,
             "changespec_name": ctx.cl_name,
             "source_plan_agent_name": source_plan_agent_name,
-            "plan_approval_selected_member_ids": list(selected_member_ids)
-            if selected_member_ids is not None
-            else None,
-            **transition.runtime_metadata.as_followup_relationships(),
         },
     )
     coder_extra = ""

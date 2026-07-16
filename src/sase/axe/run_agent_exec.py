@@ -27,27 +27,14 @@ from sase.axe.run_agent_helpers import (
     extract_step_output_and_diff_path,
     is_workflow_noop,
     read_and_delete_marker,
-    update_meta_field,
-)
-from sase.axe.run_agent_exec_custom_roles import (
-    custom_role_snapshot_from_meta,
-    spawn_custom_role_followup,
 )
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
 from sase.agent.user_kill import has_user_kill_intent
-from sase.agent_family import (
-    HandoffEvent,
-    active_roles_after,
-    build_handoff_event,
-    evaluate_handoff_event,
-    family_state_snapshot,
-)
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import get_retry_config
 from sase.llm_provider._tool_calls import finalize_pending_tool_calls
-from sase.plan_approval_choices import filter_roles_by_selected_member_ids
 from sase.telemetry.metrics import AGENT_KILLS
 
 __all__ = [
@@ -160,113 +147,12 @@ def _handle_killed_iteration(
     )
 
     if plan_data and _marker_predates_kill(plan_data, kill_time):
-        event = build_handoff_event(
-            kind="plan_submitted",
-            artifacts_dir=state.current_artifacts_dir,
-            payload=plan_data,
-            current_role_suffix=state.current_role_suffix,
-        )
-        return _handle_handoff_event(event, ctx, state)
+        return handle_plan_marker(plan_data, ctx, state)
     if q_data and _marker_predates_kill(q_data, kill_time):
-        event = build_handoff_event(
-            kind="questions_submitted",
-            artifacts_dir=state.current_artifacts_dir,
-            payload=q_data,
-            current_role_suffix=state.current_role_suffix,
-        )
-        return _handle_handoff_event(event, ctx, state)
+        return handle_questions_marker(q_data, ctx, state)
 
     AGENT_KILLS.labels(reason="user").inc()
     return "killed"
-
-
-def _handle_handoff_event(
-    event: HandoffEvent,
-    ctx: AgentExecContext,
-    state: LoopState,
-) -> str | None:
-    if event.kind == "plan_submitted":
-        return handle_plan_marker(event, ctx, state)
-    if event.kind == "questions_submitted":
-        return handle_questions_marker(event, ctx, state)
-    return None
-
-
-def _current_agent_family_role(artifacts_dir: str) -> str | None:
-    import json
-
-    meta_path = Path(artifacts_dir) / "agent_meta.json"
-    try:
-        with meta_path.open(encoding="utf-8") as f:
-            meta = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(meta, dict):
-        return None
-    role = meta.get("agent_family_role")
-    return role if isinstance(role, str) and role else None
-
-
-def _handle_completed_followup(ctx: AgentExecContext, state: LoopState) -> bool:
-    """Return True when a normally completed phase should finish the loop."""
-
-    if state.agent_step <= 1 or not state.current_role_suffix:
-        return True
-
-    family_role = _current_agent_family_role(state.current_artifacts_dir)
-    event = build_handoff_event(
-        kind="role_completed",
-        artifacts_dir=state.current_artifacts_dir,
-        payload={
-            "outcome": "success",
-            "artifacts_ref": state.current_artifacts_dir,
-        },
-        current_role_suffix=state.current_role_suffix,
-        agent_family_role=family_role,
-    )
-    active_custom_roles = filter_roles_by_selected_member_ids(
-        active_roles_after(event.interrupted_role, project=ctx.project_name),
-        state.selected_member_ids,
-    )
-    evaluation = evaluate_handoff_event(
-        event,
-        family_state_snapshot(
-            current_role_suffix=state.current_role_suffix,
-            feedback_bullets=state.feedback_bullets,
-            qa_round_count=len(state.qa_rounds),
-            saved_chat_suffixes=tuple(
-                suffix for suffix, _path in state.saved_chat_paths if suffix
-            ),
-            agent_family_role=event.interrupted_role,
-            visit_counts=state.custom_role_visit_counts,
-        ),
-        custom_roles=active_custom_roles,
-        custom_role_snapshot=custom_role_snapshot_from_meta(
-            state.current_artifacts_dir
-        ),
-    )
-    if evaluation.custom_role is not None and not evaluation.terminal:
-        spawn_custom_role_followup(
-            evaluation.custom_role,
-            ctx,
-            state,
-            source_artifacts=state.current_artifacts_dir,
-            outcome=str(event.payload.get("outcome") or "success"),
-            source_role=event.interrupted_role,
-        )
-        return False
-    if evaluation.custom_role is not None and evaluation.terminal_reason:
-        update_meta_field(
-            state.current_artifacts_dir,
-            "custom_role_terminal_reason",
-            evaluation.terminal_reason,
-        )
-        update_meta_field(
-            state.current_artifacts_dir,
-            "custom_role_terminal_role",
-            evaluation.custom_role.role.id,
-        )
-    return evaluation.terminal
 
 
 def _marker_predates_kill(
@@ -337,8 +223,6 @@ def run_execution_loop(
             result = None
 
         if not was_killed():
-            if not _handle_completed_followup(ctx, state):
-                continue
             break
 
         outcome = _handle_killed_iteration(ctx, state)

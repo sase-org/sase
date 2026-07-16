@@ -31,7 +31,6 @@ from sase.plan_approval_choices import (
     approval_choice_persist_action,
     approval_choice_status_label,
     approval_protocol_for_choice,
-    member_options_from_request_data,
 )
 
 if TYPE_CHECKING:
@@ -74,9 +73,6 @@ def handle_plan_approval(
     if not request_path.exists():
         app.notify("Plan approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
         return False
-    request_data = _read_plan_request_data(request_path)
-    member_options = member_options_from_request_data(request_data)
-
     # Get plan file path from notification files
     if not notification.files:
         app.notify("No plan file in notification", severity="warning")  # type: ignore[attr-defined]
@@ -113,7 +109,6 @@ def handle_plan_approval(
                     plan_file,
                     llm_provider=llm_provider,
                     model=model,
-                    member_options=member_options,
                     default_choice=default_choice,
                 ),
                 on_dismiss,
@@ -154,7 +149,6 @@ def handle_plan_approval(
                 current_prompt=result.coder_prompt or "",
                 coder_model=result.coder_model,
                 choice=result.choice,
-                selected_member_ids=result.selected_member_ids,
             )
             app.mount(  # type: ignore[attr-defined]
                 PromptInputBar(
@@ -266,7 +260,6 @@ def handle_plan_approval(
             pending_approve_state=pending_approve_state,  # type: ignore[arg-type]
             llm_provider=llm_provider,
             model=model,
-            member_options=member_options,
             default_choice=default_choice,
         ),
         on_dismiss,
@@ -292,23 +285,9 @@ def _build_plan_approval_response(
         response_data["coder_prompt"] = result.coder_prompt
     if result.coder_model is not None:
         response_data["coder_model"] = result.coder_model
-    if result.selected_member_ids is not None:
-        response_data["selected_member_ids"] = list(result.selected_member_ids)
     if action == "epic" and epic_launch_owner is not None:
         response_data["epic_launch_owner"] = epic_launch_owner
     return response_data
-
-
-def _read_plan_request_data(request_path: Path) -> dict[str, object]:
-    """Read the small plan request payload for modal option rendering."""
-    import json
-
-    try:
-        with request_path.open(encoding="utf-8") as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
-    return data if isinstance(data, dict) else {}
 
 
 def _plan_approval_protocol_fields(

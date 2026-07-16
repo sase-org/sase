@@ -8,8 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.agent_family import STANDARD_PLAN_CHAIN_ID
-from sase.agent_family import evaluate_handoff_event as real_evaluate_handoff_event
 from sase.axe.run_agent_exec import run_execution_loop
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
@@ -41,7 +39,7 @@ def test_handle_plan_marker_returns_killed_when_poll_exits_after_kill(
     assert outcome == "killed"
 
 
-def test_handle_plan_marker_persists_standard_chain_gate_metadata(
+def test_handle_plan_marker_does_not_persist_lifecycle_state(
     tmp_path: Path,
 ) -> None:
     import json
@@ -65,10 +63,10 @@ def test_handle_plan_marker_persists_standard_chain_gate_metadata(
 
     assert outcome == "plan_rejected"
     meta = json.loads((tmp_path / "artifacts" / "agent_meta.json").read_text())
-    assert meta["agent_family_config_id"] == STANDARD_PLAN_CHAIN_ID
-    assert meta["active_gate_id"] == "plan_review"
-    assert meta["active_gate_renderer"] == "plan_approval"
-    assert meta["family_state"]["current_role"] == "plan"
+    assert "agent_family_config_id" not in meta
+    assert "active_gate_id" not in meta
+    assert "active_gate_renderer" not in meta
+    assert "family_state" not in meta
 
 
 @pytest.mark.parametrize(
@@ -78,7 +76,7 @@ def test_handle_plan_marker_persists_standard_chain_gate_metadata(
         ("--epic", "epic"),
     ],
 )
-def test_normally_completing_followup_breaks_exec_loop_via_role_completed(
+def test_normally_completing_followup_breaks_exec_loop(
     tmp_path: Path,
     role_suffix: str,
     role: str,
@@ -127,10 +125,6 @@ def test_normally_completing_followup_breaks_exec_loop_via_role_completed(
             side_effect=first_kill_creates_coder_prompt,
         ) as handoff,
         patch(
-            "sase.axe.run_agent_exec.evaluate_handoff_event",
-            wraps=real_evaluate_handoff_event,
-        ) as evaluate,
-        patch(
             "sase.axe.run_agent_exec._finalize_loop", return_value="final"
         ) as finalize,
     ):
@@ -139,19 +133,10 @@ def test_normally_completing_followup_breaks_exec_loop_via_role_completed(
     assert result == "final"
     assert executed_prompts == ["planner prompt", f"{role} prompt"]
     handoff.assert_called_once()
-    evaluate.assert_called_once()
-    event = evaluate.call_args.args[0]
-    assert event.kind == "role_completed"
-    assert event.interrupted_role == role
-    assert event.artifacts_dir == str(followup_artifacts)
-    assert event.payload == {
-        "outcome": "success",
-        "artifacts_ref": str(followup_artifacts),
-    }
     finalize.assert_called_once()
 
 
-def test_killed_followup_does_not_emit_role_completed(tmp_path: Path) -> None:
+def test_killed_followup_runs_kill_handoff_again(tmp_path: Path) -> None:
     ctx = make_exec_ctx(tmp_path, is_home_mode=False)
     executed_prompts: list[str] = []
     followup_artifacts = tmp_path / "code_artifacts"
@@ -200,10 +185,6 @@ def test_killed_followup_does_not_emit_role_completed(tmp_path: Path) -> None:
             "sase.axe.run_agent_exec._handle_killed_iteration",
             side_effect=handoff_then_kill,
         ),
-        patch(
-            "sase.axe.run_agent_exec.evaluate_handoff_event",
-            wraps=real_evaluate_handoff_event,
-        ) as evaluate,
         patch("sase.axe.run_agent_exec._finalize_loop", return_value="final"),
     ):
         result = run_execution_loop(ctx, "planner prompt")
@@ -211,7 +192,6 @@ def test_killed_followup_does_not_emit_role_completed(tmp_path: Path) -> None:
     assert result == "final"
     assert executed_prompts == ["planner prompt", "coder prompt"]
     assert handoff_count == 2
-    assert evaluate.call_args_list == []
 
 
 @pytest.mark.parametrize("auto_action", ["commit"])

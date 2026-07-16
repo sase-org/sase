@@ -210,9 +210,9 @@ SASE keeps durable state outside any one chat session:
   write the same response protocol as the TUI. Approval kinds decide whether the runner starts a coder without
   committing an SDD plan, commits the plan as a tale/epic before the follow-up, or records the approved plan in SDD and
   stops there. A no-feedback rejection writes the response first, then attempts to kill and dismiss the matching planner
-  row when it can be found. Custom agent-family members defined in `kind: agent_family` YAML can be toggled per approval
-  (TUI digit toggles or `sase plan approve --with/--without`) with sticky per-project defaults, and launches requested
-  by running agents are gated behind `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
+  row when it can be found. Users can attach explicitly named family members with `%n(parent, suffix)`, including
+  arbitrary suffixes such as `reviewer` or `tester`. Launches requested by running agents are gated behind
+  `LaunchApproval` requests resolved in ACE or with `sase launch approve/reject`.
 - **Commit finalization** - After a successful provider invocation inside a SASE-launched agent session, the
   provider-neutral finalizer checks the main workspace and configured Git linked-repo workspaces. Dirty linked clones
   are enforced like the main workspace. If the only enforced change is one tracked SDD markdown file under `sdd/plans/`

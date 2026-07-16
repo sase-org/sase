@@ -48,7 +48,6 @@ def _state(**overrides: object) -> RunnerShutdownState:
     ("overrides", "was_killed", "auto_dismiss", "steps_hidden", "expected"),
     [
         ({}, False, False, False, True),
-        ({"exec_outcome": "custom_role_cap_exhausted"}, False, False, False, True),
         (
             {"success": True, "exec_outcome": "completed"},
             False,

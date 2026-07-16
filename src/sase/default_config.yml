@@ -21,13 +21,6 @@ repos:
 # projects. Axe ChangeSpec runners use their separate axe.max_* limits.
 max_running_agents: 10
 
-agent_family:
-  plan_approval:
-    # Per-project sticky defaults for custom members shown in the plan
-    # approval options modal. Role ids map to true (default on) or false
-    # (default off), overriding each role definition's default.
-    default_members: {}
-
 update:
   dev_root: "~/projects/github"
 

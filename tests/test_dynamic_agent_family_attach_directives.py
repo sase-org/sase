@@ -12,14 +12,11 @@ from sase.agent.family_attach import (
 )
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
-from sase.agent_family import (
-    STANDARD_PLAN_CHAIN_ID,
-    build_handoff_event,
-    evaluate_handoff_event,
-    evaluate_questions_transition,
-    family_state_snapshot,
+from sase.plan_chain import (
+    agent_family_role_for_suffix,
+    is_plan_chain_artifact_meta,
+    question_followup_suffix_template,
 )
-from sase.plan_chain import agent_family_role_for_suffix, is_plan_chain_artifact_meta
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -96,34 +93,14 @@ def test_custom_family_role_classifies_plan_chain_metadata() -> None:
     assert is_plan_chain_artifact_meta(meta)
 
 
-def test_custom_family_role_is_standard_chain_evaluator_compatible() -> None:
-    event = build_handoff_event(
-        kind="questions_submitted",
-        artifacts_dir="/tmp/foo-reviewer",
-        payload={"questions": [{"question": "Clarify scope?"}]},
-        current_role_suffix="--reviewer",
-        agent_family_role="reviewer",
+def test_arbitrary_family_role_keeps_role_for_question_followup() -> None:
+    assert (
+        question_followup_suffix_template(
+            "--reviewer",
+            agent_family_role="reviewer",
+        )
+        == "--reviewer-@"
     )
-    snapshot = family_state_snapshot(
-        current_role_suffix="--reviewer",
-        agent_family_role="reviewer",
-    )
-
-    evaluation = evaluate_handoff_event(event, snapshot)
-    transition = evaluate_questions_transition(
-        interrupted_suffix="--reviewer",
-        interrupted_role="reviewer",
-        feedback_count=0,
-        qa_round_count=1,
-    )
-
-    assert event.interrupted_role == "reviewer"
-    assert evaluation.gate_id == "user_questions"
-    assert evaluation.runtime_metadata.as_meta_fields()["agent_family_config_id"] == (
-        STANDARD_PLAN_CHAIN_ID
-    )
-    assert transition.followup_role == "reviewer"
-    assert transition.suffix_template == "--reviewer-@"
 
 
 def test_family_attach_collision_message_suggests_auto_suffix() -> None:

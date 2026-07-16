@@ -190,21 +190,6 @@ def parse_linked_repos(raw_value: object) -> tuple[LinkedRepoMetadata, ...]:
     return tuple(parsed)
 
 
-def apply_custom_role_display_labels(
-    agent: Agent,
-    raw_value: object,
-) -> None:
-    """Copy custom-role display labels from persisted role metadata."""
-    if not isinstance(raw_value, dict):
-        return
-    label = raw_value.get("label")
-    if isinstance(label, str) and label:
-        agent.custom_role_label = label
-    done_label = raw_value.get("done_label")
-    if isinstance(done_label, str) and done_label:
-        agent.custom_role_done_label = done_label
-
-
 def meta_has_wait_directive(data: dict[str, object]) -> bool:
     return (
         bool(data.get("wait_for"))

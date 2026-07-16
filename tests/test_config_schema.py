@@ -293,27 +293,6 @@ def test_config_schema_accepts_closed_commit_hooks_object() -> None:
         validator.validate({"commit_hooks": {"during": "just nope"}})
 
 
-def test_config_schema_accepts_agent_family_plan_approval_defaults() -> None:
-    schema = _schema()
-    config = {
-        "agent_family": {
-            "plan_approval": {
-                "default_members": {
-                    "improve_plan": True,
-                    "tester": False,
-                }
-            }
-        }
-    }
-
-    errors = sorted(
-        Draft7Validator(schema).iter_errors(config),
-        key=lambda error: list(error.absolute_path),
-    )
-
-    assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
-
-
 def test_config_schema_accepts_ace_tool_call_slow_threshold() -> None:
     schema = _schema()
     config = {"ace": {"tool_calls": {"slow_threshold_seconds": 30}}}

@@ -45,8 +45,6 @@ DiffBadgeClassifier = Callable[[list[Agent]], None]
 def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
     """Copy the visible root status/metadata from a selected logical child."""
     parent.status = child.status
-    parent.custom_role_label = child.custom_role_label
-    parent.custom_role_done_label = child.custom_role_done_label
     copy_missing_display_metadata(parent, child)
 
 
@@ -361,8 +359,6 @@ def apply_status_overrides(
             if next_waiting is not parent:
                 parent.status = "WAITING"
                 parent.wait_display_source = next_waiting
-                parent.custom_role_label = next_waiting.custom_role_label
-                parent.custom_role_done_label = next_waiting.custom_role_done_label
                 copy_missing_display_metadata(parent, next_waiting)
             continue
 

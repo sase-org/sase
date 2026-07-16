@@ -188,7 +188,6 @@ class PromptBarSubmitMixin:
                 coder_prompt=prompt,
                 coder_model=ctx.coder_model,
                 choice=ctx.choice,
-                selected_member_ids=ctx.selected_member_ids,
             ),
         )
 
@@ -217,6 +216,5 @@ class PromptBarSubmitMixin:
                 coder_prompt=ctx.current_prompt,
                 coder_model=ctx.coder_model,
                 choice=ctx.choice,
-                selected_member_ids=ctx.selected_member_ids,
             ),
         )

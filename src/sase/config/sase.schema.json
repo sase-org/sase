@@ -165,28 +165,6 @@
       "description": "Explicitly authorize SASE to manage repository resources, including project memory, root AGENTS.md, and SDD initialization. Only the target repository's own sase/sase.yml is consulted.",
       "default": false
     },
-    "agent_family": {
-      "type": "object",
-      "description": "Custom agent-family behavior.",
-      "additionalProperties": false,
-      "properties": {
-        "plan_approval": {
-          "type": "object",
-          "description": "Plan-approval custom member defaults.",
-          "additionalProperties": false,
-          "properties": {
-            "default_members": {
-              "type": "object",
-              "description": "Project-local sticky defaults for plan-approval member options. Keys are custom role ids and values choose whether each member is default-on.",
-              "additionalProperties": {
-                "type": "boolean"
-              },
-              "default": {}
-            }
-          }
-        }
-      }
-    },
     "ace": {
       "type": "object",
       "description": "Configuration for the ace TUI",

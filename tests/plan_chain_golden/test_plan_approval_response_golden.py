@@ -147,30 +147,6 @@ def test_run_choice_archives_plan_side_effect(tmp_path: Path) -> None:
     assert meta == {"plan_approved": True, "plan_action": "approve"}
 
 
-def test_shared_plan_response_writer_includes_selected_members(
-    tmp_path: Path,
-) -> None:
-    response_dir = _response_dir(tmp_path)
-    plan = tmp_path / "plan.md"
-    plan.write_text("# Plan\n", encoding="utf-8")
-
-    with patch(
-        "sase.plan_approval_actions._archive_plan_for_approval", return_value=None
-    ):
-        result = execute_plan_approval_response(
-            _context(tmp_path, response_dir, plan),
-            "approve",
-            selected_member_ids=("tester",),
-        )
-
-    assert result.response_json == {
-        "action": "approve",
-        "commit_plan": False,
-        "run_coder": True,
-        "selected_member_ids": ["tester"],
-    }
-
-
 @pytest.mark.parametrize(
     ("result", "expected_json", "expected_status", "expected_persist_action"),
     [
@@ -230,13 +206,11 @@ def test_shared_plan_response_writer_includes_selected_members(
                 commit_plan=False,
                 run_coder=True,
                 choice="approve",
-                selected_member_ids=("tester",),
             ),
             {
                 "action": "approve",
                 "commit_plan": False,
                 "run_coder": True,
-                "selected_member_ids": ["tester"],
             },
             "PLAN APPROVED",
             "approve",

@@ -117,11 +117,7 @@ class Agent(AgentState):
 
     @property
     def display_status(self) -> str:
-        """Presentation status label, keeping ``status`` semantic."""
-        if self.status == "RUNNING" and self.custom_role_label:
-            return self.custom_role_label
-        if self.status == "DONE" and self.custom_role_done_label:
-            return self.custom_role_done_label
+        """Presentation status label."""
         return self.status
 
     @property

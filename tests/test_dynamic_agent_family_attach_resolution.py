@@ -275,7 +275,7 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
         ("epic", "epic"),
         ("commit", "commit"),
         ("reviewer", "reviewer"),
-        ("improve_plan", "improve_plan"),
+        ("security_review", "security_review"),
     ],
 )
 def test_family_attach_role_mapping_through_attach_path(

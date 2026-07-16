@@ -78,7 +78,6 @@ def _handle_list() -> None:
         get_all_workflows,
         get_all_xprompts,
     )
-    from sase.agent_family import get_all_agent_family_definitions
     from sase.xprompt.load_issues import collect_xprompt_load_issues
     from sase.xprompt.reference_display import (
         workflow_kind_value,
@@ -90,7 +89,6 @@ def _handle_list() -> None:
         prompts = get_all_prompts()
         xprompts = get_all_xprompts()
         workflow_names = set(get_all_workflows())
-        family_definitions = get_all_agent_family_definitions()
     items = []
     for name, wf in sorted(prompts.items()):
         is_simple = wf.is_simple_xprompt()
@@ -162,35 +160,6 @@ def _handle_list() -> None:
                 "inputs": inputs_json,
                 "tags": [t.value for t in wf.tags],
                 "preview": preview,
-            }
-        )
-    for name, definition in sorted(family_definitions.items()):
-        roles = [
-            {
-                "id": role.id,
-                "suffix": role.suffix,
-                "placement_after": role.placement_after,
-                "prompt_template": role.prompt_template,
-                "on_done": role.on_done,
-                "max_visits": role.max_visits,
-                "on_failure": role.on_failure,
-                "auto": role.auto,
-            }
-            for role in definition.roles
-        ]
-        items.append(
-            {
-                "name": name,
-                "type": "agent_family",
-                "kind": "agent_family",
-                "prefix": "",
-                "insertion": "",
-                "is_skill": False,
-                "description": None,
-                "source": definition.source_path,
-                "inputs": [],
-                "tags": [],
-                "preview": json.dumps({"roles": roles}, sort_keys=True),
             }
         )
     print(json.dumps(items))

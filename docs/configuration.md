@@ -15,7 +15,6 @@ and CLI flags.
   - [amd_h1_title](#amd_h1_title)
   - [is_sase_managed](#is_sase_managed)
   - [ace](#ace)
-  - [agent_family](#agent_family)
   - [llm_provider](#llm_provider)
   - [commit](#commit)
   - [repos](#repos)
@@ -402,25 +401,6 @@ suggestions, manual `Ctrl+T` path completion, and the manual `Ctrl+R` recursive 
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`, `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
 `src/sase/ace/tui/widgets/prompt_completion_root.py`, `src/sase/ace/tui/widgets/recursive_file_finder.py`
-
-### agent_family
-
-Configures dynamic agent-family behavior. See [docs/agent_families.md](agent_families.md) for the full agent-family
-reference, including custom `kind: agent_family` role definitions.
-
-```yaml
-agent_family:
-  plan_approval:
-    default_members: {}
-```
-
-| Field                                        | Type | Default | Description                                                                                                                                                                        |
-| -------------------------------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_family.plan_approval.default_members` | map  | `{}`    | Per-project sticky defaults for custom members at the plan-approval gate: role id → `true` (default on) or `false` (default off), overriding each role definition's own `default`. |
-
-Explicit selections at the gate (TUI toggles or `sase plan approve --with/--without`) always win over these defaults.
-
-Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
 
 ### llm_provider
 

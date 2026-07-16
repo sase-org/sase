@@ -10,7 +10,6 @@ from sase.core.agent_scan_wire import (
 
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
-    apply_custom_role_display_labels,
     append_timestamp_values,
     parent_timestamp_from_meta,
     parse_utc_to_local,
@@ -94,7 +93,6 @@ def enrich_agent_from_meta_wire(
         agent.agent_family = meta.agent_family
     if meta.agent_family_role:
         agent.agent_family_role = meta.agent_family_role
-    apply_custom_role_display_labels(agent, meta.agent_family_custom_role)
     if meta.plan_chain_root:
         agent.plan_chain_root = True
     if agent.parent_timestamp is None:

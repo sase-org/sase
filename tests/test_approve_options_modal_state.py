@@ -7,29 +7,8 @@ from sase.ace.tui.modals.approve_options_modal import (
     ApproveOptionsModal,
     ApproveOptionsResult,
 )
-from sase.plan_approval_choices import PlanApprovalMemberOption
 
 from ._approve_options_modal_helpers import ApproveOptionsApp
-
-
-def _member_option(
-    option_id: str,
-    *,
-    default_enabled: bool = False,
-    placement_after: str = "code",
-) -> PlanApprovalMemberOption:
-    return PlanApprovalMemberOption(
-        id=option_id,
-        display_label=option_id.replace("_", " "),
-        placement_after=placement_after,
-        suffix=f"--{option_id}",
-        auto="run",
-        default_enabled=default_enabled,
-        definition_default=False,
-        source_path=f"/x/{option_id}.yml",
-        config_id=option_id,
-        config_hash=f"hash-{option_id}",
-    )
 
 
 async def test_default_choice_is_tale() -> None:
@@ -176,43 +155,3 @@ async def test_title_and_footer_use_custom_label() -> None:
         assert "Custom Approval" in title_text
         assert "a/t/e" in footer_text
         assert "Tale Options" not in title_text
-
-
-async def test_member_toggles_render_and_return_selection() -> None:
-    result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
-
-    async with ApproveOptionsApp().run_test() as pilot:
-
-        def on_dismiss(
-            r: ApproveOptionsResult | ApproveOptionsEditPrompt | None,
-        ) -> None:
-            nonlocal result
-            result = r
-
-        modal = ApproveOptionsModal(
-            choice="approve",
-            member_options=(
-                _member_option(
-                    "improve_plan",
-                    default_enabled=True,
-                    placement_after="plan",
-                ),
-                _member_option("tester"),
-            ),
-        )
-        pilot.app.push_screen(modal, callback=on_dismiss)
-        await pilot.pause()
-
-        improve_row = modal.query_one("#approval-member-improve_plan", Static)
-        tester_row = modal.query_one("#approval-member-tester", Static)
-
-        assert "improve plan" in str(improve_row.render())
-        assert "tester" in str(tester_row.render())
-
-        await pilot.press("2")
-        await pilot.press("1")
-        await pilot.press("enter")
-        await pilot.pause()
-
-    assert isinstance(result, ApproveOptionsResult)
-    assert result.selected_member_ids == ("tester",)

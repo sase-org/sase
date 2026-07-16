@@ -8,16 +8,6 @@ from typing import TYPE_CHECKING, Any
 
 from sase.artifacts import convert_timestamp_to_artifacts_format
 from sase.axe.run_agent_runtime import format_agent_run_runtime
-from sase.agent_family import (
-    FamilyStateSnapshot,
-    HandoffEvent,
-    build_handoff_event,
-    evaluate_handoff_event,
-    evaluate_plan_approval_transition,
-    family_runtime_metadata_for_role,
-    family_state_snapshot,
-)
-from sase.axe.run_agent_family_metadata import record_family_runtime_metadata
 from sase.axe.run_agent_exec_plan_artifacts import (
     store_followup_prompt_artifact,
     write_plan_path_artifact,
@@ -44,37 +34,6 @@ if TYPE_CHECKING:
 
 _store_followup_prompt_artifact = store_followup_prompt_artifact
 _write_plan_path_artifact = write_plan_path_artifact
-
-
-def _saved_chat_suffixes(state: LoopState) -> tuple[str, ...]:
-    return tuple(suffix for suffix, _path in state.saved_chat_paths if suffix)
-
-
-def _family_state_snapshot(
-    state: LoopState,
-    interrupted_role: str,
-) -> FamilyStateSnapshot:
-    return family_state_snapshot(
-        current_role_suffix=state.current_role_suffix,
-        feedback_bullets=state.feedback_bullets,
-        qa_round_count=len(state.qa_rounds),
-        saved_chat_suffixes=_saved_chat_suffixes(state),
-        agent_family_role=interrupted_role,
-    )
-
-
-def _coerce_plan_event(
-    plan_data: dict[str, Any] | HandoffEvent,
-    state: LoopState,
-) -> HandoffEvent:
-    if isinstance(plan_data, HandoffEvent):
-        return plan_data
-    return build_handoff_event(
-        kind="plan_submitted",
-        artifacts_dir=state.current_artifacts_dir,
-        payload=plan_data,
-        current_role_suffix=state.current_role_suffix,
-    )
 
 
 def agent_name_for_suffix(ctx: AgentExecContext, suffix: str | None) -> str | None:
@@ -107,12 +66,6 @@ def record_workflow_metadata(
         "question_request_path",
         "question_response_path",
         "question_session_id",
-        "agent_family_config_id",
-        "agent_family_config_version",
-        "agent_family_config_hash",
-        "active_gate_id",
-        "active_gate_renderer",
-        "family_state",
     }
     for key, value in relationships.items():
         if key in retained_fields and value is not None and value != "":
@@ -120,7 +73,7 @@ def record_workflow_metadata(
 
 
 def handle_plan_marker(
-    plan_data: dict[str, Any] | HandoffEvent,
+    plan_data: dict[str, Any],
     ctx: AgentExecContext,
     state: LoopState,
 ) -> str | None:
@@ -128,17 +81,8 @@ def handle_plan_marker(
 
     Returns a loop-outcome string to break the loop, or ``None`` to continue.
     """
-    event = _coerce_plan_event(plan_data, state)
     normalize_handoff_interruption_state(state.current_artifacts_dir)
     finalize_handoff_artifacts_as_completed(state.current_artifacts_dir)
-    evaluation = evaluate_handoff_event(
-        event,
-        _family_state_snapshot(state, event.interrupted_role),
-    )
-    record_family_runtime_metadata(
-        state.current_artifacts_dir,
-        evaluation.runtime_metadata.as_meta_fields(),
-    )
     # Only set the planner suffix on the original workflow entry;
     # feedback round agents keep their numeric suffixes.
     if state.feedback_round == 0:
@@ -158,7 +102,7 @@ def handle_plan_marker(
         state.current_artifacts_dir,
         {
             "plan_submitted_at": plan_submitted_at,
-            "plan_path": event.payload.get("plan_file"),
+            "plan_path": plan_data.get("plan_file"),
             "changespec_name": ctx.cl_name,
         },
     )
@@ -169,7 +113,7 @@ def handle_plan_marker(
     # so the poll loop only exits on a NEW kill signal.
     reset_killed()
     plan_result = handle_plan_approval(
-        event.payload.get("plan_file"),
+        plan_data.get("plan_file"),
         str(uuid.uuid4()),
         killed_check=was_killed,
         agent_name=ctx.agent_name,
@@ -227,14 +171,6 @@ def handle_plan_marker(
         assert plan_result.feedback is not None
         state.feedback_round += 1
         state.feedback_bullets.append(plan_result.feedback)
-        transition = evaluate_plan_approval_transition(
-            action=plan_result.action,
-            commit_plan=plan_result.commit_plan,
-            run_coder=plan_result.run_coder,
-            feedback_count=len(state.feedback_bullets),
-            qa_round_count=len(state.qa_rounds),
-            saved_chat_suffixes=_saved_chat_suffixes(state),
-        )
 
         feedback_submitted_at = datetime.now(UTC).isoformat()
         update_meta_field(
@@ -246,18 +182,11 @@ def handle_plan_marker(
         suffix = (
             allocate_agent_family_child_suffix(
                 ctx.agent_name,
-                transition.suffix_template or f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
+                f"{PLAN_CHAIN_PLAN_SUFFIX}-@",
                 extra_reserved_suffixes=_state_reserved_suffixes(state),
             )
             if ctx.agent_name
             else f"{PLAN_CHAIN_PLAN_SUFFIX}-{state.feedback_round - 1}"
-        )
-        followup_family_metadata = family_runtime_metadata_for_role(
-            transition.target_role or "feedback",
-            role_suffix=suffix,
-            feedback_count=len(state.feedback_bullets),
-            qa_round_count=len(state.qa_rounds),
-            saved_chat_suffixes=_saved_chat_suffixes(state),
         )
         feedback_agent_name = agent_name_for_suffix(ctx, suffix)
         record_workflow_metadata(
@@ -267,10 +196,6 @@ def handle_plan_marker(
                 "followup_agent_name": feedback_agent_name,
                 "plan_path": plan_result.plan_file,
             },
-        )
-        record_family_runtime_metadata(
-            state.current_artifacts_dir,
-            followup_family_metadata.as_meta_fields(),
         )
         state.current_role_suffix = suffix
         state.agent_step += 1
@@ -294,7 +219,6 @@ def handle_plan_marker(
                 "feedback_submitted_at": feedback_submitted_at,
                 "changespec_name": ctx.cl_name,
                 "source_plan_agent_name": planner_agent,
-                **followup_family_metadata.as_followup_relationships(),
             },
         )
 

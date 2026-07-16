@@ -231,62 +231,6 @@ def _runner_slot_wait_agents() -> list[Agent]:
     ]
 
 
-def _custom_role_label_agents() -> list[Agent]:
-    parent = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-custom-family",
-        project_file="/workspace/sase/visual_project.sase",
-        status="DONE",
-        start_time=datetime(2026, 7, 6, 10, 0, 0),
-        raw_suffix="20260706100000",
-        role_suffix="--plan",
-        agent_name="visual-custom",
-        agent_family="visual-custom",
-        agent_family_role="root",
-        plan_chain_root=True,
-        llm_provider="codex",
-        model="gpt-5",
-    )
-    improve = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-custom--improve_plan",
-        project_file="/workspace/sase/visual_project.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 7, 6, 10, 2, 0),
-        raw_suffix="20260706100200",
-        parent_timestamp=parent.raw_suffix,
-        role_suffix="--improve_plan",
-        agent_name="visual-custom--improve_plan",
-        agent_family="visual-custom",
-        agent_family_role="improve_plan",
-        custom_role_label="IMPROVING PLAN",
-        custom_role_done_label="PLAN IMPROVED",
-        llm_provider="codex",
-        model="gpt-5",
-    )
-    tester = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-custom--tester",
-        project_file="/workspace/sase/visual_project.sase",
-        status="DONE",
-        start_time=datetime(2026, 7, 6, 10, 4, 0),
-        stop_time=datetime(2026, 7, 6, 10, 8, 0),
-        raw_suffix="20260706100400",
-        parent_timestamp=parent.raw_suffix,
-        role_suffix="--tester",
-        agent_name="visual-custom--tester",
-        agent_family="visual-custom",
-        agent_family_role="tester",
-        custom_role_label="TESTING",
-        custom_role_done_label="TESTED",
-        llm_provider="codex",
-        model="gpt-5",
-    )
-    rows = [parent, improve, tester]
-    _apply_status_overrides(rows)
-    return rows
-
-
 def _output_variable_family_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,
@@ -426,31 +370,6 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
             page,
             "agents_runner_slot_waits_120x40",
             title="ACE agents runner slot waits",
-        )
-
-
-async def test_custom_role_labels_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 6, 10, 8, 0))
-    patch_startup_loaders(monkeypatch, agents=_custom_role_label_agents())
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 1)
-        await page.press("l")
-        await page.expect_state("agent_count", 4)
-        await wait_for_visual_idle(page)
-
-        assert_page_svg_contains(page, "IMPROVING PLAN")
-        assert_page_svg_contains(page, "TESTED")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_custom_role_labels_120x40",
-            title="ACE agents custom role labels",
         )
 
 

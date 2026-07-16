@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.xprompt.load_issues import collect_xprompt_load_issues, record_load_issue
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.loader_sources import load_xprompt_from_file
 from sase.xprompt.workflow_loader import _load_workflow_from_file
+from sase.xprompt.workflow_models import WorkflowValidationError
 
 
 def test_inactive_load_issue_collector_is_noop() -> None:
@@ -37,6 +40,17 @@ def test_broken_workflow_yaml_records_issue(tmp_path: Path) -> None:
     assert len(issues) == 1
     assert issues[0].source == str(workflow_file)
     assert "expected" in issues[0].error or "while parsing" in issues[0].error
+
+
+def test_removed_agent_family_kind_raises_migration_error(tmp_path: Path) -> None:
+    definition = tmp_path / "family.yml"
+    definition.write_text("kind: agent_family\nroles: {}\n", encoding="utf-8")
+
+    with pytest.raises(
+        WorkflowValidationError,
+        match=r"no longer supported.*%n\(parent, suffix\).*LaunchApproval",
+    ):
+        _load_workflow_from_file(definition)
 
 
 def test_bad_markdown_frontmatter_records_and_keeps_body_fallback(

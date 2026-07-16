@@ -36,43 +36,6 @@ def _response_dir(root: Path, name: str = "plan_approval") -> Path:
     return path
 
 
-def _write_member_request(response_dir: Path) -> None:
-    (response_dir / "plan_request.json").write_text(
-        json.dumps(
-            {
-                "member_options": [
-                    {
-                        "id": "improve_plan",
-                        "label": "improve plan",
-                        "placement_after": "plan",
-                        "suffix": "--improve_plan",
-                        "auto": "skip",
-                        "default": True,
-                        "definition_default": False,
-                        "source_path": "/x/improve.yml",
-                        "config_id": "improve_plan",
-                        "config_hash": "abc",
-                    },
-                    {
-                        "id": "tester",
-                        "label": "tester",
-                        "placement_after": "code",
-                        "suffix": "--tester",
-                        "auto": "run",
-                        "default": False,
-                        "definition_default": False,
-                        "source_path": "/x/tester.yml",
-                        "config_id": "tester",
-                        "config_hash": "def",
-                    },
-                ],
-                "default_member_ids": ["improve_plan"],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-
 def _plan_file(root: Path, name: str = "plan.md") -> Path:
     path = root / name
     path.write_text(VALID_EPIC_PLAN, encoding="utf-8")
@@ -280,8 +243,6 @@ def test_plan_approve_cli_renders_validation_schema_and_exits_one(
         kind="epic",
         prompt=None,
         model=None,
-        with_members=(),
-        without_members=(),
     )
 
     with pytest.raises(SystemExit) as exc_info:
@@ -346,47 +307,6 @@ def test_plan_approve_can_include_coder_prompt_and_model(tmp_path: Path) -> None
     }
     [notification] = load_notifications(include_dismissed=True)
     assert notification.dismissed is True
-
-
-def test_plan_approve_cli_with_without_members_round_trips(tmp_path: Path) -> None:
-    response_dir = _response_dir(tmp_path)
-    _write_member_request(response_dir)
-    plan = _plan_file(tmp_path)
-    _append_plan_notification("abcdef12-plan", plan, response_dir)
-
-    result = _approve_plan_from_cli(
-        selector="abcdef12",
-        kind="approve",
-        with_members=("tester",),
-        without_members=("improve_plan",),
-    )
-
-    assert result.response_json == {
-        "action": "approve",
-        "commit_plan": False,
-        "run_coder": True,
-        "selected_member_ids": ["tester"],
-    }
-    assert json.loads((response_dir / "plan_response.json").read_text()) == (
-        result.response_json
-    )
-
-
-def test_plan_approve_cli_rejects_unknown_member(tmp_path: Path) -> None:
-    response_dir = _response_dir(tmp_path)
-    _write_member_request(response_dir)
-    plan = _plan_file(tmp_path)
-    _append_plan_notification("abcdef12-plan", plan, response_dir)
-
-    with pytest.raises(PlanApprovalActionError) as exc_info:
-        _approve_plan_from_cli(
-            selector="abcdef12",
-            kind="approve",
-            with_members=("missing",),
-        )
-
-    assert exc_info.value.code == "invalid_request"
-    assert "unknown plan-approval member option: missing" in str(exc_info.value)
 
 
 def test_plan_approve_omitted_selector_succeeds_with_one_pending_plan(

@@ -157,75 +157,6 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     return True
 
 
-def _validate_agent_meta_custom_role(module: ModuleType) -> bool:
-    artifact_timestamp = "20260427110600"
-    expected = {
-        "id": "tester",
-        "label": "TESTING",
-        "done_label": "TESTED",
-    }
-    with tempfile.TemporaryDirectory(prefix="sase-core-rs-custom-role-probe-") as tmp:
-        projects_root = Path(tmp) / "projects"
-        project_dir = projects_root / "probe"
-        artifact_dir = project_dir / "artifacts" / "ace-run" / artifact_timestamp
-        artifact_dir.mkdir(parents=True)
-        (project_dir / "probe.sase").write_text("", encoding="utf-8")
-        (artifact_dir / "agent_meta.json").write_text(
-            json.dumps(
-                {
-                    "name": "probe",
-                    "agent_family_custom_role": expected,
-                }
-            ),
-            encoding="utf-8",
-        )
-
-        try:
-            snapshot = module.scan_agent_artifacts(
-                str(projects_root),
-                _scan_probe_options(),
-            )
-        except Exception as exc:
-            _error(f"custom-role agent_meta scan probe failed: {exc}")
-            return False
-
-    if not isinstance(snapshot, dict):
-        _error("custom-role agent_meta probe returned a non-dict payload")
-        return False
-
-    records = snapshot.get("records")
-    if not isinstance(records, list):
-        _error("custom-role agent_meta probe payload has no records list")
-        return False
-
-    matches = [
-        r
-        for r in records
-        if isinstance(r, dict) and r.get("timestamp") == artifact_timestamp
-    ]
-    if len(matches) != 1:
-        _error(
-            "custom-role agent_meta probe did not return exactly one record "
-            f"for timestamp {artifact_timestamp}"
-        )
-        return False
-
-    agent_meta = matches[0].get("agent_meta")
-    if not isinstance(agent_meta, dict):
-        _error("custom-role agent_meta probe record has no agent_meta dict")
-        return False
-
-    actual = agent_meta.get("agent_family_custom_role")
-    if actual != expected:
-        _error(
-            "custom-role agent_meta probe did not preserve "
-            f"agent_family_custom_role: got {actual!r}"
-        )
-        return False
-
-    return True
-
-
 def _validate_saved_group_wire_fields(module: ModuleType) -> bool:
     payload = {
         "schema_version": 1,
@@ -401,8 +332,6 @@ def main() -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
-        return 1
-    if not _validate_agent_meta_custom_role(module):
         return 1
     if not _validate_saved_group_wire_fields(module):
         return 1

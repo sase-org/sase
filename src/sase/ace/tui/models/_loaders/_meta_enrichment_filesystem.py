@@ -8,7 +8,6 @@ from pathlib import Path
 from ._json_cache import load_json_cached
 from ._meta_enrichment_common import (
     ACTIVE_ENRICHMENT_STATUSES,
-    apply_custom_role_display_labels,
     append_timestamp_field,
     apply_workflow_child_identity_from_meta,
     has_plan_submission_marker,
@@ -131,7 +130,6 @@ def enrich_agent_from_meta(
         agent.agent_family_role = data["agent_family_role"]
     if not workflow_child and data.get("plan_chain_root"):
         agent.plan_chain_root = True
-    apply_custom_role_display_labels(agent, data.get("agent_family_custom_role"))
     if workflow_child:
         apply_workflow_child_identity_from_meta(agent, data)
     if agent.parent_timestamp is None:

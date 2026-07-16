@@ -21,7 +21,6 @@ from sase.main.plan_pending import (
     plan_context_from_notification,
     resolve_pending_plan,
 )
-from sase.notifications.models import Notification
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
     PlanApprovalActionResult,
@@ -86,8 +85,6 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
             kind=getattr(args, "kind", None),
             coder_prompt=getattr(args, "prompt", None),
             coder_model=getattr(args, "model", None),
-            with_members=tuple(getattr(args, "with_members", ()) or ()),
-            without_members=tuple(getattr(args, "without_members", ()) or ()),
         )
     except PlanApprovalValidationError as exc:
         from sase.main.plan_validate_render import render_validation_human
@@ -121,67 +118,17 @@ def _approve_plan_from_cli(
     kind: str | None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
-    with_members: tuple[str, ...] = (),
-    without_members: tuple[str, ...] = (),
 ) -> PlanApprovalActionResult:
     """Resolve and approve a pending PlanApproval notification."""
     notification = resolve_pending_plan(selector)
     ensure_plan_notification_available(notification)
-    selected_member_ids = _selected_member_ids_for_cli(
-        notification,
-        with_members=with_members,
-        without_members=without_members,
-    )
     return execute_plan_approval_response(
         plan_context_from_notification(notification),
         kind,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
-        selected_member_ids=selected_member_ids,
         epic_launch_mode="foreground",
     )
-
-
-def _selected_member_ids_for_cli(
-    notification: Notification,
-    *,
-    with_members: tuple[str, ...],
-    without_members: tuple[str, ...],
-) -> tuple[str, ...] | None:
-    if not with_members and not without_members:
-        return None
-
-    from sase.plan_approval_choices import (
-        member_options_from_request_data,
-        resolve_member_selection_for_overrides,
-    )
-
-    context = plan_context_from_notification(notification)
-    response_dir = Path(context.host_action_data.get("response_dir", "")).expanduser()
-    request_path = response_dir / "plan_request.json"
-    try:
-        request_data = json.loads(request_path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
-        raise PlanApprovalActionError(
-            "invalid_request",
-            "member_options",
-            "plan approval member options are unavailable",
-        ) from exc
-    if not isinstance(request_data, dict):
-        request_data = {}
-    options = member_options_from_request_data(request_data)
-    try:
-        return resolve_member_selection_for_overrides(
-            options,
-            with_members=with_members,
-            without_members=without_members,
-        )
-    except ValueError as exc:
-        raise PlanApprovalActionError(
-            "invalid_request",
-            "member_options",
-            str(exc),
-        ) from exc
 
 
 def is_auto_approve_active() -> bool:

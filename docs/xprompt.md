@@ -873,7 +873,7 @@ SASE ships two embeddable follow-up prompt workflows for manual family rounds:
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
 Both xprompts only assemble prompt text; `%n(parent, suffix)` is the launch directive that attaches the new agent to the
-family. See [Agent Families](agent_families.md) for the full family model, including custom lifecycle roles.
+family. See [Agent Families](agent_families.md) for the full attachment and launch-approval model.
 
 For feedback, pass `parent=` explicitly or combine it with `%n(parent, suffix)` and let SASE infer the parent:
 
@@ -1126,11 +1126,8 @@ suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --revie
 
 Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family roles and status labels. Numeric
 suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric suffixes such as
-`reviewer` or `tester` are allowed as custom roles and use ordinary running/done status labels while preserving the
-custom role in `agent_family_role` metadata. A manual attach does not run the custom lifecycle machinery: even when the
-suffix matches a defined custom role, display labels and lifecycle handling apply only to members the family evaluator
-inserts itself — see [Agent Families](agent_families.md) for custom role definitions, plan-gate member selection, and
-display labels.
+`reviewer` or `tester` are allowed, preserve that open-set role in `agent_family_role` metadata, and use ordinary
+RUNNING/DONE status labels. See [Agent Families](agent_families.md) for attachment and agent-initiated launch behavior.
 
 If the parent is still running, the child is launched immediately as a WAITING child row under the parent and starts
 when that exact parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued child

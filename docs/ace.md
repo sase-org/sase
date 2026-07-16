@@ -1704,17 +1704,16 @@ coder without asking the runner to commit an SDD plan, while Tale and Epic commi
 the resolved SDD plans root's `<YYYYMM>/` directory. The root may be in-tree, a legacy `.sase/sdd/` clone, or the split
 `--plans` sidecar; `sase repo path plans` prints it.
 
-| Key          | Action                                    |
-| ------------ | ----------------------------------------- |
-| `Enter`      | Choose the highlighted action             |
-| `a`          | Highlight Approve                         |
-| `t`          | Highlight Tale                            |
-| `e`          | Highlight Epic                            |
-| `m`          | Select coder model                        |
-| `p`          | Edit additional coder prompt              |
-| `1`-`9`      | Toggle an "Also run" custom family member |
-| `Ctrl+N`/`P` | Next / previous action                    |
-| `q` / `Esc`  | Cancel                                    |
+| Key          | Action                        |
+| ------------ | ----------------------------- |
+| `Enter`      | Choose the highlighted action |
+| `a`          | Highlight Approve             |
+| `t`          | Highlight Tale                |
+| `e`          | Highlight Epic                |
+| `m`          | Select coder model            |
+| `p`          | Edit additional coder prompt  |
+| `Ctrl+N`/`P` | Next / previous action        |
+| `q` / `Esc`  | Cancel                        |
 
 The dialog keeps the custom coder prompt and follow-up model controls for Approve and Tale. Epic approval reads its land
 and phase models from structured plan frontmatter and launches bead work directly, so those controls are hidden for
@@ -1732,15 +1731,8 @@ Epic:
   selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
-commit location and follow-up behavior.
-
-When the family has defined custom lifecycle roles (see [Agent Families](agent_families.md)), the dialog also renders an
-**"Also run:"** section listing each defined member with its toggle digit, a checkbox, the role id, and its placement —
-for example `1 [x] tester after code`. Digit keys `1`-`9` toggle members for this approval; the default-checked state
-comes from each role's `default` setting merged with the project's `agent_family.plan_approval.default_members` config.
-The same selection is available from the CLI with `sase plan approve --with <role> --without <role>`. While a
-custom-role member runs, its Agents-tab row shows the role's display `label` (for example `TESTING`), and its
-`done_label` after completion — presentation only, on top of the normal status buckets.
+commit location and follow-up behavior. Additional family members are launched explicitly with `%n(parent, suffix)`;
+they are not selected at the plan gate.
 
 ## Launch Approval
 
