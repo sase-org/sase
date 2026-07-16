@@ -70,7 +70,7 @@ def materialize_sdd_store(
     while ``False`` still permits discovery but must prevent remote creation.
     """
 
-    store, _created = _materialize_sdd_store(
+    store, _created = materialize_sdd_store_with_created(
         workspace_dir,
         workspace_num,
         sdd_creation_authorized=sdd_creation_authorized,
@@ -94,7 +94,7 @@ def preflight_sdd_sidecar(
     ).expanduser()
     record = read_sdd_store_record(primary)
 
-    options = _provider_options(
+    options = provider_options(
         workspace,
         workspace_num,
         policy=SDD_STORAGE_SEPARATE_REPO,
@@ -120,7 +120,7 @@ def create_and_materialize_sdd_store(
 ) -> SddInitOutcome:
     """Compatibility name for the unified provider-owned materialization path."""
 
-    store, created = _materialize_sdd_store(workspace_dir, workspace_num)
+    store, created = materialize_sdd_store_with_created(workspace_dir, workspace_num)
     primary = Path(get_primary_workspace_dir(str(Path(workspace_dir)), workspace_num))
     record = read_sdd_store_record(primary)
     return SddInitOutcome(
@@ -131,7 +131,7 @@ def create_and_materialize_sdd_store(
     )
 
 
-def _materialize_sdd_store(
+def materialize_sdd_store_with_created(
     workspace_dir: str | Path,
     workspace_num: int,
     *,
@@ -144,20 +144,20 @@ def _materialize_sdd_store(
     record = read_sdd_store_record(primary)
 
     creation_authorized: bool | None = None
-    if _is_remote_backed_record(record):
-        creation_authorized = _sdd_creation_authorized(
+    if is_remote_backed_record(record):
+        creation_authorized = require_sdd_creation_authorization(
             primary,
             requested=sdd_creation_authorized,
         )
 
-    if _is_sidecar_record(record):
+    if is_sidecar_record(record):
         ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
         return resolve_sdd_store(workspace, workspace_num), False
 
-    if _usable_primary_record(primary, record) and not _legacy_adoption_needed(
+    if usable_primary_record(primary, record) and not primary_record_needs_adoption(
         primary, workspace, record
     ):
-        return _finalize_existing_store(primary, workspace, workspace_num), False
+        return finalize_existing_store(primary, workspace, workspace_num), False
 
     policy = (
         None
@@ -168,16 +168,18 @@ def _materialize_sdd_store(
         return resolve_sdd_store(workspace, workspace_num), False
 
     if creation_authorized is None:
-        creation_authorized = _sdd_creation_authorized(
+        creation_authorized = require_sdd_creation_authorization(
             primary,
             requested=sdd_creation_authorized,
         )
 
     with materialization_lock(primary):
         record = read_sdd_store_record(primary)
-        usable_record = _usable_primary_record(primary, record)
-        if usable_record and not _legacy_adoption_needed(primary, workspace, record):
-            return _finalize_existing_store(primary, workspace, workspace_num), False
+        usable_record = usable_primary_record(primary, record)
+        if usable_record and not primary_record_needs_adoption(
+            primary, workspace, record
+        ):
+            return finalize_existing_store(primary, workspace, workspace_num), False
 
         # Only recognized negative records are stale cache entries. Foreign or
         # malformed records fail while loading, before this replacement path.
@@ -195,7 +197,7 @@ def _materialize_sdd_store(
                 normalized = record
                 created = False
             else:
-                result = _provider_materialization_result(
+                result = provider_materialization_result(
                     primary,
                     workspace,
                     workspace_num,
@@ -232,13 +234,13 @@ def _materialize_sdd_store(
 
             store = resolve_sdd_store(workspace, workspace_num)
             refresh_materialized_store(store.sdd_dir)
-            _ensure_materialized_store_initialized(store)
+            ensure_materialized_store_initialized(store)
             return resolve_sdd_store(workspace, workspace_num), created
         finally:
             cleanup_staging(staging)
 
 
-def _usable_primary_record(primary: Path, record: SddStoreRecord | None) -> bool:
+def usable_primary_record(primary: Path, record: SddStoreRecord | None) -> bool:
     return bool(
         is_materialized_record(record)
         and clone_matches_record(
@@ -247,7 +249,7 @@ def _usable_primary_record(primary: Path, record: SddStoreRecord | None) -> bool
     )
 
 
-def _legacy_adoption_needed(
+def primary_record_needs_adoption(
     primary: Path,
     workspace: Path,
     record: SddStoreRecord | None,
@@ -262,7 +264,7 @@ def _legacy_adoption_needed(
     )
 
 
-def _finalize_existing_store(
+def finalize_existing_store(
     primary: Path,
     workspace: Path,
     workspace_num: int,
@@ -270,11 +272,11 @@ def _finalize_existing_store(
     ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
     store = resolve_sdd_store(workspace, workspace_num)
     refresh_materialized_store(store.sdd_dir)
-    _ensure_materialized_store_initialized(store)
+    ensure_materialized_store_initialized(store)
     return resolve_sdd_store(workspace, workspace_num)
 
 
-def _is_sidecar_record(record: SddStoreRecord | None) -> bool:
+def is_sidecar_record(record: SddStoreRecord | None) -> bool:
     return bool(
         is_materialized_record(record)
         and record is not None
@@ -282,7 +284,7 @@ def _is_sidecar_record(record: SddStoreRecord | None) -> bool:
     )
 
 
-def _is_remote_backed_record(record: SddStoreRecord | None) -> bool:
+def is_remote_backed_record(record: SddStoreRecord | None) -> bool:
     return bool(
         is_materialized_record(record)
         and record is not None
@@ -290,7 +292,7 @@ def _is_remote_backed_record(record: SddStoreRecord | None) -> bool:
     )
 
 
-def _sdd_creation_authorized(
+def require_sdd_creation_authorization(
     primary: Path,
     *,
     requested: bool | None,
@@ -311,7 +313,7 @@ def _sdd_creation_authorized(
     return requested is not False
 
 
-def _provider_materialization_result(
+def provider_materialization_result(
     primary: Path,
     workspace: Path,
     workspace_num: int,
@@ -321,7 +323,7 @@ def _provider_materialization_result(
     staging: Path,
     sdd_creation_authorized: bool,
 ) -> dict[str, Any]:
-    options = _provider_options(
+    options = provider_options(
         workspace,
         workspace_num,
         policy=policy,
@@ -343,7 +345,7 @@ def _provider_materialization_result(
     except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
         raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
 
-    if _positive_result(result):
+    if positive_result(result):
         return cast(dict[str, Any], result)
 
     # Compatibility adapter for provider releases that still split discovery and
@@ -355,7 +357,7 @@ def _provider_materialization_result(
         compatibility_result = create_sdd_remote(str(primary), str(workspace), options)
     except Exception as exc:  # noqa: BLE001 - provider failures are user-facing.
         raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
-    if not _positive_result(compatibility_result):
+    if not positive_result(compatibility_result):
         raise SddMaterializationError(
             "The provider plugin did not materialize the mandatory sidecar SDD "
             "repository. Update the provider plugin and rerun `sase repo init`."
@@ -363,7 +365,7 @@ def _provider_materialization_result(
     return cast(dict[str, Any], compatibility_result)
 
 
-def _provider_options(
+def provider_options(
     workspace: Path,
     workspace_num: int,
     *,
@@ -385,7 +387,7 @@ def _provider_options(
     return options
 
 
-def _positive_result(result: object) -> bool:
+def positive_result(result: object) -> bool:
     if not isinstance(result, dict):
         return False
     try:
@@ -422,7 +424,7 @@ def refresh_materialized_store(sdd_dir: Path) -> None:
         )
 
 
-def _ensure_materialized_store_initialized(store: SddStore) -> None:
+def ensure_materialized_store_initialized(store: SddStore) -> None:
     """Create generated guides and bead files inside a materialized store."""
 
     from sase.bead.project import BEADS_DIRNAME_NON_VC, BeadProject

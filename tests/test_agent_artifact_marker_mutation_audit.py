@@ -132,9 +132,17 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("unlink",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/bead/epic_launch.py:update_epic_launch_metadata": Review(
-        mutation_calls=("write_text",),
-        lifecycle_calls=(_UPDATE_INDEX,),
+    "src/sase/bead/epic_launch.py:_write_agent_meta_atomic": Review(
+        mutation_calls=("dump", "os.replace", "unlink"),
+        batched_by=(
+            BatchedCoverage(
+                caller_context=(
+                    "src/sase/bead/epic_launch.py:update_epic_launch_metadata"
+                ),
+                helper_call="_write_agent_meta_atomic",
+                lifecycle_call=_UPDATE_INDEX,
+            ),
+        ),
     ),
     "src/sase/axe/run_agent_directives.py:extract_directives_and_write_meta": Review(
         mutation_calls=("unlink",),

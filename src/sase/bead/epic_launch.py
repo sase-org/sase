@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -158,10 +160,12 @@ def update_epic_launch_metadata(
     meta_path = artifacts_path / "agent_meta.json"
     try:
         data = json.loads(meta_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            data = {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except FileNotFoundError:
         data = {}
+    except (json.JSONDecodeError, OSError):
+        return
+    if not isinstance(data, dict):
+        return
     data.update(
         {
             "epic_bead_id": epic_id,
@@ -171,7 +175,7 @@ def update_epic_launch_metadata(
         }
     )
     try:
-        meta_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        _write_agent_meta_atomic(meta_path, data)
         from sase.core.agent_artifact_index_lifecycle import (
             update_agent_artifact_index_for_marker_mutation,
         )
@@ -179,6 +183,23 @@ def update_epic_launch_metadata(
         update_agent_artifact_index_for_marker_mutation(artifacts_path)
     except Exception:
         return
+
+
+def _write_agent_meta_atomic(path: Path, data: dict[str, Any]) -> None:
+    """Replace ``agent_meta.json`` only after its complete payload is durable."""
+    temporary = path.with_name(f".{path.name}.tmp-{os.getpid()}-{uuid.uuid4().hex}")
+    try:
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump(data, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _run_detached_worker(args: argparse.Namespace) -> int:

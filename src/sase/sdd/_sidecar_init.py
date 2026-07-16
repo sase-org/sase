@@ -82,7 +82,7 @@ def preflight_sidecars(
             result = preflight_sdd_sidecar(
                 str(primary),
                 str(workspace),
-                _provider_options(workspace_num, sidecar),
+                _sidecar_provider_options(workspace_num, sidecar),
             )
         except Exception as exc:  # noqa: BLE001 - provider errors are user-facing.
             raise SddMaterializationError(str(exc) or type(exc).__name__) from exc
@@ -320,7 +320,7 @@ def _create_or_adopt_sidecar(
 ) -> _ProviderSidecar:
     from sase.workspace_provider import create_sdd_remote
 
-    options = _provider_options(workspace_num, spec)
+    options = _sidecar_provider_options(workspace_num, spec)
     options.update(
         {
             "create": True,
@@ -367,7 +367,7 @@ def _repo_refs_match(left: str, right: str) -> bool:
     return normalize(left) == normalize(right)
 
 
-def _provider_options(
+def _sidecar_provider_options(
     workspace_num: int,
     sidecar: SidecarInitSpec,
 ) -> dict[str, object]:

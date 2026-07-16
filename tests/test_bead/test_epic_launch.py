@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from argparse import Namespace
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -161,9 +161,32 @@ def test_update_epic_launch_metadata_backfills_all_host_fields(
     update_index.assert_called_once_with(artifacts)
 
 
+def test_update_epic_launch_metadata_preserves_malformed_marker(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    meta_path = artifacts / "agent_meta.json"
+    malformed = '{"name": "planner"'
+    meta_path.write_text(malformed, encoding="utf-8")
+
+    with patch(
+        "sase.core.agent_artifact_index_lifecycle."
+        "update_agent_artifact_index_for_marker_mutation"
+    ) as update_index:
+        update_epic_launch_metadata(
+            artifacts,
+            epic_id="sase-64",
+            sdd_plan_path="/plans/epic.md",
+        )
+
+    assert meta_path.read_text(encoding="utf-8") == malformed
+    update_index.assert_not_called()
+
+
 def test_detached_worker_reports_command_start_failure(tmp_path: Path) -> None:
     log_path = tmp_path / "epic.log"
-    args = SimpleNamespace(
+    args = Namespace(
         plan_file=str(tmp_path / "plan.md"),
         cwd=str(tmp_path),
         log_path=str(log_path),

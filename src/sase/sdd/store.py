@@ -11,21 +11,21 @@ if TYPE_CHECKING:
 from sase.sdd._paths import get_primary_workspace_dir
 from sase.sdd._store_materialization import (
     SddInitOutcome,
-    _ensure_materialized_store_initialized,
-    _finalize_existing_store,
-    _is_remote_backed_record,
-    _is_sidecar_record,
-    _legacy_adoption_needed,
-    _materialize_sdd_store,
-    _positive_result,
-    _provider_materialization_result,
-    _provider_options,
-    _sdd_creation_authorized,
-    _usable_primary_record,
     create_and_materialize_sdd_store as _create_and_materialize_sdd_store,
+    ensure_materialized_store_initialized as _ensure_materialized_store_initialized,
+    finalize_existing_store as _finalize_existing_store,
+    is_remote_backed_record as _is_remote_backed_record,
+    is_sidecar_record as _is_sidecar_record,
     materialize_sdd_store as _materialize_store,
+    materialize_sdd_store_with_created as _materialize_sdd_store,
+    positive_result as _positive_result,
     preflight_sdd_sidecar as _preflight_sdd_sidecar,
+    primary_record_needs_adoption as _legacy_adoption_needed,
+    provider_materialization_result as _provider_materialization_result,
+    provider_options as _provider_options,
     refresh_materialized_store as _refresh_materialized_store,
+    require_sdd_creation_authorization as _sdd_creation_authorized,
+    usable_primary_record as _usable_primary_record,
 )
 from sase.sdd._store_records import (
     coerce_sdd_store_record,
@@ -42,12 +42,12 @@ from sase.sdd._store_records import (
     write_sdd_store_record,
 )
 from sase.sdd._store_resolution import (
-    _resolve_sdd_storage,
-    _sdd_dir_for_storage,
     detect_vcs_name as _detect_vcs_name,
     materialized_sdd_clone as _materialized_sdd_clone,
     provider_sdd_storage_policy as _provider_sdd_storage_policy,
+    resolve_sdd_storage as _resolve_sdd_storage,
     resolve_sdd_store as _resolve_sdd_store,
+    sdd_dir_for_storage as _sdd_dir_for_storage,
 )
 from sase.sdd._store_types import (
     _STORAGE_VALUES,
@@ -64,9 +64,9 @@ from sase.sdd._store_types import (
     SddStoreRecord,
 )
 from sase.sdd._store_workspace import (
-    _inherited_sdd_record_owner_anchor,
     ensure_sdd_kind_clone as _ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone as _ensure_workspace_sdd_clone,
+    inherited_sdd_record_owner_anchor as _inherited_sdd_record_owner_anchor,
 )
 
 _coerce_sdd_store_record = coerce_sdd_store_record

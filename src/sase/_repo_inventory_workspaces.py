@@ -31,7 +31,7 @@ from sase.workspace_provider.registry import (
 from sase.workspace_provider.store import WorkspaceStore
 
 
-def _workspace_checkouts(
+def workspace_checkouts(
     primary: str,
     *,
     project: str,
@@ -67,13 +67,13 @@ def _workspace_checkouts(
             )
             continue
         checkout = entry.checkout_dir.rstrip("/") or entry.checkout_dir
-        checkouts.append((workspace_num, _normalize_path(checkout)))
+        checkouts.append((workspace_num, normalize_path(checkout)))
 
     checkouts.sort(key=lambda item: (item[0], item[1]))
     return tuple(checkouts), issues
 
 
-def _repo_clones(
+def repo_clones(
     record: RepoRecord,
     *,
     host_primary: str,
@@ -82,7 +82,7 @@ def _repo_clones(
     """Build one repository's clone matrix across registered workspaces."""
 
     clones: list[RepoCloneRecord] = []
-    normalized_primary = _normalize_path(host_primary)
+    normalized_primary = normalize_path(host_primary)
     sidecar_dirname = (
         sdd_sidecar_clone_dirname(normalized_primary, record.name)
         if record.kind == "sidecar"
@@ -105,7 +105,7 @@ def _repo_clones(
     return tuple(clones)
 
 
-def _external_repo_records(
+def external_repo_records(
     *,
     project: str,
     project_key: str,
@@ -187,7 +187,7 @@ def _external_repo_records(
     return records, issues
 
 
-def _normalize_path(path: str) -> str:
+def normalize_path(path: str) -> str:
     """Return an absolute, normalized path without requiring it to exist."""
 
     return str(Path(os.path.expandvars(path)).expanduser().resolve(strict=False))
@@ -218,7 +218,7 @@ def _repo_path_in_workspace(
 
     # The primary workspace uses each secondary repo's configured source
     # checkout. Numbered workspaces use host-scoped materializations.
-    if _normalize_path(host_checkout) == host_primary:
+    if normalize_path(host_checkout) == host_primary:
         return record.path
 
     if record.kind == "sidecar":
@@ -228,7 +228,7 @@ def _repo_path_in_workspace(
             relative = Path(record.path).relative_to(host_primary)
         except ValueError:
             return sidecar_repo_clone_dir(host_checkout, record.name)
-        return _normalize_path(str(Path(host_checkout) / relative))
+        return normalize_path(str(Path(host_checkout) / relative))
 
     if record.kind == "external":
         clone_parts = external_repo_clone_parts_from_name(record.name)
