@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -12,80 +12,33 @@ from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import iter_sharded_files, sase_home, sase_projects_dir
 from sase.core.time import get_timezone
 from sase.main.plan_candidates import visible_pending_plan_notifications
+from sase.main.plan_inventory_models import (
+    DEFAULT_HISTORY_LIMIT,
+    PLAN_STATUSES,
+    ApprovedPlan,
+    DisplayPathRoots,
+    PlanInventory,
+    ProposedPlan,
+    RejectedPlan,
+    selected_statuses,
+    tier_counts,
+)
+from sase.main.plan_inventory_render import (
+    render_plan_inventory as _render_plan_inventory,
+)
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 from sase.project_display_names import project_display_name_for
 
-_HISTORY_LIMIT = 10
-_PLAN_STATUSES = ("approved", "proposed", "rejected")
-_REJECTED_NOTE = (
-    "inferred from archived proposal not represented by proposed/approved state"
-)
 _APPROVED_META_CANDIDATE_LIMIT = 2_000
-
-
-@dataclass(frozen=True)
-class _ProposedPlan:
-    _plan_key: str
-    id_prefix: str
-    notification_id: str
-    timestamp: str
-    age: str
-    agent: str
-    project: str
-    provider_model: str
-    plan_path: str
-    tier: str
-    response_dir: str
-
-
-@dataclass(frozen=True)
-class _ApprovedPlan:
-    _plan_key: str
-    timestamp: str
-    age: str
-    action: str
-    agent: str
-    project: str
-    provider_model: str
-    plan_path: str
-    tier: str
-    meta_path: str
-
-
-@dataclass(frozen=True)
-class _RejectedPlan:
-    timestamp: str
-    age: str
-    plan_path: str
-    tier: str
-    note: str = _REJECTED_NOTE
-
-
-@dataclass(frozen=True)
-class _PlanInventory:
-    proposed: tuple[_ProposedPlan, ...]
-    approved: tuple[_ApprovedPlan, ...]
-    rejected: tuple[_RejectedPlan, ...]
-    total_archived_proposals: int
-    tier_filter: tuple[str, ...] = ()
-    status_filter: tuple[str, ...] = ()
-    limit: int = _HISTORY_LIMIT
-    approved_scan_truncated: bool = False
-
-
-@dataclass(frozen=True)
-class _DisplayPathRoots:
-    sase_root: Path
-    home: Path
 
 
 def build_plan_inventory(
     *,
-    limit: int = _HISTORY_LIMIT,
+    limit: int = DEFAULT_HISTORY_LIMIT,
     tiers: tuple[str, ...] = (),
     statuses: tuple[str, ...] = (),
-) -> _PlanInventory:
+) -> PlanInventory:
     """Build the current plan proposal/approval inventory."""
     if limit < 0:
         raise ValueError("limit must be nonnegative")
@@ -117,7 +70,7 @@ def build_plan_inventory(
     if tier_set:
         proposed = tuple(row for row in proposed if row.tier in tier_set)
 
-    return _PlanInventory(
+    return PlanInventory(
         proposed=proposed,
         approved=approved,
         rejected=rejected,
@@ -129,7 +82,7 @@ def build_plan_inventory(
     )
 
 
-def plan_inventory_to_json(inventory: _PlanInventory) -> dict[str, object]:
+def plan_inventory_to_json(inventory: PlanInventory) -> dict[str, object]:
     """Return a stable JSON projection for a plan inventory."""
     summary: dict[str, object] = {
         "proposed": len(inventory.proposed),
@@ -141,13 +94,13 @@ def plan_inventory_to_json(inventory: _PlanInventory) -> dict[str, object]:
         summary["status_filter"] = list(inventory.status_filter)
     if inventory.tier_filter:
         summary["tier_filter"] = list(inventory.tier_filter)
-        summary["by_tier"] = _tier_counts(inventory)
-    if inventory.limit != _HISTORY_LIMIT:
+        summary["by_tier"] = tier_counts(inventory)
+    if inventory.limit != DEFAULT_HISTORY_LIMIT:
         summary["limit"] = inventory.limit
     if inventory.approved_scan_truncated:
         summary["approved_scan_truncated"] = True
 
-    selected = _selected_statuses(inventory)
+    selected = selected_statuses(inventory)
     payload: dict[str, object] = {"summary": summary}
     if "proposed" in selected:
         payload["proposed"] = [_public_row_dict(row) for row in inventory.proposed]
@@ -159,91 +112,21 @@ def plan_inventory_to_json(inventory: _PlanInventory) -> dict[str, object]:
 
 
 def render_plan_inventory(
-    inventory: _PlanInventory, *, console: Any | None = None
+    inventory: PlanInventory, *, console: Any | None = None
 ) -> None:
     """Render the inventory as a compact Rich dashboard."""
-    from rich import box
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-
-    rich_console = console or Console()
-    selected = _selected_statuses(inventory)
-
-    summary = Table.grid(expand=True)
-    summary.add_column(justify="center")
-    summary.add_column(justify="center")
-    summary.add_column(justify="center")
-    summary.add_column(justify="center")
-    summary.add_row(
-        _summary_cell(
-            "Proposed",
-            len(inventory.proposed),
-            "yellow",
-            dimmed="proposed" not in selected,
-        ),
-        _summary_cell(
-            "Approved shown",
-            len(inventory.approved),
-            "green",
-            dimmed="approved" not in selected,
-        ),
-        _summary_cell(
-            "Rejected shown",
-            len(inventory.rejected),
-            "red",
-            dimmed="rejected" not in selected,
-        ),
-        _summary_cell("Archived total", inventory.total_archived_proposals, "cyan"),
+    _render_plan_inventory(
+        inventory,
+        console=console,
+        approved_candidate_limit=_approved_candidate_limit,
+        agent_project=_agent_project,
     )
-    rich_console.print(
-        Panel(summary, title="Plan Pipeline", border_style="cyan", box=box.ROUNDED)
-    )
-    filters = _filters_line(inventory)
-    if filters is not None:
-        rich_console.print(filters)
-
-    if "proposed" in selected:
-        rich_console.print(
-            _section_panel(
-                f"Proposed ({len(inventory.proposed)})",
-                _proposed_table(inventory.proposed),
-                empty="No pending plan proposals.",
-                border_style="yellow",
-            )
-        )
-    if "approved" in selected:
-        truncation_note = None
-        if inventory.approved_scan_truncated:
-            candidate_limit = _approved_candidate_limit(inventory.limit)
-            truncation_note = (
-                f"Scanned the newest {candidate_limit} agent artifacts; "
-                "older approvals may exist."
-            )
-        rich_console.print(
-            _section_panel(
-                f"Approved ({len(inventory.approved)})",
-                _approved_table(inventory.approved),
-                empty="No approved plans found.",
-                border_style="green",
-                note=truncation_note,
-            )
-        )
-    if "rejected" in selected:
-        rich_console.print(
-            _section_panel(
-                f"Rejected ({len(inventory.rejected)})",
-                _rejected_table(inventory.rejected),
-                empty="No inferred rejected plans.",
-                border_style="red",
-            )
-        )
 
 
 def _collect_proposed_plans(
     *,
-    display_roots: _DisplayPathRoots,
-) -> tuple[_ProposedPlan, ...]:
+    display_roots: DisplayPathRoots,
+) -> tuple[ProposedPlan, ...]:
     notifications = visible_pending_plan_notifications()
     return tuple(
         _proposed_plan_from_notification(notification, display_roots=display_roots)
@@ -254,15 +137,15 @@ def _collect_proposed_plans(
 def _proposed_plan_from_notification(
     notification: Notification,
     *,
-    display_roots: _DisplayPathRoots,
-) -> _ProposedPlan:
+    display_roots: DisplayPathRoots,
+) -> ProposedPlan:
     action_data = notification.action_data
     plan_path = _first_str(*notification.files, action_data.get("plan_file"))
     provider_model = _provider_model_label(
         action_data.get("llm_provider"),
         action_data.get("model"),
     )
-    return _ProposedPlan(
+    return ProposedPlan(
         _plan_key=path_key(plan_path) if plan_path else "",
         id_prefix=notification.id[:PENDING_ACTION_PREFIX_LEN],
         notification_id=notification.id,
@@ -287,14 +170,14 @@ def _proposed_plan_from_notification(
 def _collect_approved_plans(
     *,
     limit: int,
-    display_roots: _DisplayPathRoots,
+    display_roots: DisplayPathRoots,
     tiers: set[str],
-) -> tuple[tuple[_ApprovedPlan, ...], bool]:
+) -> tuple[tuple[ApprovedPlan, ...], bool]:
     target = limit if limit > 0 else None
     candidate_limit = _approved_candidate_limit(limit)
     meta_paths = _agent_meta_paths_newest_first()
 
-    by_plan_key: dict[str, tuple[datetime, _ApprovedPlan]] = {}
+    by_plan_key: dict[str, tuple[datetime, ApprovedPlan]] = {}
     paths_to_scan = (
         meta_paths if candidate_limit is None else meta_paths[:candidate_limit]
     )
@@ -344,10 +227,10 @@ def _approved_plan_from_meta(
     plan_path: str,
     timestamp: datetime,
     *,
-    display_roots: _DisplayPathRoots,
-) -> _ApprovedPlan:
+    display_roots: DisplayPathRoots,
+) -> ApprovedPlan:
     timestamp_text = timestamp.isoformat()
-    return _ApprovedPlan(
+    return ApprovedPlan(
         _plan_key=path_key(plan_path),
         timestamp=timestamp_text,
         age=format_relative_time(timestamp_text),
@@ -371,10 +254,10 @@ def _collect_rejected_plans(
     *,
     represented_paths: set[str],
     limit: int,
-    display_roots: _DisplayPathRoots,
+    display_roots: DisplayPathRoots,
     tiers: set[str],
-) -> tuple[_RejectedPlan, ...]:
-    rows: list[tuple[datetime, _RejectedPlan]] = []
+) -> tuple[RejectedPlan, ...]:
+    rows: list[tuple[datetime, RejectedPlan]] = []
     for path in archived_paths:
         if path_key(path) in represented_paths:
             continue
@@ -386,7 +269,7 @@ def _collect_rejected_plans(
         rows.append(
             (
                 timestamp,
-                _RejectedPlan(
+                RejectedPlan(
                     timestamp=timestamp_text,
                     age=format_relative_time(timestamp_text),
                     plan_path=_display_path(str(path), display_roots=display_roots),
@@ -437,18 +320,14 @@ def _approved_candidate_limit(limit: int) -> int | None:
 
 def _normalize_statuses(statuses: tuple[str, ...]) -> tuple[str, ...]:
     normalized = tuple(dict.fromkeys(status.strip().lower() for status in statuses))
-    invalid = [status for status in normalized if status not in _PLAN_STATUSES]
+    invalid = [status for status in normalized if status not in PLAN_STATUSES]
     if invalid:
         raise ValueError(f"unknown plan status: {invalid[0]}")
     return normalized
 
 
-def _selected_statuses(inventory: _PlanInventory) -> set[str]:
-    return set(inventory.status_filter or _PLAN_STATUSES)
-
-
-def _display_path_roots() -> _DisplayPathRoots:
-    return _DisplayPathRoots(
+def _display_path_roots() -> DisplayPathRoots:
+    return DisplayPathRoots(
         sase_root=sase_home().expanduser().resolve(strict=False),
         home=Path.home().expanduser().resolve(strict=False),
     )
@@ -518,7 +397,7 @@ def _provider_model_label(provider: str | None, model: str | None) -> str:
 def _display_path(
     path: str | None,
     *,
-    display_roots: _DisplayPathRoots | None = None,
+    display_roots: DisplayPathRoots | None = None,
 ) -> str:
     if not path:
         return "-"
@@ -566,133 +445,6 @@ def _public_row_dict(row: Any) -> dict[str, object]:
     return {key: value for key, value in asdict(row).items() if not key.startswith("_")}
 
 
-def _summary_cell(label: str, value: int, style: str, *, dimmed: bool = False) -> Any:
-    from rich.text import Text
-
-    text = Text()
-    text.append(str(value), style=f"bold {style}")
-    text.append(f"\n{label}", style="dim")
-    if dimmed:
-        text.stylize("dim")
-    return text
-
-
-def _section_panel(
-    title: str,
-    table: Any | None,
-    *,
-    empty: str,
-    border_style: str,
-    note: str | None = None,
-) -> Any:
-    from rich import box
-    from rich.console import Group
-    from rich.panel import Panel
-    from rich.text import Text
-
-    content = table if table is not None else Text(empty, style="dim")
-    if note:
-        content = Group(content, Text(note, style="dim"))
-    return Panel(content, title=title, border_style=border_style, box=box.ROUNDED)
-
-
-def _filters_line(inventory: _PlanInventory) -> Any | None:
-    if (
-        not inventory.status_filter
-        and not inventory.tier_filter
-        and inventory.limit == _HISTORY_LIMIT
-    ):
-        return None
-
-    from rich.text import Text
-
-    line = Text("Filters: ", style="dim")
-    separator_needed = False
-    if inventory.status_filter:
-        line.append("status=", style="dim")
-        line.append(",".join(inventory.status_filter))
-        separator_needed = True
-    if inventory.tier_filter:
-        if separator_needed:
-            line.append(" · ", style="dim")
-        counts = _tier_counts(inventory)
-        line.append("tier=", style="dim")
-        for index, tier in enumerate(inventory.tier_filter):
-            if index:
-                line.append(",")
-            line.append(tier, style=_tier_style(tier))
-            line.append(f": {counts[tier]}")
-        separator_needed = True
-    if inventory.limit != _HISTORY_LIMIT:
-        if separator_needed:
-            line.append(" · ", style="dim")
-        line.append("limit=", style="dim")
-        line.append(str(inventory.limit))
-    return line
-
-
-def _proposed_table(rows: tuple[_ProposedPlan, ...]) -> Any | None:
-    if not rows:
-        return None
-    table = _base_table()
-    table.add_column("ID", no_wrap=True, style="yellow")
-    table.add_column("Age", no_wrap=True)
-    table.add_column("Agent/Project")
-    table.add_column("Model")
-    table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
-    for row in rows:
-        table.add_row(
-            row.id_prefix,
-            row.age,
-            _agent_project(row.agent, row.project),
-            row.provider_model,
-            _tier_text(row.tier),
-            row.plan_path,
-        )
-    return table
-
-
-def _approved_table(rows: tuple[_ApprovedPlan, ...]) -> Any | None:
-    if not rows:
-        return None
-    table = _base_table()
-    table.add_column("Approved", no_wrap=True)
-    table.add_column("Action", no_wrap=True, style="green")
-    table.add_column("Agent/Project")
-    table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
-    for row in rows:
-        table.add_row(
-            row.age,
-            row.action,
-            _agent_project(row.agent, row.project),
-            _tier_text(row.tier),
-            row.plan_path,
-        )
-    return table
-
-
-def _rejected_table(rows: tuple[_RejectedPlan, ...]) -> Any | None:
-    if not rows:
-        return None
-    table = _base_table()
-    table.add_column("Archived", no_wrap=True)
-    table.add_column("Tier", no_wrap=True)
-    table.add_column("Plan path", ratio=2, overflow="fold")
-    table.add_column("Note", ratio=1)
-    for row in rows:
-        table.add_row(row.age, _tier_text(row.tier), row.plan_path, row.note)
-    return table
-
-
-def _base_table() -> Any:
-    from rich import box
-    from rich.table import Table
-
-    return Table(box=box.SIMPLE, expand=True, show_edge=False)
-
-
 def _agent_project(agent: str, project: str) -> str:
     if project != "-":
         project = project_display_name_for(project)
@@ -703,24 +455,3 @@ def _agent_project(agent: str, project: str) -> str:
     if project == "-":
         return agent
     return f"{agent} / {project}"
-
-
-def _tier_style(tier: str) -> str:
-    return "green" if tier == "tale" else "magenta" if tier == "epic" else "dim"
-
-
-def _tier_text(tier: str) -> Any:
-    from rich.text import Text
-
-    return Text(tier, style=_tier_style(tier))
-
-
-def _tier_counts(inventory: _PlanInventory) -> dict[str, int]:
-    return {
-        tier: (
-            sum(row.tier == tier for row in inventory.proposed)
-            + sum(row.tier == tier for row in inventory.approved)
-            + sum(row.tier == tier for row in inventory.rejected)
-        )
-        for tier in ("tale", "epic")
-    }
