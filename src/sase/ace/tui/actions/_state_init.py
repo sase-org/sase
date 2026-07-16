@@ -324,6 +324,9 @@ class StateInitMixin:
         self._artifact_index_maintenance_pending: bool = False
         self._artifact_index_maintenance_pending_request: Any | None = None
         self._artifact_index_maintenance_last_mono: float = 0.0
+        self._artifact_index_schema_rebuild_in_flight: bool = False
+        self._artifact_index_schema_bypass: bool = False
+        self._dismissed_index_sync_pending_after_schema_rebuild: bool = False
         # Deferred Tier 2 reconcile: set when a load arrives with
         # incomplete history. The reconcile is then triggered lazily by an
         # input-quiet tick or explicit full-history refresh action rather than

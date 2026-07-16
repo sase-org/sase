@@ -26,6 +26,7 @@ class _FakeApp(AgentIndexMaintenanceMixin):
         self._artifact_index_maintenance_pending = False
         self._artifact_index_maintenance_pending_request = None
         self._artifact_index_maintenance_last_mono = 0.0
+        self._artifact_index_schema_bypass = False
         self._nav_gate = NavigationGate(window_s=0.25)
         self._scheduled: list[Callable[[], Any]] = []
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -35,6 +36,23 @@ class _FakeApp(AgentIndexMaintenanceMixin):
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self._timer_calls.append((delay, callback))
+
+
+def test_scheduler_defers_while_schema_index_is_bypassed() -> None:
+    app = _FakeApp()
+    app._artifact_index_schema_bypass = True
+
+    app._schedule_artifact_index_maintenance(dismissed={_ID1}, source="startup")
+
+    assert app._scheduled == []
+    assert app._artifact_index_maintenance_running is False
+    assert app._artifact_index_maintenance_pending is True
+    assert app._artifact_index_maintenance_pending_request is not None
+
+    app._artifact_index_schema_bypass = False
+    app._resume_artifact_index_maintenance_after_schema_rebuild()
+    assert app._scheduled == [app._run_artifact_index_maintenance]
+    assert app._artifact_index_maintenance_running is True
 
 
 @pytest.mark.asyncio

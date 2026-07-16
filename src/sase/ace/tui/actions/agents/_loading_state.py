@@ -135,6 +135,9 @@ class AgentLoadingStateMixin:
     _artifact_index_maintenance_pending: bool
     _artifact_index_maintenance_pending_request: ArtifactIndexMaintenanceRequest | None
     _artifact_index_maintenance_last_mono: float
+    _artifact_index_schema_rebuild_in_flight: bool
+    _artifact_index_schema_bypass: bool
+    _dismissed_index_sync_pending_after_schema_rebuild: bool
     _dirty_agent_artifact_dirs: tuple[Path, ...]
     _dirty_agent_artifact_fallback_reason: str | None
     # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,

@@ -199,6 +199,7 @@ def load_agents_from_disk_with_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    use_artifact_index: bool = True,
     source: str = "unknown",
 ) -> _AgentDiskLoadResult:
     """Load agents from disk and include the tiered load state."""
@@ -212,6 +213,7 @@ def load_agents_from_disk_with_state(
             dismissed_agents,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            use_artifact_index=use_artifact_index,
         )
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(
@@ -359,12 +361,14 @@ def _load_agents_from_disk_impl(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    use_artifact_index: bool = True,
 ) -> _AgentDiskLoadResult:
     from ...models.agent_loader import load_tiered_agents
 
     all_agents, load_state = load_tiered_agents(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
+        use_artifact_index=use_artifact_index,
     )
     return _apply_loaded_agent_disk_projections(
         all_agents,

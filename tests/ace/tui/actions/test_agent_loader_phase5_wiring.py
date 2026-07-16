@@ -513,6 +513,34 @@ def test_load_agents_from_disk_bad_index_uses_bounded_tier1_source_scan(
     assert options.newest_first is True
 
 
+def test_explicit_index_bypass_uses_bounded_scan_without_repair_reaction() -> None:
+    snapshot = _empty_artifact_snapshot()
+
+    with (
+        patch(
+            "sase.ace.tui.models.agent_loader.query_agent_artifact_index",
+            side_effect=AssertionError("bypassed index must not be queried"),
+        ),
+        patch(
+            "sase.ace.tui.models.agent_loader._scan_artifacts_for_loader",
+            return_value=snapshot,
+        ) as mock_scan,
+    ):
+        loaded_snapshot, state = _artifact_snapshot_for_tui_load(
+            full_history=False,
+            use_artifact_index=False,
+        )
+
+    assert loaded_snapshot is snapshot
+    assert state.artifact_source == "source_scan"
+    assert state.complete_visible_inbox is False
+    assert state.used_artifact_index is False
+    assert state.repair_recommended is False
+    options = mock_scan.call_args.args[0]
+    assert options.max_records == 200
+    assert options.newest_first is True
+
+
 def test_load_from_disk_span_carries_load_state_fields(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

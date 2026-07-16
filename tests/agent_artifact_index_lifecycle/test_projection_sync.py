@@ -6,6 +6,7 @@ from pathlib import Path
 from sase.ace.tui.models.agent import AgentType
 from sase.core.agent_artifact_index_lifecycle import (
     build_dismissed_agent_projection_inputs,
+    read_agent_artifact_index_schema_status,
     refresh_agent_artifact_index_if_schema_stale,
     sync_dismissed_agent_artifact_index,
     sync_dismissed_agent_artifact_index_report,
@@ -354,6 +355,29 @@ def test_stale_schema_refresh_rebuilds_before_index_query(
     assert report.refreshed
     assert report.stored_schema_version == AGENT_ARTIFACT_INDEX_SCHEMA_VERSION - 1
     assert report.rows_indexed == 7
+
+
+def test_schema_status_reads_staleness_without_rebuilding(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    stored_version = AGENT_ARTIFACT_INDEX_SCHEMA_VERSION - 1
+    _write_index_schema_version(index, stored_version)
+
+    def fail_rebuild(*args: object, **kwargs: object) -> object:
+        raise AssertionError("the metadata-only check must not rebuild")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        fail_rebuild,
+    )
+
+    status = read_agent_artifact_index_schema_status(index_path=index)
+
+    assert status.checked
+    assert status.stale
+    assert status.stored_schema_version == stored_version
 
 
 def test_current_schema_refresh_skips_rebuild(

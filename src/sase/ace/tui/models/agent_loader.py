@@ -212,6 +212,7 @@ def _query_artifact_index_for_loader(
 def _artifact_snapshot_for_tui_load(
     *,
     full_history: bool,
+    use_artifact_index: bool = True,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState]:
     """Return the artifact snapshot for a TUI refresh.
 
@@ -228,6 +229,18 @@ def _artifact_snapshot_for_tui_load(
                 tier="tier2",
                 complete_history=True,
                 complete_visible_inbox=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+            ),
+        )
+
+    if not use_artifact_index:
+        return (
+            _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
+            AgentLoadState(
+                tier="tier1",
+                complete_history=False,
+                complete_visible_inbox=False,
                 artifact_source="source_scan",
                 used_artifact_index=False,
             ),
@@ -489,11 +502,13 @@ def _load_agents_with_load_state(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    use_artifact_index: bool = True,
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
     artifact_snapshot, state = _artifact_snapshot_for_tui_load(
-        full_history=full_history
+        full_history=full_history,
+        use_artifact_index=use_artifact_index,
     )
     agents, workflow_agent_steps = _load_agents_from_all_sources(
         changespec_snapshot=changespec_snapshot,
@@ -628,12 +643,14 @@ def load_tiered_agents(
     *,
     changespec_snapshot: list[ChangeSpec] | None = None,
     full_history: bool = False,
+    use_artifact_index: bool = True,
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
     result = _load_agents_with_load_state(
         changespec_snapshot=changespec_snapshot,
         full_history=full_history,
+        use_artifact_index=use_artifact_index,
     )
     return (
         _normalize_loaded_agents(result.agents, result.workflow_agent_steps),

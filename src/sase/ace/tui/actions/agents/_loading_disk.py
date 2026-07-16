@@ -204,6 +204,9 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            use_artifact_index=not getattr(
+                self, "_artifact_index_schema_bypass", False
+            ),
             source=source,
         )
         data_cost = classify_agents_data_cost(
@@ -284,6 +287,9 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             dismissed_snapshot,
             changespec_snapshot=changespec_snapshot,
             full_history=full_history,
+            use_artifact_index=not getattr(
+                self, "_artifact_index_schema_bypass", False
+            ),
             source=source,
         )
         all_agents = load_result.all_agents
@@ -451,6 +457,7 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             artifact_dirs,
             changespec_snapshot=changespec_snapshot,
             source=source,
+            update_index=not getattr(self, "_artifact_index_schema_bypass", False),
             deleted_artifact_dirs=deleted_artifact_dirs or (),
         )
         all_agents = load_result.all_agents

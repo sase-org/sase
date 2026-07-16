@@ -61,9 +61,23 @@ class AgentIndexMaintenanceMixin(AgentLoadingStateMixin):
             force,
             source,
         )
+        if getattr(self, "_artifact_index_schema_bypass", False):
+            self._artifact_index_maintenance_pending = True
+            return
         if self._artifact_index_maintenance_running:
             self._artifact_index_maintenance_pending = True
             return
+        self._artifact_index_maintenance_running = True
+        self.call_later(self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
+
+    def _resume_artifact_index_maintenance_after_schema_rebuild(self) -> None:
+        """Run the latest request deferred while the schema rebuild held the lock."""
+        if self._artifact_index_maintenance_running:
+            return
+        if self._artifact_index_maintenance_pending_request is None:
+            self._artifact_index_maintenance_pending = False
+            return
+        self._artifact_index_maintenance_pending = False
         self._artifact_index_maintenance_running = True
         self.call_later(self._run_artifact_index_maintenance)  # type: ignore[attr-defined]
 

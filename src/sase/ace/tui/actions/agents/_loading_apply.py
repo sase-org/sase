@@ -365,13 +365,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_seen_complete_history = True
             self._agents_history_reconcile_pending = False
         self._agent_load_state = load_state
-        self._maybe_notify_agent_index_repair(load_state)
+        schema_rebuild_in_flight = bool(
+            getattr(self, "_artifact_index_schema_rebuild_in_flight", False)
+        )
+        if not schema_rebuild_in_flight:
+            self._maybe_notify_agent_index_repair(load_state)
         # Defer the Tier 2 full-history reconcile only for repair/fallback
         # states. A healthy Tier 1 load can be archive-incomplete while still
         # complete for the visible inbox, so ordinary startup/lifecycle
         # refreshes must not prime the next normal refresh into Tier 2.
-        if _should_arm_full_history_reconcile(load_state) and not getattr(
-            self, "_agents_history_reconcile_pending", False
+        if (
+            not schema_rebuild_in_flight
+            and _should_arm_full_history_reconcile(load_state)
+            and not getattr(self, "_agents_history_reconcile_pending", False)
         ):
             self._agents_history_reconcile_pending = True
             self._agents_history_reconcile_armed_mono = time.monotonic()

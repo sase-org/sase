@@ -118,6 +118,15 @@ class _ArtifactIndexSchemaRefreshReport:
     rows_indexed: int = 0
 
 
+@dataclass(frozen=True)
+class _ArtifactIndexSchemaStatus:
+    """Cheap stored-schema check that never opens the Rust index."""
+
+    checked: bool
+    stale: bool = False
+    stored_schema_version: int | None = None
+
+
 def _default_projects_root(sase_home: Path | str | None = None) -> Path:
     """Return the default projects root used by the artifact index."""
     root = Path(sase_home).expanduser() if sase_home is not None else _sase_home()
@@ -197,6 +206,21 @@ def sync_dismissed_agent_artifact_index_report(
             return _heal_corrupt_index_and_resync(index, dismissed)
 
 
+def read_agent_artifact_index_schema_status(
+    *,
+    index_path: Path | str | None = None,
+) -> _ArtifactIndexSchemaStatus:
+    """Read stored schema metadata without migrating or rebuilding the index."""
+
+    with agent_artifact_index_operation_lock():
+        index = (
+            Path(index_path).expanduser()
+            if index_path is not None
+            else default_agent_artifact_index_path()
+        )
+        return _read_agent_artifact_index_schema_status(index)
+
+
 def refresh_agent_artifact_index_if_schema_stale(
     *,
     index_path: Path | str | None = None,
@@ -214,13 +238,11 @@ def refresh_agent_artifact_index_if_schema_stale(
             if index_path is not None
             else default_agent_artifact_index_path()
         )
-        if not index.is_file():
+        status = _read_agent_artifact_index_schema_status(index)
+        if not status.checked:
             return _ArtifactIndexSchemaRefreshReport(checked=False)
-
-        stored_version = _read_stored_index_schema_version(index)
-        if stored_version is None:
-            return _ArtifactIndexSchemaRefreshReport(checked=False)
-        if stored_version >= AGENT_ARTIFACT_INDEX_SCHEMA_VERSION:
+        stored_version = status.stored_schema_version
+        if not status.stale:
             return _ArtifactIndexSchemaRefreshReport(
                 checked=True,
                 stored_schema_version=stored_version,
@@ -245,6 +267,23 @@ def refresh_agent_artifact_index_if_schema_stale(
             stored_schema_version=stored_version,
             rows_indexed=update.rows_indexed,
         )
+
+
+def _read_agent_artifact_index_schema_status(
+    index: Path,
+) -> _ArtifactIndexSchemaStatus:
+    """Return schema status for *index* without invoking Rust migrations."""
+
+    if not index.is_file():
+        return _ArtifactIndexSchemaStatus(checked=False)
+    stored_version = _read_stored_index_schema_version(index)
+    if stored_version is None:
+        return _ArtifactIndexSchemaStatus(checked=False)
+    return _ArtifactIndexSchemaStatus(
+        checked=True,
+        stale=stored_version < AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+        stored_schema_version=stored_version,
+    )
 
 
 def _read_stored_index_schema_version(index: Path) -> int | None:
@@ -657,6 +696,7 @@ __all__ = [
     "DismissedProjectionSyncReport",
     "build_dismissed_agent_projection_inputs",
     "delete_agent_artifact_index_artifacts",
+    "read_agent_artifact_index_schema_status",
     "refresh_agent_artifact_index_if_schema_stale",
     "sync_dismissed_agent_artifact_index",
     "sync_dismissed_agent_artifact_index_report",

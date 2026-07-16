@@ -100,14 +100,65 @@ class StartupLoadsMixin:
             log.debug("Failed to schedule startup update toast", exc_info=True)
 
     async def _run_agent_index_startup_prepare_and_refresh(self: Any) -> None:
-        """Refresh stale index projections before the first agents query."""
-        try:
-            await self._run_agent_index_startup_prepare()
-        finally:
-            await self._run_agents_async_refresh()
+        """Paint from a bounded scan before rebuilding a stale index."""
+        import asyncio
 
-    async def _run_agent_index_startup_prepare(self: Any) -> None:
-        """Run cheap pre-query index maintenance off the first-paint path."""
+        from sase.core.agent_artifact_index_lifecycle import (
+            read_agent_artifact_index_schema_status,
+        )
+
+        try:
+            status = await asyncio.to_thread(read_agent_artifact_index_schema_status)
+        except Exception:
+            log.exception("Startup artifact-index schema check failed")
+            await self._run_agents_async_refresh()
+            return
+
+        if not status.stale:
+            await self._run_agents_async_refresh()
+            return
+
+        self._artifact_index_schema_rebuild_in_flight = True
+        self._artifact_index_schema_bypass = True
+        index_ready = False
+        try:
+            try:
+                # The bypass makes this first load take the bounded source-scan
+                # branch directly instead of waiting behind the rebuild lock.
+                await self._run_agents_async_refresh()
+            finally:
+                # This coroutine is already a post-mount worker. Keeping the
+                # rebuild here makes first paint independent while preserving
+                # one reliable completion path for the follow-up refresh.
+                index_ready = await self._run_agent_index_startup_prepare()
+        finally:
+            self._artifact_index_schema_rebuild_in_flight = False
+            if index_ready:
+                self._artifact_index_schema_bypass = False
+
+        if index_ready:
+            self._schedule_agents_async_refresh(
+                source="index_schema_rebuilt",
+                on_complete=self._resume_startup_index_work_after_schema_rebuild,
+            )
+            return
+
+        # Keep bypassing the stale index for this session. The bounded first
+        # load remains interactive; a quiet-time Tier 2 scan can restore full
+        # history without opening the stale index.
+        self._agents_history_reconcile_pending = True
+        self._agents_history_reconcile_armed_mono = time.monotonic()
+        try:
+            self.notify(
+                "Agent artifact index schema rebuild failed; using a bounded scan",
+                severity="warning",
+                timeout=10,
+            )
+        except Exception:
+            log.debug("Failed to show schema-rebuild warning", exc_info=True)
+
+    async def _run_agent_index_startup_prepare(self: Any) -> bool:
+        """Make a known-stale index safe to query after the first agents paint."""
         import asyncio
 
         from sase.core.agent_artifact_index_lifecycle import (
@@ -121,7 +172,7 @@ class StartupLoadsMixin:
             )
         except Exception:
             log.exception("Startup artifact-index schema refresh failed")
-            return
+            return False
         if report.refreshed:
             log.info(
                 "rebuilt stale agent artifact index: schema %s -> %s, rows=%s",
@@ -129,9 +180,31 @@ class StartupLoadsMixin:
                 AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
                 report.rows_indexed,
             )
+        return bool(
+            report.refreshed
+            or (
+                report.checked
+                and report.stored_schema_version is not None
+                and report.stored_schema_version >= AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+            )
+        )
+
+    def _resume_startup_index_work_after_schema_rebuild(self: Any) -> None:
+        """Resume index consumers only after the rebuilt index was queried."""
+        if self._dismissed_index_sync_pending_after_schema_rebuild:
+            self._dismissed_index_sync_pending_after_schema_rebuild = False
+            self._schedule_dismissed_index_startup_sync()
+        resume_maintenance = getattr(
+            self, "_resume_artifact_index_maintenance_after_schema_rebuild", None
+        )
+        if callable(resume_maintenance):
+            resume_maintenance()
 
     def _schedule_dismissed_index_startup_sync(self: Any) -> None:
         """Schedule dismissed-index maintenance after startup agents load."""
+        if getattr(self, "_artifact_index_schema_bypass", False):
+            self._dismissed_index_sync_pending_after_schema_rebuild = True
+            return
         try:
             self.run_worker(
                 cast(Any, self._run_dismissed_index_startup_sync),
