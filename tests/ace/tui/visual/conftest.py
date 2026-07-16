@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+import time
 
 import pytest
 
@@ -24,25 +26,40 @@ def _require_pinned_renderer_environment(request: pytest.FixtureRequest) -> None
 @pytest.fixture(autouse=True)
 def _force_color_for_visual_snapshots(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Visual snapshots pin Textual's colored output. A NO_COLOR=1 inherited
-    # from the caller's shell would otherwise force grayscale rendering and
-    # cause every snapshot to diff against the committed golden.
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    # Prompt rendering must not depend on whether the host has prettier on PATH.
-    monkeypatch.setenv("SASE_DISABLE_PRETTIER", "1")
-    # Pin the app version so the "sase ace (v…)" header title is byte-stable
-    # across runs and install shapes. AceApp seeds the title from
-    # ``initial_app_version()`` in ``__init__`` and refines it off-thread from
-    # ``resolved_app_version()`` in ``on_mount``; pinning both to the same value
-    # keeps the title fixed and prevents the async refinement from changing it
-    # mid-capture.
-    monkeypatch.setattr(
-        "sase.ace.tui.util.app_version.initial_app_version", lambda: "0.7.1"
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.util.app_version.resolved_app_version", lambda: "0.7.1"
-    )
+) -> Iterator[None]:
+    # Rich derives syntax line-number colors from the terminal color system.
+    # Pin its truecolor path so neither the caller's terminal nor CI changes
+    # the committed rendering, and remove overrides that would defeat it.
+    try:
+        with monkeypatch.context() as visual_env:
+            visual_env.setenv("COLORTERM", "truecolor")
+            visual_env.setenv("TERM", "xterm-256color")
+            visual_env.delenv("FORCE_COLOR", raising=False)
+            visual_env.delenv("NO_COLOR", raising=False)
+
+            # Pin the process timezone as well as application-level clocks.
+            # ``tzset`` updates libc's cached timezone after both setup and the
+            # environment restoration performed when this context exits.
+            visual_env.setenv("TZ", "UTC")
+            time.tzset()
+
+            # Prompt rendering must not depend on whether the host has prettier on PATH.
+            visual_env.setenv("SASE_DISABLE_PRETTIER", "1")
+            # Pin the app version so the "sase ace (v…)" header title is byte-stable
+            # across runs and install shapes. AceApp seeds the title from
+            # ``initial_app_version()`` in ``__init__`` and refines it off-thread from
+            # ``resolved_app_version()`` in ``on_mount``; pinning both to the same value
+            # keeps the title fixed and prevents the async refinement from changing it
+            # mid-capture.
+            visual_env.setattr(
+                "sase.ace.tui.util.app_version.initial_app_version", lambda: "0.7.1"
+            )
+            visual_env.setattr(
+                "sase.ace.tui.util.app_version.resolved_app_version", lambda: "0.7.1"
+            )
+            yield
+    finally:
+        time.tzset()
 
 
 @pytest.fixture(autouse=True)

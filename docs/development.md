@@ -68,6 +68,11 @@ goldens. The renderer stack is exact-pinned in the `visual` optional-dependency 
 session-scoped fixture checks that fingerprint before any snapshot runs, so a skewed environment fails once with an
 installation or upgrade instruction instead of producing a wall of misleading pixel diffs.
 
+The visual fixtures also pin the process environment that affects rendering: `TERM=xterm-256color` and
+`COLORTERM=truecolor` select Rich's truecolor path, `FORCE_COLOR` and `NO_COLOR` are removed, and `TZ=UTC` is applied
+with the process timezone cache refreshed. Neither a contributor's terminal settings, local timezone, nor CI's process
+environment participates in the golden corpus.
+
 Run the focused suite normally first:
 
 ```bash
@@ -98,8 +103,8 @@ Committed goldens are canonical to the pinned renderer. Rasterization goes throu
 pure-Rust SVG renderer that carries its own font database restricted to the bundled Fira Code
 (`tests/ace/tui/visual/fonts/`) with `skip_system_fonts=True`. No host font-config or graphics stack participates, so
 rendering is stable and host-font-independent on the canonical Linux x86_64 platform. PNG comparison is byte-exact by
-default locally and in every visual-bearing CI lane; a mismatch is a real rendering change or an environment defect to
-investigate.
+default locally and in every visual-bearing CI lane; together with the fixture-level terminal and timezone pins, a
+mismatch is a real rendering change or an unpinned environment defect to investigate.
 
 Rasterization can still differ by a small, bounded amount on macOS arm64. The tolerance environment variables remain
 available only as explicit escape hatches for local iteration and renderer investigations. For the known macOS drift,

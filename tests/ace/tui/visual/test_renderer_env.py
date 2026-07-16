@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
+import time
 
 import pytest
 
@@ -14,6 +16,15 @@ from tests.ace.tui.visual.renderer_env import (
 )
 
 pytestmark = pytest.mark.visual
+
+
+def test_visual_runtime_environment_is_pinned() -> None:
+    assert os.environ["COLORTERM"] == "truecolor"
+    assert os.environ["TERM"] == "xterm-256color"
+    assert "FORCE_COLOR" not in os.environ
+    assert "NO_COLOR" not in os.environ
+    assert os.environ["TZ"] == "UTC"
+    assert time.timezone == 0
 
 
 def _manifest(font: Path) -> RendererEnvironmentManifest:
