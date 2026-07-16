@@ -20,7 +20,13 @@ from sase.plan_search.model import PlanSearchMatch
 from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
 from .panes import ArtifactsPaneLifecycle
-from .plans_data import PlanProposal, PlansSnapshot, load_plans_snapshot
+from .plans_data import (
+    PlanProposal,
+    PlansSnapshot,
+    ProjectArchive,
+    ProjectIssue,
+    load_plans_snapshot,
+)
 from .types import ARTIFACTS_ACCENTS
 
 if TYPE_CHECKING:
@@ -36,6 +42,7 @@ class PlanRow:
 
     kind: PlanRowKind
     row_id: str
+    project: str
     proposal: PlanProposal | None = None
     issue: Issue | None = None
     archive: PlanSearchMatch | None = None
@@ -54,7 +61,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._registry = load_keymap_registry({})
         self._snapshot: PlansSnapshot | None = None
         self._rows: dict[str, PlanRow] = {}
-        self._expanded_epics: set[str] = set()
+        self._expanded_epics: set[tuple[str, str]] = set()
         self._loading = False
         self._reload_pending = False
         self._force_pending = False
@@ -93,9 +100,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
     def on_activate(self) -> None:
         self.focus_list()
-        if self.project_scope is not None and (
-            self._snapshot is None or self._snapshot.project != self.project_scope
-        ):
+        if self._snapshot is None or self._snapshot.project != self.project_scope:
             self._request_load(force=False)
 
     def on_deactivate(self) -> None:
@@ -123,12 +128,10 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         if not changed:
             return
         self._load_error = None
-        if project is None:
-            self._snapshot = None
-            self._refresh_options()
-            return
         if self.artifacts_active:
             self._request_load(force=False)
+        else:
+            self._refresh_options()
 
     @property
     def snapshot(self) -> PlansSnapshot | None:
@@ -166,15 +169,22 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         epic_id = row.issue.id if row.kind == "epic" else row.issue.parent_id
         if epic_id is None:
             return
+        epic_key = (row.project, epic_id)
         if expanded:
-            if epic_id in self._expanded_epics:
+            if epic_key in self._expanded_epics:
                 return
-            self._expanded_epics.add(epic_id)
+            self._expanded_epics.add(epic_key)
         else:
-            if epic_id not in self._expanded_epics:
+            if epic_key not in self._expanded_epics:
                 return
-            self._expanded_epics.discard(epic_id)
-        self._refresh_options(preferred_id=f"epic:{epic_id}")
+            self._expanded_epics.discard(epic_key)
+        snapshot = self._snapshot
+        preferred_id = (
+            None
+            if snapshot is None
+            else _row_option_id(snapshot, "epic", row.project, epic_id)
+        )
+        self._refresh_options(preferred_id=preferred_id)
 
     def selected_preview(self) -> PreviewPayload | None:
         row = self.selected_row()
@@ -201,7 +211,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             )
         if row.issue is not None:
             return PreviewPayload(
-                content=self._bead_markdown(row.issue),
+                content=self._bead_markdown(row.issue, row.project),
                 lexer="markdown",
                 title=f"{row.issue.id} · {row.issue.title}",
                 kind_label="bead",
@@ -212,9 +222,6 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
     def _request_load(self, *, force: bool) -> None:
         project = self.project_scope
-        if project is None:
-            self._refresh_options()
-            return
         if self._loading:
             self._reload_pending = True
             self._force_pending = self._force_pending or force
@@ -255,7 +262,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             ):
                 preferred = self._selected_option_id()
                 self._snapshot = result
-                self._load_error = result.error
+                self._load_error = None
                 self._refresh_options(preferred_id=preferred)
         elif event.state == WorkerState.ERROR:
             self._loading = False
@@ -295,9 +302,6 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         options: list[Option] = []
         rows: dict[str, PlanRow] = {}
         snapshot = self._snapshot
-        if self.project_scope is None:
-            options.append(Option("Pick a project to browse plans.", disabled=True))
-            return options, rows
         if snapshot is None or snapshot.project != self.project_scope:
             label = "Loading plans…" if self._loading else "Plans have not loaded yet."
             options.append(Option(label, disabled=True))
@@ -305,10 +309,16 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
         options.append(_section_option("Proposals", len(snapshot.proposals)))
         for proposal in snapshot.proposals:
-            option_id = f"proposal:{proposal.notification.id}"
+            option_id = _row_option_id(
+                snapshot,
+                "proposal",
+                proposal.project,
+                proposal.notification.id,
+            )
             rows[option_id] = PlanRow(
                 "proposal",
                 option_id,
+                proposal.project,
                 proposal=proposal,
             )
             options.append(Option(_proposal_text(proposal), id=option_id))
@@ -318,35 +328,48 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             )
 
         options.append(_section_option("Epics", len(snapshot.epics)))
-        for epic in snapshot.epics:
-            option_id = f"epic:{epic.id}"
-            rows[option_id] = PlanRow("epic", option_id, issue=epic)
-            phases = snapshot.phases_by_epic.get(epic.id, ())
+        epic_entries: tuple[ProjectIssue, ...] = snapshot.epics
+        for project_epic in epic_entries:
+            project = project_epic.project
+            epic = project_epic.issue
+            epic_key = (project, epic.id)
+            option_id = _row_option_id(snapshot, "epic", project, epic.id)
+            rows[option_id] = PlanRow("epic", option_id, project, issue=epic)
+            phases = snapshot.phases_by_epic.get(epic_key, ())
             options.append(
                 Option(
                     _epic_text(
                         epic,
-                        phases,
-                        expanded=epic.id in self._expanded_epics,
+                        tuple(item.issue for item in phases),
+                        expanded=epic_key in self._expanded_epics,
+                        project=project,
                         ready_ids=snapshot.ready_ids,
                         blocked_ids=snapshot.blocked_ids,
                     ),
                     id=option_id,
                 )
             )
-            if epic.id not in self._expanded_epics:
+            if epic_key not in self._expanded_epics:
                 continue
-            for phase in phases:
-                phase_option_id = f"phase:{phase.id}"
+            for project_phase in phases:
+                phase = project_phase.issue
+                phase_option_id = _row_option_id(
+                    snapshot,
+                    "phase",
+                    project,
+                    phase.id,
+                )
                 rows[phase_option_id] = PlanRow(
                     "phase",
                     phase_option_id,
+                    project,
                     issue=phase,
                 )
                 options.append(
                     Option(
                         _phase_text(
                             phase,
+                            project=project,
                             ready_ids=snapshot.ready_ids,
                             blocked_ids=snapshot.blocked_ids,
                         ),
@@ -357,10 +380,18 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             options.append(Option(Text("  No epic beads", style="dim"), disabled=True))
 
         options.append(_section_option("Plan archive", len(snapshot.archive)))
-        for match in snapshot.archive:
+        archive_entries: tuple[ProjectArchive, ...] = snapshot.archive
+        for project_archive in archive_entries:
+            project = project_archive.project
+            match = project_archive.match
             plan = match.plan
-            option_id = f"archive:{plan.path}"
-            rows[option_id] = PlanRow("archive", option_id, archive=match)
+            option_id = _row_option_id(snapshot, "archive", project, plan.path)
+            rows[option_id] = PlanRow(
+                "archive",
+                option_id,
+                project,
+                archive=match,
+            )
             options.append(Option(_archive_text(match), id=option_id))
         if not snapshot.archive:
             options.append(
@@ -393,13 +424,13 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         elif row.proposal is not None:
             detail.update(_proposal_markdown(row.proposal))
         elif row.issue is not None:
-            detail.update(self._bead_markdown(row.issue))
+            detail.update(self._bead_markdown(row.issue, row.project))
         elif row.archive is not None:
             detail.update(_archive_markdown(row.archive))
 
-    def _bead_markdown(self, issue: Issue) -> str:
+    def _bead_markdown(self, issue: Issue, project: str) -> str:
         snapshot = self._snapshot
-        state = _readiness_label(issue, snapshot)
+        state = _readiness_label(issue, snapshot, project=project)
         lines = [
             f"# {issue.id} · {issue.title}",
             "",
@@ -423,7 +454,10 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         if issue.dependencies:
             lines.extend(["", "## Dependencies", ""])
             for dependency in issue.dependencies:
-                dependency_state = self._dependency_state(dependency.depends_on_id)
+                dependency_state = self._dependency_state(
+                    dependency.depends_on_id,
+                    project,
+                )
                 lines.append(f"- `{dependency.depends_on_id}` — {dependency_state}")
         if issue.notes:
             lines.extend(["", "## Notes", "", issue.notes])
@@ -442,17 +476,19 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             lines.append(f"- Close reason: {issue.close_reason}")
         return "\n".join(lines)
 
-    def _dependency_state(self, issue_id: str) -> str:
+    def _dependency_state(self, issue_id: str, project: str) -> str:
         snapshot = self._snapshot
         if snapshot is None:
             return "unknown"
-        for phases in snapshot.phases_by_epic.values():
+        for (owner, _epic_id), phases in snapshot.phases_by_epic.items():
+            if owner != project:
+                continue
             for phase in phases:
-                if phase.id == issue_id:
-                    return phase.status.value
+                if phase.issue.id == issue_id:
+                    return phase.issue.status.value
         for epic in snapshot.epics:
-            if epic.id == issue_id:
-                return epic.status.value
+            if epic.project == project and epic.issue.id == issue_id:
+                return epic.issue.status.value
         return "unknown"
 
     def _scope_text(self) -> Text:
@@ -462,7 +498,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}",
         )
         text.append("  Project scope  ", style="dim")
-        label = self._project_display_name or self.project_scope or "Pick a project"
+        label = self._project_display_name or self.project_scope or "All projects"
         text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
         text.append("  ·  ", style="dim")
         text.append(
@@ -478,12 +514,15 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         elif self._load_error:
             text.append(self._load_error, style="bold #FF5F5F")
         elif self._snapshot is None:
-            text.append("Select a project", style="dim")
+            text.append("Plans have not loaded yet", style="dim")
         else:
             snapshot = self._snapshot
             phase_count = sum(
                 len(phases) for phases in snapshot.phases_by_epic.values()
             )
+            if snapshot.project is None:
+                text.append(f"{len(snapshot.projects)} projects", style="bold white")
+                text.append("  ·  ", style="dim")
             text.append(f"{len(snapshot.proposals)} proposals", style="#FFD700")
             text.append("  ·  ", style="dim")
             text.append(
@@ -492,7 +531,17 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             text.append("  ·  ", style="dim")
             text.append(f"{phase_count} phases", style="#87D7FF")
             text.append("  ·  ", style="dim")
-            text.append(f"{len(snapshot.archive)} archived", style="#00D7AF")
+            archive_label = f"{len(snapshot.archive)} archived"
+            if snapshot.archive_truncated:
+                archive_label += " (newest shown)"
+            text.append(archive_label, style="#00D7AF")
+            if snapshot.errors:
+                text.append("  ·  ", style="dim")
+                count = len(snapshot.errors)
+                text.append(
+                    f"{count} project load {'error' if count == 1 else 'errors'}",
+                    style="bold #FF5F5F",
+                )
         return text
 
     def _hints_text(self) -> Text:
@@ -522,13 +571,26 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         return text
 
     def _empty_detail(self) -> str:
-        if self.project_scope is None:
-            return "# Plans\n\nPick a project to browse its plan pipeline."
         if self._loading:
             return "# Plans\n\nLoading proposals, beads, and committed plans…"
         if self._load_error:
             return f"# Plans unavailable\n\n{self._load_error}"
-        return "# Plans\n\nSelect a proposal, bead, or archived plan."
+        message = (
+            "Select a proposal, bead, or archived plan from all enabled projects."
+            if self.project_scope is None
+            else "Select a proposal, bead, or archived plan."
+        )
+        lines = [
+            "# Plans",
+            "",
+            message,
+        ]
+        snapshot = self._snapshot
+        if snapshot is not None and snapshot.errors:
+            lines.extend(["", "## Load warnings", ""])
+            for project, error in sorted(snapshot.errors.items()):
+                lines.append(f"- **{project}:** {error}")
+        return "\n".join(lines)
 
     def _option_list(self) -> OptionList | None:
         try:
@@ -555,9 +617,22 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             if option_list.get_option_at_index(index).id == option_id:
                 return index
         if option_id.startswith("phase:"):
-            issue = self._rows.get(option_id)
-            if issue is not None and issue.issue is not None and issue.issue.parent_id:
-                return self._option_index(f"epic:{issue.issue.parent_id}")
+            row = self._rows.get(option_id)
+            snapshot = self._snapshot
+            if (
+                row is not None
+                and row.issue is not None
+                and row.issue.parent_id
+                and snapshot is not None
+            ):
+                return self._option_index(
+                    _row_option_id(
+                        snapshot,
+                        "epic",
+                        row.project,
+                        row.issue.parent_id,
+                    )
+                )
         return None
 
     def _first_selectable_index(self) -> int | None:
@@ -591,6 +666,17 @@ def _section_option(label: str, count: int) -> Option:
     )
 
 
+def _row_option_id(
+    snapshot: PlansSnapshot,
+    kind: PlanRowKind,
+    project: str,
+    identity: str,
+) -> str:
+    if snapshot.project is None:
+        return f"{kind}:{project}:{identity}"
+    return f"{kind}:{identity}"
+
+
 def _proposal_text(proposal: PlanProposal) -> Text:
     text = Text()
     text.append("◆ ", style="bold #FFD700")
@@ -607,8 +693,9 @@ def _epic_text(
     phases: tuple[Issue, ...],
     *,
     expanded: bool,
-    ready_ids: frozenset[str],
-    blocked_ids: frozenset[str],
+    project: str,
+    ready_ids: frozenset[tuple[str, str]],
+    blocked_ids: frozenset[tuple[str, str]],
 ) -> Text:
     text = Text()
     text.append(
@@ -620,9 +707,10 @@ def _epic_text(
     text.append(epic.title, style="bold white")
     closed = sum(phase.status == Status.CLOSED for phase in phases)
     text.append(f"  {closed}/{len(phases)} phases", style="#87D7FF")
-    if epic.id in blocked_ids:
+    issue_key = (project, epic.id)
+    if issue_key in blocked_ids:
         text.append("  BLOCKED", style="bold #FF5F5F")
-    elif epic.id in ready_ids:
+    elif issue_key in ready_ids:
         text.append("  READY", style="bold #5FD787")
     elif epic.is_ready_to_work:
         text.append("  LAUNCHED", style="bold #00D7AF")
@@ -636,16 +724,18 @@ def _epic_text(
 def _phase_text(
     phase: Issue,
     *,
-    ready_ids: frozenset[str],
-    blocked_ids: frozenset[str],
+    project: str,
+    ready_ids: frozenset[tuple[str, str]],
+    blocked_ids: frozenset[tuple[str, str]],
 ) -> Text:
     text = Text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
     text.append(_status_glyph(phase.status), style=_status_style(phase.status))
     text.append(f" {phase.id} ", style="bold #FFD700")
     text.append(phase.title, style="white")
-    if phase.id in blocked_ids:
+    issue_key = (project, phase.id)
+    if issue_key in blocked_ids:
         text.append("  blocked", style="bold #FF5F5F")
-    elif phase.id in ready_ids:
+    elif issue_key in ready_ids:
         text.append("  ready", style="bold #5FD787")
     elif phase.status == Status.IN_PROGRESS:
         text.append("  active", style="bold #FFD700")
@@ -701,16 +791,22 @@ def _archive_markdown(match: PlanSearchMatch) -> str:
     return "\n".join(lines)
 
 
-def _readiness_label(issue: Issue, snapshot: PlansSnapshot | None) -> str:
+def _readiness_label(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> str:
     if issue.status == Status.CLOSED:
         return "closed"
     if issue.status == Status.IN_PROGRESS:
         return "in progress"
     if snapshot is None:
         return "unknown"
-    if issue.id in snapshot.blocked_ids:
+    issue_key = (project, issue.id)
+    if issue_key in snapshot.blocked_ids:
         return "**blocked**"
-    if issue.id in snapshot.ready_ids:
+    if issue_key in snapshot.ready_ids:
         return "**ready**"
     return "waiting"
 

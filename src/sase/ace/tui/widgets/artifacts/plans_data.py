@@ -15,6 +15,7 @@ from sase.plan_search.model import PlanSearchMatch
 class PlanProposal:
     """One pending plan approval with its existing notification context."""
 
+    project: str
     notification: Notification
     title: str
     tier: str
@@ -27,145 +28,249 @@ class PlanProposal:
 
 
 @dataclass(frozen=True)
+class ProjectIssue:
+    """A bead issue together with the project that owns its store."""
+
+    project: str
+    issue: Issue
+
+
+@dataclass(frozen=True)
+class ProjectArchive:
+    """An archived plan together with the project that owns its SDD root."""
+
+    project: str
+    match: PlanSearchMatch
+
+
+@dataclass(frozen=True)
 class PlansSnapshot:
     """Immutable result applied to the Plans pane on the UI thread."""
 
-    project: str
-    beads_dir: str | None
-    plans_root: str | None
-    workspace_dir: str | None
+    project: str | None
+    projects: tuple[str, ...]
+    display_names: dict[str, str]
+    beads_dirs: dict[str, str | None]
+    plans_roots: dict[str, str | None]
+    workspace_dirs: dict[str, str | None]
     proposals: tuple[PlanProposal, ...]
-    epics: tuple[Issue, ...]
-    phases_by_epic: dict[str, tuple[Issue, ...]]
-    ready_ids: frozenset[str]
-    blocked_ids: frozenset[str]
-    archive: tuple[PlanSearchMatch, ...]
+    epics: tuple[ProjectIssue, ...]
+    phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]]
+    ready_ids: frozenset[tuple[str, str]]
+    blocked_ids: frozenset[tuple[str, str]]
+    archive: tuple[ProjectArchive, ...]
     source_key: tuple[object, ...]
-    error: str | None = None
+    errors: dict[str, str]
+    archive_truncated: bool = False
+
+
+@dataclass(frozen=True)
+class _PlansProject:
+    """Resolved metadata for one project included in a snapshot."""
+
+    project: str
+    display_name: str
+    workspace_dir: str | None
+
+
+_ARCHIVE_PER_PROJECT_LIMIT = 50
+_ARCHIVE_MERGED_LIMIT = 100
 
 
 def load_plans_snapshot(
-    project: str,
+    project: str | None,
     *,
     previous: PlansSnapshot | None = None,
     force: bool = False,
 ) -> PlansSnapshot:
-    """Collect one project's plan pipeline through existing core facades.
+    """Collect one or all enabled projects through existing core facades.
 
     This function performs disk access and must run on a worker thread.  Its
     source key covers bead events, committed plan files, and pending proposal
     identities so normal re-activation can reuse the mounted pane's cache.
     """
-    proposals = _load_proposals(project)
-    beads_dir = _project_beads_dir(project)
-    if beads_dir is None:
-        return PlansSnapshot(
-            project=project,
-            beads_dir=None,
-            plans_root=None,
-            workspace_dir=_project_workspace_dir(project),
-            proposals=proposals,
-            epics=(),
-            phases_by_epic={},
-            ready_ids=frozenset(),
-            blocked_ids=frozenset(),
-            archive=(),
-            source_key=("missing", project, _proposal_key(proposals)),
-            error="No bead store is available for this project.",
+    resolved = _resolve_projects(project)
+    project_names = tuple(item.project for item in resolved)
+    enabled_projects = frozenset(project_names)
+    proposals = _load_proposals(project, enabled_projects)
+    beads_by_project: dict[str, Path | None] = {}
+    plans_by_project: dict[str, Path | None] = {}
+    store_keys: list[tuple[str, object]] = []
+    for item in resolved:
+        beads_dir = _project_beads_dir(item.project)
+        plans_root = None if beads_dir is None else beads_dir.parent
+        beads_by_project[item.project] = beads_dir
+        plans_by_project[item.project] = plans_root
+        store_keys.append(
+            (
+                item.project,
+                "missing"
+                if beads_dir is None or plans_root is None
+                else _store_mtime_key(beads_dir, plans_root),
+            )
         )
 
-    plans_root = beads_dir.parent
     source_key = (
         project,
+        tuple(
+            (item.project, item.display_name, item.workspace_dir) for item in resolved
+        ),
         _proposal_key(proposals),
-        _store_mtime_key(beads_dir, plans_root),
+        tuple(store_keys),
     )
     if not force and previous is not None and previous.source_key == source_key:
         return previous
 
-    try:
-        with BeadProject(
-            beads_dir.parent, beads_dirname=beads_dir.name
-        ) as bead_project:
-            issues = bead_project.list_issues()
-            ready_ids = frozenset(issue.id for issue in bead_project.ready())
-            blocked_ids = frozenset(issue.id for issue in bead_project.blocked())
-    except Exception as exc:
-        return PlansSnapshot(
-            project=project,
-            beads_dir=str(beads_dir),
-            plans_root=str(plans_root),
-            workspace_dir=_project_workspace_dir(project),
-            proposals=proposals,
-            epics=(),
-            phases_by_epic={},
-            ready_ids=frozenset(),
-            blocked_ids=frozenset(),
-            archive=(),
-            source_key=source_key,
-            error=f"Unable to read beads: {exc}",
-        )
-
     from sase.bead.model import BeadTier, IssueType, Status
 
-    epics = tuple(
-        sorted(
-            (
-                issue
-                for issue in issues
-                if issue.issue_type == IssueType.PLAN and issue.tier == BeadTier.EPIC
-            ),
-            key=lambda issue: (
-                {
-                    Status.IN_PROGRESS: 0,
-                    Status.OPEN: 1,
-                    Status.CLOSED: 2,
-                }[issue.status],
-                issue.id,
-            ),
+    epics: list[ProjectIssue] = []
+    phases_by_epic: dict[tuple[str, str], tuple[ProjectIssue, ...]] = {}
+    ready_ids: set[tuple[str, str]] = set()
+    blocked_ids: set[tuple[str, str]] = set()
+    archive: list[ProjectArchive] = []
+    errors: dict[str, str] = {}
+
+    for item in resolved:
+        project_name = item.project
+        beads_dir = beads_by_project[project_name]
+        plans_root = plans_by_project[project_name]
+        if beads_dir is None or plans_root is None:
+            if project is not None:
+                errors[project_name] = "No bead store is available for this project."
+            continue
+
+        try:
+            issues, project_ready_ids, project_blocked_ids = _load_project_beads(
+                beads_dir
+            )
+        except Exception as exc:
+            _add_project_error(errors, project_name, f"Unable to read beads: {exc}")
+        else:
+            project_epics = sorted(
+                (
+                    issue
+                    for issue in issues
+                    if issue.issue_type == IssueType.PLAN
+                    and issue.tier == BeadTier.EPIC
+                ),
+                key=lambda issue: (
+                    {
+                        Status.IN_PROGRESS: 0,
+                        Status.OPEN: 1,
+                        Status.CLOSED: 2,
+                    }[issue.status],
+                    issue.id,
+                ),
+            )
+            epics.extend(ProjectIssue(project_name, issue) for issue in project_epics)
+            for epic in project_epics:
+                phases_by_epic[(project_name, epic.id)] = tuple(
+                    ProjectIssue(project_name, issue)
+                    for issue in sorted(
+                        (issue for issue in issues if issue.parent_id == epic.id),
+                        key=lambda issue: _hierarchical_id_key(issue.id),
+                    )
+                )
+            ready_ids.update((project_name, issue_id) for issue_id in project_ready_ids)
+            blocked_ids.update(
+                (project_name, issue_id) for issue_id in project_blocked_ids
+            )
+
+        try:
+            archive.extend(
+                ProjectArchive(project_name, match)
+                for match in _load_project_archive(plans_root)
+            )
+        except Exception as exc:
+            _add_project_error(
+                errors,
+                project_name,
+                f"Unable to read plan archive: {exc}",
+            )
+
+    epics.sort(
+        key=lambda item: (
+            {
+                Status.IN_PROGRESS: 0,
+                Status.OPEN: 1,
+                Status.CLOSED: 2,
+            }[item.issue.status],
+            item.issue.id,
+            item.project,
         )
     )
-    epic_ids = {issue.id for issue in epics}
-    phases_by_epic: dict[str, tuple[Issue, ...]] = {}
-    for epic_id in epic_ids:
-        phases_by_epic[epic_id] = tuple(
-            sorted(
-                (issue for issue in issues if issue.parent_id == epic_id),
-                key=lambda issue: _hierarchical_id_key(issue.id),
-            )
-        )
-
-    archive: tuple[PlanSearchMatch, ...]
-    try:
-        from sase.plan_search.facade import SOURCE_REPO, search
-
-        archive = tuple(
-            search(
-                None,
-                kinds=("tale", "epic"),
-                source=SOURCE_REPO,
-                sort="recent",
-                limit=50,
-                repo_root=plans_root,
-            )
-        )
-    except Exception:
-        # Beads remain useful even if one malformed archived plan prevents the
-        # search facade from producing an archive result.
-        archive = ()
+    archive.sort(
+        key=lambda item: (
+            item.match.plan.created_at,
+            item.match.plan.path,
+            item.project,
+        ),
+        reverse=True,
+    )
+    archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
+    if archive_truncated:
+        del archive[_ARCHIVE_MERGED_LIMIT:]
 
     return PlansSnapshot(
         project=project,
-        beads_dir=str(beads_dir),
-        plans_root=str(plans_root),
-        workspace_dir=_project_workspace_dir(project),
+        projects=project_names,
+        display_names={item.project: item.display_name for item in resolved},
+        beads_dirs={
+            name: None if path is None else str(path)
+            for name, path in beads_by_project.items()
+        },
+        plans_roots={
+            name: None if path is None else str(path)
+            for name, path in plans_by_project.items()
+        },
+        workspace_dirs={item.project: item.workspace_dir for item in resolved},
         proposals=proposals,
-        epics=epics,
+        epics=tuple(epics),
         phases_by_epic=phases_by_epic,
-        ready_ids=ready_ids,
-        blocked_ids=blocked_ids,
-        archive=archive,
+        ready_ids=frozenset(ready_ids),
+        blocked_ids=frozenset(blocked_ids),
+        archive=tuple(archive),
         source_key=source_key,
+        errors=errors,
+        archive_truncated=archive_truncated,
+    )
+
+
+def _resolve_projects(project: str | None) -> tuple[_PlansProject, ...]:
+    from sase.core.paths import sase_projects_dir
+    from sase.core.project_lifecycle_facade import list_project_records
+    from sase.core.project_lifecycle_wire import effective_project_name
+
+    records = list_project_records(
+        sase_projects_dir(),
+        "all",
+        include_home=False,
+        projects_only=True,
+    )
+    candidates = tuple(
+        record for record in records if record.is_project and not record.system_managed
+    )
+    if project is None:
+        selected = tuple(record for record in candidates if record.state == "enabled")
+    else:
+        selected = tuple(
+            record for record in candidates if record.project_name == project
+        )
+        if not selected:
+            return (_PlansProject(project, project, None),)
+    return tuple(
+        _PlansProject(
+            record.project_name,
+            effective_project_name(record),
+            record.workspace_dir,
+        )
+        for record in sorted(
+            selected,
+            key=lambda record: (
+                effective_project_name(record).casefold(),
+                record.project_name,
+            ),
+        )
     )
 
 
@@ -178,23 +283,10 @@ def _project_beads_dir(project: str) -> Path | None:
     return directories[0]
 
 
-def _project_workspace_dir(project: str) -> str | None:
-    from sase.core.paths import sase_projects_dir
-    from sase.core.project_lifecycle_facade import list_project_records
-
-    records = list_project_records(
-        sase_projects_dir(),
-        "all",
-        include_home=False,
-        projects_only=True,
-    )
-    for record in records:
-        if record.project_name == project:
-            return record.workspace_dir
-    return None
-
-
-def _load_proposals(project: str) -> tuple[PlanProposal, ...]:
+def _load_proposals(
+    project: str | None,
+    enabled_projects: frozenset[str],
+) -> tuple[PlanProposal, ...]:
     from sase.main.plan_inventory import build_plan_inventory
     from sase.notifications.store import load_notifications
 
@@ -205,7 +297,9 @@ def _load_proposals(project: str) -> tuple[PlanProposal, ...]:
     }
     proposals: list[PlanProposal] = []
     for row in inventory.proposed:
-        if row.project != project:
+        if project is None and row.project not in enabled_projects:
+            continue
+        if project is not None and row.project != project:
             continue
         notification = notifications.get(row.notification_id)
         if notification is None:
@@ -214,6 +308,7 @@ def _load_proposals(project: str) -> tuple[PlanProposal, ...]:
         content = _read_text(Path(plan_path))
         proposals.append(
             PlanProposal(
+                project=row.project,
                 notification=notification,
                 title=_plan_title(Path(plan_path), content),
                 tier=row.tier,
@@ -226,6 +321,40 @@ def _load_proposals(project: str) -> tuple[PlanProposal, ...]:
             )
         )
     return tuple(proposals)
+
+
+def _load_project_beads(
+    beads_dir: Path,
+) -> tuple[list[Issue], frozenset[str], frozenset[str]]:
+    with BeadProject(beads_dir.parent, beads_dirname=beads_dir.name) as bead_project:
+        issues = bead_project.list_issues()
+        ready_ids = frozenset(issue.id for issue in bead_project.ready())
+        blocked_ids = frozenset(issue.id for issue in bead_project.blocked())
+    return issues, ready_ids, blocked_ids
+
+
+def _load_project_archive(plans_root: Path) -> tuple[PlanSearchMatch, ...]:
+    from sase.plan_search.facade import SOURCE_REPO, search
+
+    return tuple(
+        search(
+            None,
+            kinds=("tale", "epic"),
+            source=SOURCE_REPO,
+            sort="recent",
+            limit=_ARCHIVE_PER_PROJECT_LIMIT,
+            repo_root=plans_root,
+        )
+    )
+
+
+def _add_project_error(
+    errors: dict[str, str],
+    project: str,
+    message: str,
+) -> None:
+    previous = errors.get(project)
+    errors[project] = message if previous is None else f"{previous}; {message}"
 
 
 def _plan_title(path: Path, content: str) -> str:
@@ -250,9 +379,17 @@ def _read_text(path: Path) -> str:
         return f"# Unable to read plan\n\n{exc}"
 
 
-def _proposal_key(proposals: tuple[PlanProposal, ...]) -> tuple[tuple[str, str], ...]:
+def _proposal_key(
+    proposals: tuple[PlanProposal, ...],
+) -> tuple[tuple[str, str, str, str], ...]:
     return tuple(
-        (proposal.notification.id, proposal.timestamp) for proposal in proposals
+        (
+            proposal.project,
+            proposal.notification.id,
+            proposal.timestamp,
+            proposal.plan_path,
+        )
+        for proposal in proposals
     )
 
 
@@ -293,4 +430,10 @@ def _hierarchical_id_key(issue_id: str) -> tuple[object, ...]:
     return tuple(parts)
 
 
-__all__ = ["PlanProposal", "PlansSnapshot", "load_plans_snapshot"]
+__all__ = [
+    "PlanProposal",
+    "PlansSnapshot",
+    "ProjectArchive",
+    "ProjectIssue",
+    "load_plans_snapshot",
+]

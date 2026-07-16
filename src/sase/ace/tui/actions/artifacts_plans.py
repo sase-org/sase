@@ -113,6 +113,7 @@ class ArtifactsPlansActionsMixin:
         }[issue.status]
         self._submit_plans_bead_update(
             pane,
+            row.project,
             issue,
             fields={"status": next_status.value},
             task_type="bead status",
@@ -139,6 +140,7 @@ class ArtifactsPlansActionsMixin:
                 return
             self._submit_plans_bead_update(
                 pane,
+                row.project,
                 issue,
                 fields=fields,
                 task_type="edit bead",
@@ -161,12 +163,13 @@ class ArtifactsPlansActionsMixin:
         if snapshot is None or issue.status == Status.CLOSED:
             self.notify("Closed epics cannot be launched", severity="warning")  # type: ignore[attr-defined]
             return
-        if issue.id in snapshot.blocked_ids:
+        issue_key = (row.project, issue.id)
+        if issue_key in snapshot.blocked_ids:
             self.notify(  # type: ignore[attr-defined]
                 "This epic is blocked by an unresolved dependency", severity="warning"
             )
             return
-        if not snapshot.phases_by_epic.get(issue.id):
+        if not snapshot.phases_by_epic.get(issue_key):
             self.notify("This epic has no phase beads to launch", severity="warning")  # type: ignore[attr-defined]
             return
 
@@ -175,7 +178,7 @@ class ArtifactsPlansActionsMixin:
         def on_confirm(confirmed: bool) -> None:
             if not confirmed:
                 return
-            self._submit_plans_epic_launch(pane, issue)
+            self._submit_plans_epic_launch(pane, row.project, issue)
 
         self.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(
@@ -196,9 +199,16 @@ class ArtifactsPlansActionsMixin:
         if issue is None or not issue.changespec_bug_id:
             self.notify("The selected epic has no external bug", severity="warning")  # type: ignore[attr-defined]
             return
-        if snapshot is None or not snapshot.workspace_dir:
+        project = None if row is None else row.project
+        workspace_dir = (
+            None
+            if snapshot is None or project is None
+            else snapshot.workspace_dirs.get(project)
+        )
+        if project is None or not workspace_dir:
             self.notify(  # type: ignore[attr-defined]
-                "The scoped project's workspace is unavailable", severity="warning"
+                "The selected row's project workspace is unavailable",
+                severity="warning",
             )
             return
         bug_id = issue.changespec_bug_id.lstrip("#")
@@ -211,7 +221,7 @@ class ArtifactsPlansActionsMixin:
         from .task_actions import TrackedTaskResult
 
         def task() -> TrackedTaskResult[str]:
-            url = _resolve_issue_url(snapshot.workspace_dir or "", int(bug_id))
+            url = _resolve_issue_url(workspace_dir, int(bug_id))
             return TrackedTaskResult(
                 success=True,
                 message=f"Resolved bug #{bug_id}",
@@ -225,10 +235,10 @@ class ArtifactsPlansActionsMixin:
         self._submit_tracked_task(  # type: ignore[attr-defined]
             "open bug",
             issue.id,
-            snapshot.workspace_dir,
+            workspace_dir,
             task,
             display_name=f"Open bug #{bug_id}",
-            dedup_key=f"plans:bug:{snapshot.project}:{bug_id}",
+            dedup_key=f"plans:bug:{project}:{bug_id}",
             on_complete=on_complete,
             reload_on_complete=False,
         )
@@ -246,6 +256,7 @@ class ArtifactsPlansActionsMixin:
     def _submit_plans_bead_update(
         self,
         pane: ArtifactsPlansPane,
+        project: str,
         issue: Issue,
         *,
         fields: dict[str, str],
@@ -258,7 +269,7 @@ class ArtifactsPlansActionsMixin:
         from .task_actions import TrackedTaskResult
 
         def task() -> TrackedTaskResult[Issue]:
-            updated = _update_scoped_bead(snapshot.project, issue.id, fields)
+            updated = _update_scoped_bead(project, issue.id, fields)
             return TrackedTaskResult(
                 success=True,
                 message=message,
@@ -268,10 +279,10 @@ class ArtifactsPlansActionsMixin:
         self._submit_tracked_task(  # type: ignore[attr-defined]
             task_type,
             issue.id,
-            snapshot.workspace_dir or snapshot.project,
+            snapshot.workspace_dirs.get(project) or project,
             task,
             display_name=f"{task_type.title()} · {issue.id}",
-            dedup_key=f"plans:bead:{snapshot.project}:{issue.id}",
+            dedup_key=f"plans:bead:{project}:{issue.id}",
             duplicate_message=f"A bead task is already running for {issue.id}",
             on_complete=lambda completion: self._refresh_plans_after_task(
                 completion.success
@@ -282,6 +293,7 @@ class ArtifactsPlansActionsMixin:
     def _submit_plans_epic_launch(
         self,
         pane: ArtifactsPlansPane,
+        project: str,
         issue: Issue,
     ) -> None:
         snapshot = pane.snapshot
@@ -290,7 +302,7 @@ class ArtifactsPlansActionsMixin:
         from .task_actions import TrackedTaskResult
 
         def task() -> TrackedTaskResult[bool]:
-            launched = _launch_scoped_epic(snapshot.project, issue.id)
+            launched = _launch_scoped_epic(project, issue.id)
             return TrackedTaskResult(
                 success=True,
                 message=(
@@ -304,10 +316,10 @@ class ArtifactsPlansActionsMixin:
         self._submit_tracked_task(  # type: ignore[attr-defined]
             "launch epic",
             issue.id,
-            snapshot.workspace_dir or snapshot.project,
+            snapshot.workspace_dirs.get(project) or project,
             task,
             display_name=f"Launch epic · {issue.id}",
-            dedup_key=f"plans:launch:{snapshot.project}:{issue.id}",
+            dedup_key=f"plans:launch:{project}:{issue.id}",
             duplicate_message=f"Epic work is already launching for {issue.id}",
             on_complete=lambda completion: self._refresh_plans_after_task(
                 completion.success
@@ -402,7 +414,14 @@ def _epic_for_row(
     parent_id = row.issue.parent_id
     if parent_id is None or snapshot is None:
         return None
-    return next((epic for epic in snapshot.epics if epic.id == parent_id), None)
+    return next(
+        (
+            epic.issue
+            for epic in snapshot.epics
+            if epic.project == row.project and epic.issue.id == parent_id
+        ),
+        None,
+    )
 
 
 __all__ = [
