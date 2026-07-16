@@ -1,9 +1,10 @@
 """Artifacts tab widgets."""
 
+from .bugs import ArtifactsBugsPane, BugIssueList, BugLinkList
 from .commits import CommitsPane, CommitsTimeline
+from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
     ArtifactPlaceholderPane,
-    ArtifactsPaneLifecycle,
     ArtifactsPrsPane,
 )
 from .plans_pane import ArtifactsPlansPane, PlanRow
@@ -21,6 +22,7 @@ __all__ = [
     "ARTIFACTS_PANE_IDS",
     "ARTIFACTS_SUBTAB_ORDER",
     "ArtifactPlaceholderPane",
+    "ArtifactsBugsPane",
     "ArtifactsPaneLifecycle",
     "ArtifactsPlansPane",
     "ArtifactsPrsPane",
@@ -28,6 +30,8 @@ __all__ = [
     "ArtifactsView",
     "CommitsPane",
     "CommitsTimeline",
+    "BugIssueList",
+    "BugLinkList",
     "DEFAULT_ARTIFACTS_SUBTAB",
     "PlanRow",
 ]

@@ -10,7 +10,7 @@ from sase.vcs_provider import IssueWire
 from sase.vcs_provider._hookspec import VCSHookSpec, hookimpl
 from sase.vcs_provider._plugin_manager import VCSPluginManager
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
-from sase.vcs_provider.testing import InMemoryIssuePlugin
+from sase.vcs_provider.testing import FakeIssueProvider
 
 
 def _manager(*plugins: object) -> VCSPluginManager:
@@ -46,7 +46,7 @@ def test_issue_wire_is_frozen_and_uses_immutable_collections() -> None:
 
 
 def test_complete_fake_provider_reports_capability() -> None:
-    provider = _manager(InMemoryIssuePlugin())
+    provider = _manager(FakeIssueProvider())
 
     assert provider.supports_issues() is True
 
@@ -68,9 +68,7 @@ def test_partial_issue_plugin_does_not_report_capability() -> None:
 
 
 def test_fake_provider_lists_filters_and_limits_issues() -> None:
-    provider = _manager(
-        InMemoryIssuePlugin([_issue(1), _issue(2, "closed"), _issue(3)])
-    )
+    provider = _manager(FakeIssueProvider([_issue(1), _issue(2, "closed"), _issue(3)]))
 
     assert [issue.number for issue in provider.list_issues("/repo")] == [3, 1]
     assert [
@@ -85,7 +83,7 @@ def test_fake_provider_lists_filters_and_limits_issues() -> None:
 
 def test_fake_provider_crud_round_trip() -> None:
     timestamps = iter(["2026-07-15T10:00:00Z", "2026-07-15T11:00:00Z"])
-    plugin = InMemoryIssuePlugin(clock=lambda: next(timestamps))
+    plugin = FakeIssueProvider(clock=lambda: next(timestamps))
     provider = _manager(plugin)
 
     created = provider.create_issue(
@@ -125,7 +123,7 @@ def test_fake_provider_crud_round_trip() -> None:
 
 
 def test_fake_provider_missing_issue_raises_key_error() -> None:
-    provider = _manager(InMemoryIssuePlugin())
+    provider = _manager(FakeIssueProvider())
 
     with pytest.raises(KeyError, match="#404"):
         provider.get_issue(404, "/repo")
@@ -146,7 +144,7 @@ def test_unimplemented_issue_operations_raise_not_implemented() -> None:
 def test_registry_capability_probe_uses_selected_provider(mock_get: MagicMock) -> None:
     from sase.vcs_provider._registry import supports_issues
 
-    provider = _manager(InMemoryIssuePlugin())
+    provider = _manager(FakeIssueProvider())
     mock_get.return_value = provider
 
     assert supports_issues("/repo") is True

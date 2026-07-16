@@ -115,6 +115,23 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+_BUG_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.next_bug",
+        "app.prev_bug",
+        "app.cycle_bug_filter",
+        "app.create_bug",
+        "app.edit_bug",
+        "app.toggle_bug_state",
+        "app.open_bug",
+        "app.copy_bug",
+        "app.start_agent_from_bug",
+        "app.focus_bug_links",
+        "app.activate_bug_link",
+        "app.refresh_bugs",
+    }
+)
+
 # Agent actions that require a focused agent (not a group banner).
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
@@ -152,6 +169,8 @@ def _get_base_status(status: str) -> str:
 
 
 def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
+    if spec.id in _BUG_COMMANDS:
+        return ctx.artifacts_subtab == "bugs"
     if ctx.artifacts_subtab != "prs":
         if spec.id in _PLANS_ARTIFACT_COMMANDS:
             return ctx.artifacts_subtab == "plans"

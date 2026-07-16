@@ -14,6 +14,7 @@ from ..widgets.artifacts import (
     ArtifactsSubTab,
     ArtifactsView,
 )
+from .artifact_bugs import BUG_ARTIFACT_ACTIONS
 from .artifacts_plans import ArtifactsPlansActionsMixin, PLANS_ARTIFACT_ACTIONS
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
 # navigation/scope controls.
 NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
     {
+        *BUG_ARTIFACT_ACTIONS,
         *PLANS_ARTIFACT_ACTIONS,
         "cycle_artifacts_subtab",
         "cycle_artifacts_subtab_reverse",

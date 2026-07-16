@@ -83,6 +83,18 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("plans_reject", "Reject Plan", False),
     ("plans_open_bug", "Open Bug", False),
     ("plans_refresh", "Refresh Plans", False),
+    ("next_bug", "Next Bug", False),
+    ("prev_bug", "Previous Bug", False),
+    ("cycle_bug_filter", "Bug State Filter", False),
+    ("create_bug", "Create Bug", False),
+    ("edit_bug", "Edit Bug", False),
+    ("toggle_bug_state", "Close / Reopen Bug", False),
+    ("open_bug", "Open Bug", False),
+    ("copy_bug", "Copy Bug", False),
+    ("start_agent_from_bug", "Run Agent (Bug)", False),
+    ("focus_bug_links", "Bug Links", False),
+    ("activate_bug_link", "Open Bug Link", True),
+    ("refresh_bugs", "Refresh Bugs", False),
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
@@ -293,6 +305,19 @@ class AppKeymaps:
     plans_reject: str
     plans_open_bug: str
     plans_refresh: str
+    # Bugs sub-tab
+    next_bug: str
+    prev_bug: str
+    cycle_bug_filter: str
+    create_bug: str
+    edit_bug: str
+    toggle_bug_state: str
+    open_bug: str
+    copy_bug: str
+    start_agent_from_bug: str
+    focus_bug_links: str
+    activate_bug_link: str
+    refresh_bugs: str
     # ChangeSpec actions
     quit: str
     change_status: str

@@ -5,9 +5,9 @@ from tests._keymaps_helpers import default_app_keymaps
 
 
 def test_build_app_bindings_count() -> None:
-    """build_app_bindings produces 99 configurable + 10 digit bindings."""
+    """build_app_bindings produces 111 configurable + 10 digit bindings."""
     bindings = build_app_bindings(default_app_keymaps())
-    assert len(bindings) == 109
+    assert len(bindings) == 121
 
 
 def test_file_trim_actions_are_not_configurable_bindings() -> None:
@@ -18,11 +18,12 @@ def test_file_trim_actions_are_not_configurable_bindings() -> None:
 
 
 def test_build_app_bindings_priority() -> None:
-    """next_tab and prev_tab have priority=True, others don't."""
+    """Global tab switching and Bugs link activation take key priority."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     assert by_action["next_tab"].priority is True
     assert by_action["prev_tab"].priority is True
+    assert by_action["activate_bug_link"].priority is True
     assert by_action["next_changespec"].priority is False
     assert by_action["quit"].priority is False
 
@@ -72,11 +73,12 @@ def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
 
 
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:
-    """Default ``s`` is shared by PR, Plans, and Agents status/save actions."""
+    """Default ``s`` is intentionally shared across contextual surfaces."""
     bindings = build_app_bindings(default_app_keymaps())
     assert [b.action for b in bindings if b.key == "s"] == [
         "change_status",
         "plans_cycle_status",
+        "toggle_bug_state",
         "save_marked_agents",
     ]
 

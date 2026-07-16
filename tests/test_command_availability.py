@@ -97,6 +97,23 @@ def test_command_hidden_when_tab_not_in_spec_tabs() -> None:
 # ---------------------------------------------------------------------------
 
 
+def test_bug_commands_only_available_on_bugs_subtab() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.create_bug"]
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="bugs"),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="prs"),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="plans"),
+    )
+
+
 def test_show_diff_hidden_when_no_cl_selected() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.show_diff"]

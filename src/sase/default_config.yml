@@ -98,6 +98,7 @@ ace:
       cycle_artifacts_subtab: "right_square_bracket"
       cycle_artifacts_subtab_reverse: "left_square_bracket"
       pick_artifacts_project: "p"
+      # Plans sub-tab
       plans_next: "j"
       plans_prev: "k"
       plans_view_selected: "enter"
@@ -110,6 +111,19 @@ ace:
       plans_reject: "X"
       plans_open_bug: "o"
       plans_refresh: "R"
+      # Bugs sub-tab
+      next_bug: "j"
+      prev_bug: "k"
+      cycle_bug_filter: "f"
+      create_bug: "c"
+      edit_bug: "e"
+      toggle_bug_state: "s"
+      open_bug: "o"
+      copy_bug: "y"
+      start_agent_from_bug: "a"
+      focus_bug_links: "l"
+      activate_bug_link: "enter"
+      refresh_bugs: "R"
       # PR actions
       quit: "q"
       change_status: "s"

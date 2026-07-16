@@ -24,6 +24,7 @@ from .models.fold_state import FoldLevel
 from .actions import (
     AgentsMixin,
     AgentWorkflowMixin,
+    ArtifactBugsMixin,
     ArtifactsMixin,
     AxeMixin,
     BaseActionsMixin,
@@ -98,6 +99,7 @@ class AceApp(
     AgentWorkflowMixin,
     AgentsMixin,
     AxeMixin,
+    ArtifactBugsMixin,
     ArtifactsMixin,
     ChangeSpecMixin,
     ClipboardMixin,
@@ -271,7 +273,12 @@ class AceApp(
         first. It also lets the prompt text area handle Tab for snippet
         expansion.
         """
-        if action in ("next_tab", "prev_tab", "clear_marks"):
+        if action in (
+            "next_tab",
+            "prev_tab",
+            "clear_marks",
+            "activate_bug_link",
+        ):
             from textual.screen import ModalScreen
 
             if isinstance(self.screen, ModalScreen):
@@ -281,6 +288,7 @@ class AceApp(
 
             if isinstance(self.focused, VimTextArea):
                 return False
+        from .actions.artifact_bugs import BUG_ARTIFACT_ACTIONS
         from .actions.artifacts import (
             NON_PRS_ARTIFACT_ACTIONS,
             PLANS_ARTIFACT_ACTIONS,
@@ -291,6 +299,18 @@ class AceApp(
             and self.current_artifacts_subtab != "prs"
             and action not in NON_PRS_ARTIFACT_ACTIONS
         ):
+            return False
+        if action in BUG_ARTIFACT_ACTIONS:
+            return (
+                self.current_tab == ARTIFACTS_TAB
+                and self.current_artifacts_subtab == "bugs"
+            )
+        if (
+            action == "refresh"
+            and self.current_tab == ARTIFACTS_TAB
+            and self.current_artifacts_subtab == "bugs"
+        ):
+            # ``y`` is the Bugs copy action; explicit tracker refresh is ``R``.
             return False
         if action in {
             "cycle_artifacts_subtab",

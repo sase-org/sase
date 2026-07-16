@@ -54,6 +54,22 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Bugs Pane",
+            [
+                (f"{d(a.next_bug)} / {d(a.prev_bug)}", "Next / previous issue"),
+                (d(a.cycle_bug_filter), "Cycle open / closed / all issues"),
+                (d(a.create_bug), "Create issue"),
+                (d(a.edit_bug), "Edit selected issue"),
+                (d(a.toggle_bug_state), "Close / reopen selected issue"),
+                (d(a.open_bug), "Open issue in browser"),
+                (d(a.copy_bug), "Copy issue number and URL"),
+                (d(a.start_agent_from_bug), "Run an agent from issue context"),
+                (d(a.focus_bug_links), "Focus linked epics and PRs"),
+                (d(a.activate_bug_link), "Open focused epic or PR link"),
+                (d(a.refresh_bugs), "Refresh tracker issues"),
+            ],
+        ),
+        (
             "Navigation",
             [
                 (

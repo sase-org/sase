@@ -20,7 +20,7 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-class InMemoryIssuePlugin:
+class _InMemoryIssuePlugin:
     """A network-free, mutable implementation of the issue hooks.
 
     Args:
@@ -151,6 +151,6 @@ class InMemoryIssuePlugin:
 
 
 # A readable compatibility name for tests that prefer to call fixtures "fake".
-FakeIssueProvider = InMemoryIssuePlugin
+FakeIssueProvider = _InMemoryIssuePlugin
 
-__all__ = ["FakeIssueProvider", "InMemoryIssuePlugin"]
+__all__ = ["FakeIssueProvider"]

@@ -2,7 +2,7 @@
 
 from sase.ace.changespec.models import ChangeSpec
 from sase.bead.model import BeadTier, Issue, IssueType
-from sase.bug_links import find_bug_links, normalize_bug_id
+from sase.bug_links import _normalize_bug_id, find_bug_links
 
 
 def _changespec(name: str, bug: str | None) -> ChangeSpec:
@@ -42,9 +42,9 @@ def test_normalize_bug_id_accepts_tags_urls_and_shorthand() -> None:
         "http://b/42",
     )
 
-    assert {normalize_bug_id(value) for value in values} == {"42"}
-    assert normalize_bug_id(" PROJ-ABC ") == "proj-abc"
-    assert normalize_bug_id(None) == ""
+    assert {_normalize_bug_id(value) for value in values} == {"42"}
+    assert _normalize_bug_id(" PROJ-ABC ") == "proj-abc"
+    assert _normalize_bug_id(None) == ""
 
 
 def test_find_bug_links_filters_to_epics_and_matching_changespecs() -> None:

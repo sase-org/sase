@@ -12,10 +12,11 @@ from textual.widgets import ContentSwitcher
 from ...keymaps import KeymapRegistry
 from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
+from .bugs import ArtifactsBugsPane
 from .commits import CommitsPane
+from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
     ArtifactPlaceholderPane,
-    ArtifactsPaneLifecycle,
     ArtifactsPrsPane,
 )
 from .plans_pane import ArtifactsPlansPane
@@ -54,11 +55,7 @@ class ArtifactsView(Vertical):
         ):
             yield ArtifactsPrsPane(id=ARTIFACTS_PANE_IDS["prs"])
             yield CommitsPane(id=ARTIFACTS_PANE_IDS["commits"])
-            for subtab in ARTIFACTS_SUBTAB_ORDER[2:-1]:
-                yield ArtifactPlaceholderPane(
-                    subtab,
-                    id=ARTIFACTS_PANE_IDS[subtab],
-                )
+            yield ArtifactsBugsPane(id=ARTIFACTS_PANE_IDS["bugs"])
             yield ArtifactsPlansPane(id=ARTIFACTS_PANE_IDS["plans"])
 
     def on_mount(self) -> None:
@@ -111,6 +108,7 @@ class ArtifactsView(Vertical):
             pane.set_keymap_registry(registry)
         for plans_pane in self.query(ArtifactsPlansPane):
             plans_pane.set_keymap_registry(registry)
+        self.query_one(ArtifactsBugsPane).set_keymap_registry(registry)
 
     def set_project_scope(
         self,
@@ -129,6 +127,10 @@ class ArtifactsView(Vertical):
             pane.set_project_scope(project, display_name=display_name)
         for plans_pane in self.query(ArtifactsPlansPane):
             plans_pane.set_project_scope(project, display_name=display_name)
+        self.query_one(ArtifactsBugsPane).set_project_scope(
+            project,
+            display_name=display_name,
+        )
 
     @on(PanelTabStrip.TabClicked)
     def _on_subtab_clicked(self, event: PanelTabStrip.TabClicked) -> None:

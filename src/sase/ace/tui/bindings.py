@@ -70,6 +70,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
         show=False,
     ),
     Binding("p", "pick_artifacts_project", "Project Scope", show=False),
+    # Plans sub-tab actions.
     Binding("j", "plans_next", "Next Plan", show=False),
     Binding("k", "plans_prev", "Previous Plan", show=False),
     Binding("enter", "plans_view_selected", "View Plan", show=False),
@@ -81,6 +82,19 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("X", "plans_reject", "Reject Plan", show=False),
     Binding("o", "plans_open_bug", "Open Bug", show=False),
     Binding("R", "plans_refresh", "Refresh Plans", show=False),
+    # Bugs sub-tab actions (context-gated; keys intentionally overlap PRs).
+    Binding("j", "next_bug", "Next Bug", show=False),
+    Binding("k", "prev_bug", "Previous Bug", show=False),
+    Binding("f", "cycle_bug_filter", "Bug State Filter", show=False),
+    Binding("c", "create_bug", "Create Bug", show=False),
+    Binding("e", "edit_bug", "Edit Bug", show=False),
+    Binding("s", "toggle_bug_state", "Close / Reopen Bug", show=False),
+    Binding("o", "open_bug", "Open Bug", show=False),
+    Binding("y", "copy_bug", "Copy Bug", show=False),
+    Binding("a", "start_agent_from_bug", "Run Agent (Bug)", show=False),
+    Binding("l", "focus_bug_links", "Bug Links", show=False),
+    Binding("enter", "activate_bug_link", "Open Bug Link", show=False, priority=True),
+    Binding("R", "refresh_bugs", "Refresh Bugs", show=False),
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),

@@ -135,6 +135,7 @@ class StateInitMixin:
         self._artifacts_project_choices_loading = False
         self._artifacts_project_picker_pending = False
         self._artifacts_scope_was_picked = False
+        self.artifacts_plan_target_bead_id: str | None = None
         self.refresh_interval = refresh_interval
         from ..tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 

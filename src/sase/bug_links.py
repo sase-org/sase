@@ -29,7 +29,7 @@ class BugLinks:
         return self.changespecs
 
 
-def normalize_bug_id(value: str | int | None) -> str:
+def _normalize_bug_id(value: str | int | None) -> str:
     """Normalize common BUG-tag spellings to a comparable tracker id.
 
     Numeric ids, ``#42``, ``owner/repo#42``, GitHub issue URLs, and the
@@ -75,7 +75,7 @@ def find_bug_links(
     and I/O remain outside this pure helper, making it safe to run on cached TUI
     snapshots and straightforward to unit test.
     """
-    normalized = normalize_bug_id(bug_id)
+    normalized = _normalize_bug_id(bug_id)
     if not normalized:
         return BugLinks(bug_id="", epics=(), changespecs=())
 
@@ -84,12 +84,12 @@ def find_bug_links(
         for bead in beads
         if bead.issue_type == IssueType.PLAN
         and bead.tier == BeadTier.EPIC
-        and normalize_bug_id(bead.changespec_bug_id) == normalized
+        and _normalize_bug_id(bead.changespec_bug_id) == normalized
     )
     linked_changespecs = tuple(
         changespec
         for changespec in changespecs
-        if normalize_bug_id(changespec.bug) == normalized
+        if _normalize_bug_id(changespec.bug) == normalized
     )
     return BugLinks(
         bug_id=normalized,
@@ -104,5 +104,4 @@ __all__ = [
     "BugLinkResult",
     "BugLinks",
     "find_bug_links",
-    "normalize_bug_id",
 ]
