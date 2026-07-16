@@ -352,9 +352,13 @@ plan-and-phase pointer generated during deterministic bead creation. This modern
 missing, damaged, or out-of-range metadata falls back to the bare phase bead ID without exposing the epic roadmap.
 
 For planner/author and lander rows, the section starts with the complete normalized `Goal`, effective user-facing `Tier`
-(`plan`, `epic`, or `none`), and canonical `Path`. Pending proposals map authored `tier: tale` to `plan`; an explicitly
-uncommitted approval renders `none`. Committed paths are relative to the agent workspace (including SDD sidecars such as
-`sase/repos/plans/...`), while pending and uncommitted archives use `~/.sase/plans/...`.
+(`plan`, `tale`, or `epic`), and canonical `Path`. The tier records how the user approved the plan: `approve` means a
+plan approved without an SDD commit, `tale` (and the legacy commit-only action) means a committed tale, and `epic` means
+a committed or launched epic. That displayed choice survives a later commit or launch failure. When action metadata is
+absent, ACE falls back to a valid authored `tier: tale` or `tier: epic`; a legacy committed record without a readable
+authored tier falls back to `tale`, while a genuinely unresolved tier renders `unavailable`. Path selection is
+independent: committed paths are relative to the agent workspace (including SDD sidecars such as
+`sase/repos/plans/...`), while pending and explicitly uncommitted archives use `~/.sase/plans/...`.
 
 Validated authored epics add a phase roadmap beneath those three rows. `Phases` gives the complete phase count, and each
 entry shows its one-based authored order, title, canonical ID, `no dependencies` or `after <id>, ...`, plus an authored
@@ -1531,12 +1535,16 @@ The Agents tab metadata panel (cycled to via `]`/`[`) shows structured informati
 - **SASE PLAN**: Shown for the epic-authoring planner and epic lander when direct metadata or a confirmed legacy epic
   association resolves a plan. Phase workers deliberately omit the entire section and show only their one phase's `Bead`
   value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the rows are `Goal`, effective
-  `Tier` (`plan`, `epic`, or `none`), and canonical `Path`, in that order. Committed paths are workspace-relative;
-  pending or explicitly uncommitted paths use the home-shortened machine-local archive. The section is the first major
-  section after ordinary metadata. Valid epics then show every phase in authored order with its title, ID, dependency
-  IDs, optional model, and optional description; these are static roadmap ordinals, not progress indicators. Every value
-  wraps without truncation in the normal panel and metadata zoom view, and only the path participates in file hint mode.
-  Invalid known epics show `Phases: unavailable` without leaking partial entries; tales do not show a phase block.
+  `Tier` (`plan`, `tale`, or `epic`), and canonical `Path`, in that order. An `approve` action displays `plan`, `tale`
+  and legacy commit-only actions display `tale`, and an `epic` action displays `epic`, even when the corresponding
+  commit or launch later fails. Without action metadata, a valid authored tale or epic supplies the tier; legacy
+  committed plans without a readable authored tier display `tale`, and unresolved values display `unavailable`.
+  Canonical path selection remains separate: committed paths are workspace-relative, while pending or explicitly
+  uncommitted paths use the home-shortened machine-local archive. The section is the first major section after ordinary
+  metadata. Valid authored epics then show every phase in authored order with its title, ID, dependency IDs, optional
+  model, and optional description; these are static roadmap ordinals, not progress indicators. Every value wraps without
+  truncation in the normal panel and metadata zoom view, and only the path participates in file hint mode. Invalid known
+  epics show `Phases: unavailable` without leaking partial entries; tales do not show a phase block.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

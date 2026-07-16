@@ -36,8 +36,8 @@ PLAN_PHASE_MODEL_STYLE = "italic #AF87FF"
 PLAN_PHASE_DESCRIPTION_STYLE = "italic #AFAFAF"
 PLAN_TIER_STYLES = {
     "plan": "bold #5FD7FF",
+    "tale": "bold #FFD75F",
     "epic": "bold #AF87FF",
-    "none": "italic #8787AF",
 }
 
 

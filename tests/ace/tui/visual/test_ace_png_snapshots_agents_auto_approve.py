@@ -367,6 +367,7 @@ async def test_agents_sase_plan_metadata_png_snapshot(
         assert_page_svg_contains(page, "SASE PLAN")
         assert_page_svg_contains(page, "Goal:")
         assert_page_svg_contains(page, "Tier:")
+        assert_page_svg_contains(page, "tale")
         assert_page_svg_contains(page, "Path:")
         assert_page_svg_contains(page, "sase/repos/plans/202607")
         assert_page_svg_contains(page, "intended outcome")

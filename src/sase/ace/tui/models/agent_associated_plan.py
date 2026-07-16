@@ -30,7 +30,7 @@ _ASSOCIATION_TTL_SECONDS = 60.0
 _NEGATIVE_TTL_SECONDS = 5.0
 _CACHE_MISS: Final = object()
 
-AssociatedPlanTier = Literal["plan", "epic", "none"]
+AssociatedPlanTier = Literal["plan", "tale", "epic"]
 AuthoredPlanTier = Literal["tale", "epic"]
 AgentPlanRole = Literal["ordinary", "author", "phase", "land"]
 _InitialAgentPlanRole = Literal[
@@ -78,7 +78,7 @@ class AssociatedPlanSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentPlanEnrichment:
+class _AgentPlanEnrichment:
     """Role-aware plan result consumed by deferred detail enrichment.
 
     Phase workers deliberately carry ``associated_plan=None``. Their resolved
@@ -328,7 +328,7 @@ def resolve_agent_plan_enrichment(
     agent: Agent,
     *,
     lookup_session: BeadIssueLookupSession | None = None,
-) -> AgentPlanEnrichment:
+) -> _AgentPlanEnrichment:
     """Resolve role-specific plan metadata for the selected agent once.
 
     This function may touch plan, workspace, and bead storage. Callers must
@@ -346,7 +346,7 @@ def resolve_agent_plan_enrichment(
     # damaged, and never fall back to mutable bead storage.
     if agent.phase_bead_id:
         if not reference:
-            return AgentPlanEnrichment(
+            return _AgentPlanEnrichment(
                 role="phase",
                 bead_display=agent.phase_bead_id,
                 associated_plan=None,
@@ -354,7 +354,7 @@ def resolve_agent_plan_enrichment(
             )
         plan_path = _resolve_cached_reference(agent, "direct", reference)
         metadata = _PLAN_FILE_CACHE.get(plan_path)
-        return AgentPlanEnrichment(
+        return _AgentPlanEnrichment(
             role="phase",
             bead_display=_phase_bead_display(
                 metadata,
@@ -385,7 +385,7 @@ def resolve_agent_plan_enrichment(
         source = "bead"
         bead_id = _agent_bead_id(agent)
         if bead_id is None:
-            return AgentPlanEnrichment(role, None, None, None)
+            return _AgentPlanEnrichment(role, None, None, None)
         association = _cached_bead_plan_association(
             agent,
             bead_id,
@@ -403,7 +403,7 @@ def resolve_agent_plan_enrichment(
         # state overwrite a richer confirmed description (or surface a cold
         # candidate). Explicit modern phases returned above remain bead-only
         # and authoritative even without a usable plan reference.
-        return AgentPlanEnrichment(role, None, None, None)
+        return _AgentPlanEnrichment(role, None, None, None)
 
     metadata = _PLAN_FILE_CACHE.get(plan_path)
     if role == "phase":
@@ -424,7 +424,7 @@ def resolve_agent_plan_enrichment(
             if phase_bead_id
             else None
         )
-        return AgentPlanEnrichment(
+        return _AgentPlanEnrichment(
             role="phase",
             bead_display=bead_display,
             associated_plan=None,
@@ -454,24 +454,12 @@ def resolve_agent_plan_enrichment(
         phase_availability=phase_availability,
         phases=(metadata.phases if phase_availability == "available" else ()),
     )
-    return AgentPlanEnrichment(
+    return _AgentPlanEnrichment(
         role=role,
         bead_display=None,
         associated_plan=summary,
         resolved_plan_path=str(plan_path),
     )
-
-
-def resolve_agent_associated_plan(
-    agent: Agent,
-    *,
-    lookup_session: BeadIssueLookupSession | None = None,
-) -> AssociatedPlanSummary | None:
-    """Return only the plan section that is safe to render for ``agent``."""
-    return resolve_agent_plan_enrichment(
-        agent,
-        lookup_session=lookup_session,
-    ).associated_plan
 
 
 def _direct_plan_reference(agent: Agent) -> str | None:
@@ -634,18 +622,22 @@ def _effective_tier(
     agent: Agent,
     authored_tier: AuthoredPlanTier | None,
 ) -> AssociatedPlanTier | None:
-    if agent.plan_committed is False:
-        return "none"
+    if agent.plan_action == "approve":
+        return "plan"
+    if agent.plan_action in {"commit", "tale"}:
+        return "tale"
     if agent.plan_action == "epic":
         return "epic"
-    if agent.plan_action in {"commit", "tale"}:
+    if agent.plan_action is not None:
+        return None
+    if agent.plan_committed is False:
         return "plan"
     if authored_tier == "epic":
         return "epic"
     if authored_tier == "tale":
-        return "plan"
+        return "tale"
     if agent.plan_committed is True:
-        return "plan"
+        return "tale"
     return None
 
 

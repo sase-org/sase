@@ -9,7 +9,7 @@ from rich.cells import cell_len
 from rich.console import Console
 
 from sase.ace.tui.models.agent_associated_plan import (
-    AgentPlanEnrichment,
+    _AgentPlanEnrichment,
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
 )
@@ -150,8 +150,8 @@ def test_section_follows_timestamps_and_precedes_optional_major_sections() -> No
 
 @pytest.mark.parametrize(
     "summary",
-    [_plan_summary(), _epic_summary()],
-    ids=["plan", "epic"],
+    [_plan_summary(), _plan_summary(tier="tale"), _epic_summary()],
+    ids=["plan", "tale", "epic"],
 )
 @pytest.mark.parametrize("width", [32, 120], ids=["narrow", "wide"])
 def test_plan_heading_is_immediately_followed_by_goal(
@@ -338,9 +338,12 @@ def test_section_is_omitted_without_cached_association() -> None:
 def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
     header, _ = build_header_text(
         make_agent(agent_name="planner"),
-        summary=DetailHeaderSummary(associated_plan=_plan_summary()),
+        summary=DetailHeaderSummary(
+            associated_plan=_plan_summary(tier="tale"),
+        ),
     )
 
+    assert "Tier: tale" in header.plain
     assert "Phases:" not in header.plain
     assert "◆" not in header.plain
 
@@ -349,8 +352,8 @@ def test_tale_plan_keeps_compact_layout_without_phase_block() -> None:
     ("tier", "style"),
     [
         ("plan", "bold #5FD7FF"),
+        ("tale", "bold #FFD75F"),
         ("epic", "bold #AF87FF"),
-        ("none", "italic #8787AF"),
     ],
 )
 def test_tier_values_have_distinct_restrained_styles(tier: str, style: str) -> None:
@@ -540,9 +543,9 @@ def test_detail_summary_resolves_plan_only_in_enrichment_worker(
     plan = _plan_summary()
     calls: list[object] = []
 
-    def resolve(agent_arg: object) -> AgentPlanEnrichment:
+    def resolve(agent_arg: object) -> _AgentPlanEnrichment:
         calls.append(agent_arg)
-        return AgentPlanEnrichment("ordinary", None, plan, plan.actual_path)
+        return _AgentPlanEnrichment("ordinary", None, plan, plan.actual_path)
 
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
@@ -566,7 +569,7 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
         "resolve_agent_plan_enrichment",
-        lambda *_args, **_kwargs: AgentPlanEnrichment(
+        lambda *_args, **_kwargs: _AgentPlanEnrichment(
             "ordinary",
             None,
             plan,
@@ -597,7 +600,7 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
         "resolve_agent_plan_enrichment",
-        lambda *_args, **_kwargs: AgentPlanEnrichment(
+        lambda *_args, **_kwargs: _AgentPlanEnrichment(
             "phase",
             "sase-9.2 - Selected phase",
             None,
@@ -619,10 +622,6 @@ def test_cheap_header_never_resolves_or_stats_plan(monkeypatch) -> None:  # type
     def fail(*_args: object, **_kwargs: object) -> object:
         raise AssertionError("hot render path must remain memory-only")
 
-    monkeypatch.setattr(
-        "sase.ace.tui.models.agent_associated_plan.resolve_agent_associated_plan",
-        fail,
-    )
     monkeypatch.setattr(
         "sase.ace.tui.models.agent_associated_plan.resolve_agent_plan_enrichment",
         fail,

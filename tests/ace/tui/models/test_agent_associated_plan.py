@@ -12,9 +12,10 @@ import pytest
 import sase.ace.tui.models.agent_associated_plan as plan_model
 from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
-    resolve_agent_associated_plan,
+    AssociatedPlanSummary,
     resolve_agent_plan_enrichment,
 )
+from sase.ace.tui.models.agent import Agent
 from sase.agent.bead_display import BeadIssueLookupSession
 from sase.bead.model import BeadTier, Issue, IssueType
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
@@ -29,10 +30,11 @@ def _clear_plan_caches() -> Iterator[None]:
     plan_model._PLAN_ASSOCIATION_CACHE.clear()
 
 
-def _write_plan(path: Path, goal: str, *, tier: str = "tale") -> Path:
+def _write_plan(path: Path, goal: str, *, tier: str | None = "tale") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    tier_line = f"tier: {tier}\n" if tier is not None else ""
     path.write_text(
-        f"---\ntier: {tier}\ngoal: {goal!r}\n---\n# Plan\n",
+        f"---\n{tier_line}goal: {goal!r}\n---\n# Plan\n",
         encoding="utf-8",
     )
     return path
@@ -68,7 +70,19 @@ def _write_epic(path: Path, goal: str = "Deliver every authored phase") -> Path:
     return path
 
 
-def test_pending_tale_maps_to_plan_and_uses_home_shortened_archive(
+def resolve_agent_associated_plan(
+    agent: Agent,
+    *,
+    lookup_session: BeadIssueLookupSession | None = None,
+) -> AssociatedPlanSummary | None:
+    """Return the associated-plan portion of role-aware enrichment."""
+    return resolve_agent_plan_enrichment(
+        agent,
+        lookup_session=lookup_session,
+    ).associated_plan
+
+
+def test_pending_tale_maps_to_tale_and_uses_home_shortened_archive(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -85,7 +99,7 @@ def test_pending_tale_maps_to_plan_and_uses_home_shortened_archive(
     assert summary is not None
     assert summary.goal == "Deliver the pending plan"
     assert summary.authored_tier == "tale"
-    assert summary.effective_tier == "plan"
+    assert summary.effective_tier == "tale"
     assert summary.display_path == "~/.sase/plans/202607/pending.md"
     assert summary.actual_path == str(plan.resolve())
     assert summary.committed is None
@@ -103,7 +117,68 @@ def test_pending_epic_maps_to_epic(tmp_path: Path) -> None:
     assert summary.effective_tier == "epic"
 
 
-def test_valid_epic_exposes_immutable_normalized_authored_phases(
+@pytest.mark.parametrize(
+    ("plan_action", "plan_committed", "authored_tier", "expected_tier"),
+    [
+        ("approve", None, "tale", "plan"),
+        ("approve", False, "epic", "plan"),
+        ("tale", None, "epic", "tale"),
+        ("tale", False, "epic", "tale"),
+        ("commit", None, "epic", "tale"),
+        ("commit", False, "epic", "tale"),
+        ("epic", None, "tale", "epic"),
+        ("epic", False, "tale", "epic"),
+        (None, False, "epic", "plan"),
+        (None, None, "tale", "tale"),
+        (None, None, "epic", "epic"),
+        (None, True, None, "tale"),
+        (None, None, None, None),
+        ("unknown", False, "epic", None),
+    ],
+    ids=[
+        "approve",
+        "approve-failed-commit",
+        "tale",
+        "tale-failed-commit",
+        "legacy-commit-action",
+        "legacy-commit-action-failed-commit",
+        "epic",
+        "epic-failed-commit",
+        "legacy-uncommitted",
+        "authored-tale",
+        "authored-epic",
+        "legacy-committed-without-tier",
+        "unresolved",
+        "unknown-action",
+    ],
+)
+def test_effective_tier_approval_precedence_and_compatibility(
+    tmp_path: Path,
+    plan_action: str | None,
+    plan_committed: bool | None,
+    authored_tier: str | None,
+    expected_tier: str | None,
+) -> None:
+    plan = _write_plan(
+        tmp_path / "plan.md",
+        "Preserve the selected approval tier",
+        tier=authored_tier,
+    )
+
+    summary = resolve_agent_associated_plan(
+        make_agent(
+            archived_plan_path=str(plan),
+            plan_path=str(plan),
+            plan_action=plan_action,
+            plan_committed=plan_committed,
+        )
+    )
+
+    assert summary is not None
+    assert summary.effective_tier == expected_tier
+
+
+def test_authored_epic_phases_are_independent_of_displayed_tale_tier(
     tmp_path: Path,
 ) -> None:
     plan = _write_epic(tmp_path / "epic.md")
@@ -113,13 +188,13 @@ def test_valid_epic_exposes_immutable_normalized_authored_phases(
             archived_plan_path=str(plan),
             plan_path=str(plan),
             plan_committed=False,
-            plan_action="epic",
+            plan_action="tale",
         )
     )
 
     assert summary is not None
     assert summary.authored_tier == "epic"
-    assert summary.effective_tier == "none"
+    assert summary.effective_tier == "tale"
     assert summary.phase_availability == "available"
     assert summary.phases == (
         AssociatedPlanPhaseSummary(
@@ -155,7 +230,7 @@ def test_valid_epic_exposes_immutable_normalized_authored_phases(
         summary.phases[0].title = "changed"  # type: ignore[misc]
 
 
-def test_explicit_uncommitted_approval_wins_and_selects_archive(
+def test_explicit_tale_survives_failed_commit_and_selects_archive(
     tmp_path: Path,
 ) -> None:
     archived = _write_plan(tmp_path / "archive.md", "Keep the local plan")
@@ -173,7 +248,7 @@ def test_explicit_uncommitted_approval_wins_and_selects_archive(
 
     assert summary is not None
     assert summary.actual_path == str(archived.resolve())
-    assert summary.effective_tier == "none"
+    assert summary.effective_tier == "tale"
     assert summary.committed is False
 
 
@@ -195,7 +270,7 @@ def test_committed_tale_uses_sidecar_relative_sdd_path(tmp_path: Path) -> None:
     assert summary is not None
     assert summary.actual_path == str(sdd.resolve())
     assert summary.display_path == relative.as_posix()
-    assert summary.effective_tier == "plan"
+    assert summary.effective_tier == "tale"
     assert summary.committed is True
 
 
@@ -512,20 +587,35 @@ def test_known_missing_plan_keeps_path_and_unavailable_metadata(
     assert summary.phases == ()
 
 
-def test_known_missing_epic_has_unavailable_phase_summary(tmp_path: Path) -> None:
-    missing = tmp_path / "missing epic.md"
+@pytest.mark.parametrize(
+    ("plan_action", "expected_tier", "expected_phase_availability"),
+    [
+        ("approve", "plan", "not-applicable"),
+        ("commit", "tale", "not-applicable"),
+        ("tale", "tale", "not-applicable"),
+        ("epic", "epic", "unavailable"),
+    ],
+)
+def test_known_missing_plan_preserves_explicit_approval_tier(
+    tmp_path: Path,
+    plan_action: str,
+    expected_tier: str,
+    expected_phase_availability: str,
+) -> None:
+    missing = tmp_path / "missing plan.md"
 
     summary = resolve_agent_associated_plan(
         make_agent(
             archived_plan_path=str(missing),
             plan_path=str(missing),
-            plan_action="epic",
+            plan_action=plan_action,
+            plan_committed=False,
         )
     )
 
     assert summary is not None
-    assert summary.effective_tier == "epic"
-    assert summary.phase_availability == "unavailable"
+    assert summary.effective_tier == expected_tier
+    assert summary.phase_availability == expected_phase_availability
     assert summary.phases == ()
 
 
