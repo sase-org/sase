@@ -80,8 +80,11 @@ def test_visual_mode_selects_visual_marker() -> None:
     ]
 
 
-def test_fast_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
+def test_fast_mode_selects_non_slow_marker_to_include_visual_tests(
+    monkeypatch,
+) -> None:
     runner = _load_run_pytest()
+    monkeypatch.delenv(runner.EXCLUDE_VISUAL_ENV, raising=False)
 
     result = runner._pytest_command("fast", [])
 
@@ -165,14 +168,30 @@ def test_slow_mode_selects_slow_marker() -> None:
     assert result[-3:] == ["-m", runner.SLOW_MARKER_EXPRESSION, "tests/perf"]
 
 
-def test_cov_mode_selects_non_slow_marker_to_include_visual_tests() -> None:
+def test_cov_mode_selects_non_slow_marker_to_include_visual_tests(monkeypatch) -> None:
     runner = _load_run_pytest()
+    monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "false")
 
     result = runner._pytest_command("cov", [])
 
     assert [
         "-m",
         runner.FAST_MARKER_EXPRESSION,
+    ] in [result[index : index + 2] for index in range(len(result) - 1)]
+    assert "--cov=src/sase" in result
+
+
+def test_cov_mode_can_exclude_visual_tests_for_noncanonical_ci_legs(
+    monkeypatch,
+) -> None:
+    runner = _load_run_pytest()
+    monkeypatch.setenv(runner.EXCLUDE_VISUAL_ENV, "true")
+
+    result = runner._pytest_command("cov", [])
+
+    assert [
+        "-m",
+        runner.FAST_NON_VISUAL_MARKER_EXPRESSION,
     ] in [result[index : index + 2] for index in range(len(result) - 1)]
     assert "--cov=src/sase" in result
 

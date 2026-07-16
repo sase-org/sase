@@ -171,6 +171,10 @@ jobs:
       - name: Install dependencies
         run: just install
       - name: Run tests
+        # Python 3.12 owns visual coverage in the matrix; the dedicated
+        # visual-test job remains the canonical, focused renderer signal.
+        env:
+          SASE_PYTEST_EXCLUDE_VISUAL: ${{ matrix.python-version != '3.12' }}
         run: just test-cov
       - name: Upload coverage
         if: matrix.python-version == '3.12'

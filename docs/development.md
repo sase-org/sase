@@ -63,7 +63,12 @@ has proved stable.
 ## Visual Snapshot Workflow
 
 ACE visual tests live under `tests/ace/tui/visual/` and compare deterministic Textual screenshots against committed PNG
-goldens. Run them normally first:
+goldens. The renderer stack is exact-pinned in the `visual` optional-dependency group in `pyproject.toml`, and
+`tests/ace/tui/visual/renderer_env.json` records those package versions plus hashes of the bundled fonts. A
+session-scoped fixture checks that fingerprint before any snapshot runs, so a skewed environment fails once with an
+installation or upgrade instruction instead of producing a wall of misleading pixel diffs.
+
+Run the focused suite normally first:
 
 ```bash
 just test-visual
@@ -72,43 +77,46 @@ just test-visual
 When a visual test fails, inspect the artifacts under `.pytest_cache/sase-visual/<node>/<snapshot>/`. Each failure
 directory contains the actual PNG capture and, when a golden exists, the expected PNG plus a diff PNG, a human-readable
 `summary.txt`, and a structured `failure.json` sidecar. The sidecar carries the test source location, repo-relative
-golden path, and pixel-diff stats so tooling can map a failure back to the test and the committed golden. Accept
-intentional visual changes only by rerunning the relevant test with the explicit update flag:
+golden path, and pixel-diff stats so tooling can map a failure back to the test and the committed golden.
+
+To accept an intentional change to the full golden corpus on Linux, use the guarded regeneration recipe:
+
+```bash
+just update-visual-snapshots
+```
+
+For a targeted UI change, the underlying pytest option still accepts a selector:
 
 ```bash
 just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_png_snapshots.py
 ```
 
-Review changed PNG files as normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`,
-or broad CI-style commands.
+Both forms refuse to write if the renderer fingerprint is skewed or the host is not Linux. Review changed PNG files as
+normal test data. Do not pass `--sase-update-visual-snapshots` to `just check`, `just fmt`, or broad CI-style commands.
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg (`resvg_py==0.3.3`), a
 pure-Rust SVG renderer that carries its own font database restricted to the bundled Fira Code
 (`tests/ace/tui/visual/fonts/`) with `skip_system_fonts=True`. No host font-config or graphics stack participates, so
-rendering is stable and host-font-independent everywhere.
+rendering is stable and host-font-independent on the canonical Linux x86_64 platform. PNG comparison is byte-exact by
+default locally and in every visual-bearing CI lane; a mismatch is a real rendering change or an environment defect to
+investigate.
 
-Rasterization is not perfectly byte-identical across host operating systems, though: resvg anti-aliases a small, fixed
-set of pixels differently on macOS arm64 than on CI's Linux x86_64. Every lane (local `just test-visual`, the broad
-`just test` / `just test-cov` runs, `just check`, and CI) therefore bounds expected drift along two dimensions:
+Rasterization can still differ by a small, bounded amount on macOS arm64. The tolerance environment variables remain
+available only as explicit escape hatches for local iteration and renderer investigations. For the known macOS drift,
+use:
 
-- `SASE_VISUAL_PNG_MAX_DIFF_RATIO=0.01` allows exact pixel differences across at most 1% of the image.
-- `SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD=8` classifies a pixel as material when its maximum visible channel distance
-  exceeds eight levels after alpha-aware compositing over black and white.
-- `SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS=0` permits no above-threshold pixels by default.
+```bash
+SASE_VISUAL_PNG_MAX_DIFF_RATIO=0.01 \
+SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD=8 \
+SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS=0 \
+just test-visual
+```
 
-Both the area and material limits must pass. This absorbs low-amplitude edge rasterization while ensuring that even a
-one-pixel high-contrast content or style change fails. Goldens remain regenerable on any host: accept intentional
-changes with the local one-liner above, review the changed PNGs as ordinary test data, then commit. The tolerance is
-only a comparison allowance; it never updates or implicitly accepts a golden.
-
-The renderer version is pinned exactly because it _defines_ the golden corpus. Bumping `resvg_py` is a deliberate
-regenerate-and-review event: change the pin, regenerate every golden, spot-check the diff, and commit the corpus churn
-in the same change.
-
-Use `SASE_VISUAL_PNG_MAX_DIFF_RATIO=0 just test-visual` to demand exact pixel equality. During a deliberate renderer
-investigation, override the area cap together with either `SASE_VISUAL_PNG_MAX_MATERIAL_DIFF_PIXELS` or
-`SASE_VISUAL_PNG_MATERIAL_DIFF_THRESHOLD`; otherwise the material guard remains active. Per-assertion equivalents are
-`max_diff_pixels`, `max_diff_ratio`, `max_material_diff_pixels`, and `material_diff_threshold`.
+The ratio caps the changed image area. The material threshold measures the maximum visible channel distance after
+alpha-aware compositing over black and white, and the material-pixel cap still rejects any change above that threshold.
+These overrides never update or implicitly accept a golden, and they do not bypass the Linux-only regeneration gate.
+Per-assertion equivalents are `max_diff_pixels`, `max_diff_ratio`, `max_material_diff_pixels`, and
+`material_diff_threshold`.
 
 Mismatch assertions, `summary.txt`, and `failure.json` report `material_diff_pixels`, `material_diff_ratio`, and
 `material_diff_threshold` alongside the active area and material limits. Inspect those fields to distinguish broad,
@@ -117,6 +125,34 @@ low-amplitude renderer drift from a small material UI change before using any ov
 One accepted fidelity caveat: Fira Code ships no italic face and resvg does not synthesize oblique, so
 `font-style: italic` renders upright. This is uniform across every screen and host. Restoring visible italics would mean
 switching the bundled font family, taken as a separate follow-up if it becomes necessary.
+
+### Intentional Renderer Upgrades
+
+The pinned versions and font bytes define the golden corpus. Upgrade Textual, Rich, resvg, a syntax grammar, Pillow, or
+another package in that stack as one reviewed change:
+
+1. Update the exact pins in the `visual` optional-dependency group in `pyproject.toml`.
+2. Run `uv lock`, then `just install-visual` so the working environment matches the new pins.
+3. Refresh the matching package versions in `tests/ace/tui/visual/renderer_env.json`. If bundled fonts changed, update
+   their SHA-256 hashes too; the Python and platform fields are diagnostic only.
+4. On Linux, run `just update-visual-snapshots`, then run `just test-visual` once more without update mode.
+5. Review the complete PNG diff for unexpected content or layout changes and commit the pins, `uv.lock`, fingerprint,
+   and regenerated goldens together.
+
+Non-Linux contributors should use CI as the canonical renderer. Push the branch, let the Linux `visual-test` job produce
+`ace-visual-artifacts`, and download that artifact from the Actions run. Each failure directory contains an `actual.png`
+and a `failure.json`; the sidecar's `expected_repo_path` identifies the golden that the actual image should replace
+after review. The same fingerprint checks still require pins, lockfile, and manifest to agree before CI will render the
+replacement corpus.
+
+### CI Visual Lanes
+
+The Python 3.12 matrix leg keeps visual tests in `just test-cov`, preserving their contribution to the coverage gate.
+The 3.13 and 3.14 legs set `SASE_PYTEST_EXCLUDE_VISUAL=true`, so they exercise the shipped Python surface without
+duplicating the canonical renderer signal. The dedicated Linux Python 3.12 `visual-test` job remains focused on the
+complete visual suite and uploads failure reports and raw artifacts. This keeps one broad coverage lane plus one
+diagnostic lane authoritative for snapshots while preventing a future Python-specific rendering change from reddening
+two unrelated matrix legs.
 
 ### Visual Failure Report
 

@@ -17,8 +17,10 @@ PYTEST_ENV_UNSET_KEYS = (
     "SASE_PR_STATUS",
 )
 FAST_MARKER_EXPRESSION = "not slow"
+FAST_NON_VISUAL_MARKER_EXPRESSION = "not slow and not visual"
 SLOW_MARKER_EXPRESSION = "slow"
 VISUAL_MARKER_EXPRESSION = "visual"
+EXCLUDE_VISUAL_ENV = "SASE_PYTEST_EXCLUDE_VISUAL"
 INLINE_SNAPSHOT_OPTION = "--inline-snapshot"
 INLINE_SNAPSHOT_SERIAL_SHORTCUTS = frozenset({"--fix", "--review"})
 NON_PATH_VALUE_OPTIONS = frozenset(
@@ -117,6 +119,14 @@ def _worker_count() -> str:
     return str(max((os.cpu_count() or 1) // 4, 1))
 
 
+def _fast_marker_expression() -> str:
+    """Return the broad-suite marker expression selected by the caller."""
+    exclude_visual = os.environ.get(EXCLUDE_VISUAL_ENV, "").strip().lower()
+    if exclude_visual in {"1", "true", "yes", "on"}:
+        return FAST_NON_VISUAL_MARKER_EXPRESSION
+    return FAST_MARKER_EXPRESSION
+
+
 def _inline_snapshot_value_requires_serial(value: str) -> bool:
     modes = [mode.strip() for mode in value.split(",") if mode.strip()]
     if not modes:
@@ -159,12 +169,12 @@ def _pytest_command(mode: str, args: list[str]) -> list[str]:
     elif mode == "visual":
         command.extend(["-m", VISUAL_MARKER_EXPRESSION])
     elif mode == "fast":
-        command.extend(["-m", FAST_MARKER_EXPRESSION])
+        command.extend(["-m", _fast_marker_expression()])
     elif mode == "cov":
         command.extend(
             [
                 "-m",
-                FAST_MARKER_EXPRESSION,
+                _fast_marker_expression(),
                 "--cov=src/sase",
                 "--cov-branch",
                 "--cov-report=term-missing:skip-covered",
