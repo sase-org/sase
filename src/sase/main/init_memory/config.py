@@ -47,9 +47,23 @@ def _checkout_marker_from_root(root: Path) -> Any | None:
     try:
         from sase.workspace_provider.marker import find_marker_from_cwd
 
-        return find_marker_from_cwd(str(root))
+        found = find_marker_from_cwd(str(root))
     except Exception:
         return None
+    if found is None:
+        return None
+
+    marker_root, _ = found
+    git_root = _run_git_stdout(root, "rev-parse", "--show-toplevel")
+    if git_root is not None:
+        try:
+            marker_path = Path(marker_root).resolve(strict=False)
+            git_path = Path(git_root).resolve(strict=False)
+        except (OSError, RuntimeError, ValueError):
+            return None
+        if marker_path != git_path:
+            return None
+    return found
 
 
 def _project_name_from_git_url(remote_url: str | None) -> str | None:
