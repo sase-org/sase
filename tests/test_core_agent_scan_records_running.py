@@ -33,6 +33,7 @@ def test_running_record_carries_agent_meta(fixture_root: Path) -> None:
     assert rec.agent_meta is not None
     assert rec.agent_meta.name == "running_alpha"
     assert rec.agent_meta.workflow_name == "wf_alpha"
+    assert rec.agent_meta.agent_family_parallel is True
     assert rec.agent_meta.pid == 22222
     assert rec.agent_meta.plan is True
     assert rec.agent_meta.plan_approved is False

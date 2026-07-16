@@ -150,7 +150,7 @@ def test_list_running_agents_skips_appears_as_agent_false(tmp_path: Path) -> Non
 def test_list_running_agents_skips_parent_timestamp_followups(
     tmp_path: Path,
 ) -> None:
-    """Follow-up agents with `parent_timestamp` set are deduped against parents."""
+    """Parallel members stay folded instead of becoming top-level CLI rows."""
     projects_root = _projects_root_for(tmp_path)
     build_fixture_tree(projects_root)
     meta_path = (
@@ -163,6 +163,7 @@ def test_list_running_agents_skips_parent_timestamp_followups(
     )
     data = json.loads(meta_path.read_text(encoding="utf-8"))
     data["parent_timestamp"] = "20260101000000"
+    data["agent_family_parallel"] = True
     meta_path.write_text(json.dumps(data), encoding="utf-8")
 
     with _fixture_processes(tmp_path, alive=True):

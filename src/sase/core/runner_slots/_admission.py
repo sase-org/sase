@@ -13,7 +13,7 @@ RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 
 @dataclass(frozen=True)
 class RunnerSlotWaiter:
-    """One live root agent waiting in the global runner-slot queue."""
+    """One live user agent waiting in the global runner-slot queue."""
 
     artifact_dir: str
     slot_requested_at: str
@@ -22,7 +22,7 @@ class RunnerSlotWaiter:
 
 
 def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
-    """Return whether *record* represents a countable root user agent."""
+    """Return whether *record* represents a top-level user agent."""
     if record.workflow_dir_name != "ace-run" or record.has_done_marker:
         return False
     meta = record.agent_meta
@@ -32,11 +32,22 @@ def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
     return state is None or state.appears_as_agent
 
 
+def _is_runner_slot_user_agent_record(record: AgentArtifactRecordWire) -> bool:
+    """Return whether *record* participates in runner-slot admission."""
+    if record.workflow_dir_name != "ace-run" or record.has_done_marker:
+        return False
+    meta = record.agent_meta
+    if meta is None or (meta.parent_timestamp and not meta.agent_family_parallel):
+        return False
+    state = record.workflow_state
+    return state is None or state.appears_as_agent
+
+
 def running_root_agent_count(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
 ) -> int:
-    """Count live admitted roots that currently hold a runner slot.
+    """Count live admitted agents that currently hold a runner slot.
 
     ``pending_question.json`` is the authoritative marker for a root that has
     temporarily yielded its slot while awaiting a user answer.  The marker is
@@ -46,7 +57,7 @@ def running_root_agent_count(
     return sum(
         1
         for record in records
-        if is_root_user_agent_record(record)
+        if _is_runner_slot_user_agent_record(record)
         and record.agent_meta is not None
         and bool(record.agent_meta.run_started_at)
         and record.pending_question is None
@@ -63,7 +74,7 @@ def live_runner_slot_waiters(
     for record in records:
         waiting = record.waiting
         if (
-            not is_root_user_agent_record(record)
+            not _is_runner_slot_user_agent_record(record)
             or waiting is None
             or not waiting.slot_requested_at
             or not is_live(record)

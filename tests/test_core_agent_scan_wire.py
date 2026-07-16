@@ -24,7 +24,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 9
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 10
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -101,6 +101,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
                     "timestamp": "20260601010101",
                     "agent_meta": {
                         "name": "producer",
+                        "agent_family_parallel": True,
                         "output_path": "/tmp/producer.log",
                         "linked_repos": [
                             {
@@ -130,6 +131,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
 
     record = snapshot.records[0]
     assert record.agent_meta is not None
+    assert record.agent_meta.agent_family_parallel is True
     assert record.agent_meta.output_variables == {
         "report_path": "/tmp/report.md",
         "status": "ok",
@@ -154,6 +156,7 @@ def test_agent_meta_output_variables_round_trip() -> None:
         "report_path": "/tmp/report.md",
         "status": "ok",
     }
+    assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
 
 

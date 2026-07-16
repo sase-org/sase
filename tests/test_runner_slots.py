@@ -25,6 +25,7 @@ def _record(
     requested_at: str | None = None,
     wait_runners: int | None = None,
     parent_timestamp: str | None = None,
+    agent_family_parallel: bool = False,
     appears_as_agent: bool = True,
     done: bool = False,
     pending_question: bool = False,
@@ -39,6 +40,7 @@ def _record(
         agent_meta=AgentMetaWire(
             pid=pid,
             parent_timestamp=parent_timestamp,
+            agent_family_parallel=agent_family_parallel,
             run_started_at=("2026-07-12T12:00:00+00:00" if run_started else None),
         ),
         waiting=(
@@ -64,6 +66,13 @@ def test_running_count_uses_live_started_roots_only() -> None:
         _record("/a", pid=1, run_started=True),
         _record("/starting", pid=2),
         _record("/child", pid=3, run_started=True, parent_timestamp="parent"),
+        _record(
+            "/parallel-child",
+            pid=7,
+            run_started=True,
+            parent_timestamp="parent",
+            agent_family_parallel=True,
+        ),
         _record("/step", pid=4, run_started=True, appears_as_agent=False),
         _record("/done", pid=5, run_started=True, done=True),
         _record("/dead", pid=6, run_started=True),
@@ -71,7 +80,7 @@ def test_running_count_uses_live_started_roots_only() -> None:
 
     assert (
         running_root_agent_count(records, lambda record: record.agent_meta.pid != 6)
-        == 1
+        == 2
     )  # type: ignore[union-attr]
 
 
@@ -179,3 +188,26 @@ def test_live_waiter_queue_excludes_non_root_and_terminal_records() -> None:
     )
 
     assert queue == (RunnerSlotWaiter("/root", requested_at, "root", threshold=4),)
+
+
+def test_parallel_member_joins_fifo_queue_while_serial_child_stays_exempt() -> None:
+    records = [
+        _record(
+            "/serial",
+            requested_at="2026-07-12T12:00:00+00:00",
+            parent_timestamp="parent",
+        ),
+        _record(
+            "/parallel",
+            requested_at="2026-07-12T12:00:01+00:00",
+            parent_timestamp="parent",
+            agent_family_parallel=True,
+        ),
+        _record("/root", requested_at="2026-07-12T12:00:02+00:00"),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert [waiter.artifact_dir for waiter in queue] == ["/parallel", "/root"]
+    assert may_start(0, 0, queue, "/parallel")
+    assert not may_start(0, 0, queue, "/root")

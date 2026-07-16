@@ -106,6 +106,7 @@ def _build_ace_run_running(root: Path) -> None:
         {
             "name": "running_alpha",
             "workflow_name": "wf_alpha",
+            "agent_family_parallel": True,
             "pid": 22222,
             "model": "claude-sonnet-4-6",
             "llm_provider": "claude",
