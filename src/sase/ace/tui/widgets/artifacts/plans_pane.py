@@ -2,30 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Markdown, OptionList, Static
-from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
-from sase.bead.model import Issue, Status
-from sase.plan_search.model import PlanSearchMatch
-
-from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ...keymaps import KeymapRegistry, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
 from .panes import ArtifactsPaneLifecycle
 from .plans_data import (
-    PlanProposal,
     PlansSnapshot,
-    ProjectArchive,
-    ProjectIssue,
     load_plans_snapshot,
 )
 from .plans_detail import (
@@ -36,25 +27,28 @@ from .plans_detail import (
     bead_properties_header,
     proposal_properties_header,
 )
-from .types import ARTIFACTS_ACCENTS
+from .plans_list import PlanRow, build_plan_options, row_option_id
+from .plans_rendering import (
+    archive_text,
+    build_empty_plan_detail,
+    build_plans_hints,
+    build_plans_scope,
+    build_plans_status,
+    epic_text,
+    phase_text,
+    project_badge,
+    proposal_text,
+)
 
 if TYPE_CHECKING:
     from ...app import AceApp
 
 
-PlanRowKind = Literal["proposal", "epic", "phase", "archive"]
-
-
-@dataclass(frozen=True)
-class PlanRow:
-    """Identity-preserving row backing one selectable OptionList entry."""
-
-    kind: PlanRowKind
-    row_id: str
-    project: str
-    proposal: PlanProposal | None = None
-    issue: Issue | None = None
-    archive: PlanSearchMatch | None = None
+_proposal_text = proposal_text
+_epic_text = epic_text
+_phase_text = phase_text
+_archive_text = archive_text
+_project_badge = project_badge
 
 
 class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
@@ -192,7 +186,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         preferred_id = (
             None
             if snapshot is None
-            else _row_option_id(snapshot, "epic", row.project, epic_id)
+            else row_option_id(snapshot, "epic", row.project, epic_id)
         )
         self._refresh_options(preferred_id=preferred_id)
 
@@ -297,7 +291,12 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             return
         if preferred_id is None:
             preferred_id = self._selected_option_id()
-        options, rows = self._build_options()
+        options, rows = build_plan_options(
+            self._snapshot,
+            project_scope=self.project_scope,
+            loading=self._loading,
+            expanded_epics=self._expanded_epics,
+        )
         self._rows = rows
         self._syncing_options = True
         try:
@@ -311,135 +310,6 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self._syncing_options = False
         self._update_status()
         self._update_detail()
-
-    def _build_options(self) -> tuple[list[Option], dict[str, PlanRow]]:
-        options: list[Option] = []
-        rows: dict[str, PlanRow] = {}
-        snapshot = self._snapshot
-        if snapshot is None or snapshot.project != self.project_scope:
-            label = "Loading plans…" if self._loading else "Plans have not loaded yet."
-            options.append(Option(_single_line_text(label), disabled=True))
-            return options, rows
-
-        options.append(_section_option("Proposals", len(snapshot.proposals)))
-        for proposal in snapshot.proposals:
-            option_id = _row_option_id(
-                snapshot,
-                "proposal",
-                proposal.project,
-                proposal.notification.id,
-            )
-            rows[option_id] = PlanRow(
-                "proposal",
-                option_id,
-                proposal.project,
-                proposal=proposal,
-            )
-            options.append(
-                Option(
-                    _proposal_text(
-                        proposal,
-                        project_badge=_project_badge(snapshot, proposal.project),
-                    ),
-                    id=option_id,
-                )
-            )
-        if not snapshot.proposals:
-            options.append(
-                Option(
-                    _single_line_text("  No pending proposals", style="dim"),
-                    disabled=True,
-                )
-            )
-
-        options.append(_section_option("Epics", len(snapshot.epics)))
-        epic_entries: tuple[ProjectIssue, ...] = snapshot.epics
-        for project_epic in epic_entries:
-            project = project_epic.project
-            epic = project_epic.issue
-            epic_key = (project, epic.id)
-            option_id = _row_option_id(snapshot, "epic", project, epic.id)
-            rows[option_id] = PlanRow("epic", option_id, project, issue=epic)
-            phases = snapshot.phases_by_epic.get(epic_key, ())
-            options.append(
-                Option(
-                    _epic_text(
-                        epic,
-                        tuple(item.issue for item in phases),
-                        expanded=epic_key in self._expanded_epics,
-                        project=project,
-                        ready_ids=snapshot.ready_ids,
-                        blocked_ids=snapshot.blocked_ids,
-                        project_badge=_project_badge(snapshot, project),
-                    ),
-                    id=option_id,
-                )
-            )
-            if epic_key not in self._expanded_epics:
-                continue
-            for project_phase in phases:
-                phase = project_phase.issue
-                phase_option_id = _row_option_id(
-                    snapshot,
-                    "phase",
-                    project,
-                    phase.id,
-                )
-                rows[phase_option_id] = PlanRow(
-                    "phase",
-                    phase_option_id,
-                    project,
-                    issue=phase,
-                )
-                options.append(
-                    Option(
-                        _phase_text(
-                            phase,
-                            project=project,
-                            ready_ids=snapshot.ready_ids,
-                            blocked_ids=snapshot.blocked_ids,
-                        ),
-                        id=phase_option_id,
-                    )
-                )
-        if not snapshot.epics:
-            options.append(
-                Option(
-                    _single_line_text("  No epic beads", style="dim"),
-                    disabled=True,
-                )
-            )
-
-        options.append(_section_option("Plan archive", len(snapshot.archive)))
-        archive_entries: tuple[ProjectArchive, ...] = snapshot.archive
-        for project_archive in archive_entries:
-            project = project_archive.project
-            match = project_archive.match
-            plan = match.plan
-            option_id = _row_option_id(snapshot, "archive", project, plan.path)
-            rows[option_id] = PlanRow(
-                "archive",
-                option_id,
-                project,
-                archive=match,
-            )
-            options.append(
-                Option(
-                    _archive_text(
-                        match,
-                        project_badge=_project_badge(snapshot, project),
-                    ),
-                    id=option_id,
-                )
-            )
-        if not snapshot.archive:
-            options.append(
-                Option(
-                    _single_line_text("  No committed plans", style="dim"),
-                    disabled=True,
-                )
-            )
-        return options, rows
 
     @on(OptionList.OptionHighlighted, "#plans-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:
@@ -503,105 +373,29 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         return snapshot.display_names.get(project, project)
 
     def _scope_text(self) -> Text:
-        text = Text()
-        text.append(
-            " Plans ",
-            style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}",
+        return build_plans_scope(
+            self._registry,
+            project_scope=self.project_scope,
+            project_display_name=self._project_display_name,
         )
-        text.append("  Project scope  ", style="dim")
-        label = self._project_display_name or self.project_scope or "All projects"
-        text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-        text.append("  ·  ", style="dim")
-        text.append(
-            f"{key_display_name(self._registry.app.pick_artifacts_project)} change",
-            style="dim",
-        )
-        return text
 
     def _status_text(self) -> Text:
-        text = Text()
-        if self._loading:
-            text.append("Loading…", style="bold #FFD700")
-        elif self._load_error:
-            text.append(self._load_error, style="bold #FF5F5F")
-        elif self._snapshot is None:
-            text.append("Plans have not loaded yet", style="dim")
-        else:
-            snapshot = self._snapshot
-            phase_count = sum(
-                len(phases) for phases in snapshot.phases_by_epic.values()
-            )
-            if snapshot.project is None:
-                text.append(f"{len(snapshot.projects)} projects", style="bold white")
-                text.append("  ·  ", style="dim")
-            text.append(f"{len(snapshot.proposals)} proposals", style="#FFD700")
-            text.append("  ·  ", style="dim")
-            text.append(
-                f"{len(snapshot.epics)} epics", style=ARTIFACTS_ACCENTS["plans"]
-            )
-            text.append("  ·  ", style="dim")
-            text.append(f"{phase_count} phases", style="#87D7FF")
-            text.append("  ·  ", style="dim")
-            archive_label = f"{len(snapshot.archive)} archived"
-            if snapshot.archive_truncated:
-                archive_label += " (newest shown)"
-            text.append(archive_label, style="#00D7AF")
-            if snapshot.errors:
-                text.append("  ·  ", style="dim")
-                error_projects = ", ".join(
-                    snapshot.display_names.get(project, project)
-                    for project in sorted(snapshot.errors)
-                )
-                text.append(f"Load errors: {error_projects}", style="bold #FF5F5F")
-        return text
+        return build_plans_status(
+            self._snapshot,
+            loading=self._loading,
+            load_error=self._load_error,
+        )
 
     def _hints_text(self) -> Text:
-        km = self._registry.app
-        parts = (
-            (km.plans_next, "next"),
-            (km.plans_prev, "prev"),
-            (km.plans_view_selected, "view"),
-            (km.plans_expand, "expand"),
-            (km.plans_collapse, "collapse"),
-            (km.plans_cycle_status, "status"),
-            (km.plans_edit_bead, "edit"),
-            (km.plans_launch_epic, "work"),
-            (km.plans_approve, "approve"),
-            (km.plans_reject, "reject"),
-            (km.plans_open_bug, "bug"),
-            (km.plans_refresh, "refresh"),
-        )
-        text = Text(justify="center")
-        for index, (key, label) in enumerate(parts):
-            if index:
-                text.append("  ", style="dim")
-            text.append(
-                key_display_name(key), style=f"bold {ARTIFACTS_ACCENTS['plans']}"
-            )
-            text.append(f" {label}", style="dim")
-        return text
+        return build_plans_hints(self._registry)
 
     def _empty_detail(self) -> str:
-        if self._loading:
-            return "# Plans\n\nLoading proposals, beads, and committed plans…"
-        if self._load_error:
-            return f"# Plans unavailable\n\n{self._load_error}"
-        message = (
-            "Select a proposal, bead, or archived plan from all enabled projects."
-            if self.project_scope is None
-            else "Select a proposal, bead, or archived plan."
+        return build_empty_plan_detail(
+            self._snapshot,
+            project_scope=self.project_scope,
+            loading=self._loading,
+            load_error=self._load_error,
         )
-        lines = [
-            "# Plans",
-            "",
-            message,
-        ]
-        snapshot = self._snapshot
-        if snapshot is not None and snapshot.errors:
-            lines.extend(["", "## Load warnings", ""])
-            for project, error in sorted(snapshot.errors.items()):
-                lines.append(f"- **{project}:** {error}")
-        return "\n".join(lines)
 
     def _option_list(self) -> OptionList | None:
         try:
@@ -637,7 +431,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 and snapshot is not None
             ):
                 return self._option_index(
-                    _row_option_id(
+                    row_option_id(
                         snapshot,
                         "epic",
                         row.project,
@@ -665,190 +459,6 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self.query_one(selector, Static).update(content)
         except Exception:
             pass
-
-
-def _section_option(label: str, count: int) -> Option:
-    text = _single_line_text()
-    text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    text.append(f"({count}) ", style="dim")
-    text.append("─" * 8, style="dim #5F5F87")
-    return Option(
-        text, id=f"header:{label.casefold().replace(' ', '-')}", disabled=True
-    )
-
-
-def _row_option_id(
-    snapshot: PlansSnapshot,
-    kind: PlanRowKind,
-    project: str,
-    identity: str,
-) -> str:
-    if snapshot.project is None:
-        return f"{kind}:{project}:{identity}"
-    return f"{kind}:{identity}"
-
-
-def _proposal_text(
-    proposal: PlanProposal,
-    *,
-    project_badge: str | None = None,
-) -> Text:
-    text = _single_line_text()
-    text.append("◆ ", style="bold #FFD700")
-    text.append(proposal.title, style="bold white")
-    text.append(f"  {proposal.tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    age = _compact_inventory_age(proposal.age)
-    if age:
-        text.append(f"  {age}", style="dim")
-    _append_project_badge(text, project_badge)
-    return text
-
-
-def _epic_text(
-    epic: Issue,
-    phases: tuple[Issue, ...],
-    *,
-    expanded: bool,
-    project: str,
-    ready_ids: frozenset[tuple[str, str]],
-    blocked_ids: frozenset[tuple[str, str]],
-    project_badge: str | None = None,
-) -> Text:
-    text = _single_line_text()
-    text.append(
-        "▾ " if expanded else "▸ ",
-        style=f"bold {ARTIFACTS_ACCENTS['plans']}",
-    )
-    text.append(_status_glyph(epic.status), style=_status_style(epic.status))
-    text.append(f" {epic.id} ", style="bold #FFD700")
-    text.append(epic.title, style="bold white")
-    closed = sum(phase.status == Status.CLOSED for phase in phases)
-    text.append(f"  {closed}/{len(phases)}", style="#87D7FF")
-    issue_key = (project, epic.id)
-    if issue_key in blocked_ids:
-        text.append("  BLOCKED", style="bold #FF5F5F")
-    elif issue_key in ready_ids:
-        text.append("  READY", style="bold #5FD787")
-    elif epic.is_ready_to_work:
-        text.append("  LAUNCHED", style="bold #00D7AF")
-    age = _compact_relative_age(epic.created_at)
-    if age:
-        text.append(f"  {age}", style="dim")
-    _append_project_badge(text, project_badge)
-    return text
-
-
-def _phase_text(
-    phase: Issue,
-    *,
-    project: str,
-    ready_ids: frozenset[tuple[str, str]],
-    blocked_ids: frozenset[tuple[str, str]],
-) -> Text:
-    text = _single_line_text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
-    text.append(_status_glyph(phase.status), style=_status_style(phase.status))
-    text.append(f" {phase.id} ", style="bold #FFD700")
-    text.append(phase.title, style="white")
-    issue_key = (project, phase.id)
-    if issue_key in blocked_ids:
-        text.append("  blocked", style="bold #FF5F5F")
-    elif issue_key in ready_ids:
-        text.append("  ready", style="bold #5FD787")
-    elif phase.status == Status.IN_PROGRESS:
-        text.append("  active", style="bold #FFD700")
-    return text
-
-
-def _archive_text(
-    match: PlanSearchMatch,
-    *,
-    project_badge: str | None = None,
-) -> Text:
-    plan = match.plan
-    text = _single_line_text("▤ ", style="bold #00D7AF")
-    text.append(plan.title or plan.name, style="white")
-    text.append(f"  {plan.kind}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    if plan.status:
-        status_style = "#5FD787" if plan.status in {"done", "approved"} else "#FFD700"
-        text.append(f"  {plan.status}", style=f"bold {status_style}")
-    if plan.created_at:
-        text.append(f"  {_compact_plan_date(plan.created_at)}", style="dim")
-    _append_project_badge(text, project_badge)
-    return text
-
-
-def _single_line_text(text: str = "", *, style: str = "") -> Text:
-    return Text(text, style=style, no_wrap=True, overflow="ellipsis")
-
-
-def _project_badge(snapshot: PlansSnapshot, project: str) -> str | None:
-    if snapshot.project is not None:
-        return None
-    return snapshot.display_names.get(project, project)
-
-
-def _append_project_badge(text: Text, project_badge: str | None) -> None:
-    if project_badge:
-        text.append(f"  [{project_badge}]", style="dim")
-
-
-def _compact_inventory_age(age: str) -> str:
-    value = age.strip()
-    if value == "just now":
-        return "now"
-    return value.removesuffix(" ago")
-
-
-def _compact_relative_age(timestamp: str) -> str:
-    if not timestamp.strip():
-        return ""
-    try:
-        created = datetime.fromisoformat(timestamp.strip().replace("Z", "+00:00"))
-    except ValueError:
-        return ""
-
-    from sase.core.time import get_timezone, local_now, to_local
-
-    if created.tzinfo is None:
-        created = created.replace(tzinfo=get_timezone())
-    elapsed_seconds = max(0, int((local_now() - to_local(created)).total_seconds()))
-    if elapsed_seconds < 60:
-        return "now"
-    minutes = elapsed_seconds // 60
-    if minutes < 60:
-        return f"{minutes}m"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours}h"
-    days = hours // 24
-    if days < 30:
-        return f"{days}d"
-    if days < 365:
-        return f"{days // 30}mo"
-    return f"{days // 365}y"
-
-
-def _compact_plan_date(timestamp: str) -> str:
-    date = timestamp.strip()[:10]
-    if len(date) == 10 and date[4] == "-" and date[7] == "-":
-        return date[5:]
-    return date
-
-
-def _status_glyph(status: Status) -> str:
-    return {
-        Status.OPEN: "○",
-        Status.IN_PROGRESS: "◐",
-        Status.CLOSED: "●",
-    }[status]
-
-
-def _status_style(status: Status) -> str:
-    return {
-        Status.OPEN: "bold #87D7FF",
-        Status.IN_PROGRESS: "bold #FFD700",
-        Status.CLOSED: "bold #5FD787",
-    }[status]
 
 
 __all__ = ["ArtifactsPlansPane", "PlanRow"]

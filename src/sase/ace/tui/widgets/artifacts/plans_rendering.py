@@ -1,0 +1,296 @@
+"""Pure Rich renderable builders for the Artifacts Plans pane."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from rich.text import Text
+
+from sase.bead.model import Issue, Status
+from sase.plan_search.model import PlanSearchMatch
+
+from ...keymaps import KeymapRegistry, key_display_name
+from .plans_data import PlanProposal, PlansSnapshot
+from .types import ARTIFACTS_ACCENTS
+
+
+def build_plans_scope(
+    registry: KeymapRegistry,
+    *,
+    project_scope: str | None,
+    project_display_name: str | None,
+) -> Text:
+    """Build the pane's project-scope header."""
+    text = Text()
+    text.append(
+        " Plans ",
+        style=f"bold #1a1a1a on {ARTIFACTS_ACCENTS['plans']}",
+    )
+    text.append("  Project scope  ", style="dim")
+    label = project_display_name or project_scope or "All projects"
+    text.append(f" {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    text.append("  ·  ", style="dim")
+    text.append(
+        f"{key_display_name(registry.app.pick_artifacts_project)} change",
+        style="dim",
+    )
+    return text
+
+
+def build_plans_status(
+    snapshot: PlansSnapshot | None,
+    *,
+    loading: bool,
+    load_error: str | None,
+) -> Text:
+    """Build the snapshot summary shown above the plan list."""
+    text = Text()
+    if loading:
+        text.append("Loading…", style="bold #FFD700")
+    elif load_error:
+        text.append(load_error, style="bold #FF5F5F")
+    elif snapshot is None:
+        text.append("Plans have not loaded yet", style="dim")
+    else:
+        phase_count = sum(len(phases) for phases in snapshot.phases_by_epic.values())
+        if snapshot.project is None:
+            text.append(f"{len(snapshot.projects)} projects", style="bold white")
+            text.append("  ·  ", style="dim")
+        text.append(f"{len(snapshot.proposals)} proposals", style="#FFD700")
+        text.append("  ·  ", style="dim")
+        text.append(f"{len(snapshot.epics)} epics", style=ARTIFACTS_ACCENTS["plans"])
+        text.append("  ·  ", style="dim")
+        text.append(f"{phase_count} phases", style="#87D7FF")
+        text.append("  ·  ", style="dim")
+        archive_label = f"{len(snapshot.archive)} archived"
+        if snapshot.archive_truncated:
+            archive_label += " (newest shown)"
+        text.append(archive_label, style="#00D7AF")
+        if snapshot.errors:
+            text.append("  ·  ", style="dim")
+            error_projects = ", ".join(
+                snapshot.display_names.get(project, project)
+                for project in sorted(snapshot.errors)
+            )
+            text.append(f"Load errors: {error_projects}", style="bold #FF5F5F")
+    return text
+
+
+def build_plans_hints(registry: KeymapRegistry) -> Text:
+    """Build the configured action hints shown below the plan panels."""
+    keymap = registry.app
+    parts = (
+        (keymap.plans_next, "next"),
+        (keymap.plans_prev, "prev"),
+        (keymap.plans_view_selected, "view"),
+        (keymap.plans_expand, "expand"),
+        (keymap.plans_collapse, "collapse"),
+        (keymap.plans_cycle_status, "status"),
+        (keymap.plans_edit_bead, "edit"),
+        (keymap.plans_launch_epic, "work"),
+        (keymap.plans_approve, "approve"),
+        (keymap.plans_reject, "reject"),
+        (keymap.plans_open_bug, "bug"),
+        (keymap.plans_refresh, "refresh"),
+    )
+    text = Text(justify="center")
+    for index, (key, label) in enumerate(parts):
+        if index:
+            text.append("  ", style="dim")
+        text.append(key_display_name(key), style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+        text.append(f" {label}", style="dim")
+    return text
+
+
+def build_empty_plan_detail(
+    snapshot: PlansSnapshot | None,
+    *,
+    project_scope: str | None,
+    loading: bool,
+    load_error: str | None,
+) -> str:
+    """Build the detail placeholder and any project load warnings."""
+    if loading:
+        return "# Plans\n\nLoading proposals, beads, and committed plans…"
+    if load_error:
+        return f"# Plans unavailable\n\n{load_error}"
+    message = (
+        "Select a proposal, bead, or archived plan from all enabled projects."
+        if project_scope is None
+        else "Select a proposal, bead, or archived plan."
+    )
+    lines = ["# Plans", "", message]
+    if snapshot is not None and snapshot.errors:
+        lines.extend(["", "## Load warnings", ""])
+        for project, error in sorted(snapshot.errors.items()):
+            lines.append(f"- **{project}:** {error}")
+    return "\n".join(lines)
+
+
+def proposal_text(
+    proposal: PlanProposal,
+    *,
+    project_badge: str | None = None,
+) -> Text:
+    """Render one pending proposal row."""
+    text = single_line_text()
+    text.append("◆ ", style="bold #FFD700")
+    text.append(proposal.title, style="bold white")
+    text.append(f"  {proposal.tier}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    age = _compact_inventory_age(proposal.age)
+    if age:
+        text.append(f"  {age}", style="dim")
+    _append_project_badge(text, project_badge)
+    return text
+
+
+def epic_text(
+    epic: Issue,
+    phases: tuple[Issue, ...],
+    *,
+    expanded: bool,
+    project: str,
+    ready_ids: frozenset[tuple[str, str]],
+    blocked_ids: frozenset[tuple[str, str]],
+    project_badge: str | None = None,
+) -> Text:
+    """Render one expandable epic row."""
+    text = single_line_text()
+    text.append(
+        "▾ " if expanded else "▸ ",
+        style=f"bold {ARTIFACTS_ACCENTS['plans']}",
+    )
+    text.append(_status_glyph(epic.status), style=_status_style(epic.status))
+    text.append(f" {epic.id} ", style="bold #FFD700")
+    text.append(epic.title, style="bold white")
+    closed = sum(phase.status == Status.CLOSED for phase in phases)
+    text.append(f"  {closed}/{len(phases)}", style="#87D7FF")
+    issue_key = (project, epic.id)
+    if issue_key in blocked_ids:
+        text.append("  BLOCKED", style="bold #FF5F5F")
+    elif issue_key in ready_ids:
+        text.append("  READY", style="bold #5FD787")
+    elif epic.is_ready_to_work:
+        text.append("  LAUNCHED", style="bold #00D7AF")
+    age = _compact_relative_age(epic.created_at)
+    if age:
+        text.append(f"  {age}", style="dim")
+    _append_project_badge(text, project_badge)
+    return text
+
+
+def phase_text(
+    phase: Issue,
+    *,
+    project: str,
+    ready_ids: frozenset[tuple[str, str]],
+    blocked_ids: frozenset[tuple[str, str]],
+) -> Text:
+    """Render one expanded epic phase row."""
+    text = single_line_text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
+    text.append(_status_glyph(phase.status), style=_status_style(phase.status))
+    text.append(f" {phase.id} ", style="bold #FFD700")
+    text.append(phase.title, style="white")
+    issue_key = (project, phase.id)
+    if issue_key in blocked_ids:
+        text.append("  blocked", style="bold #FF5F5F")
+    elif issue_key in ready_ids:
+        text.append("  ready", style="bold #5FD787")
+    elif phase.status == Status.IN_PROGRESS:
+        text.append("  active", style="bold #FFD700")
+    return text
+
+
+def archive_text(
+    match: PlanSearchMatch,
+    *,
+    project_badge: str | None = None,
+) -> Text:
+    """Render one archived plan row."""
+    plan = match.plan
+    text = single_line_text("▤ ", style="bold #00D7AF")
+    text.append(plan.title or plan.name, style="white")
+    text.append(f"  {plan.kind}", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
+    if plan.status:
+        status_style = "#5FD787" if plan.status in {"done", "approved"} else "#FFD700"
+        text.append(f"  {plan.status}", style=f"bold {status_style}")
+    if plan.created_at:
+        text.append(f"  {_compact_plan_date(plan.created_at)}", style="dim")
+    _append_project_badge(text, project_badge)
+    return text
+
+
+def single_line_text(text: str = "", *, style: str = "") -> Text:
+    """Return a compact row label that never wraps."""
+    return Text(text, style=style, no_wrap=True, overflow="ellipsis")
+
+
+def project_badge(snapshot: PlansSnapshot, project: str) -> str | None:
+    """Return a project label only when browsing all projects."""
+    if snapshot.project is not None:
+        return None
+    return snapshot.display_names.get(project, project)
+
+
+def _append_project_badge(text: Text, project_badge: str | None) -> None:
+    if project_badge:
+        text.append(f"  [{project_badge}]", style="dim")
+
+
+def _compact_inventory_age(age: str) -> str:
+    value = age.strip()
+    if value == "just now":
+        return "now"
+    return value.removesuffix(" ago")
+
+
+def _compact_relative_age(timestamp: str) -> str:
+    if not timestamp.strip():
+        return ""
+    try:
+        created = datetime.fromisoformat(timestamp.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+
+    from sase.core.time import get_timezone, local_now, to_local
+
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=get_timezone())
+    elapsed_seconds = max(0, int((local_now() - to_local(created)).total_seconds()))
+    if elapsed_seconds < 60:
+        return "now"
+    minutes = elapsed_seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    if days < 30:
+        return f"{days}d"
+    if days < 365:
+        return f"{days // 30}mo"
+    return f"{days // 365}y"
+
+
+def _compact_plan_date(timestamp: str) -> str:
+    date = timestamp.strip()[:10]
+    if len(date) == 10 and date[4] == "-" and date[7] == "-":
+        return date[5:]
+    return date
+
+
+def _status_glyph(status: Status) -> str:
+    return {
+        Status.OPEN: "○",
+        Status.IN_PROGRESS: "◐",
+        Status.CLOSED: "●",
+    }[status]
+
+
+def _status_style(status: Status) -> str:
+    return {
+        Status.OPEN: "bold #87D7FF",
+        Status.IN_PROGRESS: "bold #FFD700",
+        Status.CLOSED: "bold #5FD787",
+    }[status]
