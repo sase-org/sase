@@ -11,12 +11,10 @@ import pytest
 from sase.ace.agent_tags import (
     InvalidTagError,
     load_agent_tags,
-    match_existing_name_group,
     save_agent_tags,
     set_tag,
     unset_tag,
     update_agent_tag,
-    update_agent_tag_from_existing_name_group,
     validate_tag_name,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -208,57 +206,3 @@ def test_update_agent_tag_validates_input(tmp_path: Path) -> None:
         with pytest.raises(InvalidTagError):
             update_agent_tag(identity, "bad tag")
         assert load_agent_tags() == {}
-
-
-def test_match_existing_name_group_matches_exact_and_dot_prefix() -> None:
-    groups = ["foo"]
-
-    assert match_existing_name_group("foo", groups) == "foo"
-    assert match_existing_name_group("foo.bar", groups) == "foo"
-    assert match_existing_name_group("foo.bar.baz", groups) == "foo"
-
-
-def test_match_existing_name_group_requires_dot_boundary() -> None:
-    assert match_existing_name_group("foobar", ["foo"]) is None
-
-
-def test_match_existing_name_group_prefers_longest_match() -> None:
-    groups = ["foo", "foo.bar", "other"]
-
-    assert match_existing_name_group("foo.bar.baz", groups) == "foo.bar"
-
-
-def test_update_agent_tag_from_existing_name_group_preserves_entries(
-    tmp_path: Path,
-) -> None:
-    test_file = tmp_path / "agent_tags.json"
-    existing = (AgentType.RUNNING, "keep", "ts1")
-    new = (AgentType.WORKFLOW, "sample", "ts2")
-
-    with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
-        assert save_agent_tags({existing: "foo"})
-        assert update_agent_tag_from_existing_name_group(new, "foo.child") == "foo"
-
-        assert load_agent_tags() == {
-            existing: "foo",
-            new: "foo",
-        }
-
-
-def test_update_agent_tag_from_existing_name_group_no_match_does_not_write(
-    tmp_path: Path,
-) -> None:
-    test_file = tmp_path / "agent_tags.json"
-    existing = (AgentType.RUNNING, "keep", "ts1")
-    new = (AgentType.WORKFLOW, "sample", "ts2")
-
-    with (
-        patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
-        patch("sase.ace.agent_tags.save_agent_tags", wraps=save_agent_tags) as save,
-    ):
-        assert save_agent_tags({existing: "foo"})
-        save.reset_mock()
-
-        assert update_agent_tag_from_existing_name_group(new, "bar.child") is None
-        save.assert_not_called()
-        assert load_agent_tags() == {existing: "foo"}

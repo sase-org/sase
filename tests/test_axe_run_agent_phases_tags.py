@@ -246,9 +246,8 @@ def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> Non
     }
 
 
-def test_named_agent_auto_persists_existing_group(tmp_path: Path) -> None:
+def test_named_agent_does_not_inherit_existing_group(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -256,19 +255,16 @@ def test_named_agent_auto_persists_existing_group(tmp_path: Path) -> None:
         seed_tags={existing: "foo"},
     )
 
-    assert info.tag == "foo"
-    assert meta["tag"] == "foo"
-    assert tags == {
-        existing: "foo",
-        identity: "foo",
-    }
+    assert info.name == "foo.child"
+    assert info.tag is None
+    assert "tag" not in meta
+    assert tags == {existing: "foo"}
 
 
-def test_wait_derived_agent_name_auto_persists_existing_group(
+def test_wait_derived_agent_name_does_not_inherit_existing_group(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -277,19 +273,15 @@ def test_wait_derived_agent_name_auto_persists_existing_group(
     )
 
     assert info.name == "foo.w0"
-    assert info.tag == "foo"
-    assert meta["tag"] == "foo"
-    assert tags == {
-        existing: "foo",
-        identity: "foo",
-    }
+    assert info.tag is None
+    assert "tag" not in meta
+    assert tags == {existing: "foo"}
 
 
-def test_fork_derived_agent_name_auto_persists_existing_group(
+def test_fork_derived_agent_name_does_not_inherit_existing_group(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
-    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -299,20 +291,16 @@ def test_fork_derived_agent_name_auto_persists_existing_group(
     )
 
     assert info.name == "foo.f0"
-    assert info.tag == "foo"
-    assert meta["tag"] == "foo"
-    assert tags == {
-        existing: "foo",
-        identity: "foo",
-    }
+    assert info.tag is None
+    assert "tag" not in meta
+    assert tags == {existing: "foo"}
 
 
-def test_planned_template_name_auto_uses_final_longest_group(
+def test_planned_template_name_does_not_inherit_nested_existing_group(
     tmp_path: Path,
 ) -> None:
     parent = (AgentType.RUNNING, "seed-parent", "ts1")
     child = (AgentType.RUNNING, "seed-child", "ts2")
-    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
@@ -325,26 +313,12 @@ def test_planned_template_name_auto_uses_final_longest_group(
     )
 
     assert info.name == "sase-42.3.1"
-    assert info.tag == "sase-42.3"
-    assert meta["tag"] == "sase-42.3"
+    assert info.tag is None
+    assert "tag" not in meta
     assert tags == {
         parent: "sase-42",
         child: "sase-42.3",
-        identity: "sase-42.3",
     }
-
-
-def test_no_existing_group_skips_tag_metadata_and_store_write(
-    tmp_path: Path,
-) -> None:
-    _info, meta, tags = _extract_with_agent_tags(
-        tmp_path,
-        "%name:foo.child\nDo work",
-        seed_tags={},
-    )
-
-    assert "tag" not in meta
-    assert tags == {}
 
 
 def _mock_provider_config(

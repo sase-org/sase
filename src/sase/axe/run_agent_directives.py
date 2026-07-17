@@ -341,13 +341,6 @@ def extract_directives_and_write_meta(
             agent_name = get_next_auto_name()
 
         agent_tag = directives.tag
-        if agent_tag is None and agent_name:
-            from sase.ace.agent_tags import load_agent_tags, match_existing_name_group
-
-            agent_tag = match_existing_name_group(
-                agent_name,
-                load_agent_tags().values(),
-            )
 
         # Build agent_meta dict.
         agent_meta: dict[str, Any] = {
@@ -478,19 +471,13 @@ def extract_directives_and_write_meta(
     # tab picks it up at load time.  The agent's identity is
     # (agent_type=WORKFLOW, cl_name, raw_suffix) — matching how run-agents
     # are loaded via the workflow loader.
-    if agent_tag and cl_name:
+    if directives.tag and cl_name:
         from sase.ace.tui.models.agent import AgentType
+        from sase.ace.agent_tags import update_agent_tag
 
         raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
         identity = (AgentType.WORKFLOW, cl_name, raw_suffix)
-        if directives.tag:
-            from sase.ace.agent_tags import update_agent_tag
-
-            update_agent_tag(identity, directives.tag)
-        elif agent_name:
-            from sase.ace.agent_tags import update_agent_tag_from_existing_name_group
-
-            update_agent_tag_from_existing_name_group(identity, agent_name)
+        update_agent_tag(identity, directives.tag)
 
     return AgentInfo(
         name=agent_name,

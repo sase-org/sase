@@ -18,7 +18,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -226,57 +226,6 @@ def update_agent_tag_assignment(
             return save_agent_tags(store)
     except OSError:
         return False
-
-
-def match_existing_name_group(
-    agent_name: str,
-    group_names: Iterable[str],
-) -> str | None:
-    """Return the longest existing group matched by *agent_name*.
-
-    A group matches when it is exactly equal to the agent name or when the
-    agent name starts with ``<group>.``.  This keeps ``foo.bar`` in ``foo`` but
-    avoids grouping ``foobar`` under ``foo``.
-    """
-    if not agent_name:
-        return None
-
-    best: str | None = None
-    for group_name in group_names:
-        if not group_name:
-            continue
-        if agent_name == group_name or agent_name.startswith(f"{group_name}."):
-            if best is None or len(group_name) > len(best):
-                best = group_name
-    return best
-
-
-def update_agent_tag_from_existing_name_group(
-    identity: tuple[AgentType, str, str | None],
-    agent_name: str,
-) -> str | None:
-    """Persist *identity* into an existing name-matched group, if any.
-
-    The group is chosen from the current values in ``agent_tags.json`` and the
-    load-match-save cycle is protected by the same lock used by explicit tag
-    updates.  Returns the matched group on success and ``None`` when no existing
-    group matches or the save fails.
-    """
-    if not agent_name:
-        return None
-
-    try:
-        with _agent_tags_file_lock():
-            store = load_agent_tags()
-            group_name = match_existing_name_group(agent_name, store.values())
-            if group_name is None:
-                return None
-            set_tag(store, identity, group_name)
-            if not save_agent_tags(store):
-                return None
-            return group_name
-    except OSError:
-        return None
 
 
 def set_tag(
