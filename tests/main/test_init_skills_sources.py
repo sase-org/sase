@@ -90,6 +90,8 @@ from tests.main.init_skills_handler_helpers import make_args
                 "Both tiers require a non-empty frontmatter `title`",
                 "tier: epic",
                 "depends_on: []",
+                "Give every phase a `description` that names its section",
+                "do not reference the plan file itself because `sase bead show`",
                 "Otherwise omit it so the configured `@phase_worker`",
                 "sase plan validate sase_plan_<name>.md --tier tale",
                 "sase plan validate sase_plan_<name>.md --tier epic",

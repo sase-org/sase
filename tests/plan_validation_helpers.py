@@ -18,6 +18,7 @@ phases:
   - id: implementation
     title: Implement the requested change
     depends_on: []
+    description: "'Implement the requested change' section: deliver and verify the approved implementation."
 ---
 # Plan
 

@@ -38,9 +38,11 @@ phases:
   - id: core
     title: Core validator
     depends_on: []
+    description: "'Core validator' section: build the shared validation engine."
   - id: cli
     title: CLI integration
     depends_on: [core]
+    description: "'CLI integration' section: wire the validator into the command."
 ---
 # Plan
 
@@ -83,7 +85,11 @@ def test_facade_rehydrates_valid_tale_and_ordered_schema() -> None:
 
 
 def test_facade_rehydrates_normalized_epic_phases() -> None:
-    result = validate_plan(VALID_EPIC, "epic")
+    descriptionless_epic = VALID_EPIC.replace(
+        "    description: \"'CLI integration' section: wire the validator into the command.\"\n",
+        "",
+    )
+    result = validate_plan(descriptionless_epic, "epic")
 
     assert result.ok
     assert result.plan is not None
@@ -282,6 +288,7 @@ def test_cli_rejects_missing_blank_and_wrong_typed_titles(
 ) -> None:
     extra = (
         "phases:\n  - id: core\n    title: Core\n    depends_on: []\n"
+        "    description: Core section exercises title validation.\n"
         if tier == "epic"
         else ""
     )
@@ -391,6 +398,7 @@ phases:
   - nope
   - id: core
     surprise: true
+    description: Core section exercises malformed phase fields.
 ---
 body
 """,
@@ -407,12 +415,15 @@ phases:
   - id: Bad slug
     title: First
     depends_on: [Bad slug, future, missing, missing]
+    description: First section exercises invalid dependencies.
   - id: future
     title: Future
     depends_on: []
+    description: Future section exercises forward references.
   - id: future
     title: Duplicate
     depends_on: nope
+    description: Duplicate section exercises duplicate ids.
 ---
 body
 """,
