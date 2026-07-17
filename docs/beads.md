@@ -331,7 +331,7 @@ Once an epic bead exists, the shared launch path:
 1. Validates that `<epic_id>` resolves to an issue of type `plan` with `tier=epic`. If the plan is already marked
    `is_ready_to_work`, the command treats the run as a retry and schedules any remaining non-closed phases.
 2. On a confirmed launch, force-reuses the deterministic bead-work names — `<epic_id>.<N>` (for each open phase),
-   `<epic_id>` (for the land agent), and the legacy `<epic_id>.land` land-agent name — by wiping any prior owner of
+   `<epic_id>.land` (for the land agent), and the legacy `<epic_id>` land-agent name — by wiping any prior owner of
    those names, whether that owner is a completed, dismissed, or planned reservation or a still-live agent (live owners
    are terminated). This also covers owners that hold the name only as a `workflow_name`. If the forced-reuse cleanup
    cannot complete (a wipe fails or a name is still reserved afterward), the command aborts before mutating any bead
@@ -341,7 +341,8 @@ Once an epic bead exists, the shared launch path:
 5. Pre-claims each phase bead — sets `status=in_progress` and `assignee=<phase_bead_id>` (i.e. `<epic_id>.<N>`).
 6. Hands a single `---`-separated multi-prompt to the agent launcher. Each per-phase agent is spawned with name
    `<epic_id>.<N>` and references the [`work_phase_bead`](xprompt.md#available-tags) xprompt; a final land agent named
-   `<epic_id>` references the [`land_epic`](xprompt.md#available-tags) xprompt. Phase dependencies become `%w` waits on
+   `<epic_id>.land` references the [`land_epic`](xprompt.md#available-tags) xprompt. Every segment joins clan
+   `<epic_id>` with `%clan:<epic_id>` and tribe `@epic` with `%tribe:epic`. Phase dependencies become `%w` waits on
    blocker phase-agent names, and the land agent waits on every launched phase agent. Because `%w` requires a successful
    `done.json` outcome, a failed or killed phase keeps dependent phases and the land agent parked until the phase name
    is retried successfully. Phase beads with a stored `model` emit `%model:<value>`; phase beads without one default to

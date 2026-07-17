@@ -96,7 +96,10 @@ def test_plan_file_mode_creates_links_and_launches_in_tree(
         f"{result.epic_id}.2",
         f"{result.epic_id}.3",
     )
-    assert result.launched_agent_names == (*result.phase_bead_ids, result.epic_id)
+    assert result.launched_agent_names == (
+        *result.phase_bead_ids,
+        f"{result.epic_id}.land",
+    )
     assert launches == [result.epic_id]
     assert result.archived_plan_path.parent.parent.name == "plans"
     frontmatter, _body, _had_frontmatter = parse_frontmatter(
@@ -649,7 +652,7 @@ def test_plan_file_json_output_is_one_stable_object(
     assert payload["mode"] == "plan_file"
     assert payload["epic_id"]
     assert len(payload["phase_bead_ids"]) == 3
-    assert payload["launched_agent_names"][-1] == payload["epic_id"]
+    assert payload["launched_agent_names"][-1] == f"{payload['epic_id']}.land"
 
 
 def test_bead_work_help_describes_both_targets_and_options(

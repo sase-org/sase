@@ -15,7 +15,7 @@ def expected_agent_names(plan: EpicWorkPlan) -> set[str]:
 
 
 def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
-    name = f"{plan.epic_id}.land"
+    name = plan.epic_id
     if name == plan.land_agent_name:
         return None
     return name
@@ -24,7 +24,7 @@ def _legacy_land_agent_name(plan: EpicWorkPlan) -> str | None:
 def legacy_epic_cleanup_names(plan: EpicWorkPlan) -> frozenset[str]:
     """Return legacy deterministic owners to wipe that the prompt no longer names.
 
-    Epic land agents now reuse ``<epic_id>``; older runs used ``<epic_id>.land``.
+    Epic land agents now use ``<epic_id>.land``; older runs used ``<epic_id>``.
     The legacy name is not rendered in the new prompt, so it is an extra wipe
     target rather than an expected ``%name:!`` directive.
     """
@@ -50,6 +50,7 @@ def print_work_plan_summary(epic_id: str, title: str, plan: EpicWorkPlan) -> Non
         f"Epic {epic_id} — {title}: {phase_count} phase agent(s) in "
         f"{wave_count} wave(s) plus 1 land agent ({plan.land_agent_name})."
     )
+    print(f"  Clan: {plan.epic_id} · Tribe: @epic")
     for i, wave in enumerate(plan.waves):
         names = ", ".join(f"{a.bead_id} → {a.agent_name}" for a in wave)
         print(f"  Wave {i}: {names}")

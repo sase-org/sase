@@ -44,7 +44,7 @@ class TestLinearChain:
         assert plan.waves[1][0].waits_on == ("p1",)
         assert plan.waves[2][0].waits_on == ("p2",)
         assert plan.land_waits_on == ("p1", "p2", "p3")
-        assert plan.land_agent_name == "e1"
+        assert plan.land_agent_name == "e1.land"
         assert plan.launch_tag_id == "e1"
 
     def test_parent_plan_does_not_change_epic_launch_tag(
@@ -107,33 +107,39 @@ class TestDiamond:
 
         expected = (
             "%name:!p1\n"
-            "%family(e1, role=phase)\n"
+            "%clan:e1\n"
+            "%tribe:epic\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
-            "%family(e1, role=phase)\n"
+            "%clan:e1\n"
+            "%tribe:epic\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:!p3\n"
-            "%family(e1, role=phase)\n"
+            "%clan:e1\n"
+            "%tribe:epic\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
             "%name:!p4\n"
-            "%family(e1, role=phase)\n"
+            "%clan:e1\n"
+            "%tribe:epic\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
-            "%name:!e1\n"
+            "%name:!e1.land\n"
+            "%clan:e1\n"
+            "%tribe:epic\n"
             "%model:@epic_lander\n"
             "%auto:tale\n"
             "%w:p1,p2,p3,p4\n"
@@ -141,8 +147,9 @@ class TestDiamond:
         )
         assert rendered == expected
         segments = rendered.split("\n---\n")
-        assert all("%family(e1, role=phase)" in segment for segment in segments[:-1])
-        assert "%family" not in segments[-1]
+        assert all("%clan:e1" in segment for segment in segments)
+        assert all("%tribe:epic" in segment for segment in segments)
+        assert all("%family" not in segment for segment in segments)
         assert all("%group:" not in segment for segment in segments)
         assert all("%auto:tale" in segment.splitlines() for segment in segments)
         assert all("%auto" not in segment.splitlines() for segment in segments)

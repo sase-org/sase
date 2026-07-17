@@ -112,34 +112,6 @@ def test_work_force_reuses_live_land_owner_and_launches(
 
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir()
-    write_orphan_meta(fake_home, f"{epic_id}")
-    monkeypatch.setattr(Path, "home", lambda: fake_home)
-
-    wiped = _record_wipes(monkeypatch)
-    launch_calls: list[str] = []
-    monkeypatch.setattr(
-        "sase.agent.launcher.launch_agent_from_cwd",
-        lambda query, extra_env=None, segment_extra_env=None: (
-            launch_calls.append(query) or FakeLaunchResult()
-        ),
-    )
-
-    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
-
-    # The land agent name (the epic id itself) is force-reused, not refused.
-    assert epic_id in wiped
-    assert len(launch_calls) == 1
-
-
-def test_work_force_reuses_legacy_land_owner_and_launches(
-    project_dir: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    epic_id, _ = seed_diamond(project_dir)
-
-    fake_home = tmp_path / "fake_home"
-    fake_home.mkdir()
     write_orphan_meta(fake_home, f"{epic_id}.land")
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
@@ -154,9 +126,37 @@ def test_work_force_reuses_legacy_land_owner_and_launches(
 
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
-    # The legacy ``<epic_id>.land`` owner is an extra cleanup target even though
-    # it is not rendered as a %name:! directive in the new prompt.
+    # The ``<epic_id>.land`` owner is force-reused, not refused.
     assert f"{epic_id}.land" in wiped
+    assert len(launch_calls) == 1
+
+
+def test_work_force_reuses_legacy_land_owner_and_launches(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    epic_id, _ = seed_diamond(project_dir)
+
+    fake_home = tmp_path / "fake_home"
+    fake_home.mkdir()
+    write_orphan_meta(fake_home, epic_id)
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+
+    wiped = _record_wipes(monkeypatch)
+    launch_calls: list[str] = []
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agent_from_cwd",
+        lambda query, extra_env=None, segment_extra_env=None: (
+            launch_calls.append(query) or FakeLaunchResult()
+        ),
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    # The legacy ``<epic_id>`` owner is an extra cleanup target even though
+    # it is not rendered as a %name:! directive in the new prompt.
+    assert epic_id in wiped
     assert len(launch_calls) == 1
 
 
@@ -204,9 +204,9 @@ def test_work_force_reuses_workflow_name_only_owner(
     """The land name can be reserved as a *workflow_name* of an unrelated agent.
 
     Reproduces the ``sase-4q`` class: a completed ``home`` agent family whose
-    artifact ``name`` is ``<epic_id>--code`` but whose ``workflow_name`` is the
-    plan's land name (``<epic_id>``). Relaunch must wipe that owner before the
-    launcher's permanent-name validation runs.
+    artifact ``name`` is ``<epic_id>.land--code`` but whose ``workflow_name`` is
+    the plan's land name (``<epic_id>.land``). Relaunch must wipe that owner before
+    the launcher's permanent-name validation runs.
     """
     epic_id, _ = seed_diamond(project_dir)
 
@@ -223,18 +223,22 @@ def test_work_force_reuses_workflow_name_only_owner(
     artifact_dir.mkdir(parents=True)
     (artifact_dir / "agent_meta.json").write_text(
         json.dumps(
-            {"name": f"{epic_id}--code", "workflow_name": epic_id, "model": "test"}
+            {
+                "name": f"{epic_id}.land--code",
+                "workflow_name": f"{epic_id}.land",
+                "model": "test",
+            }
         )
     )
     (artifact_dir / "done.json").write_text(
-        json.dumps({"name": f"{epic_id}--code", "outcome": "completed"})
+        json.dumps({"name": f"{epic_id}.land--code", "outcome": "completed"})
     )
     monkeypatch.setattr(Path, "home", lambda: fake_home)
 
     from sase.agent.names import is_name_reserved, rebuild_name_registry
 
     rebuild_name_registry()
-    assert is_name_reserved(epic_id)
+    assert is_name_reserved(f"{epic_id}.land")
 
     launch_calls: list[str] = []
     monkeypatch.setattr(
@@ -249,7 +253,7 @@ def test_work_force_reuses_workflow_name_only_owner(
     assert len(launch_calls) == 1
     assert "%name:!" not in launch_calls[0]
     # The workflow_name-only owner is gone after the forced-reuse cleanup.
-    assert not is_name_reserved(epic_id)
+    assert not is_name_reserved(f"{epic_id}.land")
     assert not artifact_dir.exists()
 
 
