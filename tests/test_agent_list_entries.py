@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import json
+from pathlib import Path
 from typing import Any
+
+from pytest import MonkeyPatch
 
 from sase.agent.running import RunningAgentInfo
 from sase.agents.cli_list import _agent_to_json
@@ -19,6 +23,7 @@ from sase.integrations.agent_list_entries import (
     _AgentChildrenSummary,
     _attach_runner_slot_context,
     _build_agent_list_entry,
+    agent_list_entries,
 )
 
 
@@ -137,15 +142,19 @@ def test_runner_slot_wait_info_includes_live_count_and_queue_position() -> None:
         ),
     )
 
-    first, second = _attach_runner_slot_context([first, second], 7)
+    first, second = _attach_runner_slot_context(
+        [first, second], 7, runner_slot_holders=("phase",)
+    )
 
     assert first.wait.wait_runners == 9
     assert first.wait.runner_slots_in_use == 7
     assert first.wait.runner_slot_queue_position == 1
     assert first.wait.runner_slot_queue_size == 1
+    assert first.wait.runner_slot_holders == ("phase",)
     assert second.wait.wait_runners_explicit is True
     assert second.wait.runner_slot_queue_position is None
     assert second.wait.runner_slot_queue_size == 1
+    assert second.wait.runner_slot_holders == ("phase",)
 
 
 def test_answered_question_runner_wait_has_waiting_precedence(tmp_path) -> None:
@@ -263,7 +272,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
             ),
         ),
     )
-    (entry,) = _attach_runner_slot_context([entry], 0)
+    (entry,) = _attach_runner_slot_context([entry], 0, runner_slot_holders=("phase",))
 
     payload = _agent_to_json(entry)
 
@@ -273,3 +282,59 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["runner_slots_in_use"] == 0
     assert payload["runner_slot_queue_position"] == 1
     assert payload["runner_slot_queue_size"] == 1
+    assert payload["parent_agent_name"] is None
+    assert payload["agent_family"] is None
+    assert payload["runner_slot_holders"] == ["phase"]
+
+
+def test_agent_list_entries_names_parallel_child_blocking_waiter(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    child_dir = tmp_path / "ace-run" / "20260717120001"
+    child_dir.mkdir(parents=True)
+    (child_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "parent_agent_name": "epic",
+                "agent_family": "epic",
+            }
+        )
+    )
+    waiter_dir = tmp_path / "ace-run" / "20260717120002"
+    waiter_dir.mkdir()
+    (waiter_dir / "waiting.json").write_text(
+        json.dumps(
+            {
+                "wait_runners": 0,
+                "slot_requested_at": "2026-07-17T12:00:02-04:00",
+            }
+        )
+    )
+    child = _agent(
+        name="epic--phase",
+        artifacts_dir=str(child_dir),
+        holds_runner_slot=True,
+    )
+    waiter = _agent(
+        name="waiter",
+        status="WAITING",
+        artifacts_dir=str(waiter_dir),
+        holds_runner_slot=False,
+    )
+    monkeypatch.setattr(
+        "sase.integrations.agent_list_entries.list_running_agents",
+        lambda: [child, waiter],
+    )
+    monkeypatch.setattr(
+        "sase.integrations.agent_list_entries._children_by_parent_timestamp",
+        lambda **_kwargs: {},
+    )
+
+    entries = agent_list_entries()
+    by_name = {entry.name: entry for entry in entries}
+
+    assert by_name["waiter"].wait.runner_slots_in_use == 1
+    assert by_name["waiter"].wait.runner_slot_holders == ("epic--phase",)
+    child_payload = _agent_to_json(by_name["epic--phase"])
+    assert child_payload["parent_agent_name"] == "epic"
+    assert child_payload["agent_family"] == "epic"

@@ -12,7 +12,10 @@ from sase.core.agent_scan_wire import (
     AgentArtifactScanWire,
 )
 from sase.core.paths import sase_projects_dir
-from sase.core.runner_slots import is_root_user_agent_record
+from sase.core.runner_slots import (
+    is_root_user_agent_record,
+    is_runner_slot_user_agent_record,
+)
 from sase.core.time import get_timezone
 
 
@@ -157,8 +160,6 @@ def _running_info_from_running_record(
     meta = record.agent_meta
     if meta is None:
         return None
-    if meta.parent_timestamp:
-        return None
     wf_state = record.workflow_state
     if wf_state is not None and not wf_state.appears_as_agent:
         return None
@@ -216,7 +217,8 @@ def _running_from_snapshot(
     pairs: list[tuple[str, RunningAgentInfo]] = []
 
     for record in snapshot.records:
-        if not is_root_user_agent_record(record):
+        is_root = is_root_user_agent_record(record)
+        if not is_root and not _is_visible_runner_slot_child(record):
             continue
         info = _running_info_from_running_record(
             record, now=now, workspace_cache=workspace_cache
@@ -227,6 +229,20 @@ def _running_from_snapshot(
 
     pairs.sort(key=lambda x: x[0], reverse=True)
     return [info for _, info in pairs]
+
+
+def _is_visible_runner_slot_child(record: AgentArtifactRecordWire) -> bool:
+    """Return whether a non-root slot participant needs its own active row."""
+    if not is_runner_slot_user_agent_record(record):
+        return False
+    meta = record.agent_meta
+    if meta is None or not meta.parent_timestamp:
+        return False
+    holds_runner_slot = bool(meta.run_started_at) and record.pending_question is None
+    queued_for_runner_slot = bool(
+        record.waiting is not None and record.waiting.slot_requested_at
+    )
+    return holds_runner_slot or queued_for_runner_slot
 
 
 def _done_info_from_record(
@@ -328,7 +344,7 @@ def list_running_agents() -> list[RunningAgentInfo]:
 
     Consumes one :func:`sase.core.agent_scan_facade.scan_agent_artifacts`
     snapshot for ``ace-run`` records, applies the current Python filters
-    (parent-timestamp dedup, hidden-workflow skip, PID liveness), and
+    (slot-relevant family-child projection, hidden-workflow skip, PID liveness), and
     returns most-recent-first.
     """
     snapshot = _scan_listing_snapshot()

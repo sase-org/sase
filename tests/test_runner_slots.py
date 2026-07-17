@@ -11,6 +11,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.runner_slots import (
     RunnerSlotWaiter,
+    is_runner_slot_user_agent_record,
     live_runner_slot_waiters,
     may_start,
     running_root_agent_count,
@@ -82,6 +83,22 @@ def test_running_count_uses_live_started_roots_only() -> None:
         running_root_agent_count(records, lambda record: record.agent_meta.pid != 6)
         == 2
     )  # type: ignore[union-attr]
+
+
+def test_runner_slot_user_agent_record_predicate_covers_admission_cases() -> None:
+    root = _record("/root")
+    parallel_child = _record(
+        "/parallel",
+        parent_timestamp="parent",
+        agent_family_parallel=True,
+    )
+    serial_child = _record("/serial", parent_timestamp="parent")
+    done = _record("/done", done=True)
+
+    assert is_runner_slot_user_agent_record(root)
+    assert is_runner_slot_user_agent_record(parallel_child)
+    assert not is_runner_slot_user_agent_record(serial_child)
+    assert not is_runner_slot_user_agent_record(done)
 
 
 def test_question_paused_root_yields_until_pause_marker_is_removed() -> None:

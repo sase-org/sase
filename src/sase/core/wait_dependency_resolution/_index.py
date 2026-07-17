@@ -182,9 +182,7 @@ class WaitDependencyIndex:
             timestamp=max(member.timestamp for member in members),
             is_resolved=all(member.is_resolved for member in members),
             is_done=all(member.is_done for member in members),
-            is_identity_success=all(
-                member.is_identity_success for member in members
-            ),
+            is_identity_success=all(member.is_identity_success for member in members),
             is_failed=any(member.is_failed for member in members),
         )
 

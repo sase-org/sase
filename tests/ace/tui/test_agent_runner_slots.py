@@ -72,12 +72,19 @@ def test_drain_waiter_joins_fifo_order_when_running_count_reaches_zero() -> None
     assert second.runner_slot_queue_size == 2
 
 
-def test_refresh_runner_slot_context_excludes_children_and_non_ace_rows() -> None:
-    child = _agent(
-        "child",
+def test_refresh_runner_slot_context_counts_parallel_family_children_only() -> None:
+    serial_child = _agent(
+        "serial-child",
         status="RUNNING",
         run_start_time=datetime(2026, 7, 12, 11, 59),
         parent_timestamp="parent",
+    )
+    parallel_child = _agent(
+        "parallel-child",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 58),
+        parent_timestamp="parent",
+        agent_family_parallel=True,
     )
     axe = _agent(
         "axe",
@@ -91,9 +98,9 @@ def test_refresh_runner_slot_context_excludes_children_and_non_ace_rows() -> Non
         slot_requested_at="2026-07-12T12:00:01Z",
     )
 
-    refresh_runner_slot_context([child, axe, waiter])
+    refresh_runner_slot_context([serial_child, parallel_child, axe, waiter])
 
-    assert waiter.runner_slots_in_use == 0
+    assert waiter.runner_slots_in_use == 1
 
 
 def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:

@@ -85,6 +85,9 @@ def _agent_to_json(agent: AgentListEntry) -> dict[str, object]:
         "runner_slots_in_use": agent.wait.runner_slots_in_use,
         "runner_slot_queue_position": agent.wait.runner_slot_queue_position,
         "runner_slot_queue_size": agent.wait.runner_slot_queue_size,
+        "parent_agent_name": agent.parent_agent_name,
+        "agent_family": agent.agent_family,
+        "runner_slot_holders": list(agent.wait.runner_slot_holders),
     }
 
 

@@ -32,7 +32,7 @@ def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
     return state is None or state.appears_as_agent
 
 
-def _is_runner_slot_user_agent_record(record: AgentArtifactRecordWire) -> bool:
+def is_runner_slot_user_agent_record(record: AgentArtifactRecordWire) -> bool:
     """Return whether *record* participates in runner-slot admission."""
     if record.workflow_dir_name != "ace-run" or record.has_done_marker:
         return False
@@ -57,7 +57,7 @@ def running_root_agent_count(
     return sum(
         1
         for record in records
-        if _is_runner_slot_user_agent_record(record)
+        if is_runner_slot_user_agent_record(record)
         and record.agent_meta is not None
         and bool(record.agent_meta.run_started_at)
         and record.pending_question is None
@@ -74,7 +74,7 @@ def live_runner_slot_waiters(
     for record in records:
         waiting = record.waiting
         if (
-            not _is_runner_slot_user_agent_record(record)
+            not is_runner_slot_user_agent_record(record)
             or waiting is None
             or not waiting.slot_requested_at
             or not is_live(record)

@@ -15,7 +15,7 @@ def refresh_runner_slot_context(agents: list[Agent]) -> None:
     after the Tier-1/artifact-delta merge keeps the operation O(rows), pure,
     and consistent across full and selective refreshes.
     """
-    running_count = sum(1 for agent in agents if _counts_as_running_root(agent))
+    running_count = sum(1 for agent in agents if _holds_runner_slot(agent))
     waiters = sorted(
         (agent for agent in agents if _is_live_slot_waiter(agent)),
         key=_waiter_sort_key,
@@ -54,9 +54,15 @@ def _is_ace_run_root(agent: Agent) -> bool:
     return workflow == "ace-run" or workflow.startswith("ace(run)")
 
 
-def _counts_as_running_root(agent: Agent) -> bool:
+def _participates_in_runner_slots(agent: Agent) -> bool:
+    return _is_ace_run_root(agent) or (
+        agent.is_family_member_child and agent.agent_family_parallel
+    )
+
+
+def _holds_runner_slot(agent: Agent) -> bool:
     return (
-        _is_ace_run_root(agent)
+        _participates_in_runner_slots(agent)
         and agent.pid is not None
         and agent.run_start_time is not None
         and agent.stop_time is None
@@ -67,7 +73,7 @@ def _counts_as_running_root(agent: Agent) -> bool:
 
 def _is_live_slot_waiter(agent: Agent) -> bool:
     return (
-        _is_ace_run_root(agent)
+        _participates_in_runner_slots(agent)
         and agent.pid is not None
         and bool(agent.slot_requested_at)
         and agent.status == "WAITING"
