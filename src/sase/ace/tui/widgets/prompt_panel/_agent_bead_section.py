@@ -59,20 +59,21 @@ class ResponsiveBeadSection:
             table.add_row(Text(label, style=COLOR_SUMMARY), value)
         yield from console.render(table, options.update_width(width))
 
-    @staticmethod
-    def _lane_header() -> Text:
+    def _lane_header(self) -> Text:
         text = Text(end="")
+        details = Text("phase", style=COLOR_SUMMARY)
+        details.append(" ", style=COLOR_SUMMARY)
+        details.append(self.summary.id, style=COLOR_BEAD_PRIMARY)
         append_context_lane_header(
             text,
             BEAD_SECTION_LABEL,
             label_style=COLOR_BEAD_SUBHEADER,
-            details="phase",
+            details=details,
         )
         return text
 
     def _rows(self) -> tuple[tuple[str, Text], ...]:
         return (
-            (self._label("ID"), Text(self.summary.id, style=COLOR_BEAD_PRIMARY)),
             (self._label("Description"), self._description_value()),
             (self._label("Epic Plan"), self._plan_value()),
             (self._label("Epic Title"), self._title_value()),

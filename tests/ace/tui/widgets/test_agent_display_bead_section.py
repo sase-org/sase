@@ -98,17 +98,16 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     plain = header.plain
 
     assert "Bead:" not in plain
-    assert plain.index("▸ BEAD · phase") < plain.index("ID:")
-    assert plain.index("ID:") < plain.index("Description:")
+    assert "▸ BEAD · phase sase-42.3\n" in plain
+    assert "ID:" not in plain
+    assert plain.count("sase-42.3") == 1
+    assert plain.index("▸ BEAD · phase sase-42.3") < plain.index("Description:")
     assert plain.index("Description:") < plain.index("Epic Plan:")
     assert plain.index("Epic Plan:") < plain.index("Epic Title:")
     field_lines = [
         line
         for line in plain.splitlines()
-        if any(
-            label in line
-            for label in ("ID:", "Description:", "Epic Plan:", "Epic Title:")
-        )
+        if any(label in line for label in ("Description:", "Epic Plan:", "Epic Title:"))
     ]
     assert {line.index(":") for line in field_lines} == {13}
     assert_span_covers(header, "▸ BEAD", COLOR_BEAD_SUBHEADER)
@@ -117,6 +116,11 @@ def test_bead_lane_has_exact_field_order_alignment_palette_and_no_old_row() -> N
     assert_span_covers(header, "Render only this selected phase.", COLOR_REASON)
     assert_span_covers(header, "epic plan.md", COLOR_ARTIFACT_FILE_BASENAME)
     assert_span_covers(header, "Phase bead context lane", COLOR_BEAD_PRIMARY)
+
+    for width in (120, 28):
+        rendered = "".join(_render(header, width=width))
+        assert rendered.count("sase-42.3") == 1
+        assert "…" not in rendered
 
 
 @pytest.mark.parametrize(

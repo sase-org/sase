@@ -513,15 +513,17 @@ async def test_agents_phase_bead_context_png_snapshot(
 
         assert_page_svg_contains(page, "SASE CONTEXT")
         assert_page_svg_contains(page, "BEAD")
-        assert_page_svg_contains(page, "phase")
-        assert_page_svg_contains(page, "ID:")
-        assert_page_svg_contains(page, "sase-visual.2")
+        svg = page.export_svg(title="ACE phase BEAD context assertion")
+        assert re.search(
+            r"phase&#160;</text><text[^>]*>sase-visual\.2</text>",
+            svg,
+        )
         assert_page_svg_contains(page, "Description:")
         assert_page_svg_contains(page, "Epic Plan:")
         assert_page_svg_contains(page, "Epic Title:")
         assert_page_svg_contains(page, "Phase bead SASE context lane")
-        svg = page.export_svg(title="ACE phase BEAD context assertion")
         assert "Bead:" not in svg
+        assert "ID:" not in svg
         assert "▸ PLAN" not in svg
         assert "Typed phase metadata" not in svg
         assert "Keep the complete epic roadmap" not in svg

@@ -926,8 +926,9 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
 
     assert summary.associated_plan is None
     assert "Bead:" not in header.plain
-    assert "▸ BEAD · phase\n" in header.plain
-    assert "          ID: sase-9.2\n" in header.plain
+    assert "▸ BEAD · phase sase-9.2\n" in header.plain
+    assert "ID:" not in header.plain
+    assert header.plain.count("▸ BEAD · phase sase-9.2") == 1
     assert " Description: Show only this selected phase description.\n" in (
         header.plain
     )

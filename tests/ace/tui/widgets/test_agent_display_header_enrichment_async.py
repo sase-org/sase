@@ -211,8 +211,9 @@ def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
 
     plain = plain_of(panel.captured[-1])
     assert "Bead:" not in plain
-    assert "▸ BEAD · phase\n" in plain
-    assert "          ID: sase-7.2\n" in plain
+    assert "▸ BEAD · phase sase-7.2\n" in plain
+    assert "ID:" not in plain
+    assert plain.count("▸ BEAD · phase sase-7.2") == 1
     assert " Description: Deferred selected phase description.\n" in plain
 
 
