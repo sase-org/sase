@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any, Literal, cast
 
@@ -23,6 +24,7 @@ from ...keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ...util.debounce import DetailPanelDebouncer
 from ...util.pump_tasks import spawn_pump_free_task
 from .bugs_rendering import BUG_ACCENT, issue_meta, issue_row
+from .entry_navigation import ArtifactEntryTarget
 from .lifecycle import ArtifactsPaneLifecycle
 
 _BUG_CACHE_TTL_S = 60.0
@@ -45,6 +47,18 @@ class BugIssueList(OptionList):
         self._programmatic_update = True
         try:
             self.highlighted = index
+        finally:
+            self._programmatic_update = False
+
+    def replace_options(
+        self, options: list[Option], *, highlighted: int | None
+    ) -> None:
+        """Replace rows and selection under one synchronous echo guard."""
+        self._programmatic_update = True
+        try:
+            self.clear_options()
+            self.add_options(options)
+            self.highlighted = highlighted
         finally:
             self._programmatic_update = False
 
@@ -106,6 +120,7 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
         self._load_generation = 0
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._link_targets: list[tuple[BugLinkKind, str]] = []
+        self._entry_jump_hints: dict[ArtifactEntryTarget, str] = {}
         self._init_artifacts_lifecycle()
 
     def compose(self) -> ComposeResult:
@@ -257,10 +272,21 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
             )
         if snapshot.state_filter != self.state_filter:
             return
+        previous_target = self.selected_entry_target()
+        cancel_jump = getattr(
+            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+        )
+        if callable(cancel_jump):
+            cancel_jump("bugs")
         self.snapshot = snapshot
         self.issues = snapshot.issues
         if self.issues:
-            self.selected_index = min(self.selected_index, len(self.issues) - 1)
+            selected_index = self._index_for_target(previous_target)
+            self.selected_index = (
+                selected_index
+                if selected_index is not None
+                else min(self.selected_index, len(self.issues) - 1)
+            )
         else:
             self.selected_index = 0
         if self.is_mounted:
@@ -315,6 +341,55 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
         issue_list.set_highlight(self.selected_index)
         self._schedule_detail_paint()
 
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        return tuple(self._issue_target(issue) for issue in self.issues)
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        issue = self.selected_issue
+        return None if issue is None else self._issue_target(issue)
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        index = self._index_for_target(target)
+        if index is None or not self.is_mounted:
+            return False
+        changed = index != self.selected_index
+        self.selected_index = index
+        issue_list = self.query_one("#bugs-list", BugIssueList)
+        issue_list.focus()
+        issue_list.set_highlight(index)
+        if changed:
+            self._schedule_detail_paint()
+        return True
+
+    def apply_entry_jump_hints(
+        self,
+        hints: Mapping[ArtifactEntryTarget, str],
+    ) -> None:
+        self._entry_jump_hints = dict(hints)
+        self._paint_issue_options()
+
+    def clear_entry_jump_hints(self) -> None:
+        if not self._entry_jump_hints:
+            return
+        self._entry_jump_hints = {}
+        self._paint_issue_options()
+
+    def _issue_target(self, issue: IssueWire) -> ArtifactEntryTarget:
+        scope = self.snapshot.project_key or self.project_scope or ""
+        return ("bug", scope, str(issue.number))
+
+    def _index_for_target(self, target: ArtifactEntryTarget | None) -> int | None:
+        if target is None:
+            return None
+        return next(
+            (
+                index
+                for index, issue in enumerate(self.issues)
+                if self._issue_target(issue) == target
+            ),
+            None,
+        )
+
     def focus_issue_list(self) -> None:
         if not self.is_mounted:
             return
@@ -343,16 +418,29 @@ class ArtifactsBugsPane(ArtifactsPaneLifecycle, Vertical):
     def _paint_snapshot(self, snapshot: BugSnapshot) -> None:
         self.query_one("#bugs-info", Static).update(self._scope_text())
         self.query_one("#bugs-list-header", Static).update(self._list_header_text())
-        issue_list = self.query_one("#bugs-list", BugIssueList)
-        issue_list.clear_options()
-        issue_list.add_options(
-            Option(issue_row(issue), id=f"bug-{issue.number}") for issue in self.issues
-        )
-        issue_list.set_highlight(self.selected_index if self.issues else None)
+        self._paint_issue_options()
         self.query_one("#bugs-list-message", Static).update(
             self._snapshot_message(snapshot)
         )
         self._paint_detail()
+
+    def _paint_issue_options(self) -> None:
+        if not self.is_mounted:
+            return
+        issue_list = self.query_one("#bugs-list", BugIssueList)
+        issue_list.replace_options(
+            [
+                Option(
+                    issue_row(
+                        issue,
+                        jump_hint=self._entry_jump_hints.get(self._issue_target(issue)),
+                    ),
+                    id=f"bug-{issue.number}",
+                )
+                for issue in self.issues
+            ],
+            highlighted=self.selected_index if self.issues else None,
+        )
 
     def _set_loading_message(self) -> None:
         if self.is_mounted and not self.issues:

@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.query import get_sole_project_filter
 
 from ..tab_order import ARTIFACTS_TAB
 from ..widgets.artifacts import (
     ARTIFACTS_SUBTAB_ORDER,
+    ArtifactEntryNavigator,
+    ArtifactEntryTarget,
     ArtifactsSubTab,
     ArtifactsView,
 )
@@ -38,6 +40,13 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "cycle_artifacts_subtab_reverse",
         *{f"show_artifacts_{subtab}" for subtab in ARTIFACTS_SUBTAB_ORDER},
         "pick_artifacts_project",
+        "scroll_to_top",
+        "scroll_to_bottom",
+        "scroll_detail_down",
+        "scroll_detail_up",
+        "scroll_prompt_down",
+        "scroll_prompt_up",
+        "jump_to_entry",
         "next_tab",
         "prev_tab",
         "quit",
@@ -126,12 +135,160 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
     _artifacts_project_choices_loading: bool
     _artifacts_project_picker_pending: bool
     _artifacts_scope_was_picked: bool
+    _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
+    _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
+    _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
 
     def _artifacts_view(self) -> ArtifactsView | None:
         try:
             return self.query_one("#changespecs-view", ArtifactsView)  # type: ignore[attr-defined]
         except Exception:
             return None
+
+    def _non_pr_artifacts_active(self) -> bool:
+        return self.current_tab == ARTIFACTS_TAB and self.current_artifacts_subtab in {
+            "commits",
+            "bugs",
+            "plans",
+        }
+
+    def _artifacts_entry_navigator(
+        self,
+        subtab: ArtifactsSubTab | None = None,
+    ) -> ArtifactEntryNavigator | None:
+        target_subtab = subtab or self.current_artifacts_subtab
+        if target_subtab not in {"commits", "bugs", "plans"}:
+            return None
+        view = self._artifacts_view()
+        if view is None:
+            return None
+        try:
+            pane = view.entry_navigator(target_subtab)
+        except Exception:
+            return None
+        return cast(ArtifactEntryNavigator, pane)
+
+    def _navigate_non_pr_artifacts(
+        self,
+        *,
+        action: str,
+        offset: int | None = None,
+        boundary: str | None = None,
+    ) -> bool:
+        """Route an existing global navigation action to the active entry list."""
+        if not self._non_pr_artifacts_active():
+            return False
+        pane = self._artifacts_entry_navigator()
+        if pane is None:
+            return True
+        from ..widgets.artifacts.entry_navigation import select_relative_entry
+
+        self._begin_artifacts_navigation(action)
+        try:
+            select_relative_entry(pane, offset=offset, boundary=boundary)
+        finally:
+            self._finish_artifacts_navigation()
+        return True
+
+    def _begin_non_pr_artifacts_jump_mode(self) -> bool:
+        """Paint shared one-key hints for the active non-PR Artifacts list."""
+        if not self._non_pr_artifacts_active():
+            return False
+        pane = self._artifacts_entry_navigator()
+        if pane is None:
+            return True
+        targets = list(pane.entry_targets())
+        if not targets:
+            return True
+        from .navigation.jump_hints import build_jump_hint_maps
+
+        hint_to_target, target_to_hint = build_jump_hint_maps(targets)
+        self._artifacts_jump_hint_to_target = hint_to_target
+        self._artifacts_jump_target_to_hint = target_to_hint
+        self._artifacts_jump_mode_subtab = self.current_artifacts_subtab
+        self._entry_jump_mode_active = True  # type: ignore[attr-defined]
+        pane.apply_entry_jump_hints(target_to_hint)
+        self._update_jump_footer()  # type: ignore[attr-defined]
+        return True
+
+    def _valid_artifacts_jump_history(
+        self,
+        subtab: ArtifactsSubTab,
+        pane: ArtifactEntryNavigator,
+    ) -> ArtifactEntryTarget | None:
+        target = self._artifacts_jump_history.get(subtab)
+        if target is not None and target not in pane.entry_targets():
+            self._artifacts_jump_history.pop(subtab, None)
+            return None
+        return target
+
+    def _artifacts_jump_has_back(self) -> bool:
+        subtab = self.current_artifacts_subtab
+        pane = self._artifacts_entry_navigator(subtab)
+        if pane is None:
+            return False
+        return self._valid_artifacts_jump_history(subtab, pane) is not None
+
+    def _handle_non_pr_artifacts_jump_key(self, key: str) -> bool:
+        """Dispatch one hint/back key without activating the selected entry."""
+        subtab = self._artifacts_jump_mode_subtab
+        if subtab is None:
+            return False
+        pane = self._artifacts_entry_navigator(subtab)
+        if pane is None:
+            self._cancel_non_pr_artifacts_jump_mode()
+            return True
+        if key == "escape":
+            self._cancel_non_pr_artifacts_jump_mode()
+            return True
+
+        if key == "apostrophe":
+            target = self._valid_artifacts_jump_history(subtab, pane)
+            if target is None:
+                targets = pane.entry_targets()
+                target = targets[0] if targets else None
+        else:
+            target = self._artifacts_jump_hint_to_target.get(key)
+
+        if target is None or target not in pane.entry_targets():
+            self._cancel_non_pr_artifacts_jump_mode()
+            return True
+        origin = pane.selected_entry_target()
+        if origin is not None and origin != target:
+            self._artifacts_jump_history[subtab] = origin
+        pane.select_entry_target(target)
+        self._cancel_non_pr_artifacts_jump_mode()
+        return True
+
+    def _cancel_non_pr_artifacts_jump_mode(self) -> None:
+        """Clear hints from their owning pane and restore the normal footer."""
+        owner = self._artifacts_jump_mode_subtab
+        if owner is not None:
+            pane = self._artifacts_entry_navigator(owner)
+            if pane is not None:
+                pane.clear_entry_jump_hints()
+        self._artifacts_jump_mode_subtab = None
+        self._artifacts_jump_hint_to_target = {}
+        self._artifacts_jump_target_to_hint = {}
+        if owner is not None:
+            self._entry_jump_mode_active = False  # type: ignore[attr-defined]
+        if self._non_pr_artifacts_active():
+            from ..widgets import KeybindingFooter
+
+            try:
+                self.query_one(  # type: ignore[attr-defined]
+                    "#keybinding-footer", KeybindingFooter
+                ).show_artifacts_pane()
+            except Exception:
+                pass
+
+    def _cancel_artifacts_jump_mode_for_model_change(
+        self, subtab: ArtifactsSubTab
+    ) -> None:
+        """Cancel transient hints when their loaded row model is replaced."""
+        if self._artifacts_jump_mode_subtab == subtab:
+            self._cancel_non_pr_artifacts_jump_mode()
 
     def _switch_artifacts_subtab(self, subtab: ArtifactsSubTab) -> None:
         if self.current_tab != ARTIFACTS_TAB:
@@ -196,6 +353,7 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
         *,
         picked: bool,
     ) -> None:
+        self._cancel_non_pr_artifacts_jump_mode()
         self.artifacts_project_scope = project
         if picked:
             self._artifacts_scope_was_picked = True

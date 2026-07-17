@@ -298,6 +298,15 @@ class StateInitMixin:
         self._entry_jump_agents_anchor_stack: list[AgentJumpAnchor] = []
         self._entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor] = []
 
+        # Non-PR Artifacts panes use stable row identities rather than app
+        # indices. Hint display is transient; back targets persist per pane.
+        from ..widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
+
+        self._artifacts_jump_mode_subtab: ArtifactsSubTab | None = None
+        self._artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget] = {}
+        self._artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str] = {}
+        self._artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget] = {}
+
         # Cross-tab jump back state (`)
         self._jump_all_last_position: JumpAllResult | None = None
 

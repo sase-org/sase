@@ -70,6 +70,24 @@ sub-tab, or use `[` / `]` to cycle. These digits act only while Artifacts is vis
 Plans to change the shared project scope, or use the command palette to jump directly to any sub-tab. PRs remains
 query-scoped and retains the existing ChangeSpec workflow.
 
+### Navigation in Commits, Bugs, and Plans
+
+The three non-PR panes share fast navigation over their selectable left-panel entries. Commits skip day headings, Plans
+skip section and empty-state rows, and Bugs always targets the issue list rather than its separately focusable Linked
+work list. Movement clamps at the first or last entry and silently does nothing when a list is empty.
+
+| Key                 | Action                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `g` / `G`           | Select the first / last commit, issue, proposal, bead, phase, or archived plan        |
+| `Ctrl+D` / `Ctrl+U` | Move down / up 10 selectable entries                                                  |
+| `Ctrl+F` / `Ctrl+B` | Move down / up 5 selectable entries                                                   |
+| `'`                 | Show one-key entry hints; press `'` again for the first entry or the last jump origin |
+
+Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Bugs, and Plans, and
+stale origins disappear automatically after filtering, changing project scope, refreshing data, or collapsing an
+expanded plan tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys
+above are the defaults.
+
 ## Keybindings: Artifacts / PRs
 
 ### Navigation

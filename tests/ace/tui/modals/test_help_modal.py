@@ -28,6 +28,12 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "[*1]" in left
     assert "*1-9 / *0" in right
     assert "1 / 2 / 3 / 4" in left
+    combined = left + right
+    assert "Select first / last entry" in combined
+    assert "Move down / up 10 entries" in combined
+    assert "Move down / up 5 entries" in combined
+    assert "Hint jump (' first / back)" in combined
+    assert "PR Navigation" in combined
 
     modal.refresh_for_tab("agents", active_query=None)
 

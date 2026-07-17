@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 from rich.text import Text
@@ -14,6 +15,7 @@ from textual.worker import Worker, WorkerState
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from ...keymaps import KeymapRegistry, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
+from .entry_navigation import ArtifactEntryTarget
 from .panes import ArtifactsPaneLifecycle
 from .plans_data import (
     PlansSnapshot,
@@ -27,7 +29,12 @@ from .plans_detail import (
     bead_properties_header,
     proposal_properties_header,
 )
-from .plans_list import PlanRow, build_plan_options, row_option_id
+from .plans_list import (
+    PlanRow,
+    build_plan_options,
+    plan_row_target,
+    row_option_id,
+)
 from .plans_rendering import (
     archive_text,
     build_empty_plan_detail,
@@ -72,6 +79,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._worker: Worker[Any] | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._syncing_options = False
+        self._entry_jump_hints: dict[ArtifactEntryTarget, str] = {}
 
     def compose(self) -> ComposeResult:
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="plans-info")
@@ -166,6 +174,65 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         else:
             option_list.action_cursor_up()
 
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        option_list = self._option_list()
+        if option_list is None:
+            return ()
+        targets: list[ArtifactEntryTarget] = []
+        for index in range(option_list.option_count):
+            option_id = option_list.get_option_at_index(index).id or ""
+            row = self._rows.get(option_id)
+            if row is not None:
+                targets.append(plan_row_target(row))
+        return tuple(targets)
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        row = self.selected_row()
+        return None if row is None else plan_row_target(row)
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        option_list = self._option_list()
+        target_index = self._option_index_for_target(target)
+        if option_list is None or target_index is None:
+            return False
+        changed = option_list.highlighted != target_index
+        option_list.focus()
+        self._syncing_options = True
+        try:
+            option_list.highlighted = target_index
+        finally:
+            self._syncing_options = False
+        if changed:
+            if self._detail_debouncer is None:
+                self._update_detail()
+            else:
+                self._detail_debouncer.schedule(self._update_detail)
+        return True
+
+    def apply_entry_jump_hints(
+        self,
+        hints: Mapping[ArtifactEntryTarget, str],
+    ) -> None:
+        self._entry_jump_hints = dict(hints)
+        self._refresh_options(update_detail=False)
+
+    def clear_entry_jump_hints(self) -> None:
+        if not self._entry_jump_hints:
+            return
+        self._entry_jump_hints = {}
+        self._refresh_options(update_detail=False)
+
+    def _option_index_for_target(self, target: ArtifactEntryTarget) -> int | None:
+        option_list = self._option_list()
+        if option_list is None:
+            return None
+        for index in range(option_list.option_count):
+            option_id = option_list.get_option_at_index(index).id or ""
+            row = self._rows.get(option_id)
+            if row is not None and plan_row_target(row) == target:
+                return index
+        return None
+
     def set_selected_epic_expanded(self, expanded: bool) -> None:
         row = self.selected_row()
         if row is None or row.issue is None:
@@ -173,6 +240,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         epic_id = row.issue.id if row.kind == "epic" else row.issue.parent_id
         if epic_id is None:
             return
+        cancel_jump = getattr(
+            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+        )
+        if callable(cancel_jump):
+            cancel_jump("plans")
         epic_key = (row.project, epic_id)
         if expanded:
             if epic_key in self._expanded_epics:
@@ -269,6 +341,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 and result.project == self.project_scope
             ):
                 preferred = self._selected_option_id()
+                cancel_jump = getattr(
+                    self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+                )
+                if callable(cancel_jump):
+                    cancel_jump("plans")
                 self._snapshot = result
                 self._load_error = None
                 self._refresh_options(preferred_id=preferred)
@@ -285,7 +362,12 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self._force_pending = False
             self.call_later(lambda: self._request_load(force=force))
 
-    def _refresh_options(self, *, preferred_id: str | None = None) -> None:
+    def _refresh_options(
+        self,
+        *,
+        preferred_id: str | None = None,
+        update_detail: bool = True,
+    ) -> None:
         option_list = self._option_list()
         if option_list is None:
             return
@@ -296,6 +378,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             project_scope=self.project_scope,
             loading=self._loading,
             expanded_epics=self._expanded_epics,
+            jump_hints=self._entry_jump_hints,
         )
         self._rows = rows
         self._syncing_options = True
@@ -309,7 +392,8 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         finally:
             self._syncing_options = False
         self._update_status()
-        self._update_detail()
+        if update_detail:
+            self._update_detail()
 
     @on(OptionList.OptionHighlighted, "#plans-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:

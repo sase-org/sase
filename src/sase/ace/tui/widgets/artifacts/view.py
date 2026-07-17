@@ -14,6 +14,7 @@ from ...tab_order import ARTIFACTS_TAB
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .bugs import ArtifactsBugsPane
 from .commits import CommitsPane
+from .entry_navigation import ArtifactEntryNavigator
 from .lifecycle import ArtifactsPaneLifecycle
 from .panes import (
     ArtifactPlaceholderPane,
@@ -82,6 +83,12 @@ class ArtifactsView(Vertical):
     def _pane(self, subtab: ArtifactsSubTab) -> ArtifactsPaneLifecycle:
         pane = self.query_one(f"#{ARTIFACTS_PANE_IDS[subtab]}")
         return cast(ArtifactsPaneLifecycle, pane)
+
+    def entry_navigator(self, subtab: ArtifactsSubTab) -> ArtifactEntryNavigator:
+        """Return the stable-target navigator for a non-PR pane."""
+        if subtab == "prs":
+            raise ValueError("PRs use the existing ChangeSpec navigation model")
+        return cast(ArtifactEntryNavigator, self._pane(subtab))
 
     def switch_to(self, subtab: ArtifactsSubTab) -> None:
         """Switch visible content and route active-pane lifecycle hooks."""

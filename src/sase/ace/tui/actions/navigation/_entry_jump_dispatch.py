@@ -69,6 +69,11 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         """Handle one keypress while jump mode is active."""
         if not self._entry_jump_mode_active:
             return False
+        handle_artifacts = getattr(self, "_handle_non_pr_artifacts_jump_key", None)
+        if getattr(self, "_artifacts_jump_mode_subtab", None) is not None and callable(
+            handle_artifacts
+        ):
+            return bool(handle_artifacts(key))
         if key == "escape":
             self._exit_entry_jump_mode()
             return True

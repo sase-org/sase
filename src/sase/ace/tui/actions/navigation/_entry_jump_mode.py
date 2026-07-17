@@ -16,6 +16,9 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def action_jump_to_entry(self) -> None:
         """Enter one-key jump mode for the current tab's left-panel entries."""
+        begin_artifacts = getattr(self, "_begin_non_pr_artifacts_jump_mode", None)
+        if callable(begin_artifacts) and begin_artifacts():
+            return
         if self.current_tab == "agents" and getattr(
             self, "_panel_fold_hint_mode_active", False
         ):
@@ -187,6 +190,11 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def _exit_entry_jump_mode(self) -> None:
         """Clear jump mode state and remove hint overlays."""
+        if getattr(self, "_artifacts_jump_mode_subtab", None) is not None:
+            cancel_artifacts = getattr(self, "_cancel_non_pr_artifacts_jump_mode", None)
+            if callable(cancel_artifacts):
+                cancel_artifacts()
+                return
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
@@ -207,7 +215,13 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            if self.current_tab == "agents":
+            artifacts_has_back = getattr(self, "_artifacts_jump_has_back", None)
+            if (
+                callable(artifacts_has_back)
+                and getattr(self, "_artifacts_jump_mode_subtab", None) is not None
+            ):
+                has_back = artifacts_has_back()
+            elif self.current_tab == "agents":
                 has_back = bool(self._entry_jump_agents_anchor_stack)
             else:
                 has_back = self._entry_jump_index_stack_has_current_tab_history()

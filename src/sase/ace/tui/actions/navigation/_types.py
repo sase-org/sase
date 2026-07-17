@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldLevel
     from ...widgets.bgcmd_list import AxeItem
+    from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
     from ..axe_display._loaders import AxeItemKey
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
@@ -83,6 +84,10 @@ class NavigationMixinBase:
     # group banners, and stable-key collapsed whole-panel headers.
     _entry_jump_agents_anchor_stack: list[AgentJumpAnchor]
     _entry_jump_agents_forward_anchor_stack: list[AgentJumpAnchor]
+    _artifacts_jump_mode_subtab: ArtifactsSubTab | None
+    _artifacts_jump_hint_to_target: dict[str, ArtifactEntryTarget]
+    _artifacts_jump_target_to_hint: dict[ArtifactEntryTarget, str]
+    _artifacts_jump_history: dict[ArtifactsSubTab, ArtifactEntryTarget]
     _jump_all_last_position: JumpAllResult | None
     _child_key_buffer: str
     _ancestor_keys: dict[str, str]

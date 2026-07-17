@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import os
 from typing import TYPE_CHECKING, Any, cast
@@ -30,6 +30,7 @@ from .commits_rendering import (
     commit_filter_chips,
 )
 from .commits_timeline import CommitsTimeline
+from .entry_navigation import ArtifactEntryTarget
 from .panes import ArtifactsPaneLifecycle
 
 if TYPE_CHECKING:
@@ -121,6 +122,50 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             timeline.action_cursor_down()
         else:
             timeline.action_cursor_up()
+
+    def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        return timeline.entry_targets
+
+    def selected_entry_target(self) -> ArtifactEntryTarget | None:
+        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        return timeline.selected_entry_target
+
+    def select_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Select a loaded commit by repository + full SHA identity."""
+        timeline = self.query_one("#commits-timeline", CommitsTimeline)
+        index = timeline.select_entry_target(target)
+        if index is None:
+            return False
+        changed = index != self._selected_commit_index
+        self._selected_commit_index = index
+        if changed:
+            if self._detail_debouncer is None:
+                self._render_selected_detail(index)
+            else:
+
+                def _render() -> None:
+                    self._render_selected_detail(index)
+
+                self._detail_debouncer.schedule(_render)
+        return True
+
+    def apply_entry_jump_hints(
+        self,
+        hints: Mapping[ArtifactEntryTarget, str],
+    ) -> None:
+        if self.result is None:
+            return
+        self.query_one("#commits-timeline", CommitsTimeline).apply_jump_hints(
+            hints, self.result
+        )
+
+    def clear_entry_jump_hints(self) -> None:
+        if self.result is None:
+            return
+        self.query_one("#commits-timeline", CommitsTimeline).clear_jump_hints(
+            self.result
+        )
 
     def set_project_scope(
         self,
@@ -224,6 +269,11 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             self._schedule_collection()
 
     def _apply_result(self, result: VcsLogResult) -> None:
+        cancel_jump = getattr(
+            self.app, "_cancel_artifacts_jump_mode_for_model_change", None
+        )
+        if callable(cancel_jump):
+            cancel_jump("commits")
         self.result = result
         timeline = self.query_one("#commits-timeline", CommitsTimeline)
         self._selected_commit_index = timeline.update_result(result)

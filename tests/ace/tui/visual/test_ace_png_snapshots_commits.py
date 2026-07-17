@@ -92,3 +92,44 @@ async def test_commits_empty_png_snapshot(
             "artifacts_commits_empty_120x40",
             title="ACE Artifacts Commits empty",
         )
+
+
+async def test_commits_jump_hints_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    result = _result(timestamp)
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(
+        commits_module,
+        "load_commit_diff_text",
+        lambda _spec: _DIFF,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        lambda: _ArtifactsProjectChoices((), (), {}),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        changespecs=changespecs(),
+        initial_tab="changespecs",
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("]")
+        await page.expect_state("artifacts_subtab", "commits")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        await wait_for_svg_contains(page, "feat: interactive timeline")
+        await page.press("apostrophe")
+        await wait_for_svg_contains(page, "JUMP")
+        await wait_for_svg_contains(page, "[1]")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "artifacts_commits_jump_hints_120x40",
+            title="ACE Artifacts Commits jump hints",
+        )

@@ -455,6 +455,7 @@ class AceApp(
             self._teardown_panel_fold_hint_mode(refresh_titles=False)
 
         # Tab changes always cancel one-key jump mode.
+        self._cancel_non_pr_artifacts_jump_mode()
         self._entry_jump_mode_active = False
         self._entry_jump_hint_to_index = {}
         self._entry_jump_index_to_hint = {}
@@ -547,6 +548,10 @@ class AceApp(
         """Switch Artifacts panes and preserve PR detail/refresh isolation."""
         if old_subtab == new_subtab:
             return
+        if self._entry_jump_mode_active:
+            self._exit_entry_jump_mode()
+        else:
+            self._cancel_non_pr_artifacts_jump_mode()
         try:
             view = self.query_one("#changespecs-view", ArtifactsView)
         except Exception:

@@ -10,11 +10,12 @@ from sase.core.time import local_now, to_local
 from sase.vcs_provider import IssueWire
 
 from .types import ARTIFACTS_ACCENTS
+from .entry_navigation import prepend_jump_hint
 
 BUG_ACCENT = ARTIFACTS_ACCENTS["bugs"]
 
 
-def issue_row(issue: IssueWire) -> Text:
+def issue_row(issue: IssueWire, *, jump_hint: str | None = None) -> Text:
     text = Text()
     glyph = "○" if issue.state == "open" else "●"
     state_style = "bold #5FD787" if issue.state == "open" else "dim #888888"
@@ -27,7 +28,7 @@ def issue_row(issue: IssueWire) -> Text:
         text.append(f"  @{issue.assignees[0]}", style="dim #87AFFF")
     if issue.updated_at:
         text.append(f"  {_updated_age(issue.updated_at)}", style="dim")
-    return text
+    return prepend_jump_hint(text, jump_hint)
 
 
 def issue_meta(issue: IssueWire) -> Text:

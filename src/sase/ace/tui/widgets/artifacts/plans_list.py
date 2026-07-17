@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -11,6 +12,7 @@ from sase.bead.model import Issue
 from sase.plan_search.model import PlanSearchMatch
 
 from .plans_data import PlanProposal, PlansSnapshot, ProjectArchive, ProjectIssue
+from .entry_navigation import ArtifactEntryTarget, prepend_jump_hint
 from .plans_rendering import (
     BLOCKED_STATE_GLYPH,
     LAUNCHED_STATE_GLYPH,
@@ -40,12 +42,34 @@ class PlanRow:
     archive: PlanSearchMatch | None = None
 
 
+def _plan_entry_target(
+    kind: PlanRowKind,
+    project: str,
+    identity: str,
+) -> ArtifactEntryTarget:
+    """Return a project-aware identity that survives scope presentation changes."""
+    return ("plan", project, kind, identity)
+
+
+def plan_row_target(row: PlanRow) -> ArtifactEntryTarget:
+    if row.proposal is not None:
+        identity = row.proposal.notification.id
+    elif row.issue is not None:
+        identity = row.issue.id
+    elif row.archive is not None:
+        identity = row.archive.plan.path
+    else:  # pragma: no cover - PlanRow construction keeps one payload populated.
+        identity = row.row_id
+    return _plan_entry_target(row.kind, row.project, identity)
+
+
 def build_plan_options(
     snapshot: PlansSnapshot | None,
     *,
     project_scope: str | None,
     loading: bool,
     expanded_epics: set[tuple[str, str]],
+    jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
 ) -> tuple[list[Option], dict[str, PlanRow]]:
     """Build the grouped plan options and their identity-preserving row map."""
     options: list[Option] = []
@@ -63,17 +87,21 @@ def build_plan_options(
             proposal.project,
             proposal.notification.id,
         )
-        rows[option_id] = PlanRow(
+        row = PlanRow(
             "proposal",
             option_id,
             proposal.project,
             proposal=proposal,
         )
+        rows[option_id] = row
         options.append(
             Option(
-                proposal_text(
-                    proposal,
-                    project_badge=project_badge(snapshot, proposal.project),
+                prepend_jump_hint(
+                    proposal_text(
+                        proposal,
+                        project_badge=project_badge(snapshot, proposal.project),
+                    ),
+                    (jump_hints or {}).get(plan_row_target(row)),
                 ),
                 id=option_id,
             )
@@ -93,18 +121,22 @@ def build_plan_options(
         epic = project_epic.issue
         epic_key = (project, epic.id)
         option_id = row_option_id(snapshot, "epic", project, epic.id)
-        rows[option_id] = PlanRow("epic", option_id, project, issue=epic)
+        row = PlanRow("epic", option_id, project, issue=epic)
+        rows[option_id] = row
         phases = snapshot.phases_by_epic.get(epic_key, ())
         options.append(
             Option(
-                epic_text(
-                    epic,
-                    tuple(item.issue for item in phases),
-                    expanded=epic_key in expanded_epics,
-                    project=project,
-                    ready_ids=snapshot.ready_ids,
-                    blocked_ids=snapshot.blocked_ids,
-                    project_badge=project_badge(snapshot, project),
+                prepend_jump_hint(
+                    epic_text(
+                        epic,
+                        tuple(item.issue for item in phases),
+                        expanded=epic_key in expanded_epics,
+                        project=project,
+                        ready_ids=snapshot.ready_ids,
+                        blocked_ids=snapshot.blocked_ids,
+                        project_badge=project_badge(snapshot, project),
+                    ),
+                    (jump_hints or {}).get(plan_row_target(row)),
                 ),
                 id=option_id,
             )
@@ -114,19 +146,23 @@ def build_plan_options(
         for project_phase in phases:
             phase = project_phase.issue
             phase_option_id = row_option_id(snapshot, "phase", project, phase.id)
-            rows[phase_option_id] = PlanRow(
+            row = PlanRow(
                 "phase",
                 phase_option_id,
                 project,
                 issue=phase,
             )
+            rows[phase_option_id] = row
             options.append(
                 Option(
-                    phase_text(
-                        phase,
-                        project=project,
-                        ready_ids=snapshot.ready_ids,
-                        blocked_ids=snapshot.blocked_ids,
+                    prepend_jump_hint(
+                        phase_text(
+                            phase,
+                            project=project,
+                            ready_ids=snapshot.ready_ids,
+                            blocked_ids=snapshot.blocked_ids,
+                        ),
+                        (jump_hints or {}).get(plan_row_target(row)),
                     ),
                     id=phase_option_id,
                 )
@@ -146,17 +182,21 @@ def build_plan_options(
         match = project_archive.match
         plan = match.plan
         option_id = row_option_id(snapshot, "archive", project, plan.path)
-        rows[option_id] = PlanRow(
+        row = PlanRow(
             "archive",
             option_id,
             project,
             archive=match,
         )
+        rows[option_id] = row
         options.append(
             Option(
-                archive_text(
-                    match,
-                    project_badge=project_badge(snapshot, project),
+                prepend_jump_hint(
+                    archive_text(
+                        match,
+                        project_badge=project_badge(snapshot, project),
+                    ),
+                    (jump_hints or {}).get(plan_row_target(row)),
                 ),
                 id=option_id,
             )
@@ -203,4 +243,10 @@ def _section_option(label: str, count: int) -> Option:
     )
 
 
-__all__ = ["PlanRow", "PlanRowKind", "build_plan_options", "row_option_id"]
+__all__ = [
+    "PlanRow",
+    "PlanRowKind",
+    "build_plan_options",
+    "plan_row_target",
+    "row_option_id",
+]

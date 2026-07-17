@@ -23,6 +23,21 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
     assert isinstance(cs_copy, dict)
     pr_copy_key = cs_copy.get("pr_number", cs_copy.get("cl_number"))
     assert isinstance(pr_copy_key, str)
+    artifact_list_navigation = [
+        (
+            f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
+            "Select first / last entry",
+        ),
+        (
+            f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
+            "Move down / up 10 entries",
+        ),
+        (
+            f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
+            "Move down / up 5 entries",
+        ),
+        (d(a.jump_to_entry), "Hint jump (' first / back)"),
+    ]
 
     sections: Sections = [
         (
@@ -70,6 +85,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.commits_fetch)} / {d(a.commits_refresh)}",
                     "Fetch remote refs / refresh from local refs",
                 ),
+                *artifact_list_navigation,
             ],
         ),
         (
@@ -86,6 +102,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.focus_bug_links), "Focus linked epics and PRs"),
                 (d(a.activate_bug_link), "Open focused epic or PR link"),
                 (d(a.refresh_bugs), "Refresh tracker issues"),
+                *artifact_list_navigation,
             ],
         ),
         (
@@ -104,10 +121,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.plans_reject), "Reject selected proposal"),
                 (d(a.plans_open_bug), "Open linked external bug"),
                 (d(a.plans_refresh), "Refresh plans and beads"),
+                *artifact_list_navigation,
             ],
         ),
         (
-            "Navigation",
+            "PR Navigation",
             [
                 (
                     f"{d(a.next_changespec)} / {d(a.prev_changespec)}",
@@ -125,11 +143,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
-                    "Scroll detail panel down / up",
+                    "Scroll PR detail down / up",
                 ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
-                    "Scroll detail panel to top / bottom",
+                    "Scroll PR detail top / bottom",
                 ),
             ],
         ),
