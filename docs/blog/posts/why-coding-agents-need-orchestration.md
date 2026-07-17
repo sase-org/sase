@@ -243,9 +243,11 @@ Directives are `%` tags that change launch behavior. They are extracted from the
 full reference is in [XPrompts: Directives](../../xprompt.md#directives); this is the practical tour.
 
 | Directive | Alias | What it does                                                                                                                         | Example                                                            |
-| --------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ | -------------------------- |
-| `%model`  | `%m`  | Select a provider/model. Use `%{...}` branches to fan out into one agent per model.                                                  | `%m:claude/opus audit this API` or `%{%m:codex/gpt-5.6-sol         | %m:claude/sonnet} compare` |
+| --------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `%model`  | `%m`  | Select a provider/model. Model branches can fan out into one agent per model.                                                        | `%m:claude/opus audit this API`                                    |
+| `%effort` | `%e`  | Set the provider reasoning-effort level for this prompt.                                                                             | `%e:xhigh investigate the race`                                    |
 | `%name`   | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                        |
+| `%family` | `%f`  | Join an explicitly named parallel family without changing execution order.                                                           | `%family(release, role=tester)`                                    |
 | `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
 | `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                   | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                       | `%h %n:background-log-checker inspect logs`                        |
@@ -342,12 +344,12 @@ Purpose: show that chat history is not the source of truth; durable files and st
 
 ## ACE: The Cockpit
 
-`sase ace` opens the Agentic ChangeSpec Explorer, the terminal UI for daily work. ACE has three main tabs:
+`sase ace` opens the Agentic ChangeSpec Explorer, the terminal UI for daily work. ACE has three top-level tabs:
 
-- **PRs**: ChangeSpecs, statuses, commits, hooks, comments, mentor output, diffs, file deltas, mail/submit flows,
-  rewind, revert, restore, and archive operations.
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps, prompt panels, transcript panels,
   artifact viewers, tool metadata, file panels, retry/fork/wait/kill actions, and model/provider badges.
+- **Artifacts**: PRs, Commits, Bugs, and Plans sub-tabs. The PRs view owns ChangeSpec status, hooks, comments, mentor
+  output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and archive operations.
 - **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks, hook checks, mentor checks,
   comment polling, and error digests.
 
@@ -384,10 +386,10 @@ In practice, this means you can:
 <!--
 SCREENSHOT BRIEF 2 - place after the VCS paragraph above.
 Asset suggestion: docs/images/blog/00-ace-prs-diff.png
-View: ACE PRs tab focused on one ChangeSpec with file deltas and diff preview visible.
+View: ACE Artifacts tab with the PRs sub-tab focused on one ChangeSpec with file deltas and diff preview visible.
 Show status, commits, and at least one action hint for diff/revert/rewind. The key visual should be "this is not just
 chat; this is reviewable code state."
-Alt text: "ACE PRs tab showing a ChangeSpec with file deltas, commits, diff preview, and VCS actions."
+Alt text: "ACE Artifacts PRs view showing a ChangeSpec with file deltas, commits, diff preview, and VCS actions."
 -->
 
 ## AXE, Lumberjacks, And Chops

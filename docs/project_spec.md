@@ -21,7 +21,7 @@ stay before the first ChangeSpec.
 ```text
 BARE_REPO_DIR: ~/.sase/repos/my_project.git
 WORKSPACE_DIR: ~/projects/git/my_project/
-PROJECT_STATE: active
+PROJECT_STATE: enabled
 PROJECT_NAME: my_project
 PROJECT_ALIASES: docs
 RUNNING:
@@ -69,9 +69,9 @@ Project metadata fields are optional and appear before the first `NAME:` line. S
   per-project workspace store rather than by appending `_<num>` to this path; see
   [`docs/workspace.md`](workspace.md#workspace-directory-layout) for the directory-layout reference and
   [`docs/configuration.md`](configuration.md#workspace) for the `workspace.root` knob.
-- **PROJECT_STATE**: Project lifecycle state. Valid values are `active`, `inactive`, and `sibling`. Missing
-  `PROJECT_STATE` means `active`, so existing projects do not need a migration. Legacy `archived` and `closed` values
-  are read as `inactive`.
+- **PROJECT_STATE**: Project lifecycle state. User-facing values are `enabled` and `disabled`; `sibling` is reserved for
+  internal linked-repository backing records. Missing `PROJECT_STATE` means `enabled`. Legacy `active` normalizes to
+  enabled, while `inactive`, `archived`, and `closed` normalize to disabled.
 - **PROJECT_NAME**: Optional user-facing project name. The storage key remains the directory name
   `~/.sase/projects/<project>/`; `PROJECT_NAME` is surfaced in project lists, launch pickers, agent grouping labels, and
   VCS workspace references. ChangeSpec `project:` queries (including the `+project` shorthand) also use this configured
@@ -119,7 +119,7 @@ ProjectSpec display name; the underlying files are not renamed.
 
 ChangeSpec `project:` queries use `PROJECT_NAME` as their sole project identity when it is configured; the directory key
 is not an additional query alias. `PROJECT_ALIASES` remain launch/xprompt aliases and do not participate in this filter.
-Active and archive ChangeSpecs share the name configured in the active ProjectSpec.
+Non-terminal and archived ChangeSpecs share the name configured in the main ProjectSpec.
 
 Validation rules:
 
@@ -146,7 +146,7 @@ sase project alias remove PROJECT ALIAS
 sase project alias clear PROJECT
 ```
 
-Alias mutation uses the normal ProjectSpec lock and can target active, inactive, or sibling projects. The system-managed
+Alias mutation uses the normal ProjectSpec lock and can target enabled, disabled, or sibling records. The system-managed
 `home` project cannot be mutated.
 
 ACE exposes aliases in the Projects tab of the SASE Admin Center (press `#`). Rows show compact alias information, the
@@ -160,52 +160,52 @@ Project lifecycle state controls whether a project appears in the default lists 
 work. It is project-level metadata; it does not delete project files and is separate from a ChangeSpec whose `STATUS` is
 `Archived`.
 
-| State      | Meaning                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `active`   | Normal work state. Missing `PROJECT_STATE` also means `active`, so existing projects need no migration.                       |
-| `inactive` | Dormant, historical, or finished project. Hidden from default launch pickers and discovery lists.                             |
-| `sibling`  | Configured linked-repository bookkeeping (legacy backing state name). Hidden from default launch pickers and discovery lists. |
+| State      | Meaning                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| `enabled`  | Normal work state. Missing `PROJECT_STATE` also means enabled.                                    |
+| `disabled` | Dormant, historical, or finished project. Hidden from default launch and discovery lists.         |
+| `sibling`  | Internal linked-repository backing marker. It is not a third user-facing project lifecycle state. |
 
-Legacy `PROJECT_STATE: archived` and `PROJECT_STATE: closed` files remain readable and are normalized to `inactive`. New
-writes use only canonical lifecycle values.
+Legacy `PROJECT_STATE: active` files normalize to enabled. Legacy `inactive`, `archived`, and `closed` files normalize
+to disabled. New user-facing writes use only `enabled` or `disabled`.
 
-Default project discovery is active-only. That includes ACE project selection, `sase changespec search`, known-project
+Default project discovery is enabled-only. That includes ACE project selection, `sase changespec search`, known-project
 workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
 bead helper reads. These records are intentionally hidden from those surfaces; agents use `/sase_repo` for configured
 linked repositories and for another SASE project's primary repo. The underlying audited open infers the host project and
 workspace from cwd; agent-history views that need old artifacts pass an explicit all-state scan.
 
-Use `sase project list --state all` to inspect inactive and sibling projects, `sase project show <project>` to see
-state, workspace, launchability, and warnings, and `sase project activate <project>` before using normal launch surfaces
-for an inactive or sibling project. The `deactivate`, `activate`, and `set-state` forms update the ProjectSpec under the
-normal ProjectSpec lock. Deprecated `archive` and `close` aliases still set `inactive` for compatibility. Deactivating
-refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed. The system-managed
-`home` project cannot be mutated through this command.
+Use `sase project list --state all` to inspect disabled projects and sibling records, `sase project show <project>` to
+see state, workspace, launchability, and warnings, and `sase project enable <project>` before using normal launch
+surfaces for a disabled project. The `enable`, `disable`, and `set-state` forms update the ProjectSpec under the normal
+ProjectSpec lock. Deprecated `activate`, `deactivate`, `archive`, and `close` aliases remain accepted for compatibility.
+Disabling refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed. The
+system-managed `home` project cannot be mutated through this command.
 
 ACE exposes the same lifecycle operations through the Projects tab of the SASE Admin Center (press `#`). The tab loads
-non-system projects across all states, defaults to the active filter, offers text and state filters, supports marks for
-bulk activate/deactivate operations and bulk full-directory deletion, and uses the same blocked-operation checks before
-deactivating a project. It can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE
+non-system projects across all states, defaults to the enabled filter, offers text and state filters, supports marks for
+bulk enable/disable operations and bulk full-directory deletion, and uses the same blocked-operation checks before
+disabling a project. It can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE
 project directory under `~/.sase/projects/` after confirmation, including ProjectSpecs, project-local config, and
 artifacts; it does not remove workspace checkouts. This is broader than `Ctrl+D` in project launch pickers, which only
 removes an empty project's ProjectSpec files.
 
 Common workflows:
 
-- Deactivate a dormant project: `sase project deactivate old-project`
-- List inactive projects: `sase project list --state inactive`
+- Disable a dormant project: `sase project disable old-project`
+- List disabled projects: `sase project list --state disabled`
 - List sibling project records: `sase project list --state sibling`
 - Inspect every lifecycle state as JSON: `sase project list --state all --json`
-- Reactivate from the CLI: `sase project activate old-project`
+- Re-enable from the CLI: `sase project enable old-project`
 - Add a short project alias: `sase project alias add bob-cli bob`
 - Inspect project aliases as JSON: `sase project alias list bob-cli --json`
-- Reactivate from ACE: press `#`, switch to the Projects tab, highlight the project, then press `a`
+- Re-enable from ACE: press `#`, switch to the Projects tab, highlight the project, then press `a`
 - Edit aliases from ACE: press `#`, switch to the Projects tab, highlight the project, then press `A`
-- Bulk-deactivate from ACE: press `#`, switch to the Projects tab, mark projects with `m`, then press `d`
+- Bulk-disable from ACE: press `#`, switch to the Projects tab, mark projects with `m`, then press `d`
 
 Maintenance and agent-history scans intentionally keep reading all project directories. This keeps live `RUNNING`
 claims, stale-claim cleanup, dismissed-agent recovery, agent-name collision checks, and historical Agents-tab rows
-visible even after a project is inactive.
+visible even after a project is disabled.
 
 The `RUNNING` section is managed by SASE. Each entry has this shape:
 
@@ -241,7 +241,7 @@ Common optional fields include:
 
 ```text
 WORKSPACE_DIR: ~/projects/git/my_project/
-PROJECT_STATE: active
+PROJECT_STATE: enabled
 PROJECT_NAME: my_project
 PROJECT_ALIASES: docs
 

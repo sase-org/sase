@@ -167,11 +167,6 @@ title: Structured Agentic Software Engineering
     <img src="images/sase-component-communication.png" alt="SASE component communication diagram">
     <figcaption>Component boundaries keep TUI, daemon, workflow, and provider concerns explicit.</figcaption>
   </figure>
-
-  <figure>
-    <img src="images/sase_tui_tabs_infographic.png" alt="SASE ACE TUI tab overview">
-    <figcaption>ACE gives operators one place to inspect agents, changes, notifications, and automation state.</figcaption>
-  </figure>
   </div>
 </section>
 

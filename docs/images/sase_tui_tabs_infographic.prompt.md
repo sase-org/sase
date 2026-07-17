@@ -4,10 +4,16 @@ pdf: false
 
 # SASE TUI Tabs Infographic Prompt
 
+!!! warning "Historical generation record"
+
+    This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Axe**,
+    with **PRs · Commits · Bugs · Plans** inside Artifacts. The PNG is no longer embedded in active documentation; do
+    not reuse it without regenerating the composition and labels for the current tab model.
+
 ## Target
 
-- Document: `docs/index.md`
-- Insertion point: "How the pieces connect" image grid
+- Document: retired from active documentation
+- Former insertion point: `docs/index.md`, "How the pieces connect" image grid
 - Image: `docs/images/sase_tui_tabs_infographic.png`
 - Alt text: `SASE ACE TUI tab overview`
 

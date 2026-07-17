@@ -221,9 +221,10 @@ _Prompt history and stashes make useful launches recoverable instead of leaving 
 
 ## The Agents Tab In ACE
 
-`sase ace` opens ACE, the Agentic ChangeSpec Explorer. It has three tabs: **Agents**, **PRs**, and **Axe**. Agents is
-the startup default. PRs is the ChangeSpec view for durable PR-sized work records. Axe is the background daemon view.
-This post stays on Agents because that is the tmux-window-farm replacement.
+`sase ace` opens ACE, the Agentic ChangeSpec Explorer. It has three top-level tabs: **Agents**, **Artifacts**, and
+**Axe**. Agents is the startup default. Artifacts has focused PRs, Commits, Bugs, and Plans sub-tabs; its PRs view owns
+durable PR-sized ChangeSpec records. Axe is the background daemon view. This post stays on Agents because that is the
+tmux-window-farm replacement.
 
 The first difference is observability. The Agents tab groups runs by project, date, or status; folds and unfolds the
 tree with `h`/`l` and `H`/`L`; and shows a metric strip such as
@@ -243,11 +244,12 @@ _The Agents tab groups runs, shows status/provider/model cues, and keeps the sel
 
 _A still frame makes the family grouping, selected model, and detail pane easier to inspect than the loop._
 
-Two naming ideas make dense views navigable. Agent families use `--` suffixes to keep one unit of work together:
-`nova--plan`, `nova--code`, and `nova--review` render as related workflow rows under a root. Agent hoods use dotted
-names such as `foo.bar` and `foo.baz`; `~` jumps among visible ancestors, descendants, and same-namespace neighbors. The
-point is not taxonomy for its own sake. It is being able to collapse, revive, search, wait on, or dismiss a coherent set
-of agents instead of playing guess-the-window.
+Two naming ideas make dense views navigable. Serial plan-chain families use `--` suffixes to keep one unit of work
+together: `nova--plan`, `nova--code`, and `nova--review` render as related workflow rows under a root. Explicit
+`%family:<root>` directives group independently named parallel agents without changing their launch order or execution.
+Agent hoods use dotted names such as `foo.bar` and `foo.baz`; `~` jumps among visible ancestors, descendants, and
+same-namespace neighbors. The point is not taxonomy for its own sake. It is being able to collapse, revive, search, wait
+on, or dismiss a coherent set of agents instead of playing guess-the-window.
 
 ACE is also where you steer. When an agent submits a plan through `/sase_plan` or `sase plan propose`, the row enters
 PLAN status and the notification carries provider/model metadata. The plan approval modal uses single keys: `a` approve

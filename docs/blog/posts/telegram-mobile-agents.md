@@ -133,17 +133,20 @@ work, not archive browsing. The copy-text button for each ChangeSpec emits its d
 `#gh:foobar`, so the next agent you launch can target it directly. `/bead` follows the same picker pattern as the kill
 flow: most of the time you want a button list, not the cognitive overhead of remembering an ID.
 
-`/update` is the operationally interesting one. It detaches a worker that stops AXE, syncs the primary SASE workspace,
-runs `chat_install.command`, and tries to restart AXE even if sync or install fails. The completion message that arrives
-on the next inbound sweep reports success or the failure exit code and includes the worker log path. The phone becomes,
-in effect, a remote control for keeping the local install fresh.
+Deployments can add their own slash-menu commands under `telegram.commands` in SASE configuration. Each entry declares a
+description, an executable with fixed arguments, message-or-PDF delivery, and a timeout; commands run without a shell.
+See [Custom Telegram commands](../../configuration.md#telegram) for the schema and doctor check.
+
+`/update` is the operationally interesting built-in. It detaches the shared chat update worker, which stops AXE, runs
+`sase update --json` through the same managed-versus-dev update planner as ACE, and tries to restart AXE even if the
+update fails. The completion message that arrives on the next inbound sweep reports success or the failure exit code and
+includes the worker log path. The phone becomes, in effect, a remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 
-The mobile gateway from [\[09\]](whats-next-memory-mobile-web.md) is the long-term answer — a Rust HTTP gateway, a
-native mobile client, FCM push hints, Tailscale Serve for non-loopback deployments. None of that exists for end users
-today. sase-telegram exists today, and it covers the high-value subset of the mobile workflow with infrastructure that
-is already on every developer's phone:
+The [mobile gateway](../../mobile_gateway.md) is the richer host API for paired native clients, FCM push hints, and
+Tailscale Serve deployments. sase-telegram remains the chat-native option and covers a high-value subset of the mobile
+workflow with infrastructure that is already on every developer's phone:
 
 - **What it replaces:** "I need to be at my laptop to approve a plan or answer a HITL question." Plan approvals, HITL
   requests, user questions, kill/retry, and launching new prompts all work from the chat. Generated images come back

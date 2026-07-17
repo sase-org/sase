@@ -13,6 +13,7 @@ and CLI flags.
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
   - [amd_h1_title](#amd_h1_title)
+  - [generated templates](#generated-templates)
   - [is_sase_managed](#is_sase_managed)
   - [ace](#ace)
   - [llm_provider](#llm_provider)
@@ -31,6 +32,7 @@ and CLI flags.
   - [max_running_agents](#max_running_agents)
   - [timezone](#timezone)
   - [chat_install](#chat_install)
+  - [telegram](#telegram)
   - [mobile_gateway](#mobile_gateway)
   - [sdd](#sdd)
   - [bead](#bead)
@@ -98,7 +100,7 @@ default (those layers are read-only).
 The Projects tab is an inventory and lifecycle surface with three clickable sub-tabs: **Projects · Repos · Workspaces**.
 `[` / `]` cycle those sub-tabs, while `Tab` / `Shift+Tab` switch the Admin Center's main tabs.
 
-- **Projects** lists true projects—directories with active ProjectSpecs, excluding `home` and internal linked-repo
+- **Projects** lists true projects—directories with enabled ProjectSpecs, excluding `home` and internal linked-repo
   backing records. Enabled and disabled rows appear together with VCS kind, claim, workspace, repo, and warning counts.
   `a` / `d` enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and the established mark,
   alias, edit, force, and confirmed-delete actions remain available.
@@ -126,6 +128,10 @@ editable packages through the [dev-update](plugins.md#dev-editable-installs) pla
 reconcile — and route managed packages through the `uv` path. Blocked editable checkout states are shown as dim reasons
 instead of update arrows, such as `dev · local changes`, `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`,
 or `dev · offline`.
+
+The persistent top-bar update badge is purple for routine host/plugin updates. When the available set includes
+`sase-core-rs`, the badge turns amber and adds `*`; its tooltip explains that the update needs a Rust rebuild and may
+take longer. Clicking either badge opens this tab.
 
 Every mutation **previews first**: install and managed update actions open a confirm-preview modal showing the
 underlying `uv` command and resolved package set; editable-checkout dev updates preview the git fetch/fast-forward and
@@ -215,6 +221,36 @@ under `dot_config/sase/` is used instead. With `use_chezmoi: true`, `sase memory
 source root rather than writing a live-home `AGENTS.md`.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`
+
+### generated templates
+
+SASE packages default Jinja templates for managed agent instructions and generated memory Markdown. Managed projects can
+replace them with root-relative files named in their own `sase/sase.yml`:
+
+```yaml
+amd_agents_template: templates/AGENTS.template.md
+amd_agents_minimal_template: templates/AGENTS.minimal.template.md
+memory_sase_template: templates/memory-sase.template.md
+memory_readme_template: templates/memory-README.template.md
+```
+
+| Field                         | Required Jinja variables                                                                  | Generated target or use               |
+| ----------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- |
+| `amd_agents_template`         | `title`, `tier1_sections`, `tier2_entries`                                                | Managed root `AGENTS.md`              |
+| `amd_agents_minimal_template` | `title`, `tier1_sections`                                                                 | Create-if-missing minimal `AGENTS.md` |
+| `memory_sase_template`        | `project_name`, `linked_repo_entries`                                                     | Generated `sase/memory/sase.md`       |
+| `memory_readme_template`      | `memory_notes`, `total_notes`, `short_notes`, `long_notes`, `total_lines`, `total_tokens` | Generated `sase/memory/README.md`     |
+
+Every configured path must remain inside the project root. Rendering uses strict variables: required placeholders must
+appear, unknown placeholders are rejected, and the rendered instruction/memory structure is validated before any file is
+written.
+
+Home initialization uses convention-based files instead of the project-local path keys. Put `AGENTS.template.md`,
+`AGENTS.minimal.template.md`, `memory-sase.template.md`, or `memory-README.template.md` directly in `~/.config/sase/`;
+with `use_chezmoi: true`, put them in the corresponding source-side `dot_config/sase/` directory. See
+[Memory initialization](init.md#memory-initialization) for ownership, preview, and deployment behavior.
+
+Source: `src/sase/amd/_template.py`, `src/sase/main/init_memory/root_rendering.py`
 
 ### is_sase_managed
 
@@ -580,6 +616,8 @@ The deprecated `linked_repos` and `sibling_repos` keys are still accepted as ali
 Canonical `repos.linked` entries take precedence over both aliases when the same name is defined.
 
 ```yaml
+github_orgs:
+  - sase-org
 repos:
   linked:
     - name: core
@@ -596,6 +634,7 @@ repos:
 
 | Field                         | Type           | Default  | Description                                                                         |
 | ----------------------------- | -------------- | -------- | ----------------------------------------------------------------------------------- |
+| `github_orgs`                 | string or list | -        | GitHub user/org namespaces available to provider completion and PR workflows.       |
 | `default_linked_repos`        | boolean        | `true`   | Inject the managed-project `--plans` compatibility sidecar.                         |
 | `repos.linked[].auto_clone`   | boolean        | `false`  | Materialize and prepare the repository automatically before each agent launch.      |
 | `repos.linked[].name`         | string         | required | Stable alias used in generated environment variable names and memory summaries.     |
@@ -1115,6 +1154,35 @@ keys have been removed; delete them from user config if schema validation report
 
 Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
+### telegram
+
+Custom Telegram slash commands are configured as a closed map keyed by the bot command name. The installed Telegram
+integration consumes the command definitions; core SASE validates them and `sase doctor` checks that each executable
+resolves.
+
+```yaml
+telegram:
+  commands:
+    projects:
+      description: List enabled SASE projects.
+      run: sase project list --state enabled
+      output: message
+      timeout: 60s
+```
+
+| Field                                  | Type   | Default   | Description                                                                    |
+| -------------------------------------- | ------ | --------- | ------------------------------------------------------------------------------ |
+| `telegram.commands.<name>.description` | string | required  | Slash-menu description, from 1 to 256 characters.                              |
+| `telegram.commands.<name>.run`         | string | required  | Executable plus fixed arguments, parsed as an argument vector without a shell. |
+| `telegram.commands.<name>.output`      | string | `message` | Deliver Markdown stdout as a `message` or rendered `pdf`.                      |
+| `telegram.commands.<name>.timeout`     | string | `60s`     | Integer duration ending in `s`, `m`, or `h`.                                   |
+
+Command names must contain 1–32 lowercase letters, digits, or underscores. Run
+`sase doctor -C integrations.telegram_commands` after editing the map; unresolved command heads produce a warning with
+the affected names.
+
+Source: `src/sase/default_config.yml`, `src/sase/doctor/checks_integrations.py`
+
 ### mobile_gateway
 
 Configuration for `sase mobile gateway start`, which launches the workstation-hosted Rust gateway for paired mobile
@@ -1232,7 +1300,7 @@ bead:
 
 Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
 pushing. Set to `async` to keep auto-pushing without blocking the command on remote network/credential latency. See
-[`docs/beads.md`](beads.md#sase-bead-work-id) for the full `sase bead work` flow.
+[`docs/beads.md`](beads.md#sase-bead-work-target) for the full `sase bead work` flow.
 
 Source: `src/sase/default_config.yml`
 
@@ -1760,7 +1828,7 @@ Advanced deploy controls stay on explicit subcommands such as `sase memory init 
 
 | Flag                          | Values | Default | Description                                                                              |
 | ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
-| `-a, --all`                   | flag   | -       | Attempt every known active main SASE project and report one aggregate status.            |
+| `-a, --all`                   | flag   | -       | Attempt every known enabled main SASE project and report one aggregate status.           |
 | `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.     |
 | `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                  |
 | `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub sidecar creation. |

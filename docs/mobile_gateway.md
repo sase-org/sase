@@ -494,9 +494,9 @@ curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
   -d '{"schema_version":1,"project":"sase","prompt":"Run the focused mobile gateway tests","name":"mobile.sase"}'
 ```
 
-Project lifecycle still applies. Inactive projects are hidden from broad mobile helper catalogs, and normal launch
-resolution refuses new workspace claims for inactive projects with the same activation hint shown by CLI/TUI launches.
-Run `sase project activate <project>` on the host before launching new mobile-initiated work in an inactive project.
+Project lifecycle still applies. Disabled projects are hidden from broad mobile helper catalogs, and normal launch
+resolution refuses new workspace claims for disabled projects with the same enable hint shown by CLI/TUI launches. Run
+`sase project enable <project>` on the host before launching new mobile-initiated work in a disabled project.
 
 For home-mode launches, omit `project` or pass `"home"`. For VCS-ref launches, include the normal SASE prompt syntax
 such as `#gh:12345` or legacy `#gh@12345`; the bridge normalizes legacy `@` refs before launch and persists a

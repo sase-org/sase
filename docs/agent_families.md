@@ -41,6 +41,10 @@ Every parallel member counts toward runner-slot admission. Killing or dismissing
 while killing one member leaves the root and siblings alone. The root row aggregates the whole generation's status and
 shows member-state counts. A question or failure in any member is therefore visible even when the family is folded.
 
+Expand the root row in ACE to reveal its parallel members. Selecting the root also adds a navigable `MEMBERS` section to
+the detail panel; each row shows the member's role, name, status, model, and duration in launch order. Launch-approval
+previews label both the family root and every member, including each free-form role, before any slot is dispatched.
+
 Inside a parallel family, a `%wait` or `#fork` reference to the family base resolves to that generation's root agent.
 Outside the family, `%wait:<root-name>` waits for the whole family to complete. An exact member name always targets that
 member.

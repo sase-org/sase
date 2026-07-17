@@ -17,12 +17,12 @@ is to communicate how SASE Python code reaches Rust-implemented operations.
 
 **Embedding gap (meta-issue):** The plan in `sdd/epics/202605/diagram_review.md` lists this image as appearing in
 `docs/architecture.md` / `docs/index.md`, but `rg "sase-rust-core-integration" docs/` returns zero hits. The
-architecture page embeds `sase-component-communication.png`, the index embeds `sase-component-communication.png` and
-`sase_tui_tabs_infographic.png`, and `docs/rust_backend.md` embeds `rust-backend-boundary-infographic.png`. The regen
-phase should decide whether to (a) wire the regenerated PNG into one of those pages (architecture.md's "Rust Core
-Boundary" section is the natural home), or (b) treat it as an orphan we keep for future use. Either way the current
-state is misleading because critiques and regens of an unreferenced image cannot be validated by the "embedding doc
-still renders" check the plan calls for.
+architecture page and index embed `sase-component-communication.png`, and `docs/rust_backend.md` embeds
+`rust-backend-boundary-infographic.png`. (The stale TUI-tabs infographic was retired from the index.) The regen phase
+should decide whether to (a) wire the regenerated PNG into one of those pages (architecture.md's "Rust Core Boundary"
+section is the natural home), or (b) treat it as an orphan we keep for future use. Either way the current state is
+misleading because critiques and regens of an unreferenced image cannot be validated by the "embedding doc still
+renders" check the plan calls for.
 
 ## Clarity
 

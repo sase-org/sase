@@ -1006,7 +1006,7 @@ tab contains a second clickable strip: **Projects · Repos · Workspaces**. `[` 
 `Shift+Tab` continue switching the main Admin Center tabs.
 
 The **Projects** sub-tab lists true, non-system projects only, with enabled projects first and disabled projects still
-visible. A true project has an active ProjectSpec and is not the internal linked-repo backing record. Rows show the
+visible. A true project has an enabled ProjectSpec and is not the internal linked-repo backing record. Rows show the
 display/canonical name, VCS kind (`git` or `gh`), enabled/disabled state, active claims, workspace/repo counts, and
 warnings. Telemetry-only directories and linked-repo backing records cannot appear.
 
@@ -1551,6 +1551,9 @@ a pinned attempt view resets the cursor.
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
+- **MEMBERS**: Shown on a parallel-family root when its members are loaded. Rows are sorted by launch time and show each
+  member's free-form role, agent name, current status, model, and duration. The section participates in `g}` / `g{`
+  metadata-section navigation like the other titled sections.
 - **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
   metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
   only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the
@@ -1758,12 +1761,13 @@ they are not selected at the plan gate.
 
 ## Launch Approval
 
-Launches requested by a running agent (see [Agent-initiated launches](agent_families.md#agent-initiated-launches))
-arrive as priority notifications with a `LaunchApproval` action. Selecting one opens the launch approval modal, which
-renders the request's human-readable preview (`launch_preview.md`): press `a` to approve, `r` to reject, and `q` or
-`Esc` to cancel. ACE resolves the same hash-verified command bundle used by mobile and remote callbacks, while retaining
-legacy launch-request fallback. The CLI equivalents are `sase launch approve <selector>` and
-`sase launch reject <selector>`.
+Launches requested by a running agent (see
+[Agent-initiated launches](agent_families.md#agent-initiated-family-launches)) arrive as priority notifications with a
+`LaunchApproval` action. Selecting one opens the launch approval modal, which renders the request's human-readable
+preview (`launch_preview.md`). Parallel-family slots identify the root or member target and the slot's role alongside
+the model, kind, and planned name. Press `a` to approve, `r` to reject, and `q` or `Esc` to cancel. ACE resolves the
+same hash-verified command bundle used by mobile and remote callbacks, while retaining legacy launch-request fallback.
+The CLI equivalents are `sase launch approve <selector>` and `sase launch reject <selector>`.
 
 ## Linked Chats in Multi-Step Workflows
 
@@ -2342,11 +2346,12 @@ installed plugins, `U` to update the highlighted installed plugin when that row 
 uninstall, and `r` to refresh the catalog and latest versions. Editable / dev installs are labeled with a lowercase
 `dev` source marker and compared against their git upstream rather than PyPI, so a local checkout can surface an
 `↑ dev update available` hint. The SASE Core panel and plugin details can show incoming commit subjects when update
-metadata is available. A single-plugin install preview can offer both index and git sources; press `g` inside that
-confirmation modal to switch variants before confirming. Every mutation previews the underlying `uv` command or
-editable-checkout plan first and then runs as a tracked background task. See the
-[Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior, and [Plugins](plugins.md) for
-the equivalent `sase plugin` CLI.
+metadata is available. The top-bar update badge is purple for routine updates; it turns amber and adds `*` when the
+available set includes `sase-core-rs`, warning that the update will rebuild Rust code and take longer. A single-plugin
+install preview can offer both index and git sources; press `g` inside that confirmation modal to switch variants before
+confirming. Every mutation previews the underlying `uv` command or editable-checkout plan first and then runs as a
+tracked background task. See the [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
+and [Plugins](plugins.md) for the equivalent `sase plugin` CLI.
 
 ## Snippets
 

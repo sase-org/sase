@@ -165,7 +165,7 @@ one repo is shown as a warning and does not hide the other repos.
 
 Shows a day-grouped commit timeline across the primary repository and configured linked repositories. Pass `--sdd` to
 also include the current project's materialized separate SDD repository. Pass `--all` to build one timeline from every
-registered active or inactive project (excluding the system-managed `home` project), regardless of the current
+registered enabled or disabled project (excluding the system-managed `home` project), regardless of the current
 directory. Global discovery includes each usable primary and configured linked repo without materializing missing
 workspaces. Sibling checkouts still appear as linked repositories of their owning projects; `--all --sdd` also includes
 materialized separate SDD repositories from the registered projects.
@@ -208,7 +208,7 @@ Options:
 
 | Option                                    | Purpose                                                                                 |
 | ----------------------------------------- | --------------------------------------------------------------------------------------- |
-| `-a`, `--all`                             | Read repositories from every registered active or inactive project.                     |
+| `-a`, `--all`                             | Read repositories from every registered enabled or disabled project.                    |
 | `-A`, `--author PATTERN`                  | Filter by author name/email substring. Repeatable values are ORed case-insensitively.   |
 | `-b`, `--branch REF`, `--ref REF`         | Compare against `origin/REF` instead of the resolved remote ref.                        |
 | `-c`, `--color auto/always/never`         | Control colorized pretty/full output.                                                   |

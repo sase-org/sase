@@ -4,6 +4,13 @@ pdf: false
 
 # Critique: `sase_tui_tabs_infographic.png`
 
+!!! warning "Historical review"
+
+    This critique records the pre-Artifacts ACE layout and the state of the asset before its 2026-05-10 regeneration.
+    Current ACE navigation is **Agents · Artifacts · Axe**, with **PRs · Commits · Bugs · Plans** inside Artifacts. The
+    PNG is no longer embedded in active documentation, and claims below about current code paths or a missing prompt
+    sidecar should be read only as historical context.
+
 This is a clarity-and-accuracy review of `docs/images/sase_tui_tabs_infographic.png`, the diagram embedded in the "How
 the pieces connect" section of `docs/index.md` (line 137) with the figcaption "ACE gives operators one place to inspect
 agents, changes, notifications, and automation state." The diagram is reviewed against:

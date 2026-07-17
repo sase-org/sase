@@ -4,7 +4,7 @@ The ChangeSpec query language filters ChangeSpecs using boolean expressions that
 filters, and operational shorthands. It is used by the PRs sub-tab in `sase ace [query]` and by other ChangeSpec filters
 such as `sase axe start --query`.
 
-Normal query surfaces use active-project ChangeSpec discovery. Inactive projects are omitted from CLI search and
+Normal query surfaces use enabled-project ChangeSpec discovery. Disabled projects are omitted from CLI search and
 day-to-day ACE/axe scans. Views that are specifically about agent history or old artifacts opt into all project
 lifecycle states explicitly.
 

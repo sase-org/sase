@@ -99,7 +99,7 @@ The goal is not to replace coding agents. The goal is to make agent-driven softw
 
 ```bash
 sase init -c             # check initialization drift without writing files
-sase init --all --check  # check every active main project without writing files
+sase init --all --check  # check every enabled main project without writing files
 sase init --all --yes    # apply all initializers; missing GitHub SDD repos still require y/yes
 sase doctor -v           # readable install, config, project, provider, and state report
 sase version             # inspect the exact SASE packages loaded by this environment
@@ -134,16 +134,17 @@ SASE keeps durable state outside any one chat session:
 
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
-- **Project lifecycle** - ProjectSpec metadata can mark a project `active` or `inactive`. Missing `PROJECT_STATE` is
-  treated as `active`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs, broad mobile helper
-  catalogs, and known-project VCS refs such as `#gh:sase` only use active projects. Use `sase project list --state all`,
-  `sase project show <project>`, and `sase project activate <project>` when revisiting inactive work. Legacy on-disk
-  `archived` and `closed` ProjectSpecs are read as inactive. In ACE, press `#` and switch to the **Projects** tab of the
-  SASE Admin Center to manage lifecycle state, edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an
-  obsolete SASE project directory. Deleting from that tab removes `~/.sase/projects/<project>/`, not the workspace
-  checkout.
+- **Project lifecycle** - ProjectSpec metadata can mark a project `enabled` or `disabled`. Missing `PROJECT_STATE` is
+  treated as `enabled`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs, broad mobile helper
+  catalogs, and known-project VCS refs such as `#gh:sase` only use enabled projects. Use
+  `sase project list --state all`, `sase project show <project>`, and `sase project enable <project>` when revisiting
+  disabled work. Legacy on-disk `active` values normalize to enabled; `inactive`, `archived`, and `closed` normalize to
+  disabled. In ACE, press `#` and switch to the **Projects** tab of the SASE Admin Center to manage lifecycle state,
+  edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an obsolete SASE project directory. Deleting
+  from that tab removes `~/.sase/projects/<project>/`, not the workspace checkout.
 - **Update workflow** - ACE caches latest-version checks by default, shows startup and top-bar update signals when SASE
-  or installed plugins are behind, and uses the Admin Center **Updates** tab for review. That tab shows SASE core/plugin
+  or installed plugins are behind, and uses the Admin Center **Updates** tab for review. The top-bar badge turns amber
+  and adds `*` when a pending `sase-core-rs` update requires a slower Rust rebuild. That tab shows SASE core/plugin
   versions, optional incoming commit previews, installable plugin rows that can be marked with `I` / `Space`, and
   dry-run confirmation modals; press `u` for full `sase update`, `U` for the highlighted plugin when that row has an
   update available, `i` to install the marked set (or the highlighted plugin when nothing is marked), or `m` to switch
@@ -162,7 +163,7 @@ SASE keeps durable state outside any one chat session:
   directives, xprompts, slash skills, paths, and recent file references, plus a `Ctrl+R` recursive fuzzy file finder.
   Relative path lookup is prompt-aware: registered workspace-provider refs and known-project refs such as `#git:sase` or
   `#gh:sase-org/sase` can root completion in that project checkout. Typing `+` at the absolute start of the prompt, or
-  `#+` at a token boundary, opens a project/ChangeSpec picker for active launchable projects and active PR-sized
+  `#+` at a token boundary, opens a project/ChangeSpec picker for enabled launchable projects and active PR-sized
   ChangeSpecs; accepting a row inserts the canonical VCS workspace tag such as `#gh:sase`. Typing `:` after a registered
   VCS workflow tag, such as `#gh:` or `#git:`, opens token-local ref completion for that provider's projects and active
   PR-sized ChangeSpecs; VCS plugins can add namespace rows such as `sase-org/` that chain into repository completion.

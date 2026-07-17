@@ -354,15 +354,15 @@ Owner/repo fallback avoids basename routing when duplicate GitHub basenames woul
 `owner/repo` refs match the GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
 ACE and the xprompt LSP provide a project/ChangeSpec completion helper for these references. Type `#+` at a token
-boundary, or type `+` as the first character in the prompt, to open a picker of active launchable projects and active
+boundary, or type `+` as the first character in the prompt, to open a picker of enabled launchable projects and active
 PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. Accepting a project row inserts a tag such as
 `#gh:sase`; accepting a ChangeSpec row inserts a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`,
-directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, inactive
+directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, disabled
 projects, sibling records, and non-launchable projects.
 
 ACE and the xprompt LSP also provide token-local completion at the root of registered VCS workflow refs. Typing `:` or
 `(` after a workflow tag, such as `#gh:` or `#git(`, opens project and active PR-sized ChangeSpec rows scoped to that
-provider. Providers can add fast local namespace rows; the GitHub plugin derives organization rows from active GitHub
+provider. Providers can add fast local namespace rows; the GitHub plugin derives organization rows from enabled GitHub
 project records and `github_orgs`. Accepting a project or ChangeSpec completes the current token, for example
 `#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts a trailing slash such as `#gh:sase-org/` without closing the
 token, so repository completion can immediately take over.
@@ -374,9 +374,9 @@ value, so colon form becomes `#gh:bbugyi200/sase ` and parenthesized form become
 provider-agnostic: another workspace plugin can support the same UX for nested namespaces such as `#gl:group/subgroup/`
 by implementing repository candidate listing.
 
-Known-project lookup defaults to active ProjectSpecs. Inactive and sibling projects are omitted from broad project-local
-xprompt catalogs and normal VCS workspace resolution; an explicit reference to an inactive known project fails with a
-hint to run `sase project activate <project>` before launching new work. Management and history code paths that need
+Known-project lookup defaults to enabled ProjectSpecs. Disabled and sibling records are omitted from broad project-local
+xprompt catalogs and normal VCS workspace resolution; an explicit reference to a disabled known project fails with a
+hint to run `sase project enable <project>` before launching new work. Management and history code paths that need
 hidden projects opt into an all-state scan explicitly.
 
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced

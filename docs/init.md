@@ -9,9 +9,9 @@ sase init -c       # report drift without writing
 sase init          # prompt before each needed initializer
 sase init --yes    # run every needed initializer in order
 sase init -M --yes # mark this repository as SASE-managed, then initialize it
-sase init --all --check # check every active main project without writing
-sase init --all         # visit every active main project; prompt when interactive
-sase init --all --yes   # initialize every active main project without prompting
+sase init --all --check # check every enabled main project without writing
+sase init --all         # visit every enabled main project; prompt when interactive
+sase init --all --yes   # initialize every enabled main project without prompting
 ```
 
 The coordinator plans in registry order: memory, repositories, then skills. Memory initialization owns agent-document
@@ -31,7 +31,7 @@ to a prompt naming the host, repository, and configured visibility; unattended i
 sidecars but cannot create them.
 
 `sase init --all` uses the registered project inventory, so it can be run inside a project or from an unrelated
-directory. It visits active main projects only: inactive projects, sibling bookkeeping records, and the system-managed
+directory. It visits enabled main projects only: disabled projects, sibling bookkeeping records, and the system-managed
 `home` project are excluded. Each project runs from its recorded primary workspace. Missing workspaces, invalid project
 records, planning errors, and initializer failures are reported under that project's heading without preventing later
 projects from being attempted; the final summary and exit status reflect the whole batch. `--all --check` is fully
@@ -84,7 +84,7 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 | Command                                 | Purpose                                                                                     |
 | --------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `sase init`                             | Check memory, repositories, and skills; prompt once per needed initializer.                 |
-| `sase init -a, --all`                   | Check or initialize every registered active main project, continuing after project errors.  |
+| `sase init -a, --all`                   | Check or initialize every registered enabled main project, continuing after project errors. |
 | `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.      |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                  |
 | `sase init --yes`                       | Run every needed initializer in memory, repository, skills order without generic prompts.   |
@@ -142,7 +142,7 @@ that creates or refreshes these documents.
 `sase memory init` always initializes the home-level memory surface. It initializes project-local memory only for a
 SASE-managed repository, and independently owns provider instruction copies:
 
-`sase memory init -M` is the convenience path for a new active main project: it creates or updates `sase/sase.yml` with
+`sase memory init -M` is the convenience path for a new enabled main project: it creates or updates `sase/sase.yml` with
 the repository-wide marker before loading configuration and running the normal initializer.
 
 - Project memory under `./sase/memory/`, including `sase/memory/README.md` and flat note files with `type`/`parent`
@@ -154,6 +154,12 @@ the repository-wide marker before loading configuration and running the normal i
   that root's final `AGENTS.md`. Chezmoi home source roots use static `.md` files (not `*.md.tmpl` imports), since the
   inlined `AGENTS.md` carries no template variables. Legacy `@AGENTS.md` / `@/path/to/home/AGENTS.md` import shims and
   `*.md.tmpl` sources are still recognized and migrated to full copies.
+
+Managed projects can override the packaged Jinja templates for `AGENTS.md`, minimal agent instructions,
+`sase/memory/sase.md`, and `sase/memory/README.md` with root-relative paths in `sase/sase.yml`. Home roots use
+convention-based template files in the SASE user-config directory (or its chezmoi source counterpart). Template
+variables and validation rules are listed in the
+[generated templates configuration](configuration.md#generated-templates).
 
 For a SASE-managed project, `sase memory init` inlines each short-term note's body into Tier 1, renders Tier 2 from
 long-note descriptions, adds missing canonical frontmatter, and validates reachability. Missing, false, merged-global,

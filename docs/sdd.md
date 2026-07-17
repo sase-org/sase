@@ -182,8 +182,8 @@ phase bead. Omitted phase models use `@phase_worker`; an omitted top-level model
 
 Run `sase plan validate PLAN_FILE -t tale|epic` while authoring a plan. The tier is explicit and required, and the
 authored top-level `tier` must match it. Validation is hermetic: the command accepts any readable UTF-8 path and does
-not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or an active project. It reports all problems in one pass with stable
-diagnostic codes, field paths, and best-effort line numbers.
+not require `SASE_AGENT`, `SASE_ARTIFACTS_DIR`, or a registered project context. It reports all problems in one pass
+with stable diagnostic codes, field paths, and best-effort line numbers.
 
 Every tale and epic requires these authored fields:
 
