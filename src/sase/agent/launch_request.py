@@ -20,6 +20,7 @@ from sase.agent.launch_preview import (
     render_launch_preview_markdown,
 )
 from sase.agent.launch_types import AgentLaunchResult
+from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.paths import REQUEST_FILENAME, RESPONSE_FILENAME
 
 LAUNCH_REQUEST_SCHEMA_VERSION = 1
@@ -320,6 +321,7 @@ def read_launch_request(response_dir: Path) -> dict[str, Any]:
     return data
 
 
+@gate_command_entrypoint
 def execute_launch_gate_command(choice: str) -> int:
     """Entry point used only by the hashed scripts in a launch gate bundle."""
     try:

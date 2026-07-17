@@ -36,10 +36,13 @@ _KNOWN_DIRECTIVES = frozenset(
 # Directives that allow multiple occurrences (values are collected into a list)
 _MULTI_VALUE_DIRECTIVES = frozenset({"wait"})
 
-# Compatibility suggestions for the %auto/%a directive. The parser retains
-# arbitrary raw arguments; the adapter that opens a gate owns validation.
-AUTO_MODES_ORDERED: tuple[str, ...] = ("plan", "tale", "epic")
-AUTO_MODES: frozenset[str] = frozenset(AUTO_MODES_ORDERED)
+# Compatibility argument suggestions for the %auto/%a directive. The parser
+# retains arbitrary raw arguments; the adapter that opens a gate owns validation.
+AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS: tuple[str, ...] = (
+    "plan",
+    "tale",
+    "epic",
+)
 
 # Removed directive spellings that should raise targeted migration errors when
 # they reach the runtime parser. ``%edit`` became an editor-only ` @` review

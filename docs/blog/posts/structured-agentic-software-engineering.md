@@ -160,9 +160,9 @@ Review the code changes and provide feedback.
 ```
 
 `%model` selects a provider/model. `%name` gives the run a durable name. `%wait` waits for another named agent or a time
-floor. `%effort` sets reasoning effort where the provider supports it. `%auto` configures plan auto-approval. `%hide`
-hides noisy helper runs from the default Agents view. `%repeat` repeats a prompt, and `%group` assigns a user-visible
-tag. Those controls live in the same Markdown as the prompt, which keeps the common case out of YAML.
+floor. `%effort` sets reasoning effort where the provider supports it. `%auto` requests adapter-owned gate resolution.
+`%hide` hides noisy helper runs from the default Agents view. `%repeat` repeats a prompt, and `%group` assigns a
+user-visible tag. Those controls live in the same Markdown as the prompt, which keeps the common case out of YAML.
 
 Alternations are the direct answer to "one prompt equals one agent." This:
 

@@ -992,17 +992,17 @@ the prompt before further processing.
 
 ### Supported Directives
 
-| Directive | Alias | Description                                                      |
-| --------- | ----- | ---------------------------------------------------------------- |
-| `%model`  | `%m`  | Override the LLM model for this prompt                           |
-| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)            |
-| `%name`   | `%n`  | Assign an agent name or attach a member to an existing family    |
-| `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold   |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display               |
-| `%auto`   | `%a`  | Auto-approve the submitted plan as plan (default), tale, or epic |
-| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                |
-| `%group`  | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)      |
-| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand) |
+| Directive | Alias | Description                                                           |
+| --------- | ----- | --------------------------------------------------------------------- |
+| `%model`  | `%m`  | Override the LLM model for this prompt                                |
+| `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
+| `%name`   | `%n`  | Assign an agent name or attach a member to an existing family         |
+| `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
+| `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
+| `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                     |
+| `%group`  | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)           |
+| `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)      |
 
 ### Syntax
 
@@ -1050,9 +1050,9 @@ Directives use the same argument syntax as xprompt references:
 %(#review,#test)             # Legacy shorthand, still accepted (prefer `%{...}`)
 %{sec=#review | perf=#test}  # Named branches become child name suffixes
 %{extra instructions}        # Single branch: split into with/without variants
-%auto                        # Auto-approve the submitted plan as a normal plan
+%auto                        # Request automatic gate resolution using its default
 %a                           # Same, using alias
-%auto:plan                   # Explicit normal-plan auto-approval
+%auto:plan                   # Compatibility alias for normal-plan auto-approval
 %auto:tale                   # Plan first, then auto-approve & commit as a tale
 %auto:epic                   # Plan first, then auto-approve & commit as an epic
 %group:review                # Assign the tag "review" to this agent
@@ -1292,9 +1292,14 @@ Run periodic health checks.
 
 ### Auto Directive
 
-The `%auto` directive (alias `%a`) controls how the agent's next submitted plan is auto-approved. Bare `%auto` defaults
-to normal plan approval, which lets the agent run without requiring human approval for plan steps or other checkpoints
-that would normally pause for user input:
+The `%auto` directive (alias `%a`) requests automatic resolution when the agent reaches a notification gate. The
+directive parser retains its optional raw argument without applying a global enum; the adapter for the gate kind
+interprets and validates that argument. Consequently, an opaque spelling such as `%auto:foo` is valid directive syntax
+and reaches the adapter, which may reject it as unsupported.
+
+Bare `%auto` asks each adapter for its default automatic choice. A tale plan gate uses normal approval, an epic plan
+gate uses epic approval, and a question gate selects the first listed option for each question. Launch approval gates
+reject automatic resolution and must be answered explicitly.
 
 ```
 %auto
@@ -1302,8 +1307,12 @@ that would normally pause for user input:
 Fix the lint errors in the codebase.
 ```
 
-Use `%auto:tale` or `%auto:epic` to plan first, then auto-approve and commit the resulting plan as the matching SDD
-tier. Unknown modes raise a `DirectiveError`; valid modes are `plan`, `tale`, and `epic`.
+ACE and the xprompt LSP suggest `plan`, `tale`, and `epic` as compatibility arguments for plan workflows; those
+suggestions are not a parser allowlist. `%auto:plan` explicitly selects normal approval for an authored tale plan,
+`%auto:tale` auto-approves and commits an authored tale, and `%auto:epic` follows the authored epic path. The plan
+adapter rejects unknown arguments and tier-changing combinations such as `%auto:epic` on a tale or `%auto:tale` on an
+epic. Other adapters own different vocabularies: for example, the question adapter also accepts `first`, while the
+launch adapter accepts no automatic argument or default.
 
 When an agent launched with `%auto:tale` later submits a plan with `/sase_plan` or `sase plan propose`, sase
 auto-approves and commits it as an SDD tale in the resolved plans root's `<YYYYMM>/` directory and launches the coder

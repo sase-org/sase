@@ -84,8 +84,9 @@ def test_directive_completion_includes_representative_descriptions() -> None:
         "split a prompt into variants; shorthand %{A | B}"
     )
     assert directive_metadata(auto).description == (
-        "auto-approve the submitted plan as plan (default), tale, or epic"
+        "request automatic gate resolution; arguments are gate-specific"
     )
+    assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
 
 def test_directive_completion_t_prefix_lists_no_directives() -> None:

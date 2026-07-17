@@ -158,7 +158,7 @@ def test_auto_rejects_unknown_and_cross_tier_arguments_before_publication(
     gate_home: Path,
 ) -> None:
     plan = _write_plan(gate_home, "conflict.md", VALID_TALE_PLAN)
-    for argument in ("epic", "unknown"):
+    for argument in ("epic", "foo"):
         with pytest.raises(GateError) as exc_info:
             create_plan_approval_gate(
                 plan,

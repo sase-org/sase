@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from sase.notification_gates.entrypoints import gate_command_entrypoint
 from sase.notification_gates.models import GateError
 
 PLAN_EDIT_OPERATION_ID = "edit_plan"
@@ -189,6 +190,7 @@ def plan_gate_command_script(choice: str) -> str:
     )
 
 
+@gate_command_entrypoint
 def execute_plan_gate_command(choice: str) -> int:
     """Entry point used by the command resources inside plan gate bundles."""
     try:

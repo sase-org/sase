@@ -182,6 +182,15 @@ def test_automatic_resolution_uses_executor_without_pending_row(
     assert pending_actions.read_pending_action_store()["actions"] == {}
 
 
+def test_launch_adapter_rejects_automatic_resolution() -> None:
+    from sase.notification_gates.registry import adapter_for_kind
+
+    with pytest.raises(GateError) as exc_info:
+        adapter_for_kind("launch").resolve_auto_choice((), None)
+
+    assert exc_info.value.code == "auto_not_supported"
+
+
 def test_explicit_timeout_is_terminal_but_transport_staleness_is_not_polled(
     gate_home: Path,
 ) -> None:

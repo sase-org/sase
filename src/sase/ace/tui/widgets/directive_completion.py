@@ -13,7 +13,7 @@ from sase.ace.tui.agent_completion import (
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.xprompt._directive_types import (
-    AUTO_MODES_ORDERED,
+    AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
     _DIRECTIVE_ALIASES,
     _KNOWN_DIRECTIVES,
 )
@@ -48,7 +48,7 @@ class DirectiveArgCompletionMetadata:
 
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
-    "auto": ":plan|tale|epic",
+    "auto": ":argument (e.g. plan|tale|epic)",
     "effort": ":level",
     "family": ":root or (root, role=token)",
     "hide": "flag",
@@ -62,7 +62,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
-    "auto": "auto-approve the submitted plan as plan (default), tale, or epic",
+    "auto": "request automatic gate resolution; arguments are gate-specific",
     "effort": "set the reasoning-effort level for this prompt",
     "family": "join a parallel agent family rooted at another launch segment",
     "hide": "hide the agent from the default Agents tab",
@@ -84,14 +84,14 @@ _EFFORT_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
 }
 
 _AUTO_ARGUMENT_DESCRIPTIONS: dict[str, str] = {
-    "plan": "auto-approve as a normal plan",
-    "tale": "auto-approve and commit as an SDD tale",
-    "epic": "auto-approve and commit as an SDD epic",
+    "plan": "plan-gate compatibility alias for normal approval",
+    "tale": "plan-gate compatibility alias for SDD tale approval",
+    "epic": "plan-gate compatibility alias for SDD epic approval",
 }
 
 _DIRECTIVE_ARGUMENT_VALUES: dict[str, tuple[str, ...]] = {
     "effort": EFFORT_LEVELS_ORDERED,
-    "auto": AUTO_MODES_ORDERED,
+    "auto": AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS,
 }
 
 _DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {

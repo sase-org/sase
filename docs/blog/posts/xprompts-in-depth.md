@@ -72,15 +72,15 @@ the prompt body.
 Directives are in-prompt tags with a `%` prefix that modify the agent runner instead of the prompt text. They are
 stripped before the prompt reaches the model. The ones worth knowing on day one:
 
-| Directive | What it does                                                                                   |
-| --------- | ---------------------------------------------------------------------------------------------- |
-| `%model`  | Override the LLM model for this run                                                            |
-| `%name`   | Assign a permanent agent name (or auto-generate one)                                           |
-| `%wait`   | Wait for another named agent to complete successfully                                          |
-| `#t`      | Defer launch by a duration or until an absolute wall-clock time (`%wait(time=...)` long form)  |
-| `%auto`   | Auto-approve the submitted plan as plan (default), tale (`%auto:tale`), or epic (`%auto:epic`) |
-| `%repeat` | Run the prompt N times                                                                         |
-| `%alt`    | Split the prompt into variants with different text                                             |
+| Directive | What it does                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `%model`  | Override the LLM model for this run                                                                       |
+| `%name`   | Assign a permanent agent name (or auto-generate one)                                                      |
+| `%wait`   | Wait for another named agent to complete successfully                                                     |
+| `#t`      | Defer launch by a duration or until an absolute wall-clock time (`%wait(time=...)` long form)             |
+| `%auto`   | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic` |
+| `%repeat` | Run the prompt N times                                                                                    |
+| `%alt`    | Split the prompt into variants with different text                                                        |
 
 Directives compose. `%wait(planner, time=5m)` waits for the `planner` agent to land, then adds a five-minute floor
 before launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful

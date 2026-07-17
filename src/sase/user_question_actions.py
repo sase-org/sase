@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.notification_gates.entrypoints import gate_command_entrypoint
+
 QUESTION_COMMAND_PATH = "commands/submit"
 QUESTION_CHOICE_ID = "submit"
 QUESTION_CONTINUATION_MODE = "agent_question"
@@ -368,6 +370,7 @@ def automatic_question_response(payload: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+@gate_command_entrypoint
 def execute_user_question_gate_command() -> int:
     """Entry point used only by the adapter-approved question command script."""
     try:

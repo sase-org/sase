@@ -1693,10 +1693,11 @@ For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key mo
 _next_ submitted plan is auto-approved. The agent's current state is marked with `▸`; pressing `p` (Plan — approve the
 plan as-is), `t` (Tale — approve and commit as a tale), `e` (Epic — approve and commit as an epic), or `d` (Disable —
 turn off auto-approval) applies the change immediately, while `esc`/`q` cancels. The selected state shows on the agent
-row as a `⚡` (plan), `⚡T` (tale), or `⚡E` (epic) icon. Plan, tale, and epic auto-approve mirror `%auto`,
-`%auto:tale`, and `%auto:epic` respectively — for example, epic auto-approve accepts the next submitted plan as an epic,
-writes SDD epic artifacts, initializes beads, and launches the epic follow-up agent. The menu only configures plan
-auto-approval; it does not answer unrelated HITL prompts.
+row as a `⚡` (plan), `⚡T` (tale), or `⚡E` (epic) icon. For plan submissions, these choices correspond to the
+plan-adapter behavior of `%auto`, `%auto:tale`, and `%auto:epic` respectively — for example, epic auto-approve accepts
+the next submitted plan as an epic, writes SDD epic artifacts, initializes beads, and launches the epic follow-up agent.
+The menu only configures plan auto-approval; unlike bare `%auto`, it does not automatically answer questions or
+unrelated HITL prompts.
 
 ### Plan Approval Keybindings
 

@@ -8,7 +8,8 @@ from sase.ace.tui.agent_completion import AgentCompletionCandidate
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_arg_completion_candidates,
 )
-from sase.xprompt._directive_types import AUTO_MODES_ORDERED
+from sase.xprompt._directive_types import AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
+from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
 from ._directive_completion_helpers import (
@@ -33,7 +34,7 @@ def test_directive_arg_completion_builds_fixed_value_candidates() -> None:
         EFFORT_LEVELS_ORDERED
     )
     assert [candidate.insertion for candidate in auto_candidates] == list(
-        AUTO_MODES_ORDERED
+        AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
     )
     assert effort_shared == ""
     assert auto_shared == ""
@@ -131,9 +132,18 @@ def test_directive_arg_completion_metadata_has_descriptions() -> None:
     )
 
 
-def test_auto_mode_completion_values_mirror_parser_and_rust_registry() -> None:
-    # Keep this expected tuple aligned with Rust
-    # directive_argument_candidates("auto") in sase-core.
-    assert AUTO_MODES_ORDERED == ("plan", "tale", "epic")
+def test_auto_argument_completion_suggests_compatibility_values_without_closing_parser() -> (
+    None
+):
+    # Keep these suggestions aligned with Rust directive_argument_candidates("auto")
+    # in sase-core. They are not a parser allowlist: the eventual gate adapter
+    # owns validation of the retained raw argument.
+    assert AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS == ("plan", "tale", "epic")
     candidates, _ = build_directive_arg_completion_candidates("auto", "")
-    assert tuple(candidate.insertion for candidate in candidates) == AUTO_MODES_ORDERED
+    assert tuple(candidate.insertion for candidate in candidates) == (
+        AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS
+    )
+
+    cleaned, directives = extract_prompt_directives("%auto:foo\nDo the work")
+    assert cleaned == "Do the work"
+    assert directives.auto_argument == "foo"
