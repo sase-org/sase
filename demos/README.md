@@ -32,9 +32,55 @@ Run:
 just demos
 ```
 
-The recipe renders all tapes, updates `demos/out/last_generated_date.txt` after successful renders, and then prompts to
-commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without prompting. Non-interactive runs
-never commit automatically.
+The recipe renders all tapes, post-processes their media, updates `demos/out/last_generated_date.txt` after successful
+renders, and then prompts to commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without
+prompting. Non-interactive runs never commit automatically.
+
+Every GIF is derived from its rendered MP4 with ffmpeg's `palettegen`/`paletteuse` filters at the frame rate measured by
+`ffprobe`. Do not infer the output frame rate from `Set Framerate` in a tape: VHS can produce a different rate (the
+current artifacts are 25 fps despite requesting 30 fps).
+
+## Captions
+
+Add an optional `tapes/<name>.captions.yml` sidecar to burn timed captions into a demo:
+
+```yaml
+version: 1
+defaults:
+  font: "Fira Code"
+  size: 40
+  position: lower-third
+  margin_x: 80
+  margin_y: 90
+  fade_ms: 250
+  box_color: "#000000"
+  box_opacity: 0.70
+  text_color: "#ffffff"
+cues:
+  - at: 2.0s
+    until: 4.5s
+    text: "Recall prior prompts instantly"
+  - at: 12.0s
+    until: 15.0s
+    position: top-right
+    text: "One prompt becomes a launch preview"
+```
+
+Cues use absolute timestamps, must be ordered without overlap, and must fit within the measured MP4 duration. Supported
+positions are `lower-third`, `bottom-left`, `bottom-center`, `bottom-right`, `center`, `top-left`, `top-center`, and
+`top-right`. Captions default to the intended visual language: Fira Code, white text, a 70%-opaque dark box, and 250 ms
+fades. Keep demos sparse (no more than about five cues, generally 2.5–4 seconds each).
+
+`scripts/postprocess_demo_media` generates a temporary ASS subtitle file and burns it with ffmpeg/libass. The final
+captioned MP4 and its palette-derived GIF replace `out/<name>.mp4` and `out/<name>.gif` in place; no parallel
+`*.captioned.*` artifacts are kept, so existing README and PyPI URLs remain stable. The command also supports
+`--optimized-gif` (lanczos downscaling plus a reduced palette) and paired `--still`/`--still-at` flags for deterministic
+README or blog derivatives. Run `just --justfile demos/Justfile postprocess` to reprocess existing MP4s without
+rerunning VHS.
+
+After any tape timing change, render the MP4, scrub or frame-step it to find the new semantic beats, and retime the
+sidecar before committing media. The processor validates timing but cannot infer semantic events. It also requires
+fontconfig to resolve the configured font exactly, preventing silent typography substitution.
 
 The prompt-input tape writes:
 

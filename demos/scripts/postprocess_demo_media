@@ -1,0 +1,719 @@
+#!/usr/bin/env python3
+"""Build final MP4, GIF, and optional derivative media for a VHS demo."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from fractions import Fraction
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+
+DEFAULT_FONT = "Fira Code"
+DEFAULT_SIZE = 40
+DEFAULT_POSITION = "lower-third"
+DEFAULT_MARGIN_X = 80
+DEFAULT_MARGIN_Y = 90
+DEFAULT_FADE_MS = 250
+DEFAULT_BOX_COLOR = "#000000"
+DEFAULT_BOX_OPACITY = 0.70
+DEFAULT_TEXT_COLOR = "#ffffff"
+
+POSITION_ALIGNMENTS = {
+    "bottom-center": 2,
+    "bottom-left": 1,
+    "bottom-right": 3,
+    "center": 5,
+    "lower-third": 2,
+    "top-center": 8,
+    "top-left": 7,
+    "top-right": 9,
+}
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
+_CLOCK_RE = re.compile(
+    r"^(?:(?P<hours>\d+):)?(?P<minutes>\d{1,2}):"
+    r"(?P<seconds>\d{1,2}(?:\.\d+)?)$"
+)
+
+
+@dataclass(frozen=True)
+class MediaInfo:
+    """Video properties measured from the rendered artifact."""
+
+    fps: Fraction
+    duration: float
+    width: int
+    height: int
+
+
+@dataclass(frozen=True)
+class CaptionDefaults:
+    """Caption style shared by every cue in one sidecar."""
+
+    font: str
+    size: int
+    position: str
+    margin_x: int
+    margin_y: int
+    fade_ms: int
+    box_color: str
+    box_opacity: float
+    text_color: str
+
+
+@dataclass(frozen=True)
+class CaptionCue:
+    """One validated absolute-time caption cue."""
+
+    at: float
+    until: float
+    position: str
+    text: str
+
+
+@dataclass(frozen=True)
+class CaptionSpec:
+    """Validated version-one caption sidecar."""
+
+    defaults: CaptionDefaults
+    cues: tuple[CaptionCue, ...]
+
+
+def parse_timestamp(value: object, *, field: str = "timestamp") -> float:
+    """Parse an absolute timestamp expressed as seconds or a clock value."""
+
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an absolute timestamp")
+    if isinstance(value, int | float):
+        seconds = float(value)
+    elif isinstance(value, str):
+        raw = value.strip()
+        if raw.endswith("s"):
+            try:
+                seconds = float(raw[:-1])
+            except ValueError as error:
+                raise ValueError(
+                    f"{field} must be an absolute timestamp such as 2.5s"
+                ) from error
+        else:
+            match = _CLOCK_RE.fullmatch(raw)
+            if match is None:
+                raise ValueError(f"{field} must be an absolute timestamp such as 2.5s")
+            hours = int(match.group("hours") or 0)
+            minutes = int(match.group("minutes"))
+            clock_seconds = float(match.group("seconds"))
+            if minutes >= 60 or clock_seconds >= 60:
+                raise ValueError(f"{field} has an invalid clock value: {value!r}")
+            seconds = hours * 3600 + minutes * 60 + clock_seconds
+    else:
+        raise ValueError(f"{field} must be an absolute timestamp")
+
+    if not math.isfinite(seconds) or seconds < 0:
+        raise ValueError(f"{field} must be a finite, non-negative timestamp")
+    return seconds
+
+
+def _require_mapping(value: object, *, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise ValueError(f"{field} must be a mapping")
+    return value
+
+
+def _reject_unknown_keys(
+    value: dict[str, Any], *, allowed: set[str], field: str
+) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ValueError(f"{field} has unknown field(s): {', '.join(unknown)}")
+
+
+def _integer(
+    value: object, *, field: str, minimum: int = 0, maximum: int | None = None
+) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field} must be an integer")
+    if value < minimum or (maximum is not None and value > maximum):
+        maximum_text = f" and at most {maximum}" if maximum is not None else ""
+        raise ValueError(f"{field} must be at least {minimum}{maximum_text}")
+    return value
+
+
+def _color(value: object, *, field: str) -> str:
+    if not isinstance(value, str) or _HEX_COLOR_RE.fullmatch(value) is None:
+        raise ValueError(f"{field} must use #RRGGBB notation")
+    return value.lower()
+
+
+def _position(value: object, *, field: str) -> str:
+    if not isinstance(value, str) or value not in POSITION_ALIGNMENTS:
+        choices = ", ".join(sorted(POSITION_ALIGNMENTS))
+        raise ValueError(f"{field} must be one of: {choices}")
+    return value
+
+
+def _parse_defaults(value: object) -> CaptionDefaults:
+    raw = _require_mapping(value, field="defaults")
+    allowed = {
+        "box_color",
+        "box_opacity",
+        "fade_ms",
+        "font",
+        "margin_x",
+        "margin_y",
+        "position",
+        "size",
+        "text_color",
+    }
+    _reject_unknown_keys(raw, allowed=allowed, field="defaults")
+
+    font = raw.get("font", DEFAULT_FONT)
+    if not isinstance(font, str) or not font.strip() or "," in font or "\n" in font:
+        raise ValueError("defaults.font must be a non-empty ASS-safe font name")
+
+    opacity = raw.get("box_opacity", DEFAULT_BOX_OPACITY)
+    if isinstance(opacity, bool) or not isinstance(opacity, int | float):
+        raise ValueError("defaults.box_opacity must be a number from 0 to 1")
+    opacity = float(opacity)
+    if not math.isfinite(opacity) or not 0 <= opacity <= 1:
+        raise ValueError("defaults.box_opacity must be a number from 0 to 1")
+
+    return CaptionDefaults(
+        font=font.strip(),
+        size=_integer(raw.get("size", DEFAULT_SIZE), field="defaults.size", minimum=1),
+        position=_position(
+            raw.get("position", DEFAULT_POSITION), field="defaults.position"
+        ),
+        margin_x=_integer(
+            raw.get("margin_x", DEFAULT_MARGIN_X),
+            field="defaults.margin_x",
+        ),
+        margin_y=_integer(
+            raw.get("margin_y", DEFAULT_MARGIN_Y),
+            field="defaults.margin_y",
+        ),
+        fade_ms=_integer(raw.get("fade_ms", DEFAULT_FADE_MS), field="defaults.fade_ms"),
+        box_color=_color(
+            raw.get("box_color", DEFAULT_BOX_COLOR),
+            field="defaults.box_color",
+        ),
+        box_opacity=opacity,
+        text_color=_color(
+            raw.get("text_color", DEFAULT_TEXT_COLOR),
+            field="defaults.text_color",
+        ),
+    )
+
+
+def load_caption_spec(path: Path, *, duration: float) -> CaptionSpec:
+    """Load and validate a version-one caption sidecar."""
+
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        raise ValueError(f"invalid YAML in {path}: {error}") from error
+
+    root = _require_mapping(document, field=str(path))
+    _reject_unknown_keys(root, allowed={"version", "defaults", "cues"}, field=str(path))
+    if root.get("version") != 1:
+        raise ValueError(f"{path}: version must be 1")
+    if "defaults" not in root:
+        raise ValueError(f"{path}: defaults is required")
+    defaults = _parse_defaults(root["defaults"])
+
+    raw_cues = root.get("cues")
+    if not isinstance(raw_cues, list) or not raw_cues:
+        raise ValueError(f"{path}: cues must be a non-empty list")
+
+    cues: list[CaptionCue] = []
+    previous_until = 0.0
+    for index, value in enumerate(raw_cues, start=1):
+        field = f"{path}: cue {index}"
+        raw = _require_mapping(value, field=field)
+        _reject_unknown_keys(
+            raw, allowed={"at", "position", "text", "until"}, field=field
+        )
+        missing = sorted({"at", "text", "until"} - set(raw))
+        if missing:
+            raise ValueError(f"{field} is missing: {', '.join(missing)}")
+
+        at = parse_timestamp(raw["at"], field=f"{field}.at")
+        until = parse_timestamp(raw["until"], field=f"{field}.until")
+        if until <= at:
+            raise ValueError(f"{field}.until must be later than .at")
+        if at < previous_until - 1e-9:
+            raise ValueError(f"{field}.at must be at or after the previous cue ends")
+        if until > duration + 1e-6:
+            raise ValueError(
+                f"{field}.until ({until:.3f}s) exceeds media duration ({duration:.3f}s)"
+            )
+
+        text = raw["text"]
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"{field}.text must be non-empty")
+        position = _position(
+            raw.get("position", defaults.position), field=f"{field}.position"
+        )
+        cues.append(CaptionCue(at=at, until=until, position=position, text=text))
+        previous_until = until
+
+    return CaptionSpec(defaults=defaults, cues=tuple(cues))
+
+
+def _ass_timestamp(seconds: float) -> str:
+    centiseconds = round(seconds * 100)
+    hours, remainder = divmod(centiseconds, 360_000)
+    minutes, remainder = divmod(remainder, 6_000)
+    whole_seconds, hundredths = divmod(remainder, 100)
+    return f"{hours}:{minutes:02d}:{whole_seconds:02d}.{hundredths:02d}"
+
+
+def _ass_color(value: str, *, opacity: float = 1.0) -> str:
+    red, green, blue = value[1:3], value[3:5], value[5:7]
+    alpha = round((1 - opacity) * 255)
+    return f"&H{alpha:02X}{blue.upper()}{green.upper()}{red.upper()}"
+
+
+def escape_ass_text(text: str) -> str:
+    """Escape user text so it cannot be interpreted as ASS override syntax."""
+
+    return (
+        text.replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\\", r"\\")
+        .replace("{", r"\{")
+        .replace("}", r"\}")
+        .replace("\n", r"\N")
+    )
+
+
+def _style_name(position: str) -> str:
+    return "".join(part.capitalize() for part in position.split("-"))
+
+
+def render_ass(spec: CaptionSpec, media: MediaInfo) -> str:
+    """Render a validated caption sidecar as an ASS subtitle document."""
+
+    defaults = spec.defaults
+    primary = _ass_color(defaults.text_color)
+    box = _ass_color(defaults.box_color, opacity=defaults.box_opacity)
+    positions = sorted({cue.position for cue in spec.cues})
+    lines = [
+        "[Script Info]",
+        "ScriptType: v4.00+",
+        f"PlayResX: {media.width}",
+        f"PlayResY: {media.height}",
+        "WrapStyle: 2",
+        "ScaledBorderAndShadow: yes",
+        "",
+        "[V4+ Styles]",
+        (
+            "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+            "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+            "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+            "Alignment, MarginL, MarginR, MarginV, Encoding"
+        ),
+    ]
+    for position in positions:
+        lines.append(
+            "Style: "
+            f"{_style_name(position)},{defaults.font},{defaults.size},"
+            f"{primary},{primary},{box},{box},-1,0,0,0,100,100,0,0,3,8,0,"
+            f"{POSITION_ALIGNMENTS[position]},{defaults.margin_x},"
+            f"{defaults.margin_x},{defaults.margin_y},1"
+        )
+
+    lines.extend(
+        [
+            "",
+            "[Events]",
+            (
+                "Format: Layer, Start, End, Style, Name, MarginL, MarginR, "
+                "MarginV, Effect, Text"
+            ),
+        ]
+    )
+    for cue in spec.cues:
+        cue_ms = round((cue.until - cue.at) * 1000)
+        fade_ms = min(defaults.fade_ms, cue_ms // 2)
+        text = escape_ass_text(cue.text)
+        lines.append(
+            "Dialogue: 0,"
+            f"{_ass_timestamp(cue.at)},{_ass_timestamp(cue.until)},"
+            f"{_style_name(cue.position)},,0,0,0,,"
+            f"{{\\fad({fade_ms},{fade_ms})}}{text}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _run(
+    command: list[str], *, capture_output: bool = False
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        check=True,
+        text=True,
+        capture_output=capture_output,
+    )
+
+
+def probe_media(path: Path) -> MediaInfo:
+    """Measure FPS, duration, and dimensions with ffprobe."""
+
+    result = _run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=avg_frame_rate,r_frame_rate,width,height",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+    )
+    try:
+        payload = json.loads(result.stdout)
+        stream = payload["streams"][0]
+        duration = float(payload["format"]["duration"])
+        width = int(stream["width"])
+        height = int(stream["height"])
+        raw_rate = stream.get("avg_frame_rate")
+        if raw_rate in {None, "0/0"}:
+            raw_rate = stream["r_frame_rate"]
+        fps = Fraction(raw_rate)
+    except (IndexError, KeyError, TypeError, ValueError, ZeroDivisionError) as error:
+        raise RuntimeError(
+            f"ffprobe returned invalid media metadata for {path}"
+        ) from error
+
+    if (
+        fps <= 0
+        or not math.isfinite(duration)
+        or duration <= 0
+        or width <= 0
+        or height <= 0
+    ):
+        raise RuntimeError(f"ffprobe returned invalid media metadata for {path}")
+    return MediaInfo(fps=fps, duration=duration, width=width, height=height)
+
+
+def ensure_font_available(font: str) -> None:
+    """Require fontconfig to resolve the requested family without substitution."""
+
+    result = _run(["fc-match", "--format=%{family}\n", font], capture_output=True)
+    resolved = {
+        family.strip().casefold()
+        for family in re.split(r"[,\n]", result.stdout)
+        if family.strip()
+    }
+    if font.casefold() not in resolved:
+        match = result.stdout.strip() or "nothing"
+        raise RuntimeError(
+            f'fontconfig cannot resolve "{font}" exactly (matched {match!r})'
+        )
+
+
+def _filter_path(path: Path) -> str:
+    value = str(path.resolve())
+    for old, new in (("\\", r"\\"), (":", r"\:"), ("'", r"\'"), (",", r"\,")):
+        value = value.replace(old, new)
+    return value
+
+
+def _fps_text(fps: Fraction) -> str:
+    if fps.denominator == 1:
+        return str(fps.numerator)
+    return f"{fps.numerator}/{fps.denominator}"
+
+
+def burn_captions(source: Path, destination: Path, ass_path: Path) -> None:
+    """Burn ASS captions into an H.264 MP4."""
+
+    _run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-vf",
+            f"ass=filename='{_filter_path(ass_path)}'",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(destination),
+        ]
+    )
+
+
+def gif_filter(*, fps: Fraction, scale: tuple[int, int] | None, colors: int) -> str:
+    """Build the deterministic palettegen/paletteuse filter graph."""
+
+    filters = [f"fps={_fps_text(fps)}"]
+    if scale is not None:
+        filters.append(f"scale={scale[0]}:{scale[1]}:flags=lanczos")
+    prefix = ",".join(filters)
+    return (
+        f"[0:v]{prefix},split[frames][palette_source];"
+        f"[palette_source]palettegen=stats_mode=diff:max_colors={colors}[palette];"
+        "[frames][palette]paletteuse=dither=bayer:bayer_scale=3"
+    )
+
+
+def render_gif(
+    source: Path,
+    destination: Path,
+    *,
+    fps: Fraction,
+    scale: tuple[int, int] | None = None,
+    colors: int = 256,
+) -> None:
+    """Derive a GIF from the final MP4 using one generated palette."""
+
+    _run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-filter_complex",
+            gif_filter(fps=fps, scale=scale, colors=colors),
+            "-loop",
+            "0",
+            str(destination),
+        ]
+    )
+
+
+def extract_still(source: Path, destination: Path, *, at: float) -> None:
+    """Extract one deterministic PNG frame from the final MP4."""
+
+    _run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(source),
+            "-ss",
+            f"{at:.6f}",
+            "-frames:v",
+            "1",
+            str(destination),
+        ]
+    )
+
+
+def _scaled_size(media: MediaInfo, target_width: int) -> tuple[int, int]:
+    width = min(media.width, target_width)
+    height = max(2, round(media.height * width / media.width))
+    if height % 2:
+        height += 1
+    return width, height
+
+
+def _optimized_fps(source_fps: Fraction, maximum: Fraction) -> Fraction:
+    return min(source_fps, maximum)
+
+
+def process_media(
+    name: str,
+    *,
+    tapes_dir: Path,
+    out_dir: Path,
+    optimized_gif: Path | None = None,
+    optimized_width: int = 1280,
+    optimized_colors: int = 128,
+    optimized_fps: Fraction = Fraction(15, 1),
+    still: Path | None = None,
+    still_at: float | None = None,
+) -> None:
+    """Post-process one tape's VHS-rendered media and replace it in place."""
+
+    if _NAME_RE.fullmatch(name) is None:
+        raise ValueError("tape name may contain only letters, digits, _ and -")
+    source_mp4 = out_dir / f"{name}.mp4"
+    destination_gif = out_dir / f"{name}.gif"
+    captions_path = tapes_dir / f"{name}.captions.yml"
+    if not source_mp4.is_file():
+        raise ValueError(f"rendered MP4 does not exist: {source_mp4}")
+
+    media = probe_media(source_mp4)
+    spec = (
+        load_caption_spec(captions_path, duration=media.duration)
+        if captions_path.is_file()
+        else None
+    )
+    if spec is not None:
+        ensure_font_available(spec.defaults.font)
+    if still_at is not None and still_at > media.duration:
+        raise ValueError(
+            f"still timestamp ({still_at:.3f}s) exceeds media duration "
+            f"({media.duration:.3f}s)"
+        )
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(
+        prefix=f".{name}.postprocess-", dir=out_dir
+    ) as temporary:
+        temporary_dir = Path(temporary)
+        final_mp4 = source_mp4
+        staged_mp4: Path | None = None
+        if spec is not None:
+            ass_path = temporary_dir / f"{name}.captions.ass"
+            ass_path.write_text(render_ass(spec, media), encoding="utf-8")
+            staged_mp4 = temporary_dir / f"{name}.mp4"
+            burn_captions(source_mp4, staged_mp4, ass_path)
+            final_mp4 = staged_mp4
+
+        staged_gif = temporary_dir / f"{name}.gif"
+        render_gif(final_mp4, staged_gif, fps=media.fps)
+
+        staged_optimized: Path | None = None
+        if optimized_gif is not None:
+            staged_optimized = temporary_dir / "optimized.gif"
+            render_gif(
+                final_mp4,
+                staged_optimized,
+                fps=_optimized_fps(media.fps, optimized_fps),
+                scale=_scaled_size(media, optimized_width),
+                colors=optimized_colors,
+            )
+
+        staged_still: Path | None = None
+        if still is not None and still_at is not None:
+            staged_still = temporary_dir / "still.png"
+            extract_still(final_mp4, staged_still, at=still_at)
+
+        if staged_mp4 is not None:
+            os.replace(staged_mp4, source_mp4)
+        os.replace(staged_gif, destination_gif)
+        if staged_optimized is not None and optimized_gif is not None:
+            optimized_gif.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(staged_optimized, optimized_gif)
+        if staged_still is not None and still is not None:
+            still.parent.mkdir(parents=True, exist_ok=True)
+            os.replace(staged_still, still)
+
+    caption_status = "captioned MP4 + GIF" if spec is not None else "GIF"
+    print(
+        f"[postprocess] {name}: wrote final {caption_status} at "
+        f"{_fps_text(media.fps)} fps"
+    )
+
+
+def _positive_integer(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be positive")
+    return parsed
+
+
+def _palette_size(value: str) -> int:
+    parsed = int(value)
+    if not 2 <= parsed <= 256:
+        raise argparse.ArgumentTypeError("palette size must be from 2 to 256")
+    return parsed
+
+
+def _fps(value: str) -> Fraction:
+    try:
+        parsed = Fraction(value)
+    except (ValueError, ZeroDivisionError) as error:
+        raise argparse.ArgumentTypeError("FPS must be a positive number") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("FPS must be a positive number")
+    return parsed
+
+
+def _argument_parser() -> argparse.ArgumentParser:
+    repo_root = Path(__file__).resolve().parents[2]
+    parser = argparse.ArgumentParser(
+        description=(
+            "Burn optional ASS captions into one VHS-rendered MP4 and derive "
+            "the final GIF."
+        )
+    )
+    parser.add_argument("name", help="tape basename, without an extension")
+    parser.add_argument("--tapes-dir", type=Path, default=repo_root / "demos" / "tapes")
+    parser.add_argument("--out-dir", type=Path, default=repo_root / "demos" / "out")
+    parser.add_argument(
+        "--optimized-gif",
+        type=Path,
+        help="also write a downscaled, reduced-palette GIF",
+    )
+    parser.add_argument("--optimized-width", type=_positive_integer, default=1280)
+    parser.add_argument("--optimized-colors", type=_palette_size, default=128)
+    parser.add_argument("--optimized-fps", type=_fps, default=Fraction(15, 1))
+    parser.add_argument("--still", type=Path, help="also extract a still PNG")
+    parser.add_argument(
+        "--still-at",
+        help="absolute timestamp for --still (for example 12.5s)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point."""
+
+    parser = _argument_parser()
+    args = parser.parse_args(argv)
+    if (args.still is None) != (args.still_at is None):
+        parser.error("--still and --still-at must be provided together")
+
+    try:
+        still_at = (
+            parse_timestamp(args.still_at, field="--still-at")
+            if args.still_at is not None
+            else None
+        )
+        process_media(
+            args.name,
+            tapes_dir=args.tapes_dir,
+            out_dir=args.out_dir,
+            optimized_gif=args.optimized_gif,
+            optimized_width=args.optimized_width,
+            optimized_colors=args.optimized_colors,
+            optimized_fps=args.optimized_fps,
+            still=args.still,
+            still_at=still_at,
+        )
+    except (OSError, subprocess.CalledProcessError, ValueError, RuntimeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,15 @@
+python := "../.venv/bin/python"
+
+# Derive every final GIF from its measured MP4 and burn captions when a
+# same-named tapes/*.captions.yml sidecar exists.
+postprocess:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for name in \
+        sase_ace_prompt_input \
+        sase_ace_agents_observability \
+        sase_ace_prompt_history_stash \
+        sase_ace_prs_pipeline \
+        sase_ace_multi_model_fanout; do
+        {{ python }} scripts/postprocess_demo_media "$name"
+    done
