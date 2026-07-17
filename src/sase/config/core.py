@@ -8,10 +8,16 @@ alphabetically, with list concatenation) on top, then finally the current
 project's ``sase/sase.yml`` (with root-level ``sase.yml`` as a read fallback),
 unless local config loading has been disabled via ``set_include_local_config(False)``
 (e.g. for ``sase ace`` runs where the TUI should not inherit repo-level config).
+
+After the first config-token read, filesystem freshness checks use
+stale-while-revalidate semantics so render-path callers never perform stat/glob
+I/O.  Explicit cache invalidation still makes the next read synchronous, while
+external file edits may take roughly two polling windows to become visible.
 """
 
 import importlib.resources
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,22 +57,34 @@ _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 0.75
 _config_cache_generation = 0
 _current_config_token_cache_value: tuple[Any, ...] | None = None
 _current_config_token_cache_deadline = 0.0
+_current_config_token_cache_epoch = 0
+_current_config_token_cache_lock = threading.RLock()
+_current_config_token_refresh_thread: threading.Thread | None = None
+
+
+def _reset_current_config_token_cache_locked() -> None:
+    """Reset the config-token cache while its lock is held."""
+    global _current_config_token_cache_value, _current_config_token_cache_deadline
+    global _current_config_token_cache_epoch
+    _current_config_token_cache_value = None
+    _current_config_token_cache_deadline = 0.0
+    _current_config_token_cache_epoch += 1
 
 
 def _reset_current_config_token_cache() -> None:
     """Force the next config-token lookup to inspect the filesystem."""
-    global _current_config_token_cache_value, _current_config_token_cache_deadline
-    _current_config_token_cache_value = None
-    _current_config_token_cache_deadline = 0.0
+    with _current_config_token_cache_lock:
+        _reset_current_config_token_cache_locked()
 
 
 def set_include_local_config(value: bool) -> None:
     """Enable or disable loading of the current project's config."""
     global _include_local_config
-    if _include_local_config == value:
-        return
-    _include_local_config = value
-    _reset_current_config_token_cache()
+    with _current_config_token_cache_lock:
+        if _include_local_config == value:
+            return
+        _include_local_config = value
+        _reset_current_config_token_cache()
 
 
 def stat_token(path: Path) -> tuple[str, int, int] | None:
@@ -105,6 +123,27 @@ def _compute_current_config_token() -> tuple[Any, ...]:
     return tuple(parts)
 
 
+def _refresh_current_config_token(cache_epoch: int) -> None:
+    """Recompute and publish a config token from the daemon worker."""
+    global _current_config_token_cache_value, _current_config_token_cache_deadline
+    global _current_config_token_refresh_thread
+
+    try:
+        token = _compute_current_config_token()
+    except Exception:
+        log.debug("Background config-token refresh failed", exc_info=True)
+        token = None
+
+    with _current_config_token_cache_lock:
+        if cache_epoch == _current_config_token_cache_epoch:
+            if token is not None:
+                _current_config_token_cache_value = token
+            _current_config_token_cache_deadline = (
+                time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+            )
+        _current_config_token_refresh_thread = None
+
+
 def current_config_token() -> tuple[Any, ...]:
     """Return the cache key for the current merged-config state.
 
@@ -112,20 +151,35 @@ def current_config_token() -> tuple[Any, ...]:
     stat tuple per candidate file layer.  Bundled and plugin defaults aren't
     keyed because they ship in packages and don't change at runtime.
 
-    Filesystem freshness is recomputed at most once per short polling window;
-    calls in between return the last token without performing stat/glob I/O.
+    The first call after process start or explicit invalidation computes the
+    token synchronously.  After that, an expired token is returned stale while
+    a single daemon worker revalidates it off-thread.
     """
     global _current_config_token_cache_value, _current_config_token_cache_deadline
-    cached = _current_config_token_cache_value
-    if cached is not None and time.monotonic() < _current_config_token_cache_deadline:
-        return cached
+    global _current_config_token_refresh_thread
 
-    token = _compute_current_config_token()
-    _current_config_token_cache_value = token
-    _current_config_token_cache_deadline = (
-        time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
-    )
-    return token
+    with _current_config_token_cache_lock:
+        cached = _current_config_token_cache_value
+        if cached is None:
+            token = _compute_current_config_token()
+            _current_config_token_cache_value = token
+            _current_config_token_cache_deadline = (
+                time.monotonic() + _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
+            )
+            return token
+
+        if time.monotonic() >= _current_config_token_cache_deadline:
+            if _current_config_token_refresh_thread is None:
+                refresh_thread = threading.Thread(
+                    target=_refresh_current_config_token,
+                    args=(_current_config_token_cache_epoch,),
+                    name="sase-config-token-refresh",
+                    daemon=True,
+                )
+                _current_config_token_refresh_thread = refresh_thread
+                refresh_thread.start()
+
+        return cached
 
 
 def clear_config_cache() -> None:
@@ -133,12 +187,13 @@ def clear_config_cache() -> None:
     global _config_cache_generation
     global _default_config_cache, _plugin_configs_cache
     global _merged_config_cache_token, _merged_config_cache_value
-    _config_cache_generation += 1
-    _default_config_cache = None
-    _plugin_configs_cache = None
-    _merged_config_cache_token = None
-    _merged_config_cache_value = None
-    _reset_current_config_token_cache()
+    with _current_config_token_cache_lock:
+        _config_cache_generation += 1
+        _default_config_cache = None
+        _plugin_configs_cache = None
+        _merged_config_cache_token = None
+        _merged_config_cache_value = None
+        _reset_current_config_token_cache()
 
 
 def get_use_chezmoi() -> bool:

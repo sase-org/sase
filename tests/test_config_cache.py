@@ -4,6 +4,8 @@ The autouse ``_clear_config_caches`` fixture in conftest already drops both
 caches before each test, so individual tests don't need to clear manually.
 """
 
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,6 +26,27 @@ def _write_user_config(global_dir: Path, content: dict) -> None:
     (global_dir / "sase.yml").write_text(yaml.dump(content))
 
 
+def _wait_for_new_merged_config(previous: dict) -> dict:
+    """Wait for a background token refresh to invalidate *previous*."""
+    deadline = time.perf_counter() + 2.0
+    while time.perf_counter() < deadline:
+        current = load_merged_config()
+        if current is not previous:
+            return current
+        time.sleep(0.01)
+    raise AssertionError("config-token refresh did not publish before timeout")
+
+
+def _wait_for_config_token(expected: tuple) -> None:
+    """Wait for the background worker to publish *expected*."""
+    deadline = time.perf_counter() + 2.0
+    while time.perf_counter() < deadline:
+        if current_config_token() == expected:
+            return
+        time.sleep(0.01)
+    raise AssertionError(f"config token {expected!r} was not published before timeout")
+
+
 def test_load_merged_config_returns_cached_object(tmp_path: Path) -> None:
     """Repeated calls with no file changes return the same dict object."""
     global_dir = tmp_path / "global"
@@ -39,8 +62,10 @@ def test_load_merged_config_returns_cached_object(tmp_path: Path) -> None:
     assert first is second
 
 
-def test_load_merged_config_invalidates_on_file_mtime_change(tmp_path: Path) -> None:
-    """Editing a layer file invalidates the cache and a fresh dict is returned."""
+def test_load_merged_config_eventually_invalidates_on_file_mtime_change(
+    tmp_path: Path,
+) -> None:
+    """External edits publish a fresh config after stale-while-revalidate."""
     global_dir = tmp_path / "global"
     _write_user_config(global_dir, {"key": "v1"})
 
@@ -62,7 +87,9 @@ def test_load_merged_config_invalidates_on_file_mtime_change(tmp_path: Path) -> 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
 
-        second = load_merged_config()
+        stale = load_merged_config()
+        assert stale is first
+        second = _wait_for_new_merged_config(first)
 
     assert second["key"] == "v2"
     assert first is not second
@@ -131,7 +158,7 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
         patch("sase.config.core._load_default_config", counting_loader),
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
-        load_merged_config()
+        first = load_merged_config()
         # Force a different cache token by editing the user file.
         sase_yml = global_dir / "sase.yml"
         sase_yml.write_text(yaml.dump({"key": "user2"}))
@@ -140,7 +167,8 @@ def test_load_merged_config_caches_default_layer(tmp_path: Path) -> None:
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        load_merged_config()
+        assert load_merged_config() is first
+        _wait_for_new_merged_config(first)
 
     # Default layer loaded exactly once even though merged-config was rebuilt.
     assert call_count["n"] == 1
@@ -165,7 +193,7 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
         patch("sase.config.core._load_plugin_configs", counting_loader),
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
     ):
-        load_merged_config()
+        first = load_merged_config()
         sase_yml = global_dir / "sase.yml"
         sase_yml.write_text(yaml.dump({"key": "user2"}))
         new_mtime_ns = sase_yml.stat().st_mtime_ns + 10_000_000
@@ -173,30 +201,103 @@ def test_load_merged_config_caches_plugin_layer(tmp_path: Path) -> None:
 
         os.utime(sase_yml, ns=(new_mtime_ns, new_mtime_ns))
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
-        load_merged_config()
+        assert load_merged_config() is first
+        _wait_for_new_merged_config(first)
 
     assert call_count["n"] == 1
 
 
-def test_current_config_token_is_time_gated() -> None:
-    """Freshness I/O runs once within the polling window and again after expiry."""
+def test_current_config_token_serves_stale_while_refreshing() -> None:
+    """An expired token returns immediately while freshness I/O runs off-thread."""
     now = [10.0]
-    tokens = iter([("token", 1), ("token", 2)])
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", call_number)
+
     with (
         patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
-        patch(
-            "sase.config.core._compute_current_config_token",
-            side_effect=lambda: next(tokens),
-        ) as compute,
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
     ):
         first = current_config_token()
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS / 2
         assert current_config_token() is first
-        assert compute.call_count == 1
+        assert calls == 1
 
         now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS
-        assert current_config_token() == ("token", 2)
-        assert compute.call_count == 2
+        assert current_config_token() is first
+        assert refresh_started.wait(timeout=1.0)
+        assert current_config_token() is first
+        assert calls == 2
+
+        release_refresh.set()
+        _wait_for_config_token(("token", 2))
+
+
+def test_current_config_token_refresh_is_single_flight() -> None:
+    """Concurrent expired reads coalesce behind one daemon recompute."""
+    now = [10.0]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", call_number)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        first = current_config_token()
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        assert current_config_token() is first
+        assert refresh_started.wait(timeout=1.0)
+
+        results: list[tuple] = []
+        readers = [
+            threading.Thread(target=lambda: results.append(current_config_token()))
+            for _ in range(12)
+        ]
+        for reader in readers:
+            reader.start()
+        for reader in readers:
+            reader.join(timeout=1.0)
+
+        assert len(results) == len(readers)
+        assert all(token is first for token in results)
+        assert calls == 2
+
+        release_refresh.set()
+        _wait_for_config_token(("token", 2))
+
+
+def test_first_config_token_read_does_not_start_worker() -> None:
+    """A one-shot CLI lookup computes inline without creating a thread."""
+    with patch(
+        "sase.config.core._compute_current_config_token",
+        return_value=("token", 1),
+    ):
+        assert current_config_token() == ("token", 1)
+
+    assert config_core._current_config_token_refresh_thread is None
 
 
 def test_clear_config_cache_resets_config_token_time_gate() -> None:
@@ -210,6 +311,44 @@ def test_clear_config_cache_resets_config_token_time_gate() -> None:
         assert current_config_token() == ("token", 2)
 
     assert compute.call_count == 2
+
+
+def test_explicit_invalidation_wins_race_with_background_refresh() -> None:
+    """A stale worker cannot overwrite an inline post-clear token swap."""
+    now = [10.0]
+    refresh_started = threading.Event()
+    release_refresh = threading.Event()
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def compute() -> tuple[str, int]:
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+            call_number = calls
+        if call_number == 2:
+            refresh_started.set()
+            assert release_refresh.wait(timeout=2.0)
+        return ("token", call_number)
+
+    with (
+        patch("sase.config.core.time.monotonic", side_effect=lambda: now[0]),
+        patch("sase.config.core._compute_current_config_token", side_effect=compute),
+    ):
+        assert current_config_token() == ("token", 1)
+        now[0] += config_core._CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS + 0.01
+        assert current_config_token() == ("token", 1)
+        assert refresh_started.wait(timeout=1.0)
+
+        clear_config_cache()
+        assert current_config_token() == ("token", 3)
+
+        release_refresh.set()
+        deadline = time.perf_counter() + 2.0
+        while config_core._current_config_token_refresh_thread is not None:
+            assert time.perf_counter() < deadline
+            time.sleep(0.01)
+        assert current_config_token() == ("token", 3)
 
 
 def test_mentor_profiles_cache_returns_same_list() -> None:
