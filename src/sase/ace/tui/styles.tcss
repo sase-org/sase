@@ -4452,10 +4452,61 @@ ConfigCenterModal ConfigPane,
 ConfigCenterModal TasksPane,
 ConfigCenterModal LogsPane,
 ConfigCenterModal ProjectsPane,
+ConfigCenterModal TelemetryPane,
 ConfigCenterModal PluginsBrowserPane,
 ConfigCenterModal XPromptBrowserPane {
     width: 100%;
     height: 100%;
+}
+
+/* Telemetry tab: local stat tiles + two-by-two chart grid */
+TelemetryPane #telemetry-title {
+    width: 100%;
+    height: 1;
+    text-style: bold;
+}
+
+TelemetryPane #telemetry-tiles {
+    width: 100%;
+    height: 6;
+}
+
+TelemetryPane .telemetry-tile {
+    width: 1fr;
+    height: 6;
+}
+
+TelemetryPane #telemetry-charts {
+    width: 100%;
+    height: 1fr;
+}
+
+TelemetryPane .telemetry-chart-row {
+    width: 100%;
+    height: 1fr;
+}
+
+TelemetryPane .telemetry-chart {
+    width: 1fr;
+    height: 100%;
+}
+
+TelemetryPane .telemetry-chart-right {
+    margin-left: 1;
+}
+
+TelemetryPane #telemetry-health {
+    width: 100%;
+    height: 1;
+    text-align: center;
+    text-overflow: ellipsis;
+}
+
+TelemetryPane #telemetry-hints {
+    width: 100%;
+    height: 1;
+    color: $text-muted;
+    text-align: center;
 }
 
 /* Tasks tab: live background-task monitor */

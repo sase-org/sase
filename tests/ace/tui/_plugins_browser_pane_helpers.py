@@ -13,8 +13,10 @@ from textual.widgets import OptionList
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
+from sase.ace.tui.modals import telemetry_pane as tp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
+from sase.ace.tui.modals.telemetry_pane_data import _empty_telemetry_view
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.latest import LatestInfo
@@ -257,6 +259,15 @@ def _patch_other_panes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.ace.tui.modals.projects_pane.list_project_records",
         lambda *_a, **_kw: [],
+    )
+    monkeypatch.setattr(
+        tp,
+        "load_telemetry_view",
+        lambda subsystem, range_key: _empty_telemetry_view(
+            subsystem,
+            range_key,
+            generated_at=int(_NOW),
+        ),
     )
 
 

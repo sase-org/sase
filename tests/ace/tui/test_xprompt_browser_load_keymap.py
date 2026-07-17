@@ -275,7 +275,7 @@ async def test_empty_filter_reserves_numeric_tab_keys(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
 
-        await page.press("6")
+        await page.press("7")
         await page.wait_for(lambda _s: modal._active_tab == "xprompts")
         pane = modal.query_one("#xprompts", XPromptBrowserPane)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
@@ -297,7 +297,7 @@ async def test_empty_filter_swallows_reserved_numeric_keys(
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
         await page.wait_for(lambda _s: filter_input.has_focus)
 
-        for digit in ("7", "9", "0"):
+        for digit in ("8", "9", "0"):
             await page.press(digit)
             await page.pause()
 

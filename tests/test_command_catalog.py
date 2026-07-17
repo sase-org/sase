@@ -563,10 +563,10 @@ def test_command_specs_are_well_formed() -> None:
             "logs",
             "projects",
             "tasks",
+            "telemetry",
         }:
-            # These retired standalone panels are intentionally keyless:
-            # searchable commands with no direct binding that open the
-            # corresponding Admin Center tabs.
+            # These Admin Center panels are intentionally keyless: searchable
+            # commands with no direct binding that open the corresponding tab.
             assert spec.key_sequence == ()
             assert spec.key_display == ""
             continue

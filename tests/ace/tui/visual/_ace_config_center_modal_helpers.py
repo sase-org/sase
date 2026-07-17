@@ -9,6 +9,7 @@ from sase.ace.tui.modals.logs_pane import LogsPane
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.ace.tui.modals.projects_pane import ProjectsPane
 from sase.ace.tui.modals.tasks_pane import TasksPane
+from sase.ace.tui.modals.telemetry_pane import TelemetryPane
 from tests.ace.tui.visual._ace_png_snapshot_helpers import wait_for_visual_idle
 
 
@@ -60,6 +61,22 @@ async def _open_tasks_modal(page: AcePage) -> tuple[ConfigCenterModal, TasksPane
     await page.expect_modal("ConfigCenterModal")
     await page.wait_for(lambda _s: bool(modal.query("#tasks")))
     pane = modal.query_one("#tasks", TasksPane)
+    await wait_for_visual_idle(page)
+    return modal, pane
+
+
+async def _open_telemetry_modal(
+    page: AcePage,
+    *,
+    wait_for_load: bool = True,
+) -> tuple[ConfigCenterModal, TelemetryPane]:
+    modal = ConfigCenterModal(initial_tab="telemetry")
+    page.app.push_screen(modal)
+    await page.expect_modal("ConfigCenterModal")
+    await page.wait_for(lambda _s: bool(modal.query("#telemetry")))
+    pane = modal.query_one("#telemetry", TelemetryPane)
+    if wait_for_load:
+        await page.wait_for(lambda _s: pane._loaded_once and not pane._loading)
     await wait_for_visual_idle(page)
     return modal, pane
 

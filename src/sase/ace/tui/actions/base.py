@@ -137,6 +137,10 @@ class BaseActionsMixin:
         """Open the SASE Admin Center on the Tasks tab."""
         self._open_config_center("tasks")
 
+    def action_open_telemetry_panel(self) -> None:
+        """Open the SASE Admin Center on the Telemetry tab."""
+        self._open_config_center("telemetry")
+
     def action_open_updates_panel(self) -> None:
         """Open the SASE Admin Center on the Updates tab."""
         self._open_config_center("updates")

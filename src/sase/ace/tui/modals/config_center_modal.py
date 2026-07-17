@@ -1,6 +1,6 @@
-"""SASE Admin Center modal: a tabbed home for config, logs, projects, tasks, updates, xprompts.
+"""SASE Admin Center modal: config, logs, projects, tasks, telemetry, updates, xprompts.
 
-SASE Admin Center is a full-screen ``ModalScreen`` that hosts six internal
+SASE Admin Center is a full-screen ``ModalScreen`` that hosts seven internal
 alphabetical tabs over a :class:`ContentSwitcher`:
 
 - **Config** (tab 1, default focus on first open) — the schema-driven config
@@ -11,13 +11,15 @@ alphabetical tabs over a :class:`ContentSwitcher`:
   (:class:`ProjectsPane`), replacing the standalone ``,p`` modal.
 - **Tasks** (tab 4) — the canonical background-task monitor (:class:`TasksPane`),
   replacing the standalone ``,t`` modal.
-- **Updates** (tab 5) — SASE core + plugin updates
+- **Telemetry** (tab 5) — local stat tiles and time-series charts
+  (:class:`TelemetryPane`).
+- **Updates** (tab 6) — SASE core + plugin updates
   (:class:`PluginsBrowserPane`), mirroring ``sase update`` and
   ``sase plugin list``.
-- **XPrompts** (tab 6) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
+- **XPrompts** (tab 7) — the migrated XPrompt Browser (:class:`XPromptBrowserPane`).
 
 ``#`` opens the modal on the last Admin Center tab used in the current app
-session (Config on a fresh session). ``1``-``6`` jump directly to the matching
+session (Config on a fresh session). ``1``-``7`` jump directly to the matching
 tab, and ``Tab`` / ``Shift+Tab`` cycle the main tabs with modulo wrapping.
 Pane-local sub-tabs use ``]`` / ``[`` (including Projects / Repos / Workspaces).
 The clickable tab strip mirrors the app's :class:`TabBar`. A centered caption
@@ -46,13 +48,16 @@ from .tasks_pane import TasksPane
 from .xprompt_browser_pane import XPromptBrowserPane
 from ..widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
-CenterTab = Literal["config", "logs", "projects", "tasks", "updates", "xprompts"]
+CenterTab = Literal[
+    "config", "logs", "projects", "tasks", "telemetry", "updates", "xprompts"
+]
 
 _TAB_ORDER: tuple[CenterTab, ...] = (
     "config",
     "logs",
     "projects",
     "tasks",
+    "telemetry",
     "updates",
     "xprompts",
 )
@@ -61,6 +66,7 @@ _TAB_LABELS: list[tuple[CenterTab, str]] = [
     ("logs", "Logs"),
     ("projects", "Projects"),
     ("tasks", "Tasks"),
+    ("telemetry", "Telemetry"),
     ("updates", "Updates"),
     ("xprompts", "XPrompts"),
 ]
@@ -69,6 +75,7 @@ _TAB_COLORS: dict[CenterTab, str] = {
     "logs": "#FFD700",
     "projects": "#FFAF5F",
     "tasks": "#5FD75F",
+    "telemetry": "#FF87D7",
     "updates": "#AF87FF",
     "xprompts": "#87D7FF",
 }
@@ -80,6 +87,7 @@ _TAB_DESCRIPTIONS: dict[CenterTab, str] = {
     "logs": "Browse SASE logs and launch failures",
     "projects": "Manage projects, repos, and workspace directories",
     "tasks": "Monitor background tasks and live output",
+    "telemetry": "Explore local SASE activity and health trends",
     "updates": "Update SASE core and plugins with incoming commit previews",
     "xprompts": "Browse and preview xprompt definitions",
 }
@@ -191,6 +199,11 @@ class ConfigCenterModal(ModalScreen[None]):
         )
 
     def compose(self) -> ComposeResult:
+        # Keep chart/render imports off ACE startup; this module is imported
+        # early for ``_TAB_ORDER``, while Telemetry is only needed once the
+        # Admin Center itself is opened.
+        from .telemetry_pane import TelemetryPane
+
         with Container(id="config-center-container"):
             yield Label(
                 _gradient_text(_TITLE_TEXT, bold=True), id="config-center-title"
@@ -215,6 +228,7 @@ class ConfigCenterModal(ModalScreen[None]):
                 yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
                 yield TasksPane(id="tasks")
+                yield TelemetryPane(id="telemetry")
                 yield PluginsBrowserPane(
                     id="updates", auto_update_on_load=self._auto_update
                 )
@@ -222,6 +236,7 @@ class ConfigCenterModal(ModalScreen[None]):
 
     def on_mount(self) -> None:
         self._remember_active_tab()
+        self._set_pane_active(self._active_pane(), True)
         self._focus_active_pane()
 
     def on_key(self, event: Key) -> None:
@@ -254,6 +269,12 @@ class ConfigCenterModal(ModalScreen[None]):
         if callable(focus_default):
             focus_default()
 
+    @staticmethod
+    def _set_pane_active(pane: Widget | None, active: bool) -> None:
+        visibility_changed = getattr(pane, "on_center_tab_visibility_changed", None)
+        if callable(visibility_changed):
+            visibility_changed(active)
+
     def _remember_active_tab(self) -> None:
         """Remember the active Admin Center tab for later reopens.
 
@@ -275,6 +296,8 @@ class ConfigCenterModal(ModalScreen[None]):
     def _switch_to(self, tab: CenterTab) -> None:
         if tab == self._active_tab:
             return
+        previous_pane = self._active_pane()
+        self._set_pane_active(previous_pane, False)
         self._active_tab = tab
         try:
             switcher = self.query_one("#config-center-switcher", ContentSwitcher)
@@ -291,6 +314,7 @@ class ConfigCenterModal(ModalScreen[None]):
             description.update(_tab_description_text(tab))
         except Exception:
             pass
+        self._set_pane_active(self._active_pane(), True)
         self._focus_active_pane()
         self._remember_active_tab()
 

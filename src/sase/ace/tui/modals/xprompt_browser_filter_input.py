@@ -39,8 +39,8 @@ class BrowserFilterInput(Input):
         """Reserve empty-filter numeric tab keys before they become text.
 
         While the filter is empty, digit keys are likewise reserved for the
-        Admin Center's numbered tab keymaps: ``1``-``6`` jump to a tab and the
-        out-of-range ``7``-``9``/``0`` are swallowed no-ops via the same modal
+        Admin Center's numbered tab keymaps: ``1``-``7`` jump to a tab and the
+        out-of-range ``8``-``9``/``0`` are swallowed no-ops via the same modal
         action. Once the filter holds text, digits fall through to normal
         :class:`Input` editing so values such as ``bug2`` or ``2026`` can be
         typed.

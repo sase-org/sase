@@ -399,7 +399,7 @@ async def test_updates_pane_auto_update_clears_on_initial_load_error(
         assert pane._error == "boom"
 
 
-async def test_config_center_cycles_six_tabs(
+async def test_config_center_cycles_seven_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_other_panes(monkeypatch)
@@ -416,6 +416,8 @@ async def test_config_center_cycles_six_tabs(
         assert modal._active_tab == "projects"
         modal.action_next_center_tab()
         assert modal._active_tab == "tasks"
+        modal.action_next_center_tab()
+        assert modal._active_tab == "telemetry"
         modal.action_next_center_tab()
         assert modal._active_tab == "updates"
         modal.action_next_center_tab()

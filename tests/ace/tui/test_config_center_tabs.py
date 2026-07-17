@@ -40,8 +40,9 @@ def test_numbered_tab_strip_plain_text_and_click_ranges() -> None:
         "2 Logs",
         "3 Projects",
         "4 Tasks",
-        "5 Updates",
-        "6 XPrompts",
+        "5 Telemetry",
+        "6 Updates",
+        "7 XPrompts",
     ]
     assert [plain.index(cell) for cell in expected_cells] == sorted(
         plain.index(cell) for cell in expected_cells
@@ -133,8 +134,8 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
     async with AcePage() as page:
         monkeypatch.setattr(
             page.app,
-            "action_load_saved_query_7",
-            lambda: calls.append("7"),
+            "action_load_saved_query_8",
+            lambda: calls.append("8"),
         )
         modal = ConfigCenterModal(initial_tab="config")
         page.app.push_screen(modal)
@@ -166,6 +167,14 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         assert str(content.style) == _TAB_COLORS["tasks"]
 
         await page.press("5")
+        await page.wait_for(lambda _s: modal._active_tab == "telemetry")
+        assert switcher.current == "telemetry"
+        content = description.content
+        assert isinstance(content, Text)
+        assert content.plain == "› Explore local SASE activity and health trends"
+        assert str(content.style) == _TAB_COLORS["telemetry"]
+
+        await page.press("6")
         await page.wait_for(lambda _s: modal._active_tab == "updates")
         assert switcher.current == "updates"
         content = description.content
@@ -176,7 +185,7 @@ async def test_digit_hotkeys_jump_tabs_and_swallow_out_of_range(
         )
         assert str(content.style) == _TAB_COLORS["updates"]
 
-        await page.press("7")
+        await page.press("8")
         await page.pause()
         assert modal._active_tab == "updates"
         assert switcher.current == "updates"
