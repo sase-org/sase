@@ -23,13 +23,20 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
 from ._completion_helpers import CompletionTestApp
 
 
-def _input_hint(name: str, type_: str, position: int) -> XPromptInputHint:
+def _input_hint(
+    name: str,
+    type_: str,
+    position: int,
+    *,
+    repeatable: bool = False,
+) -> XPromptInputHint:
     return XPromptInputHint(
         name=name,
         type=type_,
         required=True,
         default_display=None,
         position=position,
+        repeatable=repeatable,
     )
 
 
@@ -56,7 +63,7 @@ def _fork_entry() -> XPromptAssistEntry:
         reference_prefix="#",
         kind="xprompt",
         input_signature=None,
-        inputs=(_input_hint("name", "agent", 0),),
+        inputs=(_input_hint("names", "agent", 0, repeatable=True),),
         content_preview=None,
     )
 
@@ -179,6 +186,67 @@ async def test_fork_agent_arg_completion_replaces_value() -> None:
 
     assert ta.text == "#fork:coder"
     assert ta._file_completion_active is False
+
+
+async def test_repeatable_fork_completion_replaces_only_active_element() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+        _agent_candidate("reviewer.@"),
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork:planner,co")
+        ta.cursor_location = (0, len("#fork:planner,co"))
+
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#fork:planner,coder"
+
+
+async def test_repeatable_fork_completion_filters_selected_parent_and_templates() -> (
+    None
+):
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+        _agent_candidate("reviewer.@"),
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork(planner, ")
+        ta.cursor_location = (0, len("#fork(planner, "))
+
+        assert ta._try_file_completion_tab() is True
+        assert [
+            candidate.insertion for candidate in ta._file_completion_candidates
+        ] == [
+            "coder",
+            "reviewer.@",
+        ]
+
+
+async def test_repeatable_fork_completion_replaces_earlier_parenthesized_element() -> (
+    None
+):
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        _agent_candidate("coder"),
+        _agent_candidate("planner"),
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta._xprompt_arg_assist_entries_by_project[None] = [_fork_entry()]
+        ta.load_text("#fork(co, planner)")
+        ta.cursor_location = (0, len("#fork(co"))
+
+        assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "#fork(coder, planner)"
 
 
 async def test_fork_agent_arg_menu_renders_visible_agent_metadata() -> None:

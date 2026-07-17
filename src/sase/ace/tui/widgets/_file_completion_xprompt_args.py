@@ -44,7 +44,11 @@ def build_xprompt_arg_completion_candidates(
             build_agent_arg_completion_candidates,
         )
 
-        return build_agent_arg_completion_candidates(ctx.token, agent_candidates)
+        return build_agent_arg_completion_candidates(
+            ctx.token,
+            agent_candidates,
+            excluded_names=ctx.selected_values,
+        )
     if ctx.completion_kind == "xprompt_arg_name":
         return _build_named_arg_completion_candidates(ctx)
     return [], ""

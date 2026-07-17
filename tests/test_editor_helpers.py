@@ -396,3 +396,79 @@ def test_editor_helper_bridge_snippet_catalog_resolves_snippet_references(
     assert stderr.getvalue() == ""
     assert entries["outer"]["template"] == "User $1 $2$0"
     assert entries["wrap"]["template"] == "Help World $1$0"
+
+
+def test_parser_accepts_editor_helper_bridge_agent_catalog() -> None:
+    args = create_parser().parse_args(["editor", "helper-bridge", "agent-catalog"])
+
+    assert args.command == "editor"
+    assert args.editor_subcommand == "helper-bridge"
+    assert args.editor_helper_bridge_subcommand == "agent-catalog"
+
+
+def test_editor_helper_bridge_agent_catalog_is_fresh_and_deduplicated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agent.running_listing import RunningAgentInfo
+
+    calls = 0
+
+    def list_agents() -> list[RunningAgentInfo]:
+        nonlocal calls
+        calls += 1
+        return [
+            RunningAgentInfo(
+                name="planner",
+                project="sase",
+                pid=1,
+                model=None,
+                provider=None,
+                workspace_num=14,
+                duration="1m",
+                approve=False,
+                status="RUNNING",
+            ),
+            RunningAgentInfo(
+                name="planner",
+                project="sase-old",
+                pid=None,
+                model=None,
+                provider=None,
+                workspace_num=None,
+                duration="2m",
+                approve=False,
+                status="DONE",
+            ),
+            RunningAgentInfo(
+                name="coder",
+                project="core",
+                pid=None,
+                model=None,
+                provider=None,
+                workspace_num=None,
+                duration="2m",
+                approve=False,
+                status="DONE",
+            ),
+        ]
+
+    monkeypatch.setattr("sase.agent.running_listing.list_all_agents", list_agents)
+
+    for _ in range(2):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        code = handle_editor_helper_bridge(
+            argparse.Namespace(editor_helper_bridge_subcommand="agent-catalog"),
+            stdin=io.StringIO(json.dumps({"schema_version": 1})),
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+        assert code == 0
+        assert stderr.getvalue() == ""
+        assert json.loads(stdout.getvalue())["entries"] == [
+            {"name": "planner", "status": "RUNNING", "project": "sase"},
+            {"name": "coder", "status": "DONE", "project": "core"},
+        ]
+
+    assert calls == 2

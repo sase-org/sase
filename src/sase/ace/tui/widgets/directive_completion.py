@@ -304,12 +304,18 @@ def build_directive_arg_completion_candidates(
 def build_agent_arg_completion_candidates(
     partial: str,
     agent_candidates: Sequence[AgentCompletionCandidate] | None,
+    *,
+    excluded_names: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
     """Build visible-agent candidates for a wait/fork-style argument."""
     if "=" in partial:
         return [], ""
 
-    entries = filter_agent_completion_candidates(agent_candidates, partial)
+    entries = [
+        entry
+        for entry in filter_agent_completion_candidates(agent_candidates, partial)
+        if entry.name not in excluded_names
+    ]
     candidates = [
         CompletionCandidate(
             display=entry.name,

@@ -79,6 +79,7 @@ class XPromptArgCompletionContext:
     token: str
     active_input: XPromptInputHint | None = None
     used_arg_names: frozenset[str] = frozenset()
+    selected_values: frozenset[str] = frozenset()
 
 
 __all__ = [

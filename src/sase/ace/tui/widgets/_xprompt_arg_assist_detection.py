@@ -10,6 +10,7 @@ from sase.xprompt._parsing import (
     XPromptReferenceArgKind,
     iter_xprompt_references,
 )
+from sase.xprompt._literal_zones import literal_zone_ranges
 
 from ._xprompt_arg_assist_inputs import required_inputs
 from ._xprompt_arg_assist_models import (
@@ -117,10 +118,13 @@ def detect_xprompt_arg_completion_at_cursor(
     """Resolve a Ctrl+T completion target inside xprompt arguments."""
     if not text or cursor_offset < 0 or cursor_offset > len(text):
         return None
+    literal_ranges = literal_zone_ranges(text)
 
     entry_by_name = _entry_by_name(entries)
     for ref in iter_xprompt_references(text):
         if ref.start >= cursor_offset:
+            continue
+        if any(start <= ref.start < end for start, end in literal_ranges):
             continue
         if ref.arg_kind is XPromptReferenceArgKind.PLUS:
             continue
@@ -149,9 +153,23 @@ def detect_xprompt_arg_completion_at_cursor(
 
         suffix = text[base_end:cursor_offset]
         if suffix.startswith(":"):
-            ctx = _colon_completion_context(entry, base_end, suffix)
+            ctx = _colon_completion_context(
+                entry,
+                text,
+                base_end,
+                cursor_offset,
+                ref.end,
+                suffix,
+            )
         elif suffix.startswith("("):
-            ctx = _paren_completion_context(entry, base_end, suffix)
+            ctx = _paren_completion_context(
+                entry,
+                text,
+                base_end,
+                cursor_offset,
+                ref.end,
+                suffix,
+            )
         else:
             continue
         # An earlier reference whose colon/paren suffix overshoots into later
@@ -232,20 +250,29 @@ def _completion_kind_for_input(
 
 def _colon_completion_context(
     entry: XPromptAssistEntry,
+    text: str,
     base_end: int,
+    cursor_offset: int,
+    reference_end: int,
     suffix: str,
 ) -> XPromptArgCompletionContext | None:
     active_index = _colon_active_input_index(suffix, entry)
     if active_index is None:
         return None
 
-    body = suffix[1:]
-    value_start = base_end + 1
-    if "," in body:
-        last_comma = body.rfind(",")
-        value_start += last_comma + 1
-    value_end = base_end + len(suffix)
-    token = suffix[value_start - base_end :]
+    body_start = base_end + 1
+    body_end = max(cursor_offset, reference_end)
+    body = text[body_start:body_end]
+    cursor_in_body = cursor_offset - body_start
+    clause_start = body.rfind(",", 0, cursor_in_body) + 1
+    next_comma = body.find(",", cursor_in_body)
+    if cursor_in_body == clause_start:
+        clause_end = cursor_in_body
+    else:
+        clause_end = len(body) if next_comma == -1 else next_comma
+    value_start = body_start + clause_start
+    value_end = body_start + clause_end
+    token = text[value_start:cursor_offset]
     active_input = entry.inputs[active_index]
     return XPromptArgCompletionContext(
         entry=entry,
@@ -254,28 +281,55 @@ def _colon_completion_context(
         value_end=value_end,
         token=token,
         active_input=active_input,
+        selected_values=_selected_positional_values(body, clause_start),
     )
 
 
 def _paren_completion_context(
     entry: XPromptAssistEntry,
+    text: str,
     base_end: int,
+    cursor_offset: int,
+    reference_end: int,
     suffix: str,
 ) -> XPromptArgCompletionContext | None:
-    body = suffix[1:]
-    if ")" in body:
+    prefix_body = suffix[1:]
+    if ")" in prefix_body:
         return None
 
-    clause_start = body.rfind(",") + 1
-    clause = body[clause_start:]
+    body_start = base_end + 1
+    body_end = _paren_body_end(text, body_start, cursor_offset, reference_end)
+    body = text[body_start:body_end]
+    cursor_in_body = cursor_offset - body_start
+    clause_start = body.rfind(",", 0, cursor_in_body) + 1
+    next_comma = body.find(",", cursor_in_body)
+    clause_end = len(body) if next_comma == -1 else next_comma
+    clause = body[clause_start:clause_end]
     stripped_clause = clause.lstrip()
     leading_ws = len(clause) - len(stripped_clause)
     value_start = base_end + 1 + clause_start + leading_ws
-    value_end = base_end + len(suffix)
+    value_end = base_end + 1 + clause_end
+    value_end = _trimmed_value_end(text, value_start, value_end)
+    token = text[value_start:cursor_offset]
 
     if "=" not in stripped_clause:
-        if any(ch.isspace() for ch in stripped_clause):
+        if any(ch.isspace() for ch in token):
             return None
+        active_index = _paren_active_input_index(suffix, entry)
+        if active_index is not None:
+            active_input = entry.inputs[active_index]
+            completion_kind = _completion_kind_for_input(active_input)
+            if active_input.repeatable or len(entry.inputs) == 1:
+                return XPromptArgCompletionContext(
+                    entry=entry,
+                    completion_kind=completion_kind,
+                    value_start=value_start,
+                    value_end=value_end,
+                    token=token,
+                    active_input=active_input,
+                    used_arg_names=_used_named_arg_names(body[:clause_start]),
+                    selected_values=_selected_positional_values(body, clause_start),
+                )
         if len(entry.inputs) == 1:
             single_input = entry.inputs[0]
             completion_kind = _completion_kind_for_input(single_input)
@@ -285,16 +339,17 @@ def _paren_completion_context(
                     completion_kind=completion_kind,
                     value_start=value_start,
                     value_end=value_end,
-                    token=stripped_clause,
+                    token=token,
                     active_input=single_input,
                     used_arg_names=_used_named_arg_names(body[:clause_start]),
+                    selected_values=_selected_positional_values(body, clause_start),
                 )
         return XPromptArgCompletionContext(
             entry=entry,
             completion_kind="xprompt_arg_name",
             value_start=value_start,
             value_end=value_end,
-            token=stripped_clause,
+            token=token,
             used_arg_names=_used_named_arg_names(body[:clause_start]),
         )
 
@@ -306,7 +361,7 @@ def _paren_completion_context(
 
     value_leading_ws = len(value_part) - len(value_part.lstrip())
     token_start = value_start + len(name_part) + 1 + value_leading_ws
-    token = value_part.lstrip()
+    token = text[token_start:cursor_offset]
     return XPromptArgCompletionContext(
         entry=entry,
         completion_kind=_completion_kind_for_input(named_input),
@@ -316,6 +371,39 @@ def _paren_completion_context(
         active_input=named_input,
         used_arg_names=_used_named_arg_names(body[:clause_start]),
     )
+
+
+def _paren_body_end(
+    text: str,
+    body_start: int,
+    cursor_offset: int,
+    reference_end: int,
+) -> int:
+    if reference_end > body_start and text[reference_end - 1 : reference_end] == ")":
+        return reference_end - 1
+    close = text.find(")", cursor_offset)
+    return cursor_offset if close == -1 else close
+
+
+def _trimmed_value_end(text: str, start: int, end: int) -> int:
+    while end > start and text[end - 1].isspace():
+        end -= 1
+    return end
+
+
+def _selected_positional_values(
+    body: str,
+    active_clause_start: int,
+) -> frozenset[str]:
+    values: set[str] = set()
+    clause_start = 0
+    for clause in body.split(","):
+        if clause_start != active_clause_start and "=" not in clause:
+            value = clause.strip()
+            if value:
+                values.add(value)
+        clause_start += len(clause) + 1
+    return frozenset(values)
 
 
 def _used_named_arg_names(body_prefix: str) -> frozenset[str]:

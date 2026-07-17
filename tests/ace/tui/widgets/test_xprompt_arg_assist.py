@@ -590,6 +590,61 @@ def test_detects_agent_arg_completion_contexts_for_fork_forms() -> None:
     )
 
 
+def test_repeatable_agent_context_tracks_selected_values_and_full_active_range() -> (
+    None
+):
+    entries = [
+        _entry(
+            "fork",
+            XPromptInputHint(
+                name="names",
+                type="agent",
+                required=False,
+                default_display=None,
+                position=0,
+                repeatable=True,
+            ),
+        )
+    ]
+
+    colon = "#fork:planner,co,reviewer.@"
+    colon_cursor = colon.index("co") + 2
+    colon_ctx = detect_xprompt_arg_completion_at_cursor(colon, colon_cursor, entries)
+    assert colon_ctx is not None
+    assert colon_ctx.completion_kind == "xprompt_arg_agent"
+    assert colon_ctx.token == "co"
+    assert colon_ctx.value_start == colon.index("co")
+    assert colon_ctx.value_end == colon.index(",reviewer")
+    assert colon_ctx.selected_values == frozenset({"planner", "reviewer.@"})
+
+    paren = "#fork(co, planner)"
+    paren_ctx = detect_xprompt_arg_completion_at_cursor(
+        paren, paren.index("co") + 2, entries
+    )
+    assert paren_ctx is not None
+    assert paren_ctx.value_start == paren.index("co")
+    assert paren_ctx.value_end == paren.index(", planner")
+    assert paren_ctx.selected_values == frozenset({"planner"})
+
+
+def test_agent_arg_completion_is_inert_in_fences_and_disabled_regions() -> None:
+    entries = [_entry("fork", _input_hint("name", "agent"))]
+
+    fenced = "```\n#fork:co\n```"
+    assert (
+        detect_xprompt_arg_completion_at_cursor(fenced, fenced.index("co") + 2, entries)
+        is None
+    )
+
+    disabled = "%xprompts_enabled:false\n#fork:co\n%xprompts_enabled:true\n"
+    assert (
+        detect_xprompt_arg_completion_at_cursor(
+            disabled, disabled.index("co") + 2, entries
+        )
+        is None
+    )
+
+
 def test_fork_agent_arg_completion_after_earlier_xprompt_reference() -> None:
     entries = [
         _entry("gh", _input_hint("project")),
