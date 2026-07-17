@@ -213,6 +213,41 @@ def test_render_key_changes_when_provider_child_is_attached() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_parallel_member_counts_change() -> None:
+    root = _agent(status="RUNNING")
+    member = _agent(
+        cl_name="demo.phase",
+        status="RUNNING",
+        raw_suffix="20260425143100",
+    )
+    member.agent_family_parallel = True
+    root.runtime_children.append(member)
+
+    running_key = agent_render_key(
+        root,
+        0,
+        is_selected=False,
+        fold_annotation=" 1 running",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+    member.status = "DONE"
+    done_key = agent_render_key(
+        root,
+        0,
+        is_selected=False,
+        fold_annotation=" 1 done",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert running_key != done_key
+
+
 def test_render_key_changes_when_bead_agent_name_changes() -> None:
     a = _agent(agent_name="sase-x.3")
     k1 = agent_render_key(

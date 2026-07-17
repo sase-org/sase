@@ -12,6 +12,7 @@ from datetime import datetime
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -188,6 +189,48 @@ def _waiting_family_child_agents() -> list[Agent]:
     return [parent, child]
 
 
+def _parallel_family_agents() -> list[Agent]:
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-parallel-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 16, 10, 0, 0),
+        raw_suffix="20260716100000",
+        agent_name="visual-parallel-family",
+        agent_family="visual-parallel-family",
+        agent_family_role="root",
+        agent_family_parallel=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    members = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-parallel-phase-{index}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            start_time=datetime(2026, 7, 16, 10, index, 0),
+            run_start_time=(
+                datetime(2026, 7, 16, 10, index, 30) if status == "RUNNING" else None
+            ),
+            stop_time=(datetime(2026, 7, 16, 10, 6, 0) if status == "DONE" else None),
+            raw_suffix=f"20260716100{index}00",
+            parent_timestamp=root.raw_suffix,
+            agent_name=f"visual-parallel-phase-{index}",
+            agent_family="visual-parallel-family",
+            agent_family_role="phase",
+            agent_family_parallel=True,
+            llm_provider="codex",
+            model="gpt-5",
+        )
+        for index, status in enumerate(("RUNNING", "RUNNING", "DONE"), start=1)
+    ]
+    rows = [root, *members]
+    _apply_status_overrides(rows)
+    return sort_and_reorder(rows, [])
+
+
 def _runner_slot_wait_agents() -> list[Agent]:
     return [
         Agent(
@@ -343,6 +386,30 @@ async def test_waiting_family_child_row_png_snapshot(
             page,
             "agents_waiting_family_child_120x40",
             title="ACE agents waiting family child",
+        )
+
+
+async def test_parallel_family_root_counts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 16, 10, 10, 0))
+    patch_startup_loaders(monkeypatch, agents=_parallel_family_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "visual-parallel-family")
+        assert_page_svg_contains(page, "2 running")
+        assert_page_svg_contains(page, "1 done")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_parallel_family_counts_120x40",
+            title="ACE parallel family aggregate counts",
         )
 
 

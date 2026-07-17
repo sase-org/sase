@@ -119,6 +119,41 @@ def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:
     assert annotation == ""
 
 
+def test_fold_annotation_summarizes_parallel_family_members() -> None:
+    root = _make_agent()
+    root.agent_family_parallel = True
+    root.runtime_children.extend(
+        [
+            _make_agent(raw_suffix="20260423140100"),
+            _make_agent(raw_suffix="20260423140200"),
+            _make_agent(raw_suffix="20260423140300"),
+        ]
+    )
+    for child, status in zip(
+        root.runtime_children,
+        ("RUNNING", "RUNNING", "DONE"),
+        strict=True,
+    ):
+        child.agent_family_parallel = True
+        child.status = status
+
+    collapsed = _compute_fold_annotation(
+        root,
+        {root.raw_suffix: (3, 0)},
+        set(),
+        set(),
+    )
+    expanded = _compute_fold_annotation(
+        root,
+        {root.raw_suffix: (3, 0)},
+        {root.raw_suffix},
+        set(),
+    )
+
+    assert collapsed == " ×3 · 2 running · 1 done"
+    assert expanded == " 2 running · 1 done"
+
+
 def test_highlight_selects_agent_row_when_attempt_number_passed() -> None:
     widget = AgentList()
     agent = _make_agent(attempt_history=[_make_record(1), _make_record(2)])

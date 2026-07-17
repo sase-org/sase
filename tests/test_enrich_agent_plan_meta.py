@@ -49,6 +49,25 @@ def test_tag_from_agent_meta(tmp_path: Path) -> None:
     assert agent.tag == "sase-26"
 
 
+def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None:
+    """Both TUI enrichment paths retain execution-neutral family membership."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "agent_family_parallel": True})
+    )
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(agent_family_parallel=True),
+        None,
+    )
+
+    assert filesystem_agent.agent_family_parallel is True
+    assert wire_agent.agent_family_parallel is True
+
+
 def test_invalid_tag_from_agent_meta_is_ignored(tmp_path: Path) -> None:
     """Malformed stored directive metadata is not surfaced as a UI tag."""
     (tmp_path / "agent_meta.json").write_text(

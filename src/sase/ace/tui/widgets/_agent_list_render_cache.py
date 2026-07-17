@@ -13,6 +13,7 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
+from ..models._agent_parallel_family import parallel_family_member_counts
 from ..models.agent import Agent
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
@@ -172,6 +173,7 @@ def agent_render_key(
         agent.reverted,
         agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
+        parallel_family_member_counts(agent),
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,

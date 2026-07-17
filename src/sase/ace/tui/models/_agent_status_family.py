@@ -48,7 +48,7 @@ def merge_feedback_plan_paths(parent: Agent, child: Agent) -> None:
 
 def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
-    if agent.is_child_row:
+    if agent.is_child_row or agent.agent_family_parallel:
         return False
     if agent.plan_chain_root or agent.agent_family_role == "root":
         return True
@@ -128,7 +128,11 @@ def done_handoff_status(parent: Agent, child: Agent) -> str:
 
 def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | None:
     """Return the visible status for an active approved-plan handoff."""
-    if not child.is_family_member_child or child.status != "RUNNING":
+    if (
+        not child.is_family_member_child
+        or child.agent_family_parallel
+        or child.status != "RUNNING"
+    ):
         return None
 
     role = agent_family_role(child)
@@ -150,7 +154,7 @@ def active_approved_plan_handoff_status(parent: Agent, child: Agent) -> str | No
 
 def is_completed_plan_handoff_child(agent: Agent) -> bool:
     """Return True for completed approved-plan continuation rows."""
-    if agent.status != "DONE":
+    if agent.agent_family_parallel or agent.status != "DONE":
         return False
     role = agent_family_role(agent)
     if role == "code":
@@ -162,7 +166,11 @@ def is_completed_plan_handoff_child(agent: Agent) -> bool:
 
 def is_completed_epic_followup_child(agent: Agent) -> bool:
     """Return True for legacy completed epic creation follow-up rows."""
-    return agent.status == "DONE" and agent_family_role(agent) == "epic"
+    return (
+        not agent.agent_family_parallel
+        and agent.status == "DONE"
+        and agent_family_role(agent) == "epic"
+    )
 
 
 def agent_family_name(agent: Agent) -> str | None:
@@ -304,7 +312,10 @@ def _approved_epic_planner_status(parent: Agent) -> str | None:
 
 def approved_followup_planner_status(agent: Agent) -> str | None:
     """Return the sticky approved status for a concrete follow-up planner."""
-    if agent_family_role(agent) not in PLANNER_FAMILY_ROLES:
+    if (
+        agent.agent_family_parallel
+        or agent_family_role(agent) not in PLANNER_FAMILY_ROLES
+    ):
         return None
     if not agent.plan_times:
         return None
@@ -317,7 +328,10 @@ def approved_followup_planner_status(agent: Agent) -> str | None:
 
 def _is_planner_family_row(agent: Agent) -> bool:
     """Return True for visible planner/replanner rows in a plan family."""
-    if agent_family_role(agent) not in PLANNER_FAMILY_ROLES:
+    if (
+        agent.agent_family_parallel
+        or agent_family_role(agent) not in PLANNER_FAMILY_ROLES
+    ):
         return False
     return agent.is_family_member_child or is_main_workflow_agent_step(agent)
 
@@ -610,7 +624,7 @@ def _is_bare_family_root(agent: Agent) -> bool:
     a ``--plan`` main step) and rows whose name already carries a family suffix
     are excluded.
     """
-    if agent.is_child_row or not agent.raw_suffix:
+    if agent.is_child_row or agent.agent_family_parallel or not agent.raw_suffix:
         return False
     if is_root_plan_workflow(agent):
         return False

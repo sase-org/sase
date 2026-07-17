@@ -7,6 +7,7 @@ from sase.agent.status_buckets import FEEDBACK_STATUS, agent_is_active
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
+from ._agent_parallel_family import aggregate_parallel_family_status
 from ._agent_status_family import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
@@ -187,7 +188,8 @@ def apply_status_overrides(
                     parent, agent, all_agents, children_by_parent
                 )
         elif (
-            is_feedback_agent(agent)
+            not agent.agent_family_parallel
+            and is_feedback_agent(agent)
             and agent.status in {"DONE", "RUNNING"}
             and is_awaiting_plan_review(agent)
         ):
@@ -335,6 +337,23 @@ def apply_status_overrides(
             if child is not parent and is_family_child(child, parent)
         ]
         if not children:
+            continue
+
+        parallel_members = [child for child in children if child.agent_family_parallel]
+        if parallel_members:
+            aggregate_status = aggregate_parallel_family_status(
+                [parent.status, *(member.status for member in parallel_members)]
+            )
+            if aggregate_status is not None:
+                parent.status = aggregate_status
+            if parent.status == "WAITING":
+                waiting_members = [
+                    member for member in parallel_members if member.status == "WAITING"
+                ]
+                if waiting_members:
+                    next_waiting = min(waiting_members, key=child_launch_time)
+                    parent.wait_display_source = next_waiting
+                    copy_missing_display_metadata(parent, next_waiting)
             continue
 
         is_plan_root = is_root_plan_workflow(parent)
