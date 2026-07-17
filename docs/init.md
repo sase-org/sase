@@ -11,19 +11,20 @@ sase init --yes    # run every needed initializer in order
 sase init -M --yes # mark this repository as SASE-managed, then initialize it
 sase init --all --check # check every enabled main project without writing
 sase init --all         # visit every enabled main project; prompt when interactive
-sase init --all --yes   # initialize every enabled main project without prompting
+sase init --all --yes   # skip generic prompts for every enabled main project
 ```
 
-The coordinator plans in registry order: memory, repositories, then skills. Memory initialization owns agent-document
+The coordinator first builds all three read-only plans in registry order—memory, repositories, then skills—before it
+writes anything. It then applies the changed initializers in that same order. Memory initialization owns agent-document
 initialization (managed `AGENTS.md` and its provider instruction copies); repository initialization owns configured
-sidecars and the workspace ignore rule. Planning is read-only. In non-interactive shells, bare `sase init` reports drift
-and exits non-zero instead of prompting; use `sase init --yes` when you want an unattended apply run. Apply runs can
-write project files, deploy home files through chezmoi when configured, and use each initializer's normal commit/push
-behavior. Project-wide ownership requires `is_sase_managed: true` in the current repository's own `sase/sase.yml`;
-defaults and merged user configuration cannot grant it. Without that local marker, memory init leaves project memory and
-the root `AGENTS.md` untouched while still copying every existing project-tree `AGENTS.md` to the provider instruction
-files beside it, and explicit repository initialization exits successfully without detecting a provider, materializing
-sidecars, or generating files.
+sidecars and the workspace ignore rule. In non-interactive shells, bare `sase init` reports drift and exits non-zero
+instead of prompting; use `sase init --yes` when you want to apply everything that does not require a resource-specific
+confirmation. Apply runs can write project files, deploy home files through chezmoi when configured, and use each
+initializer's normal commit/push behavior. Project-wide ownership requires `is_sase_managed: true` in the current
+repository's own `sase/sase.yml`; defaults and merged user configuration cannot grant it. Without that local marker,
+memory init leaves project memory and the root `AGENTS.md` untouched while still copying every existing project-tree
+`AGENTS.md` to the provider instruction files beside it, and explicit repository initialization exits successfully
+without detecting a provider, materializing sidecars, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the repository initializer, but it
 cannot approve creation of a missing provider sidecar. Each creation always requires an interactive `y`/`yes` response
@@ -142,8 +143,10 @@ that creates or refreshes these documents.
 `sase memory init` always initializes the home-level memory surface. It initializes project-local memory only for a
 SASE-managed repository, and independently owns provider instruction copies:
 
-`sase memory init -M` is the convenience path for a new enabled main project: it creates or updates `sase/sase.yml` with
-the repository-wide marker before loading configuration and running the normal initializer.
+`sase memory init -M` is the convenience path for a repository that should be SASE-managed: it creates or updates
+`sase/sase.yml` with the repository-wide marker before loading configuration and running the normal initializer. Despite
+the compatibility option name `--enable-project-memory`, this does not change ProjectSpec lifecycle state and is
+independent of `sase project enable`.
 
 - Project memory under `./sase/memory/`, including `sase/memory/README.md` and flat note files with `type`/`parent`
   frontmatter, only when the project's own `sase/sase.yml` contains `is_sase_managed: true`.

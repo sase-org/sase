@@ -1,7 +1,7 @@
 # ProjectSpec Format
 
-A ProjectSpec is SASE's project-level `.sase` file. It groups the active [ChangeSpecs](change_spec.md) for one project
-and may also store project metadata used by workspace and agent coordination.
+A ProjectSpec is SASE's project-level `.sase` file. It groups the non-terminal [ChangeSpecs](change_spec.md) for one
+project and may also store project metadata used by workspace and agent coordination.
 
 ProjectSpec files live under `~/.sase/projects/<project>/<project>.sase`. Terminal ChangeSpecs are moved to the adjacent
 archive file, `~/.sase/projects/<project>/<project>-archive.sase`. Legacy `.gp` files from earlier releases remain
@@ -157,8 +157,9 @@ lifecycle-only.
 ### Project Lifecycle
 
 Project lifecycle state controls whether a project appears in the default lists used to start new work or browse current
-work. It is project-level metadata; it does not delete project files and is separate from a ChangeSpec whose `STATUS` is
-`Archived`.
+work. It is project-level metadata; it does not delete project files. Do not confuse it with ChangeSpec status (`WIP`
+through `Submitted` or `Archived`), an agent or workspace being active, or the `is_sase_managed` configuration marker
+that authorizes generated project files.
 
 | State      | Meaning                                                                                           |
 | ---------- | ------------------------------------------------------------------------------------------------- |
@@ -167,28 +168,36 @@ work. It is project-level metadata; it does not delete project files and is sepa
 | `sibling`  | Internal linked-repository backing marker. It is not a third user-facing project lifecycle state. |
 
 Legacy `PROJECT_STATE: active` files normalize to enabled. Legacy `inactive`, `archived`, and `closed` files normalize
-to disabled. New user-facing writes use only `enabled` or `disabled`.
+to disabled. Normal user workflows should use `sase project enable` and `sase project disable`; `sibling` is reserved
+for SASE's linked-repository bookkeeping.
 
-Default project discovery is enabled-only. That includes ACE project selection, `sase changespec search`, known-project
-workspace references such as `#gh:sase`, project-local xprompt catalogs, broad mobile helper catalogs, and all-known
-bead helper reads. These records are intentionally hidden from those surfaces; agents use `/sase_repo` for configured
-linked repositories and for another SASE project's primary repo. The underlying audited open infers the host project and
-workspace from cwd; agent-history views that need old artifacts pass an explicit all-state scan.
+Broad project discovery is enabled-only. That includes launch and completion pickers, `sase changespec search`,
+project-local xprompt catalogs, broad mobile helper catalogs, and all-known bead helper reads. Disabled records are
+intentionally hidden from those surfaces. An explicitly typed known-project VCS ref such as `#gh:sase` is the exception:
+launch preparation treats it as intent to resume work and writes `PROJECT_STATE: enabled` before claiming a workspace. A
+checkout cwd or mobile `project` value is only prompt-resolution context, not a workspace ref; without an explicit ref,
+a bare prompt defaults to `#git:home`. Direct workspace claims that bypass launch preparation remain blocked by the
+claim guard while the ProjectSpec is disabled.
 
-Use `sase project list --state all` to inspect disabled projects and sibling records, `sase project show <project>` to
-see state, workspace, launchability, and warnings, and `sase project enable <project>` before using normal launch
-surfaces for a disabled project. The `enable`, `disable`, and `set-state` forms update the ProjectSpec under the normal
-ProjectSpec lock. Deprecated `activate`, `deactivate`, `archive`, and `close` aliases remain accepted for compatibility.
-Disabling refuses projects with live `RUNNING` claims or active artifact markers unless `--force` is passed. The
-system-managed `home` project cannot be mutated through this command.
+Agents use `/sase_repo` for configured linked repositories and for another SASE project's primary repo. The underlying
+audited open infers the host project and workspace from cwd; agent-history views that need old artifacts pass an
+explicit all-state scan.
 
-ACE exposes the same lifecycle operations through the Projects tab of the SASE Admin Center (press `#`). The tab loads
-non-system projects across all states, defaults to the enabled filter, offers text and state filters, supports marks for
-bulk enable/disable operations and bulk full-directory deletion, and uses the same blocked-operation checks before
-disabling a project. It can also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE
-project directory under `~/.sase/projects/` after confirmation, including ProjectSpecs, project-local config, and
-artifacts; it does not remove workspace checkouts. This is broader than `Ctrl+D` in project launch pickers, which only
-removes an empty project's ProjectSpec files.
+Use `sase project list --state all` to inspect disabled projects and sibling records, and `sase project show <project>`
+to see state, workspace, launchability, and warnings. Run `sase project enable <project>` before a direct workspace
+claim, or use an explicit known-project VCS ref when automatic re-enablement is intended. The `enable`, `disable`, and
+`set-state` forms update the ProjectSpec under the normal ProjectSpec lock. Deprecated `activate`, `deactivate`,
+`archive`, and `close` aliases remain accepted for compatibility. Disabling refuses projects with live `RUNNING` claims
+or active artifact markers unless `--force` is passed. The system-managed `home` project cannot be mutated through this
+command.
+
+ACE exposes the same lifecycle operations through the Projects tab of the SASE Admin Center (press `#`). The tab shows
+enabled and disabled non-system projects together, with enabled rows first. Its single text filter also matches the
+literal state name. The tab supports marks for bulk enable/disable operations and bulk full-directory deletion, and uses
+the same blocked-operation checks before disabling a project. It can also open the selected ProjectSpec in `$EDITOR`.
+Its delete action removes the whole SASE project directory under `~/.sase/projects/` after confirmation, including
+ProjectSpecs, project-local config, and artifacts; it does not remove workspace checkouts. This is broader than `Ctrl+D`
+in project launch pickers, which only removes an empty project's ProjectSpec files.
 
 Common workflows:
 
@@ -281,7 +290,7 @@ STATUS: WIP
 
 ## Important Notes
 
-- **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for active ChangeSpecs and
+- **Project file path**: Use `~/.sase/projects/<project>/<project>.sase` for non-terminal ChangeSpecs and
   `~/.sase/projects/<project>/<project>-archive.sase` for terminal history.
 - **Project metadata**: Keep `BARE_REPO_DIR`, `WORKSPACE_DIR`, `PROJECT_STATE`, `PROJECT_NAME`, `PROJECT_ALIASES`, and
   `RUNNING` before the first `NAME:` line.

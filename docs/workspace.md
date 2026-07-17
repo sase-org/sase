@@ -182,15 +182,18 @@ workspace plugin is not available in the current process. Known projects are dis
 the `sase` project is registered, `#gh:sase #!some/workflow` and the underscore shorthand `#gh_sase #!some/workflow` are
 treated as VCS workspace launches rather than ordinary xprompt references.
 
-Known-project fallback is lifecycle-aware. Normal launch and xprompt/catalog discovery paths only include enabled
-projects; a registered project with `PROJECT_STATE: disabled` is hidden from launch pickers and broad known-project
-lookup. Legacy `inactive`, `archived`, and `closed` values normalize to disabled. If a prompt explicitly names a
-disabled known project, launch resolution fails with an enable hint instead of silently allocating work. Use
-`sase project list --state all` to inspect disabled projects and `sase project enable <project>` before launching normal
-work there. Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing records rather than a
-project lifecycle state. Agents prepare them through `/sase_repo`. In a SASE-launched agent session, the audited open
-records the repo name and kind in run artifacts and the durable repo-open log; ACE uses the artifact record for
-opened-repo context, and the commit finalizer enforces the linked or external repo the agent explicitly opened.
+Known-project fallback is lifecycle-aware. Launch pickers and broad xprompt/catalog discovery include enabled projects
+only. Legacy `inactive`, `archived`, and `closed` values normalize to disabled. An explicitly typed ref to a registered
+disabled project is treated as intent to resume work: launch preparation writes `PROJECT_STATE: enabled` before the
+workspace claim. A checkout cwd or mobile `project` value provides prompt-resolution context but is not a workspace ref;
+a bare prompt without one defaults to `#git:home`. Direct workspace claims that bypass launch preparation still fail
+against a disabled ProjectSpec with an enable hint. Use `sase project list --state all` to inspect disabled projects and
+`sase project enable <project>` when you want to make that state change separately.
+
+Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing records rather than a project
+lifecycle state. Agents prepare them through `/sase_repo`. In a SASE-launched agent session, the audited open records
+the repo name and kind in run artifacts and the durable repo-open log; ACE uses the artifact record for opened-repo
+context, and the commit finalizer enforces the linked or external repo the agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set the VCS update target to the
 provider default revision. When registered workspace metadata provides an env prefix, SASE passes the matching

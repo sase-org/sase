@@ -32,20 +32,21 @@ or cross-frontend consistency.
 Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execution, or mobile/editor helper bridges.
 The launch path follows the same shape across those entry points:
 
-1. Parse prompt text, directives, and optional multi-prompt separators.
-2. Canonicalize ProjectSpec aliases in launch-bound VCS refs, so aliases such as `#gh:bob` become stable project
-   directory keys such as `#gh:bob-cli` before history or artifact snapshots are written.
-3. Resolve workspace references such as `#git:<project>` or plugin-provided forms, rejecting disabled known projects
-   before new work is claimed. Providers may return an optional `canonical_ref` for raw locators such as first-use
-   owner/repo refs; when they do, launch metadata, history, and prompt MRU entries use that stable ref instead of the
-   raw locator.
-4. Allocate or prepare the target workspace through the workspace provider layer.
-5. Expand xprompt references and standalone workflow references.
-6. Invoke the selected LLM provider or workflow executor.
-7. Stream subprocess output, write chat history, and persist launch metadata.
-8. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images, plans, and explicit files.
-9. Emit notifications and update ACE-visible status.
-10. Hand review, revert, restore, or commit work to the VCS and workspace provider layers when requested.
+1. Parse prompt text, directives, and optional multi-prompt separators, then canonicalize ProjectSpec aliases in
+   launch-bound VCS refs. For example, `#gh:bob` becomes the stable directory-key ref `#gh:bob-cli` before history or
+   artifact snapshots are written.
+2. Expand the swarm, repeat, or alternative directives needed to determine the launch slots and validate their names.
+3. Resolve each slot's workspace reference, such as `#git:<project>` or a plugin-provided form. An explicit ref to a
+   disabled known project re-enables that project before the claim. Direct claims that bypass this launch preparation
+   remain blocked by the workspace claim guard. Providers may return a `canonical_ref` for a raw locator such as a
+   first-use owner/repo ref; launch metadata, history, and prompt MRU entries then use that stable ref.
+4. Prepare fixed or deferred workspace metadata. For a normal launch, claim the final numbered workspace atomically
+   immediately before spawning the process.
+5. Continue xprompt or workflow processing and invoke the selected LLM provider or workflow executor.
+6. Stream subprocess output, write chat history, and persist launch metadata.
+7. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images, plans, and explicit files.
+8. Emit notifications and update ACE-visible status.
+9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers when requested.
 
 Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches create a sequence of detached
 agents. Workflow launches persist step state so ACE and axe can inspect progress and recover meaningful output.

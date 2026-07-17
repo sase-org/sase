@@ -374,10 +374,13 @@ value, so colon form becomes `#gh:bbugyi200/sase ` and parenthesized form become
 provider-agnostic: another workspace plugin can support the same UX for nested namespaces such as `#gl:group/subgroup/`
 by implementing repository candidate listing.
 
-Known-project lookup defaults to enabled ProjectSpecs. Disabled and sibling records are omitted from broad project-local
-xprompt catalogs and normal VCS workspace resolution; an explicit reference to a disabled known project fails with a
-hint to run `sase project enable <project>` before launching new work. Management and history code paths that need
-hidden projects opt into an all-state scan explicitly.
+Known-project discovery defaults to enabled ProjectSpecs. Disabled and sibling records are omitted from broad
+project-local xprompt catalogs and completion menus. An explicitly typed known-project VCS ref is a launch-time
+exception: launch preparation writes `PROJECT_STATE: enabled` before claiming the workspace. This is a persistent state
+change, so use `sase project enable <project>` first when you prefer to make the transition separately. A checkout cwd
+or mobile `project` value is context rather than a workspace ref; a prompt without an explicit ref defaults to
+`#git:home`. Direct claims that bypass launch preparation remain blocked while the ProjectSpec is disabled. Management
+and history code paths that need hidden projects opt into an all-state scan explicitly.
 
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`), enabling flat references to namespaced
 xprompts. For example, `#foo__bar` resolves to the xprompt registered as `foo/bar`, and `#a__b__c` resolves to `a/b/c`.

@@ -314,13 +314,13 @@ Initialization wires up the files agents and companion tools depend on:
 ```bash
 sase init -c       # report drift without writing
 sase init          # interactive
-sase init --yes    # unattended
+sase init --yes    # skip generic prompts; missing sidecar creation still asks
 ```
 
-The coordinator plans in registry order: memory, SDD, then skills. Memory initialization owns the managed `AGENTS.md`
-and provider instruction copies. SDD initialization creates the project planning scaffold. Skill initialization renders
-SASE skill sources to every provider's skill directory. That is the command-line version of the earlier promise: write
-the SASE workflow once, then deploy it across runtimes.
+The coordinator plans in registry order: memory, repositories, then skills. Memory initialization owns the managed
+`AGENTS.md` and provider instruction copies. Repository initialization owns configured sidecars, generated guides, and
+the workspace ignore rule. Skill initialization renders SASE skill sources to every provider's skill directory. That is
+the command-line version of the earlier promise: write the SASE workflow once, then deploy it across runtimes.
 
 After `sase doctor` reports a usable provider, launch a read-only first run:
 

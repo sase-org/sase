@@ -100,10 +100,10 @@ default (those layers are read-only).
 The Projects tab is an inventory and lifecycle surface with three clickable sub-tabs: **Projects · Repos · Workspaces**.
 `[` / `]` cycle those sub-tabs, while `Tab` / `Shift+Tab` switch the Admin Center's main tabs.
 
-- **Projects** lists true projects—directories with enabled ProjectSpecs, excluding `home` and internal linked-repo
-  backing records. Enabled and disabled rows appear together with VCS kind, claim, workspace, repo, and warning counts.
-  `a` / `d` enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and the established mark,
-  alias, edit, force, and confirmed-delete actions remain available.
+- **Projects** lists true projects—projects backed by their own main ProjectSpec, excluding `home` and internal
+  linked-repo backing records. Enabled and disabled rows appear together with VCS kind, claim, workspace, repo, and
+  warning counts. `a` / `d` enable or disable, `r` / `w` cross-navigate to the selected project's inventories, and the
+  established mark, alias, edit, force, and confirmed-delete actions remain available.
 - **Repos** lists primary, sidecar, linked, and opened external repos for enabled projects by default. It reports
   checkout presence, source/config metadata, `auto_clone`, environment names, and SDD storage mode.
 - **Workspaces** joins registry entries with active claims, PID liveness, pins, last-used timestamps, TTL staleness, and
@@ -1156,9 +1156,9 @@ Source: `src/sase/default_config.yml`, `src/sase/integrations/chat_install.py`
 
 ### telegram
 
-Custom Telegram slash commands are configured as a closed map keyed by the bot command name. The installed Telegram
-integration consumes the command definitions; core SASE validates them and `sase doctor` checks that each executable
-resolves.
+Custom Telegram slash commands are keyed by the bot command name. Define them in user configuration or an overlay; the
+Telegram integration deliberately ignores project-local configuration so a repository cannot add commands to your bot.
+Core SASE validates the definitions, and `sase doctor` checks that each command's executable resolves.
 
 ```yaml
 telegram:
@@ -1177,9 +1177,14 @@ telegram:
 | `telegram.commands.<name>.output`      | string | `message` | Deliver Markdown stdout as a `message` or rendered `pdf`.                      |
 | `telegram.commands.<name>.timeout`     | string | `60s`     | Integer duration ending in `s`, `m`, or `h`.                                   |
 
-Command names must contain 1–32 lowercase letters, digits, or underscores. Run
-`sase doctor -C integrations.telegram_commands` after editing the map; unresolved command heads produce a warning with
-the affected names.
+Command names must contain 1–32 lowercase letters, digits, or underscores. The built-in names `bead`, `beads`,
+`changes`, `fork`, `kill`, `list`, `update`, and `xprompts` are reserved. The integration parses `run` as an argument
+vector and never invokes a shell. Text following `/name` is appended as one final argument, and the process runs from an
+isolated temporary directory, so use absolute paths or commands available on `PATH` rather than relying on a project
+working directory.
+
+Run `sase doctor -C integrations.telegram_commands` after editing the map; unresolved command heads produce a warning
+with the affected names.
 
 Source: `src/sase/default_config.yml`, `src/sase/doctor/checks_integrations.py`
 

@@ -483,20 +483,23 @@ Launch responses return `schema_version`, a `primary` slot, and all `slots`. Eac
 should treat a non-null `artifact_dir` as an opaque host path for display, retry context, and host-bridge follow-up
 actions; they should not construct paths themselves.
 
-Launch in a known SASE project context by passing the project name, not a path. The bridge resolves only
-`<sase_home>/projects/<project>/<project>.sase` (falling back to legacy `.gp`) and uses that file's `WORKSPACE_DIR` when
-it needs a project cwd:
+Select a known SASE project context by passing the project name, not a path. The bridge resolves only
+`<sase_home>/projects/<project>/<project>.sase` (falling back to legacy `.gp`) and uses that file's `WORKSPACE_DIR` as
+the cwd for project-local prompt and xprompt resolution. This context does not select a launch workspace by itself, so
+include the normal VCS workspace ref in the prompt when you want the agent to run in that project:
 
 ```bash
 curl -sS -X POST "$BASE_URL/api/v1/agents/launch" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"project":"sase","prompt":"Run the focused mobile gateway tests","name":"mobile.sase"}'
+  -d '{"schema_version":1,"project":"sase","prompt":"#gh:sase Run the focused mobile gateway tests","name":"mobile.sase"}'
 ```
 
-Project lifecycle still applies. Disabled projects are hidden from broad mobile helper catalogs, and normal launch
-resolution refuses new workspace claims for disabled projects with the same enable hint shown by CLI/TUI launches. Run
-`sase project enable <project>` on the host before launching new mobile-initiated work in a disabled project.
+Project lifecycle still applies. Disabled projects are hidden from broad mobile helper catalogs. Passing `project` alone
+neither enables the project nor targets its workspace; without a workspace ref, a bare prompt follows normal launch
+behavior and defaults to `#git:home`. If the prompt contains an explicit known-project VCS ref, SASE re-enables a
+disabled project before the claim. Run `sase project enable <project>` on the host first when you want to make that
+transition separately.
 
 For home-mode launches, omit `project` or pass `"home"`. For VCS-ref launches, include the normal SASE prompt syntax
 such as `#gh:12345` or legacy `#gh@12345`; the bridge normalizes legacy `@` refs before launch and persists a

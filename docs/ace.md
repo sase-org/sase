@@ -236,7 +236,8 @@ The modal supports live filtering as you type in the search box and displays las
 The `,h` shortcut opens a home-context prompt directly. Project and PR launch pickers use lifecycle-aware discovery:
 project entries, including `home` when it appears in picker lists, must have enabled and launchable ProjectSpecs; PR
 choices come from enabled ProjectSpecs. Disabled projects do not appear in normal launch pickers until they are enabled
-with `sase project enable <project>`.
+with `sase project enable <project>`. You can also type a known-project VCS ref explicitly; launch preparation treats
+that as intent to resume work and re-enables the project before claiming a workspace.
 
 Project launch pickers also support `Ctrl+D` for cleanup of empty project entries. This deletes only the highlighted
 project's active/archive ProjectSpec files, refuses entries whose ProjectSpec files still contain ChangeSpecs, and does
@@ -1006,9 +1007,10 @@ tab contains a second clickable strip: **Projects · Repos · Workspaces**. `[` 
 `Shift+Tab` continue switching the main Admin Center tabs.
 
 The **Projects** sub-tab lists true, non-system projects only, with enabled projects first and disabled projects still
-visible. A true project has an enabled ProjectSpec and is not the internal linked-repo backing record. Rows show the
-display/canonical name, VCS kind (`git` or `gh`), enabled/disabled state, active claims, workspace/repo counts, and
-warnings. Telemetry-only directories and linked-repo backing records cannot appear.
+visible. Here, "true project" means a project backed by its own main ProjectSpec, rather than an internal linked-repo
+backing record; a true project can be enabled or disabled. Rows show the display/canonical name, VCS kind (`git` or
+`gh`), lifecycle state, active claims, workspace/repo counts, and warnings. Telemetry-only directories and linked-repo
+backing records cannot appear.
 
 | Key       | Action                                                              |
 | --------- | ------------------------------------------------------------------- |

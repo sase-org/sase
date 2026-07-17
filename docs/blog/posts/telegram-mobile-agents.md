@@ -137,10 +137,11 @@ Deployments can add their own slash-menu commands under `telegram.commands` in S
 description, an executable with fixed arguments, message-or-PDF delivery, and a timeout; commands run without a shell.
 See [Custom Telegram commands](../../configuration.md#telegram) for the schema and doctor check.
 
-`/update` is the operationally interesting built-in. It detaches the shared chat update worker, which stops AXE, runs
-`sase update --json` through the same managed-versus-dev update planner as ACE, and tries to restart AXE even if the
-update fails. The completion message that arrives on the next inbound sweep reports success or the failure exit code and
-includes the worker log path. The phone becomes, in effect, a remote control for keeping the local install fresh.
+`/update` is the operationally interesting built-in. It detaches the shared chat update worker and runs
+`sase update --json` through the same managed-versus-dev update planner as ACE. The updater performs any AXE restart
+required by an actual code update; after the command succeeds or fails, the worker independently ensures AXE is running.
+The completion message that arrives on the next inbound sweep reports success or the failure exit code and includes the
+worker log path. The phone becomes, in effect, a remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 

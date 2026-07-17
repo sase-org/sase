@@ -135,13 +135,16 @@ SASE keeps durable state outside any one chat session:
 - **Rust core** - Ported parsing, launch, notification, agent-scan, cleanup, and bead operations are served by the
   required `sase_core_rs` extension. Run `sase core health` before first use and after dependency changes.
 - **Project lifecycle** - ProjectSpec metadata can mark a project `enabled` or `disabled`. Missing `PROJECT_STATE` is
-  treated as `enabled`. Default launch pickers, ChangeSpec searches, project-local xprompt catalogs, broad mobile helper
-  catalogs, and known-project VCS refs such as `#gh:sase` only use enabled projects. Use
-  `sase project list --state all`, `sase project show <project>`, and `sase project enable <project>` when revisiting
-  disabled work. Legacy on-disk `active` values normalize to enabled; `inactive`, `archived`, and `closed` normalize to
-  disabled. In ACE, press `#` and switch to the **Projects** tab of the SASE Admin Center to manage lifecycle state,
-  edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an obsolete SASE project directory. Deleting
-  from that tab removes `~/.sase/projects/<project>/`, not the workspace checkout.
+  treated as `enabled`. Broad discovery surfaces—default launch pickers, ChangeSpec searches, project-local xprompt
+  catalogs, and mobile helper catalogs—show enabled projects only. An explicitly typed, known-project launch ref such as
+  `#gh:sase` is different: it records intent to resume work and re-enables a disabled project before claiming a
+  workspace. A checkout cwd or mobile `project` value supplies prompt-resolution context but is not itself a workspace
+  ref; a bare prompt still defaults to `#git:home`. Direct workspace claims that bypass launch preparation reject a
+  disabled ProjectSpec with an enable hint. Use `sase project list --state all` and `sase project show <project>` to
+  inspect hidden projects. Legacy on-disk `active` values normalize to enabled; `inactive`, `archived`, and `closed`
+  normalize to disabled. In ACE, press `#` and switch to the **Projects** tab of the SASE Admin Center to manage
+  lifecycle state, edit ProjectSpecs, mark projects for bulk lifecycle actions, or delete an obsolete SASE project
+  directory. Deleting from that tab removes `~/.sase/projects/<project>/`, not the workspace checkout.
 - **Update workflow** - ACE caches latest-version checks by default, shows startup and top-bar update signals when SASE
   or installed plugins are behind, and uses the Admin Center **Updates** tab for review. The top-bar badge turns amber
   and adds `*` when a pending `sase-core-rs` update requires a slower Rust rebuild. That tab shows SASE core/plugin

@@ -58,7 +58,7 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase changespec sync-deltas`                | Recompute the `DELTAS` field for a ChangeSpec from VCS state.                                               | [ChangeSpecs](change_spec.md)                                       |
 | `sase init`                                  | Check and initialize memory, repositories, and skills for the current project.                              | [Initialization](init.md)                                           |
 | `sase init --all --check`                    | Check every enabled main project without writing; report one aggregate status.                              | [Initialization](init.md)                                           |
-| `sase init --all --yes`                      | Initialize every enabled main project unattended, continuing after per-project failures.                    | [Initialization](init.md)                                           |
+| `sase init --all --yes`                      | Initialize every enabled main project without generic prompts; sidecar creation still asks.                 | [Initialization](init.md)                                           |
 | `sase memory` / `sase memory list`           | Show loaded, referenced, available, and missing memory files.                                               | [Memory](memory.md#inspect-context)                                 |
 | `sase memory agent-docs list`                | Inventory project, home, and chezmoi `AGENTS.md` files plus nearby provider shims.                          | [Initialization](init.md#agent-documents)                           |
 | `sase memory read`                           | Agent-side read of one long-term memory file with an attributable audit event.                              | [Memory](memory.md#audited-reads)                                   |
@@ -90,7 +90,8 @@ explicit, for example `sase notify list -j`, `sase memory list -j`, or `sase wor
 | `sase bead work`                             | Launch phase agents for an epic.                                                                            | [Beads](beads.md#sase-bead-work-target)                             |
 | `sase project list`                          | List enabled projects by default, or inspect disabled/internal backing records with `--state`.              | [Project lifecycle](project_spec.md#project-lifecycle)              |
 | `sase project show`                          | Show lifecycle, workspace, launchability, and warning details for one project.                              | [Project lifecycle](project_spec.md#project-lifecycle)              |
-| `sase project set-state` / aliases           | Update `PROJECT_STATE` under the ProjectSpec lock.                                                          | [Project lifecycle](project_spec.md#project-lifecycle)              |
+| `sase project enable` / `disable`            | Apply the normal user-facing `PROJECT_STATE` transitions under lock.                                        | [Project lifecycle](project_spec.md#project-lifecycle)              |
+| `sase project set-state`                     | Set a lifecycle or internal backing state under the ProjectSpec lock.                                       | [Project lifecycle](project_spec.md#project-lifecycle)              |
 | `sase project alias`                         | List, add, remove, or clear `PROJECT_ALIASES` under the ProjectSpec lock.                                   | [Project names](project_spec.md#project-names-and-aliases)          |
 | `sase plan` / `sase plan list`               | Show pending proposals, recent approvals, and inferred rejected archived proposals.                         | [XPrompt directives](xprompt.md#plan-directive)                     |
 | `sase plan approve`                          | Approve one pending plan by ID or prefix; `--kind` chooses approve/commit/epic/tale.                        | [Plan approval pipeline](agent_families.md)                         |
@@ -127,7 +128,10 @@ Enabled-only true-project discovery is also the default for launch pickers, Chan
 catalogs, broad mobile helper catalogs, and all-known bead helper reads. Internal sibling backing records are hidden
 from those surfaces and support configured linked repositories. Agents prepare one through `/sase_repo`; the underlying
 audited open infers the host project and workspace from cwd. Agent-history views that need older artifacts opt into all
-project states explicitly.
+project states explicitly. An explicitly typed known-project VCS ref is a launch-time exception: it re-enables a
+disabled project before claiming a workspace. A checkout cwd or mobile `project` value is only prompt-resolution
+context, not a workspace ref; without an explicit ref, a bare prompt defaults to `#git:home`. Direct low-level claims
+against a disabled ProjectSpec remain blocked until the project is enabled.
 
 `sase plan` defaults to `sase plan list`. The dashboard has Proposed, Approved, and Rejected sections; use repeatable
 `-s/--status` options to select sections, `-n/--limit` to set each history section's size (`0` is unlimited), and
