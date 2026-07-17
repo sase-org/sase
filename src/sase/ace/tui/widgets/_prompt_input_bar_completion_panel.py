@@ -14,6 +14,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_directive_completion_row,
     append_jinja_completion_row,
     append_placeholder_completion_row,
+    append_prompt_word_completion_row,
     append_vcs_project_completion_row,
     append_vcs_ref_completion_row,
     append_vcs_repo_completion_row,
@@ -28,6 +29,7 @@ from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
+from sase.ace.tui.widgets.prompt_word_completion import PROMPT_WORD_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
@@ -86,14 +88,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
         scroll_offset: int = 0,
         completion_kind: str = "file",
     ) -> None:
-        """Show the path/xprompt completion panel with Rich styling.
+        """Show the shared manual-completion panel with Rich styling.
 
         Args:
             token: Current token being completed.
             rows: Completion entries.
             selected_index: Highlighted row index.
             scroll_offset: First visible entry index for scrolling.
-            completion_kind: "file" for path completion, "xprompt" for xprompt.
+            completion_kind: Named provider kind used to render rows and title.
         """
         panel = self._completion_panel()
         if panel is None:
@@ -112,6 +114,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_xprompt_arg_agent = completion_kind == "xprompt_arg_agent"
         is_jinja = completion_kind == "jinja"
         is_placeholder = completion_kind == PLACEHOLDER_COMPLETION_KIND
+        is_prompt_word = completion_kind == PROMPT_WORD_COMPLETION_KIND
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
@@ -188,6 +191,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 append_jinja_completion_row(content, candidate, is_selected)
             elif is_placeholder:
                 append_placeholder_completion_row(content, candidate, is_selected)
+            elif is_prompt_word:
+                append_prompt_word_completion_row(content, candidate, is_selected)
             elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(
@@ -204,8 +209,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         if remaining > 0:
             content.append(f"\n  \u2193 {remaining} more\u2026", style="dim")
 
-        # Border title: "xprompts" for xprompt completion, "recent files"
-        # for file-history completion, directory for file.
+        # Use a provider-specific title; path completion shows its directory.
         if is_xprompt:
             panel.border_title = "xprompts"
         elif is_directive:
@@ -232,6 +236,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "jinja"
         elif is_placeholder:
             panel.border_title = "placeholder"
+        elif is_prompt_word:
+            panel.border_title = "prompt words"
         elif is_history:
             panel.border_title = "recent files"
         elif "/" in token:
@@ -252,7 +258,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._update_height()
 
     def hide_file_completions(self) -> None:
-        """Hide the path completion panel."""
+        """Hide the shared manual-completion panel."""
         panel = self._completion_panel()
         if panel is None:
             return

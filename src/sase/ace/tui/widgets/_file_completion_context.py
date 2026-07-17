@@ -1,4 +1,4 @@
-"""Token and range context helpers for prompt file completion."""
+"""Token and range context helpers for manual prompt completion."""
 
 from __future__ import annotations
 

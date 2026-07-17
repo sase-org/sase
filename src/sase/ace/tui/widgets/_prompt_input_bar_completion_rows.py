@@ -321,6 +321,15 @@ def append_placeholder_completion_row(
     )
 
 
+def append_prompt_word_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+) -> None:
+    """Append one prompt-local word without a file-type icon."""
+    content.append(candidate.display, style="bold" if is_selected else "")
+
+
 def _append_vcs_ref_project_row(
     content: Text,
     entry: VcsProjectEntry,

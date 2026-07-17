@@ -1923,36 +1923,36 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 
 ### INSERT Mode (Default)
 
-| Key             | Action                                                                                        |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| `Enter`         | Submit; in a prompt stack, open the submit chooser                                            |
-| `Ctrl+S`        | Stash the active pane; from an empty prompt, open the stashed-prompt picker                   |
-| `Ctrl+G Enter`  | Submit only the selected pane                                                                 |
-| `Ctrl+C`        | Cancel the prompt; in a prompt stack, cancel only the selected pane                           |
-| `Ctrl+J`        | Insert a newline                                                                              |
-| `Ctrl+A`        | Move to start of line (jumps to previous line start if already at col 0)                      |
-| `Ctrl+E`        | Move to end of line (jumps to next line end if already at end)                                |
-| `Ctrl+G`        | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                  |
-| `Ctrl+G Enter`  | Submit only the selected pane                                                                 |
-| `Ctrl+G j/k`    | Focus the next / previous pane and leave the target pane in INSERT mode                       |
-| `Ctrl+G J/K`    | Move the active pane down / up and leave it in INSERT mode                                    |
-| `Ctrl+G -`      | Add an empty bottom pane                                                                      |
-| `Ctrl+G =`      | Show/focus the xprompt frontmatter panel                                                      |
-| `Ctrl+G s`      | Bundle every non-empty pane into one stash row                                                |
-| `Ctrl+G S`      | Overwrite a pinned stashed prompt with the current stack                                      |
-| `Ctrl+G x`      | Save the current stack as a reusable xprompt or snippet                                       |
-| `Ctrl+G X`      | Convert the active pane into a frontmatter-local xprompt                                      |
-| `Ctrl+G Ctrl+C` | Cancel every pane in the prompt stack at once                                                 |
-| `Ctrl+G p`      | Open the stashed-prompt picker                                                                |
-| `Ctrl+Y`        | Open the workflow YAML editor                                                                 |
-| `Ctrl+K`        | Open prompt history from a single-line prompt, pre-filtered by that text                      |
-| `Ctrl+P`        | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping         |
-| `Ctrl+N`        | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping         |
-| `Ctrl+T`        | Completion (directives, xprompts, slash skills, or file paths; see [Completion](#completion)) |
-| `Ctrl+R`        | Recursive fuzzy file finder using the same prompt-aware path root as file completion          |
-| `Tab`           | Snippet expansion (see below)                                                                 |
-| `#@`            | Open XPrompt snippet picker (type `#` then `@`)                                               |
-| `Escape`        | Switch to vim NORMAL mode                                                                     |
+| Key             | Action                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| `Enter`         | Submit; in a prompt stack, open the submit chooser                                          |
+| `Ctrl+S`        | Stash the active pane; from an empty prompt, open the stashed-prompt picker                 |
+| `Ctrl+G Enter`  | Submit only the selected pane                                                               |
+| `Ctrl+C`        | Cancel the prompt; in a prompt stack, cancel only the selected pane                         |
+| `Ctrl+J`        | Insert a newline                                                                            |
+| `Ctrl+A`        | Move to start of line (jumps to previous line start if already at col 0)                    |
+| `Ctrl+E`        | Move to end of line (jumps to next line end if already at end)                              |
+| `Ctrl+G`        | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                |
+| `Ctrl+G Enter`  | Submit only the selected pane                                                               |
+| `Ctrl+G j/k`    | Focus the next / previous pane and leave the target pane in INSERT mode                     |
+| `Ctrl+G J/K`    | Move the active pane down / up and leave it in INSERT mode                                  |
+| `Ctrl+G -`      | Add an empty bottom pane                                                                    |
+| `Ctrl+G =`      | Show/focus the xprompt frontmatter panel                                                    |
+| `Ctrl+G s`      | Bundle every non-empty pane into one stash row                                              |
+| `Ctrl+G S`      | Overwrite a pinned stashed prompt with the current stack                                    |
+| `Ctrl+G x`      | Save the current stack as a reusable xprompt or snippet                                     |
+| `Ctrl+G X`      | Convert the active pane into a frontmatter-local xprompt                                    |
+| `Ctrl+G Ctrl+C` | Cancel every pane in the prompt stack at once                                               |
+| `Ctrl+G p`      | Open the stashed-prompt picker                                                              |
+| `Ctrl+Y`        | Open the workflow YAML editor                                                               |
+| `Ctrl+K`        | Open prompt history from a single-line prompt, pre-filtered by that text                    |
+| `Ctrl+P`        | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping       |
+| `Ctrl+N`        | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping       |
+| `Ctrl+T`        | Completion (structured tokens, paths, or prompt-local words; see [Completion](#completion)) |
+| `Ctrl+R`        | Recursive fuzzy file finder using the same prompt-aware path root as file completion        |
+| `Tab`           | Snippet expansion (see below)                                                               |
+| `#@`            | Open XPrompt snippet picker (type `#` then `@`)                                             |
+| `Escape`        | Switch to vim NORMAL mode                                                                   |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single quotes, double quotes, and
 backticks. Typing the matching closer over an auto-inserted closer moves the cursor across it instead of duplicating it,
@@ -2087,6 +2087,11 @@ Press `Ctrl+T` to activate token completion. The completion kind is determined b
   recently referenced files drawn from prompt history, ranked by recency. Project-local `.sase/` paths are filtered out
   so internal bead/plan artifacts don't pollute the suggestions. Press `Ctrl+D` in the completion panel to delete the
   highlighted entry from the on-disk history.
+- **Prompt-local word completion**: As the final fallback for a plain prose token, `Ctrl+T` filters words already in the
+  active prompt by the word prefix immediately left of the cursor. Matching is case-insensitive, but each candidate
+  keeps its original spelling. Accepting a candidate replaces the complete word under the cursor, including any suffix
+  to the right, so completion also works safely in the middle of a word. This provider scans only the current prompt
+  pane; it does not use other panes, prompt history, files, or automatic live suggestions.
 
 | Key                | Action                                   |
 | ------------------ | ---------------------------------------- |
@@ -2123,8 +2128,8 @@ available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` c
 such as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes a known workflow ref trigger
 such as `#gh:owner/`; cached rows appear immediately and uncached namespaces fetch in a background worker. Manual
 `Ctrl+T` completion still supports file paths, xprompt names, directives, skills, project/ChangeSpec tags, VCS ref
-roots, and VCS repository refs regardless of those settings. Live suggestions pause while the manual completion panel is
-open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
+roots, VCS repository refs, and prompt-local prose words regardless of those settings. Live suggestions pause while the
+manual completion panel is open, while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are hidden unless the partial
 prefix starts with `.`. Accepting a directory automatically re-opens completion for the next level (drill-down). The

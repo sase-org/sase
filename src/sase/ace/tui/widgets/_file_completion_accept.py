@@ -1,4 +1,4 @@
-"""Accept, move, and delete behavior for prompt file completion."""
+"""Accept, move, and delete behavior for manual prompt completion."""
 
 from __future__ import annotations
 
@@ -9,6 +9,10 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
+)
+from sase.ace.tui.widgets.prompt_word_completion import (
+    PROMPT_WORD_COMPLETION_KIND,
+    build_prompt_word_completion_result,
 )
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
@@ -185,6 +189,13 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
                 "" if placeholder_result is None else placeholder_result.prefix
             )
             return True
+        if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
+            result = build_prompt_word_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            self._update_file_completion_panel("" if result is None else result.prefix)
+            return True
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
             project_trigger = self._get_vcs_project_trigger()
             self._update_file_completion_panel(
@@ -248,6 +259,21 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             )
             self.cursor_location = self._location_from_absolute(
                 placeholder_result.replacement_start + len(selected.insertion) + 1
+            )
+            self._clear_file_completion()
+            return True
+        if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
+            result = build_prompt_word_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if result is None:
+                self._clear_file_completion()
+                return False
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                selected.insertion,
             )
             self._clear_file_completion()
             return True

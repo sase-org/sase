@@ -1,4 +1,4 @@
-"""Shared state and panel helpers for prompt file completion."""
+"""Shared state and panel helpers for manual prompt completion."""
 
 from __future__ import annotations
 
@@ -142,7 +142,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         )
 
     def _clear_file_completion(self, *, clear_xprompt_arg_hint: bool = True) -> None:
-        """Reset path completion state and hide panel."""
+        """Reset manual completion state and hide its panel."""
         self._file_completion_active = False
         self._file_completion_candidates = []
         self._file_completion_index = 0

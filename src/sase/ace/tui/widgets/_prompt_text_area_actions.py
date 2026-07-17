@@ -290,6 +290,51 @@ class PromptTextAreaActionsMixin(_MixinBase):
         start, end = self.selection
         self._replace_via_keyboard("\n", start, end)
 
+    def _refresh_completion_after_cursor_move(self) -> None:
+        """Refresh prompt assist surfaces after TextArea cursor actions."""
+        self._refresh_file_completion_from_cursor()
+        self._refresh_xprompt_arg_hint_from_cursor()
+
+    def action_cursor_left(self, select: bool = False) -> None:
+        super().action_cursor_left(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_right(self, select: bool = False) -> None:
+        super().action_cursor_right(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_up(self, select: bool = False) -> None:
+        super().action_cursor_up(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_down(self, select: bool = False) -> None:
+        super().action_cursor_down(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_line_start(self, select: bool = False) -> None:
+        super().action_cursor_line_start(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_line_end(self, select: bool = False) -> None:
+        super().action_cursor_line_end(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_word_left(self, select: bool = False) -> None:
+        super().action_cursor_word_left(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_word_right(self, select: bool = False) -> None:
+        super().action_cursor_word_right(select)
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_page_up(self) -> None:
+        super().action_cursor_page_up()
+        self._refresh_completion_after_cursor_move()
+
+    def action_cursor_page_down(self) -> None:
+        super().action_cursor_page_down()
+        self._refresh_completion_after_cursor_move()
+
     def _refresh_completion_after_text_delete(self) -> None:
         """Refresh prompt assist surfaces after TextArea delete actions."""
         self._refresh_file_completion_from_cursor()

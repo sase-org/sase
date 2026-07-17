@@ -1,4 +1,4 @@
-"""Refresh active prompt file completions after cursor or text changes."""
+"""Refresh active manual completions after prompt cursor or text changes."""
 
 from __future__ import annotations
 
@@ -9,11 +9,19 @@ from sase.ace.tui.widgets._file_completion_xprompt_args import (
 from sase.ace.tui.widgets.directive_completion import (
     build_directive_arg_completion_candidates,
     build_directive_completion_candidates,
+    is_directive_like_token,
 )
-from sase.ace.tui.widgets.file_completion import build_completion_candidates
+from sase.ace.tui.widgets.file_completion import (
+    build_completion_candidates,
+    is_path_like_token,
+)
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
+)
+from sase.ace.tui.widgets.prompt_word_completion import (
+    PROMPT_WORD_COMPLETION_KIND,
+    build_prompt_word_completion_result,
 )
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
@@ -29,6 +37,7 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
 )
+from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
 
 
 class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
@@ -37,6 +46,10 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
     def _refresh_file_completion_from_cursor(self) -> None:
         """Recompute active completions after edits or cursor movement."""
         if not self._file_completion_active:
+            return
+
+        if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
+            self._refresh_prompt_word_completion()
             return
 
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
@@ -271,3 +284,62 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             )
 
         self._update_file_completion_panel(token)
+
+    def _refresh_prompt_word_completion(self) -> None:
+        """Refresh the active prompt-local word menu entirely in memory."""
+        result = build_prompt_word_completion_result(
+            self.text,
+            self._absolute_offset(self.cursor_location),
+        )
+        if result is None:
+            self._clear_file_completion()
+            return
+        if self._structured_completion_claims_cursor():
+            self._clear_file_completion()
+            return
+
+        previous = None
+        if self._file_completion_candidates:
+            previous = self._file_completion_candidates[
+                self._file_completion_index
+            ].insertion
+
+        self._file_completion_candidates = result.candidates
+        self._file_completion_index = min(
+            self._file_completion_index,
+            len(result.candidates) - 1,
+        )
+        if previous is not None:
+            for index, candidate in enumerate(result.candidates):
+                if candidate.insertion == previous:
+                    self._file_completion_index = index
+                    break
+        self._update_file_completion_panel(result.prefix)
+
+    def _structured_completion_claims_cursor(self) -> bool:
+        """Return whether an existing provider shadows prompt-word fallback."""
+        if self._placeholder_completion_at_cursor() is not None:
+            return True
+        if self._get_vcs_project_trigger() is not None:
+            return True
+        if self._get_vcs_repo_trigger() is not None:
+            return True
+        if self._get_vcs_ref_trigger() is not None:
+            return True
+
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        if build_jinja_completion_result(self.text, cursor_offset) is not None:
+            return True
+        if self._get_directive_arg_token_context() is not None:
+            return True
+        if self._get_xprompt_arg_completion_context() is not None:
+            return True
+
+        directive_ctx = self._get_directive_token_context()
+        if directive_ctx is not None and is_directive_like_token(directive_ctx[3]):
+            return True
+        token_info = self._extract_token_around_cursor()
+        if token_info is None:
+            return False
+        raw_token = token_info[2]
+        return is_xprompt_like_token(raw_token) or is_path_like_token(raw_token)

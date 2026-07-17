@@ -1,4 +1,4 @@
-"""Open and build prompt file completion menus."""
+"""Open and build manual prompt completion menus."""
 
 from __future__ import annotations
 
@@ -24,6 +24,10 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
     PlaceholderCompletionResult,
 )
+from sase.ace.tui.widgets.prompt_word_completion import (
+    PROMPT_WORD_COMPLETION_KIND,
+    build_prompt_word_completion_result,
+)
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
     build_no_active_projects_placeholder,
@@ -39,8 +43,8 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     build_loading_placeholder,
     vcs_repo_completion_candidates,
 )
-from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
+from sase.xprompt.vcs_repo_completion import peek_cached_repo_candidates
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.jinja_completion import JinjaCompletionResult
@@ -325,7 +329,7 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         return True
 
     def _try_file_completion_tab(self) -> bool:
-        """Handle Ctrl+T-driven completion for path, xprompt, or history."""
+        """Dispatch manual Ctrl+T completion for the current prompt context."""
         placeholder_result = self._placeholder_completion_at_cursor()
         if placeholder_result is not None:
             self._open_placeholder_completion(placeholder_result)
@@ -344,7 +348,6 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         if jinja_result is not None:
             return self._try_jinja_completion_tab(jinja_result)
 
-        base_dir = self._prompt_completion_base_dir()
         directive_arg_ctx = self._get_directive_arg_token_context()
         if directive_arg_ctx is not None:
             self._completion_kind = "directive_arg"
@@ -398,11 +401,10 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                     row, start, end, token = ctx
                     candidates, shared_extension = build_completion_candidates(
                         token,
-                        base_dir=base_dir,
+                        base_dir=self._prompt_completion_base_dir(),
                     )
                 else:
-                    self._clear_file_completion()
-                    return False
+                    return self._try_prompt_word_completion_tab(cursor_offset)
 
         if not candidates:
             self._clear_file_completion()
@@ -461,7 +463,7 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
                     return True
                 candidates, _ = build_xprompt_arg_completion_candidates(
                     arg_ctx,
-                    base_dir=base_dir,
+                    base_dir=self._prompt_completion_base_dir(),
                     agent_candidates=(
                         self._snapshot_agent_completion_candidates()
                         if arg_ctx.completion_kind == "xprompt_arg_agent"
@@ -471,7 +473,7 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             else:
                 candidates, _ = build_completion_candidates(
                     token,
-                    base_dir=base_dir,
+                    base_dir=self._prompt_completion_base_dir(),
                 )
             if not candidates:
                 self._clear_file_completion()
@@ -481,6 +483,46 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
         self._update_file_completion_panel(token)
+        return True
+
+    def _try_prompt_word_completion_tab(self, cursor_offset: int) -> bool:
+        """Handle the final plain-prose Ctrl+T completion fallback."""
+        result = build_prompt_word_completion_result(self.text, cursor_offset)
+        if result is None:
+            self._clear_file_completion()
+            return False
+
+        self._completion_kind = PROMPT_WORD_COMPLETION_KIND
+        candidates = result.candidates
+        if len(candidates) == 1:
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                candidates[0].insertion,
+            )
+            self._clear_file_completion()
+            return True
+
+        if result.shared_extension:
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                f"{result.prefix}{result.shared_extension}",
+            )
+            refreshed = build_prompt_word_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+            )
+            if refreshed is None:
+                self._clear_file_completion()
+                return True
+            result = refreshed
+            candidates = refreshed.candidates
+
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(result.prefix)
         return True
 
     def _try_jinja_completion_tab(self, result: JinjaCompletionResult) -> bool:

@@ -267,7 +267,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             return
 
         # INSERT mode: Escape dismisses any active completion UI and enters
-        # NORMAL mode. ``_enter_normal_mode`` already clears file completion,
+        # NORMAL mode. ``_enter_normal_mode`` already clears manual completion,
         # soft completion, and xprompt arg hints, so an open completion menu and
         # the no-completion path both land in NORMAL mode through the same
         # transition helper -- matching plain insert-mode ``Escape``.
@@ -297,7 +297,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
                 return
             self._clear_xprompt_arg_hint()
 
-        # Active file completion navigation / acceptance.
+        # Active manual completion navigation / acceptance.
         if self._file_completion_active:
             if event.key in ("ctrl+n", "down"):
                 event.stop()
@@ -341,7 +341,7 @@ class PromptTextAreaKeyHandlingMixin(_MixinBase):
             self._handle_vcs_mru_cycle_key("ctrl+p")
             return
 
-        # Ctrl+T in INSERT mode: trigger file path completion.
+        # Ctrl+T in INSERT mode: dispatch manual prompt completion.
         if event.key == "ctrl+t":
             event.stop()
             event.prevent_default()

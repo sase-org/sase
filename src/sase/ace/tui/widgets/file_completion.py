@@ -12,7 +12,7 @@ MAX_VISIBLE = 10
 
 @dataclass(slots=True)
 class CompletionCandidate:
-    """Single file completion candidate."""
+    """Single candidate rendered by the shared prompt completion panel."""
 
     display: str
     insertion: str
