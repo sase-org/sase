@@ -1,69 +1,94 @@
-"""Tests for ``sase telemetry status`` CLI subcommand."""
+"""Tests for local telemetry store status."""
 
+from pathlib import Path
 from unittest.mock import patch
 
-from rich.console import Console
+import pytest
 
-from sase.telemetry._config import _TelemetryConfig
-from sase.telemetry.cli_status import handle_telemetry_status
-from tests.telemetry.conftest import reset_telemetry_config
-
-
-def setup_function() -> None:
-    reset_telemetry_config()
+from sase.telemetry.cli_status import (
+    build_telemetry_status_payload,
+    handle_telemetry_status,
+)
+from tests.telemetry.conftest import record_samples, use_store
 
 
-def teardown_function() -> None:
-    reset_telemetry_config()
+def test_status_disabled(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    use_store(tmp_path / "metrics.sqlite", enabled=False)
 
+    handle_telemetry_status()
 
-def _capture_status(**config_overrides: object) -> str:
-    """Run handle_telemetry_status and capture the Rich console output."""
-    cfg = _TelemetryConfig(**config_overrides)  # type: ignore[arg-type]
-    console = Console(file=None, force_terminal=False, width=120)
-    output_parts: list[str] = []
-
-    def fake_print(*args: object, **kwargs: object) -> None:
-        for arg in args:
-            if hasattr(arg, "__rich_console__"):
-                with console.capture() as capture:
-                    console.print(arg)
-                output_parts.append(capture.get())
-            else:
-                output_parts.append(str(arg))
-
-    with (
-        patch("sase.telemetry.cli_status.get_telemetry_config", return_value=cfg),
-        patch("sase.telemetry.cli_status.Console") as mock_console_cls,
-    ):
-        mock_console = mock_console_cls.return_value
-        mock_console.print = fake_print
-        handle_telemetry_status()
-
-    return "\n".join(output_parts)
-
-
-def test_status_disabled() -> None:
-    output = _capture_status(enabled=False)
+    output = capsys.readouterr().out
     assert "disabled" in output.lower()
     assert "sase.yml" in output
 
 
-def test_status_enabled_shows_metric_count() -> None:
-    with patch("sase.telemetry.cli_status._check_reachable", return_value=False):
-        output = _capture_status(enabled=True)
-    assert "registered" in output
-    assert "yes" in output.lower()
+def test_status_reports_store_counts_and_freshness(tmp_path: Path) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    use_store(store_path)
+    record_samples(
+        store_path,
+        [
+            {
+                "ts": 100,
+                "metric": "sase_agent_runs_total",
+                "kind": "counter",
+                "labels": {"status": "ok"},
+                "source": "runner-1",
+                "value": 3,
+            }
+        ],
+        now_ts=100,
+    )
+
+    with patch("sase.telemetry.cli_status.time.time", return_value=110):
+        payload = build_telemetry_status_payload()
+
+    assert payload["store"]["path"] == str(store_path)
+    assert payload["store"]["sample_count"] == 1
+    assert payload["store"]["db_size_bytes"] > 0
+    assert payload["flusher"]["state"] == "healthy"
+    assert payload["freshness"]["agent"]["age_seconds"] == 10
+    assert "pushgateway" not in payload
+    assert "exposition" not in payload
 
 
-def test_status_enabled_shows_connectivity() -> None:
-    with patch("sase.telemetry.cli_status._check_reachable", return_value=False):
-        output = _capture_status(enabled=True)
-    assert "not reachable" in output or "not running" in output
+def test_status_renders_local_details(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    use_store(store_path)
+    record_samples(
+        store_path,
+        [
+            {
+                "ts": 100,
+                "metric": "sase_bead_operations_total",
+                "kind": "counter",
+                "labels": {"operation": "show"},
+                "source": "cli-1",
+                "value": 1,
+            }
+        ],
+        now_ts=100,
+    )
+
+    with patch("sase.telemetry.cli_status.time.time", return_value=110):
+        handle_telemetry_status()
+
+    output = capsys.readouterr().out
+    assert "Store" in output
+    assert "metrics.sqlite" in output
+    assert "Flusher" in output
+    assert "Subsystem Freshness" in output
 
 
-def test_status_reachable_indicators() -> None:
-    with patch("sase.telemetry.cli_status._check_reachable", return_value=True):
-        output = _capture_status(enabled=True)
-    assert "reachable" in output
-    assert "running" in output
+def test_status_surfaces_store_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    use_store(tmp_path / "metrics.sqlite")
+    with patch(
+        "sase.telemetry.cli_status.store_stats", side_effect=RuntimeError("busy")
+    ):
+        handle_telemetry_status()
+
+    assert "Unable to open the local telemetry store" in capsys.readouterr().out

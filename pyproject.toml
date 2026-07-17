@@ -41,7 +41,6 @@ dependencies = [
     "pluggy",
     "pyinstrument",
     "pyyaml",
-    "plotext",
     "rich",
     "ruamel.yaml>=0.18,<1.0",
     "sase-core-rs>=0.5.0,<0.6.0",

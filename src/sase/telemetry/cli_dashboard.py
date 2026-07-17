@@ -1,442 +1,718 @@
-"""``sase telemetry dashboard`` — live auto-refreshing TUI dashboard.
-
-Supports two modes:
-
-- **Summary mode** (default): styled stat panels with color-coded gauges
-  and compact subsystem metric tables.
-- **Charts mode** (``-c/--charts``): historical line/bar charts powered
-  by Prometheus range queries rendered via plotext.
-"""
+"""``sase telemetry dashboard`` — live charts from the local metric store."""
 
 from __future__ import annotations
 
 import argparse
 import time
+from dataclasses import dataclass
+from typing import Any
 
 from rich.columns import Columns
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from sase.telemetry._config import get_telemetry_config
-from sase.telemetry.catalog import SUBSYSTEM_ORDER, get_subsystems
-from sase.telemetry.scrape import (
-    MetricSample,
-    check_reachable,
-    compute_percentiles,
-    scrape,
+from sase.telemetry.query import (
+    RANGE_SECONDS,
+    STEP_SECONDS,
+    query_instant,
+    query_range,
+    store_stats,
+)
+from sase.telemetry.render import (
+    Series,
+    Status,
+    ValueFormat,
+    render_line_chart,
+    render_stat_tile,
 )
 
-# ── Time-range helpers ───────────────────────────────────────────────
 
-_RANGE_SECONDS: dict[str, int] = {
-    "1h": 3600,
-    "6h": 21600,
-    "24h": 86400,
-    "7d": 604800,
+@dataclass(frozen=True, slots=True)
+class _SeriesQuery:
+    metric: str
+    kind: str
+    aggregation: str
+    group_by: tuple[str, ...] = ()
+    filters: tuple[tuple[str, str], ...] = ()
+    quantile: float | None = None
+    label: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _ChartSpec:
+    title: str
+    y_label: str
+    value_format: ValueFormat
+    queries: tuple[_SeriesQuery, ...] = ()
+    derived: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ChartData:
+    """Presentation-ready series for one dashboard chart."""
+
+    title: str
+    y_label: str
+    value_format: ValueFormat
+    series: tuple[Series, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class DashboardData:
+    """One immutable local-store dashboard refresh."""
+
+    subsystem: str
+    range_key: str
+    recording_started_at: int | None
+    has_samples: bool
+    active_agents: float
+    active_workspaces: float
+    active_beads: float
+    runs_in_range: float
+    error_rate: float
+    agent_sparkline: tuple[float, ...]
+    workspace_sparkline: tuple[float, ...]
+    bead_sparkline: tuple[float, ...]
+    runs_sparkline: tuple[float, ...]
+    error_sparkline: tuple[float, ...]
+    charts: tuple[ChartData, ...]
+
+
+_AGENT_TOKEN_QUERIES = (
+    _SeriesQuery(
+        "sase_llm_input_tokens_total",
+        "counter",
+        "sum",
+        ("provider",),
+        label="input",
+    ),
+    _SeriesQuery(
+        "sase_llm_output_tokens_total",
+        "counter",
+        "sum",
+        ("provider",),
+        label="output",
+    ),
+)
+
+_CHART_SETS: dict[str, tuple[_ChartSpec, ...]] = {
+    "agents": (
+        _ChartSpec(
+            "Agent Runs by status",
+            "runs",
+            "number",
+            (_SeriesQuery("sase_agent_runs_total", "counter", "sum", ("status",)),),
+        ),
+        _ChartSpec(
+            "Run Duration p50/p95",
+            "duration",
+            "duration",
+            (
+                _SeriesQuery(
+                    "sase_agent_run_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.50,
+                    label="p50",
+                ),
+                _SeriesQuery(
+                    "sase_agent_run_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.95,
+                    label="p95",
+                ),
+            ),
+        ),
+        _ChartSpec("LLM Tokens by provider", "tokens", "tokens", _AGENT_TOKEN_QUERIES),
+        _ChartSpec("Error Rate %", "error rate", "percent", derived="agent_error_rate"),
+    ),
+    "axe": (
+        _ChartSpec(
+            "Axe Cycles",
+            "cycles",
+            "number",
+            (_SeriesQuery("sase_axe_cycles_total", "counter", "sum", ("cycle_type",)),),
+        ),
+        _ChartSpec(
+            "Cycle Duration p50/p95",
+            "duration",
+            "duration",
+            (
+                _SeriesQuery(
+                    "sase_axe_cycle_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.50,
+                    label="p50",
+                ),
+                _SeriesQuery(
+                    "sase_axe_cycle_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.95,
+                    label="p95",
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Active Lumberjacks",
+            "workers",
+            "number",
+            (_SeriesQuery("sase_axe_lumberjacks_active", "gauge", "avg"),),
+        ),
+        _ChartSpec(
+            "Axe Errors",
+            "errors",
+            "number",
+            (_SeriesQuery("sase_axe_errors_total", "counter", "sum", ("error_type",)),),
+        ),
+    ),
+    "beads": (
+        _ChartSpec(
+            "Bead Operations",
+            "operations",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_bead_operations_total", "counter", "sum", ("operation",)
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Status Transitions",
+            "transitions",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_bead_status_transitions_total",
+                    "counter",
+                    "sum",
+                    ("to_status",),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Active Beads",
+            "beads",
+            "number",
+            (_SeriesQuery("sase_bead_active", "gauge", "avg", ("status",)),),
+        ),
+    ),
+    "hooks": (
+        _ChartSpec(
+            "Hook Executions",
+            "executions",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_hook_executions_total",
+                    "counter",
+                    "sum",
+                    ("hook_type", "status"),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Hook Duration p95",
+            "duration",
+            "duration",
+            (
+                _SeriesQuery(
+                    "sase_hook_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    ("hook_type",),
+                    quantile=0.95,
+                    label="p95",
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Workflow Executions",
+            "executions",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_workflow_executions_total",
+                    "counter",
+                    "sum",
+                    ("workflow", "status"),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Workflow Duration p95",
+            "duration",
+            "duration",
+            (
+                _SeriesQuery(
+                    "sase_workflow_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    ("workflow",),
+                    quantile=0.95,
+                    label="p95",
+                ),
+            ),
+        ),
+    ),
+    "llm": (
+        _ChartSpec(
+            "LLM Invocations",
+            "invocations",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_llm_invocations_total",
+                    "counter",
+                    "sum",
+                    ("provider", "status"),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "LLM Duration p50/p95",
+            "duration",
+            "duration",
+            (
+                _SeriesQuery(
+                    "sase_llm_invocation_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.50,
+                    label="p50",
+                ),
+                _SeriesQuery(
+                    "sase_llm_invocation_duration_seconds",
+                    "histogram",
+                    "quantile",
+                    quantile=0.95,
+                    label="p95",
+                ),
+            ),
+        ),
+        _ChartSpec("LLM Tokens by provider", "tokens", "tokens", _AGENT_TOKEN_QUERIES),
+        _ChartSpec(
+            "LLM Errors",
+            "errors",
+            "number",
+            (_SeriesQuery("sase_llm_errors_total", "counter", "sum", ("provider",)),),
+        ),
+    ),
+    "memory": (
+        _ChartSpec(
+            "Memory Proposals",
+            "proposals",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_memory_proposals_proposed_total",
+                    "counter",
+                    "sum",
+                    label="proposed",
+                ),
+                _SeriesQuery(
+                    "sase_memory_proposals_approved_total",
+                    "counter",
+                    "sum",
+                    label="approved",
+                ),
+                _SeriesQuery(
+                    "sase_memory_proposals_rejected_total",
+                    "counter",
+                    "sum",
+                    label="rejected",
+                ),
+            ),
+        ),
+    ),
+    "notifications": (
+        _ChartSpec(
+            "Notifications Sent",
+            "notifications",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_notifications_sent_total",
+                    "counter",
+                    "sum",
+                    ("type", "status"),
+                ),
+            ),
+        ),
+    ),
+    "workspace": (
+        _ChartSpec(
+            "Active Workspaces",
+            "workspaces",
+            "number",
+            (_SeriesQuery("sase_workspace_active", "gauge", "avg", ("project",)),),
+        ),
+        _ChartSpec(
+            "Workspace Acquisitions",
+            "acquisitions",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_workspace_acquisitions_total",
+                    "counter",
+                    "sum",
+                    ("project",),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "Workspace Releases",
+            "releases",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_workspace_releases_total",
+                    "counter",
+                    "sum",
+                    ("project",),
+                ),
+            ),
+        ),
+        _ChartSpec(
+            "VCS Operations",
+            "operations",
+            "number",
+            (
+                _SeriesQuery(
+                    "sase_vcs_operations_total",
+                    "counter",
+                    "sum",
+                    ("provider", "status"),
+                ),
+            ),
+        ),
+    ),
 }
 
-_STEP_FOR_RANGE: dict[str, str] = {
-    "1h": "15s",
-    "6h": "60s",
-    "24h": "300s",
-    "7d": "1800s",
-}
 
-_RATE_WINDOW_FOR_RANGE: dict[str, str] = {
-    "1h": "15m",
-    "6h": "1h",
-    "24h": "4h",
-    "7d": "1d",
-}
+class _RangeCache:
+    def __init__(self, *, start_ts: int, end_ts: int, step_seconds: int) -> None:
+        self.start_ts = start_ts
+        self.end_ts = end_ts
+        self.step_seconds = step_seconds
+        self._results: dict[tuple[Any, ...], dict[str, Any]] = {}
 
-# ── Color thresholds for stat panels ────────────────────────────────
-
-_GAUGE_STYLES: list[tuple[float, str]] = [
-    (0, "green"),
-    (5, "yellow"),
-    (10, "red"),
-]
-
-
-def _gauge_style(value: float) -> str:
-    """Return a Rich style string based on gauge value thresholds."""
-    style = "green"
-    for threshold, s in _GAUGE_STYLES:
-        if value >= threshold:
-            style = s
-    return style
-
-
-# ── Data source resolution ──────────────────────────────────────────
-
-
-def _resolve_source(source: str) -> str | None:
-    """Resolve the data source URL, returning None if unreachable."""
-    cfg = get_telemetry_config()
-    pushgateway_url = f"http://{cfg.pushgateway_url}/metrics"
-    exposition_url = f"http://localhost:{cfg.exposition_port}/metrics"
-
-    if source == "pushgateway":
-        return pushgateway_url if check_reachable(pushgateway_url) else None
-    if source == "exposition":
-        return exposition_url if check_reachable(exposition_url) else None
-
-    if check_reachable(pushgateway_url):
-        return pushgateway_url
-    if check_reachable(exposition_url):
-        return exposition_url
-    return None
-
-
-# ── Summary mode (enhanced) ─────────────────────────────────────────
-
-
-def _group_samples_by_subsystem(
-    samples: list[MetricSample],
-) -> dict[str, list[MetricSample]]:
-    """Group samples by subsystem using the catalog."""
-    subsystems = get_subsystems()
-    name_to_sub: dict[str, str] = {}
-    for sub_name, metrics in subsystems.items():
-        for m in metrics:
-            name_to_sub[m.prometheus_name] = sub_name
-            for suffix in ("_total", "_bucket", "_count", "_sum", "_created"):
-                name_to_sub[m.prometheus_name + suffix] = sub_name
-
-    grouped: dict[str, list[MetricSample]] = {}
-    for s in samples:
-        sub = name_to_sub.get(s.name)
-        if sub:
-            grouped.setdefault(sub, []).append(s)
-    return grouped
-
-
-def _pick_key_metrics(
-    samples: list[MetricSample],
-) -> list[tuple[str, str]]:
-    """Extract compact key metric rows from a subsystem's samples.
-
-    Returns (label, value_str) pairs for display in the dashboard panel.
-    """
-    bucket_groups: dict[str, list[MetricSample]] = {}
-    regular: list[MetricSample] = []
-
-    for s in samples:
-        if s.name.endswith("_bucket"):
-            base = s.name[: -len("_bucket")]
-            bucket_groups.setdefault(base, []).append(s)
-        elif s.name.endswith(("_count", "_sum", "_created")):
-            continue
-        else:
-            regular.append(s)
-
-    aggregated: dict[str, float] = {}
-    for s in regular:
-        base = s.name.removesuffix("_total")
-        aggregated[base] = aggregated.get(base, 0) + s.value
-
-    rows: list[tuple[str, str]] = []
-    for base, total in aggregated.items():
-        short = base.removeprefix("sase_").replace("_", " ").title()
-        rows.append((short, f"{total:g}"))
-
-    for base, buckets in bucket_groups.items():
-        pcts = compute_percentiles(buckets)
-        if pcts:
-            short = base.removeprefix("sase_").replace("_", " ").title()
-            pct_str = " ".join(f"{k}={v:g}s" for k, v in pcts.items())
-            rows.append((short, pct_str))
-
-    return rows
-
-
-# ── Key gauge stat cards ────────────────────────────────────────────
-
-_KEY_GAUGES = [
-    ("sase_agent_active", "Active Agents"),
-    ("sase_workspace_active", "Active Workspaces"),
-    ("sase_bead_active", "Active Beads"),
-]
-
-
-def _build_stat_panels(samples: list[MetricSample]) -> list[Panel]:
-    """Build large styled stat panels for key gauges with sparklines."""
-    from sase.telemetry.charts import render_sparkline
-
-    sample_map: dict[str, float] = {}
-    for s in samples:
-        base = s.name.removesuffix("_total")
-        sample_map[base] = sample_map.get(base, 0) + s.value
-
-    panels: list[Panel] = []
-    for metric_name, display_name in _KEY_GAUGES:
-        value = sample_map.get(metric_name, 0)
-        style = _gauge_style(value)
-        spark = render_sparkline([value] * 8, title="")
-        content = Group(
-            Text(f"{value:g}", style=f"bold {style}", justify="center"),
-            spark,
+    def get(self, query: _SeriesQuery) -> dict[str, Any]:
+        key = (
+            query.metric,
+            query.kind,
+            query.aggregation,
+            query.group_by,
+            query.filters,
+            query.quantile,
         )
-        panels.append(
-            Panel(
-                content,
-                title=f"[bold]{display_name}[/bold]",
-                border_style=style,
-                width=24,
-                height=6,
-                padding=(0, 2),
+        if key not in self._results:
+            self._results[key] = query_range(
+                query.metric,
+                kind=query.kind,
+                start_ts=self.start_ts,
+                end_ts=self.end_ts,
+                step_seconds=self.step_seconds,
+                filters=dict(query.filters),
+                group_by=query.group_by,
+                aggregation=query.aggregation,
+                quantile=query.quantile,
+            )
+        return self._results[key]
+
+
+def _label_for(query: _SeriesQuery, labels: dict[str, str]) -> str:
+    label_values = " · ".join(value for _, value in sorted(labels.items()))
+    if query.label and label_values:
+        return f"{query.label} · {label_values}"
+    if query.label:
+        return query.label
+    return label_values or str(query.aggregation)
+
+
+def _series_for(query: _SeriesQuery, result: dict[str, Any]) -> list[Series]:
+    rendered: list[Series] = []
+    for index, item in enumerate(result.get("series", [])):
+        labels = dict(item.get("labels", {}))
+        rendered.append(
+            Series.from_pairs(
+                f"{query.metric}:{query.aggregation}:{query.quantile}:{index}:{sorted(labels.items())}",
+                [
+                    (int(point["ts"]), float(point["value"]))
+                    for point in item.get("points", [])
+                ],
+                label=_label_for(query, labels),
             )
         )
-    return panels
+    return rendered
 
 
-def _build_subsystem_panel(name: str, rows: list[tuple[str, str]]) -> Panel:
-    """Build a compact Rich panel for one subsystem."""
-    table = Table(show_header=False, box=None, pad_edge=False, expand=True)
-    table.add_column("Metric", style="bold", ratio=1)
-    table.add_column("Value", justify="right", ratio=1)
-    for label, value in rows:
-        style = ""
-        try:
-            v = float(value.split("=")[0] if "=" in value else value)
-            if v > 100:
-                style = "yellow"
-            if v > 500:
-                style = "red"
-        except ValueError:
-            pass
-        table.add_row(label, Text(value, style=style))
-    return Panel(table, title=name, border_style="cyan", width=36)
+def _points_by_timestamp(result: dict[str, Any]) -> dict[int, float]:
+    points: dict[int, float] = {}
+    for item in result.get("series", []):
+        for point in item.get("points", []):
+            ts = int(point["ts"])
+            points[ts] = points.get(ts, 0.0) + float(point["value"])
+    return points
 
 
-def _build_dashboard(samples: list[MetricSample]) -> Group:
-    """Build the full summary-mode dashboard layout.
-
-    Exposed for testing — returns a Rich renderable.
-    """
-    stat_panels = _build_stat_panels(samples)
-    stat_row = Columns(stat_panels, equal=True, expand=False)
-
-    grouped = _group_samples_by_subsystem(samples)
-    subsystem_panels: list[Panel] = []
-    for sub_name in SUBSYSTEM_ORDER:
-        sub_samples = grouped.get(sub_name)
-        if not sub_samples:
-            continue
-        rows = _pick_key_metrics(sub_samples)
-        if rows:
-            subsystem_panels.append(_build_subsystem_panel(sub_name, rows))
-
-    metric_rows = Columns(subsystem_panels, equal=True, expand=True)
-    return Group(stat_row, Text(""), metric_rows)
-
-
-# ── Charts mode ─────────────────────────────────────────────────────
-
-
-def _get_chart_specs(
-    rate_window: str,
-) -> list[tuple[str, list[str], str, list[str]]]:
-    """Return chart specs with the given rate window interpolated into PromQL queries."""
-    w = rate_window
-    return [
-        (
-            "Agent Run Duration",
-            [
-                f"histogram_quantile(0.50, sum(rate(sase_agent_run_duration_seconds_bucket[{w}])) by (le))",
-                f"histogram_quantile(0.95, sum(rate(sase_agent_run_duration_seconds_bucket[{w}])) by (le))",
-            ],
-            "seconds",
-            ["p50", "p95"],
-        ),
-        (
-            "Active Agents",
-            ["sase_agent_active"],
-            "agents",
-            ["active"],
-        ),
-        (
-            "Agent Throughput",
-            [
-                f'rate(sase_agent_runs_total{{status="ok"}}[{w}])',
-                f'rate(sase_agent_runs_total{{status="error"}}[{w}])',
-            ],
-            "runs/sec",
-            ["ok", "error"],
-        ),
-        (
-            "LLM Token Usage",
-            [
-                f"rate(sase_llm_input_tokens_total[{w}])",
-                f"rate(sase_llm_output_tokens_total[{w}])",
-                f"rate(sase_llm_cache_read_tokens_total[{w}])",
-            ],
-            "tokens/sec",
-            ["input", "output", "cache"],
-        ),
-        (
-            "LLM Latency",
-            [
-                f"histogram_quantile(0.50, sum(rate(sase_llm_invocation_duration_seconds_bucket[{w}])) by (le))",
-                f"histogram_quantile(0.95, sum(rate(sase_llm_invocation_duration_seconds_bucket[{w}])) by (le))",
-            ],
-            "seconds",
-            ["p50", "p95"],
-        ),
-        (
-            "Error Rate",
-            [
-                f'rate(sase_agent_runs_total{{status="error"}}[{w}])',
-                f"rate(sase_llm_errors_total[{w}])",
-            ],
-            "errors/sec",
-            ["agent errors", "LLM errors"],
-        ),
+def _error_rate_series(cache: _RangeCache) -> Series:
+    total = _points_by_timestamp(
+        cache.get(_SeriesQuery("sase_agent_runs_total", "counter", "sum"))
+    )
+    errors = _points_by_timestamp(
+        cache.get(
+            _SeriesQuery(
+                "sase_agent_runs_total",
+                "counter",
+                "sum",
+                filters=(("status", "error"),),
+            )
+        )
+    )
+    points = [
+        (ts, errors.get(ts, 0.0) / value * 100.0 if value else 0.0)
+        for ts, value in sorted(total.items())
     ]
+    return Series.from_pairs("agent-error-rate", points, label="errors")
 
 
-def _build_charts_dashboard(
-    prom_url: str,
-    range_key: str,
-    subsystem_filter: str | None,
-    width: int,
-) -> Group:
-    """Build the charts-mode dashboard by querying Prometheus."""
-    from sase.telemetry.charts import render_bar_chart, render_line_chart
-    from sase.telemetry.prom_query import TimeSeries, query_range
-
-    range_secs = _RANGE_SECONDS.get(range_key, 3600)
-    step = _STEP_FOR_RANGE.get(range_key, "15s")
-    rate_window = _RATE_WINDOW_FOR_RANGE.get(range_key, "15m")
-    end = time.time()
-    start = end - range_secs
-
-    all_specs = _get_chart_specs(rate_window)
-    specs = all_specs
-    if subsystem_filter:
-        lf = subsystem_filter.lower()
-        specs = [s for s in all_specs if lf in s[0].lower()]
-        if not specs:
-            specs = all_specs
-
-    chart_width = max(30, (width - 6) // 2)
-    chart_height = 14
-
-    panels: list[Panel] = []
-    for title, queries, y_label, legend_labels in specs:
-        all_series: list[TimeSeries] = []
-        for q in queries:
-            result = query_range(prom_url, q, start, end, step)
-            if result:
-                all_series.append(result[0])
-            else:
-                all_series.append(TimeSeries(metric=""))
-
-        # Use bar chart for throughput metrics.
-        if title == "Agent Throughput":
-            bar_labels = legend_labels
-            bar_values = [
-                sum(p[1] for p in ts.points) / max(len(ts.points), 1)
-                for ts in all_series
-            ]
-            panel = render_bar_chart(
-                bar_labels,
-                bar_values,
-                title=title,
-                width=chart_width,
-                height=chart_height,
-            )
-        else:
-            panel = render_line_chart(
-                all_series,
-                title=title,
-                y_label=y_label,
-                width=chart_width,
-                height=chart_height,
-                legend_labels=legend_labels,
-            )
-        panels.append(panel)
-
-    chart_grid = Columns(panels, equal=True, expand=True, column_first=True)
-
-    range_label = Text.assemble(
-        ("Range: ", "dim"),
-        (range_key, "cyan bold"),
-        ("  |  Step: ", "dim"),
-        (step, "cyan bold"),
+def _chart_data(spec: _ChartSpec, cache: _RangeCache) -> ChartData:
+    if spec.derived == "agent_error_rate":
+        series = [_error_rate_series(cache)]
+    else:
+        series = [
+            item
+            for query in spec.queries
+            for item in _series_for(query, cache.get(query))
+        ]
+    return ChartData(
+        title=spec.title,
+        y_label=spec.y_label,
+        value_format=spec.value_format,
+        series=tuple(series),
     )
 
-    return Group(range_label, Text(""), chart_grid)
+
+def _instant_total(metric: str, kind: str, *, now_ts: int) -> float:
+    result = query_instant(metric, kind=kind, group_by=(), now_ts=now_ts)
+    return sum(float(value.get("value", 0.0)) for value in result.get("values", []))
 
 
-# ── Main handler ────────────────────────────────────────────────────
+def _range_values(cache: _RangeCache, query: _SeriesQuery) -> tuple[float, ...]:
+    return tuple(
+        value for _, value in sorted(_points_by_timestamp(cache.get(query)).items())
+    )
+
+
+def load_dashboard_data(
+    *, now_ts: int, range_key: str, subsystem: str
+) -> DashboardData:
+    """Load one complete dashboard refresh from the configured local store."""
+    stats = store_stats()
+    sample_count = sum(
+        int(stats.get(key, 0))
+        for key in ("raw_sample_count", "rollup_5m_count", "rollup_1h_count")
+    )
+    has_samples = sample_count > 0
+    empty = DashboardData(
+        subsystem=subsystem,
+        range_key=range_key,
+        recording_started_at=stats.get("earliest_sample_ts"),
+        has_samples=False,
+        active_agents=0.0,
+        active_workspaces=0.0,
+        active_beads=0.0,
+        runs_in_range=0.0,
+        error_rate=0.0,
+        agent_sparkline=(),
+        workspace_sparkline=(),
+        bead_sparkline=(),
+        runs_sparkline=(),
+        error_sparkline=(),
+        charts=(),
+    )
+    if not has_samples:
+        return empty
+
+    start_ts = now_ts - RANGE_SECONDS[range_key]
+    cache = _RangeCache(
+        start_ts=start_ts,
+        end_ts=now_ts,
+        step_seconds=STEP_SECONDS[range_key],
+    )
+    agent_query = _SeriesQuery("sase_agent_active", "gauge", "avg")
+    workspace_query = _SeriesQuery("sase_workspace_active", "gauge", "avg")
+    bead_query = _SeriesQuery("sase_bead_active", "gauge", "avg")
+    runs_query = _SeriesQuery("sase_agent_runs_total", "counter", "sum")
+    runs_values = _range_values(cache, runs_query)
+    error_values = tuple(point.value for point in _error_rate_series(cache).points)
+    runs_in_range = sum(runs_values)
+    errors_in_range = sum(
+        _range_values(
+            cache,
+            _SeriesQuery(
+                "sase_agent_runs_total",
+                "counter",
+                "sum",
+                filters=(("status", "error"),),
+            ),
+        )
+    )
+    error_rate = errors_in_range / runs_in_range * 100.0 if runs_in_range else 0.0
+
+    chart_specs = _CHART_SETS.get(subsystem, _CHART_SETS["agents"])
+    return DashboardData(
+        subsystem=subsystem,
+        range_key=range_key,
+        recording_started_at=stats.get("earliest_sample_ts"),
+        has_samples=True,
+        active_agents=_instant_total("sase_agent_active", "gauge", now_ts=now_ts),
+        active_workspaces=_instant_total(
+            "sase_workspace_active", "gauge", now_ts=now_ts
+        ),
+        active_beads=_instant_total("sase_bead_active", "gauge", now_ts=now_ts),
+        runs_in_range=runs_in_range,
+        error_rate=error_rate,
+        agent_sparkline=_range_values(cache, agent_query),
+        workspace_sparkline=_range_values(cache, workspace_query),
+        bead_sparkline=_range_values(cache, bead_query),
+        runs_sparkline=runs_values,
+        error_sparkline=error_values,
+        charts=tuple(_chart_data(spec, cache) for spec in chart_specs),
+    )
+
+
+def _error_status(rate: float) -> Status:
+    thresholds = get_telemetry_config().health_thresholds
+    if rate >= thresholds.error_rate_critical:
+        return "critical"
+    if rate >= thresholds.error_rate_warn:
+        return "warning"
+    return "ok"
+
+
+def _render_dashboard(data: DashboardData, *, width: int) -> Group:
+    """Render an immutable dashboard refresh with the shared chart toolkit."""
+    header = Text.assemble(
+        ("Telemetry Dashboard", "bold"),
+        ("  ·  ", "dim"),
+        (data.subsystem.title(), "cyan bold"),
+        ("  ·  ", "dim"),
+        (data.range_key, "cyan"),
+    )
+    if not data.has_samples:
+        empty = Panel(
+            "[dim]No telemetry samples have been recorded yet.\n"
+            "Run normal SASE activity and refresh this dashboard.[/dim]",
+            title="Local telemetry store",
+            border_style="cyan",
+        )
+        return Group(header, Text(""), empty)
+
+    tile_width = max(18, min(26, (max(width, 80) - 4) // 5))
+    tiles = [
+        render_stat_tile(
+            data.active_agents,
+            caption="Active Agents",
+            width=tile_width,
+            sparkline=data.agent_sparkline,
+        ),
+        render_stat_tile(
+            data.active_workspaces,
+            caption="Active Workspaces",
+            width=tile_width,
+            sparkline=data.workspace_sparkline,
+        ),
+        render_stat_tile(
+            data.active_beads,
+            caption="Active Beads",
+            width=tile_width,
+            sparkline=data.bead_sparkline,
+        ),
+        render_stat_tile(
+            data.runs_in_range,
+            caption=f"Runs · {data.range_key}",
+            width=tile_width,
+            sparkline=data.runs_sparkline,
+        ),
+        render_stat_tile(
+            data.error_rate,
+            caption="Error Rate",
+            width=tile_width,
+            value_format="percent",
+            sparkline=data.error_sparkline,
+            status=_error_status(data.error_rate),
+            lower_is_better=True,
+        ),
+    ]
+    chart_width = max(32, (max(width, 70) - 3) // 2)
+    charts = [
+        render_line_chart(
+            chart.series,
+            title=chart.title,
+            width=chart_width,
+            height=15,
+            y_label=chart.y_label,
+            value_format=chart.value_format,
+            recording_started_at=data.recording_started_at,
+        )
+        for chart in data.charts
+    ]
+    return Group(
+        header,
+        Text(""),
+        Columns(tiles, equal=True, expand=False),
+        Text(""),
+        Columns(charts, equal=True, expand=False, column_first=True),
+    )
 
 
 def handle_telemetry_dashboard(args: argparse.Namespace) -> None:
-    """Live auto-refreshing telemetry dashboard."""
-    source: str = getattr(args, "source", "auto")
-    interval: int = getattr(args, "interval", 5)
-    charts_mode: bool = getattr(args, "charts", False)
-    range_key: str = getattr(args, "range", "1h")
-    subsystem_filter: str | None = getattr(args, "subsystem", None)
+    """Run the live, auto-refreshing local telemetry dashboard."""
+    config = get_telemetry_config()
     console = Console()
-    prom_url: str = ""
-    url: str = ""
+    if not config.enabled:
+        console.print(
+            "[yellow]Telemetry is disabled.[/yellow]\n"
+            "[dim]Set telemetry.enabled to true to begin recording.[/dim]"
+        )
+        return
 
-    # Charts mode: check Prometheus first, fall back to summary mode.
-    if charts_mode:
-        from sase.telemetry.prom_query import check_prometheus_reachable
-
-        cfg = get_telemetry_config()
-        prom_url = f"http://{cfg.prometheus_url}"
-
-        if not check_prometheus_reachable(prom_url):
-            console.print(
-                "[yellow]Prometheus is not reachable — falling back to summary mode.[/yellow]"
-            )
-            charts_mode = False
-        else:
-            interval = max(interval, 15)
-
-    if not charts_mode:
-        resolved = _resolve_source(source)
-        if resolved is None:
-            console.print(
-                "[red]No metric source is reachable.[/red]\n"
-                "[dim]Run 'sase telemetry status' for diagnostics.[/dim]"
-            )
-            return
-        url = resolved
-
-    mode_label = "charts" if charts_mode else "summary"
-    header = Text.assemble(
-        ("Telemetry Dashboard", "bold"),
-        (" [", "dim"),
-        (mode_label, "cyan"),
-        ("]", "dim"),
-        (" — refreshing every ", ""),
-        (f"{interval}s", "cyan"),
-        (" — ", ""),
-        ("Ctrl+C to exit", "dim"),
-    )
-
+    interval = max(1, int(getattr(args, "interval", 5)))
+    range_key = str(getattr(args, "range", "1h"))
+    subsystem = str(getattr(args, "subsystem", "agents"))
     try:
-        with Live(console=console, refresh_per_second=1) as live:
+        with Live(console=console, refresh_per_second=4) as live:
             while True:
-                if charts_mode:
-                    layout = _build_charts_dashboard(
-                        prom_url,
-                        range_key,
-                        subsystem_filter,
-                        console.width,
+                try:
+                    data = load_dashboard_data(
+                        now_ts=int(time.time()),
+                        range_key=range_key,
+                        subsystem=subsystem,
                     )
-                else:
-                    samples = scrape(url)
-                    layout = _build_dashboard(samples)
-                live.update(Group(header, Text(""), layout))
+                    live.update(_render_dashboard(data, width=console.width))
+                except (RuntimeError, ValueError) as exc:
+                    live.update(
+                        Panel(
+                            f"[red]Unable to query the local telemetry store:[/red]\n{exc}",
+                            title="Telemetry Dashboard",
+                            border_style="red",
+                        )
+                    )
                 time.sleep(interval)
     except KeyboardInterrupt:
         console.print("\n[dim]Dashboard stopped.[/dim]")
+
+
+__all__ = [
+    "ChartData",
+    "DashboardData",
+    "handle_telemetry_dashboard",
+    "load_dashboard_data",
+]

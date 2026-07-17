@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -19,6 +20,26 @@ def reset_telemetry_config() -> None:
     import sase.telemetry._config as cfg_mod
 
     cfg_mod._cached_config = None
+
+
+def use_store(store_path: Path, *, enabled: bool = True) -> _TelemetryConfig:
+    """Point telemetry queries at a temporary local store for one test."""
+    import sase.telemetry._config as cfg_mod
+
+    config = _TelemetryConfig(enabled=enabled, store_path=store_path)
+    cfg_mod._cached_config = config
+    return config
+
+
+def record_samples(store_path: Path, samples: list[dict], *, now_ts: int) -> dict:
+    """Persist deterministic wire samples through the real Rust binding."""
+    from sase_core_rs import telemetry_record_batch
+
+    return telemetry_record_batch(
+        str(store_path),
+        {"samples": samples, "now_ts": now_ts},
+        1_000,
+    )
 
 
 def reset_registry() -> None:

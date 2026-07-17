@@ -172,6 +172,9 @@ _lint-pyscripts: _setup
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
+        --epic-symbol 'sase-6k(ChartData)' \
+        --epic-symbol 'sase-6k(DashboardData)' \
+        --epic-symbol 'sase-6k(load_dashboard_data)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

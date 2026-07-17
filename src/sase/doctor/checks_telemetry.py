@@ -35,7 +35,7 @@ def telemetry_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 
 def _check_telemetry_status() -> DiagnosticCheck:
-    """Check telemetry enablement and endpoint reachability."""
+    """Check telemetry enablement, local store access, and write freshness."""
     payload = build_telemetry_status_payload(timeout=_TELEMETRY_TIMEOUT_SECONDS)
     if not bool(payload.get("enabled")):
         return DiagnosticCheck(
@@ -47,18 +47,26 @@ def _check_telemetry_status() -> DiagnosticCheck:
             data=payload,
         )
 
-    endpoints = _endpoint_rows(payload)
-    unreachable = [row for row in endpoints if row["reachable"] is False]
-    status: CheckStatus = "WARN" if unreachable else "OK"
+    raw_store = payload.get("store")
+    store: dict[str, Any] = raw_store if isinstance(raw_store, dict) else {}
+    raw_flusher = payload.get("flusher")
+    flusher: dict[str, Any] = raw_flusher if isinstance(raw_flusher, dict) else {}
+    store_error = payload.get("store_error")
+    flusher_state = str(flusher.get("state") or "idle")
+    status: CheckStatus = (
+        "WARN" if store_error or flusher_state in {"error", "stale"} else "OK"
+    )
     metric_count = int(payload.get("metric_count") or 0)
+    sample_count = int(store.get("sample_count") or 0)
     summary = (
-        f"telemetry enabled; {metric_count} metric(s); endpoints reachable"
-        if not unreachable
-        else f"telemetry enabled but {len(unreachable)} endpoint(s) are unreachable"
+        f"telemetry enabled; {metric_count} metric(s); {sample_count} local sample(s)"
     )
-    details = tuple(
-        f"{row['name']}: {row['url']} is not reachable" for row in unreachable
-    )
+    details_list: list[str] = []
+    if store_error:
+        details_list.append(f"local telemetry store error: {store_error}")
+    if flusher_state == "stale":
+        details_list.append("the local telemetry store has not received a recent write")
+    details = tuple(details_list)
 
     return DiagnosticCheck(
         id="ops.telemetry_status",
@@ -67,13 +75,13 @@ def _check_telemetry_status() -> DiagnosticCheck:
         title="Telemetry status",
         summary=summary,
         details=details,
-        next_steps=("Run `sase telemetry status`.",) if unreachable else (),
-        data={**payload, "endpoints": endpoints},
+        next_steps=("Run `sase telemetry status`.",) if status == "WARN" else (),
+        data=payload,
     )
 
 
 def _check_telemetry_health() -> DiagnosticCheck:
-    """Adapt deep Prometheus health into one doctor check."""
+    """Adapt deep local-store health into one doctor check."""
     status_payload = build_telemetry_status_payload(timeout=_TELEMETRY_TIMEOUT_SECONDS)
     if not bool(status_payload.get("enabled")):
         return DiagnosticCheck(
@@ -86,7 +94,7 @@ def _check_telemetry_health() -> DiagnosticCheck:
         )
 
     payload = build_telemetry_health_payload("auto")
-    raw_status = str(payload.get("status") or "unreachable")
+    raw_status = str(payload.get("status") or "error")
     if raw_status == "ok":
         status: CheckStatus = "OK"
     else:
@@ -97,9 +105,12 @@ def _check_telemetry_health() -> DiagnosticCheck:
         row for row in subsystems if row["status"] not in {"ok", "OK"}
     ]
     details: tuple[str, ...]
-    if raw_status == "unreachable":
-        summary = "no telemetry metric source is reachable"
-        details = ("pushgateway and exposition endpoints were not reachable",)
+    if raw_status == "no_data":
+        summary = "the local telemetry store has no samples from the last hour"
+        details = ()
+    elif raw_status == "error":
+        summary = "the local telemetry store could not be queried"
+        details = (str(payload.get("error") or "unknown store error"),)
     else:
         summary = f"telemetry health status is {raw_status}"
         details = tuple(
@@ -117,22 +128,6 @@ def _check_telemetry_health() -> DiagnosticCheck:
         next_steps=("Run `sase telemetry health -j`.",) if status == "WARN" else (),
         data=payload,
     )
-
-
-def _endpoint_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for name in ("pushgateway", "exposition"):
-        raw = payload.get(name)
-        if not isinstance(raw, dict):
-            continue
-        rows.append(
-            {
-                "name": name,
-                "url": raw.get("metrics_url"),
-                "reachable": raw.get("reachable"),
-            }
-        )
-    return rows
 
 
 def _subsystem_rows(payload: dict[str, Any]) -> list[dict[str, str]]:

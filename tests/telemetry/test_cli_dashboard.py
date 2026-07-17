@@ -1,172 +1,153 @@
-"""Tests for ``sase telemetry dashboard`` CLI subcommand."""
+"""Tests for the local-store telemetry dashboard."""
 
-from argparse import Namespace
-from unittest.mock import patch
+from pathlib import Path
 
 from rich.console import Console
 
-from sase.telemetry.cli_dashboard import (
-    _build_dashboard,
-    _build_stat_panels,
-    handle_telemetry_dashboard,
-)
-from sase.telemetry.scrape import MetricSample
-from tests.telemetry.conftest import reset_telemetry_config
-
-_MOCK_SAMPLES = [
-    MetricSample(
-        name="sase_agent_runs_total",
-        labels={"llm_provider": "claude", "status": "ok", "workflow": ""},
-        value=42.0,
-        metric_type="counter",
-    ),
-    MetricSample(
-        name="sase_agent_runs_total",
-        labels={"llm_provider": "claude", "status": "error", "workflow": ""},
-        value=3.0,
-        metric_type="counter",
-    ),
-    MetricSample(
-        name="sase_agent_active",
-        labels={"llm_provider": "claude", "project": "sase"},
-        value=2.0,
-        metric_type="gauge",
-    ),
-    MetricSample(
-        name="sase_bead_operations_total",
-        labels={"operation": "create"},
-        value=5.0,
-        metric_type="counter",
-    ),
-]
-
-
-def setup_function() -> None:
-    reset_telemetry_config()
-
-
-def teardown_function() -> None:
-    reset_telemetry_config()
+from sase.telemetry.cli_dashboard import _render_dashboard, load_dashboard_data
+from tests.telemetry.conftest import record_samples, use_store
 
 
 def _render(renderable: object) -> str:
-    """Render a Rich renderable to a string."""
     console = Console(file=None, force_terminal=False, width=120)
     with console.capture() as capture:
         console.print(renderable)
     return capture.get()
 
 
-def test_dashboard_shows_subsystem_panels() -> None:
-    output = _render(_build_dashboard(_MOCK_SAMPLES))
-    assert "Agent Lifecycle" in output
-    assert "Beads" in output
-
-
-def test_dashboard_shows_metric_values() -> None:
-    output = _render(_build_dashboard(_MOCK_SAMPLES))
-    # Agent runs total = 42 + 3 = 45
-    assert "45" in output
-
-
-def test_dashboard_shows_gauge_values() -> None:
-    output = _render(_build_dashboard(_MOCK_SAMPLES))
-    assert "2" in output
-
-
-def test_dashboard_empty_samples() -> None:
-    output = _render(_build_dashboard([]))
-    assert "Agent Lifecycle" not in output
-
-
-def test_dashboard_unreachable_source() -> None:
-    """When no source is reachable, dashboard shows an error message."""
-    args = Namespace(
-        source="auto", interval=5, charts=False, range="1h", subsystem=None
+def _seed_dashboard(store_path: Path) -> None:
+    record_samples(
+        store_path,
+        [
+            {
+                "ts": 100,
+                "metric": "sase_agent_runs_total",
+                "kind": "counter",
+                "labels": {"llm_provider": "codex", "status": "ok", "workflow": ""},
+                "source": "agent-1",
+                "value": 9,
+            },
+            {
+                "ts": 100,
+                "metric": "sase_agent_runs_total",
+                "kind": "counter",
+                "labels": {
+                    "llm_provider": "codex",
+                    "status": "error",
+                    "workflow": "",
+                },
+                "source": "agent-1",
+                "value": 1,
+            },
+            {
+                "ts": 100,
+                "metric": "sase_agent_run_duration_seconds",
+                "kind": "histogram",
+                "labels": {"llm_provider": "codex", "workflow": ""},
+                "source": "agent-1",
+                "count": 2,
+                "sum": 58,
+                "min": 8,
+                "max": 50,
+                "buckets": [{"le": 10, "count": 1}, {"le": 60, "count": 2}],
+            },
+            {
+                "ts": 190,
+                "metric": "sase_agent_active",
+                "kind": "gauge",
+                "labels": {"llm_provider": "codex", "project": "sase"},
+                "source": "axe-1",
+                "value": 2,
+            },
+            {
+                "ts": 190,
+                "metric": "sase_workspace_active",
+                "kind": "gauge",
+                "labels": {"project": "sase"},
+                "source": "axe-1",
+                "value": 3,
+            },
+            {
+                "ts": 190,
+                "metric": "sase_bead_active",
+                "kind": "gauge",
+                "labels": {"project": "sase", "status": "in_progress"},
+                "source": "axe-1",
+                "value": 4,
+            },
+            {
+                "ts": 120,
+                "metric": "sase_llm_input_tokens_total",
+                "kind": "counter",
+                "labels": {"provider": "codex"},
+                "source": "agent-1",
+                "value": 1000,
+            },
+            {
+                "ts": 120,
+                "metric": "sase_llm_output_tokens_total",
+                "kind": "counter",
+                "labels": {"provider": "codex"},
+                "source": "agent-1",
+                "value": 250,
+            },
+        ],
+        now_ts=200,
     )
-    output_parts: list[str] = []
-    console = Console(file=None, force_terminal=False, width=120)
-
-    def fake_print(*args: object, **_kw: object) -> None:
-        for arg in args:
-            if hasattr(arg, "__rich_console__"):
-                with console.capture() as capture:
-                    console.print(arg)
-                output_parts.append(capture.get())
-            else:
-                output_parts.append(str(arg))
-
-    with (
-        patch("sase.telemetry.cli_dashboard.Console") as mock_console_cls,
-        patch("sase.telemetry.cli_dashboard._resolve_source", return_value=None),
-    ):
-        mock_console = mock_console_cls.return_value
-        mock_console.print = fake_print
-        handle_telemetry_dashboard(args)
-
-    output = "\n".join(output_parts)
-    assert "No metric source is reachable" in output
 
 
-def test_dashboard_panel_labels_are_readable() -> None:
-    """Dashboard converts metric names to readable labels."""
-    output = _render(_build_dashboard(_MOCK_SAMPLES))
-    assert "Agent Runs" in output or "Agent Active" in output
+def test_dashboard_loads_real_local_store(tmp_path: Path) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    use_store(store_path)
+    _seed_dashboard(store_path)
 
+    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
 
-# ── Stat panels ──────────────────────────────────────────────────────
-
-
-def test_stat_panels_show_key_gauges() -> None:
-    samples = [
-        MetricSample(name="sase_agent_active", value=3.0, metric_type="gauge"),
-        MetricSample(name="sase_workspace_active", value=1.0, metric_type="gauge"),
-        MetricSample(name="sase_bead_active", value=7.0, metric_type="gauge"),
+    assert data.has_samples
+    assert data.active_agents == 2
+    assert data.active_workspaces == 3
+    assert data.active_beads == 4
+    assert data.runs_in_range == 10
+    assert data.error_rate == 10
+    assert [chart.title for chart in data.charts] == [
+        "Agent Runs by status",
+        "Run Duration p50/p95",
+        "LLM Tokens by provider",
+        "Error Rate %",
     ]
-    panels = _build_stat_panels(samples)
-    assert len(panels) == 3
-    rendered = "\n".join(_render(p) for p in panels)
-    assert "Active Agents" in rendered
-    assert "Active Workspaces" in rendered
-    assert "Active Beads" in rendered
 
 
-def test_stat_panels_zero_when_missing() -> None:
-    panels = _build_stat_panels([])
-    assert len(panels) == 3
-    rendered = "\n".join(_render(p) for p in panels)
-    assert "0" in rendered
+def test_dashboard_render_has_tiles_and_charts(tmp_path: Path) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    use_store(store_path)
+    _seed_dashboard(store_path)
+    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
+
+    output = _render(_render_dashboard(data, width=120))
+
+    assert "Active Agents" in output
+    assert "Active Workspaces" in output
+    assert "Error Rate" in output
+    assert "Agent Runs by status" in output
+    assert "Run Duration p50/p95" in output
 
 
-# ── Charts mode fallback ────────────────────────────────────────────
+def test_dashboard_switches_subsystem_chart_set(tmp_path: Path) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    use_store(store_path)
+    _seed_dashboard(store_path)
+
+    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="workspace")
+
+    assert data.charts[0].title == "Active Workspaces"
+    assert data.charts[-1].title == "VCS Operations"
 
 
-def test_charts_mode_falls_back_when_prometheus_unreachable() -> None:
-    """Charts mode falls back to summary when Prometheus is unreachable."""
-    args = Namespace(source="auto", interval=5, charts=True, range="1h", subsystem=None)
-    output_parts: list[str] = []
-    console = Console(file=None, force_terminal=False, width=120)
+def test_dashboard_empty_store_is_friendly(tmp_path: Path) -> None:
+    use_store(tmp_path / "metrics.sqlite")
 
-    def fake_print(*args: object, **_kw: object) -> None:
-        for arg in args:
-            if hasattr(arg, "__rich_console__"):
-                with console.capture() as capture:
-                    console.print(arg)
-                output_parts.append(capture.get())
-            else:
-                output_parts.append(str(arg))
+    data = load_dashboard_data(now_ts=200, range_key="1h", subsystem="agents")
+    output = _render(_render_dashboard(data, width=120))
 
-    with (
-        patch("sase.telemetry.cli_dashboard.Console") as mock_console_cls,
-        patch(
-            "sase.telemetry.prom_query.check_prometheus_reachable",
-            return_value=False,
-        ),
-        patch("sase.telemetry.cli_dashboard._resolve_source", return_value=None),
-    ):
-        mock_console = mock_console_cls.return_value
-        mock_console.print = fake_print
-        handle_telemetry_dashboard(args)
-
-    output = "\n".join(output_parts)
-    assert "falling back to summary" in output or "No metric source" in output
+    assert not data.has_samples
+    assert "No telemetry samples have been recorded yet" in output

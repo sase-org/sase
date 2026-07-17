@@ -1,162 +1,105 @@
-"""Tests for ``sase telemetry snapshot`` CLI subcommand."""
+"""Tests for ``sase telemetry snapshot`` local-store queries."""
 
 from argparse import Namespace
+from pathlib import Path
 from unittest.mock import patch
 
-from rich.console import Console
+import pytest
 
 from sase.telemetry.cli_snapshot import handle_telemetry_snapshot
-from sase.telemetry.scrape import MetricSample
-from tests.telemetry.conftest import reset_telemetry_config
-
-_MOCK_SAMPLES = [
-    MetricSample(
-        name="sase_agent_runs_total",
-        labels={"llm_provider": "claude", "status": "ok", "workflow": ""},
-        value=42.0,
-        metric_type="counter",
-    ),
-    MetricSample(
-        name="sase_agent_runs_total",
-        labels={"llm_provider": "claude", "status": "error", "workflow": ""},
-        value=3.0,
-        metric_type="counter",
-    ),
-    MetricSample(
-        name="sase_agent_active",
-        labels={"llm_provider": "claude", "project": "sase"},
-        value=2.0,
-        metric_type="gauge",
-    ),
-    MetricSample(
-        name="sase_bead_operations_total",
-        labels={"operation": "create"},
-        value=5.0,
-        metric_type="counter",
-    ),
-]
+from tests.telemetry.conftest import record_samples, use_store
 
 
-def setup_function() -> None:
-    reset_telemetry_config()
-
-
-def teardown_function() -> None:
-    reset_telemetry_config()
-
-
-def _capture_snapshot(**kwargs: object) -> str:
-    """Run handle_telemetry_snapshot and capture the Rich console output."""
-    args = Namespace(
-        source=kwargs.get("source", "auto"),
-        format=kwargs.get("format", "rich"),
-        subsystem=kwargs.get("subsystem"),
+def _seed_snapshot(store_path: Path) -> None:
+    record_samples(
+        store_path,
+        [
+            {
+                "ts": 100,
+                "metric": "sase_agent_runs_total",
+                "kind": "counter",
+                "labels": {"llm_provider": "codex", "status": "ok", "workflow": ""},
+                "source": "runner-1",
+                "value": 42,
+            },
+            {
+                "ts": 105,
+                "metric": "sase_agent_active",
+                "kind": "gauge",
+                "labels": {"llm_provider": "codex", "project": "sase"},
+                "source": "axe-1",
+                "value": 2,
+            },
+            {
+                "ts": 100,
+                "metric": "sase_bead_operations_total",
+                "kind": "counter",
+                "labels": {"operation": "create"},
+                "source": "cli-1",
+                "value": 5,
+            },
+        ],
+        now_ts=110,
     )
-    console = Console(file=None, force_terminal=False, width=120)
-    output_parts: list[str] = []
-
-    def fake_print(*args: object, **_kw: object) -> None:
-        for arg in args:
-            if hasattr(arg, "__rich_console__"):
-                with console.capture() as capture:
-                    console.print(arg)
-                output_parts.append(capture.get())
-            else:
-                output_parts.append(str(arg))
-
-    with (
-        patch("sase.telemetry.cli_snapshot.Console") as mock_console_cls,
-        patch(
-            "sase.telemetry.cli_snapshot._resolve_source",
-            return_value="http://localhost:9091/metrics",
-        ),
-        patch("sase.telemetry.cli_snapshot.scrape", return_value=_MOCK_SAMPLES),
-    ):
-        mock_console = mock_console_cls.return_value
-        mock_console.print = fake_print
-        handle_telemetry_snapshot(args)
-
-    return "\n".join(output_parts)
 
 
-def _capture_snapshot_unreachable(**kwargs: object) -> str:
-    """Run with no reachable source."""
-    args = Namespace(
-        source=kwargs.get("source", "auto"),
-        format=kwargs.get("format", "rich"),
-        subsystem=kwargs.get("subsystem"),
-    )
-    console = Console(file=None, force_terminal=False, width=120)
-    output_parts: list[str] = []
-
-    def fake_print(*args: object, **_kw: object) -> None:
-        for arg in args:
-            if hasattr(arg, "__rich_console__"):
-                with console.capture() as capture:
-                    console.print(arg)
-                output_parts.append(capture.get())
-            else:
-                output_parts.append(str(arg))
-
-    with (
-        patch("sase.telemetry.cli_snapshot.Console") as mock_console_cls,
-        patch("sase.telemetry.cli_snapshot._resolve_source", return_value=None),
-    ):
-        mock_console = mock_console_cls.return_value
-        mock_console.print = fake_print
-        handle_telemetry_snapshot(args)
-
-    return "\n".join(output_parts)
+def _run_snapshot(
+    store_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    *,
+    fmt: str = "rich",
+    subsystem: str | None = None,
+) -> str:
+    use_store(store_path)
+    with patch("sase.telemetry.cli_snapshot.time.time", return_value=110):
+        handle_telemetry_snapshot(Namespace(format=fmt, subsystem=subsystem))
+    return capsys.readouterr().out
 
 
-def test_snapshot_rich_shows_subsystem_panels() -> None:
-    output = _capture_snapshot()
+def test_snapshot_rich_groups_local_values(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    _seed_snapshot(store_path)
+
+    output = _run_snapshot(store_path, capsys)
+
     assert "Agent Lifecycle" in output
     assert "Beads" in output
-
-
-def test_snapshot_rich_shows_metric_values() -> None:
-    output = _capture_snapshot()
+    assert "sase_agent_runs_total" in output
+    assert "codex" in output
     assert "42" in output
-    assert "sase_agent_runs_total" in output
 
 
-def test_snapshot_rich_shows_labels() -> None:
-    output = _capture_snapshot()
-    assert "claude" in output
+def test_snapshot_subsystem_filter_is_case_insensitive(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    _seed_snapshot(store_path)
 
+    output = _run_snapshot(store_path, capsys, subsystem="beads")
 
-def test_snapshot_filter_by_subsystem() -> None:
-    output = _capture_snapshot(subsystem="Beads")
     assert "Beads" in output
+    assert "sase_bead_operations_total" in output
     assert "Agent Lifecycle" not in output
-    assert "sase_bead_operations_total" in output
 
 
-def test_snapshot_filter_no_match() -> None:
-    output = _capture_snapshot(subsystem="Nonexistent")
-    assert "No metrics match" in output or "No known metrics" in output
+def test_snapshot_json_has_store_metadata(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    store_path = tmp_path / "metrics.sqlite"
+    _seed_snapshot(store_path)
 
+    output = _run_snapshot(store_path, capsys, fmt="json")
 
-def test_snapshot_json_format() -> None:
-    output = _capture_snapshot(format="json")
-    assert '"name"' in output
+    assert '"store_path"' in output
+    assert '"samples"' in output
     assert '"sase_agent_runs_total"' in output
-    assert '"value"' in output
 
 
-def test_snapshot_prometheus_format() -> None:
-    output = _capture_snapshot(format="prometheus")
-    assert "sase_agent_runs_total" in output
-    assert "42.0" in output
+def test_snapshot_empty_store_is_friendly(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = _run_snapshot(tmp_path / "metrics.sqlite", capsys)
 
-
-def test_snapshot_unreachable() -> None:
-    output = _capture_snapshot_unreachable()
-    assert "No metric source is reachable" in output
-
-
-def test_snapshot_subsystem_case_insensitive() -> None:
-    output = _capture_snapshot(subsystem="beads")
-    assert "Beads" in output
-    assert "sase_bead_operations_total" in output
+    assert "No telemetry samples have been recorded yet" in output
