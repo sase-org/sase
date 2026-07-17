@@ -245,8 +245,8 @@ sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
 Raw creation validates and preserves the optional single-glyph JSON `icon` and the JSON `silent` field. It rejects
-registered privileged actions (`PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, and `HITL`) because a
-raw row has no trusted command bundle.
+registered privileged actions (`PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, `CustomGate`, and
+`HITL`) because a raw row has no trusted command bundle.
 
 The low-level gate API reads a versioned gate specification from stdin:
 
@@ -254,13 +254,101 @@ The low-level gate API reads a versioned gate specification from stdin:
 sase notify create --gate < gate-request.json
 ```
 
-Gate presentation and each choice or extra may carry a single-glyph `icon`. Choices may declare a `feedback` mode
-(`disabled`, `optional`, or `required`) and ordered, independently selectable `extras`. On success the command prints a
-stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`, `kind`,
-bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. The descriptor's `request_id`
-and `kind` are the exact values accepted by `sase notify wait`. Typed front doors such as `sase plan propose`,
-`sase questions`, and agent-initiated launch requests call the same in-process gate service directly; they do not spawn
-this CLI.
+For example, this custom gate offers one terminal decision plus two independently selectable add-on commands:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "custom",
+  "request_id": "restart-api",
+  "producer": { "agent": "maintenance" },
+  "continuation_mode": "resume_agent",
+  "gate_timeout_seconds": 900,
+  "presentation": {
+    "sender": "maintenance",
+    "icon": "🛡️",
+    "notes": ["Restart the API after reviewing the health report?"],
+    "preview": "preview.md"
+  },
+  "choices": [
+    {
+      "id": "proceed",
+      "label": "Restart service",
+      "icon": "✅",
+      "feedback": "required",
+      "command": { "argv": ["commands/restart"] },
+      "extras": [
+        {
+          "id": "audit",
+          "label": "Write audit record",
+          "icon": "📝",
+          "default_selected": true,
+          "command": { "argv": ["commands/audit"] }
+        },
+        {
+          "id": "verify",
+          "label": "Verify service health",
+          "icon": "🩺",
+          "default_selected": false,
+          "command": { "argv": ["commands/verify"] }
+        }
+      ]
+    },
+    {
+      "id": "cancel",
+      "label": "Cancel",
+      "icon": "❌",
+      "feedback": "optional",
+      "command": { "argv": ["commands/cancel"] }
+    }
+  ],
+  "resources": [
+    {
+      "path": "commands/restart",
+      "role": "command",
+      "content": "#!/bin/sh\nprintf '{\"status\":\"restarted\"}\\n'\n"
+    },
+    {
+      "path": "commands/audit",
+      "role": "command",
+      "content": "#!/bin/sh\nprintf '{\"status\":\"recorded\"}\\n'\n"
+    },
+    {
+      "path": "commands/verify",
+      "role": "command",
+      "content": "#!/bin/sh\nprintf '{\"status\":\"healthy\"}\\n'\n"
+    },
+    {
+      "path": "commands/cancel",
+      "role": "command",
+      "content": "#!/bin/sh\nprintf '{\"status\":\"cancelled\"}\\n'\n"
+    },
+    {
+      "path": "preview.md",
+      "role": "preview",
+      "content": "# API health report\n\nAll checks passed.\n"
+    }
+  ],
+  "auto": false
+}
+```
+
+`presentation.icon`, `choice.icon`, and `extra.icon` each accept one emoji or display glyph. Every choice has exactly
+one terminal command. Its ordered `extras` are ORed add-ons: the user may select none, some, or all of them before
+submitting. `feedback` is `disabled`, `optional`, or `required`; custom choices default to `optional` when the field is
+omitted. Automatic resolution is forbidden for custom gates.
+
+Every command references a bundle-owned `command` resource and is executed as an argv array without a shell after its
+hash is reverified. The terminal command must succeed before selected extras run. An extra failure is recorded in
+`extra_results` and the bundle error log but does not make the answered gate unresolved. A terminal-command failure
+leaves the gate answerable. The write-once response records `choice_id`, `selected_extra_ids`, `extra_results`, and
+normalized top-level `feedback` consistently for every transport.
+
+On success, creation prints a stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`,
+`kind`, bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. The descriptor's
+`request_id` and `kind` are the exact values accepted by `sase notify wait`. Typed front doors such as
+`sase plan propose`, `sase questions`, and agent-initiated launch requests call the same in-process gate service
+directly; they do not spawn this CLI. Agents should normally use the generated `/sase_gate` skill to author this JSON.
 
 Wait mechanically for a gate without reading or polling bundle files directly:
 
@@ -330,6 +418,17 @@ result, and write-once response validation. The pending-action 24-hour stale thr
 remote controls but does not terminate a waiting producer. Only cancellation or an explicit per-request gate timeout is
 terminal.
 
+ACE renders notification, choice, and add-on icons in its inbox and custom-gate modal. The modal selects one terminal
+choice, exposes add-ons as checkboxes, and enables or requires its feedback input according to the chosen mode. ACE
+submits the terminal command and selected add-ons as tracked background work, streams their output to the Tasks view,
+and keeps Textual's event loop free. Telegram keeps add-on selection server-side, uses compact callback tokens, and
+routes optional or required feedback through its two-step text flow. Mobile detail projections expose the same choice,
+icon, feedback-mode, and add-on fields; mobile submissions send only the choice id, selected extra ids, and feedback.
+
+Plan approval uses the same ORed model. Its **Approve** choice exposes **Commit plan file to the plans sidecar** and
+**Run coder follow-up** as add-ons, both selected by default for the recommended tale flow. Legacy `approve`, `run`,
+`tale`, and `commit` presets and `%auto` aliases remain compatible and resolve to fixed selections of those add-ons.
+
 The typed projections remain deliberately distinct:
 
 | Gate kind   | Notification action | Recommended producer                              |
@@ -340,8 +439,8 @@ The typed projections remain deliberately distinct:
 | `launch`    | `LaunchApproval`    | Agent-initiated `sase launch request`             |
 | `custom`    | `CustomGate`        | `sase notify create --gate`                       |
 
-Workflow `HITL` is registered at the adapter boundary but is not migrated to the command-backed producer in this
-rollout; its existing behavior remains unchanged.
+Workflow `HITL` remains a legacy producer, but a HITL notification that references a neutral bundle is resolved through
+the same hash-verified executor in ACE and Telegram. Only legacy HITL bundles use the direct response-file writer.
 
 ### Compatibility window
 

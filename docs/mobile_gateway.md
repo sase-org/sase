@@ -333,9 +333,13 @@ curl -sS "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID" \
   -H "$AUTH_HEADER"
 ```
 
-Detail responses include full notes, action state, and attachment manifests. Download tokens are minted only in detail
-responses, are bound to the authenticated device, expire after a short TTL, and must still pass path and size checks at
-download time.
+Detail responses include full notes, action state, and attachment manifests. A `CustomGate` row projects
+`action.kind: "custom_gate"` plus its verified terminal choices. Each choice includes `id`, `label`, optional `icon`,
+`feedback` (`disabled`, `optional`, or `required`), and ordered `extras`; each extra includes `id`, `label`, optional
+`icon`, and `default_selected`. Mobile clients keep selection state locally and submit only the chosen id, selected
+extra ids, and feedback through the host bridge — never a command, path, cwd, or environment value. Download tokens are
+minted only in detail responses, are bound to the authenticated device, expire after a short TTL, and must still pass
+path and size checks at download time.
 
 Mark a notification read or dismiss it without taking its pending action:
 

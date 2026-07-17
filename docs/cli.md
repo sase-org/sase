@@ -32,6 +32,7 @@ For exhaustive flag tables, see the [configuration reference](configuration.md#c
 | `sase notify create`            | Create a raw notification or durable command-backed gate from JSON input.                                            | [Notifications](notifications.md)                     |
 | `sase notify list`              | List recent notifications, optionally filtered by sender, tag, unread state, or query.                               | [Notifications](notifications.md)                     |
 | `sase notify show`              | Show one notification as Markdown or JSON.                                                                           | [Notifications](notifications.md)                     |
+| `sase notify wait`              | Wait mechanically for a command-backed gate and return its terminal result.                                          | [Notifications](notifications.md)                     |
 | `sase repro replay`             | Replay an Agents-tab reproduction bundle through the headless TUI harness and emit a verdict.                        | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 | `sase repro capture agents-tab` | Capture a commit-safe out-of-band Agents-tab bundle from current filesystem state.                                   | [ACE TUI](ace.md#agents-tab-reproduction-bundles)     |
 

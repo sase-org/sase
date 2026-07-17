@@ -1152,6 +1152,9 @@ Press `i` (or the `,n` leader chord to jump straight to an agent's notification)
 [`docs/notifications.md`](notifications.md) for the full keybinding reference, modal tabs, priority/error/muted
 classification, and the per-notification snooze and mute affordances.
 
+Rows and the detail header begin with the notification's single-glyph icon when one is present, with a per-action
+fallback icon otherwise. The text action badge remains visible as the secondary label.
+
 The top-bar notification indicator color reflects the highest-priority unread bucket: orange for unmuted priority or
 error notifications (plan approvals, launch approvals, user questions, mentor reviews, axe errors, CRS results, agent
 error reports), gold for regular unmuted notifications, and cyan when only muted or snoozed notifications remain. A
@@ -1164,6 +1167,7 @@ notification action types are supported:
 
 | Action               | Source          | Behavior                                                                        |
 | -------------------- | --------------- | ------------------------------------------------------------------------------- |
+| `CustomGate`         | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                          |
 | `HITL`               | Workflow        | Opens the workflow human-in-the-loop response modal                             |
 | `JumpToAgent`        | Agent/workflow  | Jumps to the matching Agents-tab row                                            |
 | `JumpToChangeSpec`   | Sync/workflow   | Jumps to the referenced ChangeSpec on the PRs sub-tab                           |
@@ -1180,6 +1184,16 @@ The axe `error_digest` chop creates `ViewErrorReport` notifications whose digest
 error reports. Memory proposal notifications created by `sase memory write --notify` use `memory_review` with
 `action_data.proposal_id`. Selecting one opens the same review UI as `sase memory review`, preselected on that proposal;
 approval or rejection still happens inside the review UI.
+
+The custom-gate modal shows the sender and notes or verified preview, one icon-led button per terminal choice,
+checkboxes for that choice's independently selectable add-on commands, and a feedback input. Required feedback blocks
+submission until non-empty text is present; optional and disabled modes adjust the affordance accordingly. Unsupported
+future actions produce a warning instead of silently doing nothing.
+
+Custom gates and neutral HITL gates execute through the shared hash-verifying gate executor. ACE schedules the terminal
+command and each selected add-on through the tracked background-task queue, streams live stdout/stderr to the task,
+shows each command as a reporter phase, and refreshes the inbox when the task completes. Legacy HITL bundles retain the
+direct response-file fallback.
 
 ### Toast Notifications
 
@@ -1294,14 +1308,15 @@ example the per-panel count summaries on the Agents tab — rather than as suffi
 
 ### Background Task Indicator
 
-A gear icon (⚙) with a count appears in the top bar when background tasks are running (e.g., sync, mail, accept
-operations). The indicator automatically hides when all background tasks complete.
+A gear icon (⚙) with a count appears in the top bar when background tasks are running (e.g., sync, mail, accept, and
+notification-gate operations). The indicator automatically hides when all background tasks complete.
 
 ### Runners Modal
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information including hook runners, agent
 runners, and a **Background Tasks** section listing active and recently completed background tasks (sync, rebase,
-accept, mail, add-tag). Each task entry shows its type, PR name, status, and timestamps.
+accept, mail, add-tag, notification gates). Each task entry shows its type, target, status, timestamps, and live output
+when the task reports it.
 
 ## File Panel Rendering
 
@@ -1681,6 +1696,11 @@ matching follow-up status) instead.
 The Plan Review modal title shows a provider-themed `PROVIDER(model)` badge between the "Plan Review" label and the plan
 filename — orange for Claude, lime for Codex, Antigravity indigo (`#6E5DE7`) for agy, neutral muted for other providers.
 The badge is omitted when provider/model metadata is absent, leaving the legacy title shape unchanged.
+
+For tale plans, the modal's primary **Approve** decision includes two independently selectable add-ons: **Commit plan
+file to the plans sidecar** and **Run coder follow-up**. Both are selected by default. Press `enter` to approve with the
+current checkbox selection; the existing `a`, `t`, `c`, `r`, `f`, and `E` bindings remain as compatibility shortcuts for
+their common presets and alternate flows.
 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending proposals, recent approvals, and
 inferred rejected archived plans; run `sase plan approve <id-prefix> --kind approve|commit|epic|tale` or

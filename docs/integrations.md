@@ -112,6 +112,7 @@ local notification inbox to mobile clients. External callers should import from 
 ```python
 from sase.integrations.mobile_notifications import (
     build_mobile_attachment_manifests,
+    execute_mobile_custom_gate_action,
     execute_mobile_hitl_action,
     execute_mobile_plan_action,
     execute_mobile_question_action,
@@ -134,25 +135,33 @@ print(result.notification_id, result.response_file)
 
 hitl_result = execute_mobile_hitl_action("12345678", "continue")
 question_result = execute_mobile_question_action("87654321", "answer", custom_answer="Use the default.")
-print(hitl_result.message, question_result.message)
+gate_result = execute_mobile_custom_gate_action(
+    "c0ffee12",
+    "proceed",
+    extra_ids=("audit", "verify"),
+    feedback="Approved from mobile",
+)
+print(hitl_result.message, question_result.message, gate_result.message)
 ```
 
 Snapshot reads project notifications into mobile-safe rows with display paths, host paths, action state, read/dismissed
 state, mute/snooze state, and priority counts. Detail reads include dismissed and silent rows so clients can rebuild
 local state after an event-stream resync. Action helpers resolve exact IDs or unique prefixes, write the corresponding
 response JSON once, and run best-effort host side effects. The facade supports plan approvals, workflow
-human-in-the-loop actions, and user-question answers. Action failures raise `MobilePlanActionError` with deterministic
-`code` and `target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
+human-in-the-loop actions, user-question answers, and custom gates. Custom-gate details project each choice's id, label,
+icon, feedback mode, and ordered add-ons; submissions carry only the choice id, selected add-on ids, and feedback and
+then run through the same hash-verified executor as ACE and Telegram. Action failures raise `MobilePlanActionError` with
+deterministic `code` and `target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
 
 Source: `src/sase/integrations/mobile_notifications.py`
 
 ## Notification Transport Registration
 
-`sase.notifications.pending_actions` is the shared host store for actionable notifications (plan approvals,
-human-in-the-loop, and user questions). Notification transports such as the sase-telegram plugin register the message
-they sent for an action so cross-surface cleanup can later dismiss it. After delivering an actionable notification, a
-transport calls `merge_transport_record` to attach its transport-owned data (e.g. `chat_id` and `message_id`) to the
-existing action entry:
+`sase.notifications.pending_actions` is the shared host store for actionable notifications (plan and launch approvals,
+custom gates, human-in-the-loop, and user questions). Notification transports such as the sase-telegram plugin register
+the message they sent for an action so cross-surface cleanup can later dismiss it. After delivering an actionable
+notification, a transport calls `merge_transport_record` to attach its transport-owned data (e.g. `chat_id` and
+`message_id`) to the existing action entry:
 
 ```python
 from sase.notifications.pending_actions import merge_transport_record
