@@ -1,43 +1,63 @@
-"""Registry management, HTTP exposition, and Push Gateway helpers."""
+"""In-house metric registry and local-store flushing."""
 
 from __future__ import annotations
 
 import atexit
 import json
 import logging
+import os
+import threading
 import time
 import urllib.error
 import urllib.request
-from typing import TYPE_CHECKING
+from typing import Any
 
+from sase.telemetry._accumulators import (
+    Counter,
+    Gauge,
+    Histogram,
+    Metric,
+    MetricRegistry,
+)
 from sase.telemetry._config import get_telemetry_config
-
-if TYPE_CHECKING:
-    from prometheus_client import CollectorRegistry
 
 log = logging.getLogger(__name__)
 
 _initialized: bool = False
-# Dedicated CollectorRegistry so tests (and multi-init scenarios) don't collide
-# with the global default registry.
-_registry: CollectorRegistry | None = None
+_initialized_pid: int | None = None
+_registry: MetricRegistry | None = None
+_source: str = ""
+_flusher_thread: threading.Thread | None = None
+_flusher_stop = threading.Event()
+_exit_handlers: list[Any] = []
+_FLUSH_ATTEMPTS = 3
+_RETRY_DELAY_SECONDS = 0.05
 
 
-def init_telemetry(*, start_http_server: bool = False) -> None:
+def init_telemetry(*, start_flusher: bool = False, source: str | None = None) -> None:
     """Initialize the telemetry subsystem.
 
-    Must be called once at process startup.  When telemetry is disabled (the
-    default) this is a no-op — metric singletons remain as lightweight stubs.
+    Must be called once at process startup.  When telemetry is disabled this is
+    a no-op and metric singletons remain as lightweight stubs.
 
     Args:
-        start_http_server: If ``True`` **and** telemetry is enabled, start a
-            Prometheus HTTP exposition server on the configured port.  Intended
-            for long-lived processes such as the axe orchestrator.
+        start_flusher: Start the periodic flush thread used by long-lived
+            daemons. Short-lived runners instead call
+            :func:`register_flush_on_exit`.
+        source: Stable source prefix for periodic gauge aggregation. The
+            current process id is appended automatically.
     """
-    global _initialized
-    if _initialized:
+    global _initialized, _initialized_pid, _source
+    pid = os.getpid()
+    if _initialized and _initialized_pid == pid:
+        if start_flusher:
+            _start_flusher()
         return
+    if _initialized_pid is not None and _initialized_pid != pid:
+        _reset_after_fork()
     _initialized = True
+    _initialized_pid = pid
+    _source = _format_source(source or "process", None)
 
     config = get_telemetry_config()
     if not config.enabled:
@@ -45,32 +65,26 @@ def init_telemetry(*, start_http_server: bool = False) -> None:
         return
 
     _create_real_metrics()
-
-    if start_http_server:
-        _start_http_server(config.exposition_port)
+    if start_flusher:
+        _start_flusher()
 
 
 def _create_real_metrics() -> None:
-    """Replace stub singletons in ``metrics`` with real prometheus_client objects."""
+    """Replace stub singletons with in-house accumulators."""
     global _registry
-
-    import prometheus_client  # only imported when enabled
 
     from sase.telemetry import metrics as m
     from sase.telemetry.metrics import METRIC_DEFS
 
-    reg = prometheus_client.CollectorRegistry()
-    _registry = reg
-
-    factory = {
-        "counter": prometheus_client.Counter,
-        "gauge": prometheus_client.Gauge,
-        "histogram": prometheus_client.Histogram,
-    }
-
+    created: list[Metric] = []
     for attr, kind, name, doc, labelnames, extra in METRIC_DEFS:
-        cls = factory[kind]
-        real = cls(name, doc, labelnames=labelnames, registry=reg, **extra)
+        if kind == "counter":
+            real: Metric = Counter(name, doc, labelnames)
+        elif kind == "gauge":
+            real = Gauge(name, doc, labelnames)
+        else:
+            real = Histogram(name, doc, labelnames, **extra)
+        created.append(real)
         # Point the pre-existing stub at the real metric so modules that
         # imported the stub via ``from sase.telemetry.metrics import X``
         # before init_telemetry() still forward calls to the real object.
@@ -79,74 +93,133 @@ def _create_real_metrics() -> None:
             stub._real = real
         setattr(m, attr, real)
 
-    log.info("Telemetry enabled — %d real metrics created", len(METRIC_DEFS))
+    _registry = MetricRegistry(created)
+    log.info("Telemetry enabled — %d in-house metrics created", len(created))
 
 
-def _start_http_server(port: int) -> None:
-    """Start the Prometheus HTTP exposition server."""
-    if _registry is None:
+def _start_flusher() -> None:
+    """Start one daemon thread that periodically flushes local deltas."""
+    global _flusher_thread
+    if _registry is None or (_flusher_thread and _flusher_thread.is_alive()):
         return
-    try:
-        import prometheus_client
+    _flusher_stop.clear()
+    _flusher_thread = threading.Thread(
+        target=_flusher_loop,
+        name="sase-telemetry-flusher",
+        daemon=True,
+    )
+    _flusher_thread.start()
+    log.debug("Started telemetry flusher thread")
 
-        prometheus_client.start_http_server(port, registry=_registry)
-        log.info("Prometheus HTTP server started on port %d", port)
-    except Exception:
-        log.exception("Failed to start Prometheus HTTP server on port %d", port)
+
+def _flusher_loop() -> None:
+    interval = max(0.1, get_telemetry_config().flush_interval_seconds)
+    while not _flusher_stop.wait(interval):
+        flush_metrics()
 
 
-def push_metrics(
-    job: str,
+def flush_metrics(
+    job: str | None = None,
     grouping_key: dict[str, str] | None = None,
-) -> None:
-    """Push metrics to the configured Prometheus Push Gateway.
+) -> int:
+    """Drain pending metrics and persist one batch to the local core store.
 
-    Uses ``pushadd_to_gateway`` (POST/merge) with the dedicated
-    ``CollectorRegistry`` so it never replaces metrics from other jobs.
-
-    Silently catches all exceptions — a downed pushgateway must never crash
-    the caller.
+    Store failures are retried a bounded number of times, then dropped and
+    logged at debug level. Telemetry must never disrupt the caller's work.
+    Returns the number of recorded samples, or zero when disabled/empty/failed.
     """
     config = get_telemetry_config()
     if not config.enabled or _registry is None:
-        return
+        return 0
 
-    try:
-        from prometheus_client import pushadd_to_gateway
+    now_ts = int(time.time())
+    source = _format_source(job, grouping_key) if job else _source
+    samples = _registry.drain(ts=now_ts, source=source)
+    if not samples:
+        return 0
+    batch = {
+        "samples": samples,
+        "now_ts": now_ts,
+        "retention": config.retention.as_wire(),
+    }
 
-        pushadd_to_gateway(
-            config.pushgateway_url,
-            job=job,
-            registry=_registry,
-            grouping_key=grouping_key or {},
-        )
-        log.debug("Metrics pushed to %s (job=%s)", config.pushgateway_url, job)
-    except Exception:
-        log.debug(
-            "Failed to push metrics to %s (job=%s)",
-            config.pushgateway_url,
-            job,
-            exc_info=True,
-        )
+    for attempt in range(1, _FLUSH_ATTEMPTS + 1):
+        try:
+            from sase_core_rs import telemetry_record_batch  # type: ignore[import-untyped]
+
+            result = telemetry_record_batch(
+                str(config.resolved_store_path),
+                batch,
+                config.busy_timeout_ms,
+            )
+            recorded = int(result.get("samples_recorded", len(samples)))
+            log.debug("Flushed %d telemetry samples (source=%s)", recorded, source)
+            return recorded
+        except Exception:
+            if attempt < _FLUSH_ATTEMPTS:
+                time.sleep(_RETRY_DELAY_SECONDS * attempt)
+                continue
+            log.debug(
+                "Dropped %d telemetry samples after %d flush attempts (source=%s)",
+                len(samples),
+                attempt,
+                source,
+                exc_info=True,
+            )
+    return 0
 
 
-def register_push_on_exit(
+def register_flush_on_exit(
     job: str,
     **grouping_key: str,
 ) -> None:
-    """Register an ``atexit`` handler that pushes metrics on process exit.
+    """Register an ``atexit`` handler that flushes local metrics.
 
-    Intended for medium-lived processes like agent runners.
+    Intended for short- and medium-lived processes such as agent runners.
     """
     config = get_telemetry_config()
     if not config.enabled:
         return
 
-    def _push() -> None:
-        push_metrics(job, grouping_key or None)
+    def _flush() -> None:
+        flush_metrics(job, grouping_key or None)
 
-    atexit.register(_push)
-    log.debug("Registered atexit push (job=%s)", job)
+    atexit.register(_flush)
+    _exit_handlers.append(_flush)
+    log.debug("Registered atexit telemetry flush (job=%s)", job)
+
+
+def _format_source(job: str, grouping_key: dict[str, str] | None) -> str:
+    parts = [job]
+    parts.extend(
+        f"{key}={value}" for key, value in sorted((grouping_key or {}).items())
+    )
+    parts.append(f"pid={os.getpid()}")
+    return ":".join(parts)
+
+
+def _reset_after_fork() -> None:
+    """Discard inherited process-local registry/thread state after a fork."""
+    _reset_for_tests()
+
+
+def _reset_for_tests() -> None:
+    """Reset module and metric state without leaving background threads."""
+    global _initialized, _initialized_pid, _registry, _flusher_thread, _source
+    _flusher_stop.set()
+    if _flusher_thread and _flusher_thread.is_alive():
+        _flusher_thread.join(timeout=1)
+    for handler in _exit_handlers:
+        atexit.unregister(handler)
+    _exit_handlers.clear()
+    _initialized = False
+    _initialized_pid = None
+    _registry = None
+    _flusher_thread = None
+    _source = ""
+    from sase.telemetry.metrics import restore_metric_stubs
+
+    restore_metric_stubs()
 
 
 # Job names used by runner processes (for stale group cleanup).

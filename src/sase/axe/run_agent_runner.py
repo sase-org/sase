@@ -85,7 +85,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.core.agent_output_variables import set_agent_output_variables
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
@@ -218,7 +218,7 @@ def main() -> None:
                 )
 
             init_telemetry()
-            register_push_on_exit(
+            register_flush_on_exit(
                 job="agent_runner", workflow=workflow_name, instance=timestamp
             )
 

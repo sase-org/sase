@@ -33,7 +33,7 @@ from sase.axe.runner_reporting import (
     write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.workflows.crs import CrsWorkflow
 from sase.core.paths import shorten_path
@@ -80,9 +80,9 @@ def main() -> int:
     reviewer_type = sys.argv[4]
     timestamp = sys.argv[5]  # Same timestamp used in agent suffix
 
-    # Initialize telemetry and push metrics on exit
+    # Initialize telemetry and flush metrics on exit
     init_telemetry()
-    register_push_on_exit(job="crs-runner", instance=timestamp)
+    register_flush_on_exit(job="crs-runner", instance=timestamp)
 
     proposal_id: str | None = None
     exit_code = 1

@@ -1,10 +1,10 @@
-"""No-op stub classes matching the prometheus_client API surface used by sase.
+"""No-op metric classes used before telemetry initialization or when disabled.
 
 When telemetry is disabled these stubs are used instead of real metric objects,
 ensuring zero import cost and zero runtime overhead.
 
 When telemetry is enabled, ``_create_real_metrics()`` points each stub's
-``_real`` attribute at the corresponding real prometheus_client object. This
+``_real`` attribute at the corresponding in-house accumulator. This
 way, modules that grabbed the metric via ``from sase.telemetry.metrics import
 X`` at import time (before ``init_telemetry()`` ran) still reach the real
 metric via delegation — the stub binding is no longer dead.
@@ -16,7 +16,7 @@ from typing import Any
 
 
 class StubCounter:
-    """No-op replacement for ``prometheus_client.Counter``."""
+    """No-op counter with optional forwarding to an in-house accumulator."""
 
     _real: Any = None
 
@@ -31,7 +31,7 @@ class StubCounter:
 
 
 class StubGauge:
-    """No-op replacement for ``prometheus_client.Gauge``."""
+    """No-op gauge with optional forwarding to an in-house accumulator."""
 
     _real: Any = None
 
@@ -54,7 +54,7 @@ class StubGauge:
 
 
 class StubHistogram:
-    """No-op replacement for ``prometheus_client.Histogram``."""
+    """No-op histogram with optional forwarding to an in-house accumulator."""
 
     _real: Any = None
 

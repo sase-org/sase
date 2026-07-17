@@ -80,9 +80,7 @@ def synthesize_default_artifact_files(
         done.get("workspace_dir"), agent_meta.get("workspace_dir")
     )
     markdown_pdf_sources = read_markdown_pdf_source_paths(artifacts_dir)
-    default_artifact_files_persisted = bool(
-        done.get("default_artifacts_persisted")
-    )
+    default_artifact_files_persisted = bool(done.get("default_artifacts_persisted"))
 
     artifact_files: list[ArtifactFile] = []
 
@@ -257,7 +255,9 @@ def list_artifact_files(
         if artifact_file.kind in {"chat", "plan"}
     ]
     return dedupe_artifact_files(
-        _dedupe_plan_artifact_files([*chat_and_plans, *indexed, *non_chat_plan_defaults])
+        _dedupe_plan_artifact_files(
+            [*chat_and_plans, *indexed, *non_chat_plan_defaults]
+        )
     )
 
 

@@ -39,7 +39,6 @@ dependencies = [
     "packaging",
     "pillow",
     "pluggy",
-    "prometheus_client",
     "pyinstrument",
     "pyyaml",
     "plotext",

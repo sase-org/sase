@@ -73,9 +73,7 @@ def store_explicit_artifact_file(
     )
     stored_path = _store_file(source, root, association, move=move)
     artifact_file = ArtifactFile(
-        id=artifact_file_id(
-            "explicit", association, stored_path, label or source.name
-        ),
+        id=artifact_file_id("explicit", association, stored_path, label or source.name),
         label=label or source.name,
         kind=artifact_file_kind,
         path=str(stored_path),
@@ -251,10 +249,7 @@ def _read_index_unlocked(index_path: Path) -> list[ArtifactFile]:
             if not stripped:
                 continue
             data = json.loads(stripped)
-            if (
-                int(data.get("schema_version", 0))
-                != ARTIFACT_FILE_INDEX_SCHEMA_VERSION
-            ):
+            if int(data.get("schema_version", 0)) != ARTIFACT_FILE_INDEX_SCHEMA_VERSION:
                 continue
             artifact_data = data.get("artifact")
             if isinstance(artifact_data, dict):

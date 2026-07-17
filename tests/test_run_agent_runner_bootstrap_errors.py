@@ -65,7 +65,7 @@ def _runner_patches(
         )
     )
     stack.enter_context(patch.object(run_agent_runner, "init_telemetry"))
-    stack.enter_context(patch.object(run_agent_runner, "register_push_on_exit"))
+    stack.enter_context(patch.object(run_agent_runner, "register_flush_on_exit"))
     stack.enter_context(patch.object(run_agent_runner, "print_agent_start_banner"))
     stack.enter_context(
         patch.object(run_agent_runner, "format_agent_run_runtime", return_value="0s")

@@ -187,8 +187,8 @@ class Orchestrator:
             signal.signal(signal.SIGTERM, self._handle_shutdown)
             self._write_pid()
 
-            # Initialize telemetry with HTTP exposition server for Prometheus scraping
-            init_telemetry(start_http_server=True)
+            # Long-lived orchestrator metrics flush to the local store in batches.
+            init_telemetry(start_flusher=True, source="orchestrator")
 
             # Spawn all lumberjacks
             for name in self.config.lumberjacks:

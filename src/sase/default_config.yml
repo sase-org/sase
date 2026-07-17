@@ -437,10 +437,12 @@ vcs_ref_completion:
   enabled: true
 
 telemetry:
-  enabled: false
-  prometheus:
-    exposition_port: 9464
-    pushgateway_url: "localhost:9091"
+  enabled: true
+  flush_interval_seconds: 15
+  retention:
+    raw_seconds: 172800
+    rollup_5m_seconds: 2592000
+    rollup_1h_seconds: 31536000
   health_thresholds:
     error_rate_warn: 10.0
     error_rate_critical: 25.0

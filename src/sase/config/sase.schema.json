@@ -1329,17 +1329,48 @@
     },
     "telemetry": {
       "type": "object",
-      "description": "Prometheus telemetry settings",
+      "description": "Local telemetry settings",
       "additionalProperties": false,
       "properties": {
         "enabled": {
           "type": "boolean",
           "description": "Whether telemetry collection is enabled",
-          "default": false
+          "default": true
+        },
+        "flush_interval_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Seconds between local telemetry store flushes in long-lived processes",
+          "default": 15
+        },
+        "retention": {
+          "type": "object",
+          "description": "Retention windows for raw and rolled-up metric samples",
+          "additionalProperties": false,
+          "properties": {
+            "raw_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Seconds to retain raw metric samples",
+              "default": 172800
+            },
+            "rollup_5m_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Seconds to retain five-minute metric rollups",
+              "default": 2592000
+            },
+            "rollup_1h_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Seconds to retain hourly metric rollups",
+              "default": 31536000
+            }
+          }
         },
         "prometheus": {
           "type": "object",
-          "description": "Prometheus connection settings",
+          "description": "Deprecated legacy settings accepted for compatibility and ignored",
           "additionalProperties": false,
           "properties": {
             "exposition_port": {

@@ -1,7 +1,7 @@
 """Module-level metric singletons.
 
-All variables start as stubs.  ``init_telemetry()`` replaces them with real
-``prometheus_client`` objects when telemetry is enabled.
+All variables start as stubs.  ``init_telemetry()`` replaces them with in-house
+accumulators when telemetry is enabled.
 
 Consumers import from here::
 
@@ -85,7 +85,7 @@ MEMORY_PROPOSALS_REJECTED: StubCounter = StubCounter()
 
 # ---------------------------------------------------------------------------
 # Metric definitions used by _registry.init_telemetry() to create real
-# prometheus_client objects.  Each entry is (module_attr, kind, name,
+# accumulators.  Each entry is (module_attr, kind, name,
 # documentation, label_names, extra_kwargs).
 # ---------------------------------------------------------------------------
 METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
@@ -394,3 +394,16 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         {},
     ),
 ]
+
+
+# Keep the original stub instances stable.  Instrumented modules import these
+# objects before telemetry initializes; restoring the same instances in tests
+# preserves forwarding for those early imports.
+_INITIAL_STUBS = {attr: globals()[attr] for attr, *_ in METRIC_DEFS}
+
+
+def restore_metric_stubs() -> None:
+    """Restore and disconnect all module-level stub singletons."""
+    for attr, stub in _INITIAL_STUBS.items():
+        stub._real = None
+        globals()[attr] = stub

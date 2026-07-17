@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from sase.core.paths import sase_home
 
 log = logging.getLogger(__name__)
 
@@ -24,14 +27,57 @@ class HealthThresholds:
 
 
 @dataclass(frozen=True)
-class _TelemetryConfig:
-    """Prometheus telemetry settings."""
+class _RetentionConfig:
+    """Retention windows passed to the Rust telemetry store."""
 
-    enabled: bool = False
-    exposition_port: int = 9464
-    pushgateway_url: str = "localhost:9091"
-    prometheus_url: str = "localhost:9090"
+    raw_seconds: int = 48 * 60 * 60
+    rollup_5m_seconds: int = 30 * 24 * 60 * 60
+    rollup_1h_seconds: int = 365 * 24 * 60 * 60
+
+    def as_wire(self) -> dict[str, int]:
+        """Return the core binding's retention wire shape."""
+        return {
+            "raw_seconds": self.raw_seconds,
+            "rollup_5m_seconds": self.rollup_5m_seconds,
+            "rollup_1h_seconds": self.rollup_1h_seconds,
+        }
+
+
+def _default_telemetry_store_path() -> Path:
+    """Return the default local telemetry database path."""
+    return sase_home() / "telemetry" / "metrics.sqlite"
+
+
+@dataclass(frozen=True)
+class _TelemetryConfig:
+    """Local telemetry settings."""
+
+    enabled: bool = True
+    flush_interval_seconds: float = 15.0
+    retention: _RetentionConfig = _RetentionConfig()
+    store_path: Path | None = None
+    busy_timeout_ms: int = 250
     health_thresholds: HealthThresholds = HealthThresholds()
+
+    @property
+    def resolved_store_path(self) -> Path:
+        """Resolve the store lazily so ``SASE_HOME`` redirection is honored."""
+        return self.store_path or _default_telemetry_store_path()
+
+    # Transitional read-only defaults for the old CLI modules.  Legacy
+    # ``telemetry.prometheus`` configuration is deliberately ignored; the CLI
+    # phase removes these consumers entirely.
+    @property
+    def exposition_port(self) -> int:
+        return 9464
+
+    @property
+    def pushgateway_url(self) -> str:
+        return "localhost:9091"
+
+    @property
+    def prometheus_url(self) -> str:
+        return "localhost:9090"
 
 
 def get_telemetry_config() -> _TelemetryConfig:
@@ -52,10 +98,6 @@ def _load_telemetry_config() -> _TelemetryConfig:
     if not isinstance(section, dict):
         return _TelemetryConfig()
 
-    prom: dict[str, Any] = section.get("prometheus", {})
-    if not isinstance(prom, dict):
-        prom = {}
-
     ht_raw: dict[str, Any] = section.get("health_thresholds", {})
     if not isinstance(ht_raw, dict):
         ht_raw = {}
@@ -68,10 +110,22 @@ def _load_telemetry_config() -> _TelemetryConfig:
         p95_latency_critical=float(ht_raw.get("p95_latency_critical", 600.0)),
     )
 
+    retention_raw: dict[str, Any] = section.get("retention", {})
+    if not isinstance(retention_raw, dict):
+        retention_raw = {}
+    retention = _RetentionConfig(
+        raw_seconds=int(retention_raw.get("raw_seconds", 48 * 60 * 60)),
+        rollup_5m_seconds=int(
+            retention_raw.get("rollup_5m_seconds", 30 * 24 * 60 * 60)
+        ),
+        rollup_1h_seconds=int(
+            retention_raw.get("rollup_1h_seconds", 365 * 24 * 60 * 60)
+        ),
+    )
+
     return _TelemetryConfig(
-        enabled=bool(section.get("enabled", False)),
-        exposition_port=int(prom.get("exposition_port", 9464)),
-        pushgateway_url=str(prom.get("pushgateway_url", "localhost:9091")),
-        prometheus_url=str(prom.get("url", "localhost:9090")),
+        enabled=bool(section.get("enabled", True)),
+        flush_interval_seconds=float(section.get("flush_interval_seconds", 15.0)),
+        retention=retention,
         health_thresholds=ht,
     )

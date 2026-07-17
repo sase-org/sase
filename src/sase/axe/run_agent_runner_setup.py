@@ -31,7 +31,7 @@ from sase.axe.runner_workspace import (
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.telemetry import push_metrics
+from sase.telemetry import flush_metrics
 from sase.telemetry.metrics import (
     AGENT_ACTIVE,
     AGENT_SPAWNS,
@@ -417,12 +417,12 @@ def bump_spawn_telemetry(
     workflow_name: str,
     timestamp: str,
 ) -> None:
-    """Increment spawn/active gauges and push immediately.
+    """Increment spawn/active gauges and flush immediately.
 
     These live in the runner (not in launcher.py) because
     ``init_telemetry()`` has already run in this process and
-    ``agent_llm_provider`` is now known from directives. The push is
-    forced because the atexit push only fires after gauges decrement to 0.
+    ``agent_llm_provider`` is now known from directives. The flush is
+    forced because the atexit flush only fires after gauges decrement to 0.
     """
     AGENT_SPAWNS.labels(
         llm_provider=agent_llm_provider or "", project=project_name
@@ -432,7 +432,7 @@ def bump_spawn_telemetry(
     ).inc()
     if not is_home_mode:
         WORKSPACE_ACTIVE.labels(project=project_name).inc()
-    push_metrics(
+    flush_metrics(
         job="agent_runner",
         grouping_key={"workflow": workflow_name, "instance": timestamp},
     )

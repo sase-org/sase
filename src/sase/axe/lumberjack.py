@@ -20,7 +20,7 @@ from rich.console import Console
 from sase.ace.hooks.processes import is_process_running
 from sase.ace.query import parse_query
 from sase.core.time import get_timezone
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
 from .check_cycles import CheckCycleRunner
@@ -546,9 +546,8 @@ class Lumberjack:
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         write_lumberjack_pid(self.name)
 
-        # Initialize telemetry and push metrics on exit
-        init_telemetry()
-        register_push_on_exit(job="lumberjack", lumberjack=self.name)
+        # Lumberjacks are long-lived, so flush their local deltas periodically.
+        init_telemetry(start_flusher=True, source=f"lumberjack:{self.name}")
 
         # Schedule the tick at the configured interval
         self.scheduler.every(self.config.interval).seconds.do(self._run_tick)

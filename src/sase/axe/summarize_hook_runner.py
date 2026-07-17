@@ -30,7 +30,7 @@ from sase.axe.runner_artifacts import (
 )
 from sase.axe.runner_reporting import write_error_report
 from sase.config.metahook import MetahookConfig, find_matching_metahook
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.artifacts import create_artifacts_directory
 from sase.ace.hooks.summarize_utils import get_file_summary
@@ -57,9 +57,9 @@ def main() -> int:
     entry_id = sys.argv[6]
     timestamp = sys.argv[7]  # Same timestamp used in agent suffix
 
-    # Initialize telemetry and push metrics on exit
+    # Initialize telemetry and flush metrics on exit
     init_telemetry()
-    register_push_on_exit(job="summarize-hook-runner", instance=timestamp)
+    register_flush_on_exit(job="summarize-hook-runner", instance=timestamp)
 
     exit_code = 1
     error_summary: str | None = None

@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from sase.telemetry._accumulators import Counter
 from sase.telemetry._config import _TelemetryConfig
 from sase.telemetry._registry import init_telemetry
 from sase.telemetry._stubs import StubCounter
@@ -70,18 +71,17 @@ def test_init_telemetry_enabled_creates_real_metrics() -> None:
 
     from sase.telemetry import metrics as m
 
-    # Real Counter objects have a _name attribute (prometheus_client strips _total)
-    assert hasattr(m.AGENT_RUNS, "_name")
-    assert m.AGENT_RUNS._name == "sase_agent_runs"
+    assert isinstance(m.AGENT_RUNS, Counter)
+    assert m.AGENT_RUNS.name == "sase_agent_runs_total"
     assert not isinstance(m.AGENT_RUNS, StubCounter)
 
 
-def test_init_telemetry_enabled_with_http_server() -> None:
-    cfg = _TelemetryConfig(enabled=True, exposition_port=19464)
+def test_init_telemetry_enabled_with_flusher() -> None:
+    cfg = _TelemetryConfig(enabled=True)
     with (
         patch("sase.telemetry._registry.get_telemetry_config", return_value=cfg),
-        patch("sase.telemetry._registry._start_http_server") as mock_server,
+        patch("sase.telemetry._registry._start_flusher") as mock_flusher,
     ):
-        init_telemetry(start_http_server=True)
+        init_telemetry(start_flusher=True, source="test-daemon")
 
-    mock_server.assert_called_once_with(19464)
+    mock_flusher.assert_called_once_with()

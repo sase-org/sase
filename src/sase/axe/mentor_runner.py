@@ -22,7 +22,7 @@ from sase.axe.runner_reporting import (
     write_error_report,
 )
 from sase.axe.runner_signals import install_sigterm_handler
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import MENTOR_EXECUTIONS
 from sase.workflows.mentor import MentorWorkflow
 from sase.artifacts import create_artifacts_directory
@@ -48,9 +48,9 @@ def main() -> None:
     profile_name = sys.argv[6]
     timestamp = sys.argv[7]
 
-    # Initialize telemetry and push metrics on exit
+    # Initialize telemetry and flush metrics on exit
     init_telemetry()
-    register_push_on_exit(job="mentor-runner", mentor=mentor_name, instance=timestamp)
+    register_flush_on_exit(job="mentor-runner", mentor=mentor_name, instance=timestamp)
 
     start_time = time.time()
     success = False

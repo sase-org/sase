@@ -42,7 +42,7 @@ def _patch_runner_plumbing(
     runner: ModuleType,
 ) -> MagicMock:
     monkeypatch.setattr(runner, "init_telemetry", MagicMock())
-    monkeypatch.setattr(runner, "register_push_on_exit", MagicMock())
+    monkeypatch.setattr(runner, "register_flush_on_exit", MagicMock())
     monkeypatch.setattr(
         runner, "detect_write_and_persist_review_agent_meta", MagicMock()
     )

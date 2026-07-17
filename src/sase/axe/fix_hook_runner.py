@@ -37,7 +37,7 @@ from sase.axe.runner_reporting import (
     write_error_report,
 )
 from sase.history.chat import find_chat_by_timestamp
-from sase.telemetry import init_telemetry, register_push_on_exit
+from sase.telemetry import init_telemetry, register_flush_on_exit
 from sase.telemetry.metrics import WORKFLOW_DURATION, WORKFLOW_EXECUTIONS
 from sase.core.paths import shorten_path
 from sase.core.shell import strip_hook_prefix
@@ -123,9 +123,9 @@ def main() -> int:
     last_history_id = sys.argv[6]
     timestamp = sys.argv[7]  # Same timestamp used in agent suffix
 
-    # Initialize telemetry and push metrics on exit
+    # Initialize telemetry and flush metrics on exit
     init_telemetry()
-    register_push_on_exit(job="fix-hook-runner", instance=timestamp)
+    register_flush_on_exit(job="fix-hook-runner", instance=timestamp)
 
     proposal_id: str | None = None
     exit_code = 1

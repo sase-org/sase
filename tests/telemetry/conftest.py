@@ -5,13 +5,10 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from prometheus_client import CollectorRegistry
 
+from sase.telemetry._accumulators import MetricRegistry
 from sase.telemetry._config import _TelemetryConfig
-from sase.telemetry._registry import init_telemetry
-from sase.telemetry import metrics as m
-from sase.telemetry._stubs import StubCounter, StubGauge, StubHistogram
-from sase.telemetry.metrics import METRIC_DEFS
+from sase.telemetry._registry import _reset_for_tests, init_telemetry
 
 _ENABLED_CFG = _TelemetryConfig(enabled=True)
 _DISABLED_CFG = _TelemetryConfig(enabled=False)
@@ -26,18 +23,7 @@ def reset_telemetry_config() -> None:
 
 def reset_registry() -> None:
     """Reset telemetry registry state and restore stubs."""
-    import sase.telemetry._registry as reg_mod
-
-    reg_mod._initialized = False
-    reg_mod._registry = None
-
-    stub_factory = {
-        "counter": StubCounter,
-        "gauge": StubGauge,
-        "histogram": StubHistogram,
-    }
-    for attr, kind, *_ in METRIC_DEFS:
-        setattr(m, attr, stub_factory[kind]())
+    _reset_for_tests()
 
 
 def is_initialized() -> bool:
@@ -48,7 +34,7 @@ def is_initialized() -> bool:
 
 
 def get_registry():  # noqa: ANN201
-    """Return the dedicated CollectorRegistry, or None."""
+    """Return the dedicated in-house registry, or None."""
     import sase.telemetry._registry as reg_mod
 
     return reg_mod._registry
@@ -64,7 +50,7 @@ def _reset_telemetry():
     reset_telemetry_config()
 
 
-def init_enabled() -> CollectorRegistry:
+def init_enabled() -> MetricRegistry:
     """Initialize telemetry in enabled mode and return the registry."""
     with patch(
         "sase.telemetry._registry.get_telemetry_config", return_value=_ENABLED_CFG
@@ -84,7 +70,7 @@ def init_disabled() -> None:
 
 
 def sample(
-    reg: CollectorRegistry, name: str, labels: dict[str, str] | None = None
+    reg: MetricRegistry, name: str, labels: dict[str, str] | None = None
 ) -> float | None:
     """Read a sample value from the registry."""
     return reg.get_sample_value(name, labels or {})

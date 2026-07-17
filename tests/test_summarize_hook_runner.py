@@ -45,7 +45,7 @@ def _run_summarize_hook_runner(
 
     patches = [
         patch.object(summarize_hook_runner, "init_telemetry"),
-        patch.object(summarize_hook_runner, "register_push_on_exit"),
+        patch.object(summarize_hook_runner, "register_flush_on_exit"),
         patch.object(
             summarize_hook_runner,
             "create_artifacts_directory",

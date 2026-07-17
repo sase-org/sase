@@ -115,7 +115,7 @@ def _run_runner_with_wait_result(
             patch.object(run_agent_runner, "install_workspace_release_sigterm_handler")
         )
         stack.enter_context(patch.object(run_agent_runner, "init_telemetry"))
-        stack.enter_context(patch.object(run_agent_runner, "register_push_on_exit"))
+        stack.enter_context(patch.object(run_agent_runner, "register_flush_on_exit"))
         stack.enter_context(patch.object(run_agent_runner, "print_agent_start_banner"))
         stack.enter_context(
             patch.object(
