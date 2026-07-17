@@ -1,14 +1,15 @@
-"""Associated-plan resolution for deferred Agents-tab detail enrichment."""
+"""Associated-plan resolution for deferred Agents-tab detail enrichment.
+
+This module is the stable import facade. Value types, caches, and filesystem
+path handling live in focused sibling modules while role-aware orchestration
+remains here.
+"""
 
 from __future__ import annotations
 
-from collections import OrderedDict
-from dataclasses import dataclass
 import os
 from pathlib import Path
-from threading import RLock
-from time import monotonic
-from typing import Final, Literal
+from typing import Literal
 
 from sase.agent.bead_display import (
     BeadIssueLookupSession,
@@ -19,303 +20,34 @@ from sase.agent.bead_display import (
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
 from sase.core.agent_artifact_helpers import select_canonical_plan_path
-from sase.core.paths import shorten_path
-from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
-from sase.sdd.plan_validate import ValidatedPlanPhase, validate_plan
+from sase.sdd.plan_validate import validate_plan
 
+from ._agent_associated_plan_cache import (
+    _CACHE_MISS,
+    _PLAN_ASSOCIATION_CACHE,
+    _PLAN_FILE_CACHE,
+    PlanAssociationCache as _PlanAssociationCache,
+    PlanFileCache as _PlanFileCache,
+)
+from ._agent_associated_plan_paths import (
+    agent_project_name as _agent_project_name,
+    association_key as _association_key,
+    display_plan_path as _display_plan_path,
+    resolve_plan_reference as _resolve_plan_reference,
+)
+from ._agent_associated_plan_types import (
+    AgentPlanRole,
+    AssociatedPlanPhaseAvailability,
+    AssociatedPlanPhaseSummary as AssociatedPlanPhaseSummary,
+    AssociatedPlanSummary as AssociatedPlanSummary,
+    AssociatedPlanTier,
+    AuthoredPlanTier,
+    AgentPlanEnrichment as _AgentPlanEnrichment,
+    _InitialAgentPlanRole,
+    PlanFileMetadata as _PlanFileMetadata,
+    ResolvedPlanAssociation as _ResolvedPlanAssociation,
+)
 from .agent import Agent
-
-_CACHE_MAX_ENTRIES = 256
-_ASSOCIATION_TTL_SECONDS = 60.0
-_NEGATIVE_TTL_SECONDS = 5.0
-_CACHE_MISS: Final = object()
-
-AssociatedPlanTier = Literal["plan", "tale", "epic"]
-AuthoredPlanTier = Literal["tale", "epic"]
-AgentPlanRole = Literal["ordinary", "author", "phase", "land"]
-_InitialAgentPlanRole = Literal[
-    "ordinary",
-    "author",
-    "phase",
-    "land",
-    "ambiguous",
-]
-AssociatedPlanPhaseAvailability = Literal[
-    "not-applicable",
-    "available",
-    "unavailable",
-]
-PlanAssociationCacheKey = tuple[str, str, str | None, str | None, int]
-PlanFileSignature = tuple[int, int]
-
-
-@dataclass(frozen=True, slots=True)
-class AssociatedPlanPhaseSummary:
-    """Immutable normalized epic phase consumed by the render path."""
-
-    id: str
-    title: str
-    depends_on: tuple[str, ...]
-    description: str | None
-    model: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class AssociatedPlanSummary:
-    """Immutable plan metadata consumed by the in-memory render path."""
-
-    title: str | None
-    goal: str | None
-    authored_tier: AuthoredPlanTier | None
-    effective_tier: AssociatedPlanTier | None
-    actual_path: str
-    display_path: str
-    committed: bool | None
-    exists: bool
-    readable: bool
-    frontmatter_readable: bool
-    phase_availability: AssociatedPlanPhaseAvailability
-    phases: tuple[AssociatedPlanPhaseSummary, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _AgentPlanEnrichment:
-    """Role-aware plan result consumed by deferred detail enrichment.
-
-    Phase workers deliberately carry ``associated_plan=None``. Their resolved
-    plan path is retained only so the generic artifact list can avoid exposing
-    the same epic plan as unrelated metadata.
-    """
-
-    role: AgentPlanRole
-    bead_display: str | None
-    associated_plan: AssociatedPlanSummary | None
-    resolved_plan_path: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class _PlanFileMetadata:
-    title: str | None
-    goal: str | None
-    authored_tier: AuthoredPlanTier | None
-    exists: bool
-    readable: bool
-    frontmatter_readable: bool
-    phase_availability: AssociatedPlanPhaseAvailability
-    phases: tuple[AssociatedPlanPhaseSummary, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _PlanFileCacheEntry:
-    signature: PlanFileSignature | None
-    metadata: _PlanFileMetadata
-    expires_at: float | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _ResolvedPlanAssociation:
-    path: Path | None
-    known_epic: bool = False
-    role: Literal["phase", "land"] | None = None
-    plan_reference: str | None = None
-    epic_bead_id: str | None = None
-    phase_bead_id: str | None = None
-
-
-class _PlanFileCache:
-    """Bounded frontmatter cache invalidated by file mtime and size."""
-
-    def __init__(self, *, max_entries: int = _CACHE_MAX_ENTRIES) -> None:
-        self._max_entries = max_entries
-        self._entries: OrderedDict[Path, _PlanFileCacheEntry] = OrderedDict()
-        self._lock = RLock()
-
-    def get(self, path: Path) -> _PlanFileMetadata:
-        normalized = path.expanduser().resolve(strict=False)
-        now = monotonic()
-        try:
-            stat = normalized.stat()
-            signature: PlanFileSignature | None = (stat.st_mtime_ns, stat.st_size)
-        except OSError:
-            signature = None
-
-        with self._lock:
-            entry = self._entries.get(normalized)
-            if entry is not None:
-                self._entries.move_to_end(normalized)
-                if signature is not None and entry.signature == signature:
-                    return entry.metadata
-                if (
-                    signature is None
-                    and entry.signature is None
-                    and entry.expires_at is not None
-                    and entry.expires_at > now
-                ):
-                    return entry.metadata
-
-            metadata = self._load(normalized, exists=signature is not None)
-            result = _PlanFileCacheEntry(
-                signature=signature,
-                metadata=metadata,
-                expires_at=(now + _NEGATIVE_TTL_SECONDS if signature is None else None),
-            )
-            self._entries[normalized] = result
-            self._entries.move_to_end(normalized)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
-            return metadata
-
-    @staticmethod
-    def _load(path: Path, *, exists: bool) -> _PlanFileMetadata:
-        if not exists:
-            return _PlanFileMetadata(
-                title=None,
-                goal=None,
-                authored_tier=None,
-                exists=False,
-                readable=False,
-                frontmatter_readable=False,
-                phase_availability="unavailable",
-                phases=(),
-            )
-
-        readable = os.access(path, os.R_OK)
-        if not readable:
-            return _PlanFileMetadata(
-                title=None,
-                goal=None,
-                authored_tier=None,
-                exists=True,
-                readable=False,
-                frontmatter_readable=False,
-                phase_availability="unavailable",
-                phases=(),
-            )
-
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError:
-            return _PlanFileMetadata(
-                title=None,
-                goal=None,
-                authored_tier=None,
-                exists=True,
-                readable=False,
-                frontmatter_readable=False,
-                phase_availability="unavailable",
-                phases=(),
-            )
-        except UnicodeDecodeError:
-            return _PlanFileMetadata(
-                title=None,
-                goal=None,
-                authored_tier=None,
-                exists=True,
-                readable=True,
-                frontmatter_readable=False,
-                phase_availability="unavailable",
-                phases=(),
-            )
-
-        frontmatter, error = parse_plan_frontmatter(content)
-        if error is not None:
-            return _PlanFileMetadata(
-                title=None,
-                goal=None,
-                authored_tier=None,
-                exists=True,
-                readable=True,
-                frontmatter_readable=False,
-                phase_availability="unavailable",
-                phases=(),
-            )
-
-        raw_title = frontmatter.get("title")
-        title = " ".join(raw_title.split()) if isinstance(raw_title, str) else None
-        raw_goal = frontmatter.get("goal")
-        goal = " ".join(raw_goal.split()) if isinstance(raw_goal, str) else None
-        normalized_tier = normalize_plan_tier(frontmatter.get("tier"))
-        authored_tier: AuthoredPlanTier | None = None
-        if normalized_tier == "tale":
-            authored_tier = "tale"
-        elif normalized_tier == "epic":
-            authored_tier = "epic"
-
-        phase_availability: AssociatedPlanPhaseAvailability = "not-applicable"
-        phases: tuple[AssociatedPlanPhaseSummary, ...] = ()
-        if authored_tier == "epic":
-            phase_availability = "unavailable"
-            try:
-                validation = validate_plan(content, "epic")
-            except Exception:
-                validation = None
-            if validation is not None and validation.ok and validation.plan is not None:
-                phases = tuple(
-                    _phase_summary(phase) for phase in validation.plan.phases
-                )
-                phase_availability = "available"
-        return _PlanFileMetadata(
-            title=title or None,
-            goal=goal or None,
-            authored_tier=authored_tier,
-            exists=True,
-            readable=True,
-            frontmatter_readable=True,
-            phase_availability=phase_availability,
-            phases=phases,
-        )
-
-    def clear(self) -> None:
-        with self._lock:
-            self._entries.clear()
-
-
-class _PlanAssociationCache:
-    """Short-lived cache for direct and bead-derived plan resolution."""
-
-    def __init__(self, *, max_entries: int = _CACHE_MAX_ENTRIES) -> None:
-        self._max_entries = max_entries
-        self._entries: OrderedDict[
-            PlanAssociationCacheKey, tuple[float, _ResolvedPlanAssociation]
-        ] = OrderedDict()
-        self._lock = RLock()
-
-    def get(self, key: PlanAssociationCacheKey) -> _ResolvedPlanAssociation | object:
-        now = monotonic()
-        with self._lock:
-            entry = self._entries.get(key)
-            if entry is None:
-                return _CACHE_MISS
-            expires_at, association = entry
-            if expires_at <= now:
-                del self._entries[key]
-                return _CACHE_MISS
-            self._entries.move_to_end(key)
-            return association
-
-    def set(
-        self,
-        key: PlanAssociationCacheKey,
-        association: _ResolvedPlanAssociation,
-    ) -> None:
-        ttl = (
-            _NEGATIVE_TTL_SECONDS
-            if association.path is None
-            else _ASSOCIATION_TTL_SECONDS
-        )
-        with self._lock:
-            self._entries[key] = (monotonic() + ttl, association)
-            self._entries.move_to_end(key)
-            while len(self._entries) > self._max_entries:
-                self._entries.popitem(last=False)
-
-    def clear(self) -> None:
-        with self._lock:
-            self._entries.clear()
-
-
-_PLAN_FILE_CACHE = _PlanFileCache()
-_PLAN_ASSOCIATION_CACHE = _PlanAssociationCache()
 
 
 def associated_plan_cache_key(agent: Agent) -> tuple[object, ...]:
@@ -363,7 +95,7 @@ def resolve_agent_plan_enrichment(
                 resolved_plan_path=None,
             )
         plan_path = _resolve_cached_reference(agent, "direct", reference)
-        metadata = _PLAN_FILE_CACHE.get(plan_path)
+        metadata = _load_plan_metadata(plan_path)
         return _AgentPlanEnrichment(
             role="phase",
             bead_display=_phase_bead_display(
@@ -415,7 +147,7 @@ def resolve_agent_plan_enrichment(
         # and authoritative even without a usable plan reference.
         return _AgentPlanEnrichment(role, None, None, None)
 
-    metadata = _PLAN_FILE_CACHE.get(plan_path)
+    metadata = _load_plan_metadata(plan_path)
     if role == "phase":
         epic_bead_id = association.epic_bead_id if association is not None else None
         phase_bead_id = association.phase_bead_id if association is not None else None
@@ -470,6 +202,14 @@ def resolve_agent_plan_enrichment(
         bead_display=None,
         associated_plan=summary,
         resolved_plan_path=str(plan_path),
+    )
+
+
+def _load_plan_metadata(path: Path) -> _PlanFileMetadata:
+    return _PLAN_FILE_CACHE.get(
+        path,
+        is_readable=lambda candidate: os.access(candidate, os.R_OK),
+        validate=validate_plan,
     )
 
 
@@ -547,16 +287,6 @@ def _phase_index(epic_bead_id: str | None, phase_bead_id: str) -> int | None:
         return None
     value = int(ordinal)
     return value - 1 if value > 0 else None
-
-
-def _phase_summary(phase: ValidatedPlanPhase) -> AssociatedPlanPhaseSummary:
-    return AssociatedPlanPhaseSummary(
-        id=phase.id,
-        title=phase.title,
-        depends_on=phase.depends_on,
-        description=phase.description,
-        model=phase.model,
-    )
 
 
 def _phase_availability(
@@ -716,135 +446,3 @@ def _agent_bead_id(agent: Agent) -> str | None:
         or agent.epic_bead_id
         or derive_agent_bead_id_from_name(agent.agent_name)
     )
-
-
-def _association_key(
-    agent: Agent,
-    source: str,
-    value: str,
-) -> PlanAssociationCacheKey:
-    return (
-        source,
-        value,
-        _agent_project_name(agent),
-        _normalized_workspace_dir(agent.workspace_dir),
-        agent.effective_workspace_num or 1,
-    )
-
-
-def _resolve_plan_reference(reference: str, agent: Agent) -> Path:
-    raw_path = Path(reference).expanduser()
-    if raw_path.is_absolute():
-        return raw_path.resolve(strict=False)
-
-    workspace_dir = _agent_workspace_dir(agent)
-    workspace_num = agent.effective_workspace_num or 1
-    candidates: list[Path] = []
-    if workspace_dir is not None:
-        candidates.append(workspace_dir / raw_path)
-        primary = _primary_workspace_dir(workspace_dir, workspace_num)
-        if primary is not None:
-            candidates.append(primary / raw_path)
-        candidates.extend(_sdd_plan_candidates(workspace_dir, workspace_num, raw_path))
-    if not candidates:
-        candidates.append(raw_path)
-
-    normalized = _dedupe_paths(candidates)
-    for candidate in normalized:
-        try:
-            if candidate.is_file():
-                return candidate
-        except OSError:
-            continue
-    return normalized[0]
-
-
-def _display_plan_path(
-    path: Path,
-    agent: Agent,
-    *,
-    committed: bool,
-) -> str:
-    if committed:
-        workspace_dir = _agent_workspace_dir(agent)
-        if workspace_dir is not None:
-            try:
-                return path.relative_to(workspace_dir).as_posix()
-            except ValueError:
-                pass
-    return shorten_path(str(path))
-
-
-def _agent_workspace_dir(agent: Agent) -> Path | None:
-    if agent.workspace_dir:
-        return Path(agent.workspace_dir).expanduser().resolve(strict=False)
-    if not agent.project_file:
-        return None
-    try:
-        from sase.workspace_provider.utils import parse_workspace_dir
-
-        workspace_dir = parse_workspace_dir(agent.project_file)
-    except Exception:
-        return None
-    if not workspace_dir:
-        return None
-    return Path(workspace_dir).expanduser().resolve(strict=False)
-
-
-def _primary_workspace_dir(workspace_dir: Path, workspace_num: int) -> Path | None:
-    try:
-        from sase.sdd._paths import get_primary_workspace_dir
-
-        primary = get_primary_workspace_dir(str(workspace_dir), workspace_num)
-    except Exception:
-        return None
-    return Path(primary).expanduser().resolve(strict=False) if primary else None
-
-
-def _sdd_plan_candidates(
-    workspace_dir: Path,
-    workspace_num: int,
-    reference: Path,
-) -> list[Path]:
-    try:
-        from sase.sdd.store import resolve_sdd_store
-
-        plan_root = resolve_sdd_store(workspace_dir, workspace_num).kind_root("plans")
-    except Exception:
-        return []
-
-    parts = reference.parts
-    relative = reference
-    for prefix in (
-        (".sase", "sdd", "plans"),
-        ("sdd", "plans"),
-        ("plans",),
-    ):
-        if parts[: len(prefix)] == prefix:
-            relative = Path(*parts[len(prefix) :])
-            break
-    return [plan_root / relative]
-
-
-def _dedupe_paths(paths: list[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    result: list[Path] = []
-    for path in paths:
-        normalized = path.expanduser().resolve(strict=False)
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        result.append(normalized)
-    return result
-
-
-def _agent_project_name(agent: Agent) -> str | None:
-    if not agent.project_file:
-        return None
-    return Path(agent.project_file).parent.name or None
-
-
-def _normalized_workspace_dir(workspace_dir: str | None) -> str | None:
-    if not workspace_dir:
-        return None
-    return os.path.normpath(os.path.expanduser(workspace_dir))
