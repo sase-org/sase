@@ -55,7 +55,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "model": ":model or (model, alias=model)",
     "name": ":agent or (parent, suffix)",
     "repeat": ":count",
-    "group": ":tag",
+    "tribe": ":name",
     "wait": ":agent or (agent, time=5m, runners=1)",
 }
 
@@ -69,7 +69,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "model": "choose a model and optional launch-family alias overrides",
     "name": "assign an agent name or attach a member to an existing family",
     "repeat": "run the prompt multiple serial iterations",
-    "group": "assign a user-managed agent tag",
+    "tribe": "assign a user-managed agent tribe",
     "wait": "defer launch for agents, a time floor, or a runner threshold",
 }
 

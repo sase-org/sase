@@ -1,4 +1,4 @@
-"""Tests for ``sase agent tag`` CLI subcommands."""
+"""Tests for ``sase agent tribe`` CLI subcommands."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from sase.agent.names import NamedAgent
 from sase.agents.cli_show import handle_agents_show
 from sase.agents.cli_tag import (
     _resolve_identity_by_name,
-    handle_agents_tag,
+    handle_agents_tribe,
 )
 
 
@@ -146,18 +146,18 @@ def test_resolve_identity_returns_none_when_agent_missing() -> None:
         assert _resolve_identity_by_name("ghost") is None
 
 
-def _tag_args(**overrides: Any) -> argparse.Namespace:
+def _tribe_args(**overrides: Any) -> argparse.Namespace:
     defaults: dict[str, Any] = {
-        "agent_subcommand": "tag",
-        "tag_subcommand": "set",
+        "agent_subcommand": "tribe",
+        "tribe_subcommand": "set",
         "name": "brisk-otter",
-        "tag": "release-blockers",
+        "tribe": "release-blockers",
     }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
 
-def test_tag_set_persists_tag(
+def test_tribe_set_persists_tag(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -169,7 +169,7 @@ def test_tag_set_persists_tag(
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tag="release-blockers"))
+        handle_agents_tribe(_tribe_args(tribe="release-blockers"))
     out = capsys.readouterr().out
     assert "release-blockers" in out
     persisted = json.loads(test_file.read_text())
@@ -181,7 +181,7 @@ def test_tag_set_persists_tag(
     ]
 
 
-def test_tag_set_replaces_existing_tag(tmp_path: Path) -> None:
+def test_tribe_set_replaces_existing_tag(tmp_path: Path) -> None:
     test_file = tmp_path / "agent_tags.json"
     test_file.write_text(json.dumps([{"id": ["run", "fix-bug", "ts"], "tag": "alpha"}]))
     identity = (AgentType.RUNNING, "fix-bug", "ts")
@@ -192,28 +192,28 @@ def test_tag_set_replaces_existing_tag(tmp_path: Path) -> None:
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tag="beta"))
+        handle_agents_tribe(_tribe_args(tribe="beta"))
     persisted = json.loads(test_file.read_text())
     assert persisted == [{"id": ["run", "fix-bug", "ts"], "tag": "beta"}]
 
 
-def test_tag_set_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:
+def test_tribe_set_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_tag(_tag_args(tag="@release"))
+        handle_agents_tribe(_tribe_args(tribe="@release"))
     assert excinfo.value.code == 2
     assert "must not start with '@'" in capsys.readouterr().err
 
 
-def test_tag_set_rejects_invalid_characters(
+def test_tribe_set_rejects_invalid_characters(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_tag(_tag_args(tag="has space"))
+        handle_agents_tribe(_tribe_args(tribe="has space"))
     assert excinfo.value.code == 2
     assert "must match" in capsys.readouterr().err
 
 
-def test_tag_set_unknown_agent_exits_2(
+def test_tribe_set_unknown_agent_exits_2(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     with (
@@ -224,12 +224,12 @@ def test_tag_set_unknown_agent_exits_2(
         ),
         pytest.raises(SystemExit) as excinfo,
     ):
-        handle_agents_tag(_tag_args(name="ghost"))
+        handle_agents_tribe(_tribe_args(name="ghost"))
     assert excinfo.value.code == 2
     assert "No agent found" in capsys.readouterr().err
 
 
-def test_tag_unset_drops_identity(
+def test_tribe_unset_drops_identity(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -242,13 +242,13 @@ def test_tag_unset_drops_identity(
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(_tag_args(tag_subcommand="unset"))
+        handle_agents_tribe(_tribe_args(tribe_subcommand="unset"))
     out = capsys.readouterr().out
     assert "(none)" in out
     assert json.loads(test_file.read_text()) == []
 
 
-def test_tag_list_all_emits_json(
+def test_tribe_list_all_emits_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -267,10 +267,10 @@ def test_tag_list_all_emits_json(
         )
     )
     with patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file):
-        handle_agents_tag(
+        handle_agents_tribe(
             argparse.Namespace(
-                agent_subcommand="tag",
-                tag_subcommand="list",
+                agent_subcommand="tribe",
+                tribe_subcommand="list",
                 name=None,
             )
         )
@@ -281,7 +281,7 @@ def test_tag_list_all_emits_json(
     assert by_cl["ship"]["agent_type"] == "workflow"
 
 
-def test_tag_list_one_agent_emits_object(
+def test_tribe_list_one_agent_emits_object(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     test_file = tmp_path / "agent_tags.json"
@@ -296,10 +296,10 @@ def test_tag_list_one_agent_emits_object(
         ),
         patch("sase.ace.agent_tags._AGENT_TAGS_FILE", test_file),
     ):
-        handle_agents_tag(
+        handle_agents_tribe(
             argparse.Namespace(
-                agent_subcommand="tag",
-                tag_subcommand="list",
+                agent_subcommand="tribe",
+                tribe_subcommand="list",
                 name="brisk-otter",
             )
         )
@@ -313,15 +313,15 @@ def test_tag_list_one_agent_emits_object(
     }
 
 
-def test_tag_unknown_subcommand_exits_1(
+def test_tribe_unknown_subcommand_exits_1(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     with pytest.raises(SystemExit) as excinfo:
-        handle_agents_tag(
+        handle_agents_tribe(
             argparse.Namespace(
-                agent_subcommand="tag",
-                tag_subcommand="bogus",
+                agent_subcommand="tribe",
+                tribe_subcommand="bogus",
             )
         )
     assert excinfo.value.code == 1
-    assert "Usage: sase agent tag" in capsys.readouterr().err
+    assert "Usage: sase agent tribe" in capsys.readouterr().err

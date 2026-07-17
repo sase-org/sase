@@ -141,7 +141,7 @@ def test_write_done_marker_can_write_visible_review_agent() -> None:
 
 
 def test_detect_write_and_persist_review_agent_meta(tmp_path: Path) -> None:
-    """Specialized review runners persist the same tag as %group:review."""
+    """Specialized review runners persist the same tag as %tribe:review."""
     artifacts_dir = tmp_path / "crs" / "20260506120000"
     artifacts_dir.mkdir(parents=True)
     tag_file = tmp_path / "agent_tags.json"

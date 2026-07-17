@@ -26,7 +26,7 @@ def _choices(count: int = 3) -> list[AgentNeighborChoice]:
             agent_name=f"foo.agent{index}",
             display_name="demo",
             status="RUNNING" if index == 0 else "DONE",
-            panel_label="#review" if index == 1 else "(untagged)",
+            panel_label="@review" if index == 1 else "(untagged)",
             time_hint="4m",
             group="neighbor",
             global_idx=index + 10,
@@ -129,7 +129,7 @@ def test_agent_neighbor_modal_option_text_includes_row_metadata() -> None:
     assert "a" in plain
     assert "foo.agent1" in plain
     assert "DONE" in plain
-    assert "#review" in plain
+    assert "@review" in plain
     assert "4m" in plain
 
 
@@ -138,7 +138,7 @@ def test_agent_neighbor_modal_option_text_tags_dismissed_rows() -> None:
         agent_name="foo.dismissed",
         display_name="demo",
         status="DONE",
-        panel_label="#review",
+        panel_label="@review",
         dismissed=True,
         group="descendant",
     )
@@ -169,7 +169,7 @@ def test_agent_neighbor_modal_title_summarizes_two_groups() -> None:
             agent_name="foo.child",
             display_name="child",
             status="DONE",
-            panel_label="#api",
+            panel_label="@api",
             group="descendant",
         ),
         *_choices(2),
@@ -185,14 +185,14 @@ def test_agent_neighbor_modal_title_summarizes_ancestors_first() -> None:
             agent_name="foo",
             display_name="parent",
             status="DONE",
-            panel_label="#api",
+            panel_label="@api",
             group="ancestor",
         ),
         AgentNeighborChoice(
             agent_name="foo.bar.child",
             display_name="child",
             status="RUNNING",
-            panel_label="#api",
+            panel_label="@api",
             group="descendant",
         ),
         *_choices(1),
@@ -210,14 +210,14 @@ async def test_agent_neighbor_modal_headers_are_non_selectable() -> None:
             agent_name="foo",
             display_name="parent",
             status="DONE",
-            panel_label="#api",
+            panel_label="@api",
             group="ancestor",
         ),
         AgentNeighborChoice(
             agent_name="foo.child",
             display_name="child",
             status="DONE",
-            panel_label="#api",
+            panel_label="@api",
             group="descendant",
         ),
         *_choices(1),

@@ -153,7 +153,7 @@ def _agent(*, name: str, tag: str | None, suffix: str) -> Agent:
 
 
 def _three_panel_agents() -> list[Agent]:
-    """3 panels: untagged, #apple, #banana."""
+    """3 panels: untagged, @apple, @banana."""
     return [
         _agent(name="u1", tag=None, suffix="t1"),
         _agent(name="a1", tag="apple", suffix="t2"),
@@ -162,7 +162,7 @@ def _three_panel_agents() -> list[Agent]:
 
 
 def _two_tagged_panel_agents() -> list[Agent]:
-    """2 panels: #apple, #banana."""
+    """2 panels: @apple, @banana."""
     return [
         _agent(name="a1", tag="apple", suffix="t1"),
         _agent(name="b1", tag="banana", suffix="t2"),
@@ -244,17 +244,17 @@ def test_collapsed_panel_hint_routes_by_key_in_full_and_selective_refreshes() ->
     )
 
     banana = app._panel_widgets["agent-list-panel-2"]
-    assert getattr(banana.border_title, "plain", "") == "[7] ▸ #banana · 1 [R1]"
+    assert getattr(banana.border_title, "plain", "") == "[7] ▸ @banana · 1 [R1]"
 
     app._entry_jump_mode_active = True
     app._entry_jump_panel_to_hint = {target: "x"}
     assert app._refresh_affected_panel_widgets({"banana"}) is True
-    assert getattr(banana.border_title, "plain", "") == "[x] ▸ #banana · 1 [R1]"
+    assert getattr(banana.border_title, "plain", "") == "[x] ▸ @banana · 1 [R1]"
 
     app._entry_jump_mode_active = False
     app._entry_jump_panel_to_hint = {}
     assert app._refresh_affected_panel_widgets({"banana"}) is True
-    assert getattr(banana.border_title, "plain", "") == "▸ #banana · 1 [R1]"
+    assert getattr(banana.border_title, "plain", "") == "▸ @banana · 1 [R1]"
 
 
 def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:
@@ -307,8 +307,8 @@ def test_separator_rows_are_included_in_fit_boundary() -> None:
 
 
 def test_overflow_regime_protects_small_tag_panel_before_large_panel() -> None:
-    # #apple has only a banner + agent row, so it should stay at natural
-    # height while the larger #banana panel absorbs the cropping pressure.
+    # @apple has only a banner + agent row, so it should stay at natural
+    # height while the larger @banana panel absorbs the cropping pressure.
     agents = _two_tagged_panel_agents()
     app = _FakeApp(agents, option_counts=[2, 25], container_height=12)
 

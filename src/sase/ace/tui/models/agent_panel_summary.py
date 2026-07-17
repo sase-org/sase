@@ -78,7 +78,7 @@ _ROSTER_BUCKET_ORDER: dict[str, int] = {
 
 def _collapsed_agent_panel_label(panel_key: PanelKey) -> str:
     """Return the same visible label used by an Agents panel title."""
-    return "(untagged)" if panel_key is None else f"#{panel_key}"
+    return "(untagged)" if panel_key is None else f"@{panel_key}"
 
 
 def _row_roster_bucket(agent: Agent, unread_ids: Collection[AgentIdentity]) -> str:

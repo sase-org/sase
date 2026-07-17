@@ -187,7 +187,7 @@ def format_agent_option(
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
     text.append(agent.display_name, style=name_style)
     if tag_label:
-        text.append(f" #{tag_label}", style="bold #FFD75F")
+        text.append(f" @{tag_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
     display_status = agent.display_status

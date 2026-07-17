@@ -468,7 +468,7 @@ def extract_directives_and_write_meta(
         if agent_meta:
             write_agent_meta(artifacts_dir, agent_meta)
 
-    # Persist the %group directive into ~/.sase/agent_tags.json so the Agents
+    # Persist the %tribe directive into ~/.sase/agent_tags.json so the Agents
     # tab picks it up at load time.  The agent's identity is
     # (agent_type=WORKFLOW, cl_name, raw_suffix) — matching how run-agents
     # are loaded via the workflow loader.

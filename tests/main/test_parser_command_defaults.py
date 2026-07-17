@@ -37,7 +37,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
     parser = create_parser()
     expected_groups = {
         "sase agent",
-        "sase agent tag",
+        "sase agent tribe",
         "sase axe chop",
         "sase axe lumberjack",
         "sase bead",
@@ -99,14 +99,14 @@ def test_nested_default_reports_only_the_omitted_group() -> None:
     """Bare nested groups report themselves, not their parent group."""
     parser = create_parser()
 
-    tag_args = parser.parse_args(["agent", "tag"])
+    tribe_args = parser.parse_args(["agent", "tribe"])
     alias_args = parser.parse_args(["project", "alias"])
 
-    assert getattr(tag_args, _DEFAULT_LIST_GROUP_DEST) == "sase agent tag"
+    assert getattr(tribe_args, _DEFAULT_LIST_GROUP_DEST) == "sase agent tribe"
     assert getattr(alias_args, _DEFAULT_LIST_GROUP_DEST) == "sase project alias"
-    assert default_list_delegation_notice(tag_args) == (
-        "No subcommand provided for 'sase agent tag';"
-        " delegating to 'sase agent tag list'."
+    assert default_list_delegation_notice(tribe_args) == (
+        "No subcommand provided for 'sase agent tribe';"
+        " delegating to 'sase agent tribe list'."
     )
 
 
@@ -116,7 +116,7 @@ def test_explicit_subcommands_record_no_delegation_metadata() -> None:
 
     explicit_list = parser.parse_args(["agent", "list"])
     explicit_other = parser.parse_args(["agent", "names"])
-    nested_explicit_list = parser.parse_args(["agent", "tag", "list"])
+    nested_explicit_list = parser.parse_args(["agent", "tribe", "list"])
     nested_explicit_group = parser.parse_args(["project", "alias", "list"])
 
     for omitted_free in (

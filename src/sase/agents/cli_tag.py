@@ -1,4 +1,4 @@
-"""``sase agent tag`` — set, unset, and list the user-managed tag on agents."""
+"""``sase agent tribe`` — manage user-facing tribes backed by agent tags."""
 
 from __future__ import annotations
 
@@ -77,20 +77,20 @@ def _resolve_identity_by_name(
     return (agent_type, cl_name, raw_suffix)
 
 
-def handle_agents_tag(args: argparse.Namespace) -> None:
-    """Dispatch ``sase agent tag {set,unset,list}``."""
-    sub = getattr(args, "tag_subcommand", None)
+def handle_agents_tribe(args: argparse.Namespace) -> None:
+    """Dispatch ``sase agent tribe {list,set,unset}``."""
+    sub = getattr(args, "tribe_subcommand", None)
     if sub == "set":
-        _handle_tag_set(args)
+        _handle_tribe_set(args)
         return
     if sub == "unset":
-        _handle_tag_unset(args)
+        _handle_tribe_unset(args)
         return
     if sub == "list":
-        _handle_tag_list(args)
+        _handle_tribe_list(args)
         return
 
-    print("Usage: sase agent tag {set,unset,list}", file=sys.stderr)
+    print("Usage: sase agent tribe {list,set,unset}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -98,7 +98,7 @@ def _validate_or_exit(raw_tag: str) -> str:
     try:
         return validate_tag_name(raw_tag)
     except InvalidTagError as exc:
-        print(f"Invalid tag: {exc}", file=sys.stderr)
+        print(f"Invalid tribe: {exc}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -110,13 +110,13 @@ def _resolve_or_exit(name: str) -> tuple[AgentType, str, str | None]:
     return identity
 
 
-def _handle_tag_set(args: argparse.Namespace) -> None:
+def _handle_tribe_set(args: argparse.Namespace) -> None:
     name: str = args.name
-    raw_tag: str | None = args.tag
-    if not raw_tag:
-        print("--tag is required", file=sys.stderr)
+    raw_tribe: str | None = args.tribe
+    if not raw_tribe:
+        print("--tribe is required", file=sys.stderr)
         sys.exit(2)
-    cleaned = _validate_or_exit(raw_tag)
+    cleaned = _validate_or_exit(raw_tribe)
     identity = _resolve_or_exit(name)
 
     store = load_agent_tags()
@@ -124,10 +124,10 @@ def _handle_tag_set(args: argparse.Namespace) -> None:
     if not save_agent_tags(store):
         print("Failed to write agent_tags.json", file=sys.stderr)
         sys.exit(1)
-    print(f"Tag for {name}: {cleaned}")
+    print(f"Tribe for {name}: @{cleaned}")
 
 
-def _handle_tag_unset(args: argparse.Namespace) -> None:
+def _handle_tribe_unset(args: argparse.Namespace) -> None:
     name: str = args.name
     identity = _resolve_or_exit(name)
 
@@ -136,10 +136,10 @@ def _handle_tag_unset(args: argparse.Namespace) -> None:
     if not save_agent_tags(store):
         print("Failed to write agent_tags.json", file=sys.stderr)
         sys.exit(1)
-    print(f"Tag for {name}: (none)")
+    print(f"Tribe for {name}: (none)")
 
 
-def _handle_tag_list(args: argparse.Namespace) -> None:
+def _handle_tribe_list(args: argparse.Namespace) -> None:
     name: str | None = getattr(args, "name", None)
     store = load_agent_tags()
 

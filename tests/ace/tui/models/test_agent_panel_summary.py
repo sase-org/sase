@@ -61,7 +61,7 @@ def test_snapshot_labels_counts_priority_and_nested_rows() -> None:
         now=_NOW,
     )
 
-    assert snapshot.label == "#focus"
+    assert snapshot.label == "@focus"
     assert (snapshot.entry_count, snapshot.root_count, snapshot.nested_count) == (
         6,
         5,

@@ -19,7 +19,7 @@ def _write_chat_file(tmpdir: str, name: str, content: str) -> str:
 def test_sanitize_strips_directives_refs_and_jinja() -> None:
     """Directives, #/#! references, and Jinja markers are all removed."""
     prompt = (
-        "%name:@.cld %wait:research.cdx-32 %g:research\n\n"
+        "%name:@.cld %wait:research.cdx-32 %t:research\n\n"
         "#git:home The two independent research agents have finished.\n\n"
         "{{ wait_chats }}\n\n"
         "Read both chat transcripts first."
@@ -28,7 +28,7 @@ def test_sanitize_strips_directives_refs_and_jinja() -> None:
 
     assert "%name" not in result
     assert "%wait" not in result
-    assert "%g:" not in result
+    assert "%t:" not in result
     assert "#git:home" not in result
     assert "{{ wait_chats }}" not in result
     assert "The two independent research agents have finished." in result
@@ -85,7 +85,7 @@ def test_resume_user_block_is_sanitized() -> None:
             tmpdir,
             "chat.md",
             "## Prompt\n\n"
-            "%name:foo %wait:bar %g:research\n\n"
+            "%name:foo %wait:bar %t:research\n\n"
             "#git:home Continue the work.\n\n"
             "{{ wait_chats }}\n\n"
             "## Response\n\n"

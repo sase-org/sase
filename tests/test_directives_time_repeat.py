@@ -18,10 +18,11 @@ def test_time_duration_sets_field() -> None:
     assert directives.wait_duration == 300.0
 
 
-def test_t_no_longer_aliases_time() -> None:
-    """%t no longer aliases %time and is left as an unknown token."""
-    cleaned, directives = extract_prompt_directives("%t\nDo work")
-    assert cleaned == "%t\nDo work"
+def test_t_aliases_tribe_not_time() -> None:
+    """%t assigns a tribe without restoring the removed %time alias."""
+    cleaned, directives = extract_prompt_directives("%t:review\nDo work")
+    assert cleaned == "Do work"
+    assert directives.tag == "review"
     assert directives.wait_duration is None
     assert directives.auto_mode is None
 

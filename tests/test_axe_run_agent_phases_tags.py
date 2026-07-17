@@ -167,7 +167,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         patch("sase.ace.agent_tags.update_agent_tag") as update_agent_tag,
     ):
         info = extract_directives_and_write_meta(
-            "%name:taggy\n%group:sase-26\nDo work",
+            "%name:taggy\n%tribe:sase-26\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
             cl_name="sample-cl",
@@ -228,13 +228,13 @@ def _extract_with_agent_tags(
     return info, meta, tags
 
 
-def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> None:
+def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
     identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
-        "%name:foo.child\n%group:bar\nDo work",
+        "%name:foo.child\n%tribe:bar\nDo work",
         seed_tags={existing: "foo"},
     )
 
@@ -246,7 +246,7 @@ def test_explicit_group_wins_over_matching_existing_group(tmp_path: Path) -> Non
     }
 
 
-def test_named_agent_does_not_inherit_existing_group(tmp_path: Path) -> None:
+def test_named_agent_does_not_inherit_existing_tribe(tmp_path: Path) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
 
     info, meta, tags = _extract_with_agent_tags(
@@ -261,7 +261,7 @@ def test_named_agent_does_not_inherit_existing_group(tmp_path: Path) -> None:
     assert tags == {existing: "foo"}
 
 
-def test_wait_derived_agent_name_does_not_inherit_existing_group(
+def test_wait_derived_agent_name_does_not_inherit_existing_tribe(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
@@ -278,7 +278,7 @@ def test_wait_derived_agent_name_does_not_inherit_existing_group(
     assert tags == {existing: "foo"}
 
 
-def test_fork_derived_agent_name_does_not_inherit_existing_group(
+def test_fork_derived_agent_name_does_not_inherit_existing_tribe(
     tmp_path: Path,
 ) -> None:
     existing = (AgentType.RUNNING, "seed", "ts1")
@@ -296,7 +296,7 @@ def test_fork_derived_agent_name_does_not_inherit_existing_group(
     assert tags == {existing: "foo"}
 
 
-def test_planned_template_name_does_not_inherit_nested_existing_group(
+def test_planned_template_name_does_not_inherit_nested_existing_tribe(
     tmp_path: Path,
 ) -> None:
     parent = (AgentType.RUNNING, "seed-parent", "ts1")

@@ -83,7 +83,7 @@ def test_auto_default_none() -> None:
 
 @pytest.mark.parametrize(
     "token",
-    ["%plan", "%p", "%plan+", "%approve", "%tale", "%t", "%tale+", "%epic"],
+    ["%plan", "%p", "%plan+", "%approve", "%tale", "%tale+", "%epic"],
 )
 def test_removed_auto_approval_directives_are_unknown(token: str) -> None:
     """Removed auto-approval directive names stay literal in the prompt."""

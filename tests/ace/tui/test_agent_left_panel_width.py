@@ -84,7 +84,7 @@ def test_agent_left_panel_width_clamps_aggregated_panel_request() -> None:
 
 def test_collapsed_agent_list_requests_only_title_width() -> None:
     widget = AgentList()
-    title = Text("▸ #finished · 12 [D12]")
+    title = Text("▸ @finished · 12 [D12]")
     title.stylize("bold red", 2, 11)
     widget.border_title = title
 
@@ -97,8 +97,8 @@ def test_collapsed_agent_list_requests_only_title_width() -> None:
 
 def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
     widget = AgentList()
-    normal_title = Text("▸ #finished · 12 [D12]")
-    hinted_title = Text("[x] ▸ #finished · 12 [D12]")
+    normal_title = Text("▸ @finished · 12 [D12]")
+    hinted_title = Text("[x] ▸ @finished · 12 [D12]")
 
     widget.border_title = normal_title
     widget.render_collapsed()
@@ -115,8 +115,8 @@ def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
 
 def test_collapsed_agent_list_title_only_refresh_tracks_numeric_hint_width() -> None:
     widget = AgentList()
-    normal_title = Text("▸ #tag · 1 [R1]")
-    hinted_title = Text("[12] ▸ #tag · 1 [R1]")
+    normal_title = Text("▸ @tag · 1 [R1]")
+    hinted_title = Text("[12] ▸ @tag · 1 [R1]")
 
     widget.border_title = normal_title
     widget.render_collapsed()

@@ -80,7 +80,7 @@ def _done_agents() -> list[Agent]:
 
 
 def _panel_collapse_agents() -> list[Agent]:
-    """Three panels where ``#chop`` owns the widest rendered rows."""
+    """Three panels where ``@chop`` owns the widest rendered rows."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 15, 10, 0, 0)
     return [
@@ -128,7 +128,7 @@ def _panel_collapse_agents() -> list[Agent]:
 
 
 def _panel_auto_expand_agents() -> list[Agent]:
-    """Collapsed ``#chop`` panel with an unread target after its first row."""
+    """Collapsed ``@chop`` panel with an unread target after its first row."""
     agents = _panel_collapse_agents()
     target = agents[2]
     target.status = "DONE"
@@ -137,7 +137,7 @@ def _panel_auto_expand_agents() -> list[Agent]:
 
 
 def _assert_collapsed_panel_summary(page: AcePage) -> None:
-    """Assert the right pane represents ``#chop``, not its hidden first row."""
+    """Assert the right pane represents ``@chop``, not its hidden first row."""
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
     summary = page.app.query_one("#agent-panel-summary", AgentPanelSummary)
     info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
@@ -146,10 +146,10 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert detail._current_agent is None
     assert page.app._get_selected_agent() is None
     assert summary.snapshot is not None
-    assert summary.snapshot.label == "#chop"
+    assert summary.snapshot.label == "@chop"
     rendered = summary.render().plain
     assert "COLLAPSED AGENT PANEL" in rendered
-    assert "#chop  COLLAPSED" in rendered
+    assert "@chop  COLLAPSED" in rendered
     assert "[R1 W1]" in rendered
     assert "visual-collapse-primary-with-a-deliberately-wide-row" in rendered
     assert "visual-collapse-secondary-with-another-wide-row" in rendered
@@ -193,7 +193,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert container.size.width < expanded_width, requested_widths
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == "▸ #chop · 2 [R1 W1]"
+            == "▸ @chop · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
         assert_page_svg_contains(page, "▸ ")
@@ -216,7 +216,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert collapsed_widget._requested_width == normal_width + 4
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == "[3] ▸ #chop · 2 [R1 W1]"
+            == "[3] ▸ @chop · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
 

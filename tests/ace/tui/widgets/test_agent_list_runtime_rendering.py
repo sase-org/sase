@@ -447,8 +447,8 @@ def test_format_agent_option_renders_tag_label_only_when_passed() -> None:
         tag_label="fix",
     )
 
-    assert " #fix" not in left_without.plain
-    assert " #fix" in left_with.plain
+    assert " @fix" not in left_without.plain
+    assert " @fix" in left_with.plain
 
 
 def test_format_agent_option_renders_unread_marker_in_suffix_not_before_mark() -> None:
@@ -505,11 +505,11 @@ def test_format_agent_option_keeps_tag_badge_and_agent_name_prefixes_distinct() 
         tag_label="fix",
     )
 
-    assert " #fix" in left.plain
+    assert " @fix" in left.plain
     assert " coder" in left.plain
     assert " [coder]" not in left.plain
     assert " [fix]" not in left.plain
-    assert " #coder" not in left.plain
+    assert " @coder" not in left.plain
 
 
 def test_format_agent_option_pure_waiting_has_empty_suffix() -> None:

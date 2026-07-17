@@ -289,19 +289,19 @@ def parse_repeat_count(expanded_args: dict[str, str]) -> int | None:
     return repeat_count
 
 
-def parse_group_tag(expanded_args: dict[str, str]) -> str | None:
-    """Parse and validate the ``%group`` directive."""
-    raw_tag = expanded_args.get("group")
+def parse_tribe_tag(expanded_args: dict[str, str]) -> str | None:
+    """Parse and validate the ``%tribe`` directive."""
+    raw_tag = expanded_args.get("tribe")
     if raw_tag:
         from sase.ace.agent_tags import InvalidTagError, validate_tag_name
 
         try:
             return validate_tag_name(raw_tag)
         except InvalidTagError as exc:
-            raise DirectiveError(f"Invalid '%group' value: {exc}") from exc
-    if "group" in expanded_args:
+            raise DirectiveError(f"Invalid '%tribe' value: {exc}") from exc
+    if "tribe" in expanded_args:
         raise DirectiveError(
-            "'%group' directive requires a tag name argument (e.g., %group:review)"
+            "'%tribe' directive requires a tribe name argument (e.g., %tribe:review)"
         )
     return None
 

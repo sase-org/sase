@@ -47,7 +47,7 @@ def _sanitize_resume_prompt(prompt: str) -> str:
     transcript. This removes, in order (fenced code blocks protected
     throughout so ``%``/``#``/``{{ }}`` inside examples survive):
 
-    1. ``%name`` directives (``%name``, ``%wait``, ``%group``/``%g``, ...) and
+    1. ``%name`` directives (``%name``, ``%wait``, ``%tribe``/``%t``, ...) and
        ``%xprompts_enabled:false/true`` region markers.
     2. ``#``/``#!`` xprompt & workspace references (``#git:home``, ``#research``,
        ``#fork:...``, ...). Real markdown headings (``# Heading``) are not

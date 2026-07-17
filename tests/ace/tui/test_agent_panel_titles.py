@@ -137,7 +137,7 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
         collapsed=True,
     )
 
-    assert title.plain == "▸ #chop · 3 [R1 W2]"
+    assert title.plain == "▸ @chop · 3 [R1 W2]"
 
 
 def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
@@ -149,7 +149,7 @@ def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
         jump_hint="x",
     )
 
-    assert title.plain == "[x] ▸ #chop · 3 [R1 W2]"
+    assert title.plain == "[x] ▸ @chop · 3 [R1 W2]"
     _assert_title_span(
         title,
         start=0,
@@ -237,12 +237,12 @@ def test_panel_titles_label_untagged_and_tags_with_counts() -> None:
     banana = app._panel_widgets["agent-list-panel-2"]
     apple_title = _title_text(apple)
     banana_title = _title_text(banana)
-    assert apple_title.plain == "#apple · 2 [R2]"
-    assert banana_title.plain == "#banana · 1 [R1]"
-    _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="#apple")
+    assert apple_title.plain == "@apple · 2 [R2]"
+    assert banana_title.plain == "@banana · 1 [R1]"
+    _assert_title_span(apple_title, start=0, end=6, style="bold #FFD75F", text="@apple")
     _assert_title_span(apple_title, start=6, end=10, style="#AFAFAF", text=" · 2")
     _assert_title_span(
-        banana_title, start=0, end=7, style="bold #FFD75F", text="#banana"
+        banana_title, start=0, end=7, style="bold #FFD75F", text="@banana"
     )
 
 
@@ -260,13 +260,13 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
 
     assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
     assert (
-        _title_text(app._panel_widgets["agent-list-panel"]).plain == "#alpha · 1 [R1]"
+        _title_text(app._panel_widgets["agent-list-panel"]).plain == "@alpha · 1 [R1]"
     )
     assert (
-        _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "#mike · 1 [R1]"
+        _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "@mike · 1 [R1]"
     )
     assert (
-        _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "#zulu · 1 [R1]"
+        _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "@zulu · 1 [R1]"
     )
     assert "agent-list-panel-3" not in app._panel_widgets
 
@@ -290,10 +290,10 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
         "(untagged) · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "#apple · 2 [S1 R1]"
+        "@apple · 2 [S1 R1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
-        "#banana · 3 [F1 U1 D1]"
+        "@banana · 3 [F1 U1 D1]"
     )
     untagged_title = _title_text(app._panel_widgets["agent-list-panel"])
     apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
@@ -333,10 +333,10 @@ def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "#apple · 2 [U1 D1]"
+        "@apple · 2 [U1 D1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "#banana · 2 [U1 D1]"
+        "@banana · 2 [U1 D1]"
     )
 
 
@@ -351,7 +351,7 @@ def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> No
 
     apple_title = _title_text(app._panel_widgets["agent-list-panel"])
     assert app._panel_group.panel_keys == ["apple"]
-    assert apple_title.plain == "#apple · 1 [R1]"
+    assert apple_title.plain == "@apple · 1 [R1]"
     assert "T" not in apple_title.plain
     assert "agent-list-panel-1" not in app._panel_widgets
 
@@ -371,7 +371,7 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "#apple · 2 [R1]"
+        "@apple · 2 [R1]"
     )
 
 
@@ -454,10 +454,10 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
     # Hidden family members replace the aggregate root status in each chip,
     # while the existing panel row totals and panel scoping stay unchanged.
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "#apple · 7 [R3 W1 U1 D1]"
+        "@apple · 7 [R3 W1 U1 D1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "#banana · 5 [S1 F1 D1]"
+        "@banana · 5 [S1 F1 D1]"
     )
 
 

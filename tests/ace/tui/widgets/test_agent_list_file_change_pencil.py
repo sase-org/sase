@@ -135,7 +135,7 @@ class TestAgentListFileChangePencil:
             tag_label="fix",
         )
 
-        assert "test_cl #fix (RUNNING)×3 ◆ sase-x.3" in left.plain
+        assert "test_cl @fix (RUNNING)×3 ◆ sase-x.3" in left.plain
         assert "✏️" not in left.plain
         assert suffix.plain == "✏️"
         assert "[pinned]" not in left.plain

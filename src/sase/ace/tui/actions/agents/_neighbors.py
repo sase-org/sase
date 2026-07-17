@@ -484,14 +484,14 @@ class AgentNeighborMixin:
         ):
             return "panel"
         key = panel_group.panel_keys[panel_idx]
-        return "(untagged)" if key is None else f"#{key}"
+        return "(untagged)" if key is None else f"@{key}"
 
     def _agent_neighbor_dismissed_panel_label(self, agent: Agent) -> str:
         """Return a compact tag label for a dismissed descendant row."""
         if getattr(self, "_agent_panels_grouped", False):
             return "all"
         tag = getattr(agent, "tag", None)
-        return f"#{tag}" if tag else "(untagged)"
+        return f"@{tag}" if tag else "(untagged)"
 
     def _agent_neighbor_time_hint(self, agent: Agent) -> str:
         """Return a compact timestamp/runtime hint for a neighbor row."""

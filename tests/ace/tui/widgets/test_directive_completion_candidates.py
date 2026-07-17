@@ -89,10 +89,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(auto).argument_hint == (":argument (e.g. plan|tale|epic)")
 
 
-def test_directive_completion_t_prefix_lists_no_directives() -> None:
-    """%time is no longer a directive completion candidate."""
+def test_directive_completion_t_prefix_lists_tribe() -> None:
+    """%tribe owns the %t prefix; removed %time remains absent."""
     candidates, _ = build_directive_completion_candidates("%t")
-    assert candidates == []
+    assert [candidate.insertion for candidate in candidates] == ["%tribe"]
 
     tale_candidates, _ = build_directive_completion_candidates("%ta")
     assert tale_candidates == []
@@ -100,9 +100,17 @@ def test_directive_completion_t_prefix_lists_no_directives() -> None:
     assert ti_candidates == []
 
 
-def test_directive_completion_includes_group() -> None:
-    group, _ = single_directive_candidate("%gr")
-    assert group.insertion == "%group"
+def test_directive_completion_includes_tribe_and_alias() -> None:
+    tribe, _ = single_directive_candidate("%tr")
+    alias, _ = single_directive_candidate("%t")
+
+    assert tribe.insertion == "%tribe"
+    assert alias.insertion == "%tribe"
+    assert directive_metadata(tribe).aliases == ("t",)
+    assert directive_metadata(tribe).argument_hint == ":name"
+    assert directive_metadata(tribe).description == (
+        "assign a user-managed agent tribe"
+    )
 
 
 def test_directive_completion_includes_family_and_alias() -> None:

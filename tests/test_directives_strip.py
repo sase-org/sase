@@ -15,7 +15,7 @@ def test_strips_known_directives_colon_and_plus() -> None:
     Whitespace cleanup is intentionally not this helper's job (the resume
     sanitizer tidies), so we compare after stripping.
     """
-    text = "%name:foo %wait:bar %g:research %auto Do the thing"
+    text = "%name:foo %wait:bar %t:research %auto Do the thing"
     result = strip_known_directives(text)
     assert "%" not in result
     assert result.strip() == "Do the thing"
@@ -43,6 +43,12 @@ def test_strips_family_directive_and_alias() -> None:
 def test_unknown_directive_preserved() -> None:
     """Unknown %name tokens are left untouched."""
     text = "%unknown:value stays"
+    assert strip_known_directives(text) == text
+
+
+def test_removed_group_directive_preserved() -> None:
+    """Removed group spellings are no longer known directives."""
+    text = "%group:research %g:research stays"
     assert strip_known_directives(text) == text
 
 

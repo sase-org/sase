@@ -43,10 +43,13 @@ def set_prompt_name(prompt: str, name: str) -> str:
     return _set_prompt_directive(prompt, {"name"}, f"%name:{name}")
 
 
-def set_prompt_group(prompt: str, group: str | None) -> str:
-    """Return *prompt* with ``%group`` set or removed."""
-    replacement = f"%group:{group}" if group else None
-    return _set_prompt_directive(prompt, {"group"}, replacement)
+def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
+    """Return *prompt* with ``%tribe`` set or removed."""
+    replacement = f"%tribe:{tribe}" if tribe else None
+    # Editing an existing agent also migrates launch prompts written before
+    # tribes replaced groups. These spellings remain unsupported by the
+    # runtime parser; recognizing them here is cleanup, not a legacy alias.
+    return _set_prompt_directive(prompt, {"g", "group", "tribe"}, replacement)
 
 
 def set_prompt_auto_mode(prompt: str, mode: AutoMode | None) -> str:

@@ -63,46 +63,49 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Name of the agent to show",
     )
 
-    # sase agent tag {set,unset,list}
-    tag_parser = agents_sub.add_parser(
-        "tag",
-        help="Manage the user-defined tag on an agent (used by the Agents tab)",
+    # sase agent tribe {list,set,unset}
+    tribe_parser = agents_sub.add_parser(
+        "tribe",
+        help="Manage the user-defined tribe on an agent (used by the Agents tab)",
     )
-    tag_sub = tag_parser.add_subparsers(dest="tag_subcommand", help="Tag subcommands")
+    tribe_sub = tribe_parser.add_subparsers(
+        dest="tribe_subcommand",
+        help="Tribe subcommands",
+    )
 
-    tag_set_parser = tag_sub.add_parser(
+    tribe_set_parser = tribe_sub.add_parser(
         "set",
-        help="Set the tag on an agent (replaces any previous tag)",
+        help="Set the tribe on an agent (replaces any previous tribe)",
     )
-    tag_set_parser.add_argument(
+    tribe_set_parser.add_argument(
         "-n",
         "--name",
         required=True,
-        help="Name of the agent to tag",
+        help="Name of the agent to assign to a tribe",
     )
-    tag_set_parser.add_argument(
+    tribe_set_parser.add_argument(
         "-t",
-        "--tag",
+        "--tribe",
         required=True,
-        help="Tag name (without '@')",
+        help="Tribe name (without '@')",
     )
 
-    tag_unset_parser = tag_sub.add_parser(
+    tribe_unset_parser = tribe_sub.add_parser(
         "unset",
-        help="Clear the tag on an agent",
+        help="Clear the tribe on an agent",
     )
-    tag_unset_parser.add_argument(
+    tribe_unset_parser.add_argument(
         "-n",
         "--name",
         required=True,
-        help="Name of the agent to untag",
+        help="Name of the agent to remove from its tribe",
     )
 
-    tag_list_parser = tag_sub.add_parser(
+    tribe_list_parser = tribe_sub.add_parser(
         "list",
-        help="Print tags as JSON (all agents, or filtered by --name)",
+        help="Print tribes as JSON (all agents, or filtered by --name)",
     )
-    tag_list_parser.add_argument(
+    tribe_list_parser.add_argument(
         "-n",
         "--name",
         default=None,

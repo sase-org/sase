@@ -58,7 +58,7 @@ def test_focused_collapsed_panel_has_no_selected_agent() -> None:
     assert app._get_selected_agent() is None
     snapshot = app._focused_collapsed_panel_summary()
     assert snapshot is not None
-    assert snapshot.label == "#alpha"
+    assert snapshot.label == "@alpha"
     assert [row.display_name for row in snapshot.rows] == ["alpha"]
 
 

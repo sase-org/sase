@@ -236,7 +236,7 @@ def _candidate_from_agent(
         start_time=agent.start_time_short,
         duration=agent.duration_display,
         role=role,
-        tag=f"#{agent.tag}" if agent.tag else None,
+        tag=f"@{agent.tag}" if agent.tag else None,
         vcs_workflow=_vcs_workflow_from_prompt(raw_prompt),
         prompt_snippet=_prompt_snippet(raw_prompt),
         search_aliases=tuple(

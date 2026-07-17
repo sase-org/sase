@@ -12,8 +12,8 @@ from ._directive_values import (
     expand_multi_directive_args,
     expand_single_directive_args,
     normalize_model_directive,
-    parse_group_tag,
     parse_repeat_count,
+    parse_tribe_tag,
     resolve_auto_argument,
     resolve_family_membership,
     resolve_auto_mode,
@@ -107,7 +107,7 @@ def extract_prompt_directives(
     resolve_wait_templates(expanded_multi)
 
     repeat_count = parse_repeat_count(expanded_args)
-    parsed_tag = parse_group_tag(expanded_args)
+    parsed_tag = parse_tribe_tag(expanded_args)
     family_target, family_role = resolve_family_membership(
         expanded_args,
         raw_role=collected.family_role,

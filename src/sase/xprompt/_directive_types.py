@@ -27,8 +27,8 @@ _KNOWN_DIRECTIVES = frozenset(
         "hide",
         "model",
         "name",
-        "group",
         "repeat",
+        "tribe",
         "wait",
     }
 )
@@ -70,11 +70,11 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "a": "auto",
     "e": "effort",
     "f": "family",
-    "g": "group",
     "h": "hide",
     "m": "model",
     "n": "name",
     "r": "repeat",
+    "t": "tribe",
     "w": "wait",
 }
 
@@ -129,9 +129,9 @@ class PromptDirectives:
     name_indexed_template: bool = False
     name_indexed_base: str | None = None
     repeat_count: int | None = None
-    # Populated by the user-facing %group directive (alias %g). The internal
+    # Populated by the user-facing %tribe directive (alias %t). The internal
     # field name remains `tag` because the persisted concept (agent_tags.json,
-    # ACE grouping UI, sase agent tag CLI) still uses "tag".
+    # agent metadata, and wire models) still uses "tag".
     tag: str | None = None
     wait: list[str] = field(default_factory=list)
     wait_duration: float | None = None

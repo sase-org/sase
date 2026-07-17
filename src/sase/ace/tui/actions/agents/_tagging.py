@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
-from sase.xprompt.directive_edit import set_prompt_group
+from sase.xprompt.directive_edit import set_prompt_tribe
 
 from ...models.agent_pin import DEFAULT_PINNED_TAG
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -32,9 +32,9 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
-def _prompt_group_mutator(group: str | None) -> Callable[[str], str]:
+def _prompt_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
     def _mutate(prompt: str) -> str:
-        return set_prompt_group(prompt, group)
+        return set_prompt_tribe(prompt, tribe)
 
     return _mutate
 
@@ -147,7 +147,7 @@ class AgentTaggingMixin:
                 AgentDirectivePersistenceSpec(
                     artifacts_dir=artifacts_dir,
                     prompt_mutator=(
-                        _prompt_group_mutator(after) if artifacts_dir else None
+                        _prompt_tribe_mutator(after) if artifacts_dir else None
                     ),
                     meta_patch=(
                         AgentMetaPatch(

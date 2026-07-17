@@ -337,7 +337,7 @@ class TestPlanFollowupMetadata:
         approval = PlanApprovalResult(
             action="approve",
             plan_file=plan_file,
-            coder_prompt="%m:sonnet %group\nUse the reviewed plan.",
+            coder_prompt="%m:sonnet %tribe\nUse the reviewed plan.",
         )
         with (
             patch(

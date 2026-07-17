@@ -7,8 +7,8 @@ from unittest.mock import patch
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     set_prompt_auto_mode,
-    set_prompt_group,
     set_prompt_name,
+    set_prompt_tribe,
     set_prompt_wait,
 )
 from sase.xprompt.directives import extract_prompt_directives
@@ -22,14 +22,19 @@ def test_set_prompt_name_replaces_long_form() -> None:
     assert set_prompt_name("%name:old\nDo work", "new") == "%name:new\nDo work"
 
 
-def test_set_prompt_name_replaces_alias_without_touching_group() -> None:
-    prompt = "%g:batch\n%n:old\nDo work"
-    assert set_prompt_name(prompt, "new") == "%name:new\n%g:batch\nDo work"
+def test_set_prompt_name_replaces_alias_without_touching_tribe() -> None:
+    prompt = "%t:batch\n%n:old\nDo work"
+    assert set_prompt_name(prompt, "new") == "%name:new\n%t:batch\nDo work"
 
 
-def test_set_prompt_group_set_and_unset_alias() -> None:
-    assert set_prompt_group("%g:old\nDo work", "triage") == ("%group:triage\nDo work")
-    assert set_prompt_group("%group:triage\nDo work", None) == "Do work"
+def test_set_prompt_tribe_set_and_unset_alias() -> None:
+    assert set_prompt_tribe("%t:old\nDo work", "triage") == ("%tribe:triage\nDo work")
+    assert set_prompt_tribe("%tribe:triage\nDo work", None) == "Do work"
+
+
+def test_set_prompt_tribe_migrates_removed_group_spellings() -> None:
+    prompt = "%group:old\n%g:older\nDo work"
+    assert set_prompt_tribe(prompt, "triage") == "%tribe:triage\nDo work"
 
 
 def test_set_prompt_auto_mode_canonical_forms() -> None:
@@ -89,11 +94,11 @@ def test_fenced_directives_are_not_rewritten() -> None:
 
 
 def test_disabled_region_directives_are_not_rewritten() -> None:
-    prompt = "%xprompts_enabled:false\n%group:old\n%xprompts_enabled:true\nDo work"
-    assert set_prompt_group(prompt, "new") == (
-        "%group:new\n"
+    prompt = "%xprompts_enabled:false\n%tribe:old\n%xprompts_enabled:true\nDo work"
+    assert set_prompt_tribe(prompt, "new") == (
+        "%tribe:new\n"
         "%xprompts_enabled:false\n"
-        "%group:old\n"
+        "%tribe:old\n"
         "%xprompts_enabled:true\n"
         "Do work"
     )

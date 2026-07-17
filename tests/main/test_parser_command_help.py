@@ -34,16 +34,30 @@ def test_agents_help_renders_sorted_subcommands() -> None:
         "list",
         "names",
         "show",
-        "tag",
+        "tribe",
     }
 
     help_commands = help_subcommand_rows(agents_parser.format_help(), expected_commands)
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{archive,artifacts,index,kill,list,names,show,tag}"
+        "{archive,artifacts,index,kill,list,names,show,tribe}"
         in agents_parser.format_help()
     )
+
+
+def test_agent_tribe_help_uses_public_tribe_vocabulary() -> None:
+    tribe_parser = parser_for(("sase", "agent", "tribe"))
+    set_help = flat_help(parser_for(("sase", "agent", "tribe", "set")).format_help())
+    args = create_parser().parse_args(
+        ["agent", "tribe", "set", "--name", "worker", "--tribe", "review"]
+    )
+
+    assert "{list,set,unset}" in tribe_parser.format_help()
+    _assert_metavar_option_documented(set_help, "-n", "--name", "NAME")
+    _assert_metavar_option_documented(set_help, "-t", "--tribe", "TRIBE")
+    assert "--tag" not in set_help
+    assert args.tribe == "review"
 
 
 def test_run_help_shows_prompt_positional_and_beginner_examples() -> None:
