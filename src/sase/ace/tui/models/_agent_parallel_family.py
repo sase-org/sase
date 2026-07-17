@@ -31,8 +31,9 @@ class ParallelFamilyStatusCounts:
 
 @dataclass(frozen=True, slots=True)
 class _AgentSummaryStatusCounts:
-    """Status counts projected into Agents-tab summary categories."""
+    """Total and status counts projected into Agents-tab summary categories."""
 
+    total: int = 0
     stopped: int = 0
     running: int = 0
     waiting: int = 0
@@ -108,11 +109,12 @@ def agent_summary_status_counts(
     retain their ordinary single-row contribution. Serial runtime children are
     ignored by :func:`parallel_family_members`.
     """
-    stopped = running = waiting = failed = unread = done = 0
+    total = stopped = running = waiting = failed = unread = done = 0
     for agent in agents:
         family_members = parallel_family_members(agent)
         projected_agents = family_members or (agent,)
         for projected_agent in projected_agents:
+            total += 1
             bucket = status_bucket_for_values(projected_agent.status)
             is_unread = projected_agent.identity in unread_ids
             if is_unread:
@@ -137,6 +139,7 @@ def agent_summary_status_counts(
                 running += 1
 
     return _AgentSummaryStatusCounts(
+        total=total,
         stopped=stopped,
         running=running,
         waiting=waiting,

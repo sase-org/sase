@@ -450,7 +450,7 @@ class DetailMixin:
             self._update_agents_info_panel_impl()
 
     def _agent_info_metrics(self) -> tuple[int, int, int, int, int, int, int, int]:
-        """Return cached visible top-level status counts for the info panel."""
+        """Return cached effective-agent status counts for the info panel."""
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
@@ -478,7 +478,7 @@ class DetailMixin:
             projected.waiting,
             projected.failed,
             projected.done,
-            panel_index.top_level_total,
+            projected.total + starting_count,
             starting_count,
         )
         self._agent_info_metrics_cache = (cache_key, metrics)
@@ -525,8 +525,8 @@ class DetailMixin:
             return
         panel_index = self._agent_panel_index()  # type: ignore[attr-defined]
         # ``selectable_total`` drives position semantics (rendered/selectable
-        # top-level rows), while ``visible_agent_count`` is the headline total
-        # that also includes hidden top-level STARTING rows.
+        # top-level rows), while ``visible_agent_count`` is the effective-agent
+        # headline total that also includes hidden top-level STARTING rows.
         selectable_total = panel_index.non_child_total
         position = (
             panel_index.non_child_position(self.current_idx) if self._agents else 0
