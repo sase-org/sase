@@ -52,9 +52,14 @@ def test_explicit_phase_role_recovers_missing_phase_id_without_bead_lookup(
     enrichment = resolve_agent_plan_enrichment(agent)
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == (
-        "sase-1.2 - Phase `docs` in approved epic plan `plans/epic.md`."
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.id == "sase-1.2"
+    assert enrichment.phase_bead.description == (
+        "Phase `docs` in approved epic plan `plans/epic.md`."
     )
+    assert enrichment.phase_bead.epic_title == "Epic phase metadata"
+    assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
+    assert enrichment.phase_bead.display_plan_path == "plans/epic.md"
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
 
@@ -76,6 +81,6 @@ def test_explicit_phase_role_without_bead_identity_stays_phase_local(
     )
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == "phase-worker"
+    assert enrichment.phase_bead is None
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())

@@ -13,7 +13,7 @@ from sase.ace.tui.tools import SlowToolSource
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
 from sase.repo_inventory import RepoKind
 
-from ...models.agent_associated_plan import AssociatedPlanSummary
+from ...models.agent_associated_plan import AssociatedPlanSummary, PhaseBeadSummary
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 
@@ -60,6 +60,7 @@ class DetailHeaderSummary:
 
     xprompts_used: list[dict[str, Any]] | None = None
     bead_display: str | None = None
+    phase_bead: PhaseBeadSummary | None = None
     associated_plan: AssociatedPlanSummary | None = None
     delta_entries: list[DeltaEntry] | None = None
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()

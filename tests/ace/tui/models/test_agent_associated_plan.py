@@ -13,6 +13,7 @@ import sase.ace.tui.models.agent_associated_plan as plan_model
 from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
+    PhaseBeadSummary,
     resolve_agent_plan_enrichment,
 )
 from sase.ace.tui.models.agent import Agent
@@ -342,7 +343,15 @@ def test_modern_phase_without_plan_stays_bead_only_without_lookup(
     enrichment = resolve_agent_plan_enrichment(agent)
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == "sase-1.2"
+    assert enrichment.phase_bead == PhaseBeadSummary(
+        id="sase-1.2",
+        description=None,
+        actual_plan_path=None,
+        display_plan_path=None,
+        plan_exists=False,
+        plan_readable=False,
+        epic_title=None,
+    )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path is None
 
@@ -351,7 +360,7 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plan = _write_plan(tmp_path / "plans" / "epic.md", "Complete the epic")
+    plan = _write_epic(tmp_path / "plans" / "epic.md")
     agent = make_agent(agent_name="sase-1.2", workspace_dir=str(tmp_path))
     phase = Issue(
         id="sase-1.2",
@@ -380,28 +389,36 @@ def test_legacy_phase_resolves_parent_design_but_suppresses_plan(
         )
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == "sase-1.2"
+    assert enrichment.phase_bead == PhaseBeadSummary(
+        id="sase-1.2",
+        description="Phase `docs` in approved epic plan `plans/epic.md`.",
+        actual_plan_path=str(plan.resolve()),
+        display_plan_path="plans/epic.md",
+        plan_exists=True,
+        plan_readable=True,
+        epic_title="Epic phase metadata",
+    )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
 
 
 @pytest.mark.parametrize(
-    ("epic_bead_id", "phase_bead_id", "expected"),
+    ("epic_bead_id", "phase_bead_id", "expected_description"),
     [
         (
             "sase-1",
             "sase-1.1",
-            "sase-1.1 - Normalize the authoritative validator payload.",
+            "Normalize the authoritative validator payload.",
         ),
         (
             "sase-1",
             "sase-1.2",
-            "sase-1.2 - Phase `docs` in approved epic plan `plans/epic.md`.",
+            "Phase `docs` in approved epic plan `plans/epic.md`.",
         ),
         (
             "sase-42.3",
             "sase-42.3.3",
-            "sase-42.3.3 - Phase `render` in approved epic plan `plans/epic.md`.",
+            "Phase `render` in approved epic plan `plans/epic.md`.",
         ),
     ],
     ids=["first", "middle", "nested-epic-id"],
@@ -411,7 +428,7 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
     monkeypatch: pytest.MonkeyPatch,
     epic_bead_id: str,
     phase_bead_id: str,
-    expected: str,
+    expected_description: str,
 ) -> None:
     plan = _write_epic(tmp_path / "plans" / "epic.md")
     agent = make_agent(
@@ -431,7 +448,15 @@ def test_modern_phase_uses_validated_frontmatter_order_without_bead_lookup(
     enrichment = resolve_agent_plan_enrichment(agent)
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == expected
+    assert enrichment.phase_bead == PhaseBeadSummary(
+        id=phase_bead_id,
+        description=expected_description,
+        actual_plan_path=str(plan.resolve()),
+        display_plan_path="plans/epic.md",
+        plan_exists=True,
+        plan_readable=True,
+        epic_title="Epic phase metadata",
+    )
     assert enrichment.associated_plan is None
     assert enrichment.resolved_plan_path == str(plan.resolve())
 
@@ -456,8 +481,9 @@ def test_modern_phase_normalizes_multiline_description(tmp_path: Path) -> None:
         )
     )
 
-    assert enrichment.bead_display == (
-        "sase-1.1 - Normalize the authoritative validator payload."
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.description == (
+        "Normalize the authoritative validator payload."
     )
 
 
@@ -486,7 +512,14 @@ def test_modern_phase_plan_failures_stay_bare_and_never_expose_epic(
     )
 
     assert enrichment.role == "phase"
-    assert enrichment.bead_display == phase_bead_id
+    assert enrichment.phase_bead is not None
+    assert enrichment.phase_bead.id == phase_bead_id
+    assert enrichment.phase_bead.description is None
+    assert enrichment.phase_bead.epic_title is None
+    assert enrichment.phase_bead.actual_plan_path == str(plan.resolve())
+    assert enrichment.phase_bead.display_plan_path == "plans/epic.md"
+    assert enrichment.phase_bead.plan_exists is (failure != "missing")
+    assert enrichment.phase_bead.plan_readable is (failure != "missing")
     assert enrichment.associated_plan is None
 
 
@@ -541,7 +574,7 @@ def test_legacy_dotted_phase_defaults_to_suppressed_plan_when_unconfirmed(
 
     assert enrichment.role == "phase"
     assert enrichment.associated_plan is None
-    assert enrichment.bead_display is None
+    assert enrichment.phase_bead is None
 
 
 def test_bead_tier_preserves_known_epic_fallback_on_association_cache_hit(

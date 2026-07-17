@@ -15,6 +15,7 @@ from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._artifact_files import ArtifactFilePath
 from ._agent_artifacts_lane import append_agent_artifacts_lane
+from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
 from ._agent_plan_section import ResponsivePlanSection
@@ -23,7 +24,14 @@ from ._agent_display_state import HeaderHintState
 from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
-CONTEXT_LANE_ORDER = ("PLAN", "ARTIFACTS", "MEMORY", "SKILLS", "WORKSPACES")
+CONTEXT_LANE_ORDER = (
+    "BEAD",
+    "PLAN",
+    "ARTIFACTS",
+    "MEMORY",
+    "SKILLS",
+    "WORKSPACES",
+)
 
 
 def append_agent_context_section(
@@ -32,14 +40,31 @@ def append_agent_context_section(
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = (),
     skill_uses: tuple[SkillUseDisplayEvent, ...] = (),
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = (),
+    bead_section: ResponsiveBeadSection | None = None,
     plan_section: ResponsivePlanSection | None = None,
     agent: Agent | None = None,
     delta_entries: list[DeltaEntry] | None = None,
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     artifact_file_paths: list[ArtifactFilePath] | None = None,
     hint_state: HeaderHintState | None = None,
+    responsive_ranges: dict[str, tuple[int, int]] | None = None,
 ) -> tuple[int, int] | None:
     """Append present SASE CONTEXT lanes in the declared narrative order."""
+
+    def append_bead_lane(lane: Text) -> None:
+        if bead_section is None:
+            return
+        actual_path = bead_section.summary.actual_plan_path
+        if (
+            hint_state is not None
+            and bead_section.hint_number is None
+            and actual_path is not None
+        ):
+            hint_number = hint_state.hint_counter
+            hint_state.hint_mappings[hint_number] = actual_path
+            hint_state.hint_counter += 1
+            bead_section.hint_number = hint_number
+        lane.append_text(bead_section.logical_text)
 
     def append_plan_lane(lane: Text) -> None:
         if plan_section is None:
@@ -52,6 +77,7 @@ def append_agent_context_section(
         lane.append_text(plan_section.logical_text)
 
     lane_renderers: dict[str, Callable[[Text], None]] = {
+        "BEAD": append_bead_lane,
         "PLAN": append_plan_lane,
         "MEMORY": lambda lane: append_agent_memory_reads_section(
             lane,
@@ -92,6 +118,8 @@ def append_agent_context_section(
             text.append("\n")
         lane_start = len(text)
         text.append_text(lane)
+        if responsive_ranges is not None and label in {"BEAD", "PLAN"}:
+            responsive_ranges[label] = (lane_start, len(text))
         if label == "PLAN":
             plan_range = (lane_start, len(text))
     return plan_range

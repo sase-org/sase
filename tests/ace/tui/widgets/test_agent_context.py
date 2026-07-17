@@ -10,12 +10,18 @@ from rich.style import Style as RichStyle
 from rich.text import Text
 
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
-from sase.ace.tui.models.agent_associated_plan import AssociatedPlanSummary
+from sase.ace.tui.models.agent_associated_plan import (
+    AssociatedPlanSummary,
+    PhaseBeadSummary,
+)
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
+from sase.ace.tui.widgets.prompt_panel._agent_bead_section import (
+    ResponsiveBeadSection,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     COLOR_ARTIFACT_FILE_BASENAME,
     COLOR_ARTIFACTS_SUBHEADER,
@@ -42,6 +48,7 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 _EXPECTED_CONTEXT_LANE_ORDER = (
+    "BEAD",
     "PLAN",
     "ARTIFACTS",
     "MEMORY",
@@ -130,6 +137,20 @@ def _plan_section() -> ResponsivePlanSection:
     )
 
 
+def _bead_section() -> ResponsiveBeadSection:
+    return ResponsiveBeadSection(
+        PhaseBeadSummary(
+            id="sase-42.3",
+            description="Render only the selected phase metadata.",
+            actual_plan_path="/tmp/workspace/sase/repos/plans/epic.md",
+            display_plan_path="sase/repos/plans/epic.md",
+            plan_exists=True,
+            plan_readable=True,
+            epic_title="Phase-local context lane",
+        )
+    )
+
+
 def _span_style_for(text: Text, needle: str) -> str:
     start = text.plain.index(needle)
     end = start + len(needle)
@@ -175,6 +196,44 @@ def test_plan_only_context_renders_plan_lane_and_returns_its_range() -> None:
     assert "▸ MEMORY" not in text.plain
     assert "▸ SKILLS" not in text.plain
     assert "▸ WORKSPACES" not in text.plain
+
+
+def test_bead_only_context_creates_context_and_has_no_plan_range() -> None:
+    text = Text()
+
+    plan_range = append_agent_context_section(text, bead_section=_bead_section())
+
+    assert plan_range is None
+    assert "SASE CONTEXT\n" in text.plain
+    assert "▸ BEAD · phase\n" in text.plain
+    assert "          ID: sase-42.3\n" in text.plain
+    assert " Description: Render only the selected phase metadata.\n" in text.plain
+    assert "   Epic Plan: sase/repos/plans/epic.md\n" in text.plain
+    assert "  Epic Title: Phase-local context lane\n" in text.plain
+    assert "▸ PLAN" not in text.plain
+    assert_logical_section_is_compact(text, "SASE CONTEXT", "▸ BEAD")
+    assert_rendered_section_is_compact(text, "SASE CONTEXT", "▸ BEAD")
+
+
+def test_bead_precedes_plan_without_changing_plan_range_bookkeeping() -> None:
+    text = Text()
+    bead_section = _bead_section()
+    plan_section = _plan_section()
+    responsive_ranges: dict[str, tuple[int, int]] = {}
+
+    plan_range = append_agent_context_section(
+        text,
+        bead_section=bead_section,
+        plan_section=plan_section,
+        responsive_ranges=responsive_ranges,
+    )
+
+    assert plan_range == responsive_ranges["PLAN"]
+    bead_start, bead_end = responsive_ranges["BEAD"]
+    plan_start, plan_end = responsive_ranges["PLAN"]
+    assert text[bead_start:bead_end].plain == bead_section.logical_text.plain
+    assert text[plan_start:plan_end].plain == plan_section.logical_text.plain
+    assert bead_end < plan_start
 
 
 def test_memory_only_context_omits_empty_skills_lane() -> None:
@@ -289,6 +348,7 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
         text = Text()
         append_agent_context_section(
             text,
+            bead_section=_bead_section() if enabled["BEAD"] else None,
             plan_section=_plan_section() if enabled["PLAN"] else None,
             memory_reads=(_memory_event(),) if enabled["MEMORY"] else (),
             skill_uses=(_skill_event(),) if enabled["SKILLS"] else (),
@@ -309,16 +369,20 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             label for label in _EXPECTED_CONTEXT_LANE_ORDER if enabled[label]
         ]
         assert rendered_labels == expected_labels
+        if enabled["BEAD"]:
+            assert rendered_labels[0] == "BEAD"
         if enabled["PLAN"]:
-            assert rendered_labels[0] == "PLAN"
+            assert rendered_labels.index("PLAN") == (1 if enabled["BEAD"] else 0)
         if enabled["ARTIFACTS"]:
-            assert rendered_labels.index("ARTIFACTS") == (1 if enabled["PLAN"] else 0)
+            expected_index = int(enabled["BEAD"]) + int(enabled["PLAN"])
+            assert rendered_labels.index("ARTIFACTS") == expected_index
 
 
 def test_context_lanes_render_in_parent_context_order() -> None:
     text = Text()
     append_agent_context_section(
         text,
+        bead_section=_bead_section(),
         plan_section=_plan_section(),
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
@@ -327,7 +391,8 @@ def test_context_lanes_render_in_parent_context_order() -> None:
     )
 
     plain = text.plain
-    assert plain.index("SASE CONTEXT\n") < plain.index("▸ PLAN")
+    assert plain.index("SASE CONTEXT\n") < plain.index("▸ BEAD")
+    assert plain.index("▸ BEAD") < plain.index("▸ PLAN")
     assert plain.index("▸ PLAN") < plain.index("▸ ARTIFACTS")
     assert plain.index("▸ ARTIFACTS") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
@@ -359,6 +424,7 @@ def test_context_hint_numbers_follow_display_order() -> None:
 
     append_agent_context_section(
         text,
+        bead_section=_bead_section(),
         plan_section=_plan_section(),
         agent=agent,
         delta_entries=[DeltaEntry(path="src/output.py", change_type="M")],
@@ -370,18 +436,20 @@ def test_context_hint_numbers_follow_display_order() -> None:
     )
 
     plain = text.plain
-    assert plain.index("Path: [1]") < plain.index("[2] abcdef123456")
-    assert plain.index("[2] abcdef123456") < plain.index("[3] src/output.py")
-    assert plain.index("[3] src/output.py") < plain.index("[4] reports/result.md")
-    assert plain.index("[4] reports/result.md") < plain.index("[5] generated_skills.md")
+    assert plain.index("Epic Plan: [1]") < plain.index("Path: [2]")
+    assert plain.index("Path: [2]") < plain.index("[3] abcdef123456")
+    assert plain.index("[3] abcdef123456") < plain.index("[4] src/output.py")
+    assert plain.index("[4] src/output.py") < plain.index("[5] reports/result.md")
+    assert plain.index("[5] reports/result.md") < plain.index("[6] generated_skills.md")
     assert hint_state.hint_mappings == {
-        1: "/tmp/workspace/sase/repos/plans/plan.md",
-        3: "/tmp/workspace/src/output.py",
-        4: "/tmp/reports/result.md",
-        5: "/tmp/test/memory/generated_skills.md",
+        1: "/tmp/workspace/sase/repos/plans/epic.md",
+        2: "/tmp/workspace/sase/repos/plans/plan.md",
+        4: "/tmp/workspace/src/output.py",
+        5: "/tmp/reports/result.md",
+        6: "/tmp/test/memory/generated_skills.md",
     }
-    assert list(hint_state.commit_views) == [2]
-    assert hint_state.hint_counter == 6
+    assert list(hint_state.commit_views) == [3]
+    assert hint_state.hint_counter == 7
 
 
 def test_count_phrase_pluralizes_context_counts() -> None:
@@ -399,6 +467,7 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
     text = Text()
     append_agent_context_section(
         text,
+        bead_section=_bead_section(),
         plan_section=_plan_section(),
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
@@ -406,11 +475,13 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
         artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
     )
 
+    bead_style = _span_style_for(text, "▸ BEAD").lower()
     plan_style = _span_style_for(text, "▸ PLAN").lower()
     memory_style = _span_style_for(text, "▸ MEMORY").lower()
     skills_style = _span_style_for(text, "▸ SKILLS").lower()
     workspaces_style = _span_style_for(text, "▸ WORKSPACES").lower()
     artifacts_style = _span_style_for(text, "▸ ARTIFACTS").lower()
+    assert bead_style == "bold #ffaf00"
     assert plan_style == "bold #af87ff"
     assert memory_style == "bold #5fd7ff"
     assert skills_style == "bold #5fd75f"
@@ -420,13 +491,14 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
         len(
             {
                 plan_style,
+                bead_style,
                 memory_style,
                 skills_style,
                 workspaces_style,
                 artifacts_style,
             }
         )
-        == 5
+        == 6
     )
 
 
@@ -434,6 +506,7 @@ def test_context_lane_header_details_share_the_summary_style() -> None:
     text = Text()
     append_agent_context_section(
         text,
+        bead_section=_bead_section(),
         plan_section=_plan_section(),
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
@@ -442,6 +515,7 @@ def test_context_lane_header_details_share_the_summary_style() -> None:
     )
 
     for details in (
+        "phase",
         "tale",
         "1 read · 1 file",
         "1 use · 1 skill",

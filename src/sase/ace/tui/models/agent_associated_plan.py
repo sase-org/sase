@@ -44,6 +44,7 @@ from ._agent_associated_plan_types import (
     AuthoredPlanTier,
     AgentPlanEnrichment as _AgentPlanEnrichment,
     _InitialAgentPlanRole,
+    PhaseBeadSummary as PhaseBeadSummary,
     PlanFileMetadata as _PlanFileMetadata,
     ResolvedPlanAssociation as _ResolvedPlanAssociation,
 )
@@ -62,6 +63,7 @@ def associated_plan_cache_key(agent: Agent) -> tuple[object, ...]:
         agent.phase_bead_id,
         agent.agent_family_role,
         agent.agent_name,
+        agent.project_file,
         agent.workspace_dir,
         agent.effective_workspace_num,
     )
@@ -87,32 +89,40 @@ def resolve_agent_plan_enrichment(
     # A modern phase worker normally has all identity inputs in agent_meta.json.
     # Explicit family-role metadata remains authoritative when a damaged or
     # historical record has lost its child-specific phase bead field. Keep the
-    # failure mode bead-only and never fall back to mutable bead storage.
+    # failure mode phase-local and never fall back to mutable bead storage.
     explicit_phase = agent.agent_family_role == "phase"
     phase_bead_id = agent.phase_bead_id
     if phase_bead_id is None and explicit_phase:
-        phase_bead_id = derive_agent_bead_id_from_name(agent.agent_name)
-    phase_display = phase_bead_id or (agent.agent_name if explicit_phase else None)
+        phase_bead_id = _derived_phase_bead_id(agent)
     if agent.phase_bead_id or explicit_phase:
         if not reference:
             return _AgentPlanEnrichment(
                 role="phase",
-                bead_display=phase_display,
+                phase_bead=(
+                    _unavailable_phase_bead(phase_bead_id)
+                    if phase_bead_id is not None
+                    else None
+                ),
                 associated_plan=None,
                 resolved_plan_path=None,
             )
         plan_path = _resolve_cached_reference(agent, "direct", reference)
         metadata = _load_plan_metadata(plan_path)
-        if phase_bead_id is not None:
-            phase_display = _phase_bead_display(
+        phase_bead = (
+            _phase_bead_summary(
                 metadata,
+                agent=agent,
                 epic_bead_id=agent.epic_bead_id,
                 phase_bead_id=phase_bead_id,
                 plan_reference=reference,
+                plan_path=plan_path,
             )
+            if phase_bead_id is not None
+            else None
+        )
         return _AgentPlanEnrichment(
             role="phase",
-            bead_display=phase_display,
+            phase_bead=phase_bead,
             associated_plan=None,
             resolved_plan_path=str(plan_path),
         )
@@ -152,9 +162,14 @@ def resolve_agent_plan_enrichment(
         # Legacy rows still use the generic confirmation cache for bead-only
         # display. Returning a bare id here would let ambient/stale bead-store
         # state overwrite a richer confirmed description (or surface a cold
-        # candidate). Explicit modern phases returned above remain bead-only
+        # candidate). Explicit modern phases returned above remain phase-local
         # and authoritative even without a usable plan reference.
-        return _AgentPlanEnrichment(role, None, None, None)
+        phase_bead = None
+        if role == "phase" and association is not None:
+            phase_id = association.phase_bead_id
+            if phase_id is not None:
+                phase_bead = _unavailable_phase_bead(phase_id)
+        return _AgentPlanEnrichment(role, phase_bead, None, None)
 
     metadata = _load_plan_metadata(plan_path)
     if role == "phase":
@@ -165,19 +180,21 @@ def resolve_agent_plan_enrichment(
             or (association.plan_reference if association is not None else None)
             or str(plan_path)
         )
-        bead_display = (
-            _phase_bead_display(
+        phase_bead = (
+            _phase_bead_summary(
                 metadata,
+                agent=agent,
                 epic_bead_id=epic_bead_id,
                 phase_bead_id=phase_bead_id,
                 plan_reference=plan_reference,
+                plan_path=plan_path,
             )
             if phase_bead_id
             else None
         )
         return _AgentPlanEnrichment(
             role="phase",
-            bead_display=bead_display,
+            phase_bead=phase_bead,
             associated_plan=None,
             resolved_plan_path=str(plan_path),
         )
@@ -208,7 +225,7 @@ def resolve_agent_plan_enrichment(
     )
     return _AgentPlanEnrichment(
         role=role,
-        bead_display=None,
+        phase_bead=None,
         associated_plan=summary,
         resolved_plan_path=str(plan_path),
     )
@@ -260,21 +277,30 @@ def _initial_agent_plan_role(agent: Agent) -> _InitialAgentPlanRole:
     return "ordinary"
 
 
-def _phase_bead_display(
+def _phase_bead_summary(
     metadata: _PlanFileMetadata,
     *,
+    agent: Agent,
     epic_bead_id: str | None,
     phase_bead_id: str,
     plan_reference: str,
-) -> str:
-    """Build one phase's bead display from validated frontmatter order."""
+    plan_path: Path,
+) -> PhaseBeadSummary:
+    """Build one render-ready selected-phase summary from validated order."""
+    summary = _unavailable_phase_bead(
+        phase_bead_id,
+        agent=agent,
+        metadata=metadata,
+        plan_reference=plan_reference,
+        plan_path=plan_path,
+    )
     phase_index = _phase_index(epic_bead_id, phase_bead_id)
     if (
         phase_index is None
         or metadata.phase_availability != "available"
         or phase_index >= len(metadata.phases)
     ):
-        return phase_bead_id
+        return summary
 
     phase = metadata.phases[phase_index]
     description = phase.description or generated_phase_description(
@@ -282,7 +308,57 @@ def _phase_bead_display(
         phase.id,
     )
     normalized = normalize_bead_text(description)
-    return f"{phase_bead_id} - {normalized}" if normalized else phase_bead_id
+    return PhaseBeadSummary(
+        id=phase_bead_id,
+        description=normalized or None,
+        actual_plan_path=summary.actual_plan_path,
+        display_plan_path=summary.display_plan_path,
+        plan_exists=summary.plan_exists,
+        plan_readable=summary.plan_readable,
+        epic_title=metadata.title,
+    )
+
+
+def _unavailable_phase_bead(
+    phase_bead_id: str,
+    *,
+    agent: Agent | None = None,
+    metadata: _PlanFileMetadata | None = None,
+    plan_reference: str | None = None,
+    plan_path: Path | None = None,
+) -> PhaseBeadSummary:
+    """Return a phase identity with honest optional-field fallbacks."""
+    actual_path = str(plan_path) if plan_path is not None else None
+    display_path = _phase_display_plan_path(
+        plan_reference,
+        plan_path=plan_path,
+        agent=agent,
+    )
+    return PhaseBeadSummary(
+        id=phase_bead_id,
+        description=None,
+        actual_plan_path=actual_path,
+        display_plan_path=display_path,
+        plan_exists=metadata.exists if metadata is not None else False,
+        plan_readable=metadata.readable if metadata is not None else False,
+        epic_title=None,
+    )
+
+
+def _phase_display_plan_path(
+    reference: str | None,
+    *,
+    plan_path: Path | None,
+    agent: Agent | None,
+) -> str | None:
+    """Keep canonical relative references while resolving only navigation paths."""
+    if reference:
+        raw_reference = Path(reference).expanduser()
+        if not raw_reference.is_absolute():
+            return raw_reference.as_posix()
+    if plan_path is not None and agent is not None:
+        return _display_plan_path(plan_path, agent, committed=True)
+    return None
 
 
 def _phase_index(epic_bead_id: str | None, phase_bead_id: str) -> int | None:
@@ -296,6 +372,21 @@ def _phase_index(epic_bead_id: str | None, phase_bead_id: str) -> int | None:
         return None
     value = int(ordinal)
     return value - 1 if value > 0 else None
+
+
+def _derived_phase_bead_id(agent: Agent) -> str | None:
+    """Recover only a structurally trustworthy child ID from a phase name."""
+    candidate = derive_agent_bead_id_from_name(agent.agent_name)
+    if candidate is None:
+        return None
+    if agent.epic_bead_id:
+        return (
+            candidate
+            if _phase_index(agent.epic_bead_id, candidate) is not None
+            else None
+        )
+    _, separator, ordinal = candidate.rpartition(".")
+    return candidate if separator and ordinal.isdigit() and int(ordinal) > 0 else None
 
 
 def _phase_availability(

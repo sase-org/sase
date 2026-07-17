@@ -11,6 +11,7 @@ from textual.worker import Worker, WorkerState
 from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary
 from sase.ace.tui.widgets.prompt_panel import _agent_display_parts
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
@@ -109,6 +110,18 @@ def _summary() -> _DetailHeaderSummary:
     )
 
 
+def _phase_summary(bead_id: str) -> PhaseBeadSummary:
+    return PhaseBeadSummary(
+        id=bead_id,
+        description="Deferred selected phase description.",
+        actual_plan_path="/tmp/workspace/sase/repos/plans/epic.md",
+        display_plan_path="sase/repos/plans/epic.md",
+        plan_exists=True,
+        plan_readable=True,
+        epic_title="Deferred phase epic",
+    )
+
+
 def test_update_display_schedules_header_enrichment_without_sync_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -165,6 +178,42 @@ def test_successful_header_enrichment_repaints_from_cache(
     plain = plain_of(panel.captured[-1])
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
     assert "  Files:\n    \u2022 artifact.txt\n" in plain
+
+
+def test_successful_phase_enrichment_replaces_cold_header_with_bead_lane(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = make_agent(
+        status="RUNNING",
+        agent_name="sase-7.2",
+        epic_bead_id="sase-7",
+        phase_bead_id="sase-7.2",
+    )
+    panel = _HeaderEnrichmentPanel()
+    _set_context(panel, agent.identity, current=True)
+    summary = _DetailHeaderSummary(phase_bead=_phase_summary("sase-7.2"))
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "build_detail_header_summary",
+        lambda _agent: summary,
+    )
+
+    panel.update_display(agent)
+    assert "Bead:" not in plain_of(panel.captured[-1])
+    assert "▸ BEAD" not in plain_of(panel.captured[-1])
+
+    assert panel.worker_fn is not None
+    panel.worker.result = panel.worker_fn()
+    panel._apply_agent_detail_header_enrichment_result(
+        cast(Worker[Any], panel.worker),
+        WorkerState.SUCCESS,
+    )
+
+    plain = plain_of(panel.captured[-1])
+    assert "Bead:" not in plain
+    assert "▸ BEAD · phase\n" in plain
+    assert "          ID: sase-7.2\n" in plain
+    assert " Description: Deferred selected phase description.\n" in plain
 
 
 def test_successful_header_enrichment_posts_completion_message(
@@ -343,7 +392,9 @@ def test_completed_phase_enrichment_cannot_overwrite_new_phase_selection(
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_async."
         "build_detail_header_summary",
-        lambda agent: _DetailHeaderSummary(bead_display=agent.phase_bead_id),
+        lambda agent: _DetailHeaderSummary(
+            phase_bead=_phase_summary(agent.phase_bead_id or "missing")
+        ),
     )
 
     panel.start_agent_detail_header_enrichment(

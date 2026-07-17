@@ -38,7 +38,16 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 
 
 @pytest.fixture(autouse=True)
-def _clear_bead_display_cache() -> Iterator[None]:
+def _clear_bead_display_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[None]:
+    # This module exercises the generic confirmed-bead compatibility path.
+    # Keep role-aware plan association out of scope so ambient project beads
+    # cannot reclassify a dotted compatibility candidate as a phase worker.
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_associated_plan._lookup_issue",
+        lambda *_args, **_kwargs: None,
+    )
     _BEAD_DISPLAY_CACHE.clear()
     yield
     _BEAD_DISPLAY_CACHE.clear()

@@ -210,7 +210,7 @@ def _bead_display_cache_key(agent: Agent) -> BeadDisplayCacheKey | None:
     # Modern phase workers derive their display from immutable launch metadata
     # plus validated plan frontmatter. They must never enter the generic
     # bead-confirmation lookup or visible-row warmup paths.
-    if agent.phase_bead_id:
+    if agent.phase_bead_id or agent.agent_family_role == "phase":
         return None
     bead_id = _derive_agent_bead_id(agent)
     if bead_id is None:

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from sase.agent.bead_display import derive_agent_bead_id_from_name
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.tools import (
     build_slow_tool_sources,
@@ -124,14 +123,6 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
 
     plan_enrichment = resolve_agent_plan_enrichment(agent)
     associated_plan = plan_enrichment.associated_plan
-    enriched_bead_display = plan_enrichment.bead_display
-    legacy_candidate_id = derive_agent_bead_id_from_name(agent.agent_name)
-    if enriched_bead_display is not None and (
-        agent.phase_bead_id is not None
-        or agent.agent_family_role == "phase"
-        or enriched_bead_display != legacy_candidate_id
-    ):
-        bead_display = enriched_bead_display
 
     slow_tool_sources = None
     if supports_slow_tool_sources(agent):
@@ -163,6 +154,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     return DetailHeaderSummary(
         xprompts_used=xprompts_used,
         bead_display=bead_display,
+        phase_bead=plan_enrichment.phase_bead,
         associated_plan=associated_plan,
         delta_entries=agent_delta_entries(agent),
         linked_delta_groups=linked_delta_groups,

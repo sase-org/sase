@@ -454,3 +454,80 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
             "agents_epic_phase_roadmap_120x40",
             title="ACE agents epic phase roadmap",
         )
+
+
+async def test_agents_phase_bead_context_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    relative_plan_path = Path("sase/repos/plans/202607/phase bead context lane.md")
+    plan_path = tmp_path / relative_plan_path
+    plan_path.parent.mkdir(parents=True)
+    plan_path.write_text(
+        "---\n"
+        "tier: epic\n"
+        "title: Phase bead SASE context lane\n"
+        "goal: Keep the complete epic roadmap private to its owner.\n"
+        "phases:\n"
+        "  - id: model\n"
+        "    title: Typed phase metadata\n"
+        "    depends_on: []\n"
+        "  - id: render\n"
+        "    title: Responsive BEAD lane\n"
+        "    depends_on: [model]\n"
+        "    description: >-\n"
+        "      Present the selected phase identity and provenance without exposing\n"
+        "      the full epic roadmap.\n"
+        "---\n"
+        "# Plan\n",
+        encoding="utf-8",
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-phase-bead",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 17, 9, 30, 0),
+        raw_suffix="20260717093000",
+        agent_name="sase-visual.2",
+        agent_family_role="phase",
+        epic_bead_id="sase-visual",
+        phase_bead_id="sase-visual.2",
+        plan_path=relative_plan_path.as_posix(),
+        sdd_plan_path=relative_plan_path.as_posix(),
+        plan_committed=True,
+        workspace_dir=str(tmp_path),
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    patch_startup_loaders(monkeypatch, agents=[agent])
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "Epic Title:")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "SASE CONTEXT")
+        assert_page_svg_contains(page, "BEAD")
+        assert_page_svg_contains(page, "phase")
+        assert_page_svg_contains(page, "ID:")
+        assert_page_svg_contains(page, "sase-visual.2")
+        assert_page_svg_contains(page, "Description:")
+        assert_page_svg_contains(page, "Epic Plan:")
+        assert_page_svg_contains(page, "Epic Title:")
+        assert_page_svg_contains(page, "Phase bead SASE context lane")
+        svg = page.export_svg(title="ACE phase BEAD context assertion")
+        assert "Bead:" not in svg
+        assert "▸ PLAN" not in svg
+        assert "Typed phase metadata" not in svg
+        assert "Keep the complete epic roadmap" not in svg
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_phase_bead_context_120x40",
+            title="ACE agents phase BEAD context lane",
+        )

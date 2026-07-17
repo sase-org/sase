@@ -13,6 +13,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     _AgentPlanEnrichment,
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
+    PhaseBeadSummary,
 )
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import AgentHeader
@@ -818,7 +819,15 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
         "resolve_agent_plan_enrichment",
         lambda *_args, **_kwargs: _AgentPlanEnrichment(
             "phase",
-            "sase-9.2 - Selected phase",
+            PhaseBeadSummary(
+                id="sase-9.2",
+                description="Selected phase",
+                actual_plan_path="/tmp/epic.md",
+                display_plan_path="epic.md",
+                plan_exists=True,
+                plan_readable=True,
+                epic_title="Selected epic",
+            ),
             None,
             "/tmp/epic.md",
         ),
@@ -916,10 +925,14 @@ def test_modern_phase_renders_one_frontmatter_bead_and_no_plan(
     header, _ = build_header_text(agent, summary=summary)
 
     assert summary.associated_plan is None
-    assert header.plain.count("Bead:") == 1
-    assert "Bead: sase-9.2 - Show only this selected phase description.\n" in (
+    assert "Bead:" not in header.plain
+    assert "▸ BEAD · phase\n" in header.plain
+    assert "          ID: sase-9.2\n" in header.plain
+    assert " Description: Show only this selected phase description.\n" in (
         header.plain
     )
+    assert "   Epic Plan: plans/epic.md\n" in header.plain
+    assert "  Epic Title: Role-aware metadata\n" in header.plain
     assert "▸ PLAN" not in header.plain
     assert "Goal:" not in header.plain
     assert "Path:" not in header.plain

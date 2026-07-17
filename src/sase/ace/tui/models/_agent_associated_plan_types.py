@@ -55,16 +55,29 @@ class AssociatedPlanSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class PhaseBeadSummary:
+    """Immutable selected-phase metadata consumed by the BEAD lane."""
+
+    id: str
+    description: str | None
+    actual_plan_path: str | None
+    display_plan_path: str | None
+    plan_exists: bool
+    plan_readable: bool
+    epic_title: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class AgentPlanEnrichment:
     """Role-aware plan result consumed by deferred detail enrichment.
 
-    Phase workers deliberately carry ``associated_plan=None``. Their resolved
-    plan path is retained only so the generic artifact list can avoid exposing
-    the same epic plan as unrelated metadata.
+    Phase workers deliberately carry ``associated_plan=None``. Their typed
+    phase-bead summary exposes only the selected phase while the resolved plan
+    path also lets the generic artifact list de-duplicate the epic plan.
     """
 
     role: AgentPlanRole
-    bead_display: str | None
+    phase_bead: PhaseBeadSummary | None
     associated_plan: AssociatedPlanSummary | None
     resolved_plan_path: str | None
 

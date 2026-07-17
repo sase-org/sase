@@ -16,13 +16,13 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     status_bucket_for_values,
 )
-from sase.agent.bead_display import derive_agent_bead_id_from_name
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent
 from ...models.agent_bead import cached_bead_display
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_plan_section import ResponsivePlanSection
 from ._file_path_hints import append_text_with_file_hints
@@ -68,22 +68,19 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
 
 
 class _AgentHeaderRenderable:
-    """Mutable logical header with a retained responsive plan section."""
+    """Mutable logical header with retained responsive context sections."""
 
-    __slots__ = ("_plan_end", "_plan_section", "_plan_start", "_text")
+    __slots__ = ("_sections", "_text")
 
     def __init__(
         self,
         text: Text,
-        plan_section: ResponsivePlanSection,
-        *,
-        plan_start: int,
-        plan_end: int,
+        sections: tuple[
+            tuple[int, int, ResponsiveBeadSection | ResponsivePlanSection], ...
+        ],
     ) -> None:
         self._text = text
-        self._plan_section = plan_section
-        self._plan_start = plan_start
-        self._plan_end = plan_end
+        self._sections = sections
 
     @property
     def plain(self) -> str:
@@ -133,12 +130,15 @@ class _AgentHeaderRenderable:
         _console: Console,
         _options: ConsoleOptions,
     ) -> RenderResult:
-        prefix = self._text[: self._plan_start]
-        prefix.end = ""
-        yield prefix
-        yield self._plan_section
+        cursor = 0
+        for start, end, section in self._sections:
+            prefix = self._text[cursor:start]
+            prefix.end = ""
+            yield prefix
+            yield section
+            cursor = end
 
-        suffix = self._text[self._plan_end :]
+        suffix = self._text[cursor:]
         suffix.end = self._text.end
         yield suffix
 
@@ -235,19 +235,17 @@ def build_header_text(
     header_text.append("Name: ", style="bold #87D7FF")
     if agent.agent_name:
         header_text.append(f"{agent.agent_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
-        # Modern phase identity is authoritative launch metadata, so the
-        # cheap/cold path can show its bare id immediately while deferred plan
-        # enrichment fills in the frontmatter description. Legacy candidates
-        # still render only from confirmed cache state. None of these paths
-        # touch bead storage.
-        if summary is not None:
+        # Phase identity belongs exclusively to the deferred BEAD context lane.
+        # The cold path remains memory-only and omits that lane until its typed
+        # summary arrives. Non-phase compatibility rows still use only cached
+        # bead state and never touch bead storage here.
+        is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
+        if summary is not None and summary.phase_bead is not None:
+            bead_display = None
+        elif is_known_phase:
+            bead_display = None
+        elif summary is not None:
             bead_display = summary.bead_display
-        elif agent.phase_bead_id:
-            bead_display = agent.phase_bead_id
-        elif agent.agent_family_role == "phase":
-            bead_display = (
-                derive_agent_bead_id_from_name(agent.agent_name) or agent.agent_name
-            )
         else:
             cached_display = cached_bead_display(agent)
             bead_display = cached_display if isinstance(cached_display, str) else None
@@ -529,24 +527,29 @@ def build_header_text(
             header_text.append(f"{name}: ", style="bold #87D7FF")
             header_text.append(f"{value}\n", style="#5FD75F")
 
+    bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
-    plan_section_range: tuple[int, int] | None = None
+    responsive_ranges: dict[str, tuple[int, int]] = {}
     if not cheap and summary is not None:
         from ._agent_context import append_agent_context_section
 
+        if summary.phase_bead is not None:
+            bead_section = ResponsiveBeadSection(summary.phase_bead)
         if summary.associated_plan is not None:
             plan_section = ResponsivePlanSection(summary.associated_plan)
-        plan_section_range = append_agent_context_section(
+        append_agent_context_section(
             header_text,
             memory_reads=summary.memory_reads,
             skill_uses=summary.skill_uses,
             opened_workspaces=summary.opened_workspaces,
+            bead_section=bead_section,
             plan_section=plan_section,
             agent=agent,
             delta_entries=summary.delta_entries,
             linked_delta_groups=summary.linked_delta_groups,
             artifact_file_paths=summary.artifact_file_paths,
             hint_state=hint_state,
+            responsive_ranges=responsive_ranges,
         )
 
     if not cheap and summary is not None:
@@ -592,14 +595,21 @@ def build_header_text(
     header_text.append("\u2500" * 50 + "\n", style="dim")
     header_text.append("\n")
 
-    if plan_section is not None and plan_section_range is not None:
-        plan_start, plan_end = plan_section_range
+    responsive_sections: list[
+        tuple[int, int, ResponsiveBeadSection | ResponsivePlanSection]
+    ] = []
+    if bead_section is not None and "BEAD" in responsive_ranges:
+        start, end = responsive_ranges["BEAD"]
+        responsive_sections.append((start, end, bead_section))
+    if plan_section is not None and "PLAN" in responsive_ranges:
+        start, end = responsive_ranges["PLAN"]
+        responsive_sections.append((start, end, plan_section))
+    if responsive_sections:
+        responsive_sections.sort(key=lambda section: section[0])
         return (
             _AgentHeaderRenderable(
                 header_text,
-                plan_section,
-                plan_start=plan_start,
-                plan_end=plan_end,
+                tuple(responsive_sections),
             ),
             error_tb_syntax,
         )

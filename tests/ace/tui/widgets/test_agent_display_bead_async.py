@@ -105,7 +105,7 @@ def test_cold_bead_display_schedules_worker_without_lookup(
     assert "Bead:" not in rendered
 
 
-def test_modern_phase_bypasses_generic_bead_worker_and_is_row_confirmed() -> None:
+def test_modern_phase_bypasses_generic_bead_worker_until_bead_lane_enrichment() -> None:
     agent = make_agent(
         agent_name="sase-x.3",
         epic_bead_id="sase-x",
@@ -118,7 +118,8 @@ def test_modern_phase_bypasses_generic_bead_worker_and_is_row_confirmed() -> Non
 
     assert agent_has_confirmed_bead(agent)
     assert not should_resolve_bead_display(agent)
-    assert "Bead: sase-x.3\n" in plain_of(panel.captured[-1])
+    assert "Bead:" not in plain_of(panel.captured[-1])
+    assert "▸ BEAD" not in plain_of(panel.captured[-1])
     assert getattr(panel, "_agent_bead_display_worker", None) is None
     assert getattr(panel, "_agent_detail_header_worker", None) is panel.worker
 
