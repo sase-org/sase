@@ -41,6 +41,20 @@ from tests.main.init_skills_handler_helpers import make_args
             ),
         ),
         (
+            "sase_gate",
+            (
+                "beautiful, robust, and powerful custom notification gates",
+                "dangerous or irreversible command",
+                '"default_selected": true',
+                '"feedback": "required"',
+                "sase notify create --gate",
+                "sase notify wait",
+                "Never poll bundle files directly",
+                "Never run bundle commands by hand",
+                "Automatic resolution is forbidden for custom gates",
+            ),
+        ),
+        (
             "sase_beads",
             (
                 "SASE_SDD_PLANS_DIR=$(sase repo path plans)",
@@ -63,6 +77,8 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase notify show --id",
                 "interaction_requests/<kind>/<request-id>/request.json",
                 "sase notify create --gate",
+                "CustomGate",
+                "/sase_gate",
                 '"silent": true',
             ),
         ),
