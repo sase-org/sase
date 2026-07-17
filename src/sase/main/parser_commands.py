@@ -198,7 +198,11 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'notify' subcommand parser."""
     notify_parser = subparsers.add_parser(
         "notify",
-        help="Create, list, or inspect notifications",
+        help="Create, inspect, or wait on notifications and gates",
+        description=(
+            "Create and inspect notifications or wait mechanically for a durable "
+            "gate. With no subcommand, delegates to `sase notify list`."
+        ),
     )
     notify_parser.add_argument(
         "-s",
@@ -220,6 +224,22 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
     create_parser = notify_sub.add_parser(
         "create",
         help="Create a notification (reads JSON from stdin or uses flags)",
+        description=(
+            "Create a raw notification from stdin JSON. Raw notifications accept "
+            "sender, icon, notes, files, tags, action, action_data, and silent. "
+            "With --gate, stdin is a versioned gate specification whose presentation, "
+            "choices, and extras may carry icons; choices may also declare feedback "
+            "modes and independently selectable extras. Gate mode prints a stable JSON "
+            "descriptor whose kind and request_id identify the request for `sase notify "
+            "wait`."
+        ),
+        epilog=(
+            "examples:\n"
+            '  printf \'%s\\n\' \'{"sender":"worker","icon":"✅",'
+            '"notes":["Done"]}\' | sase notify create\n'
+            "  sase notify create --gate < gate-request.json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     create_parser.add_argument(
         "-g",
@@ -246,6 +266,12 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List recent notifications (pretty output by default, JSON with -j)",
     )
     list_parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Include dismissed notifications",
+    )
+    list_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
@@ -265,16 +291,16 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Case-insensitive substring filter over notification fields",
     )
     list_parser.add_argument(
-        "-t",
-        "--tag",
-        default=None,
-        help="Only include notifications with this tag",
-    )
-    list_parser.add_argument(
         "-s",
         "--sender",
         default=None,
         help="Only include notifications from this sender",
+    )
+    list_parser.add_argument(
+        "-t",
+        "--tag",
+        default=None,
+        help="Only include notifications with this tag",
     )
     list_parser.add_argument(
         "-u",
@@ -282,22 +308,9 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Only include unread notifications",
     )
-    list_parser.add_argument(
-        "-a",
-        "--all",
-        action="store_true",
-        help="Include dismissed notifications",
-    )
-
     show_parser = notify_sub.add_parser(
         "show",
         help="Show one notification by id",
-    )
-    show_parser.add_argument(
-        "-i",
-        "--id",
-        required=True,
-        help="Notification id to inspect",
     )
     show_parser.add_argument(
         "-f",
@@ -305,6 +318,60 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=("markdown", "json"),
         default="markdown",
         help="Output format: 'markdown' (default) or 'json'",
+    )
+    show_parser.add_argument(
+        "-i",
+        "--id",
+        required=True,
+        help="Notification id to inspect",
+    )
+
+    wait_parser = notify_sub.add_parser(
+        "wait",
+        help="Wait mechanically for a durable gate to reach a terminal state",
+        description=(
+            "Wait for a durable gate identified by the kind and request_id from "
+            "`sase notify create --gate`. The gate's configured timeout always "
+            "applies; --timeout may impose an earlier caller deadline."
+        ),
+        epilog=(
+            "terminal exit codes:\n"
+            "  0  answered\n"
+            "  3  cancelled\n"
+            "  4  timeout\n\n"
+            "examples:\n"
+            "  sase notify wait --id custom-123 --kind custom\n"
+            "  sase notify wait -i custom-123 -k custom --json\n"
+            "  sase notify wait -i custom-123 -k custom --timeout 60"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    wait_parser.add_argument(
+        "-i",
+        "--id",
+        required=True,
+        metavar="REQUEST_ID",
+        help="Gate request id from the creation descriptor",
+    )
+    wait_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the stable machine-readable terminal result",
+    )
+    wait_parser.add_argument(
+        "-k",
+        "--kind",
+        required=True,
+        help="Gate kind from the creation descriptor",
+    )
+    wait_parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="Stop waiting after this many seconds, without extending the gate timeout",
     )
 
 

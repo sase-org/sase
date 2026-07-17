@@ -191,6 +191,7 @@ Each notification contains:
 | `id`           | string       | UUID4 unique identifier                                                                               |
 | `timestamp`    | string       | ISO-8601 creation timestamp                                                                           |
 | `sender`       | string       | Source identifier (e.g., "plan", "sync", "axe")                                                       |
+| `icon`         | string\|null | Optional single emoji or display glyph                                                                |
 | `notes`        | list[string] | Human-readable message lines                                                                          |
 | `files`        | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                  |
 | `tags`         | list[string] | Optional normalized labels for filtering and modal tabs                                               |
@@ -237,14 +238,15 @@ Bare `sase notify` is a read-only shortcut for `sase notify list`. Use `sase not
 from JSON input:
 
 ```bash
-echo '{"sender": "test", "notes": ["Hello"], "tags": ["review"]}' | sase notify create
+echo '{"sender": "test", "icon": "👋", "notes": ["Hello"], "tags": ["review"]}' | sase notify create
 echo '{"sender": "audit", "notes": ["Background result"], "silent": true}' | sase notify create
 sase notify create -s my_sender < notification.json
 sase notify create -s my_sender --tag review --tag handoff < notification.json
 ```
 
-Raw creation preserves the JSON `silent` field. It rejects registered privileged actions (`PlanApproval`,
-`EpicApproval`, `UserQuestion`, `LaunchApproval`, and `HITL`) because a raw row has no trusted command bundle.
+Raw creation validates and preserves the optional single-glyph JSON `icon` and the JSON `silent` field. It rejects
+registered privileged actions (`PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, and `HITL`) because a
+raw row has no trusted command bundle.
 
 The low-level gate API reads a versioned gate specification from stdin:
 
@@ -252,10 +254,26 @@ The low-level gate API reads a versioned gate specification from stdin:
 sase notify create --gate < gate-request.json
 ```
 
-On success it prints a stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`, `kind`,
-bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. Typed front doors such as
-`sase plan propose`, `sase questions`, and agent-initiated launch requests call the same in-process gate service
-directly; they do not spawn this CLI.
+Gate presentation and each choice or extra may carry a single-glyph `icon`. Choices may declare a `feedback` mode
+(`disabled`, `optional`, or `required`) and ordered, independently selectable `extras`. On success the command prints a
+stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`, `kind`,
+bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. The descriptor's `request_id`
+and `kind` are the exact values accepted by `sase notify wait`. Typed front doors such as `sase plan propose`,
+`sase questions`, and agent-initiated launch requests call the same in-process gate service directly; they do not spawn
+this CLI.
+
+Wait mechanically for a gate without reading or polling bundle files directly:
+
+```bash
+sase notify wait --id <request_id> --kind <kind>
+sase notify wait --id <request_id> --kind <kind> --json
+sase notify wait --id <request_id> --kind <kind> --timeout 60
+```
+
+Human output is colored and summarizes the terminal choice, selected extras, feedback, and response path. `-j/--json`
+emits the stable shape `status`, `choice_id`, `selected_extra_ids`, `feedback`, and `response_path`. Status is
+`answered`, `cancelled`, or `timeout`, with exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never
+extend the request's own gate timeout.
 
 For read-only inspection, list recent notifications as either a compact table or stable JSON:
 
@@ -274,10 +292,10 @@ sase notify list -j --all
 Use the explicit `list` subcommand when passing list flags; for example, use `sase notify list -j`, not
 `sase notify -j`.
 
-`sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `priority`, `notes`,
-`files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. The `-q/--query`
-filter matches tags as well as ids, senders, notes, files, actions, and action data. Dismissed notifications are hidden
-unless `--all` is provided.
+`sase notify list -j` prints notifications newest first with `id`, `timestamp`, `age`, `sender`, `icon`, `priority`,
+`notes`, `files`, `tags`, `action`, `action_data`, `read`, `dismissed`, `silent`, `muted`, and `snooze_until`. The
+`-q/--query` filter matches tags as well as ids, senders, notes, files, actions, and action data. Dismissed
+notifications are hidden unless `--all` is provided.
 
 Inspect one notification by id:
 
@@ -300,10 +318,11 @@ See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI ref
 
 Each new gate is written once under `~/.sase/interaction_requests/<kind>/<request-id>/`. The bundle contains canonical
 `request.json`, eventual write-once `response.json`, reviewed previews or attachments, and adapter-owned commands. The
-request records the continuation mode, optional gate timeout, typed payload, presentation metadata, terminal choices,
-input/result schemas, and hashes for the request and owned resources. Commands are argv arrays executed without a shell.
-Plan editing is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes
-the reviewed hashes before approval can continue.
+request records the continuation mode, optional gate timeout, typed payload, presentation metadata and icon, terminal
+choices with optional icons and feedback modes, independently selectable command extras, input/result schemas, and
+hashes for the request and owned resources. Commands are argv arrays executed without a shell. Plan editing is the one
+non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes the reviewed hashes
+before approval can continue.
 
 Manual creation succeeds only after the bundle, notification row, and pending-action registration are durable. A partial
 failure is compensated, and retries are idempotent by request ID. Manual and automatic choices use the same hash, input,
@@ -319,6 +338,7 @@ The typed projections remain deliberately distinct:
 | `epic_plan` | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
 | `question`  | `UserQuestion`      | `sase questions`                                  |
 | `launch`    | `LaunchApproval`    | Agent-initiated `sase launch request`             |
+| `custom`    | `CustomGate`        | `sase notify create --gate`                       |
 
 Workflow `HITL` is registered at the adapter boundary but is not migrated to the command-backed producer in this
 rollout; its existing behavior remains unchanged.

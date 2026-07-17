@@ -83,13 +83,19 @@ def wait_for_gate(
         )
     envelope, _adapter = load_and_verify_bundle(bundle_path)
     configured = envelope.get("gate_timeout_seconds")
-    if timeout_seconds is None and configured is not None:
-        timeout_seconds = float(configured)
+    configured_remaining: float | None = None
+    if configured is not None:
         created = float(envelope.get("created_at_unix", time.time()))
-        timeout_seconds = max(0.0, created + timeout_seconds - time.time())
+        configured_remaining = max(0.0, created + float(configured) - time.time())
     if timeout_seconds is not None and timeout_seconds < 0:
         raise GateError(
             "invalid_timeout", "timeout_seconds", "timeout cannot be negative"
+        )
+    if configured_remaining is not None:
+        timeout_seconds = (
+            configured_remaining
+            if timeout_seconds is None
+            else min(timeout_seconds, configured_remaining)
         )
     deadline = None if timeout_seconds is None else time.monotonic() + timeout_seconds
     while True:

@@ -23,6 +23,7 @@ class NotificationInfo:
     timestamp: str
     age: str
     sender: str
+    icon: str | None
     priority: bool
     notes: list[str]
     files: list[str]
@@ -51,6 +52,7 @@ def _notification_info(notification: Notification) -> NotificationInfo:
         timestamp=notification.timestamp,
         age=format_relative_time(notification.timestamp),
         sender=notification.sender,
+        icon=notification.icon,
         priority=is_priority(notification) or is_error(notification),
         notes=list(notification.notes),
         files=[_normalize_home_path(path) for path in notification.files],
@@ -76,6 +78,8 @@ def _query_values(notification: Notification) -> list[str]:
         *(notification.files or []),
         *(notification.tags or []),
     ]
+    if notification.icon:
+        values.append(notification.icon)
     if notification.action:
         values.append(notification.action)
     values.extend(str(value) for value in notification.action_data.values())
@@ -143,6 +147,7 @@ def notification_info_to_json(info: NotificationInfo) -> dict[str, object]:
         "timestamp": info.timestamp,
         "age": info.age,
         "sender": info.sender,
+        "icon": info.icon,
         "priority": info.priority,
         "notes": info.notes,
         "files": info.files,

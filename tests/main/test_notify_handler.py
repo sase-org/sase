@@ -43,6 +43,7 @@ def _make_notification(
     *,
     minutes_ago: int = 0,
     sender: str = "test",
+    icon: str | None = None,
     notes: list[str] | None = None,
     files: list[str] | None = None,
     tags: list[str] | None = None,
@@ -55,6 +56,7 @@ def _make_notification(
         id=notification_id,
         timestamp=_timestamp(minutes_ago),
         sender=sender,
+        icon=icon,
         notes=notes or [],
         files=files or [],
         tags=tags or [],
@@ -150,6 +152,48 @@ def test_parser_registers_explicit_create_alias() -> None:
     assert args.tag == ["Review"]
 
 
+def test_parser_registers_notify_wait_options_and_help() -> None:
+    parser = create_parser()
+    args = parser.parse_args(
+        [
+            "notify",
+            "wait",
+            "--id",
+            "custom-123",
+            "-j",
+            "--kind",
+            "custom",
+            "-t",
+            "30",
+        ]
+    )
+
+    assert args.notify_subcommand == "wait"
+    assert args.id == "custom-123"
+    assert args.json is True
+    assert args.kind == "custom"
+    assert args.timeout == 30.0
+
+    wait_parser = next(
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    ).choices["notify"]
+    wait_subparsers = next(
+        action
+        for action in wait_parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    wait_help = wait_subparsers.choices["wait"].format_help()
+    assert "--id REQUEST_ID" in wait_help
+    assert "--json" in wait_help
+    assert "--kind" in wait_help
+    assert "--timeout SECONDS" in wait_help
+    assert "answered" in wait_help
+    assert "cancelled" in wait_help
+    assert "timeout" in wait_help
+
+
 def test_explicit_create_path_writes_notification(
     temp_notifications_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -159,7 +203,7 @@ def test_explicit_create_path_writes_notification(
     monkeypatch.setattr(
         sys,
         "stdin",
-        io.StringIO(json.dumps({"sender": "json", "notes": ["created"]})),
+        io.StringIO(json.dumps({"sender": "json", "icon": "✅", "notes": ["created"]})),
     )
 
     with pytest.raises(SystemExit) as excinfo:
@@ -173,7 +217,30 @@ def test_explicit_create_path_writes_notification(
     assert len(notifications) == 1
     assert notifications[0].id == notification_id
     assert notifications[0].sender == "json"
+    assert notifications[0].icon == "✅"
     assert notifications[0].notes == ["created"]
+
+
+def test_raw_create_rejects_invalid_icon(
+    temp_notifications_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del temp_notifications_dir
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(json.dumps({"sender": "json", "icon": "✅🚀"})),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(
+            argparse.Namespace(notify_subcommand="create", sender=None, tag=None)
+        )
+
+    assert excinfo.value.code == 1
+    assert "invalid_icon" in capsys.readouterr().err
+    assert load_notifications(include_dismissed=True) == []
 
 
 def test_create_sender_flag_overrides_stdin(
@@ -271,6 +338,7 @@ def test_list_json_shape_default_limit_and_filters(
         "timestamp",
         "age",
         "sender",
+        "icon",
         "priority",
         "notes",
         "files",
@@ -320,6 +388,7 @@ def test_show_json_and_markdown(
         _make_notification(
             "target",
             sender="axe",
+            icon="🚨",
             notes=["1 error"],
             files=[str(Path.home() / ".sase" / "axe" / "digest.txt")],
             tags=["digest", "error"],
@@ -333,12 +402,14 @@ def test_show_json_and_markdown(
     handle_notify_show(_show_args(format="json"))
     payload = json.loads(capsys.readouterr().out)
     assert payload["id"] == "target"
+    assert payload["icon"] == "🚨"
     assert payload["tags"] == ["digest", "error"]
     assert payload["action_data"]["error_report_path"].endswith("digest.txt")
 
     handle_notify_show(_show_args(format="markdown"))
     out = capsys.readouterr().out
     assert "# Notification target" in out
+    assert "- icon: 🚨" in out
     assert "ViewErrorReport" in out
     assert "`digest`, `error`" in out
     assert "error_report_path" in out

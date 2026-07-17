@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import NoReturn
 
 from sase.core.time import get_timezone
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GateError, validate_icon
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import append_notification
@@ -31,8 +31,12 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
 
         handle_notify_show(args)
         sys.exit(0)
+    if subcommand == "wait":
+        from sase.notifications.cli_wait import handle_notify_wait
 
-    print("Usage: sase notify [create|list|show]", file=sys.stderr)
+        handle_notify_wait(args)
+
+    print("Usage: sase notify [create|list|show|wait]", file=sys.stderr)
     sys.exit(1)
 
 
@@ -65,10 +69,17 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
         print("Error: sender is required (via JSON or --sender)", file=sys.stderr)
         sys.exit(1)
 
+    try:
+        icon = validate_icon(data.get("icon"), "icon")
+    except GateError as exc:
+        print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     notification = Notification(
         id=str(uuid.uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=str(data["sender"]),
+        icon=icon,
         notes=_create_string_list(data.get("notes")),
         files=_create_string_list(data.get("files")),
         tags=_create_tags(data.get("tags"), getattr(args, "tag", None)),

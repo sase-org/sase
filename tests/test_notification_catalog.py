@@ -39,6 +39,7 @@ def _make_notification(
     *,
     minutes_ago: int = 0,
     sender: str = "test",
+    icon: str | None = None,
     notes: list[str] | None = None,
     files: list[str] | None = None,
     tags: list[str] | None = None,
@@ -54,6 +55,7 @@ def _make_notification(
         id=notification_id,
         timestamp=_timestamp(minutes_ago),
         sender=sender,
+        icon=icon,
         notes=notes or [],
         files=files or [],
         tags=tags or [],
@@ -77,6 +79,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
             "new",
             minutes_ago=1,
             sender="axe",
+            icon="🚨",
             notes=["1 error(s) in the last hour"],
             action="ViewErrorReport",
         )
@@ -91,6 +94,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "timestamp",
         "age",
         "sender",
+        "icon",
         "priority",
         "notes",
         "files",
@@ -103,6 +107,7 @@ def test_lists_newest_first_with_limit_and_stable_json_keys(
         "muted",
         "snooze_until",
     ]
+    assert payload["icon"] == "🚨"
     assert payload["priority"] is True
 
 

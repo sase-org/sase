@@ -2246,7 +2246,8 @@ editable-install SASE updates reinstall the server into the uv-tool venv when pu
 
 With no subcommand, `sase notify` defaults to the compact `sase notify list` view. Use `sase notify list` for JSON,
 limit, query, unread, dismissed, or the clearest sender/tag filtering form. Use `sase notify create` to write a raw
-notification from stdin JSON, or add `-g/--gate` for a versioned command-backed gate specification.
+notification from stdin JSON, or add `-g/--gate` for a versioned command-backed gate specification. Use
+`sase notify wait` with the descriptor's request id and kind to wait mechanically for a gate.
 
 | Form                 | Flags                                                                                         | Description                                                 |
 | -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -2254,10 +2255,14 @@ notification from stdin JSON, or add `-g/--gate` for a versioned command-backed 
 | `sase notify create` | `-g/--gate`, `-s/--sender`, `-t/--tag`                                                        | Create a raw notification or durable gate from stdin JSON   |
 | `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
 | `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |
+| `sase notify wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                           | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout   |
 
-Raw creation accepts JSON `tags` and `silent` fields plus repeatable `-t/--tag`; CLI tags are appended to JSON tags,
-then normalized and deduplicated. Raw creation cannot create a registered privileged gate action. Gate mode returns a
-stable JSON descriptor with the request identity, owned paths, continuation/auto state, and hashes. The query form,
+Raw creation accepts JSON `icon`, `tags`, and `silent` fields plus repeatable `-t/--tag`; icons must be one emoji or
+display glyph, and CLI tags are appended to JSON tags, then normalized and deduplicated. Raw creation cannot create a
+registered privileged gate action. Gate mode supports icons on the presentation, choices, and extras, plus per-choice
+feedback modes and selectable extras. It returns a stable JSON descriptor with the request identity, owned paths,
+continuation/auto state, and hashes. `sase notify wait -j` emits `status`, `choice_id`, `selected_extra_ids`,
+`feedback`, and `response_path`; a CLI timeout can shorten but not extend the request timeout. The query form,
 `sase notify list -q`, also matches tags, and `sase notify list --tag <tag>` filters to notifications with that exact
 normalized tag.
 
