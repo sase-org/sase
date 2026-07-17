@@ -281,6 +281,25 @@ def _notify_epic_launch_failure(
         logger.warning("Failed to send epic-launch error notification", exc_info=True)
 
 
+def _require_usable_sdd_store(repo_root: Path) -> None:
+    """Validate a materialized SDD repository before any accepted-plan write."""
+    if not (repo_root / ".git").exists():
+        return
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
+    )
+
+    with store_git_write_lock(repo_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {repo_root.resolve()} could not acquire its store "
+                "write lock; the approved plan was not copied"
+            )
+        require_sdd_repository_health(repo_root)
+
+
 def handle_accepted_plan(
     plan_result: Any,
     ctx: AgentExecContext,
@@ -325,8 +344,10 @@ def handle_accepted_plan(
     sdd_in_tree = True  # safe default (in-tree path is the no-op path)
     sdd_sidecar_storage = False
     sdd_dir = Path(ctx.workspace_dir)
+    store_unusable_error: str | None = None
     try:
         sdd_store = materialize_sdd_store(ctx.workspace_dir, ctx.workspace_num)
+        _require_usable_sdd_store(sdd_store.repo_root)
         sdd_in_tree = sdd_store.is_in_tree
         sdd_sidecar_storage = sdd_store.is_sidecar_storage
         sdd_dir = sdd_store.sdd_dir
@@ -371,39 +392,86 @@ def handle_accepted_plan(
                 "sdd_plan_path": str(sdd_plan_path),
             },
         )
-    except Exception:
-        logger.warning("SDD file generation failed", exc_info=True)
+    except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+        from sase.sdd._store_types import SddMaterializationError
+
+        if is_epic and isinstance(
+            exc, (SddMaterializationError, SddRepositoryHealthError)
+        ):
+            store_unusable_error = str(exc) or type(exc).__name__
+            logger.error("Approved epic SDD store is unusable: %s", exc)
+        else:
+            logger.warning("SDD file generation failed", exc_info=True)
+
+    if is_epic and store_unusable_error is not None:
+        update_meta_field(
+            state.current_artifacts_dir,
+            "epic_launch_error",
+            store_unusable_error,
+        )
+        _notify_epic_launch_failure(
+            ctx,
+            plan_result.plan_file,
+            (store_unusable_error,),
+        )
+        return "epic_launch_failed"
 
     # Epic prompt snapshots are committed independently so they cannot race
     # the host command's plan archive/link commits.
     should_commit = plan_result.commit_plan if not is_epic else True
     required_sdd_commit_succeeded = True
-    if should_commit and sdd_plan_name and sdd_prompt_path_obj is not None:
-        if sdd_in_tree:
-            required_sdd_commit_succeeded = (
-                _commit_sdd_spec(ctx.workspace_dir, sdd_plan_name)
-                if is_epic
-                else _commit_sdd_files(
-                    ctx.workspace_dir,
-                    sdd_plan_name,
-                    plan_tier=plan_tier_for_action(plan_result.action),
-                )
-            )
-        elif sdd_store is not None:
-            required_sdd_commit_succeeded = commit_sdd_store_files(
-                sdd_store,
-                (
-                    f"Add SDD prompt for {sdd_plan_name}"
+    try:
+        if should_commit and sdd_plan_name and sdd_prompt_path_obj is not None:
+            if sdd_in_tree:
+                required_sdd_commit_succeeded = (
+                    _commit_sdd_spec(ctx.workspace_dir, sdd_plan_name)
                     if is_epic
-                    else f"Add SDD files for {sdd_plan_name}"
-                ),
-                paths=sdd_commit_paths,
-                push_after_commit=True,
-            )
-        else:
+                    else _commit_sdd_files(
+                        ctx.workspace_dir,
+                        sdd_plan_name,
+                        plan_tier=plan_tier_for_action(plan_result.action),
+                    )
+                )
+            elif sdd_store is not None:
+                required_sdd_commit_succeeded = commit_sdd_store_files(
+                    sdd_store,
+                    (
+                        f"Add SDD prompt for {sdd_plan_name}"
+                        if is_epic
+                        else f"Add SDD files for {sdd_plan_name}"
+                    ),
+                    paths=sdd_commit_paths,
+                    push_after_commit=True,
+                )
+            else:
+                required_sdd_commit_succeeded = False
+        elif should_commit:
             required_sdd_commit_succeeded = False
-    elif should_commit:
-        required_sdd_commit_succeeded = False
+    except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+        from sase.sdd._store_types import SddMaterializationError
+
+        if is_epic and isinstance(
+            exc, (SddMaterializationError, SddRepositoryHealthError)
+        ):
+            store_unusable_error = str(exc) or type(exc).__name__
+            required_sdd_commit_succeeded = False
+        else:
+            raise
+
+    if is_epic and store_unusable_error is not None:
+        update_meta_field(
+            state.current_artifacts_dir,
+            "epic_launch_error",
+            store_unusable_error,
+        )
+        _notify_epic_launch_failure(
+            ctx,
+            plan_result.plan_file,
+            (store_unusable_error,),
+        )
+        return "epic_launch_failed"
     plan_committed = bool(
         not is_epic
         and should_commit

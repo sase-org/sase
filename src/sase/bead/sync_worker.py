@@ -62,39 +62,34 @@ def _run_locked_sync(
     os.environ["GIT_TERMINAL_PROMPT"] = "0"
     _log(log_path, "started", repo_root=str(repo_root), beads_dir=str(beads_dir))
 
-    fetched = _git(
-        repo_root,
-        ["fetch", "--prune", "origin"],
-        op="bead.sync.fetch",
-        network=True,
-    )
-    if fetched.returncode != 0:
-        return _failure(log_path, "git fetch failed", fetched)
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import integrate_sdd_repository
 
-    upstream = _git(
+    integration = integrate_sdd_repository(
         repo_root,
-        ["rev-parse", "--verify", "@{upstream}"],
-        op="bead.sync.upstream",
+        beads_dir=beads_dir,
+        op_prefix="bead.sync",
+        git_runner=_git,
+        lock_factory=store_git_write_lock,
+        event_logger=lambda event, **fields: _log(log_path, event, **fields),
     )
-    integrated = False
-    if upstream.returncode == 0:
-        already_integrated = _git(
-            repo_root,
-            ["merge-base", "--is-ancestor", "@{upstream}", "HEAD"],
-            op="bead.sync.ancestor",
+    _log(
+        log_path,
+        "integration",
+        status=integration.status.value,
+        integrated=integration.integrated,
+        restored=integration.restored,
+        resolved_files=list(integration.resolved_files),
+    )
+    if not integration.succeeded:
+        return _failure(
+            log_path,
+            integration.error
+            or f"SDD integration ended with {integration.status.value}",
         )
-        if already_integrated.returncode != 0:
-            from sase.sdd._git_contention import store_git_write_lock
 
-            with store_git_write_lock(repo_root):
-                integration_failure = _integrate_upstream(
-                    repo_root,
-                    beads_dir,
-                    log_path,
-                )
-            if integration_failure is not None:
-                return integration_failure
-        integrated = True
+    integrated = integration.integrated
+    if integration.upstream_present:
         from sase.bead.sync import mark_bead_integration
 
         mark_bead_integration(repo_root)
@@ -110,86 +105,6 @@ def _run_locked_sync(
 
     _log(log_path, "completed", pushed=True, integrated=integrated)
     return _ManagedSyncOutcome(pushed=True, integrated=integrated)
-
-
-def _integrate_upstream(
-    repo_root: Path,
-    beads_dir: Path,
-    log_path: Path,
-) -> _ManagedSyncOutcome | None:
-    """Run the local status/rebase transaction while its write lock is held."""
-    dirty = _git(
-        repo_root,
-        ["status", "--porcelain"],
-        op="bead.sync.status",
-    )
-    if dirty.returncode != 0:
-        return _failure(log_path, "git status failed", dirty)
-    if dirty.stdout.strip():
-        return _failure(
-            log_path,
-            "bead store needs integration but has uncommitted changes",
-        )
-    rebased = _git(
-        repo_root,
-        ["rebase", "@{upstream}"],
-        op="bead.sync.rebase",
-    )
-    if rebased.returncode != 0:
-        repaired = _repair_rebase(repo_root, beads_dir, log_path)
-        if repaired is not None:
-            return repaired
-    return None
-
-
-def _repair_rebase(
-    repo_root: Path, beads_dir: Path, log_path: Path
-) -> _ManagedSyncOutcome | None:
-    from sase.bead.conflict_resolver import resolve_bead_conflicts
-
-    for _ in range(100):
-        resolution = resolve_bead_conflicts(repo_root, beads_dir=beads_dir)
-        _log(
-            log_path,
-            "conflict_resolution",
-            ok=resolution.ok,
-            message=resolution.message,
-            resolved_files=list(resolution.resolved_files),
-        )
-        if not resolution.ok:
-            return _abort_rebase(repo_root, log_path, resolution.message)
-
-        continued = _git(
-            repo_root,
-            ["-c", "core.editor=true", "rebase", "--continue"],
-            op="bead.sync.rebase_continue",
-        )
-        if continued.returncode == 0:
-            return None
-        conflicts = _git(
-            repo_root,
-            ["diff", "--name-only", "--diff-filter=U"],
-            op="bead.sync.conflicts",
-        )
-        if conflicts.returncode != 0 or not conflicts.stdout.strip():
-            return _abort_rebase(
-                repo_root,
-                log_path,
-                _git_error("git rebase --continue failed", continued),
-            )
-    return _abort_rebase(repo_root, log_path, "too many rebase conflict rounds")
-
-
-def _abort_rebase(repo_root: Path, log_path: Path, reason: str) -> _ManagedSyncOutcome:
-    aborted = _git(
-        repo_root,
-        ["rebase", "--abort"],
-        op="bead.sync.rebase_abort",
-    )
-    suffix = ""
-    if aborted.returncode != 0:
-        suffix = "; git rebase --abort also failed"
-    return _failure(log_path, f"{reason}{suffix}")
 
 
 def _failure(

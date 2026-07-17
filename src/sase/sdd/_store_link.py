@@ -63,7 +63,7 @@ def ensure_sidecar_sdd_clone(
                 raise SddMaterializationError(
                     f"could not normalize SDD sidecar origin at {clone_dir}"
                 )
-            _pull_sdd_clone(clone_dir)
+            _pull_sdd_clone(clone_dir, strict=strict)
             return
 
         cloned = _clone_sdd_store(remote_url, clone_dir, strict=strict)
@@ -153,7 +153,12 @@ def ensure_workspace_sdd_clone(
                     workspace_sdd,
                 )
                 return
-            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
+            _sync_workspace_sdd_clone(
+                workspace_sdd,
+                primary_sdd,
+                store.remote_url,
+                strict=strict,
+            )
             return
 
         cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
@@ -162,7 +167,12 @@ def ensure_workspace_sdd_clone(
         if not cloned and store.remote_url:
             cloned = _clone_sdd_store(store.remote_url, workspace_sdd)
         if cloned:
-            _sync_workspace_sdd_clone(workspace_sdd, primary_sdd, store.remote_url)
+            _sync_workspace_sdd_clone(
+                workspace_sdd,
+                primary_sdd,
+                store.remote_url,
+                strict=strict,
+            )
         elif strict:
             raise SddMaterializationError(
                 f"could not create workspace SDD sidecar clone at {workspace_sdd}"
@@ -230,53 +240,47 @@ def _sync_workspace_sdd_clone(
     workspace_sdd: Path,
     primary_sdd: Path,
     remote_url: str | None,
+    *,
+    strict: bool,
 ) -> None:
     """Refresh an existing workspace SDD clone without failing launch."""
 
     if remote_url is not None:
         _set_sdd_origin(workspace_sdd, remote_url)
 
-    if _pull_sdd_clone(workspace_sdd):
+    if _pull_sdd_clone(workspace_sdd, strict=strict):
         return
 
     if not _paths_same_file(workspace_sdd, primary_sdd):
         _fast_forward_workspace_clone_from_primary(workspace_sdd, primary_sdd)
 
 
-def _pull_sdd_clone(workspace_sdd: Path) -> bool:
-    from sase.sdd._commit import (
-        SddGitCommandTimeout,
-        network_git_timeout,
-        run_sdd_git,
+def _pull_sdd_clone(workspace_sdd: Path, *, strict: bool = False) -> bool:
+    from sase.sdd._repository_transaction import (
+        SddIntegrationStatus,
+        integrate_sdd_repository,
     )
 
-    try:
-        result = run_sdd_git(
-            ["pull", "--rebase"],
-            cwd=workspace_sdd,
-            op="sdd.clone.pull",
-            timeout=network_git_timeout(),
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except SddGitCommandTimeout:
-        _logger.warning("Timed out pulling workspace SDD clone %s", workspace_sdd)
-        return False
-    except Exception:
-        _logger.warning(
-            "Failed to pull workspace SDD clone %s",
-            workspace_sdd,
-            exc_info=True,
-        )
-        return False
-    if result.returncode == 0:
+    outcome = integrate_sdd_repository(
+        workspace_sdd,
+        beads_dir=(workspace_sdd / "beads"),
+        op_prefix="sdd.clone",
+    )
+    if outcome.succeeded:
         return True
-    detail = (result.stderr or result.stdout or "").strip()
+    detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
+    if outcome.status is SddIntegrationStatus.UNRECOVERABLE:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+
+        raise SddRepositoryHealthError(detail)
+    if strict and outcome.status not in {
+        SddIntegrationStatus.REMOTE_UNAVAILABLE,
+    }:
+        raise SddMaterializationError(detail)
     _logger.warning(
         "Failed to pull workspace SDD clone %s: %s",
         workspace_sdd,
-        detail or f"git pull exited {result.returncode}",
+        detail,
     )
     return False
 

@@ -415,7 +415,12 @@ def auto_commit_bead_store(
                 paths=[location.beads_dir],
                 push_after_commit=push_after_commit,
             )
-    except Exception:
+    except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+        from sase.sdd._store_types import SddMaterializationError
+
+        if isinstance(exc, (SddMaterializationError, SddRepositoryHealthError)):
+            raise
         _logger.warning(
             "Failed to auto-commit SDD bead store changes",
             exc_info=True,

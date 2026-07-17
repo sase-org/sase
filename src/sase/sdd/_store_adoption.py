@@ -334,16 +334,16 @@ def _push_sidecar_store(repo: Path) -> None:
         return
 
     push_detail = (result.stderr or result.stdout or "").strip()
-    rebase = _run_git(
-        ["pull", "--rebase"],
-        cwd=repo,
-        op="sdd.materialize.pull_rebase",
-        network=True,
+    from sase.sdd._repository_transaction import integrate_sdd_repository
+
+    integration = integrate_sdd_repository(
+        repo,
+        beads_dir=repo / "beads",
+        op_prefix="sdd.materialize",
     )
-    if rebase.returncode != 0:
-        rebase_detail = (rebase.stderr or rebase.stdout or "").strip()
+    if not integration.succeeded:
         raise SddMaterializationError(
-            rebase_detail
+            integration.error
             or push_detail
             or f"git push failed with exit code {result.returncode}"
         )

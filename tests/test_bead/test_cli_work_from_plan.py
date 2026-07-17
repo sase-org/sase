@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -157,6 +158,65 @@ def test_plan_file_mode_uses_sidecar_store(
         assert project.show(result.epic_id or "").design == (
             result.archived_plan_path.relative_to(project_dir).as_posix()
         )
+
+
+def test_plan_file_refuses_poisoned_sidecar_before_archive_or_bead_open(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+
+    source = project_dir / "approved.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    sidecar = tmp_path / "plans-sidecar"
+    sidecar.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=sidecar, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=sidecar,
+        check=True,
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=sidecar, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "seed"],
+        cwd=sidecar,
+        check=True,
+        capture_output=True,
+    )
+    (sidecar / "beads").mkdir()
+    (sidecar / ".git/rebase-merge").mkdir()
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=sidecar,
+        repo_root=sidecar,
+    )
+    location = _BeadsLocation(
+        root=sidecar,
+        beads_dirname="beads",
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.plan_archive.archive_plan_file",
+        lambda *_args, **_kwargs: pytest.fail("poisoned store was archived into"),
+    )
+
+    with pytest.raises(PlanFileWorkError, match="not safe to write") as excinfo:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=False,
+            render=False,
+        )
+
+    assert excinfo.value.resume_command == f"sase bead work {source} --yes"
+    assert not (sidecar / "plans").exists()
 
 
 def test_neutral_gate_plan_archives_under_original_stem(

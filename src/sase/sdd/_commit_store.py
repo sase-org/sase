@@ -14,6 +14,10 @@ from sase.sdd._git_contention import (
     run_sdd_git_write,
     store_git_write_lock,
 )
+from sase.sdd._repository_transaction import (
+    SddRepositoryHealthError,
+    require_sdd_repository_health,
+)
 from sase.sdd._store_types import (
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
@@ -44,14 +48,19 @@ def commit_sdd_files(
         return False
 
     pathspecs = normalize_sdd_commit_pathspecs(sdd_dir, paths)
-    try:
-        changed_files = changed_sdd_files(sdd_dir, pathspecs)
-    except subprocess.CalledProcessError as exc:
-        raise SddGitCommandError.from_error(exc) from exc
-    if not changed_files:
-        return False
-
-    with store_git_write_lock(sdd_dir):
+    with store_git_write_lock(sdd_dir) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {sdd_dir.resolve()} could not acquire its store "
+                "write lock; no files were staged"
+            )
+        require_sdd_repository_health(sdd_dir)
+        try:
+            changed_files = changed_sdd_files(sdd_dir, pathspecs)
+        except subprocess.CalledProcessError as exc:
+            raise SddGitCommandError.from_error(exc) from exc
+        if not changed_files:
+            return False
         run_sdd_git_write(
             ["add", "--"] + changed_files,
             cwd=sdd_dir,

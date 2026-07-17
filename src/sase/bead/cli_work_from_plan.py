@@ -128,6 +128,7 @@ def work_from_plan_file(
 
     try:
         location, store, workspace_dir = _resolve_context(dry_run=dry_run)
+        _require_plan_store_health(store)
         archive_destination = plan_archive_destination(
             source_path,
             store,
@@ -213,6 +214,15 @@ def work_from_plan_file(
     if render:
         detail = "committed" if archive_result.written else "already archived"
         Console().print(f"[green]✓[/green] Archived        {archived_path} ({detail})")
+
+    try:
+        _require_plan_store_health(store)
+    except Exception as exc:
+        raise _error_with_resume(
+            f"approved epic plans store is not safe to use: {exc}",
+            source_path,
+            no_push=no_push,
+        ) from exc
 
     existing_epic_id = _linked_bead_id_if_present(archived_path)
     if existing_epic_id is not None:
@@ -331,6 +341,33 @@ def _resolve_context(*, dry_run: bool) -> tuple[Any, SddStore, Path]:
         )
     workspace_dir = location.root if store.is_in_tree else cwd
     return location, store, workspace_dir
+
+
+def _require_plan_store_health(store: SddStore) -> None:
+    """Fail before archive or bead mutations when the plans repo is poisoned."""
+    repo_root = store.repo_root
+    if not (repo_root / ".git").exists():
+        return
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
+    )
+
+    with store_git_write_lock(repo_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {repo_root.resolve()} could not acquire its store "
+                "write lock; no plan or bead files were changed"
+            )
+        require_sdd_repository_health(repo_root)
+
+
+def require_epic_launch_store_health(cwd: Path) -> None:
+    """Preflight a host-owned launch before detaching its canonical command."""
+    location = resolve_beads_location(cwd, materialize=True)
+    if location is not None and location.store is not None:
+        _require_plan_store_health(location.store)
 
 
 def _commit_plan_file(
@@ -656,5 +693,6 @@ def _stale_link_message(epic_id: str, plan_path: Path) -> str:
 __all__ = [
     "PlanFileWorkError",
     "is_plan_file_target",
+    "require_epic_launch_store_health",
     "work_from_plan_file",
 ]

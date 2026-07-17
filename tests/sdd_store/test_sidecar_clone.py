@@ -53,7 +53,10 @@ def test_retained_https_sidecar_clone_is_rewritten_without_losing_state(
     )
     local = clone_dir / "local-untracked.md"
     local.write_text("preserve me\n", encoding="utf-8")
-    monkeypatch.setattr("sase.sdd._store_link._pull_sdd_clone", lambda _path: True)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._pull_sdd_clone",
+        lambda _path, **_kwargs: True,
+    )
     monkeypatch.setattr(
         "sase.sdd._store_link._replace_workspace_sdd_clone",
         lambda *_args: pytest.fail("matching HTTPS clone was replaced"),

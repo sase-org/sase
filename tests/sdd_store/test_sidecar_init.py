@@ -352,7 +352,10 @@ def test_split_init_normalizes_legacy_https_clone_and_record_in_place(
         "sase.linked_repos.sidecar_repo_clone_dir",
         lambda _workspace, _kind: str(clone),
     )
-    monkeypatch.setattr("sase.sdd._store_link._pull_sdd_clone", lambda _root: True)
+    monkeypatch.setattr(
+        "sase.sdd._store_link._pull_sdd_clone",
+        lambda _root, **_kwargs: True,
+    )
     monkeypatch.setattr("sase.sdd._sidecar_init._seed_sidecars", lambda *_a, **_k: None)
 
     outcome = initialize_sidecars(

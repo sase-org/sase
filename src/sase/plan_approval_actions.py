@@ -399,6 +399,24 @@ def prepare_epic_launch(
         return False
 
     plan_path = str(plan_file)
+    try:
+        from sase.bead.cli_work_from_plan import require_epic_launch_store_health
+
+        require_epic_launch_store_health(cwd)
+    except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+        from sase.sdd._store_types import SddMaterializationError
+
+        if not isinstance(exc, (SddMaterializationError, SddRepositoryHealthError)):
+            raise
+        from sase.bead.epic_launch import build_epic_launch_argv
+
+        resume = shlex.join(build_epic_launch_argv(plan_path))
+        raise PlanApprovalActionError(
+            "epic_launch_failed",
+            plan_path,
+            f"approved epic plans store is unusable: {exc}; resume with `{resume}`",
+        ) from exc
     if mode == "detached":
         try:
             from sase.bead.epic_launch import spawn_detached_epic_launch

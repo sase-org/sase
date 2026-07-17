@@ -43,6 +43,10 @@ def ensure_bare_git_sdd_initialized(
     try:
         commit_bare_git_sdd_init_paths(git_root, refreshed, push=push)
     except Exception as exc:
+        from sase.sdd._repository_transaction import SddRepositoryHealthError
+
+        if isinstance(exc, SddRepositoryHealthError):
+            raise
         message = f"Failed to commit generated SDD init files in {git_root}: {exc}"
         if raise_on_error:
             raise RuntimeError(message) from exc
@@ -110,49 +114,64 @@ def commit_bare_git_sdd_init_paths(
     if not rel_paths:
         return
 
-    run_sdd_git(
-        ["add", "--", *rel_paths],
-        cwd=git_root,
-        check=True,
-        capture_output=True,
-        text=True,
-        op="bare_git_sdd_init.add",
+    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
     )
 
-    diff = run_sdd_git(
-        ["diff", "--cached", "--quiet", "--", *rel_paths],
-        cwd=git_root,
-        capture_output=True,
-        text=True,
-        check=False,
-        op="bare_git_sdd_init.diff_cached",
-    )
-    if diff.returncode == 0:
-        return
-    if diff.returncode != 1:
-        raise RuntimeError((diff.stderr or "git diff --cached failed").strip())
+    with store_git_write_lock(git_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {git_root.resolve()} could not acquire its store "
+                "write lock; no initialization files were staged"
+            )
+        require_sdd_repository_health(git_root)
+        run_sdd_git(
+            ["add", "--", *rel_paths],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            op="bare_git_sdd_init.add",
+        )
 
-    from sase.workflows.commit.runtime_tags import apply_auto_commit_tags_with_runtime
+        diff = run_sdd_git(
+            ["diff", "--cached", "--quiet", "--", *rel_paths],
+            cwd=git_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            op="bare_git_sdd_init.diff_cached",
+        )
+        if diff.returncode == 0:
+            return
+        if diff.returncode != 1:
+            raise RuntimeError((diff.stderr or "git diff --cached failed").strip())
 
-    message = apply_auto_commit_tags_with_runtime("Initialize SDD", "init")
-    run_sdd_git(
-        [
-            "-c",
-            "user.email=sase@localhost",
-            "-c",
-            "user.name=sase",
-            "commit",
-            "-m",
-            message,
-            "--",
-            *rel_paths,
-        ],
-        cwd=git_root,
-        check=True,
-        capture_output=True,
-        text=True,
-        op="bare_git_sdd_init.commit",
-    )
+        from sase.workflows.commit.runtime_tags import (
+            apply_auto_commit_tags_with_runtime,
+        )
+
+        message = apply_auto_commit_tags_with_runtime("Initialize SDD", "init")
+        run_sdd_git(
+            [
+                "-c",
+                "user.email=sase@localhost",
+                "-c",
+                "user.name=sase",
+                "commit",
+                "-m",
+                message,
+                "--",
+                *rel_paths,
+            ],
+            cwd=git_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            op="bare_git_sdd_init.commit",
+        )
 
     if push:
         try:

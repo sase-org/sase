@@ -1,0 +1,651 @@
+"""Repository health and transactional integration for SDD stores."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from contextlib import AbstractContextManager
+from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+import re
+import subprocess
+from typing import Any
+
+from sase.sdd._git import (
+    SddGitCommandTimeout,
+    network_git_timeout,
+    run_sdd_git,
+)
+
+
+class SddRepositoryHealthError(RuntimeError):
+    """Raised when an SDD Git repository is structurally unsafe to write."""
+
+
+class SddIntegrationStatus(StrEnum):
+    """Typed terminal state for one fetch/rebase transaction."""
+
+    SUCCESS = "success"
+    REMOTE_UNAVAILABLE = "remote_unavailable_but_healthy"
+    REPAIRED_BEAD_CONFLICTS = "repaired_bead_conflicts"
+    ABORTED_UNSUPPORTED_CONFLICTS = "aborted_unsupported_conflicts"
+    LOCAL_CHANGES = "local_changes_preserved"
+    UNRECOVERABLE = "unrecoverable_repository_state"
+
+
+@dataclass(frozen=True)
+class _SddRepositoryState:
+    """The local state needed to prove an integration rollback."""
+
+    repo_root: Path
+    git_dir: Path
+    branch: str | None
+    head: str | None
+    operation_markers: tuple[str, ...]
+    unmerged_paths: tuple[str, ...]
+    status_porcelain: str
+    valid_worktree: bool
+
+    @property
+    def blockers(self) -> tuple[str, ...]:
+        blockers: list[str] = []
+        if not self.valid_worktree:
+            blockers.append("not a valid Git worktree")
+        if self.branch is None:
+            blockers.append("detached HEAD")
+        if self.operation_markers:
+            blockers.append(
+                "in-progress Git operation " + ", ".join(self.operation_markers)
+            )
+        if self.unmerged_paths:
+            blockers.append("unmerged index entries " + ", ".join(self.unmerged_paths))
+        return tuple(blockers)
+
+
+@dataclass(frozen=True)
+class _SddIntegrationOutcome:
+    """Result of integrating an SDD checkout with its configured upstream."""
+
+    status: SddIntegrationStatus
+    integrated: bool = False
+    upstream_present: bool = False
+    restored: bool = False
+    error: str | None = None
+    resolved_files: tuple[str, ...] = ()
+
+    @property
+    def succeeded(self) -> bool:
+        return self.status in {
+            SddIntegrationStatus.SUCCESS,
+            SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS,
+        }
+
+    @property
+    def structurally_healthy(self) -> bool:
+        return self.status is not SddIntegrationStatus.UNRECOVERABLE
+
+
+GitRunner = Callable[..., subprocess.CompletedProcess[str]]
+LockFactory = Callable[[Path], AbstractContextManager[bool]]
+EventLogger = Callable[..., None]
+
+
+_OPERATION_PATHS: tuple[tuple[str, str], ...] = (
+    ("rebase-merge", "rebase"),
+    ("rebase-apply", "rebase"),
+    ("MERGE_HEAD", "merge"),
+    ("CHERRY_PICK_HEAD", "cherry-pick"),
+    ("REVERT_HEAD", "revert"),
+    ("BISECT_LOG", "bisect"),
+    ("BISECT_START", "bisect"),
+    ("sequencer", "sequencer"),
+)
+_CREDENTIALS_IN_URL = re.compile(r"(https?://)[^/@\s]+@", re.IGNORECASE)
+
+
+def require_sdd_repository_health(
+    repo_root: Path,
+    *,
+    expected_branch: str | None = None,
+) -> _SddRepositoryState:
+    """Fail closed unless *repo_root* is attached and free of Git operations."""
+    root = repo_root.expanduser().resolve()
+    state = _inspect_repository(root, _default_git_runner)
+    blockers = list(state.blockers)
+    if expected_branch is not None and state.branch != expected_branch:
+        blockers.append(
+            f"expected branch {expected_branch!r}, found {state.branch or 'detached HEAD'!r}"
+        )
+    if blockers:
+        raise SddRepositoryHealthError(_health_error(root, blockers))
+    return state
+
+
+def integrate_sdd_repository(
+    repo_root: Path,
+    *,
+    beads_dir: Path | None = None,
+    upstream: str = "@{upstream}",
+    fetch: bool = True,
+    expected_branch: str | None = None,
+    op_prefix: str = "sdd.integrate",
+    git_runner: GitRunner | None = None,
+    lock_factory: LockFactory | None = None,
+    event_logger: EventLogger | None = None,
+) -> _SddIntegrationOutcome:
+    """Fetch and rebase an SDD checkout, restoring it on every failed rebase.
+
+    Network fetch deliberately happens before the cooperative store write lock.
+    The lock then covers health inspection, ancestry checks, rebase, semantic
+    bead repair, continuation, and rollback verification.
+    """
+    root = repo_root.expanduser().resolve()
+    runner = git_runner or _default_git_runner
+    if lock_factory is None:
+        from sase.sdd._git_contention import store_git_write_lock
+
+        lock_factory = store_git_write_lock
+
+    # A read-only preflight prevents a known-poisoned checkout from having even
+    # its remote-tracking refs changed by fetch. State is checked again under
+    # the write lock because another actor may start an operation afterward.
+    try:
+        preflight = _inspect_repository(root, runner)
+    except Exception as exc:  # noqa: BLE001 - returned as a typed outcome
+        return _SddIntegrationOutcome(
+            SddIntegrationStatus.UNRECOVERABLE,
+            error=f"could not inspect SDD repository {root}: {_safe_text(exc)}",
+        )
+    preflight_blockers = _state_blockers(preflight, expected_branch)
+    if preflight_blockers:
+        return _SddIntegrationOutcome(
+            SddIntegrationStatus.UNRECOVERABLE,
+            error=_health_error(root, preflight_blockers),
+        )
+
+    fetch_failure: str | None = None
+    if fetch:
+        fetched = runner(
+            root,
+            ["fetch", "--prune", "origin"],
+            op=f"{op_prefix}.fetch",
+            network=True,
+        )
+        if fetched.returncode != 0:
+            fetch_failure = _git_error("git fetch failed", fetched)
+
+    with lock_factory(root) as acquired:
+        if not acquired:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.UNRECOVERABLE,
+                error=(
+                    f"SDD repository {root} could not acquire its store write "
+                    "lock; retry after the active writer finishes"
+                ),
+            )
+        try:
+            starting = _inspect_repository(root, runner)
+        except Exception as exc:  # noqa: BLE001 - returned as a typed outcome
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.UNRECOVERABLE,
+                error=f"could not inspect SDD repository {root}: {_safe_text(exc)}",
+            )
+
+        blockers = _state_blockers(starting, expected_branch)
+        if blockers:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.UNRECOVERABLE,
+                error=_health_error(root, blockers),
+            )
+
+        if fetch_failure is not None:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.REMOTE_UNAVAILABLE,
+                error=fetch_failure,
+            )
+
+        upstream_result = runner(
+            root,
+            ["rev-parse", "--verify", upstream],
+            op=f"{op_prefix}.upstream",
+        )
+        if upstream_result.returncode != 0:
+            return _SddIntegrationOutcome(SddIntegrationStatus.SUCCESS)
+
+        clean_error = _tracked_changes_error(root, runner, op_prefix)
+        if clean_error is not None:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.LOCAL_CHANGES,
+                upstream_present=True,
+                error=clean_error,
+            )
+
+        ancestor = runner(
+            root,
+            ["merge-base", "--is-ancestor", upstream, "HEAD"],
+            op=f"{op_prefix}.ancestor",
+        )
+        if ancestor.returncode == 0:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.SUCCESS,
+                upstream_present=True,
+            )
+        if ancestor.returncode != 1:
+            return _SddIntegrationOutcome(
+                SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+                upstream_present=True,
+                restored=True,
+                error=_git_error("could not compare SDD histories", ancestor),
+            )
+
+        rebased = runner(
+            root,
+            ["rebase", upstream],
+            op=f"{op_prefix}.rebase",
+        )
+        if rebased.returncode == 0:
+            return _successful_rebase(
+                root,
+                starting,
+                runner,
+                upstream_present=True,
+                repaired=False,
+                resolved_files=(),
+                op_prefix=op_prefix,
+            )
+
+        return _repair_or_abort_rebase(
+            root,
+            beads_dir=beads_dir,
+            starting=starting,
+            primary_failure=_git_error("git rebase failed", rebased),
+            runner=runner,
+            op_prefix=op_prefix,
+            event_logger=event_logger,
+        )
+
+
+def _repair_or_abort_rebase(
+    repo_root: Path,
+    *,
+    beads_dir: Path | None,
+    starting: _SddRepositoryState,
+    primary_failure: str,
+    runner: GitRunner,
+    op_prefix: str,
+    event_logger: EventLogger | None,
+) -> _SddIntegrationOutcome:
+    from sase.bead.conflict_resolver import resolve_bead_conflicts
+
+    resolved: list[str] = []
+    for _ in range(100):
+        conflicts = _unmerged_paths(repo_root, runner, op_prefix)
+        if not conflicts:
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=primary_failure,
+                runner=runner,
+                op_prefix=op_prefix,
+            )
+        try:
+            resolution = resolve_bead_conflicts(repo_root, beads_dir=beads_dir)
+        except Exception as exc:  # noqa: BLE001 - rollback owns the error
+            message = f"semantic bead conflict resolution failed: {_safe_text(exc)}"
+            _emit_resolution(event_logger, False, message, ())
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=f"{primary_failure}; {message}",
+                runner=runner,
+                op_prefix=op_prefix,
+            )
+        _emit_resolution(
+            event_logger,
+            resolution.ok,
+            resolution.message,
+            resolution.resolved_files,
+        )
+        if not resolution.ok:
+            return _abort_and_verify(
+                repo_root,
+                starting=starting,
+                primary_failure=f"{primary_failure}; {resolution.message}",
+                runner=runner,
+                op_prefix=op_prefix,
+            )
+        resolved.extend(resolution.resolved_files)
+
+        continued = runner(
+            repo_root,
+            ["-c", "core.editor=true", "rebase", "--continue"],
+            op=f"{op_prefix}.rebase_continue",
+        )
+        if continued.returncode == 0:
+            return _successful_rebase(
+                repo_root,
+                starting,
+                runner,
+                upstream_present=True,
+                repaired=True,
+                resolved_files=tuple(sorted(dict.fromkeys(resolved))),
+                op_prefix=op_prefix,
+            )
+        primary_failure = _git_error("git rebase --continue failed", continued)
+
+    return _abort_and_verify(
+        repo_root,
+        starting=starting,
+        primary_failure="too many rebase conflict rounds",
+        runner=runner,
+        op_prefix=op_prefix,
+    )
+
+
+def _successful_rebase(
+    repo_root: Path,
+    starting: _SddRepositoryState,
+    runner: GitRunner,
+    *,
+    upstream_present: bool,
+    repaired: bool,
+    resolved_files: tuple[str, ...],
+    op_prefix: str,
+) -> _SddIntegrationOutcome:
+    try:
+        final = _inspect_repository(repo_root, runner)
+    except Exception as exc:  # noqa: BLE001 - attempt rollback below
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=f"could not verify completed rebase: {_safe_text(exc)}",
+            runner=runner,
+            op_prefix=op_prefix,
+        )
+    if final.blockers or final.branch != starting.branch:
+        detail = ", ".join(final.blockers) or (
+            f"branch changed from {starting.branch!r} to {final.branch!r}"
+        )
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure=f"rebase left an unsafe repository: {detail}",
+            runner=runner,
+            op_prefix=op_prefix,
+        )
+    if final.status_porcelain != starting.status_porcelain:
+        return _abort_and_verify(
+            repo_root,
+            starting=starting,
+            primary_failure="rebase changed the pre-existing worktree or index state",
+            runner=runner,
+            op_prefix=op_prefix,
+        )
+    return _SddIntegrationOutcome(
+        (
+            SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS
+            if repaired
+            else SddIntegrationStatus.SUCCESS
+        ),
+        integrated=True,
+        upstream_present=upstream_present,
+        resolved_files=resolved_files,
+    )
+
+
+def _abort_and_verify(
+    repo_root: Path,
+    *,
+    starting: _SddRepositoryState,
+    primary_failure: str,
+    runner: GitRunner,
+    op_prefix: str,
+) -> _SddIntegrationOutcome:
+    abort_failure: str | None = None
+    try:
+        current = _inspect_repository(repo_root, runner)
+        rebase_active = any(marker == "rebase" for marker in current.operation_markers)
+    except Exception:
+        rebase_active = True
+    if rebase_active:
+        aborted = runner(
+            repo_root,
+            ["rebase", "--abort"],
+            op=f"{op_prefix}.rebase_abort",
+        )
+        if aborted.returncode != 0:
+            abort_failure = _git_error("git rebase --abort failed", aborted)
+
+    verify_failure: str | None
+    try:
+        final = _inspect_repository(repo_root, runner)
+    except Exception as exc:  # noqa: BLE001 - restoration cannot be proven
+        verify_failure = f"could not inspect rollback state: {_safe_text(exc)}"
+    else:
+        verify_failure = _rollback_mismatch(starting, final)
+
+    error_parts = [primary_failure]
+    if abort_failure is not None:
+        error_parts.append(abort_failure)
+    if verify_failure is not None:
+        error_parts.append(f"rollback verification failed: {verify_failure}")
+    error = "; ".join(error_parts)
+    if verify_failure is not None:
+        return _SddIntegrationOutcome(
+            SddIntegrationStatus.UNRECOVERABLE,
+            upstream_present=True,
+            error=error,
+        )
+    return _SddIntegrationOutcome(
+        SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+        upstream_present=True,
+        restored=True,
+        error=error,
+    )
+
+
+def _rollback_mismatch(
+    starting: _SddRepositoryState,
+    final: _SddRepositoryState,
+) -> str | None:
+    mismatches: list[str] = []
+    if final.blockers:
+        mismatches.extend(final.blockers)
+    if final.branch != starting.branch:
+        mismatches.append(f"branch is {final.branch!r}, expected {starting.branch!r}")
+    if final.head != starting.head:
+        mismatches.append(f"HEAD is {final.head!r}, expected {starting.head!r}")
+    if final.operation_markers != starting.operation_markers:
+        mismatches.append("Git operation markers differ from the starting state")
+    if final.unmerged_paths != starting.unmerged_paths:
+        mismatches.append("unmerged index entries differ from the starting state")
+    if final.status_porcelain != starting.status_porcelain:
+        mismatches.append("worktree or index differs from the starting state")
+    return ", ".join(dict.fromkeys(mismatches)) or None
+
+
+def _inspect_repository(repo_root: Path, runner: GitRunner) -> _SddRepositoryState:
+    worktree = runner(
+        repo_root,
+        ["rev-parse", "--is-inside-work-tree"],
+        op="sdd.health.worktree",
+    )
+    valid_worktree = worktree.returncode == 0 and worktree.stdout.strip() == "true"
+
+    git_dir_result = runner(
+        repo_root,
+        ["rev-parse", "--git-dir"],
+        op="sdd.health.git_dir",
+    )
+    raw_git_dir = (
+        git_dir_result.stdout.strip() if git_dir_result.returncode == 0 else ".git"
+    )
+    git_dir = Path(raw_git_dir or ".git")
+    if not git_dir.is_absolute():
+        git_dir = repo_root / git_dir
+
+    branch_result = runner(
+        repo_root,
+        ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        op="sdd.health.branch",
+    )
+    branch = branch_result.stdout.strip() if branch_result.returncode == 0 else None
+    branch = branch or None
+
+    head_result = runner(
+        repo_root,
+        ["rev-parse", "--verify", "HEAD"],
+        op="sdd.health.head",
+    )
+    head = head_result.stdout.strip() if head_result.returncode == 0 else None
+    head = head or None
+
+    markers = tuple(
+        dict.fromkeys(
+            label
+            for relative, label in _OPERATION_PATHS
+            if (git_dir / relative).exists()
+        )
+    )
+    unmerged = _unmerged_paths(repo_root, runner, "sdd.health")
+    status_result = runner(
+        repo_root,
+        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        op="sdd.health.status",
+    )
+    if status_result.returncode != 0:
+        valid_worktree = False
+    return _SddRepositoryState(
+        repo_root=repo_root,
+        git_dir=git_dir,
+        branch=branch,
+        head=head,
+        operation_markers=markers,
+        unmerged_paths=unmerged,
+        status_porcelain=status_result.stdout if status_result.returncode == 0 else "",
+        valid_worktree=valid_worktree,
+    )
+
+
+def _unmerged_paths(
+    repo_root: Path,
+    runner: GitRunner,
+    op_prefix: str,
+) -> tuple[str, ...]:
+    result = runner(
+        repo_root,
+        ["diff", "--name-only", "--diff-filter=U", "-z"],
+        op=f"{op_prefix}.conflicts",
+    )
+    if result.returncode != 0:
+        return ()
+    return tuple(sorted(path for path in result.stdout.split("\0") if path))
+
+
+def _tracked_changes_error(
+    repo_root: Path,
+    runner: GitRunner,
+    op_prefix: str,
+) -> str | None:
+    for args, label in (
+        (["diff", "--quiet"], "tracked worktree changes"),
+        (["diff", "--cached", "--quiet"], "staged changes"),
+    ):
+        result = runner(repo_root, args, op=f"{op_prefix}.clean")
+        if result.returncode == 1:
+            return (
+                f"SDD repository {repo_root} needs integration but has {label}; "
+                "commit or restore those changes and retry"
+            )
+        if result.returncode != 0:
+            return _git_error("could not inspect local SDD changes", result)
+    return None
+
+
+def _default_git_runner(
+    repo_root: Path,
+    args: list[str],
+    *,
+    op: str,
+    network: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return run_sdd_git(
+            args,
+            cwd=repo_root,
+            op=op,
+            timeout=network_git_timeout() if network else None,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, SddGitCommandTimeout) as exc:
+        return subprocess.CompletedProcess(
+            ["git", *args],
+            returncode=124,
+            stdout="",
+            stderr=str(exc),
+        )
+
+
+def _health_error(repo_root: Path, blockers: list[str]) -> str:
+    detail = "; ".join(dict.fromkeys(blockers))
+    return (
+        f"SDD repository {repo_root} is not safe to write: {detail}. "
+        "Finish or abort the existing Git operation in that repository, verify "
+        "an attached branch and clean index, then retry; SASE did not modify it"
+    )
+
+
+def _state_blockers(
+    state: _SddRepositoryState,
+    expected_branch: str | None,
+) -> list[str]:
+    blockers = list(state.blockers)
+    if expected_branch is not None and state.branch != expected_branch:
+        blockers.append(
+            f"expected branch {expected_branch!r}, found "
+            f"{state.branch or 'detached HEAD'!r}"
+        )
+    return blockers
+
+
+def _git_error(
+    message: str,
+    result: subprocess.CompletedProcess[str],
+) -> str:
+    detail = (result.stderr or result.stdout or "").strip()
+    if detail:
+        return f"{message}: {_redact_credentials(detail)}"
+    return f"{message} with exit code {result.returncode}"
+
+
+def _safe_text(exc: BaseException) -> str:
+    return _redact_credentials(str(exc) or type(exc).__name__)
+
+
+def _redact_credentials(value: str) -> str:
+    return _CREDENTIALS_IN_URL.sub(r"\1<redacted>@", value)
+
+
+def _emit_resolution(
+    logger: EventLogger | None,
+    ok: bool,
+    message: str,
+    resolved_files: tuple[str, ...],
+) -> None:
+    if logger is not None:
+        logger(
+            "conflict_resolution",
+            ok=ok,
+            message=message,
+            resolved_files=list(resolved_files),
+        )
+
+
+__all__ = [
+    "SddIntegrationStatus",
+    "SddRepositoryHealthError",
+    "integrate_sdd_repository",
+    "require_sdd_repository_health",
+]

@@ -147,7 +147,10 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     # A push timeout is best-effort: the local commit is preserved and the
     # timeout must not propagate to the caller (which would abort an agent
     # launch via ws_get_workspace_directory).
-    with patch("sase.sdd._commit.subprocess.run", side_effect=fake_run):
+    with (
+        patch("sase.sdd._commit.subprocess.run", side_effect=fake_run),
+        patch("sase.sdd._repository_transaction.require_sdd_repository_health"),
+    ):
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
     assert calls[0][1] == 3.0
@@ -193,7 +196,10 @@ def test_commit_bare_git_sdd_init_paths_push_rejection_is_best_effort(
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     # Must return normally (no exception) despite the rejected push.
-    with patch("sase.sdd._commit.subprocess.run", side_effect=fake_run):
+    with (
+        patch("sase.sdd._commit.subprocess.run", side_effect=fake_run),
+        patch("sase.sdd._repository_transaction.require_sdd_repository_health"),
+    ):
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
 

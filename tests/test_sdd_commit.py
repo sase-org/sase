@@ -16,6 +16,7 @@ from sase.sdd._git_contention import (
     store_git_write_lock,
 )
 from sase.sdd.files import commit_sdd_files
+from sase.sdd._repository_transaction import SddRepositoryHealthError
 from tests._sdd_commit_helpers import init_test_git_repo
 
 
@@ -267,6 +268,115 @@ def test_commit_sdd_files_not_git_repo() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         sdd_dir = Path(tmpdir)
         commit_sdd_files(sdd_dir, "Should not error")
+
+
+@pytest.mark.parametrize(
+    ("marker", "label"),
+    [
+        ("rebase-merge", "rebase"),
+        ("MERGE_HEAD", "merge"),
+        ("CHERRY_PICK_HEAD", "cherry-pick"),
+    ],
+)
+def test_commit_sdd_files_refuses_in_progress_git_operation_before_staging(
+    tmp_path: Path,
+    marker: str,
+    label: str,
+) -> None:
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "seed"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    plan = repo / "plan.md"
+    plan.write_text("plan\n", encoding="utf-8")
+    marker_path = repo / ".git" / marker
+    if "." in marker:
+        marker_path.write_text("blocked\n", encoding="utf-8")
+    else:
+        marker_path.mkdir()
+    starting_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    with pytest.raises(SddRepositoryHealthError, match=label):
+        commit_sdd_files(repo, "Must not commit")
+
+    assert plan.read_text(encoding="utf-8") == "plan\n"
+    assert (
+        subprocess.run(
+            ["git", "diff", "--cached", "--name-only"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == ""
+    )
+    assert (
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == starting_head
+    )
+
+
+def test_commit_sdd_files_refuses_unmerged_index_without_mutation(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    init_test_git_repo(repo)
+    shared = repo / "shared.md"
+    shared.write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "shared.md"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True
+    )
+    subprocess.run(["git", "checkout", "-b", "other"], cwd=repo, check=True)
+    shared.write_text("other\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-am", "other"], cwd=repo, check=True)
+    subprocess.run(["git", "checkout", "master"], cwd=repo, check=True)
+    shared.write_text("master\n", encoding="utf-8")
+    subprocess.run(["git", "commit", "-am", "master"], cwd=repo, check=True)
+    merged = subprocess.run(
+        ["git", "merge", "other"], cwd=repo, check=False, capture_output=True
+    )
+    assert merged.returncode != 0
+    plan = repo / "plan.md"
+    plan.write_text("keep\n", encoding="utf-8")
+    before = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    with pytest.raises(SddRepositoryHealthError, match="unmerged index"):
+        commit_sdd_files(repo, "Must not commit")
+
+    assert plan.read_text(encoding="utf-8") == "keep\n"
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == before
+    )
 
 
 def test_commit_sdd_files_retries_transient_index_lock(

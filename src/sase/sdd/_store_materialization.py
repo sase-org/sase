@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import logging
 from pathlib import Path
-import subprocess
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
@@ -404,31 +403,31 @@ def is_positive_materialization_result(result: object) -> bool:
 
 
 def refresh_materialized_store(sdd_dir: Path) -> None:
-    """Best-effort fast-forward refresh for an existing materialized clone."""
+    """Transactionally refresh an existing materialized clone."""
 
     if not (sdd_dir / ".git").is_dir():
         return
-    try:
-        from sase.sdd._commit import network_git_timeout
+    from sase.sdd._repository_transaction import (
+        SddIntegrationStatus,
+        integrate_sdd_repository,
+    )
 
-        result = subprocess.run(
-            ["git", "pull", "--ff-only"],
-            cwd=sdd_dir,
-            capture_output=True,
-            text=True,
-            timeout=network_git_timeout(),
-            check=False,
-        )
-    except Exception:
-        _logger.warning("Failed to refresh materialized SDD store", exc_info=True)
+    outcome = integrate_sdd_repository(
+        sdd_dir,
+        beads_dir=sdd_dir / "beads",
+        op_prefix="sdd.materialize.refresh",
+    )
+    if outcome.succeeded:
         return
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
+    detail = outcome.error or f"SDD integration ended with {outcome.status.value}"
+    if outcome.status is SddIntegrationStatus.REMOTE_UNAVAILABLE:
         _logger.warning(
             "Failed to refresh materialized SDD store in %s: %s",
             sdd_dir,
-            detail or f"git pull exited {result.returncode}",
+            detail,
         )
+        return
+    raise SddMaterializationError(detail)
 
 
 def ensure_materialized_store_initialized(store: SddStore) -> None:

@@ -39,16 +39,26 @@ _INTEGRATION_MARKER = "sase-bead-sync.integration"
 def git_sync(beads_dir: Path) -> None:
     """Stage bead state in git (does not commit)."""
     from sase.sdd._git_contention import run_sdd_git_write, store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
+    )
 
     if not beads_dir.exists():
         return
     repo_root = _find_git_root(beads_dir)
     if repo_root is None:
         return
-    files = _list_bead_state_changes_silent(beads_dir, repo_root)
-    if not files:
-        return
-    with store_git_write_lock(repo_root):
+    with store_git_write_lock(repo_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {repo_root} could not acquire its store write "
+                "lock; no bead files were staged"
+            )
+        require_sdd_repository_health(repo_root)
+        files = _list_bead_state_changes_silent(beads_dir, repo_root)
+        if not files:
+            return
         run_sdd_git_write(
             ["add", "--", *files],
             cwd=repo_root,
@@ -72,6 +82,10 @@ def commit_bead_work_launch(
     """
     from sase.sdd._git import run_sdd_git
     from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._repository_transaction import (
+        SddRepositoryHealthError,
+        require_sdd_repository_health,
+    )
 
     del title
     if not beads_dir.exists():
@@ -81,11 +95,16 @@ def commit_bead_work_launch(
         return False
 
     rel_beads = _relative_pathspec(beads_dir, repo_root)
-    files = _list_bead_state_changes(beads_dir, repo_root)
-    if not files:
-        return False
-
-    with store_git_write_lock(repo_root):
+    with store_git_write_lock(repo_root) as acquired:
+        if not acquired:
+            raise SddRepositoryHealthError(
+                f"SDD repository {repo_root} could not acquire its store write "
+                "lock; no bead files were staged"
+            )
+        require_sdd_repository_health(repo_root)
+        files = _list_bead_state_changes(beads_dir, repo_root)
+        if not files:
+            return False
         _run_git_write_or_raise(
             ["add", "--", *files],
             cwd=repo_root,

@@ -10,6 +10,7 @@ from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from sase.plan_approval_actions import PlanApprovalValidationError
 from sase.sdd.store import SddStore
+from sase.sdd._store_types import SddMaterializationError
 from tests._axe_run_agent_exec_plan_helpers import (
     make_ctx,
     make_state,
@@ -277,6 +278,48 @@ class TestPlanFollowupApprovals:
         notify_failure.assert_called_once_with(ctx, plan_file, ("boom",))
         assert call(state.current_artifacts_dir, "epic_launch_error", "boom") in (
             accept_mod.update_meta_field.call_args_list
+        )
+
+    def test_unusable_epic_store_stops_before_launcher_with_home_resume(
+        self, tmp_path
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        home_plan = tmp_path / "home" / "approved.md"
+        home_plan.parent.mkdir()
+        home_plan.write_text(VALID_EPIC_PLAN)
+        approval = PlanApprovalResult(action="epic", plan_file=str(home_plan))
+
+        with (
+            patch(
+                "sase.llm_provider._plan_utils.handle_plan_approval",
+                return_value=approval,
+            ),
+            patch(
+                "sase.sdd.store.materialize_sdd_store",
+                side_effect=SddMaterializationError("plans store is mid-rebase"),
+            ),
+            patch("sase.sdd.files.write_sdd_spec") as write_sdd,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._run_epic_launch_subprocess"
+            ) as launch,
+            patch(
+                "sase.axe.run_agent_exec_plan_accept._notify_epic_launch_failure"
+            ) as notify_failure,
+        ):
+            outcome = handle_plan_marker(
+                {"plan_file": str(home_plan)},
+                ctx,
+                state,
+            )
+
+        assert outcome == "epic_launch_failed"
+        write_sdd.assert_not_called()
+        launch.assert_not_called()
+        notify_failure.assert_called_once_with(
+            ctx,
+            str(home_plan),
+            ("plans store is mid-rebase",),
         )
 
     def test_approve_no_coder_commit_true_returns_plan_committed(

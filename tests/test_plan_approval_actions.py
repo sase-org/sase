@@ -16,6 +16,7 @@ from sase.plan_approval_actions import (
     resolve_plan_agent_artifacts_dir,
     run_plan_side_effects,
 )
+from sase.sdd._repository_transaction import SddRepositoryHealthError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
@@ -295,6 +296,29 @@ def test_headless_epic_spawn_failure_keeps_durable_host_claim(
     ):
         execute_plan_approval_response(context, "epic")
 
+    response = json.loads((response_dir / "plan_response.json").read_text())
+    assert response["epic_launch_owner"] == "host"
+
+
+def test_headless_epic_refuses_unusable_store_before_detached_spawn(
+    tmp_path: Path,
+) -> None:
+    context, response_dir, workspace = _epic_context(tmp_path)
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_cwd",
+            return_value=workspace,
+        ),
+        patch(
+            "sase.bead.cli_work_from_plan.require_epic_launch_store_health",
+            side_effect=SddRepositoryHealthError("plans store is mid-rebase"),
+        ),
+        patch("sase.bead.epic_launch.spawn_detached_epic_launch") as spawn_launch,
+        pytest.raises(PlanApprovalActionError, match="resume with"),
+    ):
+        execute_plan_approval_response(context, "epic")
+
+    spawn_launch.assert_not_called()
     response = json.loads((response_dir / "plan_response.json").read_text())
     assert response["epic_launch_owner"] == "host"
 

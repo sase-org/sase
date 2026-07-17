@@ -5,12 +5,15 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from sase.bead.sync import (
     bead_state_is_clean,
     commit_bead_work_launch,
     git_sync,
     rebuild_from_jsonl,
 )
+from sase.sdd._repository_transaction import SddRepositoryHealthError
 
 from .sync_test_helpers import init_git_repo as _init_git_repo
 
@@ -188,6 +191,52 @@ def test_commit_bead_work_launch_noops_when_bead_state_has_no_change(tmp_path):
         check=True,
     )
     assert subject.stdout.strip() == "add jsonl"
+
+
+@pytest.mark.parametrize("marker", ["rebase-merge", "MERGE_HEAD"])
+def test_bead_git_writers_refuse_operations_before_staging(
+    tmp_path: Path,
+    marker: str,
+) -> None:
+    _init_git_repo(tmp_path)
+    beads_dir = tmp_path / "sdd/beads"
+    beads_dir.mkdir(parents=True)
+    state = beads_dir / "issues.jsonl"
+    state.write_text('{"id":"test"}\n', encoding="utf-8")
+    marker_path = tmp_path / ".git" / marker
+    if "." in marker:
+        marker_path.write_text("blocked\n", encoding="utf-8")
+    else:
+        marker_path.mkdir()
+    before = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    with pytest.raises(SddRepositoryHealthError):
+        git_sync(beads_dir)
+    with pytest.raises(SddRepositoryHealthError):
+        commit_bead_work_launch(
+            beads_dir,
+            "sase-1",
+            "Test epic",
+            kind="epic",
+        )
+
+    assert state.read_text(encoding="utf-8") == '{"id":"test"}\n'
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        == before
+    )
 
 
 def test_commit_bead_work_launch_leaves_unrelated_staged_files_staged(tmp_path):

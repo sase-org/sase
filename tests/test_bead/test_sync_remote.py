@@ -398,7 +398,14 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
         del repo_root
         operations.append((op, lock_active, network))
         returncode = 1 if op == "bead.sync.ancestor" else 0
-        stdout = "upstream\n" if op == "bead.sync.upstream" else ""
+        stdout_by_op = {
+            "bead.sync.upstream": "upstream\n",
+            "sdd.health.worktree": "true\n",
+            "sdd.health.git_dir": ".git\n",
+            "sdd.health.branch": "master\n",
+            "sdd.health.head": "starting-head\n",
+        }
+        stdout = stdout_by_op.get(op, "")
         return subprocess.CompletedProcess(
             ["git", *args],
             returncode=returncode,
@@ -423,8 +430,8 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
     assert outcome.integrated is True
     by_op = {op: (locked, network) for op, locked, network in operations}
     assert by_op["bead.sync.fetch"] == (False, True)
-    assert by_op["bead.sync.upstream"] == (False, False)
-    assert by_op["bead.sync.ancestor"] == (False, False)
-    assert by_op["bead.sync.status"] == (True, False)
+    assert by_op["bead.sync.upstream"] == (True, False)
+    assert by_op["bead.sync.ancestor"] == (True, False)
+    assert by_op["sdd.health.status"] == (True, False)
     assert by_op["bead.sync.rebase"] == (True, False)
     assert by_op["bead.sync.push"] == (False, True)
