@@ -39,6 +39,7 @@ class JumpToken:
     col: int | None
     start: int
     end: int
+    reference_prefix: Literal["#", "/"] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,10 +65,16 @@ class JumpError(Exception):
 def detect_jump_target_at_cursor(
     text: str,
     cursor_offset: int,
+    *,
+    known_skills: frozenset[str] = frozenset(),
 ) -> JumpToken | None:
     """Return the xprompt or file token under *cursor_offset*, if any."""
 
-    preview_token = detect_preview_target_at_cursor(text, cursor_offset)
+    preview_token = detect_preview_target_at_cursor(
+        text,
+        cursor_offset,
+        known_skills=known_skills,
+    )
     if preview_token is not None:
         return _jump_token_from_preview_token(text, preview_token)
 
@@ -129,6 +136,7 @@ def _jump_token_from_preview_token(text: str, token: PreviewToken) -> JumpToken:
         col=col,
         start=token.start,
         end=end,
+        reference_prefix=token.reference_prefix,
     )
 
 
@@ -167,9 +175,16 @@ def _resolve_xprompt_jump(
     *,
     project: str | None,
 ) -> JumpTarget:
+    reference = _xprompt_reference(token)
+    slash_skill = reference.startswith("/")
     obj = get_xprompt_or_workflow(token.target, project=project)
     if obj is None:
-        raise JumpError(f"No xprompt or skill named '#{token.target}' found")
+        if slash_skill:
+            raise JumpError(f"No skill named '{reference}' found")
+        raise JumpError(f"No xprompt or skill named '{reference}' found")
+
+    if slash_skill and (not isinstance(obj, XPrompt) or not obj.skill):
+        raise JumpError(f"No skill named '{reference}' found")
 
     if isinstance(obj, XPrompt):
         kind_label = "skill" if obj.skill else "xprompt"
@@ -178,10 +193,10 @@ def _resolve_xprompt_jump(
         kind_label = "xprompt" if obj.is_simple_xprompt() else "workflow"
         source_id = obj.source_path
     else:
-        raise JumpError(f"Could not jump to '#{token.target}'")
+        raise JumpError(f"Could not jump to '{reference}'")
 
-    source_path = _definition_file_for_source(source_id, token.target)
-    source_text = _read_text(source_path, token.target)
+    source_path = _definition_file_for_source(source_id, reference)
+    source_text = _read_text(source_path, reference)
     loadable_markdown = _loadable_markdown(
         source_id,
         source_path,
@@ -197,8 +212,8 @@ def _resolve_xprompt_jump(
 
     return JumpTarget(
         kind_label=kind_label,
-        icon="#",
-        title=f"#{token.target}",
+        icon=reference[0],
+        title=reference,
         source_path=str(source_path),
         line=line,
         col=col,
@@ -207,6 +222,13 @@ def _resolve_xprompt_jump(
         source_id=source_id,
         is_editable=_source_is_editable(source_id),
     )
+
+
+def _xprompt_reference(token: JumpToken) -> str:
+    prefix = token.reference_prefix
+    if prefix is None:
+        prefix = "/" if token.raw.startswith("/") else "#"
+    return f"{prefix}{token.target}"
 
 
 def _resolve_file_jump(
@@ -233,9 +255,9 @@ def _resolve_file_jump(
     )
 
 
-def _definition_file_for_source(source_path: str | None, name: str) -> Path:
+def _definition_file_for_source(source_path: str | None, reference: str) -> Path:
     if source_path is None:
-        raise JumpError(f"No definition file found for #{name}")
+        raise JumpError(f"No definition file found for {reference}")
 
     try:
         from sase.ace.tui.modals.xprompt_browser_helpers import (
@@ -247,21 +269,21 @@ def _definition_file_for_source(source_path: str | None, name: str) -> Path:
         resolved = None
 
     if not resolved:
-        raise JumpError(f"No definition file found for #{name}")
+        raise JumpError(f"No definition file found for {reference}")
 
     path = Path(resolved).expanduser()
     if not path.is_absolute():
         path = path.resolve()
     if not path.is_file():
-        raise JumpError(f"No definition file found for #{name}")
+        raise JumpError(f"No definition file found for {reference}")
     return path
 
 
-def _read_text(path: Path, name: str) -> str:
+def _read_text(path: Path, reference: str) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        raise JumpError(f"No definition file found for #{name}") from exc
+        raise JumpError(f"No definition file found for {reference}") from exc
 
 
 def _loadable_markdown(

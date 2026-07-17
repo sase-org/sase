@@ -63,6 +63,9 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         def _get_warm_xprompt_arg_assist_entries(
             self,
         ) -> list[XPromptAssistEntry] | None: ...
+        def _get_exact_warm_xprompt_arg_assist_entries(
+            self,
+        ) -> list[XPromptAssistEntry] | None: ...
 
     def on_mount(self) -> None:
         """Register xprompt styles after the base Jinja theme exists."""
@@ -113,10 +116,18 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
 
     def _get_warm_xprompt_skill_names(self) -> frozenset[str]:
         """Return memoized skill names from the disk-free warm catalog."""
-        entries = self._get_warm_xprompt_arg_assist_entries()
+        return self._get_warm_xprompt_skill_names_if_available() or frozenset()
+
+    def _get_warm_xprompt_skill_names_if_available(
+        self,
+    ) -> frozenset[str] | None:
+        """Return memoized skill names, preserving a cold-catalog sentinel."""
+        entries = self._get_exact_warm_xprompt_arg_assist_entries()
+        if entries is None:
+            return None
         if entries is self._xprompt_highlight_skill_entries:
             return self._xprompt_highlight_skill_names
-        names = frozenset(entry.name for entry in entries or () if entry.is_skill)
+        names = frozenset(entry.name for entry in entries if entry.is_skill)
         self._xprompt_highlight_skill_entries = entries
         self._xprompt_highlight_skill_names = names
         return names

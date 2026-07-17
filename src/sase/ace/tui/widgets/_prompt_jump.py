@@ -37,13 +37,23 @@ class PromptJumpMixin(_MixinBase):
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
         def _find_prompt_bar(self) -> Any: ...
+        def _known_slash_skills_for_action(
+            self, cursor_offset: int
+        ) -> frozenset[str] | None: ...
         def _preview_context(self) -> tuple[str | None, str]: ...
         def _refocus_if_needed(self) -> None: ...
 
     def _jump_to_definition_under_cursor(self, *, prefer_load: bool = False) -> None:
         """Resolve and present jump actions for the token under the cursor."""
         offset = self._absolute_offset(self.cursor_location)
-        token = detect_jump_target_at_cursor(self.text, offset)
+        known_skills = self._known_slash_skills_for_action(offset)
+        if known_skills is None:
+            return
+        token = detect_jump_target_at_cursor(
+            self.text,
+            offset,
+            known_skills=known_skills,
+        )
         if token is None:
             self.notify(
                 "Move the cursor onto an xprompt, skill, or file path to jump to its definition",

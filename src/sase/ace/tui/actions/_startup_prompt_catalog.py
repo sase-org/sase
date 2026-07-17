@@ -69,6 +69,21 @@ class StartupPromptCatalogMixin:
             self._schedule_prompt_catalog_rebuild(reason="assist_cache_miss")
         return None
 
+    def get_warm_prompt_catalog_assist_entries_exact(
+        self: Any,
+        project: str | None,
+    ) -> list[XPromptAssistEntry] | None:
+        """Return the exact memory-only project catalog without fallback."""
+        self._ensure_prompt_catalog_project(project)
+        catalog = self._prompt_catalog
+        if catalog is None:
+            return None
+        entries = catalog.assist_entries_by_project.get(project)
+        if entries is None:
+            return None
+        self._schedule_prompt_catalog_token_fallback_check()
+        return self._cached_prompt_catalog_assist_entries(project, entries)
+
     def _cached_prompt_catalog_assist_entries(
         self: Any,
         project: str | None,

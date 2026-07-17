@@ -11,6 +11,7 @@ from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     FILE_PATH_RE,
     resolve_file_path,
 )
+from sase.xprompt import xprompt_inspect
 from sase.xprompt._parsing_references import iter_xprompt_references
 from sase.xprompt.loader import get_xprompt_or_workflow
 from sase.xprompt.models import UNSET, InputArg, XPrompt
@@ -43,6 +44,7 @@ class PreviewToken:
     target: str
     start: int
     end: int
+    reference_prefix: Literal["#", "/"] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,9 +66,24 @@ class PreviewError(Exception):
 def detect_preview_target_at_cursor(
     text: str,
     cursor_offset: int,
+    *,
+    known_skills: frozenset[str] = frozenset(),
 ) -> PreviewToken | None:
     """Return the xprompt or file token under *cursor_offset*, if any."""
     offset = max(0, min(cursor_offset, len(text)))
+
+    if known_skills and "/" in text:
+        for span in xprompt_inspect.tokenize(text, known_skills=known_skills):
+            if span.kind == "skill" and span.start <= offset < span.end:
+                raw = text[span.start : span.end]
+                return PreviewToken(
+                    kind="xprompt",
+                    raw=raw,
+                    target=raw[1:],
+                    start=span.start,
+                    end=span.end,
+                    reference_prefix="/",
+                )
 
     for ref in iter_xprompt_references(text):
         if ref.start <= offset < ref.end:
@@ -84,6 +101,15 @@ def detect_preview_target_at_cursor(
         start = match.start(1) if at_prefix else match.start(2)
         end = match.end(2)
         if start <= offset < end:
+            if (
+                not at_prefix
+                and target.startswith("/")
+                and "/" not in target[1:]
+                and target[1:] in known_skills
+            ):
+                # A known skill in a protected region is intentionally not
+                # actionable; do not reinterpret it as an absolute file.
+                continue
             return PreviewToken(
                 kind="file",
                 raw=text[start:end],
@@ -93,6 +119,39 @@ def detect_preview_target_at_cursor(
             )
 
     return None
+
+
+def is_slash_skill_candidate_at_cursor(text: str, cursor_offset: int) -> bool:
+    """Return whether a cold catalog could hide a slash skill at the cursor.
+
+    The file matcher identifies the only ambiguous spelling (an absolute,
+    single-component path), then the shared syntax inspector rechecks the
+    slash-skill boundaries and protected-region rules.  This stays purely
+    lexical so callers can defer for a catalog warm without touching disk.
+    """
+    offset = max(0, min(cursor_offset, len(text)))
+    for match in FILE_PATH_RE.finditer(text):
+        if match.group(1):
+            continue
+        target = match.group(2)
+        if not target.startswith("/") or "/" in target[1:]:
+            continue
+        start = match.start(2)
+        end = match.end(2)
+        if not (start <= offset < end):
+            continue
+        name = target[1:]
+        return any(
+            span.kind == "skill"
+            and span.start == start
+            and span.end == end
+            and span.start <= offset < span.end
+            for span in xprompt_inspect.tokenize(
+                text,
+                known_skills=frozenset({name}),
+            )
+        )
+    return False
 
 
 def resolve_preview_target(
@@ -112,9 +171,16 @@ def _resolve_xprompt_preview(
     *,
     project: str | None,
 ) -> PreviewPayload:
+    reference = _xprompt_reference(token)
+    slash_skill = reference.startswith("/")
     obj = get_xprompt_or_workflow(token.target, project=project)
     if obj is None:
-        raise PreviewError(f"No xprompt or skill named '#{token.target}' found")
+        if slash_skill:
+            raise PreviewError(f"No skill named '{reference}' found")
+        raise PreviewError(f"No xprompt or skill named '{reference}' found")
+
+    if slash_skill and (not isinstance(obj, XPrompt) or not obj.skill):
+        raise PreviewError(f"No skill named '{reference}' found")
 
     if isinstance(obj, XPrompt):
         kind_label = "skill" if obj.skill else "xprompt"
@@ -127,7 +193,7 @@ def _resolve_xprompt_preview(
         fallback_lexer = "markdown"
         source_id = obj.source_path
     else:
-        raise PreviewError(f"Could not preview '#{token.target}'")
+        raise PreviewError(f"Could not preview '{reference}'")
 
     source_path = _source_display_path(source_id)
     source_preview = _read_source_preview(source_id)
@@ -139,12 +205,19 @@ def _resolve_xprompt_preview(
 
     return PreviewPayload(
         kind_label=kind_label,
-        icon="#",
-        title=f"#{token.target}",
+        icon=reference[0],
+        title=reference,
         source_path=source_path,
         content=content,
         lexer=lexer,
     )
+
+
+def _xprompt_reference(token: PreviewToken) -> str:
+    prefix = token.reference_prefix
+    if prefix is None:
+        prefix = "/" if token.raw.startswith("/") else "#"
+    return f"{prefix}{token.target}"
 
 
 def _resolve_file_preview(
@@ -346,5 +419,6 @@ __all__ = [
     "PreviewPayload",
     "PreviewToken",
     "detect_preview_target_at_cursor",
+    "is_slash_skill_candidate_at_cursor",
     "resolve_preview_target",
 ]

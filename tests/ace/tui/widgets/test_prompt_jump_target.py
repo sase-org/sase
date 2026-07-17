@@ -56,6 +56,28 @@ def test_detects_cursor_on_file_line_suffix() -> None:
     )
 
 
+def test_detects_known_slash_skill_through_shared_preview_detection() -> None:
+    text = "use /sase_plan now"
+    start = text.index("/")
+
+    token = detect_jump_target_at_cursor(
+        text,
+        text.index("plan"),
+        known_skills=frozenset({"sase_plan"}),
+    )
+
+    assert token == JumpToken(
+        "xprompt",
+        "/sase_plan",
+        "sase_plan",
+        None,
+        None,
+        start,
+        start + len("/sase_plan"),
+        "/",
+    )
+
+
 def test_detect_returns_none_for_plain_prose() -> None:
     assert detect_jump_target_at_cursor("nothing jumpable here", 4) is None
 
@@ -113,6 +135,72 @@ def test_resolves_skill_label_from_xprompt(
 
     assert target.kind_label == "skill"
     assert target.loadable_markdown == "Skill body\n"
+
+
+def test_resolves_slash_skill_to_same_definition_with_slash_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "skill.md"
+    source.write_text("---\ndescription: Plan\n---\nSkill body\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(
+            name=name,
+            content="Skill body",
+            source_path=str(source),
+            skill=True,
+        ),
+    )
+
+    target = resolve_jump_target(
+        JumpToken(
+            "xprompt",
+            "/sase_plan",
+            "sase_plan",
+            None,
+            None,
+            0,
+            10,
+            "/",
+        ),
+        project="sase",
+        base_dir=str(tmp_path),
+    )
+
+    assert target.kind_label == "skill"
+    assert target.icon == "/"
+    assert target.title == "/sase_plan"
+    assert target.source_path == str(source)
+    assert target.line == 4
+    assert target.col == 1
+    assert target.loadable_markdown == source.read_text(encoding="utf-8")
+    assert target.is_editable is True
+
+
+def test_slash_jump_rejects_stale_non_skill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(name=name, content="Not a skill"),
+    )
+
+    with pytest.raises(JumpError, match="No skill named '/sase_plan' found"):
+        resolve_jump_target(
+            JumpToken(
+                "xprompt",
+                "/sase_plan",
+                "sase_plan",
+                None,
+                None,
+                0,
+                10,
+                "/",
+            ),
+            project=None,
+            base_dir=".",
+        )
 
 
 def test_resolves_yaml_workflow_definition_line(

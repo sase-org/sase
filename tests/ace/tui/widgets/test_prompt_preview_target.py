@@ -79,6 +79,66 @@ def test_xprompt_detection_takes_precedence_over_file_like_overlap() -> None:
     assert token.target == "foo/bar"
 
 
+def test_detects_known_slash_skill_before_absolute_file() -> None:
+    text = "use /sase_plan now"
+    known = frozenset({"sase_plan"})
+    start = text.index("/")
+    end = start + len("/sase_plan")
+
+    token = detect_preview_target_at_cursor(
+        text,
+        start,
+        known_skills=known,
+    )
+
+    assert token == PreviewToken(
+        "xprompt",
+        "/sase_plan",
+        "sase_plan",
+        start,
+        end,
+        "/",
+    )
+    assert (
+        detect_preview_target_at_cursor(
+            text,
+            end - 1,
+            known_skills=known,
+        )
+        == token
+    )
+    assert detect_preview_target_at_cursor(text, end, known_skills=known) is None
+
+
+def test_slash_skill_detection_rejects_unknown_path_like_and_protected_text() -> None:
+    known = frozenset({"sase_plan"})
+
+    unknown = _detect("open /unknown", "/")
+    assert unknown is not None and unknown.kind == "file"
+
+    path_like = "open /sase_plan/child"
+    token = detect_preview_target_at_cursor(
+        path_like,
+        path_like.index("sase_plan"),
+        known_skills=known,
+    )
+    assert token is not None and token.kind == "file"
+
+    for text in (
+        "`/sase_plan`",
+        "```text\n/sase_plan\n```",
+        "%xprompts_enabled:false\n/sase_plan\n%xprompts_enabled:true",
+    ):
+        assert (
+            detect_preview_target_at_cursor(
+                text,
+                text.index("sase_plan"),
+                known_skills=known,
+            )
+            is None
+        )
+
+
 def test_resolves_xprompt_from_source_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -127,6 +187,46 @@ def test_resolves_skill_label_from_xprompt(monkeypatch: pytest.MonkeyPatch) -> N
     assert payload.kind_label == "skill"
     assert payload.content == "Skill body"
     assert payload.lexer == "markdown"
+
+
+def test_resolves_slash_skill_with_slash_presentation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(
+            name=name,
+            content="Skill body",
+            source_path="config",
+            skill=True,
+        ),
+    )
+
+    payload = resolve_preview_target(
+        PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+        project="sase",
+        base_dir=".",
+    )
+
+    assert payload.kind_label == "skill"
+    assert payload.icon == "/"
+    assert payload.title == "/sase_plan"
+
+
+def test_slash_skill_resolution_rejects_stale_non_skill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview_target.get_xprompt_or_workflow",
+        lambda name, project=None: XPrompt(name=name, content="Not a skill"),
+    )
+
+    with pytest.raises(PreviewError, match="No skill named '/sase_plan' found"):
+        resolve_preview_target(
+            PreviewToken("xprompt", "/sase_plan", "sase_plan", 0, 10, "/"),
+            project=None,
+            base_dir=".",
+        )
 
 
 def test_resolves_workflow_fallback_preview(monkeypatch: pytest.MonkeyPatch) -> None:

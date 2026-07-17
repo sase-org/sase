@@ -173,6 +173,21 @@ class XPromptArgHintMixin(_MixinBase):
             return entries
         return self._xprompt_arg_assist_entries_by_project.get(project)
 
+    def _get_exact_warm_xprompt_arg_assist_entries(
+        self,
+    ) -> list[XPromptAssistEntry] | None:
+        """Return only the exact warm project catalog used for skill syntax."""
+        project = self._xprompt_arg_assist_project_from_text()
+        getter = getattr(
+            self.app,
+            "get_warm_prompt_catalog_assist_entries_exact",
+            None,
+        )
+        if callable(getter):
+            entries = getter(project)
+            return entries if isinstance(entries, list) else None
+        return self._get_warm_xprompt_arg_assist_entries()
+
     def _warm_current_xprompt_assist_entries(self) -> None:
         """Warm prompt-local xprompt entries for the current project in a worker."""
         self._schedule_xprompt_assist_warm(self._xprompt_arg_assist_project_from_text())
@@ -196,12 +211,25 @@ class XPromptArgHintMixin(_MixinBase):
         return entries if isinstance(entries, list) else None
 
     def _xprompt_arg_assist_project_from_text(self) -> str | None:
-        """Derive project-local xprompt context from a leading VCS tag."""
+        """Derive xprompt context from a leading VCS tag or the active app."""
         prompt_text_area = _prompt_text_area_module()
-        tag = prompt_text_area.extract_vcs_workflow_tag(self.text)
-        if tag is None:
+        tag = (
+            prompt_text_area.extract_vcs_workflow_tag(self.text)
+            if "#" in self.text
+            else None
+        )
+        if tag is not None:
+            project = prompt_text_area.extract_project_from_vcs_tag(tag)
+            if project:
+                return project
+
+        ctx = getattr(self.app, "_prompt_context", None)
+        if ctx is None or bool(getattr(ctx, "is_home_mode", False)):
             return None
-        return prompt_text_area.extract_project_from_vcs_tag(tag)
+        project_name = getattr(ctx, "project_name", None)
+        if isinstance(project_name, str) and project_name:
+            return project_name
+        return None
 
     def _maybe_show_inserted_xprompt_arg_hint(
         self,

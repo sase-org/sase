@@ -276,7 +276,16 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
             text_area = self.active_text_area()
             offset = text_area._absolute_offset(text_area.cursor_location)
-            target = detect_jump_target_at_cursor(text_area.text, offset)
+            known_skills = (
+                text_area._get_warm_xprompt_skill_names()
+                if "/" in text_area.text
+                else frozenset()
+            )
+            target = detect_jump_target_at_cursor(
+                text_area.text,
+                offset,
+                known_skills=known_skills,
+            )
             return target is not None and target.kind == "xprompt"
         except Exception:
             return False

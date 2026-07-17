@@ -199,3 +199,27 @@ def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() 
     assert refreshed is not first
     assert refreshed is not None
     assert refreshed[0].name == "ship"
+
+
+def test_exact_warm_catalog_does_not_fallback_to_default_project() -> None:
+    class CatalogApp(StartupPromptCatalogMixin):
+        def _ensure_prompt_catalog_project(self, project: str | None) -> None:
+            del project
+
+        def _schedule_prompt_catalog_token_fallback_check(self) -> None:
+            pass
+
+    app = CatalogApp()
+    app._prompt_catalog = prompt_catalog.PromptCatalogSnapshot(
+        generation=1,
+        source_token=("first",),
+        snippets={},
+        assist_entries_by_project={None: (_entry("global"),)},
+    )
+    app._prompt_catalog_assist_entries_cache = {}
+
+    assert app.get_prompt_catalog_assist_entries("project", schedule=False) is not None
+    assert app.get_warm_prompt_catalog_assist_entries_exact("project") is None
+    exact_default = app.get_warm_prompt_catalog_assist_entries_exact(None)
+    assert exact_default is not None
+    assert exact_default[0].name == "global"
