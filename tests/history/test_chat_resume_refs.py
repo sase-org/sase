@@ -70,6 +70,17 @@ def test_find_resume_refs_multiple() -> None:
     assert refs[1][2] == "b.md"
 
 
+def test_find_resume_refs_flattens_multi_parent_fork_syntaxes() -> None:
+    assert _find_resume_refs("#fork:planner,coder New query") == [
+        ("#fork:planner,coder", "fork", "planner"),
+        ("#fork:planner,coder", "fork", "coder"),
+    ]
+    assert _find_resume_refs("#fork(planner, coder) New query") == [
+        ("#fork(planner, coder)", "fork", "planner"),
+        ("#fork(planner, coder)", "fork", "coder"),
+    ]
+
+
 def _write_chat_file(tmpdir: str, name: str, content: str) -> str:
     """Helper to write a chat file and return its path."""
     path = Path(tmpdir) / name
@@ -134,6 +145,77 @@ def test_multi_level_chain() -> None:
     assert turns[2][0] == "Third"
 
 
+def test_multi_parent_expansion_loads_every_parent_in_order() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        planner = _write_chat_file(
+            tmpdir,
+            "planner.md",
+            "## Prompt\n\nPlan\n\n## Response\n\nPlan reply\n",
+        )
+        coder = _write_chat_file(
+            tmpdir,
+            "coder.md",
+            "## Prompt\n\nCode\n\n## Response\n\nCode reply\n",
+        )
+        merged = _write_chat_file(
+            tmpdir,
+            "merged.md",
+            "## Prompt\n\n#fork:planner,coder Merge\n\n## Response\n\nMerged reply\n",
+        )
+        paths = {"planner": planner, "coder": coder}
+        with patch(
+            "sase.history.chat._resolve_resume_to_chat_path",
+            side_effect=lambda _kind, argument: paths.get(argument),
+        ):
+            result = load_chat_for_resume(merged)
+
+    turns = _parse_flat_turns(result)
+    assert [prompt for prompt, _ in turns] == ["Plan", "Code", "Merge"]
+
+
+def test_multi_parent_expansion_preserves_shared_ancestry_per_parent() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        shared = _write_chat_file(
+            tmpdir,
+            "shared.md",
+            "## Prompt\n\nShared\n\n## Response\n\nShared reply\n",
+        )
+        planner = _write_chat_file(
+            tmpdir,
+            "planner.md",
+            f"## Prompt\n\n#fork_by_chat:{shared} Plan\n\n## Response\n\nPlan reply\n",
+        )
+        coder = _write_chat_file(
+            tmpdir,
+            "coder.md",
+            f"## Prompt\n\n#fork_by_chat:{shared} Code\n\n## Response\n\nCode reply\n",
+        )
+        merged = _write_chat_file(
+            tmpdir,
+            "merged.md",
+            "## Prompt\n\n#fork(planner, coder) Merge\n\n## Response\n\nMerged reply\n",
+        )
+
+        def resolve(kind: str, argument: str) -> str | None:
+            if kind == "fork_by_chat":
+                return argument
+            return {"planner": planner, "coder": coder}.get(argument)
+
+        with patch(
+            "sase.history.chat._resolve_resume_to_chat_path", side_effect=resolve
+        ):
+            result = load_chat_for_resume(merged)
+
+    turns = _parse_flat_turns(result)
+    assert [prompt for prompt, _ in turns] == [
+        "Shared",
+        "Plan",
+        "Shared",
+        "Code",
+        "Merge",
+    ]
+
+
 def test_cycle_detection() -> None:
     """Test that cycles don't cause infinite recursion."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -181,6 +263,28 @@ def test_fallback_to_previous_conversation() -> None:
     assert len(turns) == 2
     assert turns[0][0] == "Old prompt"
     assert turns[1][0] == "New prompt"
+
+
+def test_fallback_to_previous_conversations_recovers_plural_envelope_once() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        chat = _write_chat_file(
+            tmpdir,
+            "chat.md",
+            "# Previous Conversations\n\n"
+            "## Conversation 1 of 2 — agent `planner`\n\n"
+            "**User:**\n\nOld plan\n\n**Assistant:**\n\nPlan reply\n\n"
+            "## Conversation 2 of 2 — agent `coder`\n\n"
+            "**User:**\n\nOld code\n\n**Assistant:**\n\nCode reply\n\n"
+            "# New Query\n\n"
+            "## Prompt\n\n#fork:missing-a,missing-b New prompt\n\n"
+            "## Response\n\nNew response\n",
+        )
+
+        with patch("sase.history.chat._resolve_resume_to_chat_path", return_value=None):
+            result = load_chat_for_resume(chat)
+
+    turns = _parse_flat_turns(result)
+    assert [prompt for prompt, _ in turns] == ["Old plan", "Old code", "New prompt"]
 
 
 def test_resume_agent_family_resolves_to_latest_completed_member_chat(

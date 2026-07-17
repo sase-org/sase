@@ -75,13 +75,13 @@ class PlannedNameAllocator:
             return explicit_name, None
 
         from sase.agent.names import (
-            first_resume_agent_name,
             resume_agent_name_template,
             single_wait_agent_name,
+            sole_resume_agent_name,
             wait_agent_name_template,
         )
 
-        resume_target = first_resume_agent_name(prompt)
+        resume_target = sole_resume_agent_name(prompt)
         if resume_target is not None:
             if has_non_resume_xprompt_reference(prompt):
                 return None, None
@@ -93,7 +93,7 @@ class PlannedNameAllocator:
             )
             return name, name
 
-        if "#" in prompt:
+        if "#" in prompt and has_non_resume_xprompt_reference(prompt):
             return None, None
 
         wait_target = single_wait_agent_name(prompt)
@@ -285,10 +285,18 @@ class PlannedNameAllocator:
             kind = match.group("kind")
             colon = match.group("colon")
             if colon is not None:
-                resolved = self._resolve_template_arg(_unquote_backtick_arg(colon))
-                if resolved is not None:
+                if colon.startswith("`") and colon.endswith("`"):
+                    colon_args = [_unquote_backtick_arg(colon)]
+                else:
+                    colon_args, _ = parse_args(colon, preserve_empty_args=True)
+                resolved_args = self._resolve_template_arg_list(colon_args)
+                if resolved_args is not None:
                     replacements.append(
-                        (match.start(), match.end(), f"#{kind}:{resolved}")
+                        (
+                            match.start(),
+                            match.end(),
+                            f"#{kind}:{','.join(resolved_args)}",
+                        )
                     )
                 continue
 
@@ -299,13 +307,17 @@ class PlannedNameAllocator:
             if paren_end is None:
                 continue
             inner = protected[paren_start + 1 : paren_end]
-            positional_args, _ = parse_args(inner)
+            positional_args, _ = parse_args(inner, preserve_empty_args=True)
             if not positional_args:
                 continue
-            resolved = self._resolve_template_arg(positional_args[0])
-            if resolved is not None:
+            resolved_args = self._resolve_template_arg_list(positional_args)
+            if resolved_args is not None:
                 replacements.append(
-                    (match.start(), paren_end + 1, f"#{kind}:{resolved}")
+                    (
+                        match.start(),
+                        paren_end + 1,
+                        f"#{kind}({','.join(resolved_args)})",
+                    )
                 )
 
         rewritten = protected

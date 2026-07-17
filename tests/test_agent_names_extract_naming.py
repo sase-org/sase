@@ -19,6 +19,30 @@ class TestExtractDirectivesNaming:
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
 
+    def test_multi_parent_fork_gets_neutral_auto_name(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:planner,coder do stuff",
+            )
+        assert result["info"].name == "0"
+        assert result["meta"].get("name") == "0"
+
+    def test_explicit_name_wins_over_multi_parent_neutral_name(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%name:merged expanded prompt",
+                raw_resolved_prompt="%name:merged #fork:planner,coder do stuff",
+            )
+        assert result["info"].name == "merged"
+        assert result["meta"].get("name") == "merged"
+
     def test_planned_name_wins_for_non_explicit_auto_name(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(
@@ -192,6 +216,18 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
 
+    def test_multi_parent_fork_waits_for_every_parent(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork(planner, coder) do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["planner", "coder"]
+        assert result["info"].wait_names == ["planner", "coder"]
+        assert result["info"].name == "0"
+
     def test_fork_appends_after_explicit_waits(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(
@@ -216,6 +252,20 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["meta"].get("wait_for") == ["foo"]
         assert result["info"].wait_names == ["foo"]
         assert result["info"].name == "foo.f0"
+
+    def test_multi_parent_fork_deduplicates_explicit_waits(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="%wait:coder expanded prompt",
+                raw_resolved_prompt="#fork:planner,coder %wait:coder do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["coder", "planner"]
+        assert result["info"].wait_names == ["coder", "planner"]
+        assert result["info"].name == "0"
 
     def test_bare_fork_without_name_adds_no_implicit_wait(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

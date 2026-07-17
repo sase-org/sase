@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from sase.scripts.agent_chat_from_name import main, _resolve_agent_chat_path
+from sase.scripts.agent_chat_from_name import (
+    _resolve_agent_chat_path,
+    _resolve_agent_chat_sources,
+    main,
+)
 
 
 def _write_agent(
@@ -35,6 +39,12 @@ def _write_agent(
         )
     if done is not None:
         (artifacts_dir / "done.json").write_text(json.dumps(done), encoding="utf-8")
+    for data, field in ((done, "response_path"), (meta, "chat_path")):
+        value = data.get(field) if data else None
+        if isinstance(value, str):
+            transcript = Path(value).expanduser()
+            transcript.parent.mkdir(parents=True, exist_ok=True)
+            transcript.write_text(f"transcript for {name}", encoding="utf-8")
     return artifacts_dir
 
 
@@ -230,4 +240,87 @@ def test_main_emits_parseable_json(
     )
 
     assert main(["delta"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"path": str(chat)}
+    output = json.loads(capsys.readouterr().out)
+    assert output["path"] == str(chat)
+    assert json.loads(output["sources_json"]) == [{"name": "delta", "path": str(chat)}]
+
+
+def test_multiple_agents_resolve_in_invocation_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "planner",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+    )
+    _write_agent(
+        tmp_path,
+        "20260504020202",
+        "coder",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+    )
+
+    sources = _resolve_agent_chat_sources(["coder", "planner"])
+
+    assert [(source.name, source.path) for source in sources] == [
+        ("coder", str(coder_chat)),
+        ("planner", str(planner_chat)),
+    ]
+
+
+def test_multiple_agents_report_all_invalid_parents_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    valid_chat = tmp_path / "valid.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "valid",
+        done={"response_path": str(valid_chat), "outcome": "completed"},
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        _resolve_agent_chat_sources(["missing-one", "valid", "missing-two"])
+
+    message = str(exc_info.value)
+    assert "missing-one" in message
+    assert "missing-two" in message
+
+
+def test_multiple_aliases_to_same_transcript_are_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    shared_chat = tmp_path / "shared.md"
+    for index, name in enumerate(("planner", "planner-alias"), start=1):
+        _write_agent(
+            tmp_path,
+            f"2026050401010{index}",
+            name,
+            done={"response_path": str(shared_chat), "outcome": "completed"},
+        )
+
+    with pytest.raises(RuntimeError, match="same transcript"):
+        _resolve_agent_chat_sources(["planner", "planner-alias"])
+
+
+def test_unreadable_transcript_is_rejected_before_loading(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    missing_chat = tmp_path / "missing.md"
+    _write_agent(
+        tmp_path,
+        "20260504010101",
+        "planner",
+        done={"response_path": str(missing_chat), "outcome": "completed"},
+    )
+    missing_chat.unlink()
+
+    with pytest.raises(RuntimeError, match="not readable"):
+        _resolve_agent_chat_sources(["planner"])

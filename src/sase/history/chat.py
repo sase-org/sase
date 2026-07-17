@@ -27,9 +27,9 @@ from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_METADATA_LABEL
 _RESUME_REF_RE = re.compile(
     r"#(fork|fork_by_chat|resume|resume_by_chat)"  # xprompt name
     r"(?:"
-    r":(`[^`]+`|[^\s,)]+)"  # colon syntax (backtick-quoted or bare)
+    r":(`[^`]+`|[^\s)]+)"  # colon syntax (backtick-quoted or bare)
     r"|"
-    r"\((`[^`]+`|[^)]+)\)"  # paren syntax
+    r"\((`[^`]+`|[^)]*)\)"  # paren syntax
     r")"
 )
 
@@ -105,15 +105,30 @@ def _find_resume_refs(text: str) -> list[tuple[str, str, str]]:
     Returns:
         List of (full_match, xprompt_name, argument) tuples.
     """
-    results = []
+    results: list[tuple[str, str, str]] = []
+    for full_match, xprompt_name, arguments in _find_resume_ref_groups(text):
+        results.extend((full_match, xprompt_name, argument) for argument in arguments)
+    return results
+
+
+def _find_resume_ref_groups(text: str) -> list[tuple[str, str, list[str]]]:
+    """Return references with every argument attached to its original span."""
+    results: list[tuple[str, str, list[str]]] = []
     for m in _RESUME_REF_RE.finditer(text):
         full_match = m.group(0)
         xprompt_name = m.group(1)
         # Argument is in group 2 (colon syntax) or group 3 (paren syntax)
         raw_arg = m.group(2) or m.group(3)
-        # Strip backtick quoting
-        arg = raw_arg.strip("`")
-        results.append((full_match, xprompt_name, arg))
+        if raw_arg.startswith("`") and raw_arg.endswith("`"):
+            arguments = [raw_arg[1:-1]]
+        elif xprompt_name in {"fork", "resume"}:
+            from sase.xprompt._parsing import parse_args
+
+            arguments, _ = parse_args(raw_arg, preserve_empty_args=True)
+            arguments = [argument for argument in arguments if argument]
+        else:
+            arguments = [raw_arg]
+        results.append((full_match, xprompt_name, arguments))
     return results
 
 
@@ -175,9 +190,8 @@ def _parse_flat_turns(text: str) -> list[tuple[str, str]]:
 def _extract_previous_conversation_turns(
     content: str,
 ) -> list[tuple[str, str]]:
-    """Extract turns from ## Previous Conversation sections in raw chat content."""
-    # Match "## Previous Conversation" or deeper heading variants
-    pattern = re.compile(r"^#{2,6}\s+Previous Conversation\s*$", re.MULTILINE)
+    """Extract turns from singular or merged previous-conversation regions."""
+    pattern = re.compile(r"^#{1,6}\s+Previous Conversations?\s*$", re.MULTILINE)
     matches = list(pattern.finditer(content))
     if not matches:
         return []
@@ -527,9 +541,11 @@ def load_chat_for_resume(
 
     # Resolve file_ref to an absolute path for cycle detection
     if file_ref.startswith("/") or file_ref.startswith("~"):
-        abs_path = os.path.expanduser(file_ref)
+        abs_path = os.path.abspath(os.path.expanduser(file_ref))
     else:
-        abs_path = resolve_chat_file_path(file_ref) or get_chat_file_path(file_ref)
+        abs_path = os.path.abspath(
+            resolve_chat_file_path(file_ref) or get_chat_file_path(file_ref)
+        )
     _visited.add(abs_path)
 
     turns = _parse_chat_turns(content)
@@ -539,20 +555,33 @@ def load_chat_for_resume(
 
     expanded_turns: list[tuple[str, str]] = []
     for prompt, response in turns:
-        refs = _find_resume_refs(prompt)
-        for full_match, xprompt_name, argument in refs:
-            resolved_path = _resolve_resume_to_chat_path(xprompt_name, argument)
-            if resolved_path and resolved_path not in _visited:
-                # Recursively load and parse the referenced history
-                nested_text = load_chat_for_resume(resolved_path, _visited)
-                nested_turns = _parse_flat_turns(nested_text)
-                expanded_turns.extend(nested_turns)
-            elif resolved_path is None:
-                # Fallback: extract from ## Previous Conversation in this file
+        # Keep the historical flattened detector as a compatibility view;
+        # grouped records retain each multi-parent invocation's original span.
+        refs = _find_resume_ref_groups(prompt) if _find_resume_refs(prompt) else []
+        for full_match, xprompt_name, arguments in refs:
+            needs_fallback = False
+            for argument in arguments:
+                resolved_path = _resolve_resume_to_chat_path(xprompt_name, argument)
+                normalized_path = (
+                    os.path.abspath(os.path.expanduser(resolved_path))
+                    if resolved_path
+                    else None
+                )
+                if normalized_path and normalized_path not in _visited:
+                    # Each fork parent gets an independent ancestry guard so
+                    # shared history remains present in every conversation.
+                    nested_text = load_chat_for_resume(normalized_path, set(_visited))
+                    nested_turns = _parse_flat_turns(nested_text)
+                    expanded_turns.extend(nested_turns)
+                elif resolved_path is None:
+                    needs_fallback = True
+            if needs_fallback:
+                # A stored expanded prompt is the recovery source when one or
+                # more historical agent references no longer resolve.
                 fallback_turns = _extract_previous_conversation_turns(content)
                 expanded_turns.extend(fallback_turns)
-            # Strip the fork/resume ref from the prompt text
-            prompt = prompt.replace(full_match, "").strip()
+            # Strip the complete multi-parent reference exactly once.
+            prompt = prompt.replace(full_match, "", 1).strip()
 
         if prompt or response:
             expanded_turns.append((prompt, response))

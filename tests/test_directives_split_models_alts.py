@@ -130,6 +130,15 @@ def test_split_prompt_for_models_pure_alt_resume_base(tmp_path: Path) -> None:
     assert result[1] == "%name:foo.f0.2\n#fork:foo\ny\nDo work"
 
 
+def test_split_prompt_for_models_multi_parent_uses_neutral_base() -> None:
+    result = split_prompt_for_models("#fork:planner,coder\n%alt(x,y)\nDo work")
+
+    assert result == [
+        "%name:@.1\n#fork:planner,coder\nx\nDo work",
+        "%name:@.2\n#fork:planner,coder\ny\nDo work",
+    ]
+
+
 def test_split_prompt_for_models_pure_alt_resume_base_ignores_legacy_slot(
     tmp_path: Path,
 ) -> None:

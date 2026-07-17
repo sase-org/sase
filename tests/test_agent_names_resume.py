@@ -11,9 +11,11 @@ from sase.agent.names import (
     allocate_resume_names,
     first_fork_agent_name,
     first_resume_agent_name,
+    fork_agent_names,
     has_fork_reference,
     resume_agent_name_template,
     resolve_resume_agent_name,
+    sole_resume_agent_name,
 )
 
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -47,6 +49,26 @@ class TestResumeAgentNames:
 
     def test_first_resume_wins(self) -> None:
         assert first_resume_agent_name("#fork:first then #fork:second") == "first"
+
+    @pytest.mark.parametrize(
+        "prompt",
+        ["#fork:planner,coder do work", "#fork(planner, coder) do work"],
+    )
+    def test_multi_parent_fork_exposes_all_parents_but_no_naming_parent(
+        self, prompt: str
+    ) -> None:
+        assert fork_agent_names(prompt) == ["planner", "coder"]
+        assert sole_resume_agent_name(prompt) is None
+
+    def test_fork_parent_list_is_ordered_and_deduplicated(self) -> None:
+        assert fork_agent_names("#fork:planner,coder,planner") == [
+            "planner",
+            "coder",
+        ]
+
+    def test_single_parent_remains_the_sole_naming_parent(self) -> None:
+        assert fork_agent_names("#fork:planner") == ["planner"]
+        assert sole_resume_agent_name("#fork:planner") == "planner"
 
     def test_first_fork_finds_colon_paren_and_backtick(self) -> None:
         assert first_fork_agent_name("#fork:foo do work") == "foo"

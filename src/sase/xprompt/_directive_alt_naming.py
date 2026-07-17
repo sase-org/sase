@@ -257,11 +257,11 @@ def apply_fanout_naming_with_metadata(
             agent_name_allocation_lock,
             allocate_resume_name,
             allocate_wait_name,
-            first_resume_agent_name,
             single_wait_agent_name,
+            sole_resume_agent_name,
         )
 
-        resume_target = first_resume_agent_name(sub_prompts[0])
+        resume_target = sole_resume_agent_name(sub_prompts[0])
         wait_target = None if resume_target else single_wait_agent_name(sub_prompts[0])
         if resume_target or wait_target:
             with agent_name_allocation_lock():

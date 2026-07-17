@@ -25,8 +25,8 @@ from sase.agent.names import (
     agent_name_allocation_lock,
     allocate_resume_names,
     allocate_wait_names,
-    first_resume_agent_name,
     single_wait_agent_name,
+    sole_resume_agent_name,
 )
 from sase.xprompt._exceptions import DirectiveError
 
@@ -132,7 +132,7 @@ def spawn_repeat_batch(
         )
 
     resume_target = (
-        None if explicit_base is not None else first_resume_agent_name(prompt_stripped)
+        None if explicit_base is not None else sole_resume_agent_name(prompt_stripped)
     )
     if resume_target is not None:
         with agent_name_allocation_lock():

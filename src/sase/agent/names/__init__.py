@@ -89,9 +89,11 @@ from sase.agent.names._resume import (
     allocate_wait_names,
     first_fork_agent_name,
     first_resume_agent_name,
+    fork_agent_names,
     has_fork_reference,
     resume_agent_name_template,
     single_wait_agent_name,
+    sole_resume_agent_name,
     wait_agent_name_template,
 )
 from sase.agent.names._templates import (
@@ -244,6 +246,7 @@ __all__ = [
     "find_agent_family",
     "first_fork_agent_name",
     "first_resume_agent_name",
+    "fork_agent_names",
     "has_fork_reference",
     "get_active_agent_name_map",
     "get_active_agent_names",
@@ -292,6 +295,7 @@ __all__ = [
     "retry_agent_name_template",
     "run_historical_auto_name_migration",
     "single_wait_agent_name",
+    "sole_resume_agent_name",
     "strip_dismissed_prefix",
     "validate_indexed_agent_name_template",
     "wait_agent_name_template",

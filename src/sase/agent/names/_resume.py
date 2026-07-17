@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 import fcntl
+import os
+from pathlib import Path
 import re
 import threading
 
@@ -17,18 +19,9 @@ from sase.xprompt._parsing import (
 )
 
 _RESUME_REF_RE = re.compile(
-    r"#(?:fork|resume)(?![A-Za-z0-9_])"
+    r"#(?P<kind>fork|resume)(?![A-Za-z0-9_])"
     r"(?:"
-    r":(?P<colon>`[^`]*`|[^\s,)]+)"
-    r"|"
-    r"(?P<open_paren>\()"
-    r")"
-)
-
-_FORK_REF_RE = re.compile(
-    r"#fork(?![A-Za-z0-9_])"
-    r"(?:"
-    r":(?P<colon>`[^`]*`|[^\s,)]+)"
+    r":(?P<colon>`[^`]*`|[^\s)]+)"
     r"|"
     r"(?P<open_paren>\()"
     r")"
@@ -64,17 +57,39 @@ def agent_name_allocation_lock() -> Iterator[None]:
 
 
 def first_resume_agent_name(prompt: str | None) -> str | None:
-    """Return the first top-level ``#fork`` or legacy ``#resume`` target.
+    """Return the first parent for callers that explicitly want first-only behavior."""
+    for _kind, args in _iter_reference_arg_groups(prompt):
+        if args:
+            return _resolve_fork_agent_reference(args[0])
+    return None
+
+
+def sole_resume_agent_name(prompt: str | None) -> str | None:
+    """Return the sole parent eligible for resume-derived naming.
 
     ``#fork_by_chat`` and legacy ``#resume_by_chat`` are intentionally ignored
     because their arguments are chat paths, not agent names. Fenced code blocks
-    and disabled xprompt regions are protected before lexical matching.
+    and disabled xprompt regions are protected before lexical matching. A fork
+    with two or more parents deliberately returns ``None`` so merged children
+    use neutral auto-naming. Legacy ``#resume`` remains single-parent.
     """
-    for arg in _iter_reference_args(prompt, _RESUME_REF_RE, "#fork", "#resume"):
-        from sase.agent.names._templates import resolve_agent_name_template_reference
+    groups = list(_iter_reference_arg_groups(prompt))
+    if not groups:
+        return None
 
-        return resolve_agent_name_template_reference(arg)
+    first_kind, first_args = groups[0]
+    if first_kind == "resume":
+        return _resolve_fork_agent_reference(first_args[0]) if first_args else None
+
+    parents = _resolved_fork_agent_names(groups)
+    if len(parents) == 1:
+        return parents[0]
     return None
+
+
+def fork_agent_names(prompt: str | None) -> list[str]:
+    """Return all explicit fork parents in stable, de-duplicated order."""
+    return _resolved_fork_agent_names(list(_iter_reference_arg_groups(prompt)))
 
 
 def first_fork_agent_name(prompt: str | None) -> str | None:
@@ -87,11 +102,8 @@ def first_fork_agent_name(prompt: str | None) -> str | None:
     no explicit agent name and are intentionally excluded. Fenced code blocks
     and disabled xprompt regions are protected before lexical matching.
     """
-    for arg in _iter_reference_args(prompt, _FORK_REF_RE, "#fork"):
-        from sase.agent.names._templates import resolve_agent_name_template_reference
-
-        return resolve_agent_name_template_reference(arg)
-    return None
+    parents = fork_agent_names(prompt)
+    return parents[0] if parents else None
 
 
 def has_fork_reference(prompt: str | None) -> bool:
@@ -101,7 +113,10 @@ def has_fork_reference(prompt: str | None) -> bool:
     resolve agent-name templates, touch active-agent state, or raise when a
     template reference such as ``#fork:build-@`` has no concrete match yet.
     """
-    return next(_iter_reference_args(prompt, _FORK_REF_RE, "#fork"), None) is not None
+    return any(
+        kind == "fork" and bool(args)
+        for kind, args in _iter_reference_arg_groups(prompt)
+    )
 
 
 def allocate_resume_name(
@@ -242,14 +257,12 @@ def wait_agent_name_template(base: str) -> str:
     return f"{base}.w@"
 
 
-def _iter_reference_args(
+def _iter_reference_arg_groups(
     prompt: str | None,
-    pattern: re.Pattern[str],
-    *guard_substrings: str,
-) -> Iterator[str]:
+) -> Iterator[tuple[str, list[str]]]:
     if not prompt:
         return
-    if guard_substrings and not any(guard in prompt for guard in guard_substrings):
+    if "#fork" not in prompt and "#resume" not in prompt:
         return
 
     fenced: list[str] = []
@@ -257,25 +270,66 @@ def _iter_reference_args(
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
 
-    for match in pattern.finditer(protected):
-        arg = _resume_reference_argument(protected, match)
-        if arg:
-            yield arg
+    for match in _RESUME_REF_RE.finditer(protected):
+        args = _resume_reference_arguments(protected, match)
+        if args:
+            yield match.group("kind"), args
 
 
-def _resume_reference_argument(text: str, match: re.Match[str]) -> str | None:
+def _resume_reference_arguments(text: str, match: re.Match[str]) -> list[str]:
     colon = match.group("colon")
     if colon is not None:
-        raw = colon
-        if raw.startswith("`") and raw.endswith("`"):
-            return raw[1:-1] or None
-        return raw or None
+        if colon.startswith("`") and colon.endswith("`"):
+            value = colon[1:-1]
+            return [value] if value else []
+        positional, _ = parse_args(colon, preserve_empty_args=True)
+        return [value for value in positional if value]
     if match.group("open_paren") is not None:
         paren_start = match.end("open_paren") - 1
         paren_end = find_matching_paren_for_args(text, paren_start)
         if paren_end is None:
-            return None
+            return []
         inner = text[paren_start + 1 : paren_end]
-        positional, _ = parse_args(inner)
-        return positional[0] if positional else None
-    return None
+        positional, _ = parse_args(inner, preserve_empty_args=True)
+        return [value for value in positional if value]
+    return []
+
+
+def _resolved_fork_agent_names(
+    groups: list[tuple[str, list[str]]],
+) -> list[str]:
+    resolved: list[str] = []
+    for kind, args in groups:
+        if kind != "fork":
+            continue
+        for arg in args:
+            name = _resolve_fork_agent_reference(arg)
+            if name not in resolved:
+                resolved.append(name)
+    return resolved
+
+
+def _resolve_fork_agent_reference(name: str) -> str:
+    """Resolve templates while excluding the agent being launched."""
+    from sase.agent.names._templates import (
+        is_agent_name_template,
+        require_latest_agent_name_template,
+        resolve_agent_name_template_reference,
+    )
+
+    if not is_agent_name_template(name):
+        return resolve_agent_name_template_reference(name)
+
+    current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not current_artifacts_dir:
+        return resolve_agent_name_template_reference(name)
+
+    from sase.agent.names._registry import get_reserved_agent_name_map
+
+    current = Path(current_artifacts_dir).expanduser().resolve(strict=False)
+    reserved = {
+        agent_name
+        for agent_name, owner_path in get_reserved_agent_name_map().items()
+        if Path(owner_path).expanduser().resolve(strict=False) != current
+    }
+    return require_latest_agent_name_template(name, names=reserved)

@@ -258,6 +258,19 @@ class TestSpawnRepeatBatch:
         assert specs[1].prompt.startswith("%n:foo.f1\n%wait:foo.f0\n")
         assert specs[2].prompt.startswith("%n:foo.f2\n%wait:foo.f1\n")
 
+    def test_multi_parent_resume_prompt_uses_neutral_repeat_names(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:2 #fork:planner,coder do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+        assert [spec.name for spec in specs] == ["0.1", "0.2"]
+        assert all("planner.f" not in spec.name for spec in specs)
+        assert all("coder.f" not in spec.name for spec in specs)
+
     def test_resume_prompt_wins_over_wait_derived_names(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(

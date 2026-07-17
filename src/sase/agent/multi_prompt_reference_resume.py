@@ -6,7 +6,7 @@ _BARE_RESUME_RE = re.compile(r"#fork(?![A-Za-z0-9_])")
 _RESUME_REF_RE = re.compile(
     r"#(?P<kind>fork|resume)(?![A-Za-z0-9_])"
     r"(?:"
-    r":(?P<colon>`[^`]*`|[^\s,)]+)"
+    r":(?P<colon>`[^`]*`|[^\s)]+)"
     r"|"
     r"(?P<open_paren>\()"
     r")"

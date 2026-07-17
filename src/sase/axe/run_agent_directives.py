@@ -194,20 +194,21 @@ def extract_directives_and_write_meta(
     )
     export_launch_alias_overrides(model_alias_overrides)
 
-    # A top-level `#fork:<name>` implies `%wait:<name>`: the forked agent must
-    # not start until its fork target finishes. We add the implied dependency as
+    # Top-level `#fork:<name,...>` parents imply `%wait:<name,...>`: the forked
+    # agent must not start until every fork target finishes. We add the implied
+    # dependencies as
     # runner metadata (a local wait_names list) rather than rewriting the prompt
     # text, so prompt history and raw xprompt artifacts stay clean while every
     # launch surface behaves consistently. Bare `#fork` and `#fork_by_chat`
     # resolve their targets dynamically and are excluded. An explicit
     # `%wait:<name>` for the same target is not duplicated.
-    from sase.agent.names import first_fork_agent_name
+    from sase.agent.names import fork_agent_names
 
     wait_names = list(directives.wait)
     wait_identity_deps: list[dict[str, str]] = []
-    fork_wait_target = first_fork_agent_name(raw_resolved_prompt)
-    if fork_wait_target and fork_wait_target not in wait_names:
-        wait_names.append(fork_wait_target)
+    for fork_wait_target in fork_agent_names(raw_resolved_prompt):
+        if fork_wait_target not in wait_names:
+            wait_names.append(fork_wait_target)
     if family_attach_plan and family_attach_plan.parent_is_running:
         if family_attach_plan.parent_name not in wait_names:
             wait_names.append(family_attach_plan.parent_name)
@@ -238,9 +239,9 @@ def extract_directives_and_write_meta(
     resume_name: str | None = None
     wait_name: str | None = None
     if not directives.name_explicit and not auto_dismiss:
-        from sase.agent.names import first_resume_agent_name
+        from sase.agent.names import sole_resume_agent_name
 
-        resume_name = first_resume_agent_name(raw_resolved_prompt)
+        resume_name = sole_resume_agent_name(raw_resolved_prompt)
         if resume_name is None and len(wait_names) == 1:
             wait_name = wait_names[0]
 

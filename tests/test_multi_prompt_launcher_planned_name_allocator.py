@@ -15,6 +15,42 @@ from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.agent.multi_prompt_references import PlannedNameAllocator
 
 
+def test_multi_parent_fork_plans_neutral_auto_name(tmp_path: Path) -> None:
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        name, env_value = allocator.planned_name_for_prompt(
+            "#fork:planner,coder\nMerge"
+        )
+
+    assert name == "0"
+    assert env_value == "0"
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("#fork:build-@,review-@", "#fork:build-0,review-0"),
+        ("#fork(build-@, review-@)", "#fork(build-0,review-0)"),
+    ],
+)
+def test_multi_parent_fork_rewrites_every_planned_template_reference(
+    tmp_path: Path, prompt: str, expected: str
+) -> None:
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        assert allocator.planned_name_for_prompt("%name:build-@\nBuild")[0] == (
+            "build-0"
+        )
+        assert allocator.planned_name_for_prompt("%name:review-@\nReview")[0] == (
+            "review-0"
+        )
+        rewritten = allocator.rewrite_template_references(prompt)
+
+    assert rewritten == expected
+
+
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp")
