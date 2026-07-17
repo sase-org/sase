@@ -16,7 +16,7 @@ _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
 
 
 @dataclass(frozen=True, slots=True)
-class _ParallelFamilyStatusCounts:
+class ParallelFamilyStatusCounts:
     """Visible status counts for the parallel members under one root."""
 
     awaiting: int = 0
@@ -58,7 +58,7 @@ def parallel_family_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
-def parallel_family_member_counts(agent: Agent) -> _ParallelFamilyStatusCounts:
+def parallel_family_member_counts(agent: Agent) -> ParallelFamilyStatusCounts:
     """Count the root's already-loaded parallel members by display bucket."""
     awaiting = failed = running = waiting = done = 0
     for member in parallel_family_members(agent):
@@ -73,26 +73,10 @@ def parallel_family_member_counts(agent: Agent) -> _ParallelFamilyStatusCounts:
             waiting += 1
         elif bucket == "Done":
             done += 1
-    return _ParallelFamilyStatusCounts(
+    return ParallelFamilyStatusCounts(
         awaiting=awaiting,
         failed=failed,
         running=running,
         waiting=waiting,
         done=done,
     )
-
-
-def parallel_family_summary_text(agent: Agent) -> str:
-    """Return a compact ``"2 running · 1 done"`` member summary."""
-    counts = parallel_family_member_counts(agent)
-    parts: list[str] = []
-    for count, label in (
-        (counts.awaiting, "awaiting"),
-        (counts.failed, "failed"),
-        (counts.running, "running"),
-        (counts.waiting, "waiting"),
-        (counts.done, "done"),
-    ):
-        if count:
-            parts.append(f"{count} {label}")
-    return " · ".join(parts)

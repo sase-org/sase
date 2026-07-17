@@ -13,7 +13,10 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from ..models._agent_parallel_family import parallel_family_member_counts
+from ..models._agent_parallel_family import (
+    ParallelFamilyStatusCounts,
+    parallel_family_member_counts,
+)
 from ..models.agent import Agent
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
@@ -138,6 +141,7 @@ def agent_render_key(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
+    parallel_family_counts: ParallelFamilyStatusCounts | None = None,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -147,6 +151,11 @@ def agent_render_key(
     field is a deliberate edit here rather than a silent cache desync.
     """
     wait_agent = wait_display_agent(agent)
+    family_counts = (
+        parallel_family_member_counts(agent)
+        if parallel_family_counts is None
+        else parallel_family_counts
+    )
     return (
         agent.identity,
         index,
@@ -173,7 +182,7 @@ def agent_render_key(
         agent.reverted,
         agent_has_confirmed_bead(agent),
         ordered_row_providers(agent),
-        parallel_family_member_counts(agent),
+        family_counts,
         agent.hidden,
         agent.retry_attempt,
         agent.is_workflow_child,

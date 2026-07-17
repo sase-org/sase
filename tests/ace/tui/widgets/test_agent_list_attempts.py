@@ -119,7 +119,7 @@ def test_fold_annotation_empty_when_no_attempts_and_no_workflow() -> None:
     assert annotation == ""
 
 
-def test_fold_annotation_summarizes_parallel_family_members() -> None:
+def test_fold_annotation_keeps_parallel_family_counts_out_of_structure() -> None:
     root = _make_agent()
     root.agent_family_parallel = True
     root.runtime_children.extend(
@@ -150,8 +150,8 @@ def test_fold_annotation_summarizes_parallel_family_members() -> None:
         set(),
     )
 
-    assert collapsed == " ×3 · 2 running · 1 done"
-    assert expanded == " 2 running · 1 done"
+    assert collapsed == " ×3"
+    assert expanded == ""
 
 
 def test_highlight_selects_agent_row_when_attempt_number_passed() -> None:

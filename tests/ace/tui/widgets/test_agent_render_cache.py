@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import pytest
+
+from sase.ace.tui.models._agent_parallel_family import ParallelFamilyStatusCounts
+from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
     cached_format_agent_option,
@@ -46,6 +50,58 @@ def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
     assert "✦" not in parts_after[0].plain
     assert parts_before[1].plain == ""
     assert parts_after[1].plain == "✅"
+
+
+def test_cached_family_root_recolors_when_member_status_changes() -> None:
+    cache = AgentRenderCache()
+    root = _agent(status="RUNNING")
+    member = _agent(
+        cl_name="demo.phase",
+        status="RUNNING",
+        raw_suffix="20260425143100",
+    )
+    member.agent_family_parallel = True
+    root.runtime_children.append(member)
+
+    running_parts = cached_format_agent_option(
+        cache, root, 0, is_selected=False, now=None
+    )
+    member.status = "DONE"
+    done_parts = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+
+    assert running_parts[0] is not done_parts[0]
+    assert "[R1]" in running_parts[0].plain
+    assert "[D1]" in done_parts[0].plain
+    assert "[R1]" not in done_parts[0].plain
+
+
+def test_cached_family_root_aggregates_members_once_per_render_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.widgets import _agent_list_render_agent as render_agent
+
+    cache = AgentRenderCache()
+    root = _agent(status="RUNNING")
+    member = _agent(
+        cl_name="demo.phase",
+        status="RUNNING",
+        raw_suffix="20260425143100",
+    )
+    member.agent_family_parallel = True
+    root.runtime_children.append(member)
+    original = render_agent.parallel_family_member_counts
+    calls = 0
+
+    def counting_counts(agent: Agent) -> ParallelFamilyStatusCounts:
+        nonlocal calls
+        calls += 1
+        return original(agent)
+
+    monkeypatch.setattr(render_agent, "parallel_family_member_counts", counting_counts)
+
+    cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+
+    assert calls == 1
 
 
 def test_invalidate_agent_drops_only_that_identity() -> None:

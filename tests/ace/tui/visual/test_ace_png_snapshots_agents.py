@@ -17,6 +17,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
@@ -404,8 +405,7 @@ async def test_parallel_family_root_counts_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "visual-parallel-family")
-        assert_page_svg_contains(page, "2 running")
-        assert_page_svg_contains(page, "1 done")
+        assert_page_svg_styled_text_contains(page, "[R2 D1]")
         ace_png_visual.assert_page_png(
             page,
             "agents_parallel_family_counts_120x40",

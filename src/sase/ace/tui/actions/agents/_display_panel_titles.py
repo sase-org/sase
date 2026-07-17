@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING
 from rich.text import Text
 from sase.agent.status_buckets import agent_is_asking
 
+from ...agent_count_chip import (
+    AGENT_COUNT_CHIP_METRIC_STYLES,
+    AGENT_COUNT_CHIP_METRICS,
+    AGENT_COUNT_CHIP_NEUTRAL_STYLE,
+    format_agent_count_chip,
+)
 from ...models.agent_groups import status_bucket_for
 from ._loading_helpers import DISMISSABLE_STATUSES
 
@@ -18,22 +24,14 @@ if TYPE_CHECKING:
 
 _PANEL_TAG_STYLE = "bold #FFD75F"
 _PANEL_UNTAGGED_STYLE = "dim #AFAFAF"
-_PANEL_COUNT_STYLE = "#AFAFAF"
+_PANEL_COUNT_STYLE = AGENT_COUNT_CHIP_NEUTRAL_STYLE
 _PANEL_METRIC_STYLES: dict[str, str] = {
-    "asking": "bold #FFAF00",
-    "running": "bold #00D7AF",
-    "waiting": "bold #AF87FF",
-    "failed": "bold #FF5F5F",
-    "unread": "bold #1a1a1a on #FFD700",
-    "read": "bold #5FD7FF",
+    "asking" if name == "stopped" else "read" if name == "done" else name: style
+    for name, style in AGENT_COUNT_CHIP_METRIC_STYLES.items()
 }
-_PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = (
-    ("asking", "S"),
-    ("running", "R"),
-    ("waiting", "W"),
-    ("failed", "F"),
-    ("unread", "U"),
-    ("read", "D"),
+_PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
+    ("asking" if name == "stopped" else "read" if name == "done" else name, label)
+    for name, label in AGENT_COUNT_CHIP_METRICS
 )
 
 
@@ -120,17 +118,15 @@ def agent_panel_border_title(
         title.append(f"#{key}", style=_PANEL_TAG_STYLE)
     title.append(f" · {agent_count}", style=_PANEL_COUNT_STYLE)
     if counts is not None:
-        metrics = counts.metric_items()
-        if metrics:
-            label_by_name = dict(_PANEL_METRIC_LABELS)
-            title.append(" [", style=_PANEL_COUNT_STYLE)
-            for index, (name, count) in enumerate(metrics):
-                if index:
-                    title.append(" ", style=_PANEL_COUNT_STYLE)
-                metric_style = _PANEL_METRIC_STYLES[name]
-                # Highlight count-prefixed chips that use a visible background.
-                letter_style = metric_style if name == "unread" else _PANEL_COUNT_STYLE
-                title.append(label_by_name[name], style=letter_style)
-                title.append(f"{count}", style=metric_style)
-            title.append("]", style=_PANEL_COUNT_STYLE)
+        chip = format_agent_count_chip(
+            stopped=counts.asking,
+            running=counts.running,
+            waiting=counts.waiting,
+            failed=counts.failed,
+            unread=counts.unread,
+            done=counts.read,
+        )
+        if chip:
+            title.append(" ", style=_PANEL_COUNT_STYLE)
+            title.append_text(chip)
     return title

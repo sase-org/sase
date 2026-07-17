@@ -2,10 +2,7 @@
 
 from datetime import datetime
 
-from ..models._agent_parallel_family import (
-    parallel_family_members,
-    parallel_family_summary_text,
-)
+from ..models._agent_parallel_family import parallel_family_members
 from ..models.agent import Agent, AgentType
 
 
@@ -65,14 +62,6 @@ def _is_foldable_parent(agent: Agent) -> bool:
     return False
 
 
-def _append_parallel_family_summary(annotation: str, summary: str) -> str:
-    if not summary:
-        return annotation
-    if annotation:
-        return f"{annotation} · {summary}"
-    return f" {summary}"
-
-
 def _attempt_count_suffix(attempts_count: int) -> str:
     """Return `` ↻N`` fragment when attempts exist, else empty string."""
     if attempts_count <= 0:
@@ -100,8 +89,6 @@ def compute_fold_annotation(
         Annotation string, or empty string if not applicable.
     """
     attempts_count = len(agent.attempt_history)
-    parallel_summary = parallel_family_summary_text(agent)
-
     if _is_foldable_parent(agent) and fold_counts and agent.raw_suffix:
         counts = fold_counts.get(agent.raw_suffix)
         if counts:
@@ -117,28 +104,20 @@ def compute_fold_annotation(
                         and total == 1
                         and attempts_count == 0
                     ):
-                        return _append_parallel_family_summary("", parallel_summary)
-                    return _append_parallel_family_summary(
-                        f" ×{total}{suffix}", parallel_summary
-                    )
+                        return ""
+                    return f" ×{total}{suffix}"
                 is_fully_expanded = (
                     fully_expanded_parents is not None
                     and agent.raw_suffix in fully_expanded_parents
                 )
                 if hidden > 0 and is_fully_expanded:
-                    return _append_parallel_family_summary(
-                        f" ×{total} +{hidden}{suffix}", parallel_summary
-                    )
+                    return f" ×{total} +{hidden}{suffix}"
                 if hidden > 0:
-                    return _append_parallel_family_summary(
-                        f" ×{total} −{hidden}{suffix}", parallel_summary
-                    )
+                    return f" ×{total} −{hidden}{suffix}"
                 if attempts_count > 0:
-                    return _append_parallel_family_summary(
-                        f" ↻{attempts_count}", parallel_summary
-                    )
-                return _append_parallel_family_summary("", parallel_summary)
+                    return f" ↻{attempts_count}"
+                return ""
 
     if attempts_count > 0:
-        return _append_parallel_family_summary(f" ↻{attempts_count}", parallel_summary)
-    return _append_parallel_family_summary("", parallel_summary)
+        return f" ↻{attempts_count}"
+    return ""
