@@ -176,6 +176,13 @@ jobs:
         env:
           SASE_PYTEST_EXCLUDE_VISUAL: ${{ matrix.python-version != '3.12' }}
         run: just test-cov
+      - name: Upload visual failure artifacts
+        if: failure() && matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ace-visual-artifacts-test-matrix
+          path: .pytest_cache/sase-visual
+          if-no-files-found: ignore
       - name: Upload coverage
         if: matrix.python-version == '3.12'
         uses: codecov/codecov-action@v4

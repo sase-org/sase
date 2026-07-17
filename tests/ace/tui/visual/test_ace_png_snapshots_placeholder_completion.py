@@ -10,7 +10,6 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
-from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -43,8 +42,6 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
         lambda: bar.active_text_area().has_focus,
         description="placeholder prompt-bar focus",
     )
-    for text_area in bar.query(PromptTextArea):
-        text_area.cursor_blink = False
     await wait_for_visual_idle(page)
     return bar
 

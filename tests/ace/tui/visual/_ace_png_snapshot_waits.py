@@ -83,6 +83,15 @@ def _clear_transient_button_state(page: AcePage) -> None:
             button.remove_class("-active")
 
 
+def _disable_cursor_blink(page: AcePage) -> None:
+    from textual.widgets import Input, TextArea
+
+    for screen in page.app.screen_stack:
+        for widget in screen.walk_children():
+            if isinstance(widget, (Input, TextArea)):
+                widget.cursor_blink = False
+
+
 def _pending_visual_work(page: AcePage) -> tuple[list[str], list[str], list[str]]:
     """Describe finite work that can still change an ACE screenshot."""
     debouncers = [
@@ -134,6 +143,7 @@ async def wait_for_visual_idle(page: AcePage, *, timeout: float = 8.0) -> None:
     while True:
         await page.pause()
         _clear_transient_button_state(page)
+        _disable_cursor_blink(page)
         pending = _pending_visual_work(page)
 
         if any(pending):

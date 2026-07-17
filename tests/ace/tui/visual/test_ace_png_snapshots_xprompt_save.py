@@ -121,8 +121,6 @@ async def _open(page: AcePage, modal: UnifiedXPromptSaveModal) -> None:
         lambda: name.has_focus and not modal._preview_tasks,
         description="xprompt save name focus and preview load",
     )
-    # Keep the capture independent of Textual's wall-clock cursor blink phase.
-    name.cursor_blink = False
     await wait_for_visual_idle(page)
 
 

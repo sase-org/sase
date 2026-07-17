@@ -151,9 +151,6 @@ async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar
         lambda: bar.active_text_area().has_focus and len(bar._stack) > 0,
         description="mounted prompt stack and active-pane focus",
     )
-    # Keep the capture independent of Textual's wall-clock cursor blink phase.
-    for text_area in bar.query(PromptTextArea):
-        text_area.cursor_blink = False
     await wait_for_visual_idle(page)
     return bar
 
