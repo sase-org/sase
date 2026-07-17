@@ -25,6 +25,7 @@ from sase.xprompt.graph import (
     extract_step_references,
     step_type,
 )
+from sase.xprompt.input_binding import bind_input_args
 from sase.xprompt.models import UNSET, InputArg
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -318,16 +319,7 @@ def explain_workflow(
         console.print(_build_inputs_table(explicit_inputs))
 
     # --- Build context from provided args ---
-    context: dict[str, Any] = dict(named_args)
-    for i, value in enumerate(positional_args):
-        if i < len(workflow.inputs):
-            inp = workflow.inputs[i]
-            if inp.name not in context:
-                context[inp.name] = value
-    for inp in workflow.inputs:
-        if inp.name not in context and inp.default is not UNSET:
-            if inp.default is not None:
-                context[inp.name] = inp.default
+    context = bind_input_args(workflow.inputs, positional_args, named_args).values
 
     # --- Resolved args ---
     resolved: dict[str, Any] = {}

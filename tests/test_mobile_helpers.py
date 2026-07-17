@@ -118,6 +118,7 @@ def test_xprompt_catalog_bridge_returns_structured_projection(
                     "required": True,
                     "default_display": None,
                     "position": 0,
+                    "repeatable": False,
                     "description": "Hook log to repair.",
                 }
             ],

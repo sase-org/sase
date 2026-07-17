@@ -18,7 +18,7 @@ from sase.xprompt._disabled_regions import (
     unprotect_disabled_regions,
 )
 from sase.xprompt._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from sase.xprompt.models import UNSET
+from sase.xprompt.input_binding import InputBindingError, bind_input_args
 from sase.xprompt.workflow_executor_steps_embedded_types import (
     EmbeddedWorkflowInfo,
     _DISABLED_REGION_START_RE,
@@ -156,13 +156,13 @@ class EmbeddedWorkflowExpandMixin:
             positional_args, named_args = parse_workflow_reference_args(ref)
             match_end = ref.end
 
-            # Build args dict
-            args: dict[str, Any] = dict(named_args)
-            for i, value in enumerate(positional_args):
-                if i < len(workflow.inputs):
-                    input_arg = workflow.inputs[i]
-                    if input_arg.name not in args:
-                        args[input_arg.name] = value
+            try:
+                bound = bind_input_args(workflow.inputs, positional_args, named_args)
+            except InputBindingError as exc:
+                raise WorkflowExecutionError(
+                    f"Workflow '#{name}' argument error: {exc}"
+                ) from exc
+            explicit_args = dict(bound.explicit_values)
 
             from sase.agent.family_attach import (
                 default_with_feedback_parent_from_family_attach,
@@ -170,17 +170,12 @@ class EmbeddedWorkflowExpandMixin:
 
             default_with_feedback_parent_from_family_attach(
                 name,
-                args,
+                explicit_args,
                 prompt=prompt,
                 reference_offset=ref.start,
             )
-
-            explicit_args = dict(args)
-
-            # Apply defaults
-            for input_arg in workflow.inputs:
-                if input_arg.name not in args and input_arg.default is not UNSET:
-                    args[input_arg.name] = input_arg.default
+            args = dict(bound.values)
+            args.update(explicit_args)
 
             pending.append(
                 PendingEmbeddedWorkflow(

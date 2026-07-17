@@ -35,6 +35,7 @@ def build_xprompt_assist_entries(
                     required=inp.required,
                     default_display=inp.default_display,
                     position=inp.position,
+                    repeatable=inp.repeatable,
                     description=inp.description,
                 )
                 for inp in entry.inputs

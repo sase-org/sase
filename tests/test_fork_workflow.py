@@ -51,6 +51,7 @@ def test_fork_workflow_name_input_is_optional() -> None:
     name_input = workflow.get_input_by_name("name")
     assert name_input is not None
     assert name_input.default is None
+    assert name_input.repeatable is True
     assert all(
         input_arg.default is not UNSET
         for input_arg in workflow.inputs

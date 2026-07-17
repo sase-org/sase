@@ -33,6 +33,11 @@
               "description": {
                 "type": "string",
                 "description": "Human-readable input description"
+              },
+              "repeatable": {
+                "type": "boolean",
+                "description": "Whether this final positional input consumes all remaining values",
+                "default": false
               }
             }
           }
@@ -62,6 +67,11 @@
                   "description": {
                     "type": "string",
                     "description": "Human-readable input description"
+                  },
+                  "repeatable": {
+                    "type": "boolean",
+                    "description": "Whether this final positional input consumes all remaining values",
+                    "default": false
                   }
                 }
               }

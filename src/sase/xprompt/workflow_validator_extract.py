@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from sase.xprompt._disabled_regions import strip_disabled_regions
 from sase.xprompt._parsing import iter_xprompt_references
 from sase.xprompt._parsing_args import decode_xprompt_args
+from sase.xprompt.input_binding import input_for_position
 from sase.xprompt.models import UNSET, XPrompt
 from sase.xprompt.workflow_models import Workflow, WorkflowStep
 
@@ -155,7 +156,8 @@ def validate_xprompt_call(
     errors: list[str] = []
 
     # Check positional arg count
-    if len(call.positional_args) > len(xprompt.inputs):
+    repeatable_tail = bool(xprompt.inputs and xprompt.inputs[-1].repeatable)
+    if len(call.positional_args) > len(xprompt.inputs) and not repeatable_tail:
         errors.append(
             f"Step '{step_name}': {call.display_name} has {len(call.positional_args)} "
             f"positional args but only {len(xprompt.inputs)} inputs defined"
@@ -176,9 +178,15 @@ def validate_xprompt_call(
     provided_names: set[str] = set(call.named_args.keys())
 
     # Positional args map to inputs by position
-    for i, _ in enumerate(call.positional_args):
-        if i < len(xprompt.inputs):
-            provided_names.add(xprompt.inputs[i].name)
+    for i, value in enumerate(call.positional_args):
+        input_arg = input_for_position(xprompt.inputs, i)
+        if input_arg is not None:
+            provided_names.add(input_arg.name)
+            if input_arg.repeatable and not value:
+                errors.append(
+                    f"Step '{step_name}': {call.display_name} has an empty value "
+                    f"for repeatable input '{input_arg.name}'"
+                )
 
     # Find missing required args (those without defaults)
     missing_required: list[str] = []

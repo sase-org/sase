@@ -64,6 +64,27 @@ def test_workflow_schema_accepts_descriptions() -> None:
     )
 
 
+def test_workflow_schema_accepts_repeatable_input_metadata() -> None:
+    assert _is_valid(
+        {
+            "input": {
+                "names": {
+                    "type": "agent",
+                    "default": None,
+                    "repeatable": True,
+                }
+            },
+            "steps": [{"name": "main", "prompt_part": "{{ names }}"}],
+        }
+    )
+    assert not _is_valid(
+        {
+            "input": {"names": {"type": "agent", "repeatable": "yes"}},
+            "steps": [{"name": "main", "prompt_part": "{{ names }}"}],
+        }
+    )
+
+
 def test_finally_is_only_allowed_on_top_level_steps() -> None:
     assert _is_valid(
         {

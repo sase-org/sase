@@ -182,14 +182,14 @@ def test_xprompt_to_workflow_copies_local_xprompts() -> None:
 
 
 def test_validate_and_convert_args_extra_positional() -> None:
-    """Test validate_and_convert_args passes through extra positional args."""
+    """Scalar inputs reject surplus positional arguments."""
     xp = XPrompt(
         name="test",
         content="hello",
         inputs=[InputArg(name="x", type=InputType.LINE)],
     )
-    pos, _ = validate_and_convert_args(xp, ["a", "extra"], {})
-    assert pos == ["a", "extra"]
+    with pytest.raises(XPromptArgumentError, match="Too many positional arguments"):
+        validate_and_convert_args(xp, ["a", "extra"], {})
 
 
 def test_validate_and_convert_args_unknown_named() -> None:

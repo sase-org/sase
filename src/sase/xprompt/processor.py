@@ -56,7 +56,7 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _XPROMPT_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"  # Must be at start, after whitespace, or after ([{"'
     r"#([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"  # Group 1: xprompt name with optional namespace
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/@-]*[a-zA-Z0-9_~,+/@-])|(\+))?"  # Group 2: open paren OR Group 3: colon arg (backtick, $(cmd), or word) OR Group 4: plus
 )
 
 _COMMON_VCS_XPROMPT_NAMES = frozenset({"gh", "git", "p4"})
@@ -429,7 +429,9 @@ def process_xprompt_references_with_catalog(
                     else:
                         # Extract content between ( and )
                         paren_content = prompt[paren_start + 1 : paren_end]
-                        positional_args, named_args = parse_args(paren_content)
+                        positional_args, named_args = parse_args(
+                            paren_content, preserve_empty_args=True
+                        )
                         match_end = paren_end + 1  # Include the closing )
 
                         # Handle ": text" or ":: text" shorthand after closing

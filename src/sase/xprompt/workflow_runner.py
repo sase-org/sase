@@ -16,8 +16,13 @@ from ._parsing import (
 )
 from ._parsing_references import iter_xprompt_references
 from .loader import get_all_workflows
-from .models import UNSET
-from .workflow_models import StepStatus, WorkflowStep, WorkflowValidationError
+from .input_binding import InputBindingError, bind_input_args
+from .workflow_models import (
+    StepStatus,
+    WorkflowExecutionError,
+    WorkflowStep,
+    WorkflowValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +32,19 @@ if TYPE_CHECKING:
 _WORKFLOW_MODEL_OVERRIDE_ARG = "__sase_workflow_model_override"
 _WORKFLOW_HITL_OVERRIDE_ARG = "__sase_workflow_hitl_override"
 _WORKFLOW_INHERITED_VCS_TAG_ARG = "__sase_workflow_inherited_vcs_tag"
+
+
+def _bind_workflow_args(
+    workflow: "Workflow",
+    positional_args: list[str],
+    named_args: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        return bind_input_args(workflow.inputs, positional_args, named_args).values
+    except InputBindingError as exc:
+        raise WorkflowExecutionError(
+            f"Workflow '#{workflow.name}' argument error: {exc}"
+        ) from exc
 
 
 def standalone_deprecation_message(name: str) -> str:
@@ -394,7 +412,6 @@ def execute_workflow(
     from .loader import get_all_prompts
     from .workflow_executor import WorkflowExecutor
     from .workflow_hitl import CLIHITLHandler, TUIHITLHandler
-    from .workflow_models import WorkflowExecutionError
     from .workflow_output import WorkflowOutputHandler
     from .workflow_validator import validate_workflow
 
@@ -432,17 +449,7 @@ def execute_workflow(
         from sase.xprompt.workflow_executor_utils import render_template
         from sase.xprompt.workflow_models import Workflow as WfModel
 
-        # Build render context with positional args mapped to input names
-        render_ctx: dict[str, Any] = dict(named_args)
-        for i, value in enumerate(positional_args):
-            if i < len(workflow.inputs):
-                input_arg = workflow.inputs[i]
-                if input_arg.name not in render_ctx:
-                    render_ctx[input_arg.name] = value
-        # Apply defaults for missing inputs
-        for input_arg in workflow.inputs:
-            if input_arg.name not in render_ctx and input_arg.default is not UNSET:
-                render_ctx[input_arg.name] = input_arg.default
+        render_ctx = _bind_workflow_args(workflow, positional_args, named_args)
 
         content = workflow.get_prompt_part_content()
         rendered = render_template(content, render_ctx)
@@ -497,20 +504,7 @@ def execute_workflow(
             k: v for k, v in named_args.items() if k != _WORKFLOW_INHERITED_VCS_TAG_ARG
         }
 
-    # Build args dict from positional and named args
-    args: dict[str, Any] = dict(named_args)
-
-    # Map positional args to input names
-    for i, value in enumerate(positional_args):
-        if i < len(workflow.inputs):
-            input_arg = workflow.inputs[i]
-            if input_arg.name not in args:
-                args[input_arg.name] = value
-
-    # Apply defaults for missing args
-    for input_arg in workflow.inputs:
-        if input_arg.name not in args and input_arg.default is not UNSET:
-            args[input_arg.name] = input_arg.default
+    args = _bind_workflow_args(workflow, positional_args, named_args)
 
     # Process step inputs: load from @file or parse inline YAML/JSON
     # Step inputs allow users to skip steps by providing their outputs directly
@@ -619,20 +613,7 @@ def expand_workflow_for_embedding(
 
     workflow = workflows[workflow_name]
 
-    # Build args dict from positional and named args
-    args: dict[str, Any] = dict(named_args)
-
-    # Map positional args to input names
-    for i, value in enumerate(positional_args):
-        if i < len(workflow.inputs):
-            input_arg = workflow.inputs[i]
-            if input_arg.name not in args:
-                args[input_arg.name] = value
-
-    # Apply defaults for missing args
-    for input_arg in workflow.inputs:
-        if input_arg.name not in args and input_arg.default is not UNSET:
-            args[input_arg.name] = input_arg.default
+    args = _bind_workflow_args(workflow, positional_args, named_args)
 
     # Get pre and post steps
     pre_steps = workflow.get_pre_prompt_steps()

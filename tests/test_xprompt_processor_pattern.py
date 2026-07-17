@@ -181,11 +181,17 @@ def test_xprompt_pattern_colon_multi_arg() -> None:
 
 
 def test_xprompt_pattern_colon_trailing_comma() -> None:
-    """Test that trailing comma is excluded from the match."""
+    """Trailing commas remain visible for empty-element validation."""
     match = re.search(_XPROMPT_PATTERN, "#foo:a,")
     assert match is not None
     assert match.group(1) == "foo"
-    assert match.group(3) == "a"
+    assert match.group(3) == "a,"
+
+
+def test_xprompt_pattern_colon_agent_template_marker() -> None:
+    match = re.search(_XPROMPT_PATTERN, "#fork:research.@,review.@")
+    assert match is not None
+    assert match.group(3) == "research.@,review.@"
 
 
 # --- Double-underscore as slash alias ---

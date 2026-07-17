@@ -49,6 +49,7 @@ class StructuredCatalogInput:
     required: bool
     default_display: str | None
     position: int
+    repeatable: bool = False
     description: str | None = None
 
 

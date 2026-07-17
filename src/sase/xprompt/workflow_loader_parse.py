@@ -52,6 +52,7 @@ def parse_workflow_inputs(
         default = item.get("default")
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
+        repeatable = item.get("repeatable", False) is True
 
         inputs.append(
             InputArg(
@@ -59,9 +60,13 @@ def parse_workflow_inputs(
                 type=parse_input_type(type_str),
                 default=default,
                 description=description,
+                repeatable=repeatable,
             )
         )
 
+    from sase.xprompt.input_binding import validate_repeatable_input_order
+
+    validate_repeatable_input_order(inputs)
     return inputs
 
 

@@ -1,7 +1,6 @@
 """Prompt expansion helpers for SDD prompt snapshots."""
 
 import logging
-from typing import Any
 
 _logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
         normalize_vcs_underscore_refs,
     )
     from sase.xprompt.loader import get_all_workflows
-    from sase.xprompt.models import UNSET
+    from sase.xprompt.input_binding import bind_input_args
     from sase.xprompt.workflow_executor_steps_embedded_types import (
         format_inline_workflow_reference_error,
         parse_workflow_reference_args,
@@ -81,16 +80,7 @@ def dry_expand_embedded_workflows(prompt: str) -> str:
             )
 
         positional_args, named_args = parse_workflow_reference_args(ref)
-        args: dict[str, Any] = dict(named_args)
-        for i, value in enumerate(positional_args):
-            if i < len(workflow.inputs):
-                input_arg = workflow.inputs[i]
-                if input_arg.name not in args:
-                    args[input_arg.name] = value
-
-        for input_arg in workflow.inputs:
-            if input_arg.name not in args and input_arg.default is not UNSET:
-                args[input_arg.name] = input_arg.default
+        args = bind_input_args(workflow.inputs, positional_args, named_args).values
 
         prompt_part_content = workflow.get_prompt_part_content()
         if prompt_part_content:

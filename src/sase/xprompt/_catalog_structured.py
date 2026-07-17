@@ -181,6 +181,7 @@ def structured_inputs(inputs: list[InputArg]) -> list[StructuredCatalogInput]:
                 required=inp.default is UNSET,
                 default_display=default_display(inp.default),
                 position=len(rows),
+                repeatable=inp.repeatable,
                 description=inp.description,
             )
         )

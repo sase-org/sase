@@ -353,6 +353,15 @@ def _paren_active_input_index(
 
     match = _NAMED_ARG_CURSOR_RE.search(body)
     if match is None:
+        clauses = body.split(",")
+        if "=" in clauses[-1] or any(ch.isspace() for ch in clauses[-1].strip()):
+            return None
+        positional_index = sum(1 for clause in clauses[:-1] if "=" not in clause)
+        if positional_index < len(entry.inputs):
+            candidate = entry.inputs[positional_index]
+            return positional_index if candidate.repeatable else None
+        if entry.inputs and entry.inputs[-1].repeatable:
+            return len(entry.inputs) - 1
         return None
 
     name = match.group("name")

@@ -38,7 +38,8 @@ def has_only_optional_inputs(entry: XPromptAssistEntry) -> bool:
 def input_label(input_hint: XPromptInputHint) -> str:
     """Format a compact input label for non-Rich assist surfaces."""
     required_marker = "" if input_hint.required else "?"
-    return f"{input_hint.name}{required_marker}: {input_hint.type}"
+    repeatable_marker = "…" if input_hint.repeatable else ""
+    return f"{input_hint.name}{repeatable_marker}{required_marker}: {input_hint.type}"
 
 
 def append_input_hints(
@@ -78,6 +79,7 @@ def input_hint_from_input_arg(inp: InputArg, position: int) -> XPromptInputHint 
         required=required,
         default_display=_default_display_from_input_arg(inp),
         position=position,
+        repeatable=inp.repeatable,
         description=inp.description,
     )
 

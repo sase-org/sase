@@ -293,7 +293,9 @@ def parse_workflow_reference(
         if close_paren is not None:
             args_str = workflow_ref[paren_idx + 1 : close_paren]
             if args_str:
-                positional_args, named_args = parse_args(args_str)
+                positional_args, named_args = parse_args(
+                    args_str, preserve_empty_args=True
+                )
             else:
                 positional_args, named_args = [], {}
 
@@ -337,6 +339,7 @@ def parse_args(
     args_str: str,
     *,
     reject_duplicate_named_args: bool = False,
+    preserve_empty_args: bool = False,
 ) -> tuple[list[str], dict[str, str]]:
     """Parse argument string into positional and named arguments.
 
@@ -387,7 +390,7 @@ def parse_args(
             quote_char = ""
             current_token += char
         elif char == "," and not in_quotes and not in_text_block:
-            if current_token.strip():
+            if preserve_empty_args or current_token.strip():
                 tokens.append(current_token.strip())
             current_token = ""
         else:
@@ -395,7 +398,7 @@ def parse_args(
         i += 1
 
     # Don't forget the last token
-    if current_token.strip():
+    if current_token.strip() or (preserve_empty_args and args_str.endswith(",")):
         tokens.append(current_token.strip())
 
     # Now parse each token as positional or named

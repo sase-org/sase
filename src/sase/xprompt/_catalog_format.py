@@ -42,7 +42,8 @@ def format_inputs(inputs: list[InputArg]) -> str:
             continue
         required = inp.default is UNSET
         suffix = "" if required else "?"
-        parts.append(f"{inp.name}{suffix}: {inp.type.value}")
+        repeatable = "…" if inp.repeatable else ""
+        parts.append(f"{inp.name}{repeatable}{suffix}: {inp.type.value}")
     if not parts:
         return ""
     return "(" + ", ".join(parts) + ")"

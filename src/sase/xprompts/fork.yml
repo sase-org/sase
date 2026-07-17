@@ -4,6 +4,7 @@ input:
   name:
     type: agent
     default: null
+    repeatable: true
     description: Optional agent name to resume; omitted means use the default resolver.
 
 steps:
@@ -11,8 +12,8 @@ steps:
     hidden: true
     python: |
       from sase.scripts.agent_chat_from_name import main
-      name = {{ name | tojson }}
-      main([name] if name else [])
+      names = {{ name | tojson }}
+      main(names or [])
     output: { path: text }
 
   - name: load_history

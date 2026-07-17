@@ -132,20 +132,12 @@ class WorkflowExecMixin:
             if has_vcs_ref:
                 return False
 
-            from sase.xprompt.models import UNSET
+            from sase.xprompt.input_binding import bind_input_args
             from sase.xprompt.workflow_executor_utils import render_template
 
-            render_ctx: dict[str, object] = dict(named_args)
-            for i, value in enumerate(positional_args):
-                if i < len(workflow.inputs):
-                    input_arg = workflow.inputs[i]
-                    if input_arg.name not in render_ctx:
-                        render_ctx[input_arg.name] = value
-            for input_arg in workflow.inputs:
-                if input_arg.name not in render_ctx and input_arg.default is not UNSET:
-                    render_ctx[input_arg.name] = (
-                        "null" if input_arg.default is None else str(input_arg.default)
-                    )
+            render_ctx = bind_input_args(
+                workflow.inputs, positional_args, named_args
+            ).values
             content = workflow.get_prompt_part_content()
             return render_template(content, render_ctx)
 

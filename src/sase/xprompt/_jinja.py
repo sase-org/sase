@@ -13,7 +13,7 @@ from ._fenced_blocks import (
     protect_fenced_blocks_only,
     unprotect_fenced_blocks,
 )
-from .models import UNSET, XPrompt, XPromptValidationError
+from .models import XPrompt
 
 # Lazy-initialized Jinja2 environment
 _jinja_env: Environment | None = None
@@ -108,62 +108,15 @@ def validate_and_convert_args(
     Raises:
         XPromptArgumentError: If validation fails.
     """
-    if not xprompt.inputs:
-        # No typed inputs defined, pass through as-is
-        return positional_args, named_args
+    from .input_binding import InputBindingError, bind_input_args
 
-    converted_positional: list[Any] = []
-    converted_named: dict[str, Any] = {}
-    used_input_names: set[str] = set()
-
-    # Process positional args
-    for i, value in enumerate(positional_args):
-        input_def = xprompt.get_input_by_position(i)
-        if input_def and value == "null":
-            # Null pass-through: keep raw value in positional list but don't
-            # add to converted_named so the callee's own default applies.
-            converted_positional.append(value)
-        elif input_def:
-            try:
-                converted_value = input_def.validate_and_convert(value)
-                converted_positional.append(converted_value)
-                # Map positional arg to named arg using input definition name
-                converted_named[input_def.name] = converted_value
-                used_input_names.add(input_def.name)
-            except XPromptValidationError as e:
-                raise XPromptArgumentError(
-                    f"XPrompt '#{xprompt.name}' argument error: {e}"
-                ) from e
-        else:
-            # More positional args than defined inputs, pass through
-            converted_positional.append(value)
-
-    # Process named args
-    for name, value in named_args.items():
-        if value == "null":
-            # Null pass-through: skip so the callee's own default applies.
-            continue
-        input_def = xprompt.get_input_by_name(name)
-        if input_def:
-            try:
-                converted_named[name] = input_def.validate_and_convert(value)
-                used_input_names.add(name)
-            except XPromptValidationError as e:
-                raise XPromptArgumentError(
-                    f"XPrompt '#{xprompt.name}' argument error: {e}"
-                ) from e
-        else:
-            # Named arg not in input definitions, pass through
-            converted_named[name] = value
-
-    # Apply defaults for missing required inputs
-    for input_def in xprompt.inputs:
-        if input_def.name not in used_input_names:
-            if input_def.default is not UNSET:
-                converted_named[input_def.name] = input_def.default
-            # Don't error on missing required - let Jinja2/legacy handle it
-
-    return converted_positional, converted_named
+    try:
+        bound = bind_input_args(xprompt.inputs, positional_args, named_args)
+    except InputBindingError as exc:
+        raise XPromptArgumentError(
+            f"XPrompt '#{xprompt.name}' argument error: {exc}"
+        ) from exc
+    return bound.positional, bound.values
 
 
 def _render_jinja2_template(

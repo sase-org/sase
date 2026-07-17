@@ -17,7 +17,12 @@ from sase.xprompt.loader import (
 )
 from sase.xprompt.loader_parsing import parse_xprompt_entries
 from sase.xprompt.load_issues import record_load_issue
-from sase.xprompt.models import UNSET, InputArg, InputType
+from sase.xprompt.models import (
+    UNSET,
+    InputArg,
+    InputType,
+    XPromptValidationError,
+)
 from sase.xprompt.tags import parse_tags
 from sase.xprompt.workflow_loader_parse import (
     parse_workflow_step as _parse_workflow_step,
@@ -218,7 +223,11 @@ def _load_workflow_from_mapping(
         wraps_all = True
 
     # Parse inputs
-    inputs = parse_workflow_inputs(data.get("input"))
+    try:
+        inputs = parse_workflow_inputs(data.get("input"))
+    except XPromptValidationError as exc:
+        record_load_issue(source_path, exc, kind="workflow")
+        return None
 
     # Parse workflow-local xprompts
     xprompts_data = data.get("xprompts")

@@ -118,17 +118,18 @@ def _parse_shortform_input_value(value: str | dict[str, Any]) -> tuple[str, Any]
 
 def _parse_shortform_input_metadata(
     value: str | dict[str, Any],
-) -> tuple[str, Any, str | None]:
-    """Parse shortform input value into (type, default, description)."""
+) -> tuple[str, Any, str | None, bool]:
+    """Parse shortform input metadata, including repeatability."""
     if isinstance(value, dict):
         type_str = str(value.get("type", "line"))
         default = value.get("default", UNSET)
         description_value = value.get("description")
         description = None if description_value is None else str(description_value)
-        return type_str, default, description
+        repeatable = value.get("repeatable", False) is True
+        return type_str, default, description, repeatable
 
     type_str, default = _parse_shortform_input_value(value)
-    return type_str, default, None
+    return type_str, default, None, False
 
 
 def parse_shortform_inputs(
@@ -145,15 +146,21 @@ def parse_shortform_inputs(
     """
     inputs: list[InputArg] = []
     for name, value in input_dict.items():
-        type_str, default, description = _parse_shortform_input_metadata(value)
+        type_str, default, description, repeatable = _parse_shortform_input_metadata(
+            value
+        )
         inputs.append(
             InputArg(
                 name=name,
                 type=parse_input_type(type_str),
                 default=default,
                 description=description,
+                repeatable=repeatable,
             )
         )
+    from .input_binding import validate_repeatable_input_order
+
+    validate_repeatable_input_order(inputs)
     return inputs
 
 
@@ -292,6 +299,7 @@ def parse_inputs_from_front_matter(
         default = item.get("default", UNSET)
         description_value = item.get("description")
         description = None if description_value is None else str(description_value)
+        repeatable = item.get("repeatable", False) is True
 
         inputs.append(
             InputArg(
@@ -299,9 +307,13 @@ def parse_inputs_from_front_matter(
                 type=parse_input_type(type_str),
                 default=default,
                 description=description,
+                repeatable=repeatable,
             )
         )
 
+    from .input_binding import validate_repeatable_input_order
+
+    validate_repeatable_input_order(inputs)
     return inputs
 
 

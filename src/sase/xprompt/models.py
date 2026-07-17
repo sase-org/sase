@@ -76,6 +76,8 @@ class InputArg:
         is_step_input: True for implicit step inputs (generated from step outputs).
         output_schema: For step inputs, the output schema to validate against.
         description: Optional human-readable description of the input.
+        repeatable: Whether this final positional input consumes all remaining
+            positional values as an ordered list.
     """
 
     name: str
@@ -84,6 +86,7 @@ class InputArg:
     is_step_input: bool = False
     output_schema: OutputSpec | None = None
     description: str | None = None
+    repeatable: bool = False
 
     def validate_and_convert(self, value: str) -> Any:
         """Validate and convert a string value to the declared type.
@@ -98,6 +101,10 @@ class InputArg:
             XPromptValidationError: If value cannot be converted to declared type.
         """
         if self.type in {InputType.WORD, InputType.AGENT}:
+            if not value:
+                raise XPromptValidationError(
+                    f"Argument '{self.name}' expects a non-empty word"
+                )
             if any(c.isspace() for c in value):
                 raise XPromptValidationError(
                     f"Argument '{self.name}' expects word (no spaces), got '{value}'"

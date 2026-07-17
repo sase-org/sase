@@ -21,7 +21,7 @@ _DISABLED_REGION_START_RE = re.compile(r"[ \t]*%xprompts_enabled:false")
 _WORKFLOW_REF_PATTERN = (
     r"(?:^|(?<=\s)|(?<=[(\[{\"']))"
     r"#!?([a-zA-Z_][a-zA-Z0-9_]*(?:/[a-zA-Z_][a-zA-Z0-9_]*)*)"
-    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/-]*[a-zA-Z0-9_~+/-])|(\+))?"  # Supports backtick-delimited colon args
+    r"(?:(\()|:(`[^`]*`|\$\([^)]*\)|[a-zA-Z0-9_.~,+/@-]*[a-zA-Z0-9_~,+/@-])|(\+))?"  # Supports backtick-delimited colon args
 )
 
 
@@ -105,7 +105,7 @@ class PendingEmbeddedWorkflow:
     match_start: int
     match_end: int
     args: dict[str, Any]
-    explicit_args: dict[str, str]
+    explicit_args: dict[str, Any]
     embedded_context: dict[str, Any] = field(default_factory=dict)
     rendered_prompt_part: str = ""
 
