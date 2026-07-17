@@ -12,6 +12,10 @@ from pathlib import Path
 import pytest
 
 from sase.ace.tui.util.stall_watchdog import (
+    ENV_HITCH_DISABLE,
+    ENV_HITCH_THRESHOLD_SECONDS,
+    ENV_PUMP_HITCH_DISABLE,
+    ENV_PUMP_HITCH_THRESHOLD_SECONDS,
     MAX_WORKER_THREAD_STACK_DEPTH,
     MAX_WORKER_THREAD_STACKS,
     _EventLoopStallWatchdog,
@@ -122,6 +126,102 @@ async def test_watchdog_writes_loop_recovery_record(
 
 
 @pytest.mark.asyncio
+async def test_watchdog_reads_hitch_thresholds_and_disables_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(ENV_HITCH_THRESHOLD_SECONDS, "1.25")
+    monkeypatch.setenv(ENV_PUMP_HITCH_THRESHOLD_SECONDS, "1.75")
+    watchdog = _EventLoopStallWatchdog(asyncio.get_running_loop())
+
+    assert watchdog._hitch_threshold_seconds == 1.25
+    assert watchdog._pump_hitch_threshold_seconds == 1.75
+    assert watchdog._hitch_enabled is True
+    assert watchdog._pump_hitch_enabled is True
+
+    monkeypatch.setenv(ENV_HITCH_DISABLE, "yes")
+    monkeypatch.setenv(ENV_PUMP_HITCH_DISABLE, "1")
+    disabled_watchdog = _EventLoopStallWatchdog(asyncio.get_running_loop())
+
+    assert disabled_watchdog._hitch_enabled is False
+    assert disabled_watchdog._pump_hitch_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_watchdog_records_compact_loop_hitch_and_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        threshold_seconds=1.0,
+        hitch_threshold_seconds=0.05,
+        poll_interval_seconds=0.01,
+        context_provider=lambda: {
+            "current_tab": "agents",
+            "current_idx": 7,
+            "last_action": "down",
+            "last_keypress_age_s": 0.8,
+        },
+    )
+    try:
+        watchdog.start()
+        await asyncio.sleep(0.03)
+        time.sleep(0.14)
+        await _wait_for_event(path, "tui_hitch_recovered")
+    finally:
+        watchdog.stop()
+
+    records = _read_records(path)
+    assert [record["event"] for record in records] == [
+        "tui_hitch",
+        "tui_hitch_recovered",
+    ]
+    hitch, recovery = records
+    assert hitch["stall_seconds"] >= 0.05
+    assert hitch["suppressed_count"] == 0
+    assert hitch["current_tab"] == "agents"
+    assert hitch["current_idx"] == 7
+    assert hitch["last_action"] == "down"
+    assert hitch["last_keypress_age_s"] == 0.8
+    assert hitch["main_thread_stack"]
+    assert "asyncio_task_stacks" not in hitch
+    assert "worker_thread_stacks" not in hitch
+    assert recovery["duration_seconds"] >= 0.05
+    assert recovery["main_thread_stack"]
+
+
+@pytest.mark.asyncio
+async def test_watchdog_keeps_hitch_and_stall_state_machines_independent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        threshold_seconds=0.08,
+        hitch_threshold_seconds=0.03,
+        poll_interval_seconds=0.01,
+    )
+    try:
+        watchdog.start()
+        await asyncio.sleep(0.03)
+        time.sleep(0.14)
+        await _wait_for_event(path, "tui_stall_recovered")
+    finally:
+        watchdog.stop()
+
+    events = [record["event"] for record in _read_records(path)]
+    assert events.count("tui_hitch") == 1
+    assert events.count("tui_stall") == 1
+    assert events.count("tui_hitch_recovered") == 1
+    assert events.count("tui_stall_recovered") == 1
+    assert events.index("tui_hitch") < events.index("tui_stall")
+
+
+@pytest.mark.asyncio
 async def test_watchdog_records_pump_stall_stack_and_recovery(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -179,6 +279,75 @@ async def test_watchdog_records_pump_stall_stack_and_recovery(
         for line in awaited["stack"]
     )
     assert recovery["duration_seconds"] >= 0.05
+
+
+@pytest.mark.asyncio
+async def test_watchdog_records_compact_pump_hitch_and_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    pump = _FakePumpApp()
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        pump_app=pump,
+        threshold_seconds=1.0,
+        hitch_threshold_seconds=1.0,
+        poll_interval_seconds=0.01,
+        pump_threshold_seconds=1.0,
+        pump_hitch_threshold_seconds=0.05,
+        pump_poll_interval_seconds=0.01,
+    )
+    try:
+        watchdog.start()
+        await _wait_for_event(path, "tui_pump_hitch")
+        assert len(pump.callbacks) == 1
+        pump.deliver()
+        await _wait_for_event(path, "tui_pump_hitch_recovered")
+    finally:
+        watchdog.stop()
+
+    records = _read_records(path)
+    hitch = next(r for r in records if r["event"] == "tui_pump_hitch")
+    recovery = next(r for r in records if r["event"] == "tui_pump_hitch_recovered")
+    assert hitch["stall_seconds"] >= 0.05
+    assert hitch["main_thread_stack"]
+    assert "asyncio_task_stacks" not in hitch
+    assert "worker_thread_stacks" not in hitch
+    assert recovery["duration_seconds"] >= 0.05
+
+
+@pytest.mark.asyncio
+async def test_watchdog_rate_limits_hitch_episodes_and_reports_suppression(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setattr(tui_telemetry, "TUI_STALLS_JSONL", str(path))
+    watchdog = _EventLoopStallWatchdog(
+        asyncio.get_running_loop(),
+        hitch_rate_limit_per_minute=2,
+        hitch_rate_limit_window_seconds=60.0,
+    )
+
+    watchdog._record_hitch(100.0, 2.0)
+    watchdog._record_hitch_recovery(101.0)
+    watchdog._record_hitch(110.0, 2.0)
+    watchdog._record_hitch_recovery(111.0)
+    watchdog._record_hitch(120.0, 2.0)
+    watchdog._record_hitch_recovery(121.0)
+    watchdog._record_hitch(161.0, 2.0)
+    watchdog._record_hitch_recovery(162.0)
+
+    records = _read_records(path)
+    hitches = [record for record in records if record["event"] == "tui_hitch"]
+    recoveries = [
+        record for record in records if record["event"] == "tui_hitch_recovered"
+    ]
+    assert len(hitches) == 3
+    assert len(recoveries) == 3
+    assert [record["suppressed_count"] for record in hitches] == [0, 0, 1]
 
 
 @pytest.mark.asyncio

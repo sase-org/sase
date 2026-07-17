@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 import traceback
+from collections import deque
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -24,9 +25,16 @@ ENV_PUMP_DISABLE = "SASE_TUI_PUMP_STALL_DISABLE"
 ENV_PUMP_THRESHOLD = "SASE_TUI_PUMP_STALL_THRESHOLD"
 ENV_PUMP_THRESHOLD_SECONDS = "SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS"
 ENV_PUMP_POLL_INTERVAL = "SASE_TUI_PUMP_STALL_POLL_INTERVAL"
+ENV_HITCH_DISABLE = "SASE_TUI_HITCH_DISABLE"
+ENV_HITCH_THRESHOLD_SECONDS = "SASE_TUI_HITCH_THRESHOLD_SECONDS"
+ENV_PUMP_HITCH_DISABLE = "SASE_TUI_PUMP_HITCH_DISABLE"
+ENV_PUMP_HITCH_THRESHOLD_SECONDS = "SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS"
 
 DEFAULT_THRESHOLD_SECONDS = 5.0
+DEFAULT_HITCH_THRESHOLD_SECONDS = 1.5
 DEFAULT_POLL_INTERVAL_SECONDS = 0.5
+DEFAULT_HITCH_RATE_LIMIT_PER_MINUTE = 4
+HITCH_RATE_LIMIT_WINDOW_SECONDS = 60.0
 MAX_WORKER_THREAD_STACKS = 16
 MAX_WORKER_THREAD_STACK_DEPTH = 64
 _TRUTHY = {"1", "true", "yes", "on"}
@@ -112,16 +120,29 @@ class _EventLoopStallWatchdog:
         pump_app: Any | None = None,
         context_provider: ContextProvider | None = None,
         threshold_seconds: float | None = None,
+        hitch_threshold_seconds: float | None = None,
         poll_interval_seconds: float | None = None,
         pump_threshold_seconds: float | None = None,
+        pump_hitch_threshold_seconds: float | None = None,
         pump_poll_interval_seconds: float | None = None,
+        hitch_rate_limit_per_minute: int = DEFAULT_HITCH_RATE_LIMIT_PER_MINUTE,
+        hitch_rate_limit_window_seconds: float = HITCH_RATE_LIMIT_WINDOW_SECONDS,
         loop_thread_ident: int | None = None,
     ) -> None:
         self._loop = loop
+        self._hitch_enabled = (
+            os.environ.get(ENV_HITCH_DISABLE, "").lower() not in _TRUTHY
+        )
+        self._pump_stall_enabled = (
+            os.environ.get(ENV_PUMP_DISABLE, "").lower() not in _TRUTHY
+        )
+        self._pump_hitch_enabled = (
+            os.environ.get(ENV_PUMP_HITCH_DISABLE, "").lower() not in _TRUTHY
+        )
         self._pump_app = (
             pump_app
             if pump_app is not None
-            and os.environ.get(ENV_PUMP_DISABLE, "").lower() not in _TRUTHY
+            and (self._pump_stall_enabled or self._pump_hitch_enabled)
             else None
         )
         self._context_provider = context_provider
@@ -131,6 +152,14 @@ class _EventLoopStallWatchdog:
             else _float_env(
                 ENV_THRESHOLD_SECONDS,
                 _float_env(ENV_THRESHOLD, DEFAULT_THRESHOLD_SECONDS),
+            )
+        )
+        self._hitch_threshold_seconds = (
+            hitch_threshold_seconds
+            if hitch_threshold_seconds is not None
+            else _float_env(
+                ENV_HITCH_THRESHOLD_SECONDS,
+                DEFAULT_HITCH_THRESHOLD_SECONDS,
             )
         )
         self._poll_interval_seconds = (
@@ -146,6 +175,14 @@ class _EventLoopStallWatchdog:
                 _float_env(ENV_PUMP_THRESHOLD, DEFAULT_THRESHOLD_SECONDS),
             )
         )
+        self._pump_hitch_threshold_seconds = (
+            pump_hitch_threshold_seconds
+            if pump_hitch_threshold_seconds is not None
+            else _float_env(
+                ENV_PUMP_HITCH_THRESHOLD_SECONDS,
+                DEFAULT_HITCH_THRESHOLD_SECONDS,
+            )
+        )
         self._pump_poll_interval_seconds = (
             pump_poll_interval_seconds
             if pump_poll_interval_seconds is not None
@@ -159,13 +196,27 @@ class _EventLoopStallWatchdog:
         self._lock = threading.Lock()
         self._last_progress_mono = time.monotonic()
         self._ping_pending = False
+        self._in_hitch = False
+        self._hitch_started_mono: float | None = None
+        self._hitch_was_recorded = False
         self._in_stall = False
         self._stall_started_mono: float | None = None
         self._pump_ping_pending = False
         self._pump_ping_started_mono: float | None = None
         self._last_pump_ping_mono = 0.0
+        self._pump_in_hitch = False
+        self._pump_hitch_started_mono: float | None = None
+        self._pump_hitch_was_recorded = False
         self._pump_in_stall = False
         self._pump_stall_started_mono: float | None = None
+        self._hitch_rate_limiter = _HitchRateLimiter(
+            max_records=hitch_rate_limit_per_minute,
+            window_seconds=hitch_rate_limit_window_seconds,
+        )
+        self._pump_hitch_rate_limiter = _HitchRateLimiter(
+            max_records=hitch_rate_limit_per_minute,
+            window_seconds=hitch_rate_limit_window_seconds,
+        )
         self._pause_depth = 0
         self._thread: threading.Thread | None = None
 
@@ -217,6 +268,9 @@ class _EventLoopStallWatchdog:
                 return
             self._last_progress_mono = time.monotonic()
             self._ping_pending = False
+            self._in_hitch = False
+            self._hitch_started_mono = None
+            self._hitch_was_recorded = False
             self._in_stall = False
             self._stall_started_mono = None
             self._reset_pump_state_locked()
@@ -236,6 +290,7 @@ class _EventLoopStallWatchdog:
             self._schedule_pump_ping(now_mono)
             with self._lock:
                 gap = now_mono - self._last_progress_mono
+                in_hitch = self._in_hitch
                 in_stall = self._in_stall
                 pump_started = self._pump_ping_started_mono
                 pump_gap = (
@@ -243,15 +298,27 @@ class _EventLoopStallWatchdog:
                     if self._pump_ping_pending and pump_started is not None
                     else 0.0
                 )
+                pump_in_hitch = self._pump_in_hitch
                 pump_in_stall = self._pump_in_stall
+            if self._hitch_enabled:
+                if gap >= self._hitch_threshold_seconds and not in_hitch:
+                    self._record_hitch(now_mono, gap)
+                elif gap < self._hitch_threshold_seconds and in_hitch:
+                    self._record_hitch_recovery(now_mono)
             if gap >= self._threshold_seconds and not in_stall:
                 self._record_stall(now_mono, gap)
             elif gap < self._threshold_seconds and in_stall:
                 self._record_recovery(now_mono)
-            if pump_gap >= self._pump_threshold_seconds and not pump_in_stall:
-                self._record_pump_stall(now_mono, pump_gap)
-            elif pump_gap < self._pump_threshold_seconds and pump_in_stall:
-                self._record_pump_recovery(now_mono)
+            if self._pump_hitch_enabled:
+                if pump_gap >= self._pump_hitch_threshold_seconds and not pump_in_hitch:
+                    self._record_pump_hitch(now_mono, pump_gap)
+                elif pump_gap < self._pump_hitch_threshold_seconds and pump_in_hitch:
+                    self._record_pump_hitch_recovery(now_mono)
+            if self._pump_stall_enabled:
+                if pump_gap >= self._pump_threshold_seconds and not pump_in_stall:
+                    self._record_pump_stall(now_mono, pump_gap)
+                elif pump_gap < self._pump_threshold_seconds and pump_in_stall:
+                    self._record_pump_recovery(now_mono)
 
     def _schedule_ping(self) -> None:
         with self._lock:
@@ -306,6 +373,78 @@ class _EventLoopStallWatchdog:
         with self._lock:
             self._pump_ping_pending = False
             self._pump_ping_started_mono = None
+
+    def _record_hitch(self, now_mono: float, stall_seconds: float) -> None:
+        with self._lock:
+            if self._in_hitch:
+                return
+            self._in_hitch = True
+            self._hitch_started_mono = now_mono - stall_seconds
+            suppressed_count = self._hitch_rate_limiter.admit(now_mono)
+            self._hitch_was_recorded = suppressed_count is not None
+        if suppressed_count is None:
+            return
+        record = self._hitch_record(
+            "tui_hitch",
+            stall_seconds,
+            threshold_seconds=self._hitch_threshold_seconds,
+            suppressed_count=suppressed_count,
+        )
+        log_tui_stall(record)
+        log.info(
+            "TUI event loop hitch detected: %.3fs pid=%s",
+            stall_seconds,
+            record["pid"],
+        )
+
+    def _record_hitch_recovery(self, now_mono: float) -> None:
+        with self._lock:
+            started = self._hitch_started_mono
+            was_recorded = self._hitch_was_recorded
+            self._in_hitch = False
+            self._hitch_started_mono = None
+            self._hitch_was_recorded = False
+        if started is None or not was_recorded:
+            return
+        duration = now_mono - started
+        log_tui_stall(self._hitch_recovery_record("tui_hitch_recovered", duration))
+        log.info("TUI event loop recovered from hitch after %.3fs", duration)
+
+    def _record_pump_hitch(self, now_mono: float, stall_seconds: float) -> None:
+        with self._lock:
+            if self._pump_in_hitch:
+                return
+            self._pump_in_hitch = True
+            self._pump_hitch_started_mono = now_mono - stall_seconds
+            suppressed_count = self._pump_hitch_rate_limiter.admit(now_mono)
+            self._pump_hitch_was_recorded = suppressed_count is not None
+        if suppressed_count is None:
+            return
+        record = self._hitch_record(
+            "tui_pump_hitch",
+            stall_seconds,
+            threshold_seconds=self._pump_hitch_threshold_seconds,
+            suppressed_count=suppressed_count,
+        )
+        log_tui_stall(record)
+        log.info(
+            "TUI message pump hitch detected: %.3fs pid=%s",
+            stall_seconds,
+            record["pid"],
+        )
+
+    def _record_pump_hitch_recovery(self, now_mono: float) -> None:
+        with self._lock:
+            started = self._pump_hitch_started_mono
+            was_recorded = self._pump_hitch_was_recorded
+            self._pump_in_hitch = False
+            self._pump_hitch_started_mono = None
+            self._pump_hitch_was_recorded = False
+        if started is None or not was_recorded:
+            return
+        duration = now_mono - started
+        log_tui_stall(self._hitch_recovery_record("tui_pump_hitch_recovered", duration))
+        log.info("TUI message pump recovered from hitch after %.3fs", duration)
 
     def _record_stall(self, now_mono: float, stall_seconds: float) -> None:
         with self._lock:
@@ -395,6 +534,45 @@ class _EventLoopStallWatchdog:
                 record[key] = value
         return record
 
+    def _hitch_record(
+        self,
+        event: str,
+        stall_seconds: float,
+        *,
+        threshold_seconds: float,
+        suppressed_count: int,
+    ) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "ts": time.time(),
+            "event": event,
+            "pid": os.getpid(),
+            "stall_seconds": round(stall_seconds, 3),
+            "threshold_seconds": threshold_seconds,
+            "main_thread_stack": _format_thread_stack(self._loop_thread_ident),
+            "suppressed_count": suppressed_count,
+        }
+        for key, value in self._context().items():
+            if value is not None:
+                record[key] = value
+        return record
+
+    def _hitch_recovery_record(
+        self,
+        event: str,
+        duration_seconds: float,
+    ) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "ts": time.time(),
+            "event": event,
+            "pid": os.getpid(),
+            "duration_seconds": round(duration_seconds, 3),
+            "main_thread_stack": _format_thread_stack(self._loop_thread_ident),
+        }
+        for key, value in self._context().items():
+            if value is not None:
+                record[key] = value
+        return record
+
     def _pump_stall_record(
         self,
         stall_seconds: float,
@@ -459,6 +637,9 @@ class _EventLoopStallWatchdog:
         self._pump_ping_pending = False
         self._pump_ping_started_mono = None
         self._last_pump_ping_mono = time.monotonic()
+        self._pump_in_hitch = False
+        self._pump_hitch_started_mono = None
+        self._pump_hitch_was_recorded = False
         self._pump_in_stall = False
         self._pump_stall_started_mono = None
 
@@ -477,6 +658,28 @@ class _EventLoopStallWatchdog:
         except Exception:
             log.debug("Failed to snapshot TUI stall context", exc_info=True)
         return context
+
+
+class _HitchRateLimiter:
+    """Bound compact hitch episodes while reporting accumulated suppression."""
+
+    def __init__(self, *, max_records: int, window_seconds: float) -> None:
+        self._max_records = max(1, max_records)
+        self._window_seconds = max(0.001, window_seconds)
+        self._recorded_at: deque[float] = deque()
+        self._suppressed_count = 0
+
+    def admit(self, now_mono: float) -> int | None:
+        cutoff = now_mono - self._window_seconds
+        while self._recorded_at and self._recorded_at[0] <= cutoff:
+            self._recorded_at.popleft()
+        if len(self._recorded_at) >= self._max_records:
+            self._suppressed_count += 1
+            return None
+        self._recorded_at.append(now_mono)
+        suppressed_count = self._suppressed_count
+        self._suppressed_count = 0
+        return suppressed_count
 
 
 def _format_thread_stack(thread_ident: int) -> list[str]:
