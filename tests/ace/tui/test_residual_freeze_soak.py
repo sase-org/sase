@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 
 import pytest
 from textual.widgets import Input
@@ -21,6 +25,48 @@ from tests._agent_revive_helpers import make_agent
 
 _HITCH_THRESHOLD_SECONDS = 0.25
 _BACKGROUND_HOLD_SECONDS = 0.35
+_INPUT_DEADLINE_SECONDS = 1.0
+_FREEZE_EVENTS = frozenset(
+    {
+        "tui_hitch",
+        "tui_pump_hitch",
+        "tui_stall",
+        "tui_pump_stall",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _WatchdogWindow:
+    label: str
+    started_ts: float
+    ended_ts: float
+
+
+class _WatchdogWindows:
+    """Record exact wall-clock windows for deliberately blocked worker bodies."""
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._windows: list[_WatchdogWindow] = []
+
+    @contextmanager
+    def record(self, label: str) -> Iterator[None]:
+        started_ts = time.time()
+        try:
+            yield
+        finally:
+            window = _WatchdogWindow(
+                label=label,
+                started_ts=started_ts,
+                ended_ts=time.time(),
+            )
+            with self._lock:
+                self._windows.append(window)
+
+    def snapshot(self) -> tuple[_WatchdogWindow, ...]:
+        with self._lock:
+            return tuple(self._windows)
 
 
 def _configure_lowered_watchdog(
@@ -49,6 +95,13 @@ async def _hold_past_hitch_threshold() -> None:
     await asyncio.sleep(_BACKGROUND_HOLD_SECONDS)
 
 
+async def _press_within_deadline(page: AcePage, key: str) -> None:
+    await asyncio.wait_for(
+        page.press(key),
+        timeout=_INPUT_DEADLINE_SECONDS,
+    )
+
+
 def _read_events(path: Path) -> list[dict[str, object]]:
     if not path.exists():
         return []
@@ -57,6 +110,26 @@ def _read_events(path: Path) -> list[dict[str, object]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def _assert_no_fixed_path_freezes(
+    records: list[dict[str, object]],
+    windows: tuple[_WatchdogWindow, ...],
+) -> None:
+    observed: list[tuple[str, dict[str, object]]] = []
+    for record in records:
+        if record.get("event") not in _FREEZE_EVENTS:
+            continue
+        event_ts = record.get("ts")
+        if not isinstance(event_ts, (int, float)):
+            continue
+        for window in windows:
+            if window.started_ts <= event_ts <= window.ended_ts:
+                observed.append((window.label, record))
+                break
+    assert observed == [], (
+        f"watchdog events during controlled slow-work windows: {observed!r}"
+    )
 
 
 def test_real_app_watchdog_context_includes_last_action() -> None:
@@ -68,6 +141,24 @@ def test_real_app_watchdog_context_includes_last_action() -> None:
     assert context["last_action"] == "next_tab"
 
 
+def test_watchdog_windows_ignore_unrelated_session_hitches() -> None:
+    windows = (_WatchdogWindow("startup", 10.0, 11.0),)
+    records = [
+        {"event": "tui_hitch", "ts": 9.9},
+        {"event": "tui_pump_hitch", "ts": 11.1},
+    ]
+
+    _assert_no_fixed_path_freezes(records, windows)
+
+
+def test_watchdog_windows_reject_fixed_path_hitches() -> None:
+    windows = (_WatchdogWindow("history", 10.0, 11.0),)
+    records = [{"event": "tui_pump_hitch", "ts": 10.5}]
+
+    with pytest.raises(AssertionError, match="history"):
+        _assert_no_fixed_path_freezes(records, windows)
+
+
 @pytest.mark.asyncio
 async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
     tmp_path: Path,
@@ -76,13 +167,15 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
     """Slow workers may cross the hitch threshold without stalling either pump."""
     stall_log = tmp_path / "tui_stalls.jsonl"
     _configure_lowered_watchdog(monkeypatch, stall_log)
+    watchdog_windows = _WatchdogWindows()
 
     startup_started = Event()
     startup_release = Event()
 
     def slow_startup_read(_self: AceApp) -> tuple[set[str], int, int, int]:
-        startup_started.set()
-        startup_release.wait(timeout=5.0)
+        with watchdog_windows.record("startup"):
+            startup_started.set()
+            startup_release.wait(timeout=5.0)
         return set(), 0, 0, 0
 
     monkeypatch.setattr(
@@ -94,7 +187,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
     async with AcePage(wait_for_startup_state=False) as page:
         try:
             await _wait_for_thread_event(startup_started)
-            await page.press("tab")
+            await _press_within_deadline(page, "tab")
             await page.expect_state("tab", "axe", timeout=1.0)
             await _hold_past_hitch_threshold()
         finally:
@@ -108,8 +201,9 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         history_release = Event()
 
         def slow_history_page(**_kwargs: object) -> PromptHistoryPage:
-            history_started.set()
-            history_release.wait(timeout=5.0)
+            with watchdog_windows.record("prompt_history"):
+                history_started.set()
+                history_release.wait(timeout=5.0)
             return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
 
         monkeypatch.setattr(
@@ -124,7 +218,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             history_filter = history_modal.query_one(
                 "#prompt-history-filter-input", Input
             )
-            await page.press("h")
+            await _press_within_deadline(page, "h")
             assert history_filter.value == "h"
             await _hold_past_hitch_threshold()
         finally:
@@ -145,8 +239,9 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         )
 
         def slow_archive_page() -> tuple[list[object], list[object], bool]:
-            archive_started.set()
-            archive_release.wait(timeout=5.0)
+            with watchdog_windows.record("revive_archive"):
+                archive_started.set()
+                archive_release.wait(timeout=5.0)
             return [dismissed_agent], [dismissed_agent], True
 
         archive_modal = DismissedAgentSelectModal(
@@ -158,7 +253,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         try:
             await _wait_for_thread_event(archive_started)
             archive_filter = archive_modal.query_one("#dismissed-filter", Input)
-            await page.press("v")
+            await _press_within_deadline(page, "v")
             assert archive_filter.value == "v"
             await _hold_past_hitch_threshold()
         finally:
@@ -177,8 +272,9 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         def slow_loader_cleanup(
             *_args: object,
         ) -> tuple[set[object], set[str]]:
-            cleanup_started.set()
-            cleanup_release.wait(timeout=5.0)
+            with watchdog_windows.record("loader_cleanup"):
+                cleanup_started.set()
+                cleanup_release.wait(timeout=5.0)
             return set(), set()
 
         monkeypatch.setattr(
@@ -195,7 +291,7 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
         try:
             await _wait_for_thread_event(cleanup_started)
             previous_tab = page.app.current_tab
-            await page.press("tab")
+            await _press_within_deadline(page, "tab")
             assert page.app.current_tab != previous_tab
             await _hold_past_hitch_threshold()
         finally:
@@ -209,12 +305,5 @@ async def test_lowered_threshold_soak_keeps_fixed_paths_responsive(
             await page.pause()
         assert not page.app._loader_cleanup_running
 
-    freeze_events = {
-        "tui_hitch",
-        "tui_pump_hitch",
-        "tui_stall",
-        "tui_pump_stall",
-    }
     records = _read_events(stall_log)
-    observed = [record for record in records if record.get("event") in freeze_events]
-    assert observed == []
+    _assert_no_fixed_path_freezes(records, watchdog_windows.snapshot())
