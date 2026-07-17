@@ -210,6 +210,7 @@ def _resolve_auto_gate(
         paths.root,
         choice.id,
         adapter.automatic_input(spec),
+        selected_extra_ids=adapter.automatic_extra_ids(choice),
         source="auto_resolution",
     )
     result = _creation_result(
@@ -335,6 +336,9 @@ def _build_notification(
         id=notification_id,
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
+        icon=(
+            str(presentation["icon"]) if presentation.get("icon") is not None else None
+        ),
         notes=notes,
         files=files,
         tags=normalize_notification_tags(tags),

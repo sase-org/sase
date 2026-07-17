@@ -294,7 +294,11 @@ def translate_plan_gate_response(
             str(bundle_path / "response.json"),
             "plan gate response has no result object",
         )
-    return dict(result)
+    translated = dict(result)
+    feedback = response.get("feedback")
+    if isinstance(feedback, str) and feedback:
+        translated["feedback"] = feedback
+    return translated
 
 
 def execute_plan_gate_auto_choice(
@@ -324,6 +328,7 @@ def execute_plan_gate_auto_choice(
         bundle_path,
         choice.id,
         input_data,
+        selected_extra_ids=adapter.automatic_extra_ids(choice),
         source=source,
     ).response
 
@@ -417,6 +422,7 @@ def _plan_gate_choice(choice: str) -> dict[str, Any]:
         "command": {"argv": [f"commands/{choice}"]},
         "input_schema": input_schema,
         "result_schema": _plan_result_schema(choice),
+        "feedback": "required" if choice == "feedback" else "disabled",
     }
 
 

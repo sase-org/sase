@@ -151,6 +151,7 @@ def _execute_neutral_launch_approval_response(
             bundle_path,
             choice_id,
             input_data,
+            feedback=feedback,
             source="launch_response",
         )
     except GateError as exc:

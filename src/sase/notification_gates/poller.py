@@ -27,6 +27,9 @@ class GatePollResult:
 
     status: GatePollStatus
     payload: dict[str, Any]
+    choice_id: str | None = None
+    selected_extra_ids: tuple[str, ...] = ()
+    feedback: str | None = None
 
 
 def poll_gate(bundle_path: Path) -> GatePollResult | None:
@@ -34,7 +37,23 @@ def poll_gate(bundle_path: Path) -> GatePollResult | None:
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
     if response_path.exists():
-        return GatePollResult("responded", read_json_object(response_path))
+        payload = read_json_object(response_path)
+        choice_id = payload.get("choice_id")
+        raw_extra_ids = payload.get("selected_extra_ids", [])
+        selected_extra_ids = (
+            tuple(raw_extra_ids)
+            if isinstance(raw_extra_ids, list)
+            and all(isinstance(extra_id, str) for extra_id in raw_extra_ids)
+            else ()
+        )
+        feedback = payload.get("feedback")
+        return GatePollResult(
+            "responded",
+            payload,
+            choice_id=choice_id if isinstance(choice_id, str) else None,
+            selected_extra_ids=selected_extra_ids,
+            feedback=feedback if isinstance(feedback, str) else None,
+        )
     cancellation_path = bundle_path / CANCELLATION_FILENAME
     if cancellation_path.exists():
         payload = read_json_object(cancellation_path)

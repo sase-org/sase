@@ -109,6 +109,7 @@ def test_question_gate_executes_complete_form_and_marks_handled(
     assert result.answers == _complete_response()
     assert result.response_json["choice_id"] == "submit"
     assert result.response_json["result"] == _complete_response()
+    assert result.response_json["feedback"] == "Prefer the durable path"
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
     assert envelope["payload"]["questions"] == _questions()
     assert envelope["choices"][0]["command"]["argv"] == ["commands/submit"]

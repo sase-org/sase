@@ -20,6 +20,7 @@ class MobileNotificationBridgeRow:
     timestamp: str
     sender: str
     priority: bool
+    icon: str | None = None
     notes: list[str] = field(default_factory=list)
     display_files: list[str] = field(default_factory=list)
     host_files: list[str] = field(default_factory=list)

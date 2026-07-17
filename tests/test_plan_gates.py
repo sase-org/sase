@@ -234,6 +234,7 @@ def test_shared_host_executor_handles_feedback_rejection_and_races(
         "action": "reject",
         "feedback": "Add rollback coverage",
     }
+    assert feedback_result.response_json["feedback"] == "Add rollback coverage"
 
     race_gate = create_plan_approval_gate(
         _write_plan(gate_home, "race.md", VALID_TALE_PLAN),

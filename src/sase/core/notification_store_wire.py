@@ -100,6 +100,7 @@ def _notification_from_dict(data: dict[str, Any]) -> Notification:
         id=str(data["id"]),
         timestamp=str(data["timestamp"]),
         sender=str(data["sender"]),
+        icon=None if data.get("icon") is None else str(data["icon"]),
         notes=list(data.get("notes") or []),
         files=list(data.get("files") or []),
         tags=[str(item) for item in data.get("tags") or []],

@@ -140,6 +140,8 @@ def _resolve_legacy_bundle(
     adapter: GateAdapter, action_data: dict[str, str]
 ) -> ResolvedGateBundle | None:
     """Resolve the adapter's in-flight legacy bundle from typed action data."""
+    if adapter.neutral_only:
+        return None
     value = action_data.get(adapter.legacy_directory_key)
     if not value or not value.strip():
         return None

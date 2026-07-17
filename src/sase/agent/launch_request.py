@@ -375,6 +375,13 @@ def _launch_outcome_from_response(
             str(request.response_path),
             "launch response is missing choice_id or result",
         )
+    translated_response = dict(response)
+    feedback = response.get("feedback")
+    if not isinstance(feedback, str) or not feedback:
+        legacy_feedback = result.get("feedback")
+        feedback = legacy_feedback if isinstance(legacy_feedback, str) else None
+    if feedback:
+        translated_response["feedback"] = feedback
     if choice_id == "approve":
         if result.get("dispatch_status") == "failed":
             status: LaunchRequestStatus = "dispatch_failed"
@@ -410,7 +417,7 @@ def _launch_outcome_from_response(
         notification_id=request.notification_id,
         choice_id=choice_id,
         message=message,
-        response=response,
+        response=translated_response,
     )
 
 
@@ -494,6 +501,7 @@ def _launch_gate_spec(
             "command": {"argv": ["commands/feedback"]},
             "input_schema": feedback_input_schema,
             "result_schema": feedback_result_schema,
+            "feedback": "required",
         },
     ]
     resources = [

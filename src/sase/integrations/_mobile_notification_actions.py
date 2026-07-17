@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,56 @@ from sase.plan_approval_actions import (
     PlanApprovalActionError,
     execute_plan_approval_response,
 )
+
+
+def execute_mobile_custom_gate_action(
+    prefix: str,
+    choice: str,
+    *,
+    extra_ids: Sequence[str] = (),
+    feedback: str | None = None,
+) -> MobilePlanActionResult:
+    """Resolve a mobile custom-gate submission through the shared executor."""
+    notification = _resolve_action_notification(prefix, "CustomGate")
+    from sase.notification_gates.executor import execute_gate_choice
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.paths import RESPONSE_FILENAME, resolve_action_bundle
+
+    bundle = resolve_action_bundle("CustomGate", notification.host_action_data)
+    if bundle is None or bundle.legacy or not bundle.request.is_file():
+        raise MobilePlanActionError(
+            "invalid_request", "bundle_path", "custom gate bundle is missing"
+        )
+    try:
+        execution = execute_gate_choice(
+            bundle.root,
+            choice,
+            {},
+            selected_extra_ids=extra_ids,
+            feedback=feedback,
+            source="mobile",
+        )
+    except GateError as exc:
+        code = (
+            "conflict_already_handled"
+            if exc.code in {"already_answered", "gate_cancelled"}
+            else exc.code
+        )
+        raise MobilePlanActionError(code, exc.target, str(exc)) from exc
+    if execution.already_completed:
+        raise MobilePlanActionError(
+            "conflict_already_handled",
+            notification.id,
+            "response already exists",
+        )
+    dismiss_notification_best_effort(notification.id)
+    return MobilePlanActionResult(
+        prefix=prefix,
+        notification_id=notification.id,
+        response_file=RESPONSE_FILENAME,
+        response_json=execution.response,
+        message=f"Custom gate resolved with {choice}",
+    )
 
 
 def execute_mobile_plan_action(

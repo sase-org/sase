@@ -8,7 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from sase.notification_gates.models import GateChoice, GateError, GateSpec
+from sase.notification_gates.models import (
+    GateChoice,
+    GateError,
+    GateSpec,
+    validate_icon,
+)
 
 
 @dataclass(frozen=True)
@@ -23,6 +28,7 @@ class GateAdapter:
     response_filename: str
     legacy_directory_key: str
     auto_policy: str
+    neutral_only: bool = False
 
     def resolve_auto_choice(
         self, choices: tuple[GateChoice, ...], argument: str | None
@@ -157,6 +163,10 @@ class GateAdapter:
             return {"epic_launch_mode": "detached"}
         return {}
 
+    def automatic_extra_ids(self, choice: GateChoice) -> tuple[str, ...]:
+        """Return the adapter-owned default extras for automatic resolution."""
+        return tuple(extra.id for extra in choice.extras if extra.default_selected)
+
 
 _ADAPTERS = (
     GateAdapter(
@@ -208,6 +218,17 @@ _ADAPTERS = (
         response_filename="hitl_response.json",
         legacy_directory_key="artifacts_dir",
         auto_policy="forbidden",
+    ),
+    GateAdapter(
+        kind="custom",
+        action="CustomGate",
+        pending_action_kind="custom_gate",
+        sender="custom",
+        request_filename="request.json",
+        response_filename="response.json",
+        legacy_directory_key="bundle_path",
+        auto_policy="forbidden",
+        neutral_only=True,
     ),
 )
 
@@ -289,6 +310,26 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
                 f"choices.{choice.id}.command",
                 f"command must reference an executable command resource: {command_path}",
             )
+        extra_ids = [extra.id for extra in choice.extras]
+        _reject_duplicates(
+            extra_ids,
+            f"choices.{choice.id}.extras",
+            "extra id",
+        )
+        for extra in choice.extras:
+            extra_path = extra.command.argv[0]
+            extra_resource = resources.get(extra_path)
+            if (
+                extra_resource is None
+                or extra_resource.role != "command"
+                or not extra_resource.executable
+            ):
+                raise GateError(
+                    "unowned_command",
+                    f"choices.{choice.id}.extras.{extra.id}.command",
+                    "extra command must reference an executable command resource: "
+                    f"{extra_path}",
+                )
     for operation in spec.operations:
         resource = resources.get(operation.target)
         if resource is None or resource.role != "editable":
@@ -313,6 +354,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "presentation.sender",
             "notification sender must be a non-empty string",
         )
+    validate_icon(presentation.get("icon"), "presentation.icon")
     _validate_string_or_list(presentation.get("notes", []), "presentation.notes")
     _validate_string_or_list(presentation.get("tags", []), "presentation.tags")
     files = _validate_string_or_list(

@@ -158,6 +158,9 @@ def _question_result(
     if not isinstance(result, dict):
         raise ValueError("question gate response is missing its result")
     translated = dict(result)
+    feedback = response.get("feedback")
+    if isinstance(feedback, str) and feedback:
+        translated["global_note"] = feedback
     translated["_question_request_path"] = request_path
     translated["_question_response_path"] = response_path
     translated["_question_session_id"] = session_id

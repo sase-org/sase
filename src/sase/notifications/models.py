@@ -12,6 +12,7 @@ class Notification:
     id: str  # UUID4
     timestamp: str  # ISO-8601
     sender: str  # "crs", "fix-hook", etc.
+    icon: str | None = None  # Optional single display glyph
     notes: list[str] = field(default_factory=list)  # Human-readable lines
     files: list[str] = field(default_factory=list)  # File paths
     tags: list[str] = field(default_factory=list)  # Display/filter labels

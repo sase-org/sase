@@ -75,6 +75,7 @@ def _bridge_row(notification: Notification) -> MobileNotificationBridgeRow:
         timestamp=notification.timestamp,
         sender=notification.sender,
         priority=is_priority(notification) or is_error(notification),
+        icon=notification.icon,
         notes=list(notification.notes),
         display_files=[normalize_home_path(path) for path in notification.files],
         host_files=[str(Path(path).expanduser()) for path in notification.files],

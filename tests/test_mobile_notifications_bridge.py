@@ -14,12 +14,14 @@ from sase.integrations.mobile_notifications import (
     MobileNotificationBridgeRow,
     MobilePlanActionError,
     build_mobile_attachment_manifests,
+    execute_mobile_custom_gate_action,
     execute_mobile_hitl_action,
     execute_mobile_plan_action,
     execute_mobile_question_action,
     read_mobile_notification_snapshot,
     resolve_mobile_notification_detail,
 )
+from sase.notification_gates.service import create_gate
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.user_question_actions import create_user_question_gate
@@ -42,6 +44,7 @@ def _notification(
     timestamp: str,
     *,
     action: str | None = None,
+    icon: str | None = None,
     read: bool = False,
     dismissed: bool = False,
     silent: bool = False,
@@ -52,6 +55,7 @@ def _notification(
         id=notification_id,
         timestamp=_fresh_fixture_timestamp(timestamp),
         sender="plan" if action == "PlanApproval" else "user-workflow",
+        icon=icon,
         notes=[f"note {notification_id}"],
         files=files or [],
         action=action,
@@ -84,6 +88,7 @@ def test_mobile_bridge_filters_orders_and_preserves_counts() -> None:
             "plan",
             "2026-05-06T16:00:00+00:00",
             action="PlanApproval",
+            icon="📋",
         ),
     ]
 
@@ -99,6 +104,7 @@ def test_mobile_bridge_filters_orders_and_preserves_counts() -> None:
     )
     assert [row.id for row in snapshot.rows] == ["plan"]
     assert snapshot.rows[0].priority is True
+    assert snapshot.rows[0].icon == "📋"
     assert snapshot.counts.priority == 1
     assert snapshot.expired_ids == ["expired-row"]
 
@@ -705,4 +711,80 @@ def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
     assert result.response_file == "response.json"
     assert result.response_json["choice_id"] == "submit"
     assert result.response_json["result"]["answers"][0]["selected"] == ["Fast"]
+    assert result.response_json["feedback"] is None
     assert gate.response_path.is_file()
+
+
+def test_execute_mobile_custom_gate_action_uses_shared_executor() -> None:
+    command = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "value = json.load(sys.stdin)\n"
+        "print(json.dumps({'value': value}))\n"
+    )
+    gate = create_gate(
+        {
+            "schema_version": 1,
+            "kind": "custom",
+            "request_id": "mobile-custom",
+            "presentation": {"icon": "📱", "notes": ["Confirm mobile action"]},
+            "choices": [
+                {
+                    "id": "approve",
+                    "label": "Approve",
+                    "feedback": "required",
+                    "command": {"argv": ["commands/approve"]},
+                    "extras": [
+                        {
+                            "id": "audit",
+                            "label": "Audit",
+                            "command": {"argv": ["commands/audit"]},
+                        }
+                    ],
+                }
+            ],
+            "resources": [
+                {
+                    "path": "commands/approve",
+                    "role": "command",
+                    "content": command,
+                },
+                {
+                    "path": "commands/audit",
+                    "role": "command",
+                    "content": command,
+                },
+            ],
+        }
+    )
+    notification = load_notifications()[0]
+
+    with (
+        patch(
+            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
+            return_value=_snapshot([notification]),
+        ),
+        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
+    ):
+        resolve.return_value = SimpleNamespace(
+            notification_id=notification.id,
+            prefix="mobile-c",
+            prefix_len=8,
+            resolution="unique_prefix",
+        )
+        result = execute_mobile_custom_gate_action(
+            "mobile-c",
+            "approve",
+            extra_ids=["audit"],
+            feedback="Approved from mobile",
+        )
+
+    assert result.response_file == "response.json"
+    assert result.response_json["choice_id"] == "approve"
+    assert result.response_json["selected_extra_ids"] == ["audit"]
+    assert result.response_json["feedback"] == "Approved from mobile"
+    assert result.response_json["extra_results"] == [
+        {"id": "audit", "status": "succeeded", "result": {"value": {}}}
+    ]
+    assert gate.response_path.is_file()
+    assert load_notifications(include_dismissed=True)[0].dismissed is True

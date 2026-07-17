@@ -99,6 +99,83 @@ def _gate_spec(
     return spec
 
 
+def _custom_gate_spec(
+    *,
+    request_id: str = "custom-request",
+    auto: object = False,
+    feedback: str | None = None,
+) -> dict[str, object]:
+    choice: dict[str, object] = {
+        "id": "proceed",
+        "label": "Proceed safely",
+        "icon": "✅",
+        "command": {"argv": ["commands/proceed"]},
+        "input_schema": {"type": "object"},
+        "result_schema": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {"status": {"const": "ok"}},
+        },
+        "extras": [
+            {
+                "id": "audit",
+                "label": "Write audit record",
+                "icon": "📝",
+                "default_selected": True,
+                "command": {"argv": ["commands/audit"]},
+            },
+            {
+                "id": "broken",
+                "label": "Try fallible follow-up",
+                "command": {"argv": ["commands/broken"]},
+            },
+        ],
+    }
+    if feedback is not None:
+        choice["feedback"] = feedback
+    return {
+        "schema_version": 1,
+        "request_id": request_id,
+        "kind": "custom",
+        "producer": {"agent": "test"},
+        "payload": {"open": {"shape": True}},
+        "presentation": {
+            "icon": "🛡️",
+            "sender": "safety-check",
+            "notes": ["Confirm guarded work"],
+        },
+        "choices": [choice],
+        "resources": [
+            {
+                "path": "commands/proceed",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "json.load(sys.stdin)\n"
+                    "print(json.dumps({'status': 'ok'}))\n"
+                ),
+            },
+            {
+                "path": "commands/audit",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, sys\n"
+                    "value = json.load(sys.stdin)\n"
+                    "print(json.dumps({'audit': value}))\n"
+                ),
+            },
+            {
+                "path": "commands/broken",
+                "role": "command",
+                "content": "#!/bin/sh\nprintf 'follow-up failed' >&2\nexit 7\n",
+            },
+        ],
+        "auto": auto,
+    }
+
+
 def test_create_gate_returns_stable_descriptor_and_is_idempotent(
     gate_home: Path,
 ) -> None:
@@ -119,6 +196,109 @@ def test_create_gate_returns_stable_descriptor_and_is_idempotent(
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
     assert entry["notification_id"] == result.notification_id
     assert entry["state"] == "available"
+
+
+def test_custom_gate_projects_icons_extras_and_privileged_pending_action(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_custom_gate_spec())
+
+    request = json.loads(result.request_path.read_text(encoding="utf-8"))
+    [choice] = request["choices"]
+    [notification] = load_notifications(include_dismissed=True)
+    entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
+
+    assert request["presentation"]["icon"] == "🛡️"
+    assert choice["feedback"] == "optional"
+    assert [extra["id"] for extra in choice["extras"]] == ["audit", "broken"]
+    assert notification.icon == "🛡️"
+    assert notification.action == "CustomGate"
+    assert entry["action_kind"] == "custom_gate"
+
+
+def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
+    gate_home: Path,
+) -> None:
+    with pytest.raises(GateError) as auto_error:
+        create_gate(_custom_gate_spec(request_id="custom-auto", auto=True))
+    assert auto_error.value.code == "auto_not_supported"
+
+    invalid_icon = _custom_gate_spec(request_id="invalid-icon")
+    presentation = invalid_icon["presentation"]
+    assert isinstance(presentation, dict)
+    presentation["icon"] = "✅🚀"
+    with pytest.raises(GateError) as icon_error:
+        create_gate(invalid_icon)
+    assert icon_error.value.code == "invalid_icon"
+
+    duplicate_extra = _custom_gate_spec(request_id="duplicate-extra")
+    choices = duplicate_extra["choices"]
+    assert isinstance(choices, list)
+    extras = choices[0]["extras"]
+    assert isinstance(extras, list)
+    extras[1]["id"] = "audit"
+    with pytest.raises(GateError) as duplicate_error:
+        create_gate(duplicate_extra)
+    assert duplicate_error.value.code == "duplicate_identifier"
+    assert not (gate_home / "requests" / "custom" / "custom-auto").exists()
+
+
+def test_custom_gate_runs_selected_extras_and_persists_feedback_and_failures(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_custom_gate_spec(feedback="required"))
+
+    with pytest.raises(GateError) as missing_feedback:
+        execute_gate_choice(result.bundle_path, "proceed")
+    assert missing_feedback.value.code == "feedback_required"
+    assert not result.response_path.exists()
+
+    execution = execute_gate_choice(
+        result.bundle_path,
+        "proceed",
+        {"reviewed": True},
+        selected_extra_ids=["broken", "audit"],
+        feedback="  Ship it carefully  ",
+    )
+
+    assert execution.response["selected_extra_ids"] == ["audit", "broken"]
+    assert execution.response["feedback"] == "Ship it carefully"
+    assert execution.response["extra_results"][0] == {
+        "id": "audit",
+        "status": "succeeded",
+        "result": {"audit": {"reviewed": True}},
+    }
+    failed = execution.response["extra_results"][1]
+    assert failed["id"] == "broken"
+    assert failed["status"] == "failed"
+    assert failed["error"]["code"] == "command_failed"
+    assert failed["error"]["returncode"] == 7
+    assert result.response_path.is_file()
+    [error_log] = list((result.bundle_path / "errors").glob("*.json"))
+    assert json.loads(error_log.read_text())["extra_id"] == "broken"
+
+    terminal = poll_gate(result.bundle_path)
+    assert terminal is not None
+    assert terminal.choice_id == "proceed"
+    assert terminal.selected_extra_ids == ("audit", "broken")
+    assert terminal.feedback == "Ship it carefully"
+
+
+def test_custom_gate_rejects_unknown_extras_and_disabled_feedback(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_custom_gate_spec(feedback="disabled"))
+    with pytest.raises(GateError) as unknown_extra:
+        execute_gate_choice(
+            result.bundle_path,
+            "proceed",
+            selected_extra_ids=["missing"],
+        )
+    assert unknown_extra.value.code == "unknown_extra"
+    with pytest.raises(GateError) as disabled_feedback:
+        execute_gate_choice(result.bundle_path, "proceed", feedback="not allowed")
+    assert disabled_feedback.value.code == "feedback_not_allowed"
+    assert not result.response_path.exists()
 
 
 def test_execute_choice_validates_input_and_writes_response_once(
@@ -320,6 +500,34 @@ def test_raw_notify_creation_preserves_silent(
         )
     assert excinfo.value.code == 0
     assert load_notifications(include_dismissed=True)[0].silent is True
+
+
+def test_raw_notify_cannot_spoof_custom_gate_and_custom_has_no_legacy_fallback(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "stdin",
+        io.StringIO(json.dumps({"sender": "raw", "action": "CustomGate"})),
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        handle_notify_command(
+            argparse.Namespace(
+                notify_subcommand="create",
+                gate=False,
+                sender=None,
+                tag=None,
+            )
+        )
+    assert excinfo.value.code == 1
+    assert "privileged" in capsys.readouterr().err
+
+    legacy = gate_home / "legacy-custom"
+    legacy.mkdir()
+    (legacy / "request.json").write_text("{}\n", encoding="utf-8")
+    assert resolve_action_bundle("CustomGate", {"bundle_path": str(legacy)}) is None
 
 
 def test_launch_adapter_rejects_unregistered_command_shape(gate_home: Path) -> None:

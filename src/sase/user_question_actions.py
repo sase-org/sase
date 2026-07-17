@@ -89,6 +89,7 @@ def create_user_question_gate(
                     "command": {"argv": [QUESTION_COMMAND_PATH]},
                     "input_schema": response_schema,
                     "result_schema": response_schema,
+                    "feedback": "optional",
                 }
             ],
             "resources": [
@@ -125,10 +126,16 @@ def execute_user_question_response(
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
         try:
+            shared_feedback = response_data.get("feedback")
+            if not isinstance(shared_feedback, str):
+                shared_feedback = normalized.get("global_note")
+            if not isinstance(shared_feedback, str) or not shared_feedback.strip():
+                shared_feedback = None
             execution = execute_gate_choice(
                 bundle.root,
                 QUESTION_CHOICE_ID,
                 normalized,
+                feedback=shared_feedback,
                 source=source,
             )
         except GateError as exc:

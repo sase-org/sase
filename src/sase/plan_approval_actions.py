@@ -282,6 +282,7 @@ def _execute_neutral_plan_approval_response(
             bundle_path,
             choice_id,
             input_data,
+            feedback=feedback,
             source="plan_response",
         )
     except GateError as exc:

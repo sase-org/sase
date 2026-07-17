@@ -477,6 +477,7 @@ def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
         "action": "reject",
         "feedback": "Use a smaller fanout",
     }
+    assert action.response_json["feedback"] == "Use a smaller fanout"
     assert outcome.status == "feedback"
     assert outcome.response == action.response_json
     with pytest.raises(LaunchApprovalActionError) as duplicate:

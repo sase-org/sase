@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.integrations._mobile_notification_actions import (
+    execute_mobile_custom_gate_action,
     execute_mobile_hitl_action,
     execute_mobile_launch_action,
     execute_mobile_plan_action,
@@ -32,6 +33,7 @@ __all__ = [
     "MobileNotificationBridgeRow",
     "MobileNotificationBridgeSnapshot",
     "build_mobile_attachment_manifests",
+    "execute_mobile_custom_gate_action",
     "execute_mobile_hitl_action",
     "execute_mobile_launch_action",
     "execute_mobile_plan_action",

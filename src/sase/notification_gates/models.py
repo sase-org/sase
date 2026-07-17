@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 GATE_REQUEST_SCHEMA_VERSION = 1
 GATE_RESPONSE_SCHEMA_VERSION = 1
 GATE_RESULT_SCHEMA_VERSION = 1
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_MAX_GATE_LABEL_LENGTH = 160
+_MAX_GATE_ICON_CODEPOINTS = 32
+_MAX_GATE_ICON_BYTES = 128
+
+GateFeedbackMode = Literal["disabled", "optional", "required"]
 
 
 class GateError(RuntimeError):
@@ -47,6 +53,100 @@ def validate_relative_path(value: object, target: str) -> str:
             "invalid_path", target, f"{target} must stay within the request bundle"
         )
     return path.as_posix()
+
+
+def validate_icon(value: object, target: str) -> str | None:
+    """Return one bounded display grapheme, or reject an invalid icon."""
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise GateError(
+            "invalid_icon", target, f"{target} must be a single emoji or glyph"
+        )
+    if (
+        len(value) > _MAX_GATE_ICON_CODEPOINTS
+        or len(value.encode("utf-8")) > _MAX_GATE_ICON_BYTES
+        or _grapheme_cluster_count(value) != 1
+    ):
+        raise GateError(
+            "invalid_icon", target, f"{target} must be a single emoji or glyph"
+        )
+    return value
+
+
+def _grapheme_cluster_count(value: str) -> int:
+    """Count the bounded glyph forms accepted for gate icons.
+
+    This deliberately covers combining marks, emoji modifiers, regional-indicator
+    pairs, keycaps, tag sequences, and zero-width-joiner emoji without adding a
+    Unicode-segmentation dependency to the gate service.
+    """
+    clusters = 0
+    join_next = False
+    regional_run = 0
+    for character in value:
+        codepoint = ord(character)
+        if _is_disallowed_icon_control(character):
+            return 2
+        if clusters == 0:
+            if codepoint == 0x200D or _is_grapheme_extend(character):
+                return 2
+            clusters = 1
+            regional_run = 1 if _is_regional_indicator(codepoint) else 0
+            continue
+        if join_next:
+            if codepoint == 0x200D:
+                return 2
+            join_next = False
+            regional_run = 0
+            continue
+        if codepoint == 0x200D:
+            join_next = True
+            regional_run = 0
+            continue
+        if _is_grapheme_extend(character):
+            continue
+        if _is_regional_indicator(codepoint) and regional_run % 2 == 1:
+            regional_run += 1
+            continue
+        clusters += 1
+        regional_run = 1 if _is_regional_indicator(codepoint) else 0
+    return clusters + int(join_next)
+
+
+def _is_grapheme_extend(character: str) -> bool:
+    codepoint = ord(character)
+    return (
+        unicodedata.combining(character) != 0
+        or unicodedata.category(character) in {"Mc", "Me", "Mn"}
+        or 0xFE00 <= codepoint <= 0xFE0F
+        or 0x1F3FB <= codepoint <= 0x1F3FF
+        or 0xE0020 <= codepoint <= 0xE007F
+    )
+
+
+def _is_disallowed_icon_control(character: str) -> bool:
+    codepoint = ord(character)
+    return unicodedata.category(character).startswith("C") and not (
+        codepoint == 0x200D or 0xE0020 <= codepoint <= 0xE007F
+    )
+
+
+def _is_regional_indicator(codepoint: int) -> bool:
+    return 0x1F1E6 <= codepoint <= 0x1F1FF
+
+
+def _validate_label(value: object, target: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise GateError("invalid_request", target, f"{target} is required")
+    normalized = value.strip()
+    if len(normalized) > _MAX_GATE_LABEL_LENGTH:
+        raise GateError(
+            "invalid_request",
+            target,
+            f"{target} must be at most {_MAX_GATE_LABEL_LENGTH} characters",
+        )
+    return normalized
 
 
 def _json_object(value: object, target: str) -> dict[str, Any]:
@@ -97,6 +197,50 @@ class _GateCommand:
 
 
 @dataclass(frozen=True)
+class GateExtra:
+    """One independently selectable add-on command for a terminal choice."""
+
+    id: str
+    label: str
+    command: _GateCommand
+    icon: str | None = None
+    default_selected: bool = False
+
+    @classmethod
+    def from_mapping(cls, value: object, choice_index: int, index: int) -> GateExtra:
+        target = f"choices[{choice_index}].extras[{index}]"
+        data = _json_object(value, target)
+        _reject_unknown_fields(
+            data,
+            {"id", "label", "command", "icon", "default_selected"},
+            target,
+        )
+        default_selected = data.get("default_selected", False)
+        if not isinstance(default_selected, bool):
+            raise GateError(
+                "invalid_request",
+                f"{target}.default_selected",
+                "default_selected must be a boolean",
+            )
+        return cls(
+            id=validate_identifier(data.get("id"), f"{target}.id"),
+            label=_validate_label(data.get("label"), f"{target}.label"),
+            command=_GateCommand.from_value(data.get("command"), f"{target}.command"),
+            icon=validate_icon(data.get("icon"), f"{target}.icon"),
+            default_selected=default_selected,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "label": self.label,
+            "command": self.command.to_dict(),
+            "icon": self.icon,
+            "default_selected": self.default_selected,
+        }
+
+
+@dataclass(frozen=True)
 class GateChoice:
     """One terminal choice exposed by a gate."""
 
@@ -105,22 +249,52 @@ class GateChoice:
     command: _GateCommand
     input_schema: dict[str, Any] = field(default_factory=dict)
     result_schema: dict[str, Any] = field(default_factory=dict)
+    icon: str | None = None
+    feedback: GateFeedbackMode = "disabled"
+    extras: tuple[GateExtra, ...] = ()
 
     @classmethod
-    def from_mapping(cls, value: object, index: int) -> GateChoice:
+    def from_mapping(
+        cls,
+        value: object,
+        index: int,
+        *,
+        default_feedback: GateFeedbackMode = "disabled",
+    ) -> GateChoice:
         target = f"choices[{index}]"
         data = _json_object(value, target)
         _reject_unknown_fields(
             data,
-            {"id", "label", "command", "input_schema", "result_schema"},
+            {
+                "id",
+                "label",
+                "command",
+                "input_schema",
+                "result_schema",
+                "icon",
+                "feedback",
+                "extras",
+            },
             target,
         )
         choice_id = validate_identifier(data.get("id"), f"{target}.id")
-        label = data.get("label")
-        if not isinstance(label, str) or not label.strip():
+        label = _validate_label(data.get("label"), f"{target}.label")
+        feedback = data.get("feedback", default_feedback)
+        if feedback not in {"disabled", "optional", "required"}:
             raise GateError(
-                "invalid_request", f"{target}.label", "choice label is required"
+                "invalid_request",
+                f"{target}.feedback",
+                "feedback must be disabled, optional, or required",
             )
+        raw_extras = data.get("extras", [])
+        if not isinstance(raw_extras, list):
+            raise GateError(
+                "invalid_request", f"{target}.extras", "extras must be an array"
+            )
+        extras = tuple(
+            GateExtra.from_mapping(raw_extra, index, extra_index)
+            for extra_index, raw_extra in enumerate(raw_extras)
+        )
         input_schema = _json_object(
             data.get("input_schema", {}), f"{target}.input_schema"
         )
@@ -131,10 +305,13 @@ class GateChoice:
         _check_json_schema(result_schema, f"{target}.result_schema")
         return cls(
             id=choice_id,
-            label=label.strip(),
+            label=label,
             command=_GateCommand.from_value(data.get("command"), f"{target}.command"),
             input_schema=input_schema,
             result_schema=result_schema,
+            icon=validate_icon(data.get("icon"), f"{target}.icon"),
+            feedback=feedback,
+            extras=extras,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -144,6 +321,9 @@ class GateChoice:
             "command": self.command.to_dict(),
             "input_schema": self.input_schema,
             "result_schema": self.result_schema,
+            "icon": self.icon,
+            "feedback": self.feedback,
+            "extras": [extra.to_dict() for extra in self.extras],
         }
 
 
@@ -367,7 +547,11 @@ class GateSpec:
                 "invalid_request", "choices", "at least one terminal choice is required"
             )
         choices = tuple(
-            GateChoice.from_mapping(choice, index)
+            GateChoice.from_mapping(
+                choice,
+                index,
+                default_feedback="optional" if kind == "custom" else "disabled",
+            )
             for index, choice in enumerate(raw_choices)
         )
         raw_operations = data.get("operations", [])
@@ -521,8 +705,11 @@ __all__ = [
     "GateCreationResult",
     "GateError",
     "GateExecutionResult",
+    "GateExtra",
+    "GateFeedbackMode",
     "GateResource",
     "GateSpec",
+    "validate_icon",
     "validate_identifier",
     "validate_relative_path",
 ]
