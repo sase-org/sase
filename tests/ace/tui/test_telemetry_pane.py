@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from unittest.mock import patch
 
@@ -177,6 +178,35 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
         assert calls[-1] == ("llm", "6h")
         assert pane._load_debouncer is not None
         assert not pane._load_debouncer.is_pending
+
+
+async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated worker refreshes must not produce watchdog hitch records."""
+    stall_log = tmp_path / "tui_stalls.jsonl"
+    monkeypatch.setenv("SASE_TUI_STALL_PATH", str(stall_log))
+    monkeypatch.setenv("SASE_TUI_HITCH_THRESHOLD_SECONDS", "0.5")
+    monkeypatch.setenv("SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS", "0.5")
+    monkeypatch.setenv("SASE_TUI_STALL_THRESHOLD_SECONDS", "1.0")
+    monkeypatch.setenv("SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS", "1.0")
+    monkeypatch.setenv("SASE_TUI_STALL_POLL_INTERVAL", "0.02")
+    monkeypatch.setenv("SASE_TUI_PUMP_STALL_POLL_INTERVAL", "0.02")
+    monkeypatch.setattr(tp, "_REFRESH_INTERVAL_SECONDS", 0.2)
+
+    calls: list[tuple[TelemetrySubsystem, TelemetryRange]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_telemetry(page)
+        await asyncio.sleep(1.1)
+        await page.wait_for(lambda _state: not pane._loading)
+
+        assert len(calls) >= 4
+        assert all(call == ("agents", "1h") for call in calls)
+
+    assert not stall_log.exists() or not stall_log.read_text().strip()
 
 
 def test_local_store_models_agent_tiles_and_all_subsystem_chart_sets(
