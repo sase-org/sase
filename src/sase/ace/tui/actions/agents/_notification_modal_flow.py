@@ -137,6 +137,7 @@ class AgentNotificationModalMixin:
         from sase.notifications import mark_read
 
         from ._notification_actions import (
+            handle_custom_gate,
             handle_hitl,
             handle_jump_to_agent,
             handle_jump_to_changespec,
@@ -161,6 +162,7 @@ class AgentNotificationModalMixin:
                     "EpicApproval",
                     "UserQuestion",
                     "LaunchApproval",
+                    "CustomGate",
                 ):
                     mark_read(result.id)
 
@@ -178,6 +180,7 @@ class AgentNotificationModalMixin:
                 "UserQuestion",
                 "HITL",
                 "LaunchApproval",
+                "CustomGate",
             ):
                 self._read_notification_pending_actions_from_provider()
 
@@ -197,10 +200,17 @@ class AgentNotificationModalMixin:
                 handle_user_question(self, result)
             elif result.action == "LaunchApproval":
                 handle_launch_approval(self, result)
+            elif result.action == "CustomGate":
+                handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)
             elif result.action == "memory_review":
                 handle_memory_review(self, result)
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Unsupported notification action: {result.action or '(none)'}",
+                    severity="warning",
+                )
 
         self.push_screen(  # type: ignore[attr-defined]
             NotificationModal(unread, initial_index=initial_index), callback=_on_dismiss

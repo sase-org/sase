@@ -103,6 +103,54 @@ def test_approval_syncs_reviewed_bundle_to_durable_plan(tmp_path: Path) -> None:
     assert durable.read_text(encoding="utf-8") == edited
 
 
+@pytest.mark.parametrize(
+    ("commit_plan", "run_coder", "persisted_action"),
+    [
+        (False, False, "approve"),
+        (False, True, "approve"),
+        (True, False, "commit"),
+        (True, True, "tale"),
+    ],
+)
+def test_primary_approval_archives_every_extras_combination(
+    tmp_path: Path,
+    commit_plan: bool,
+    run_coder: bool,
+    persisted_action: str,
+) -> None:
+    plan = tmp_path / f"plan-{commit_plan}-{run_coder}.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(str(plan),),
+        host_action_data={},
+    )
+    response = {
+        "action": "approve",
+        "commit_plan": commit_plan,
+        "run_coder": run_coder,
+    }
+
+    with (
+        patch(
+            "sase.plan_approval_actions._persist_plan_approved_metadata",
+            return_value=persisted_action,
+        ),
+        patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            return_value=None,
+        ) as archive,
+    ):
+        run_plan_side_effects(
+            context,
+            "approve",
+            tmp_path / "response.json",
+            response,
+        )
+
+    archive.assert_called_once_with(context, persisted_action)
+
+
 def test_durable_plan_file_falls_back_to_bundle_envelope(tmp_path: Path) -> None:
     durable = tmp_path / "plans" / "canonical.md"
     bundle = tmp_path / "interaction_requests" / "plan" / "request"

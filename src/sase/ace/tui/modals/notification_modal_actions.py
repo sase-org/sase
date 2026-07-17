@@ -32,6 +32,7 @@ class NotificationStateActionsMixin:
             "EpicApproval",
             "UserQuestion",
             "LaunchApproval",
+            "CustomGate",
         ):
             self._pending_confirm_notification_id = notification.id
             self.notify("Dismiss pending action notification? (y/n)")
@@ -51,7 +52,13 @@ class NotificationStateActionsMixin:
 
         needs_confirm = any(
             n.action
-            in ("PlanApproval", "EpicApproval", "UserQuestion", "LaunchApproval")
+            in (
+                "PlanApproval",
+                "EpicApproval",
+                "UserQuestion",
+                "LaunchApproval",
+                "CustomGate",
+            )
             for n in self._notifications
             if n.id in self._marked_notification_ids
         )

@@ -17,6 +17,12 @@ from sase.plan_approval_choices import (
     approval_protocol_for_choice as _approval_protocol_for_choice,
     review_modal_choice_bindings,
 )
+from sase.plan_gate import (
+    PLAN_COMMIT_EXTRA_ID,
+    PLAN_RUN_CODER_EXTRA_ID,
+    plan_gate_preset_extra_ids,
+)
+from sase.notification_gates.models import GateExtra
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
@@ -35,14 +41,16 @@ def _plan_approval_result_for_choice(
     feedback: str | None = None,
     coder_prompt: str | None = None,
     coder_model: str | None = None,
+    commit_plan: bool | None = None,
+    run_coder: bool | None = None,
 ) -> "PlanApprovalResult":
     """Build a modal result for a product-level approval choice."""
     protocol = approval_protocol_for_choice(choice)
     return PlanApprovalResult(
         action=protocol.action,
         feedback=feedback,
-        commit_plan=protocol.commit_plan,
-        run_coder=protocol.run_coder,
+        commit_plan=(protocol.commit_plan if commit_plan is None else commit_plan),
+        run_coder=(protocol.run_coder if run_coder is None else run_coder),
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         choice=choice,
@@ -115,6 +123,7 @@ class PlanApprovalModal(
         model: str | None = None,
         default_choice: PlanApprovalChoice | None = None,
         allowed_choices: Iterable[PlanApprovalChoice] | None = None,
+        approval_extras: Iterable[GateExtra] | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -137,6 +146,7 @@ class PlanApprovalModal(
         self._allowed_choices = frozenset(
             allowed_choices or ("approve", "tale", "epic")
         )
+        self._approval_extras = tuple(approval_extras or ())
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -158,7 +168,8 @@ class PlanApprovalModal(
         allowed_choices = getattr(
             self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
         )
-        default_label = default_choice.title()
+        remodeled = bool(getattr(self, "_approval_extras", ()))
+        default_label = "Approve" if remodeled else default_choice.title()
         choice_hints = "  ".join(
             hint
             for choice, hint in (
@@ -196,6 +207,18 @@ class PlanApprovalModal(
                     word_wrap=True,
                 )
                 yield Static(syntax, id="plan-approval-content")
+
+            if remodeled:
+                from .custom_gate_modal import GateExtrasSelectionList
+
+                yield Static(
+                    "[bold]Approve with optional add-on commands[/bold]",
+                    id="plan-approval-extras-label",
+                )
+                yield GateExtrasSelectionList(
+                    self._approval_extras,
+                    id="plan-approval-extras",
+                )
 
             yield Static(hints, id="plan-approval-footer")
 
@@ -247,13 +270,26 @@ class PlanApprovalModal(
         self.dismiss(None)
 
     def action_approve(self) -> None:
-        """Approve the plan without an SDD commit."""
+        """Apply the legacy plain-approval preset."""
         if not self._choice_allowed("approve"):
+            return
+        if self._has_approval_extras():
+            self.dismiss(
+                self._result_for_extra_ids(plan_gate_preset_extra_ids("approve"))
+            )
             return
         self.dismiss(_plan_approval_result_for_choice("approve"))
 
     def action_approve_default(self) -> None:
-        """Approve using the tier authored in the pending plan."""
+        """Approve using the current extras, or the authored legacy tier."""
+        if self._has_approval_extras():
+            from .custom_gate_modal import GateExtrasSelectionList
+
+            selected = self.query_one(
+                "#plan-approval-extras", GateExtrasSelectionList
+            ).selected_extra_ids
+            self.dismiss(self._result_for_extra_ids(selected))
+            return
         default_choice = cast(
             PlanApprovalChoice, getattr(self, "_default_choice", "approve")
         )
@@ -262,8 +298,11 @@ class PlanApprovalModal(
         self.dismiss(_plan_approval_result_for_choice(default_choice))
 
     def action_tale(self) -> None:
-        """Approve the plan as an SDD tale."""
+        """Apply the legacy tale preset."""
         if not self._choice_allowed("tale"):
+            return
+        if self._has_approval_extras():
+            self.dismiss(self._result_for_extra_ids(plan_gate_preset_extra_ids("tale")))
             return
         self.dismiss(_plan_approval_result_for_choice("tale"))
 
@@ -300,9 +339,15 @@ class PlanApprovalModal(
                 )
                 return
             approval_result = _plan_approval_result_for_choice(
-                result.choice,
+                (
+                    "approve"
+                    if self._has_approval_extras() and result.choice != "epic"
+                    else result.choice
+                ),
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
+                commit_plan=result.commit_plan,
+                run_coder=result.run_coder,
             )
             self.dismiss(approval_result)
 
@@ -327,6 +372,15 @@ class PlanApprovalModal(
             self.notify(
                 "Custom approval is not available for this gate",
                 severity="warning",
+            )
+            return
+        if self._has_approval_extras():
+            commit_plan, run_coder = self._selected_approval_flags()
+            choice: PlanApprovalChoice = "tale" if commit_plan else "approve"
+            self._push_approve_options(
+                commit_plan=commit_plan,
+                run_coder=run_coder,
+                choice=choice,
             )
             return
         self._push_approve_options(choice=getattr(self, "_default_choice", "approve"))
@@ -360,6 +414,32 @@ class PlanApprovalModal(
             severity="warning",
         )
         return False
+
+    def _has_approval_extras(self) -> bool:
+        return bool(getattr(self, "_approval_extras", ()))
+
+    def _selected_approval_flags(self) -> tuple[bool, bool]:
+        from .custom_gate_modal import GateExtrasSelectionList
+
+        selected = set(
+            self.query_one(
+                "#plan-approval-extras", GateExtrasSelectionList
+            ).selected_extra_ids
+        )
+        return (
+            PLAN_COMMIT_EXTRA_ID in selected,
+            PLAN_RUN_CODER_EXTRA_ID in selected,
+        )
+
+    def _result_for_extra_ids(
+        self, selected_extra_ids: Iterable[str] | None
+    ) -> PlanApprovalResult:
+        selected = set(selected_extra_ids or ())
+        return _plan_approval_result_for_choice(
+            "approve",
+            commit_plan=PLAN_COMMIT_EXTRA_ID in selected,
+            run_coder=PLAN_RUN_CODER_EXTRA_ID in selected,
+        )
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""

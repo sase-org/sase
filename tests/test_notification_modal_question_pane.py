@@ -195,7 +195,7 @@ def test_display_file_dispatches_question_before_empty_attachment_state(
 
     modal._display_file(notification)
 
-    title.update.assert_called_once_with("Agent Question")
+    title.update.assert_called_once_with("❓ question · Agent Question")
     plain = _render_plain(content.update.call_args.args[0])
     assert "Awaiting your answer" in plain
     assert "No files attached" not in plain

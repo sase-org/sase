@@ -18,7 +18,14 @@ ERRORS_TAB_KEY = "errors"
 MUTED_TAB_KEY = "__muted__"
 
 _HITL_ACTIONS = frozenset(
-    {"PlanApproval", "EpicApproval", "UserQuestion", "HITL", "LaunchApproval"}
+    {
+        "PlanApproval",
+        "EpicApproval",
+        "UserQuestion",
+        "HITL",
+        "LaunchApproval",
+        "CustomGate",
+    }
 )
 _SYNTHETIC_TAB_LABELS = {
     HITL_TAB_KEY: "HITL",

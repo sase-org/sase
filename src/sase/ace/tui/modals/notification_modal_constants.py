@@ -13,9 +13,34 @@ ACTION_BADGES: dict[str | None, str] = {
     "PlanApproval": "[plan]",
     "EpicApproval": "[epic]",
     "UserQuestion": "[question]",
+    "CustomGate": "[custom]",
     "ViewErrorReport": "[error]",
     "memory_review": "[memory]",
 }
+
+# Gate actions intentionally have explicit defaults. A notification-provided
+# icon always wins, while non-gate actions use the same table for a coherent
+# inbox rather than falling back to text-only rows.
+ACTION_ICONS: dict[str | None, str] = {
+    None: "🔔",
+    "JumpToAgent": "🤖",
+    "JumpToChangeSpec": "📋",
+    "JumpToMentorReview": "👀",
+    "Tmux": "🖥️",
+    "HITL": "✋",
+    "LaunchApproval": "🚀",
+    "PlanApproval": "📝",
+    "EpicApproval": "🗺️",
+    "UserQuestion": "❓",
+    "CustomGate": "✨",
+    "ViewErrorReport": "🚨",
+    "memory_review": "🧠",
+}
+
+
+def notification_icon(action: str | None, icon: str | None) -> str:
+    """Return a notification's authored icon or its per-action default."""
+    return icon or ACTION_ICONS.get(action, ACTION_ICONS[None])
 
 
 HEADER_ID_PREFIX = "hdr:"

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 from ._notification_hitl_modal import handle_hitl as handle_hitl
+from ._notification_custom_gate import handle_custom_gate as handle_custom_gate
 from ._notification_launch_approval import (
     handle_launch_approval as handle_launch_approval,
 )
@@ -34,6 +35,7 @@ from sase.plan_approval_choices import (
 )
 
 if TYPE_CHECKING:
+    from sase.notification_gates.models import GateExtra
     from sase.notifications import Notification
 
     from ...models import Agent
@@ -92,21 +94,35 @@ def handle_plan_approval(
         else None
     )
     allowed_choices: tuple[PlanApprovalModalChoice, ...] | None = None
+    approval_extras: tuple[GateExtra, ...] = ()
     if not bundle.legacy:
         try:
             from sase.notification_gates.durability import read_json_object
+            from sase.notification_gates.models import GateChoice
 
             envelope = read_json_object(bundle.request)
             raw_choices = envelope.get("choices")
             if isinstance(raw_choices, list):
+                parsed_choices = tuple(
+                    GateChoice.from_mapping(raw, index)
+                    for index, raw in enumerate(raw_choices)
+                )
                 allowed_choices = tuple(
-                    cast(PlanApprovalModalChoice, choice_id)
-                    for raw in raw_choices
-                    if isinstance(raw, dict)
-                    and (choice_id := raw.get("id")) in {"approve", "tale", "epic"}
+                    cast(PlanApprovalModalChoice, choice.id)
+                    for choice in parsed_choices
+                    if choice.id in {"approve", "tale", "epic"}
+                )
+                approval_extras = next(
+                    (
+                        choice.extras
+                        for choice in parsed_choices
+                        if choice.id == "approve"
+                    ),
+                    (),
                 )
         except Exception:
             allowed_choices = None
+            approval_extras = ()
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -141,6 +157,7 @@ def handle_plan_approval(
                     model=model,
                     default_choice=default_choice,
                     allowed_choices=allowed_choices,
+                    approval_extras=approval_extras,
                 ),
                 on_dismiss,
             )
@@ -298,6 +315,7 @@ def handle_plan_approval(
             model=model,
             default_choice=default_choice,
             allowed_choices=allowed_choices,
+            approval_extras=approval_extras,
         ),
         on_dismiss,
     )
@@ -443,6 +461,8 @@ def _plan_approval_protocol_fields(
     result: PlanApprovalResult,
 ) -> tuple[str, bool, bool]:
     """Return runner-facing action, commit flag, and coder flag."""
+    if result.choice == "approve":
+        return "approve", result.commit_plan, result.run_coder
     if result.choice is not None:
         protocol = approval_protocol_for_choice(result.choice)
         return protocol.action, protocol.commit_plan, protocol.run_coder
@@ -527,13 +547,15 @@ def _plan_approval_persist_action(result: PlanApprovalResult) -> str | None:
 
 def _plan_approval_choice_for_status(result: PlanApprovalResult) -> str | None:
     """Infer the product-level approval choice for status/persist labels."""
-    if result.choice is not None:
+    if result.choice in {"tale", "epic"}:
         return result.choice
     if result.action == "approve" and result.commit_plan and not result.run_coder:
         return "commit"
     if result.action == "approve" and result.commit_plan and result.run_coder:
         return "tale"
     if result.action == "approve" and not result.commit_plan and result.run_coder:
+        return "approve"
+    if result.action == "approve" and not result.commit_plan and not result.run_coder:
         return "approve"
     if result.action == "epic":
         return result.action

@@ -7,8 +7,9 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -45,6 +46,9 @@ def execute_gate_choice(
     selected_extra_ids: Sequence[str] | None = None,
     feedback: str | None = None,
     source: str = "host",
+    on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None = None,
+    on_output_line: Callable[[str, str, str, str], None] | None = None,
+    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
 ) -> GateExecutionResult:
     """Run one terminal choice plus selected extras and persist one response."""
     bundle_path = assert_owned_bundle(bundle_path)
@@ -72,11 +76,21 @@ def execute_gate_choice(
         selected_extras = _resolve_selected_extras(choice, selected_extra_ids)
         normalized_feedback = _normalize_feedback(choice, feedback)
         try:
+            if on_command_start is not None:
+                on_command_start("choice", choice.id, choice.label, choice.command.argv)
             completed = _run_owned_command(
                 bundle_path,
                 choice.command.argv,
                 expected_hash=envelope["hashes"]["resources"][choice.command.argv[0]],
                 input_data=normalized_input,
+                on_output_line=(
+                    None
+                    if on_output_line is None
+                    else lambda stream, line: on_output_line(
+                        "choice", choice.id, stream, line
+                    )
+                ),
+                on_process_state=on_process_state,
             )
             _reject_command_terminal_state(
                 response_path,
@@ -156,6 +170,9 @@ def execute_gate_choice(
                 cancellation_path=cancellation_path,
                 choice_id=choice.id,
                 source=source,
+                on_command_start=on_command_start,
+                on_output_line=on_output_line,
+                on_process_state=on_process_state,
             )
             for extra in selected_extras
         ]
@@ -167,6 +184,7 @@ def execute_gate_choice(
             "input": normalized_input,
             "result": result,
             "selected_extra_ids": [extra.id for extra in selected_extras],
+            "extras_selection_provided": selected_extra_ids is not None,
             "extra_results": extra_results,
             "feedback": normalized_feedback,
             "source": source,
@@ -312,6 +330,8 @@ def _run_owned_command(
     *,
     expected_hash: str,
     input_data: object,
+    on_output_line: Callable[[str, str], None] | None = None,
+    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     command_path = owned_resource_path(bundle_path, command_argv[0])
     command_fd = open_regular_nofollow(command_path)
@@ -325,6 +345,15 @@ def _run_owned_command(
         os.lseek(command_fd, 0, os.SEEK_SET)
         argv = (f"/proc/self/fd/{command_fd}", *command_argv[1:])
         try:
+            if on_output_line is not None:
+                return _run_command_streaming(
+                    argv,
+                    input_data=canonical_json_bytes(input_data) + b"\n",
+                    cwd=bundle_path,
+                    pass_fds=(command_fd,),
+                    on_output_line=on_output_line,
+                    on_process_state=on_process_state,
+                )
             return subprocess.run(
                 argv,
                 input=canonical_json_bytes(input_data) + b"\n",
@@ -342,6 +371,77 @@ def _run_owned_command(
             ) from exc
     finally:
         os.close(command_fd)
+
+
+def _run_command_streaming(
+    argv: tuple[str, ...],
+    *,
+    input_data: bytes,
+    cwd: Path,
+    pass_fds: tuple[int, ...],
+    on_output_line: Callable[[str, str], None],
+    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
+) -> subprocess.CompletedProcess[bytes]:
+    """Run one trusted gate command while streaming both output channels."""
+    process = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        pass_fds=pass_fds,
+        shell=False,
+    )
+    if on_process_state is not None:
+        on_process_state(process, True)
+
+    stdout_chunks: list[bytes] = []
+    stderr_chunks: list[bytes] = []
+
+    def drain(stream: Any, chunks: list[bytes], stream_name: str) -> None:
+        for chunk in iter(stream.readline, b""):
+            chunks.append(chunk)
+            line = chunk.decode("utf-8", errors="replace").rstrip("\r\n")
+            if line:
+                on_output_line(stream_name, line)
+
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    stdout_thread = threading.Thread(
+        target=drain,
+        args=(process.stdout, stdout_chunks, "stdout"),
+        name=f"sase-gate-stdout-{process.pid}",
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=drain,
+        args=(process.stderr, stderr_chunks, "stderr"),
+        name=f"sase-gate-stderr-{process.pid}",
+        daemon=True,
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+    try:
+        try:
+            process.stdin.write(input_data)
+            process.stdin.flush()
+        except BrokenPipeError:
+            pass
+        finally:
+            process.stdin.close()
+        returncode = process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+    finally:
+        if on_process_state is not None:
+            on_process_state(process, False)
+    return subprocess.CompletedProcess(
+        argv,
+        returncode,
+        stdout=b"".join(stdout_chunks),
+        stderr=b"".join(stderr_chunks),
+    )
 
 
 def _reject_command_terminal_state(
@@ -375,13 +475,26 @@ def _execute_extra(
     cancellation_path: Path,
     choice_id: str,
     source: str,
+    on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None,
+    on_output_line: Callable[[str, str, str, str], None] | None,
+    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
 ) -> dict[str, Any]:
     try:
+        if on_command_start is not None:
+            on_command_start("extra", extra.id, extra.label, extra.command.argv)
         completed = _run_owned_command(
             bundle_path,
             extra.command.argv,
             expected_hash=envelope["hashes"]["resources"][extra.command.argv[0]],
             input_data=input_data,
+            on_output_line=(
+                None
+                if on_output_line is None
+                else lambda stream, line: on_output_line(
+                    "extra", extra.id, stream, line
+                )
+            ),
+            on_process_state=on_process_state,
         )
         _reject_command_terminal_state(
             response_path,

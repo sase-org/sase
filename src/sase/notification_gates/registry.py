@@ -61,7 +61,7 @@ class GateAdapter:
                 f"unsupported {self.kind} auto argument: {argument}",
             )
         if self.kind == "plan":
-            preferred = ("tale",) if argument == "tale" else ("approve", "run")
+            preferred = ("approve",)
         else:
             preferred = ("epic",)
         for choice_id in preferred:
@@ -81,7 +81,10 @@ class GateAdapter:
             return
         from sase.notification_gates.durability import read_json_object
         from sase.plan_approval_actions import run_plan_side_effects
-        from sase.plan_gate import plan_context_from_envelope
+        from sase.plan_gate import (
+            plan_context_from_envelope,
+            translate_plan_gate_response,
+        )
 
         envelope = read_json_object(bundle_path / "request.json")
         result = response.get("result")
@@ -93,6 +96,8 @@ class GateAdapter:
                 "plan response is missing its choice or result",
             )
         context = plan_context_from_envelope(bundle_path, envelope)
+        translated = translate_plan_gate_response(bundle_path, response)
+        result.update(translated)
         run_plan_side_effects(
             context,
             choice,
@@ -442,6 +447,8 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         PlanGateTier,
         plan_gate_choice_ids,
         plan_gate_command_script,
+        plan_gate_extra_command_script,
+        plan_gate_extra_ids,
     )
 
     tier = "epic" if adapter.kind == "epic_plan" else "tale"
@@ -467,6 +474,40 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "choices",
             f"{tier} plan gate choices do not match the registered adapter",
         )
+    registered_extra_ids = plan_gate_extra_ids(cast(PlanGateTier, tier))
+    approval_choice = next(
+        (choice for choice in spec.choices if choice.id == "approve"), None
+    )
+    expected_extra_ids = (
+        registered_extra_ids
+        if approval_choice is not None and approval_choice.extras
+        else ()
+    )
+    for choice in spec.choices:
+        actual_extra_commands = {
+            extra.id: extra.command.argv[0] for extra in choice.extras
+        }
+        expected_extra_commands = (
+            {extra_id: f"commands/{extra_id}" for extra_id in expected_extra_ids}
+            if choice.id == "approve"
+            else {}
+        )
+        if actual_extra_commands != expected_extra_commands:
+            raise GateError(
+                "invalid_plan_choices",
+                f"choices.{choice.id}.extras",
+                f"{tier} plan gate extras do not match the registered adapter",
+            )
+        if (
+            choice.id == "approve"
+            and expected_extra_ids
+            and not all(extra.default_selected for extra in choice.extras)
+        ):
+            raise GateError(
+                "invalid_plan_choices",
+                "choices.approve.extras",
+                "plan approval extras must use the registered defaults",
+            )
     if len(spec.operations) != 1 or (
         spec.operations[0].id,
         spec.operations[0].kind,
@@ -486,7 +527,7 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             PLAN_RESOURCE_PATH,
             "plan gates require one editable plan.md resource",
         )
-    for choice, path in expected_commands.items():
+    for choice_id, path in expected_commands.items():
         resource = resources.get(path)
         if resource is None or resource.role != "command":
             raise GateError(
@@ -504,11 +545,36 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             raise GateError(
                 "invalid_plan_command", path, f"cannot read plan command: {exc}"
             ) from exc
-        if content != plan_gate_command_script(choice):
+        if content != plan_gate_command_script(choice_id):
             raise GateError(
                 "invalid_plan_command",
                 path,
                 "plan command does not match the registered adapter",
+            )
+    for extra_id in expected_extra_ids:
+        path = f"commands/{extra_id}"
+        resource = resources.get(path)
+        if resource is None or resource.role != "command":
+            raise GateError(
+                "invalid_plan_command", path, "plan extra command resource is missing"
+            )
+        try:
+            content = (
+                resource.content
+                if resource.content is not None
+                else resource.source.read_text(encoding="utf-8")
+                if resource.source is not None
+                else None
+            )
+        except OSError as exc:
+            raise GateError(
+                "invalid_plan_command", path, f"cannot read plan extra command: {exc}"
+            ) from exc
+        if content != plan_gate_extra_command_script(extra_id):
+            raise GateError(
+                "invalid_plan_command",
+                path,
+                "plan extra command does not match the registered adapter",
             )
 
 

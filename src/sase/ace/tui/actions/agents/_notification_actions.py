@@ -12,6 +12,7 @@ from ._notification_handlers import (
     handle_view_error_report as handle_view_error_report,
 )
 from ._notification_modals import (
+    handle_custom_gate as handle_custom_gate,
     handle_hitl as handle_hitl,
     handle_launch_approval as handle_launch_approval,
     handle_plan_approval as handle_plan_approval,
@@ -30,6 +31,7 @@ __all__ = [
     "find_agent_for_notification",
     "get_meta_changespec_name",
     "handle_hitl",
+    "handle_custom_gate",
     "handle_jump_to_agent",
     "handle_jump_to_changespec",
     "handle_jump_to_mentor_review",

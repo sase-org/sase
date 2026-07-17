@@ -25,6 +25,7 @@ from sase.plan_gate import (
     create_plan_approval_gate,
     plan_context_from_envelope,
     plan_gate_choice_ids,
+    translate_plan_gate_response,
 )
 
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
@@ -84,6 +85,14 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert [choice["id"] for choice in epic_request["choices"]] == list(
         plan_gate_choice_ids("epic")
     )
+    tale_approve = tale_request["choices"][0]
+    assert tale_approve["id"] == "approve"
+    assert [extra["id"] for extra in tale_approve["extras"]] == [
+        "commit_plan",
+        "run_coder",
+    ]
+    assert all(extra["default_selected"] for extra in tale_approve["extras"])
+    assert all(choice["extras"] == [] for choice in epic_request["choices"])
     assert tale_request["operations"] == [
         {"id": "edit_plan", "kind": "edit_file", "target": "plan.md"}
     ]
@@ -173,7 +182,7 @@ def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
     ("content", "argument", "expected_kind", "expected_choice"),
     [
         (VALID_TALE_PLAN, None, "plan", "approve"),
-        (VALID_TALE_PLAN, "tale", "plan", "tale"),
+        (VALID_TALE_PLAN, "tale", "plan", "approve"),
         (VALID_EPIC_PLAN, None, "epic_plan", "epic"),
         (VALID_EPIC_PLAN, "epic", "epic_plan", "epic"),
     ],
@@ -195,6 +204,16 @@ def test_auto_uses_the_manual_executor_and_tier_owned_aliases(
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
     assert response["kind"] == expected_kind
     assert response["choice_id"] == expected_choice
+    if expected_kind == "plan":
+        assert response["selected_extra_ids"] == ["commit_plan", "run_coder"]
+        assert (
+            translate_plan_gate_response(gate.bundle_path, response)["commit_plan"]
+            is True
+        )
+        assert (
+            translate_plan_gate_response(gate.bundle_path, response)["run_coder"]
+            is True
+        )
     assert response["source"] == "auto_resolution"
     assert gate.notification_id is None
     assert load_notifications(include_dismissed=True) == []
@@ -282,6 +301,137 @@ def test_plan_toctou_and_unregistered_command_contract_are_rejected(
     with pytest.raises(GateError) as exc_info:
         create_gate(forged)
     assert exc_info.value.code == "invalid_plan_command"
+
+
+@pytest.mark.parametrize(
+    ("selected_extra_ids", "expected_commit", "expected_run"),
+    [
+        ((), False, False),
+        (("commit_plan",), True, False),
+        (("run_coder",), False, True),
+        (("commit_plan", "run_coder"), True, True),
+    ],
+)
+def test_primary_approve_derives_runner_protocol_from_explicit_extras(
+    gate_home: Path,
+    selected_extra_ids: tuple[str, ...],
+    expected_commit: bool,
+    expected_run: bool,
+) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(
+            gate_home,
+            f"extras-{expected_commit}-{expected_run}.md",
+            VALID_TALE_PLAN,
+        ),
+        f"extras-{expected_commit}-{expected_run}",
+    )
+
+    execution = execute_gate_choice(
+        gate.bundle_path,
+        "approve",
+        {
+            "commit_plan": expected_commit,
+            "run_coder": expected_run,
+        },
+        selected_extra_ids=selected_extra_ids,
+    )
+    translated = translate_plan_gate_response(gate.bundle_path, execution.response)
+
+    assert execution.response["extras_selection_provided"] is True
+    assert execution.response["selected_extra_ids"] == list(selected_extra_ids)
+    assert translated["commit_plan"] is expected_commit
+    assert translated["run_coder"] is expected_run
+
+
+def test_plan_action_api_executes_selected_approval_extras(gate_home: Path) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, "action-api.md", VALID_TALE_PLAN),
+        "action-api",
+    )
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+
+    action_result = execute_plan_approval_response(
+        plan_context_from_envelope(gate.bundle_path, envelope),
+        "approve",
+        commit_plan=True,
+        run_coder=False,
+    )
+
+    assert action_result.response_json["selected_extra_ids"] == ["commit_plan"]
+    assert action_result.response_json["extra_results"] == [
+        {
+            "id": "commit_plan",
+            "status": "succeeded",
+            "result": {"selected_extra_id": "commit_plan"},
+        }
+    ]
+    assert action_result.response_json["result"]["commit_plan"] is True
+    assert action_result.response_json["result"]["run_coder"] is False
+
+
+@pytest.mark.parametrize(
+    ("choice", "expected_commit", "expected_run"),
+    [
+        ("approve", False, True),
+        ("run", False, True),
+        ("tale", True, True),
+        ("commit", True, False),
+    ],
+)
+def test_legacy_choice_presets_keep_their_protocol_without_explicit_extras(
+    gate_home: Path,
+    choice: str,
+    expected_commit: bool,
+    expected_run: bool,
+) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, f"preset-{choice}.md", VALID_TALE_PLAN),
+        f"preset-{choice}",
+    )
+
+    execution = execute_gate_choice(gate.bundle_path, choice)
+    translated = translate_plan_gate_response(gate.bundle_path, execution.response)
+
+    assert execution.response["extras_selection_provided"] is False
+    assert translated["commit_plan"] is expected_commit
+    assert translated["run_coder"] is expected_run
+
+
+def test_legacy_in_flight_plan_gate_without_extras_remains_answerable(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "legacy-neutral.md", VALID_TALE_PLAN)
+    spec = _build_plan_gate_spec(
+        plan,
+        "legacy-neutral",
+        tier="tale",
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
+    choices = spec["choices"]
+    assert isinstance(choices, list)
+    choices[0].pop("extras")
+    resources = spec["resources"]
+    assert isinstance(resources, list)
+    spec["resources"] = [
+        resource
+        for resource in resources
+        if resource["path"] not in {"commands/commit_plan", "commands/run_coder"}
+    ]
+    gate = create_gate(spec)
+
+    execution = execute_gate_choice(gate.bundle_path, "approve")
+    translated = translate_plan_gate_response(gate.bundle_path, execution.response)
+
+    assert execution.response["extras_selection_provided"] is False
+    assert translated["commit_plan"] is False
+    assert translated["run_coder"] is True
 
 
 def test_legacy_plan_approval_remains_answerable(gate_home: Path) -> None:

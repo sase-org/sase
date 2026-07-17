@@ -1,10 +1,44 @@
 """Tests for PlanApprovalModal title rendering with provider/model badge."""
 
+from textual.app import App
+
+from sase.ace.tui.modals.custom_gate_modal import GateExtrasSelectionList
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
     _provider_badge_markup,
 )
+from sase.notification_gates.models import GateChoice, GateExtra
+
+
+class _TestApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+
+def _approval_extras() -> tuple[GateExtra, ...]:
+    choice = GateChoice.from_mapping(
+        {
+            "id": "approve",
+            "label": "Approve",
+            "command": {"argv": ["commands/approve"]},
+            "extras": [
+                {
+                    "id": "commit_plan",
+                    "label": "Commit plan file to the plans sidecar",
+                    "default_selected": True,
+                    "command": {"argv": ["commands/commit_plan"]},
+                },
+                {
+                    "id": "run_coder",
+                    "label": "Run coder follow-up",
+                    "default_selected": True,
+                    "command": {"argv": ["commands/run_coder"]},
+                },
+            ],
+        },
+        0,
+    )
+    return choice.extras
 
 
 def test_badge_markup_empty_when_no_provider_or_model() -> None:
@@ -173,3 +207,59 @@ def test_action_custom_uses_custom_modal_path() -> None:
     modal.action_custom()
 
     assert called == ["epic"]
+
+
+def test_remodeled_single_key_presets_submit_primary_approve() -> None:
+    modal = PlanApprovalModal.__new__(PlanApprovalModal)
+    modal._approval_extras = _approval_extras()
+    modal._allowed_choices = frozenset(("approve", "tale"))
+    captured: list[PlanApprovalResult] = []
+    modal.dismiss = captured.append  # type: ignore[assignment]
+
+    modal.action_approve()
+    modal.action_tale()
+
+    assert captured == [
+        PlanApprovalResult(
+            action="approve",
+            commit_plan=False,
+            run_coder=True,
+            choice="approve",
+        ),
+        PlanApprovalResult(
+            action="approve",
+            commit_plan=True,
+            run_coder=True,
+            choice="approve",
+        ),
+    ]
+
+
+async def test_remodeled_default_submits_current_checkbox_selection(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(
+        str(plan),
+        default_choice="tale",
+        allowed_choices=("approve", "tale"),
+        approval_extras=_approval_extras(),
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        extras = modal.query_one("#plan-approval-extras", GateExtrasSelectionList)
+        assert extras.selected_extra_ids == ("commit_plan", "run_coder")
+        extras.apply_selection(("commit_plan",))
+        modal.action_approve_default()
+        await pilot.pause()
+
+    assert results == [
+        PlanApprovalResult(
+            action="approve",
+            commit_plan=True,
+            run_coder=False,
+            choice="approve",
+        )
+    ]

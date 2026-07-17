@@ -25,6 +25,8 @@ from sase.ace.tui.graphics import (
 from sase.ace.tui.widgets.file_panel import _EXTENSION_TO_LEXER
 from sase.notifications import Notification
 
+from .notification_modal_constants import notification_icon
+
 
 class NotificationAttachmentMixin:
     """Render notification attachments and open the current file in an editor."""
@@ -39,7 +41,7 @@ class NotificationAttachmentMixin:
             if question_pane is not None:
                 pane_title, pane_content = question_pane
                 self._set_image_preview_mode(False)
-                title.update(pane_title)
+                title.update(self._detail_title(notification, pane_title))
                 cleanup = self._consume_image_cleanup_segments()
                 content_widget.update(
                     Group(*cleanup, pane_content) if cleanup else pane_content
@@ -49,7 +51,11 @@ class NotificationAttachmentMixin:
 
         if notification is None or not notification.files:
             self._set_image_preview_mode(False)
-            title.update("No files attached")
+            title.update(
+                "No files attached"
+                if notification is None
+                else self._detail_title(notification, "No files attached")
+            )
             cleanup = self._consume_image_cleanup_segments()
             content_widget.update(Group(*cleanup, "") if cleanup else "")
             return
@@ -60,7 +66,12 @@ class NotificationAttachmentMixin:
 
         file_path = files[self._current_file_index]
         short = self._shorten_path(file_path)
-        title.update(f"File {self._current_file_index + 1}/{len(files)}: {short}")
+        title.update(
+            self._detail_title(
+                notification,
+                f"File {self._current_file_index + 1}/{len(files)}: {short}",
+            )
+        )
 
         expanded_path = os.path.expanduser(file_path)
 
@@ -105,6 +116,12 @@ class NotificationAttachmentMixin:
         )
         content_widget.update(Group(*cleanup, syntax) if cleanup else syntax)
         self._reset_file_scroll()
+
+    @staticmethod
+    def _detail_title(notification: Notification, title: str) -> str:
+        """Build the icon-led header for the highlighted notification."""
+        icon = notification_icon(notification.action, notification.icon)
+        return f"{icon} {notification.sender} · {title}"
 
     def _display_image_file(
         self: Any, expanded_path: str, content_widget: Static

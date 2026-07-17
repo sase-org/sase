@@ -1122,12 +1122,129 @@ PlanApprovalModal {
     scrollbar-gutter: stable;
 }
 
+#plan-approval-extras-label {
+    height: auto;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+#plan-approval-extras {
+    height: auto;
+    max-height: 5;
+    border: solid $secondary;
+}
+
 #plan-approval-footer {
     text-align: center;
     color: $text-muted;
     height: auto;
     margin-top: 1;
     border-top: solid $secondary;
+    padding-top: 1;
+}
+
+/* Generic custom notification gate */
+CustomGateModal {
+    align: center middle;
+}
+
+CustomGateModal > #custom-gate-container {
+    width: 90%;
+    max-width: 150;
+    height: 96%;
+    border: double $accent;
+    background: $surface;
+    padding: 1 2;
+}
+
+CustomGateModal #custom-gate-title {
+    text-align: center;
+    height: auto;
+    margin-bottom: 1;
+}
+
+CustomGateModal #custom-gate-review-scroll {
+    height: 1fr;
+    min-height: 3;
+    max-height: 35%;
+    border: solid $secondary;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+CustomGateModal #custom-gate-notes,
+CustomGateModal #custom-gate-preview,
+CustomGateModal #custom-gate-attachments,
+CustomGateModal .custom-gate-section-title {
+    height: auto;
+    margin-bottom: 1;
+}
+
+CustomGateModal #custom-gate-choice-label {
+    height: auto;
+    color: $text-muted;
+    margin-top: 1;
+}
+
+CustomGateModal #custom-gate-choice-buttons {
+    height: auto;
+    align-horizontal: center;
+    margin-bottom: 1;
+}
+
+CustomGateModal #custom-gate-choice-buttons Button {
+    min-width: 16;
+    margin: 0 1;
+}
+
+CustomGateModal #custom-gate-choice-details {
+    height: auto;
+    max-height: 12;
+}
+
+CustomGateModal .custom-gate-choice-panel {
+    height: auto;
+    padding: 0 1;
+}
+
+CustomGateModal .custom-gate-choice-panel.hidden {
+    display: none;
+}
+
+CustomGateModal .custom-gate-field-label,
+CustomGateModal .custom-gate-empty-extras,
+CustomGateModal .custom-gate-feedback-disabled {
+    height: auto;
+    color: $text-muted;
+}
+
+CustomGateModal SelectionList {
+    height: auto;
+    max-height: 5;
+    border: solid $secondary;
+    margin-bottom: 1;
+}
+
+CustomGateModal Input {
+    margin-bottom: 1;
+}
+
+CustomGateModal #custom-gate-submit-buttons {
+    height: auto;
+    align-horizontal: center;
+}
+
+CustomGateModal #custom-gate-submit-buttons Button {
+    min-width: 20;
+    margin: 0 1;
+}
+
+CustomGateModal #custom-gate-footer {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    border-top: solid $secondary;
+    margin-top: 1;
     padding-top: 1;
 }
 

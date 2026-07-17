@@ -105,6 +105,12 @@ from .launch_approval_modal import LaunchApprovalModal, LaunchApprovalResult
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
+from .custom_gate_modal import (
+    CustomGateModal,
+    CustomGateModalData,
+    CustomGateModalResult,
+    GateExtrasSelectionList,
+)
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
@@ -288,6 +294,10 @@ __all__ = [
     "XPromptSelectModal",
     "WorkflowHITLInput",
     "WorkflowHITLModal",
+    "CustomGateModal",
+    "CustomGateModalData",
+    "CustomGateModalResult",
+    "GateExtrasSelectionList",
     "WorkflowSelectModal",
     "WorkspaceInputModal",
     "ZoomPanelModal",

@@ -28,6 +28,7 @@ from .notification_modal_constants import (
     ACTION_BADGES,
     DEFAULT_HINT_TEXT,
     QUESTION_HINT_TEXT,
+    notification_icon,
 )
 from .notification_modal_tags import (
     notification_display_tags,
@@ -73,6 +74,8 @@ class NotificationOptionMixin:
             text.append("* ", style="bold #FFD700")
         else:
             text.append("  ", style="")
+
+        text.append(f"{notification_icon(notification.action, notification.icon)} ")
 
         body_style = "dim" if notification.muted else ""
         bold_style = "dim" if notification.muted else "bold"

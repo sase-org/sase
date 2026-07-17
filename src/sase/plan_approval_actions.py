@@ -273,6 +273,32 @@ def _execute_neutral_plan_approval_response(
     if choice_id == "epic":
         input_data["epic_launch_mode"] = epic_launch_mode
 
+    selected_extra_ids: tuple[str, ...] | None = None
+    if (
+        choice_id == "approve"
+        and (commit_plan is not None or run_coder is not None)
+        and _plan_gate_has_approval_extras(bundle_path)
+    ):
+        from sase.plan_gate import (
+            PLAN_COMMIT_EXTRA_ID,
+            PLAN_RUN_CODER_EXTRA_ID,
+        )
+
+        protocol = require_plan_approval_choice("approve").protocol
+        assert protocol is not None
+        effective_commit = (
+            commit_plan if commit_plan is not None else protocol.commit_plan
+        )
+        effective_run = run_coder if run_coder is not None else protocol.run_coder
+        selected_extra_ids = tuple(
+            extra_id
+            for extra_id, selected in (
+                (PLAN_COMMIT_EXTRA_ID, effective_commit),
+                (PLAN_RUN_CODER_EXTRA_ID, effective_run),
+            )
+            if selected
+        )
+
     from sase.notification_gates.executor import execute_gate_choice
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME
@@ -282,6 +308,7 @@ def _execute_neutral_plan_approval_response(
             bundle_path,
             choice_id,
             input_data,
+            selected_extra_ids=selected_extra_ids,
             feedback=feedback,
             source="plan_response",
         )
@@ -318,6 +345,33 @@ def _execute_neutral_plan_approval_response(
         response_json=execution.response,
         message=message,
     )
+
+
+def _plan_gate_has_approval_extras(bundle_path: Path) -> bool:
+    """Return whether an in-flight gate advertises the remodeled extras."""
+    try:
+        from sase.notification_gates.durability import read_json_object
+        from sase.plan_gate import plan_gate_extra_ids
+
+        envelope = read_json_object(bundle_path / "request.json")
+        choices = envelope.get("choices")
+        if not isinstance(choices, list):
+            return False
+        for choice in choices:
+            if not isinstance(choice, Mapping) or choice.get("id") != "approve":
+                continue
+            extras = choice.get("extras")
+            if not isinstance(extras, list):
+                return False
+            actual = tuple(
+                extra.get("id")
+                for extra in extras
+                if isinstance(extra, Mapping) and isinstance(extra.get("id"), str)
+            )
+            return actual == plan_gate_extra_ids("tale")
+    except Exception:
+        return False
+    return False
 
 
 def prepare_epic_launch(
@@ -717,7 +771,10 @@ def _persisted_plan_action(response_json: dict[str, Any]) -> str | None:
     if action != "approve":
         return None
 
-    if response_json.get("run_coder", True) is False:
+    if (
+        response_json.get("run_coder", True) is False
+        and response_json.get("commit_plan") is True
+    ):
         return "commit"
     if response_json.get("commit_plan") is True:
         return "tale"
