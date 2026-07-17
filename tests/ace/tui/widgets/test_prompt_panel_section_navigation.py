@@ -25,6 +25,7 @@ from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.ace.tui.widgets.prompt_panel._helpers import append_section_heading
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_MARKER_META_KEY,
@@ -141,6 +142,43 @@ def test_section_marker_preserves_text_and_ignores_user_matching_content() -> No
                 (span.start, span.end, style.meta[SECTION_MARKER_META_KEY])
             )
     assert marked_ranges == [(0, len("AGENT PROMPT"), "agent-prompt")]
+
+
+def test_parallel_family_members_section_is_a_navigation_target() -> None:
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="family-root",
+        project_file="/tmp/demo.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 16, 12, 0, 0),
+        raw_suffix="20260716120000",
+        agent_name="family-root",
+        agent_family="family-root",
+        agent_family_role="root",
+        agent_family_parallel=True,
+    )
+    root.runtime_children = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="family-member",
+            project_file="/tmp/demo.sase",
+            status="WAITING",
+            start_time=datetime(2026, 7, 16, 12, 1, 0),
+            raw_suffix="20260716120100",
+            agent_name="family-member",
+            agent_family="family-root",
+            agent_family_role="phase",
+            agent_family_parallel=True,
+        )
+    ]
+    header, _ = build_header_text(root, cheap=True)
+    panel = _render_panel(Group(header), width=80)
+
+    target = panel.resolve_section_target(1, width=80)
+
+    assert target.kind is PromptPanelSectionTargetKind.ANCHOR
+    assert target.anchor is not None
+    assert target.anchor.identity == "members"
 
 
 def test_render_pass_collects_width_aware_anchors_without_navigation_render() -> None:

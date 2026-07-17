@@ -18,6 +18,7 @@ from sase.agent.launch_executor_types import LaunchExecutionContext
 from sase.agent.launch_preview import (
     LAUNCH_REQUEST_FILE,
     build_launch_preview_request,
+    render_launch_preview_markdown,
     write_launch_preview_files,
 )
 from sase.agent.launch_request import (
@@ -337,6 +338,31 @@ def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
     assert (
         "model `opus` · alias overrides: coder → sonnet, phase_worker → @coder"
     ) in preview
+
+
+def test_launch_preview_annotates_family_members_and_root(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout(
+            "multi_prompt",
+            [
+                "%name:demo.phase-a\n%family(demo.root, role=phase)\nImplement",
+                "%name:!demo.root\nLand the family",
+                "%name:demo.review\n%f:demo.root\nReview",
+            ],
+        ),
+        context=_context(tmp_path),
+        source_surface="agent_skill",
+        request_id="launch-family",
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    member = "family member of `demo.root` · role `phase`"
+    root = "family root `demo.root` · role `root`"
+    default_member = "family member of `demo.root` · role `member`"
+    assert preview.index(member) < preview.index(root) < preview.index(default_member)
+    assert preview.count("family root `demo.root`") == 1
 
 
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:

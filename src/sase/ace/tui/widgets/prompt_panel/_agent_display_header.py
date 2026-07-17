@@ -12,7 +12,10 @@ from rich.style import StyleType
 from rich.syntax import Syntax
 from rich.text import Span, Text
 
-from sase.agent.status_buckets import AGENT_STATUS_BUCKET_GLYPHS
+from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKET_GLYPHS,
+    status_bucket_for_values,
+)
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.project_display_names import humanize_cl_name
 
@@ -52,6 +55,14 @@ _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
     "plan": ("\u26a1 PLAN", "bold #5FD7FF"),
     "tale": ("\u26a1 TALE", "bold #FFD75F"),
     "epic": ("\u26a1 EPIC", "bold #AF87FF"),
+}
+_MEMBER_STATUS_STYLES: dict[str, str] = {
+    "Stopped": "bold #FFAF5F",
+    "Starting": "bold #87D7FF",
+    "Running": "bold #FFD700",
+    "Waiting": "bold #AF87FF",
+    "Failed": "bold #FF5F5F",
+    "Done": "bold #5FD75F",
 }
 
 
@@ -144,6 +155,45 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     )
     text.append("Auto: ", style="bold #87D7FF")
     text.append(f"{token}\n", style=style)
+
+
+def _append_parallel_family_members_section(text: Text, agent: Agent) -> None:
+    """Append the already-loaded parallel members for a selected family root."""
+    from ...models._agent_parallel_family import parallel_family_members
+
+    members = sorted(
+        parallel_family_members(agent),
+        key=lambda member: (
+            member.start_time is None,
+            member.start_time.isoformat() if member.start_time is not None else "",
+            member.agent_name or "",
+        ),
+    )
+    if not members:
+        return
+
+    append_major_section_divider(text)
+    heading = Text("MEMBERS", style="bold #D7AF5F underline")
+    heading.append(f" · {len(members)}", style="dim")
+    append_section_heading(text, heading, section_id="members")
+
+    for member in members:
+        role = member.agent_family_role or "member"
+        name = member.agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
+        bucket = status_bucket_for_values(member.status)
+        glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
+        status_style = _MEMBER_STATUS_STYLES[bucket]
+        model = member.model or "default"
+
+        text.append(role, style="italic #AF87FF")
+        text.append(" · ", style="dim")
+        text.append(name, style=_AGENT_NAME_ANNOTATION_STYLE)
+        text.append(" · ", style="dim")
+        text.append(f"{glyph} {member.display_status}", style=status_style)
+        text.append(" · ", style="dim")
+        text.append(model, style="#5FD7FF")
+        text.append(" · ", style="dim")
+        text.append(f"{member.duration_display}\n", style="dim #D7D7FF")
 
 
 def build_header_text(
@@ -458,6 +508,8 @@ def build_header_text(
             hint_state.workspace_dir,
             style="#D7D7FF",
         )
+
+    _append_parallel_family_members_section(header_text, agent)
 
     append_agent_output_variables_section(header_text, agent)
 
