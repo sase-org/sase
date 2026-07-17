@@ -40,11 +40,11 @@ class _StubApp(AgentPanelsMixin, AdvancedNavigationMixin):
         self._nav_stops_cache: tuple[Any, ...] | None = None
         self._entry_jump_agents_anchor_stack: list[Any] = []
         self.refresh_calls: list[bool] = []
-        self.artifact_viewer_guard_active = False
+        self.artifact_file_viewer_guard_active = False
         self.notify = MagicMock()
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
-        if not self.artifact_viewer_guard_active:
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
+        if not self.artifact_file_viewer_guard_active:
             return False
         self.notify(
             "Close the artifact viewer before switching agents",
@@ -128,7 +128,7 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
         self._hint_mode_active = False
         self._accept_mode_active = False
         self._rewind_mode_active = False
-        self.artifact_viewer_guard_active = False
+        self.artifact_file_viewer_guard_active = False
         self._widgets = {
             "agent-list-panel": _TrackingPanelWidget("agent-list-panel", highlighted=0),
             "agent-list-panel-1": _TrackingPanelWidget(
@@ -142,8 +142,8 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
         self.detail_updates = 0
         self.debounced_detail_updates = 0
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
-        return self.artifact_viewer_guard_active
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
+        return self.artifact_file_viewer_guard_active
 
     def query_one(self, selector: str, _type: Any = None) -> Any:
         return self._widgets[selector.lstrip("#")]
@@ -291,7 +291,7 @@ def test_focus_next_agent_panel_guard_keeps_panel_and_selection() -> None:
         _agent(tag="alpha", project="alpha", cl="a", name="tagged"),
     ]
     app = _StubApp(agents, focused_key=None)
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
     app._entry_jump_agents_anchor_stack = [("agent", 1, "alpha")]
 
     app.action_focus_next_agent_panel()

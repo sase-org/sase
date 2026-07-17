@@ -397,22 +397,20 @@ class DetailMixin:
                 if current_agent
                 else False
             )
-            cached_artifacts = getattr(self, "_cached_agent_artifacts", None)
+            cached_artifacts = getattr(self, "_cached_artifact_files", None)
             if current_agent is not None and callable(cached_artifacts):
                 probe = cached_artifacts(current_agent)
                 if probe is None:
-                    schedule = getattr(
-                        self, "_schedule_agent_artifacts_discovery", None
-                    )
+                    schedule = getattr(self, "_schedule_artifact_file_discovery", None)
                     if callable(schedule):
                         schedule(current_agent)
-                    has_agent_artifacts = False
+                    has_artifact_files = False
                 else:
-                    has_agent_artifacts = bool(probe)
+                    has_artifact_files = bool(probe)
             else:
-                has_agent_artifacts = False
-            artifact_visible = getattr(self, "_artifact_tmux_pane_visible", None)
-            artifact_viewer_active = (
+                has_artifact_files = False
+            artifact_visible = getattr(self, "_artifact_file_tmux_pane_visible", None)
+            artifact_file_viewer_active = (
                 bool(artifact_visible()) if callable(artifact_visible) else False
             )
             footer_widget.update_agent_bindings(
@@ -422,8 +420,8 @@ class DetailMixin:
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
                 group_focused=self._current_group_key is not None,
-                has_agent_artifacts=has_agent_artifacts,
-                artifact_viewer_active=artifact_viewer_active,
+                has_artifact_files=has_artifact_files,
+                artifact_file_viewer_active=artifact_file_viewer_active,
                 neighbor_count=self._selected_agent_neighbor_count(current_agent),
                 tmux_choice_count=self._selected_agent_tmux_choice_count(current_agent),
                 tools_visible=agent_detail.is_tools_visible(),

@@ -540,7 +540,7 @@ def build_header_text(
             agent=agent,
             delta_entries=summary.delta_entries,
             linked_delta_groups=summary.linked_delta_groups,
-            artifact_paths=summary.artifact_paths,
+            artifact_file_paths=summary.artifact_file_paths,
             hint_state=hint_state,
         )
 

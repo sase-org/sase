@@ -198,7 +198,7 @@ def test_completion_notification_appends_explicit_artifact_paths(base_kwargs, tm
 
     with (
         patch(
-            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            "sase.core.artifact_file_facade.list_explicit_artifact_files",
             return_value=[SimpleNamespace(path=str(explicit))],
         ) as list_artifacts,
         patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,
@@ -229,7 +229,7 @@ def test_completion_notification_dedupes_explicit_artifact_paths(base_kwargs, tm
 
     with (
         patch(
-            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            "sase.core.artifact_file_facade.list_explicit_artifact_files",
             return_value=[
                 SimpleNamespace(path=str(chat)),
                 SimpleNamespace(path=str(pdf)),
@@ -260,7 +260,7 @@ def test_completion_notification_skips_missing_explicit_artifacts(
 
     with (
         patch(
-            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            "sase.core.artifact_file_facade.list_explicit_artifact_files",
             return_value=[
                 SimpleNamespace(path=""),
                 SimpleNamespace(path=str(tmp_path / "missing.png")),
@@ -277,7 +277,7 @@ def test_completion_notification_skips_missing_explicit_artifacts(
 def test_completion_notification_ignores_explicit_artifact_index_errors(base_kwargs):
     with (
         patch(
-            "sase.core.agent_artifact_facade.list_explicit_agent_artifacts",
+            "sase.core.artifact_file_facade.list_explicit_artifact_files",
             side_effect=OSError("index unavailable"),
         ),
         patch("sase.notifications.senders.notify_workflow_complete") as mock_notify,

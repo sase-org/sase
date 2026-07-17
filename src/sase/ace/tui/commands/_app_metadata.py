@@ -343,11 +343,11 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("zoom_panel", "Zoom largest panel", "Display", AGENTS_ONLY, ("zoom",)),
     ("edit_panel", "Edit panel file", "Agents", AGENTS_ONLY, ()),
     (
-        "open_agent_artifacts",
-        "Open agent artifacts",
+        "open_artifact_files",
+        "Open agent artifact files",
         "Display",
         AGENTS_ONLY,
-        ("artifact", "image", "chat", "icat"),
+        ("artifact file", "image", "chat", "icat"),
     ),
     (
         "show_agent_run_log",

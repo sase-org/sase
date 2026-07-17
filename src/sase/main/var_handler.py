@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from sase.core.agent_artifact_helpers import read_json_object
+from sase.core.artifact_file_helpers import read_json_object
 from sase.core.agent_output_variables import (
     parse_output_variable_assignments,
     set_agent_output_variables,

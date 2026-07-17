@@ -1518,11 +1518,11 @@ ModelPickerModal {
 
 
 /* Agent Artifact Selection Modal styling */
-AgentArtifactSelectionModal {
+ArtifactFileSelectionModal {
     align: center middle;
 }
 
-#agent-artifacts-container {
+#agent-artifact-files-container {
     width: 74;
     height: auto;
     max-height: 28;
@@ -1531,19 +1531,19 @@ AgentArtifactSelectionModal {
     padding: 1 2;
 }
 
-#agent-artifacts-title {
+#agent-artifact-files-title {
     text-align: center;
     text-style: bold;
     height: auto;
     margin-bottom: 1;
 }
 
-#agent-artifacts-list {
+#agent-artifact-files-list {
     height: auto;
     max-height: 20;
 }
 
-#agent-artifacts-hints {
+#agent-artifact-files-hints {
     text-align: center;
     color: $text-muted;
     height: auto;
@@ -2248,7 +2248,7 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
-#agents-content.-artifact-viewer-active #agent-list-container {
+#agents-content.-artifact-file-viewer-active #agent-list-container {
     display: none;
 }
 

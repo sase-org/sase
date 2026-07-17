@@ -18,7 +18,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     registry = load_keymap_registry({})
 
     assert registry.app.show_agent_run_log == "V"
-    assert registry.app.open_agent_artifacts == "a"
+    assert registry.app.open_artifact_files == "a"
     assert registry.app.accept_proposal == "A"
     assert registry.app.start_agent_home == "space"
     assert registry.app.start_agent_from_changespec == "ctrl+@"
@@ -32,7 +32,7 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
 
     bindings = build_app_bindings(registry.app)
     by_key = {b.key: b.action for b in bindings}
-    assert by_key["a"] == "open_agent_artifacts"
+    assert by_key["a"] == "open_artifact_files"
     assert by_key["A"] == "accept_proposal"
     assert by_key["V"] == "show_agent_run_log"
     assert by_key["J"] == "focus_next_agent_panel"

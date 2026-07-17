@@ -168,13 +168,13 @@ def test_non_compact_root_commands_still_parse() -> None:
     """Commands omitted from compact help remain registered and parseable."""
     parser = create_parser()
 
-    artifact_args = parser.parse_args(["artifact", "create", "--path", "out.txt"])
+    artifact_args = parser.parse_args(["artifact-file", "create", "--path", "out.txt"])
     mobile_args = parser.parse_args(["mobile", "agent-bridge", "list-agents"])
     telemetry_args = parser.parse_args(["telemetry", "status"])
     questions_args = parser.parse_args(["questions", "[]"])
     var_args = parser.parse_args(["var", "set", "answer=42"])
 
-    assert artifact_args.command == "artifact"
+    assert artifact_args.command == "artifact-file"
     assert mobile_args.command == "mobile"
     assert telemetry_args.command == "telemetry"
     assert questions_args.command == "questions"

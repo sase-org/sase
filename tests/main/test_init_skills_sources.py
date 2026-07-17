@@ -22,7 +22,7 @@ from tests.main.init_skills_handler_helpers import make_args
 @pytest.mark.parametrize(
     ("skill_name", "expected_phrases"),
     [
-        ("sase_artifact", ("sase artifact create -p", "--kind")),
+        ("sase_artifact_file", ("sase artifact-file create -p", "--kind")),
         (
             "sase_agents_status",
             (

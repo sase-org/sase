@@ -3,7 +3,7 @@
 ``AgentPromptPanel.update_header_only`` is invoked from
 ``AgentDetail.update_display_immediate`` during j/k bursts. It must
 render the agent metadata panel (and any inline error traceback)
-without touching the artifact cache, listing the artifacts directory,
+without touching the artifact-file cache, listing the artifacts directory,
 or opening prompt / reply / response files. The debounced full update
 fills in the rest after the burst settles.
 """
@@ -123,7 +123,7 @@ def test_update_header_only_does_not_touch_disk(tmp_path: Path) -> None:
     with (
         patch("os.listdir", side_effect=spying_listdir),
         patch(
-            "sase.agent.agent_artifacts_cache.os.listdir",
+            "sase.agent.artifact_files_cache.os.listdir",
             side_effect=spying_listdir,
         ),
         patch("builtins.open", side_effect=spying_open),
@@ -267,7 +267,7 @@ def test_update_display_header_renders_debounced_full_enrichment(
 
     panel = _FakePanel()
     with patch(
-        "sase.ace.tui.models.agent_artifacts.resolve_agent_artifact_path",
+        "sase.ace.tui.models.artifact_files.resolve_agent_artifact_path",
         side_effect=lambda path: Path(path),
     ):
         panel.update_display(agent)

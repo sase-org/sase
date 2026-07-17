@@ -133,7 +133,7 @@ class FileViewingMixin(HintMixinBase):
         with self.suspend():  # type: ignore[attr-defined]
             run_viewer()
 
-    def _view_files_with_artifact_viewer(self, files: list[str]) -> None:
+    def _view_files_with_artifact_file_viewer(self, files: list[str]) -> None:
         """View selected files through the terminal artifact viewer.
 
         Used when the selection contains at least one supported image or video
@@ -143,13 +143,13 @@ class FileViewingMixin(HintMixinBase):
         Requires suspend, matching the pager flow.
         """
         from ...graphics import (
-            ArtifactViewSpec,
+            ArtifactFileViewSpec,
             is_supported_image_path,
             view_artifact_files,
         )
 
         specs = [
-            ArtifactViewSpec(
+            ArtifactFileViewSpec(
                 f,
                 kind="image" if is_supported_image_path(f) else "file",
             )

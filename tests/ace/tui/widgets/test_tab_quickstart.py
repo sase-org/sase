@@ -30,12 +30,14 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
 
     sections = TabQuickStart.render_content(registry, tab="agents")
     card = _section_plain(sections, "#agent-quickstart-card")
+    hero = _section_plain(sections, "#agent-quickstart-hero")
 
     for key in ("f2", "f3", "f4", "f5", "f6", "f7"):
         assert key in card
     assert " ] " in card
     assert "Launch your first agent" in card
     assert "The full tour of this tab" in card
+    assert "tool calls, and artifact files" in hero
 
 
 def test_artifacts_quickstart_advertises_every_subtab() -> None:

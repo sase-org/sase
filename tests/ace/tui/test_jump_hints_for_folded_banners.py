@@ -66,12 +66,12 @@ class _StubApp(AgentUnreadMixin, AdvancedNavigationMixin):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.notification_count_refresh_calls = 0
-        self.artifact_viewer_guard_active = False
+        self.artifact_file_viewer_guard_active = False
         self.jump_footer_updates = 0
         self.notify = MagicMock()
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
-        if not self.artifact_viewer_guard_active:
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
+        if not self.artifact_file_viewer_guard_active:
             return False
         self.notify(
             "Close the artifact viewer before switching agents",
@@ -482,7 +482,7 @@ def test_jump_mode_entry_guard_warns_without_entering() -> None:
         _agent(project="beta", cl="b1", name="b1"),
     ]
     app = _StubApp(agents)
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
 
     app._begin_agents_jump_mode()
 
@@ -503,7 +503,7 @@ def test_jump_selection_guard_keeps_current_agent() -> None:
     app.current_idx = 0
     app._begin_agents_jump_mode()
     hint = app._entry_jump_index_to_hint[1]
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
 
     handled = app._handle_entry_jump_key(hint)
 
@@ -525,7 +525,7 @@ def test_panel_jump_selection_guard_keeps_focus_and_backing_agent() -> None:
     app = _StubApp(agents, collapsed_panels={"chop"})
     app._begin_agents_jump_mode()
     hint = app._entry_jump_panel_to_hint[("panel", "chop")]
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
 
     handled = app._handle_entry_jump_key(hint)
 

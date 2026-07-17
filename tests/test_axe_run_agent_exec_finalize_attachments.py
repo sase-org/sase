@@ -10,7 +10,7 @@ from sase.axe.image_attachments import MAX_COMPLETION_IMAGE_ATTACHMENTS
 from sase.axe.run_agent_exec import AgentExecContext, LoopState, _finalize_loop
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_runner_finalize import send_completion_notification
-from sase.core.agent_artifact_facade import list_agent_artifacts
+from sase.core.artifact_file_facade import list_artifact_files
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
 from tests._axe_run_agent_exec_helpers import run_command
@@ -269,7 +269,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
         {"source_path": str(research.resolve()), "pdf_path": expected_pdfs[1]},
     ]
 
-    artifact_rows = list_agent_artifacts(artifacts)
+    artifact_rows = list_artifact_files(artifacts)
     rows_by_source = {
         artifact.source_path: artifact
         for artifact in artifact_rows
@@ -283,7 +283,7 @@ def test_finalize_loop_records_markdown_pdfs_images_and_notification_files(
     assert persisted_video_path.is_file()
 
     video.unlink()
-    artifact_rows_after_cleanup = list_agent_artifacts(artifacts)
+    artifact_rows_after_cleanup = list_artifact_files(artifacts)
     rows_after_cleanup = {
         artifact.source_path: artifact
         for artifact in artifact_rows_after_cleanup
@@ -374,7 +374,7 @@ def test_finalize_loop_retains_images_omitted_from_completion_notification(
     assert done["image_paths"] == image_paths
     artifact_image_sources = {
         artifact.source_path
-        for artifact in list_agent_artifacts(ctx.artifacts_dir)
+        for artifact in list_artifact_files(ctx.artifacts_dir)
         if artifact.kind == "image"
     }
     assert artifact_image_sources == set(image_paths)

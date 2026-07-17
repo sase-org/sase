@@ -11,7 +11,7 @@ import pytest
 
 from sase.ace.tui.actions.hints._files import FileViewingMixin
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
-from sase.ace.tui.graphics import ArtifactViewerResult, ArtifactViewSpec
+from sase.ace.tui.graphics import ArtifactFileViewerResult, ArtifactFileViewSpec
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.tools import ToolCallEntry
 from sase.ace.tui.tools.report import SlowToolCallReportSpec
@@ -418,48 +418,48 @@ async def test_multiple_commit_hint_editor_suffix_opens_raw_diff_paths(
     app.app.push_screen.assert_not_called()
 
 
-async def test_image_only_selection_uses_artifact_viewer(
+async def test_image_only_selection_uses_artifact_file_viewer(
     tmp_path: Path, monkeypatch
 ) -> None:
     image = tmp_path / "shot.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     app = _make_app(str(image))
     app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
-    calls: list[list[ArtifactViewSpec]] = []
+    calls: list[list[ArtifactFileViewSpec]] = []
 
-    def fake_viewer(specs) -> ArtifactViewerResult:
+    def fake_viewer(specs) -> ArtifactFileViewerResult:
         calls.append(list(specs))
         assert app.suspend_recorder.entered is True
-        return ArtifactViewerResult(True)
+        return ArtifactFileViewerResult(True)
 
     monkeypatch.setattr("sase.ace.tui.graphics.view_artifact_files", fake_viewer)
 
     await app._process_view_input("1")
 
-    assert calls == [[ArtifactViewSpec(str(image), kind="image")]]
+    assert calls == [[ArtifactFileViewSpec(str(image), kind="image")]]
     app._view_files_with_pager.assert_not_called()
     app.notify.assert_not_called()
 
 
-async def test_video_only_selection_uses_artifact_viewer(
+async def test_video_only_selection_uses_artifact_file_viewer(
     tmp_path: Path, monkeypatch
 ) -> None:
     video = tmp_path / "clip.mp4"
     video.write_bytes(b"video")
     app = _make_app(str(video))
     app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
-    calls: list[list[ArtifactViewSpec]] = []
+    calls: list[list[ArtifactFileViewSpec]] = []
 
-    def fake_viewer(specs) -> ArtifactViewerResult:
+    def fake_viewer(specs) -> ArtifactFileViewerResult:
         calls.append(list(specs))
         assert app.suspend_recorder.entered is True
-        return ArtifactViewerResult(True)
+        return ArtifactFileViewerResult(True)
 
     monkeypatch.setattr("sase.ace.tui.graphics.view_artifact_files", fake_viewer)
 
     await app._process_view_input("1")
 
-    assert calls == [[ArtifactViewSpec(str(video), kind="file")]]
+    assert calls == [[ArtifactFileViewSpec(str(video), kind="file")]]
     app._view_files_with_pager.assert_not_called()
     app.notify.assert_not_called()
 
@@ -473,11 +473,11 @@ async def test_mixed_selection_routes_all_files_in_order(
     notes.write_text("# notes", encoding="utf-8")
     app = _make_app(str(image), str(notes))
     app._view_files_with_pager = MagicMock()  # type: ignore[method-assign]
-    calls: list[list[ArtifactViewSpec]] = []
+    calls: list[list[ArtifactFileViewSpec]] = []
 
-    def fake_viewer(specs) -> ArtifactViewerResult:
+    def fake_viewer(specs) -> ArtifactFileViewerResult:
         calls.append(list(specs))
-        return ArtifactViewerResult(True)
+        return ArtifactFileViewerResult(True)
 
     monkeypatch.setattr("sase.ace.tui.graphics.view_artifact_files", fake_viewer)
 
@@ -485,21 +485,23 @@ async def test_mixed_selection_routes_all_files_in_order(
 
     assert calls == [
         [
-            ArtifactViewSpec(str(image), kind="image"),
-            ArtifactViewSpec(str(notes), kind="file"),
+            ArtifactFileViewSpec(str(image), kind="image"),
+            ArtifactFileViewSpec(str(notes), kind="file"),
         ]
     ]
     app._view_files_with_pager.assert_not_called()
 
 
-async def test_artifact_viewer_warning_is_surfaced(tmp_path: Path, monkeypatch) -> None:
+async def test_artifact_file_viewer_warning_is_surfaced(
+    tmp_path: Path, monkeypatch
+) -> None:
     image = tmp_path / "shot.png"
     image.write_bytes(b"\x89PNG\r\n\x1a\n")
     app = _make_app(str(image))
 
     monkeypatch.setattr(
         "sase.ace.tui.graphics.view_artifact_files",
-        lambda _specs: ArtifactViewerResult(False, warning="kitten missing"),
+        lambda _specs: ArtifactFileViewerResult(False, warning="kitten missing"),
     )
 
     await app._process_view_input("1")
@@ -507,7 +509,7 @@ async def test_artifact_viewer_warning_is_surfaced(tmp_path: Path, monkeypatch) 
     app.notify.assert_called_once_with("kitten missing", severity="warning")
 
 
-async def test_editor_suffix_bypasses_artifact_viewer(
+async def test_editor_suffix_bypasses_artifact_file_viewer(
     tmp_path: Path, monkeypatch
 ) -> None:
     image = tmp_path / "shot.png"
@@ -527,7 +529,7 @@ async def test_editor_suffix_bypasses_artifact_viewer(
     viewer.assert_not_called()
 
 
-async def test_clipboard_suffix_bypasses_artifact_viewer(
+async def test_clipboard_suffix_bypasses_artifact_file_viewer(
     tmp_path: Path, monkeypatch
 ) -> None:
     image = tmp_path / "shot.png"

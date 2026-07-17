@@ -17,10 +17,10 @@ from rich.panel import Panel
 from rich.text import Text
 
 from ._viewer_types import (
-    ArtifactImageArea,
-    ArtifactViewerResult,
-    ArtifactViewerWarning,
-    ArtifactViewSpec,
+    ArtifactFileImageArea,
+    ArtifactFileViewerResult,
+    ArtifactFileViewerWarning,
+    ArtifactFileViewSpec,
 )
 
 _ARTIFACT_VIEWER_RESERVED_ROWS = 7
@@ -84,16 +84,16 @@ def run_command(cmd: Sequence[str]) -> subprocess.CompletedProcess[Any]:
     return subprocess.run(list(cmd), check=False)
 
 
-def select_tmux_pane(pane_id: str) -> ArtifactViewerResult:
+def select_tmux_pane(pane_id: str) -> ArtifactFileViewerResult:
     from ._viewer_launch import select_tmux_pane
 
     return select_tmux_pane(pane_id)
 
 
-def toggle_tmux_zoom() -> ArtifactViewerResult:
-    from ._viewer_launch import toggle_artifact_tmux_pane_zoom
+def toggle_tmux_zoom() -> ArtifactFileViewerResult:
+    from ._viewer_launch import toggle_artifact_file_tmux_pane_zoom
 
-    return toggle_artifact_tmux_pane_zoom()
+    return toggle_artifact_file_tmux_pane_zoom()
 
 
 def tmux_zoom_available() -> bool:
@@ -106,7 +106,7 @@ def artifact_image_area(
     reserved_rows: int = _ARTIFACT_VIEWER_RESERVED_ROWS,
     reserved_columns: int = _ARTIFACT_VIEWER_RESERVED_COLUMNS,
     top_rows: int = _ARTIFACT_VIEWER_HEADER_ROWS,
-) -> ArtifactImageArea:
+) -> ArtifactFileImageArea:
     """Return the terminal cell area available for artifact image display."""
 
     size = terminal_size or shutil.get_terminal_size(fallback=(80, 24))
@@ -114,10 +114,10 @@ def artifact_image_area(
     columns = max(_MIN_IMAGE_COLUMNS, int(size[0]) - max(0, reserved_columns))
     rows = max(_MIN_IMAGE_ROWS, lines - reserved_rows)
     top = min(max(0, top_rows), max(0, lines - rows))
-    return ArtifactImageArea(columns=columns, rows=rows, top=top)
+    return ArtifactFileImageArea(columns=columns, rows=rows, top=top)
 
 
-def kitten_icat_command(page: Path, image_area: ArtifactImageArea) -> list[str]:
+def kitten_icat_command(page: Path, image_area: ArtifactFileImageArea) -> list[str]:
     """Build a bounded ``kitten icat`` command for the current viewer area."""
 
     return [
@@ -138,7 +138,7 @@ def clear_terminal(
     run_command(["clear"])
 
 
-def move_cursor_below_image(image_area: ArtifactImageArea) -> None:
+def move_cursor_below_image(image_area: ArtifactFileImageArea) -> None:
     """Move the terminal cursor so the prompt prints below a placed image."""
 
     row = max(1, image_area.top + image_area.rows)
@@ -156,7 +156,7 @@ def format_artifact_header_path(path: str | Path) -> str:
 
 
 def artifact_header_panel(
-    spec: ArtifactViewSpec,
+    spec: ArtifactFileViewSpec,
     *,
     page_index: int,
     page_count: int,
@@ -201,7 +201,7 @@ def artifact_header_panel(
 
 
 def print_artifact_header(
-    spec: ArtifactViewSpec,
+    spec: ArtifactFileViewSpec,
     *,
     page_index: int,
     page_count: int,
@@ -223,7 +223,7 @@ def print_artifact_header(
     )
 
 
-def print_artifact_warning(warning: ArtifactViewerWarning) -> None:
+def print_artifact_warning(warning: ArtifactFileViewerWarning) -> None:
     Console().print(Panel(warning.message, style="bold yellow", expand=False))
 
 

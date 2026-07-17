@@ -142,9 +142,9 @@ def _completion_explicit_artifact_paths(current_artifacts_dir: str | None) -> li
         return []
 
     try:
-        from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
+        from sase.core.artifact_file_facade import list_explicit_artifact_files
 
-        artifacts = list_explicit_agent_artifacts(current_artifacts_dir)
+        artifacts = list_explicit_artifact_files(current_artifacts_dir)
     except Exception:
         return []
 

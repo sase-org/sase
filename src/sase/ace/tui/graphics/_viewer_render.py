@@ -22,9 +22,9 @@ from sase.attachments.markdown_pdf import (
 )
 
 from ._viewer_types import (
-    ArtifactImageArea,
+    ArtifactFileImageArea,
     ArtifactRenderResult,
-    ArtifactViewerWarning,
+    ArtifactFileViewerWarning,
     ArtifactViewMode,
 )
 from .images import is_supported_image_path
@@ -40,22 +40,22 @@ _MIN_ARTIFACT_PAGE_ASPECT = 0.7
 _FALLBACK_TERMINAL_CELL_PIXEL_ASPECT = 0.5
 
 
-def render_artifact_pages(
+def render_artifact_file_pages(
     path: str | Path,
     *,
     kind: str | None = None,
     cache_dir: str | Path | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
     expanded = Path(path).expanduser().resolve(strict=False)
-    mode = artifact_view_mode(expanded, kind=kind)
+    mode = artifact_file_view_mode(expanded, kind=kind)
     if mode is None:
         return ArtifactRenderResult(
             (),
             (
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "unsupported_artifact_kind",
                     "Unsupported artifact type",
                 ),
@@ -65,7 +65,7 @@ def render_artifact_pages(
         return ArtifactRenderResult(
             (),
             (
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "artifact_not_found",
                     "Artifact file not found",
                 ),
@@ -76,19 +76,19 @@ def render_artifact_pages(
             return ArtifactRenderResult(
                 (),
                 (
-                    ArtifactViewerWarning(
+                    ArtifactFileViewerWarning(
                         "artifact_not_file",
                         "Artifact path is not a file",
                     ),
                 ),
             )
         if mode == "video":
-            warnings = validate_artifact_viewer_dependencies(mode)
+            warnings = validate_artifact_file_viewer_dependencies(mode)
             if warnings:
                 return ArtifactRenderResult((), tuple(warnings))
         return ArtifactRenderResult(())
 
-    warnings = validate_artifact_viewer_dependencies(mode)
+    warnings = validate_artifact_file_viewer_dependencies(mode)
     if warnings:
         return ArtifactRenderResult((), tuple(warnings))
 
@@ -108,7 +108,7 @@ def render_artifact_pages(
     )
 
 
-def artifact_view_mode(
+def artifact_file_view_mode(
     path: str | Path,
     *,
     kind: str | None = None,
@@ -130,15 +130,15 @@ def artifact_view_mode(
     return "text"
 
 
-def validate_artifact_viewer_dependencies(
+def validate_artifact_file_viewer_dependencies(
     mode: ArtifactViewMode,
-) -> tuple[ArtifactViewerWarning, ...]:
+) -> tuple[ArtifactFileViewerWarning, ...]:
     """Return missing terminal/rendering dependencies for *mode*."""
 
-    warnings: list[ArtifactViewerWarning] = []
+    warnings: list[ArtifactFileViewerWarning] = []
     if mode in {"image", "markdown", "pdf"} and shutil.which("kitten") is None:
         warnings.append(
-            ArtifactViewerWarning(
+            ArtifactFileViewerWarning(
                 "missing_kitten",
                 "kitten executable not found",
                 tool="kitten",
@@ -146,7 +146,7 @@ def validate_artifact_viewer_dependencies(
         )
     if mode == "video" and shutil.which("mpv") is None:
         warnings.append(
-            ArtifactViewerWarning(
+            ArtifactFileViewerWarning(
                 "missing_mpv",
                 "mpv executable not found",
                 tool="mpv",
@@ -154,7 +154,7 @@ def validate_artifact_viewer_dependencies(
         )
     if mode in {"markdown", "pdf"} and shutil.which("pdftoppm") is None:
         warnings.append(
-            ArtifactViewerWarning(
+            ArtifactFileViewerWarning(
                 "missing_pdftoppm",
                 "pdftoppm executable not found",
                 tool="pdftoppm",
@@ -163,7 +163,7 @@ def validate_artifact_viewer_dependencies(
     if mode == "markdown":
         if shutil.which("pandoc") is None:
             warnings.append(
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "missing_pandoc",
                     "pandoc executable not found",
                     tool="pandoc",
@@ -171,7 +171,7 @@ def validate_artifact_viewer_dependencies(
             )
         if not any(shutil.which(engine) for engine in PDF_ENGINES):
             warnings.append(
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "missing_pdf_engine",
                     "No PDF engine found",
                     tool=",".join(PDF_ENGINES),
@@ -202,7 +202,7 @@ def convert_pdf_to_png_pages(
         return ArtifactRenderResult(
             (),
             (
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "pdftoppm_failed",
                     f"pdftoppm failed with exit code {result.returncode}{suffix}",
                     tool="pdftoppm",
@@ -215,7 +215,7 @@ def convert_pdf_to_png_pages(
         return ArtifactRenderResult(
             (),
             (
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "no_pdf_pages",
                     "pdftoppm did not produce any PNG pages",
                     tool="pdftoppm",
@@ -230,7 +230,7 @@ def _render_paginated_artifact(
     mode: ArtifactViewMode,
     cache_dir: Path,
     *,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
 ) -> ArtifactRenderResult:
     cache_dir.mkdir(parents=True, exist_ok=True)
     if mode == "pdf":
@@ -249,7 +249,7 @@ def _render_paginated_artifact(
         return ArtifactRenderResult(
             (),
             (
-                ArtifactViewerWarning(
+                ArtifactFileViewerWarning(
                     "markdown_render_failed",
                     "Markdown PDF rendering failed",
                 ),
@@ -264,7 +264,7 @@ def _print_render_status(message: str) -> None:
 
 
 def artifact_markdown_pdf_profile_for_image_area(
-    image_area: ArtifactImageArea | None,
+    image_area: ArtifactFileImageArea | None,
     *,
     cell_pixel_aspect: float | None = None,
 ) -> MarkdownPdfProfile | None:

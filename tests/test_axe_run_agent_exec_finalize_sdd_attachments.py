@@ -10,7 +10,7 @@ from sase.axe.run_agent_exec import AgentExecContext, LoopState, _finalize_loop
 from sase.axe.run_agent_exec_finalize import _sdd_repo_scans
 from sase.axe.run_agent_exec_retry import RetryTracker
 from sase.axe.run_agent_runner_finalize import send_completion_notification
-from sase.core.agent_artifact_facade import list_agent_artifacts
+from sase.core.artifact_file_facade import list_artifact_files
 from sase.sdd.store import SddStore
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
@@ -178,7 +178,7 @@ def test_finalize_loop_discovers_committed_separate_sdd_artifacts(
 
     artifacts_by_source = {
         artifact.source_path: artifact
-        for artifact in list_agent_artifacts(artifacts)
+        for artifact in list_artifact_files(artifacts)
         if artifact.source_path
     }
     assert artifacts_by_source[str(plan.resolve())].kind == "pdf"

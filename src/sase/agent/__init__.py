@@ -3,8 +3,8 @@
 Groups the agent-launching, naming, and multi-prompt orchestration modules.
 """
 
-from sase.agent.agent_artifacts_cache import (
-    AgentArtifactCache,
+from sase.agent.artifact_files_cache import (
+    ArtifactFileCache,
     TailCache,
     get_global_cache,
 )
@@ -36,7 +36,7 @@ from sase.agent.running import (
 )
 
 __all__ = [
-    "AgentArtifactCache",
+    "ArtifactFileCache",
     "AgentLaunchResult",
     "MultiPrompt",
     "TailCache",

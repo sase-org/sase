@@ -56,11 +56,11 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
         self.patch_calls: list[Agent] = []
         self.refresh_calls: list[dict[str, Any]] = []
         self.notification_count_refresh_calls = 0
-        self.artifact_viewer_guard_active = False
+        self.artifact_file_viewer_guard_active = False
         self.notify = Mock()
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
-        if not self.artifact_viewer_guard_active:
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
+        if not self.artifact_file_viewer_guard_active:
             return False
         self.notify(
             "Close the artifact viewer before switching agents",
@@ -181,7 +181,7 @@ def test_agent_row_selection_guard_ignores_different_agent() -> None:
     first = make_agent(name="first", status="DONE", raw_suffix="first")
     second = make_agent(name="second", status="DONE", raw_suffix="second")
     app = _SelectionApp([first, second])
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
 
     app.on_agent_list_selection_changed(
         _SelectionEvent(control=AgentList(id="agent-list-panel"), index=1)

@@ -30,30 +30,30 @@ from ._viewer_loop_terminal import (
     toggle_tmux_zoom,
 )
 from ._viewer_loop_types import ArtifactVideoPlaybackConfig, PageLoopResult
-from ._viewer_render import artifact_view_mode, render_artifact_pages
+from ._viewer_render import artifact_file_view_mode, render_artifact_file_pages
 from ._viewer_types import (
-    ArtifactImageArea,
+    ArtifactFileImageArea,
     ArtifactRenderResult,
-    ArtifactViewerResult,
-    ArtifactViewerWarning,
-    ArtifactViewSpec,
+    ArtifactFileViewerResult,
+    ArtifactFileViewerWarning,
+    ArtifactFileViewSpec,
 )
 
 
 def run_artifact_sequence_loop(
-    artifacts: Sequence[ArtifactViewSpec],
+    artifacts: Sequence[ArtifactFileViewSpec],
     *,
     cache_root: str | Path,
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
     return_pane_id: str | None = None,
-    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    select_pane: Callable[[str], ArtifactFileViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
-    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    toggle_zoom: Callable[[], ArtifactFileViewerResult] | None = None,
     video_config: ArtifactVideoPlaybackConfig | None = None,
-    render_pages: Callable[..., ArtifactRenderResult] = render_artifact_pages,
+    render_pages: Callable[..., ArtifactRenderResult] = render_artifact_file_pages,
 ) -> PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
@@ -68,7 +68,7 @@ def run_artifact_sequence_loop(
     root = Path(cache_root).expanduser()
     page_cache: dict[tuple[int, int, int], tuple[Path, ...]] = {}
 
-    def pages_for(index: int, area: ArtifactImageArea) -> ArtifactRenderResult:
+    def pages_for(index: int, area: ArtifactFileImageArea) -> ArtifactRenderResult:
         cache_key = (index, area.columns, area.rows)
         if cache_key in page_cache:
             return ArtifactRenderResult(page_cache[cache_key])
@@ -91,7 +91,7 @@ def run_artifact_sequence_loop(
         tmux_zoom_is_available() if tmux_zoom_available is None else tmux_zoom_available
     )
     pages: tuple[Path, ...] = ()
-    current_mode = artifact_view_mode(
+    current_mode = artifact_file_view_mode(
         specs[artifact_index].path,
         kind=specs[artifact_index].kind,
     )
@@ -100,9 +100,9 @@ def run_artifact_sequence_loop(
         current_area = image_area or artifact_image_area()
         if needs_render:
             spec = specs[artifact_index]
-            current_mode = artifact_view_mode(spec.path, kind=spec.kind)
+            current_mode = artifact_file_view_mode(spec.path, kind=spec.kind)
             if current_mode is None:
-                warning = ArtifactViewerWarning(
+                warning = ArtifactFileViewerWarning(
                     "unsupported_artifact_kind",
                     "Unsupported artifact type",
                 )
@@ -151,7 +151,7 @@ def run_artifact_sequence_loop(
                     )
                 if video_displayed.returncode != 0:
                     print_artifact_warning(
-                        ArtifactViewerWarning(
+                        ArtifactFileViewerWarning(
                             "mpv_failed",
                             f"mpv failed with exit code {video_displayed.returncode}",
                             tool="mpv",

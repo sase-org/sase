@@ -14,7 +14,7 @@ from ...models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
 )
-from ._agent_artifacts import append_artifact_path
+from ._artifact_files import append_artifact_file_path
 from ._agent_context_common import (
     COLOR_EMPTY,
     COLOR_PLAN_PRIMARY,
@@ -144,7 +144,7 @@ class ResponsivePlanSection:
         text = Text()
         if self.hint_number is not None:
             text.append(f"[{self.hint_number}] ", style="bold #FFFF00")
-        append_artifact_path(
+        append_artifact_file_path(
             text,
             self.summary.display_path,
             exists=self.summary.exists,

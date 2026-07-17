@@ -8,7 +8,7 @@ from sase.axe import run_agent_exec_plan_accept as accept_mod
 from sase.axe.run_agent_exec_plan import handle_plan_marker
 from sase.axe.run_agent_exec_plan_artifacts import store_followup_prompt_artifact
 from sase.axe.run_agent_helpers import create_followup_artifacts
-from sase.core.agent_artifact_facade import list_explicit_agent_artifacts
+from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.llm_provider._plan_utils import PlanApprovalResult
 from tests._axe_run_agent_exec_plan_helpers import make_ctx, make_state
 from tests.plan_validation_helpers import VALID_EPIC_PLAN
@@ -157,7 +157,7 @@ def test_store_followup_prompt_artifact_registers_explicit_artifact(
         label="Full feedback prompt",
     )
 
-    artifacts = list_explicit_agent_artifacts(artifacts_dir)
+    artifacts = list_explicit_artifact_files(artifacts_dir)
     assert len(artifacts) == 1
     artifact = artifacts[0]
     assert artifact.label == "Full feedback prompt"

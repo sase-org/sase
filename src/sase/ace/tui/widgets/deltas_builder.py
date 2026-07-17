@@ -11,8 +11,8 @@ from ..models.fold_state import FoldLevel
 from .file_panel._linked_deltas import LinkedDeltaGroup
 from .hint_tracker import HintTracker
 from .prompt_panel._agent_context_common import (
-    COLOR_ARTIFACT_BASENAME,
-    COLOR_ARTIFACT_PATH,
+    COLOR_ARTIFACT_FILE_BASENAME,
+    COLOR_ARTIFACT_FILE_PATH,
     COLOR_EXTERNAL_REPO_GLYPH,
     COLOR_EXTERNAL_REPO_NAME,
     COLOR_WORKSPACE_GLYPH,
@@ -77,8 +77,8 @@ def _append_path(text: Text, path: str) -> None:
     """Append a path with a bold-basename treatment."""
     dirname, basename = os.path.split(path)
     if dirname:
-        text.append(dirname + "/", style=COLOR_ARTIFACT_PATH)
-    text.append(basename or path, style=COLOR_ARTIFACT_BASENAME)
+        text.append(dirname + "/", style=COLOR_ARTIFACT_FILE_PATH)
+    text.append(basename or path, style=COLOR_ARTIFACT_FILE_BASENAME)
 
 
 def _counts(deltas: list[DeltaEntry]) -> tuple[int, int, int]:

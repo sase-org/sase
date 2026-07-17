@@ -296,9 +296,9 @@ def _collect_default_artifacts(
     )
 
     try:
-        from sase.core.agent_artifact_facade import persist_default_agent_artifacts
+        from sase.core.artifact_file_facade import persist_default_artifact_files
 
-        persist_default_agent_artifacts(
+        persist_default_artifact_files(
             state.current_artifacts_dir,
             image_paths=image_paths,
             video_paths=video_paths,

@@ -9,7 +9,7 @@ from typing import Literal, Protocol
 ArtifactViewMode = Literal["image", "markdown", "pdf", "text", "video"]
 
 
-class ArtifactLike(Protocol):
+class ArtifactFileLike(Protocol):
     """Minimal artifact shape consumed by the viewer."""
 
     path: str
@@ -17,7 +17,7 @@ class ArtifactLike(Protocol):
 
 
 @dataclass(frozen=True)
-class ArtifactViewSpec:
+class ArtifactFileViewSpec:
     """Artifact path and kind metadata for a terminal viewer document."""
 
     path: str | Path
@@ -25,7 +25,7 @@ class ArtifactViewSpec:
 
 
 @dataclass(frozen=True)
-class ArtifactImageArea:
+class ArtifactFileImageArea:
     """Terminal cell area reserved for displaying an artifact image."""
 
     columns: int
@@ -35,7 +35,7 @@ class ArtifactImageArea:
 
 
 @dataclass(frozen=True)
-class ArtifactViewerWarning:
+class ArtifactFileViewerWarning:
     """Structured warning returned by artifact rendering/viewer helpers."""
 
     code: str
@@ -48,7 +48,7 @@ class ArtifactRenderResult:
     """Rendered artifact pages ready for terminal display."""
 
     pages: tuple[Path, ...]
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -57,23 +57,23 @@ class ArtifactRenderResult:
 
 
 @dataclass(frozen=True)
-class ArtifactViewerResult:
+class ArtifactFileViewerResult:
     """Result returned after trying to open an artifact outside Textual."""
 
     ok: bool
     warning: str | None = None
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
     pane_id: str | None = None
 
 
-ImageViewerResult = ArtifactViewerResult
+ImageViewerResult = ArtifactFileViewerResult
 
 
 def viewer_result_from_warnings(
-    warnings: tuple[ArtifactViewerWarning, ...],
-) -> ArtifactViewerResult:
+    warnings: tuple[ArtifactFileViewerWarning, ...],
+) -> ArtifactFileViewerResult:
     """Convert structured viewer warnings into the public viewer result."""
-    return ArtifactViewerResult(
+    return ArtifactFileViewerResult(
         False,
         warning=warnings[0].message if warnings else None,
         warnings=warnings,

@@ -15,7 +15,7 @@ from sase.repo_inventory import RepoKind
 
 from ...models.agent_associated_plan import AssociatedPlanSummary
 from ..file_panel._linked_deltas import LinkedDeltaGroup
-from ._agent_artifacts import AgentArtifactPath
+from ._artifact_files import ArtifactFilePath
 
 
 @dataclass
@@ -63,7 +63,7 @@ class DetailHeaderSummary:
     associated_plan: AssociatedPlanSummary | None = None
     delta_entries: list[DeltaEntry] | None = None
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
-    artifact_paths: list[AgentArtifactPath] | None = None
+    artifact_file_paths: list[ArtifactFilePath] | None = None
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()
     opened_workspaces: tuple[OpenedWorkspaceDisplayEvent, ...] = ()

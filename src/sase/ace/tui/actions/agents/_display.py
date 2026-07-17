@@ -372,7 +372,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         defer_detail: bool,
         merge_tag_panels: bool,
     ) -> bool:
-        sync_artifact_layout = getattr(self, "_sync_artifact_viewer_layout", None)
+        sync_artifact_layout = getattr(self, "_sync_artifact_file_viewer_layout", None)
         if callable(sync_artifact_layout):
             sync_artifact_layout()
         self._agent_detail_debouncer.cancel()
@@ -459,7 +459,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     ) -> None:
         started = time.perf_counter()
         list_started = started
-        sync_artifact_layout = getattr(self, "_sync_artifact_viewer_layout", None)
+        sync_artifact_layout = getattr(self, "_sync_artifact_file_viewer_layout", None)
         if callable(sync_artifact_layout):
             sync_artifact_layout()
         # Cancel any pending debounced detail update — full refresh supersedes

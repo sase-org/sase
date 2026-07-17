@@ -35,7 +35,9 @@ class LifecycleMixin:
         stop_prompt_watcher = getattr(self, "_stop_prompt_source_watcher", None)
         if stop_prompt_watcher is not None:
             stop_prompt_watcher()
-        cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
+        cancel_discovery = getattr(
+            self, "_cancel_pending_artifact_file_discovery", None
+        )
         if cancel_discovery is not None:
             cancel_discovery()
         cancel_content_search = getattr(
@@ -51,12 +53,12 @@ class LifecycleMixin:
         flush_toasts(timeout=1.0)
         shutdown_loader_executor()
         restore_artifact_decoration = getattr(
-            self, "_restore_artifact_tmux_decoration", None
+            self, "_restore_artifact_file_tmux_decoration", None
         )
         if restore_artifact_decoration is not None:
             restore_artifact_decoration(notify_warnings=False)
         restore_artifact_signal = getattr(
-            self, "_restore_artifact_viewer_close_signal_handler", None
+            self, "_restore_artifact_file_viewer_close_signal_handler", None
         )
         if restore_artifact_signal is not None:
             restore_artifact_signal()
@@ -179,7 +181,7 @@ class LifecycleMixin:
 
     async def action_quit(self) -> None:
         """Quit the application, saving the current selection."""
-        toggle_artifact = getattr(self, "_toggle_tracked_artifact_tmux_pane", None)
+        toggle_artifact = getattr(self, "_toggle_tracked_artifact_file_tmux_pane", None)
         if callable(toggle_artifact) and toggle_artifact():
             return
         count = self._count_running_tasks()
@@ -267,7 +269,9 @@ class LifecycleMixin:
                 stop_prompt_watcher()
 
         def cancel_artifact_discovery() -> None:
-            cancel_discovery = getattr(self, "_cancel_pending_artifact_discovery", None)
+            cancel_discovery = getattr(
+                self, "_cancel_pending_artifact_file_discovery", None
+            )
             if cancel_discovery is not None:
                 cancel_discovery()
 
@@ -295,16 +299,16 @@ class LifecycleMixin:
 
             flush_toasts(timeout=1.0)
 
-        def restore_artifact_tmux_decoration() -> None:
+        def restore_artifact_file_tmux_decoration() -> None:
             restore_artifact_decoration = getattr(
-                self, "_restore_artifact_tmux_decoration", None
+                self, "_restore_artifact_file_tmux_decoration", None
             )
             if restore_artifact_decoration is not None:
                 restore_artifact_decoration(notify_warnings=False)
 
-        def restore_artifact_viewer_signal_handler() -> None:
+        def restore_artifact_file_viewer_signal_handler() -> None:
             restore_artifact_signal = getattr(
-                self, "_restore_artifact_viewer_close_signal_handler", None
+                self, "_restore_artifact_file_viewer_close_signal_handler", None
             )
             if restore_artifact_signal is not None:
                 restore_artifact_signal()
@@ -318,8 +322,8 @@ class LifecycleMixin:
             cleanup(cancel_content_search_refresh)
             cleanup(flush_tui_toasts)
             cleanup(shutdown_loader_executor)
-            cleanup(restore_artifact_tmux_decoration)
-            cleanup(restore_artifact_viewer_signal_handler)
+            cleanup(restore_artifact_file_tmux_decoration)
+            cleanup(restore_artifact_file_viewer_signal_handler)
         finally:
             self.exit()  # type: ignore[attr-defined]
 

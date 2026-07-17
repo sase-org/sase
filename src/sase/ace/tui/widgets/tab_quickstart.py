@@ -23,7 +23,7 @@ _TAB_META: dict[TabQuickStartTab, tuple[str, str, str, str, str]] = {
         "Agents",
         _AGENTS_ACCENT,
         "Every agent you launch shows up here — watch prompts, diffs, "
-        "tool calls, and artifacts live, then jump straight into their work.",
+        "tool calls, and artifact files live, then jump straight into their work.",
         "Launch an agent and it appears here.",
     ),
     "changespecs": (

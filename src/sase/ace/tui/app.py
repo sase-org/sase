@@ -493,7 +493,7 @@ class AceApp(
             changespecs_view.add_class("hidden")
             agents_view.remove_class("hidden")
             axe_view.add_class("hidden")
-            self._sync_artifact_viewer_layout()
+            self._sync_artifact_file_viewer_layout()
             # During mount, on_mount will schedule the initial async load;
             # skip here to avoid a redundant synchronous cold load.
             if self._mounting:

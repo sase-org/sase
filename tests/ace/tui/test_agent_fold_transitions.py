@@ -45,7 +45,7 @@ class _StubApp(AgentFoldingMixin):
     def _refilter_agents(self, *, prior_pos: int | None = None) -> None:
         self.refilter_calls += 1
 
-    def _focus_tracked_artifact_tmux_pane(self) -> bool:
+    def _focus_tracked_artifact_file_tmux_pane(self) -> bool:
         self.focus_artifact_calls += 1
         return self.focus_artifact_result
 

@@ -195,14 +195,14 @@
             }
           }
         },
-        "artifact_viewer": {
+        "artifact_file_viewer": {
           "type": "object",
-          "description": "Settings for ACE's external artifact viewer panes",
+          "description": "Settings for ACE's external artifact-file viewer panes",
           "additionalProperties": false,
           "properties": {
             "video": {
               "type": "object",
-              "description": "mpv-backed terminal video artifact playback settings",
+              "description": "mpv-backed terminal video artifact-file playback settings",
               "additionalProperties": false,
               "properties": {
                 "audio": {

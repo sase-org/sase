@@ -42,10 +42,10 @@ model directives and a launch preview.
 
 <img src="docs/images/blog/sase_ace_multi_model_fanout.gif" alt="SASE ACE previewing one prompt fanning out to three coding agents and models" width="830">
 
-**Supervise every run.** The Agents tab shows live status, retry chains, per-agent diffs, chats, and artifacts from one
-control surface.
+**Supervise every run.** The Agents tab shows live status, retry chains, per-agent diffs, chats, and artifact files from
+one control surface.
 
-<a href="demos/out/sase_ace_agents_observability.mp4"><img src="docs/images/blog/agents_observability_still.png" alt="SASE ACE Agents tab showing live runs, retry chains, diffs, chats, and artifacts" width="830"></a>
+<a href="demos/out/sase_ace_agents_observability.mp4"><img src="docs/images/blog/agents_observability_still.png" alt="SASE ACE Agents tab showing live runs, retry chains, diffs, chats, and artifact files" width="830"></a>
 
 <em>Select the still to watch the 20-second demo.</em>
 

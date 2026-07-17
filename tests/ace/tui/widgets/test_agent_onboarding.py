@@ -24,6 +24,7 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     assert "https://sase.sh" in rendered
     assert "https://sase.sh/ace/" in rendered
     assert "https://sase.sh/xprompt/" in rendered
+    assert "tools, and artifact files" in rendered
 
 
 def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:
@@ -58,7 +59,7 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
                     "prev_changespec": "f2",
                     "edit_spec": "f3",
                     "jump_to_agent_changespec": "f4",
-                    "open_agent_artifacts": "f5",
+                    "open_artifact_files": "f5",
                 }
             }
         }
@@ -72,7 +73,7 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
         assert key in inspect_text
     assert "open a finished agent's chat transcript" in inspect_text
     assert "jump to the PR it produced" in inspect_text
-    assert "browse artifacts" in inspect_text
+    assert "browse artifact files" in inspect_text
 
 
 def test_plugins_card_includes_admin_center_updates_and_github_copy() -> None:

@@ -72,7 +72,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         """Render only the agent-details header + inline error traceback.
 
         Phase-3 immediate path: builds the cheap, in-memory header and
-        renders it directly. Does **not** touch the artifact cache, list
+        renders it directly. Does **not** touch the artifact-file cache, list
         the artifacts directory, or read prompt / reply / response files.
         The debounced full update path is responsible for filling in the
         prompt body, reply, tools, and file content shortly after.

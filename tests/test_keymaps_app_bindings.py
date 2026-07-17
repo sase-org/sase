@@ -101,7 +101,7 @@ def test_lowercase_a_binds_agent_artifacts_and_capital_a_accepts() -> None:
     """
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
-    assert by_action["open_agent_artifacts"].key == "a"
+    assert by_action["open_artifact_files"].key == "a"
     assert by_action["accept_proposal"].key == "A"
     assert by_action["show_agent_run_log"].key == "V"
     assert by_action["toggle_attempt_view"].key == "D"

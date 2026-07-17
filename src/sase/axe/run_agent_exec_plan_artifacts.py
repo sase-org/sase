@@ -8,7 +8,7 @@ import os
 import re
 from pathlib import Path
 
-from sase.core.agent_artifact_facade import store_explicit_agent_artifact
+from sase.core.artifact_file_facade import store_explicit_artifact_file
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -43,7 +43,7 @@ def store_followup_prompt_artifact(
         artifacts_path.mkdir(parents=True, exist_ok=True)
         prompt_path = artifacts_path / "followup_prompt.md"
         prompt_path.write_text(prompt, encoding="utf-8")
-        store_explicit_agent_artifact(
+        store_explicit_artifact_file(
             prompt_path,
             artifacts_path,
             label=label,

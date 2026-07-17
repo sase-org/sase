@@ -373,18 +373,18 @@ class StateInitMixin:
         self._agents_repro_auto_capture_burst_active: bool = False
         self._agents_repro_last_invariant_failures: list[Any] = []
         self._agents_repro_output_dir: str = ""
-        self._artifact_tmux_pane_id: str | None = None
-        self._artifact_tmux_decoration_state: Any = None
-        self._artifact_viewer_previous_sigusr1_handler: (
+        self._artifact_file_tmux_pane_id: str | None = None
+        self._artifact_file_tmux_decoration_state: Any = None
+        self._artifact_file_viewer_previous_sigusr1_handler: (
             signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
         ) = None
         # Bounded LRU; eviction happens in
-        # ``_panel_artifacts._artifact_cache_put`` once the cache exceeds
-        # AGENT_ARTIFACT_PAGE_CACHE_MAX entries.
-        self._agent_artifact_page_cache: OrderedDict[tuple[Any, ...], list[Any]] = (
+        # ``_panel_artifact_files._artifact_file_cache_put`` once the cache exceeds
+        # ARTIFACT_FILE_PAGE_CACHE_MAX entries.
+        self._artifact_file_page_cache: OrderedDict[tuple[Any, ...], list[Any]] = (
             OrderedDict()
         )
-        self._agent_artifact_discovery_inflight: dict[
+        self._artifact_file_discovery_inflight: dict[
             tuple[Any, ...], asyncio.Task[Any]
         ] = {}
         self._post_mount_background_loads_started = False

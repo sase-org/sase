@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from sase.core.agent_artifact_helpers import path_key, read_json_object
+from sase.core.artifact_file_helpers import path_key, read_json_object
 from sase.main.plan_inventory_collectors import (
     agent_meta_paths_newest_first,
     approved_candidate_limit,

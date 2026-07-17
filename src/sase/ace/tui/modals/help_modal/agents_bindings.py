@@ -85,7 +85,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.toggle_layout), "Toggle file/prompt layout"),
                 (d(a.zoom_panel), "Zoom largest panel popup"),
-                (d(a.open_agent_artifacts), "Artifacts pane (or marked set)"),
+                (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

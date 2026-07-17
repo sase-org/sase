@@ -144,7 +144,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("prev_agent_file", "Prev File", False),
     ("edit_panel", "Edit Panel", False),
     ("jump_to_agent_changespec", "Go to PR", False),
-    ("open_agent_artifacts", "Artifacts", False),
+    ("open_artifact_files", "Artifact Files", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
     ("toggle_agent_unread", "Toggle Agent Unread", False),
     ("add_agent_tag", "Add Agent Tag", False),
@@ -390,7 +390,7 @@ class AppKeymaps:
     jump_to_agent_changespec: str
     edit_panel: str
     show_agent_run_log: str
-    open_agent_artifacts: str
+    open_artifact_files: str
     toggle_attempt_view: str
     toggle_agent_unread: str
     add_agent_tag: str

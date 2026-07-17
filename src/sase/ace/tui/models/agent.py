@@ -315,43 +315,43 @@ class Agent(AgentState):
 
     def get_artifacts_dir(self) -> str | None:
         """Get the artifacts directory path for this agent."""
-        from sase.ace.tui.models.agent_artifacts import get_artifacts_dir
+        from sase.ace.tui.models.artifact_files import get_artifacts_dir
 
         return get_artifacts_dir(self)
 
     def extract_artifacts_timestamp(self) -> str | None:
         """Extract and convert timestamp from raw_suffix to artifacts format."""
-        from sase.ace.tui.models.agent_artifacts import extract_artifacts_timestamp
+        from sase.ace.tui.models.artifact_files import extract_artifacts_timestamp
 
         return extract_artifacts_timestamp(self)
 
     def get_raw_xprompt_content(self) -> str | None:
         """Get the raw xprompt content (before preprocessing/expansion)."""
-        from sase.ace.tui.models.agent_artifacts import get_raw_xprompt_content
+        from sase.ace.tui.models.artifact_files import get_raw_xprompt_content
 
         return get_raw_xprompt_content(self)
 
     def get_live_reply_content(self) -> str | None:
         """Get the live reply content for running agents."""
-        from sase.ace.tui.models.agent_artifacts import get_live_reply_content
+        from sase.ace.tui.models.artifact_files import get_live_reply_content
 
         return get_live_reply_content(self)
 
     def get_timestamped_reply_chunks(self) -> list[tuple[str, str]] | None:
         """Load live reply split into timestamped chunks."""
-        from sase.ace.tui.models.agent_artifacts import get_timestamped_reply_chunks
+        from sase.ace.tui.models.artifact_files import get_timestamped_reply_chunks
 
         return get_timestamped_reply_chunks(self)
 
     def get_response_content(self) -> str | None:
         """Get the response content for DONE agents."""
-        from sase.ace.tui.models.agent_artifacts import get_response_content
+        from sase.ace.tui.models.artifact_files import get_response_content
 
         return get_response_content(self)
 
     def get_chat_response_content(self) -> str | None:
         """Get response content from agent_meta.json chat_path."""
-        from sase.ace.tui.models.agent_artifacts import get_chat_response_content
+        from sase.ace.tui.models.artifact_files import get_chat_response_content
 
         return get_chat_response_content(self)
 

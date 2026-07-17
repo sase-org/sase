@@ -8,9 +8,9 @@ from .agent_workspace_tmux_modal import (
     AgentWorkspaceTmuxModal,
     build_agent_workspace_tmux_choices,
 )
-from .agent_artifacts_modal import (
-    AgentArtifactSelectionModal,
-    AgentArtifactSelectionResult,
+from .artifact_files_modal import (
+    ArtifactFileSelectionModal,
+    ArtifactFileSelectionResult,
 )
 from .agent_cleanup_modal import (
     AgentCleanupAction,
@@ -182,8 +182,8 @@ __all__ = [
     "AgentWorkspaceTmuxChoice",
     "AgentWorkspaceTmuxModal",
     "build_agent_workspace_tmux_choices",
-    "AgentArtifactSelectionModal",
-    "AgentArtifactSelectionResult",
+    "ArtifactFileSelectionModal",
+    "ArtifactFileSelectionResult",
     "AgentCleanupAction",
     "AgentCleanupCustomModal",
     "AgentCleanupCustomResult",

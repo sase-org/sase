@@ -185,7 +185,7 @@ async def test_malformed_cached_query_reports_error_without_crashing(
         assert notifications[-1][1] == "error"
 
 
-async def test_focused_query_input_can_type_artifact_digits_and_star() -> None:
+async def test_focused_query_input_can_type_artifact_file_digits_and_star() -> None:
     async with AcePage(query='"feature"') as page:
         await page.press("slash")
         await page.expect_modal("QueryEditModal")

@@ -15,9 +15,9 @@ from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
-from sase.ace.tui.widgets.prompt_panel._agent_artifacts import AgentArtifactPath
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
-    COLOR_ARTIFACT_BASENAME,
+    COLOR_ARTIFACT_FILE_BASENAME,
     COLOR_ARTIFACTS_SUBHEADER,
     COLOR_SUMMARY,
     count_phrase,
@@ -249,17 +249,17 @@ def test_artifacts_lane_groups_output_fields_and_counts() -> None:
                 line_stats=DeltaLineStats(modified=2),
             )
         ],
-        artifact_paths=[
-            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        artifact_file_paths=[
+            ArtifactFilePath("reports/result.md", "/tmp/reports/result.md"),
         ],
     )
 
     plain = text.plain
-    assert "▸ ARTIFACTS · 1 commit · 1 file · 1 artifact\n" in plain
+    assert "▸ ARTIFACTS · 1 commit · 1 file · 1 artifact file\n" in plain
     assert "  Commits:\n    ▣ test\n" in plain
     assert "      abcdef123456 feat: grouped outputs\n" in plain
     assert "  Deltas:\n    ~ src/output.py  ~2\n" in plain
-    assert "  Artifacts:\n    • reports/result.md\n" in plain
+    assert "  Files:\n    • reports/result.md\n" in plain
     assert _section_marker_ids(text) == ["sase-context"]
 
 
@@ -269,17 +269,17 @@ def test_artifacts_lane_chrome_uses_its_palette_and_shared_path_idiom() -> None:
         text,
         plan_section=_plan_section(),
         delta_entries=[DeltaEntry(path="src/output.py", change_type="M")],
-        artifact_paths=[
-            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        artifact_file_paths=[
+            ArtifactFilePath("reports/result.md", "/tmp/reports/result.md"),
         ],
     )
 
     assert _span_style_for(text, "▸ ARTIFACTS") == COLOR_ARTIFACTS_SUBHEADER
     assert _span_style_for(text, "  Deltas:") == COLOR_SUMMARY
-    assert _span_style_for(text, "  Artifacts:") == COLOR_SUMMARY
+    assert _span_style_for(text, "  Files:") == COLOR_SUMMARY
     assert _span_style_for(text, "•") == COLOR_ARTIFACTS_SUBHEADER
     for basename in ("plan.md", "output.py", "result.md"):
-        assert _span_style_for(text, basename) == COLOR_ARTIFACT_BASENAME
+        assert _span_style_for(text, basename) == COLOR_ARTIFACT_FILE_BASENAME
 
 
 def test_context_lane_order_contract_holds_for_every_presence_combination() -> None:
@@ -293,8 +293,8 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             memory_reads=(_memory_event(),) if enabled["MEMORY"] else (),
             skill_uses=(_skill_event(),) if enabled["SKILLS"] else (),
             opened_workspaces=((_workspace_event(),) if enabled["WORKSPACES"] else ()),
-            artifact_paths=(
-                [AgentArtifactPath("result.txt", "/tmp/result.txt")]
+            artifact_file_paths=(
+                [ArtifactFilePath("result.txt", "/tmp/result.txt")]
                 if enabled["ARTIFACTS"]
                 else None
             ),
@@ -323,7 +323,7 @@ def test_context_lanes_render_in_parent_context_order() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
-        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
+        artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
     )
 
     plain = text.plain
@@ -362,8 +362,8 @@ def test_context_hint_numbers_follow_display_order() -> None:
         plan_section=_plan_section(),
         agent=agent,
         delta_entries=[DeltaEntry(path="src/output.py", change_type="M")],
-        artifact_paths=[
-            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        artifact_file_paths=[
+            ArtifactFilePath("reports/result.md", "/tmp/reports/result.md"),
         ],
         memory_reads=(_memory_event(),),
         hint_state=hint_state,
@@ -403,7 +403,7 @@ def test_lane_subheaders_use_distinct_accent_colors() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
-        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
+        artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
     )
 
     plan_style = _span_style_for(text, "▸ PLAN").lower()
@@ -438,7 +438,7 @@ def test_context_lane_header_details_share_the_summary_style() -> None:
         memory_reads=(_memory_event(),),
         skill_uses=(_skill_event(),),
         opened_workspaces=(_workspace_event(),),
-        artifact_paths=[AgentArtifactPath("result.txt", "/tmp/result.txt")],
+        artifact_file_paths=[ArtifactFilePath("result.txt", "/tmp/result.txt")],
     )
 
     for details in (

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.core.time import to_local
-from sase.core.agent_artifact_helpers import select_canonical_plan_path
+from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.plan_chain import (
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_phase_name,

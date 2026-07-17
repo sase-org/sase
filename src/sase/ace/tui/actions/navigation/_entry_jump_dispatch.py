@@ -30,7 +30,9 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         """Walk forward through jump points after a back-jump."""
         if self.current_tab == "agents":
             forward_stack = self._entry_jump_agents_forward_stack()
-            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            guard = getattr(
+                self, "_guard_agent_navigation_for_artifact_file_viewer", None
+            )
             if forward_stack and callable(guard) and guard():
                 return
 
@@ -81,7 +83,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
         if key == "apostrophe":
             if self.current_tab == "agents":
                 guard = getattr(
-                    self, "_guard_agent_navigation_for_artifact_viewer", None
+                    self, "_guard_agent_navigation_for_artifact_file_viewer", None
                 )
                 if self._entry_jump_agents_anchor_stack and callable(guard) and guard():
                     self._exit_entry_jump_mode()
@@ -119,7 +121,9 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                 ):
                     self._exit_entry_jump_mode()
                     return True
-            guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+            guard = getattr(
+                self, "_guard_agent_navigation_for_artifact_file_viewer", None
+            )
             if callable(guard) and guard():
                 self._exit_entry_jump_mode()
                 return True

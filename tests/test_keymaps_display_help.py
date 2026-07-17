@@ -246,7 +246,7 @@ def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
         for _section, bindings in agents_sections
         for key, label in bindings
     }
-    assert ("a", "Artifacts pane (or marked set)") in agent_pairs
+    assert ("a", "Artifact files (or marked set)") in agent_pairs
     assert ("A", "Open auto-approve menu / answer HITL") in agent_pairs
     assert (",j", "Jump to next unread done agent") in agent_pairs
     assert ("U", "Toggle unread marker") in agent_pairs

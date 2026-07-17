@@ -172,7 +172,7 @@ class AgentNeighborMixin:
         ):
             return
 
-        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return
 
@@ -250,7 +250,7 @@ class AgentNeighborMixin:
         if target_panel_idx is None:
             return False
 
-        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
 

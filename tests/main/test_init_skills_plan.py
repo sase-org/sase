@@ -391,21 +391,21 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
     memory_xp = load_xprompt_from_file(skills_dir / "sase_memory_read.md")
     repo_xp = load_xprompt_from_file(skills_dir / "sase_repo.md")
     project_xp = load_xprompt_from_file(skills_dir / "sase_project.md")
-    artifact_xp = load_xprompt_from_file(skills_dir / "sase_artifact.md")
+    artifact_file_xp = load_xprompt_from_file(skills_dir / "sase_artifact_file.md")
     assert plan_xp is not None
     assert memory_xp is not None
     assert repo_xp is not None
     assert project_xp is not None
-    assert artifact_xp is not None
+    assert artifact_file_xp is not None
 
     assert plan_xp.log_skill_use is False
     assert memory_xp.log_skill_use is False
     assert repo_xp.log_skill_use is False
     assert project_xp.log_skill_use is True
-    assert artifact_xp.log_skill_use is True
+    assert artifact_file_xp.log_skill_use is True
 
     targets = init_skills_handler.render_skill_targets(
-        [plan_xp, memory_xp, repo_xp, project_xp, artifact_xp],
+        [plan_xp, memory_xp, repo_xp, project_xp, artifact_file_xp],
         provider_filter=None,
         use_chezmoi=False,
         use_prettier=False,
@@ -413,7 +413,7 @@ def test_packaged_skills_respect_log_skill_use_flag() -> None:
 
     assert targets, "expected rendered targets for registered providers"
     for target in targets:
-        if target.skill_name in {"sase_artifact", "sase_project"}:
+        if target.skill_name in {"sase_artifact_file", "sase_project"}:
             assert f"sase skill use {target.skill_name}" in target.content
         else:
             assert "sase skill use" not in target.content

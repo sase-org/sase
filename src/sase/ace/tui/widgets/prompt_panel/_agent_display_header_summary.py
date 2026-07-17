@@ -142,20 +142,20 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     from sase.ace.tui.skill_uses import load_skill_uses_for_agent_context
 
     from ..file_panel._linked_deltas import get_cached_linked_delta_groups
-    from ._agent_artifacts import agent_artifact_paths
+    from ._artifact_files import artifact_file_paths as resolve_artifact_file_paths
     from ._agent_deltas import agent_commit_linked_delta_groups, agent_delta_entries
 
     linked_delta_groups = get_cached_linked_delta_groups(agent)
     if not linked_delta_groups:
         linked_delta_groups = agent_commit_linked_delta_groups(agent)
 
-    artifact_paths = agent_artifact_paths(agent)
+    resolved_artifact_file_paths = resolve_artifact_file_paths(agent)
     if plan_enrichment.resolved_plan_path is not None:
         plan_path = Path(plan_enrichment.resolved_plan_path).resolve(strict=False)
-        artifact_paths = [
-            artifact
-            for artifact in artifact_paths
-            if Path(artifact.actual_path).resolve(strict=False) != plan_path
+        resolved_artifact_file_paths = [
+            artifact_file
+            for artifact_file in resolved_artifact_file_paths
+            if Path(artifact_file.actual_path).resolve(strict=False) != plan_path
         ]
 
     return DetailHeaderSummary(
@@ -164,7 +164,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
         associated_plan=associated_plan,
         delta_entries=agent_delta_entries(agent),
         linked_delta_groups=linked_delta_groups,
-        artifact_paths=artifact_paths,
+        artifact_file_paths=resolved_artifact_file_paths,
         memory_reads=load_memory_reads_for_agent_context(agent),
         skill_uses=load_skill_uses_for_agent_context(agent),
         opened_workspaces=load_opened_workspaces_for_agent_context(agent),

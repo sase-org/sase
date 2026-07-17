@@ -19,7 +19,7 @@ from sase.agent.bead_display import (
 )
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.phase_description import generated_phase_description
-from sase.core.agent_artifact_helpers import select_canonical_plan_path
+from sase.core.artifact_file_helpers import select_canonical_plan_path
 from sase.sdd.plan_validate import validate_plan
 
 from ._agent_associated_plan_cache import (

@@ -78,7 +78,7 @@ def _has_agent_artifacts(app: AceApp, agent) -> bool:  # type: ignore[no-untyped
     if app.current_tab != "agents":
         return False
     try:
-        lister = getattr(app, "_list_selected_agent_artifacts", None)
+        lister = getattr(app, "_list_selected_artifact_files", None)
         return (
             bool(lister(agent)) if lister is not None and agent is not None else False
         )
@@ -185,7 +185,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         else False
     )
     file_panel = _file_panel_visible(app)
-    has_agent_artifacts = _has_agent_artifacts(app, agent)
+    has_artifact_files = _has_agent_artifacts(app, agent)
 
     if tab == "axe":
         done, running = _selected_axe_slot_states(app, axe_item)
@@ -209,7 +209,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         attempt_pinned=attempt_pinned,
         group_focused=group_focused,
         file_panel_visible=file_panel,
-        has_agent_artifacts=has_agent_artifacts,
+        has_artifact_files=has_artifact_files,
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),
         selected_axe_slot_running=running and isinstance(axe_item, BgCmdItem),

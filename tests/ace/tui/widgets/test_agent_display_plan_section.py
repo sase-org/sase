@@ -14,7 +14,7 @@ from sase.ace.tui.models.agent_associated_plan import (
     AssociatedPlanPhaseSummary,
     AssociatedPlanSummary,
 )
-from sase.ace.tui.widgets.prompt_panel._agent_artifacts import AgentArtifactPath
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import AgentHeader
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,
@@ -344,19 +344,19 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
         plan_section,
         agent,
         delta_entries,
-        artifact_paths,
+        artifact_file_paths,
         **_kwargs,
     ):  # type: ignore[no-untyped-def]
         text.append("\nSASE CONTEXT\n")
         assert plan_section is not None
         assert agent is not None
         assert delta_entries
-        assert artifact_paths
+        assert artifact_file_paths
         plan_start = len(text)
         text.append_text(plan_section.logical_text)
         plan_range = (plan_start, len(text))
         text.append(
-            "\n▸ ARTIFACTS\n  Commits:\n  Deltas:\n  Artifacts:\n\n"
+            "\n▸ ARTIFACTS\n  Commits:\n  Deltas:\n  Files:\n\n"
             "▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n"
         )
         return plan_range
@@ -393,8 +393,8 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
         skill_uses=(object(),),  # type: ignore[arg-type]
         opened_workspaces=(object(),),  # type: ignore[arg-type]
         delta_entries=[object()],  # type: ignore[list-item]
-        artifact_paths=[
-            AgentArtifactPath("artifact.txt", "/tmp/artifact.txt"),
+        artifact_file_paths=[
+            ArtifactFilePath("artifact.txt", "/tmp/artifact.txt"),
         ],
         slow_tool_sources=(object(),),  # type: ignore[arg-type]
     )
@@ -430,8 +430,8 @@ def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
     assert plan_index < artifacts_index
     assert artifacts_index < plain.index("Commits:")
     assert plain.index("Commits:") < plain.index("Deltas:")
-    assert plain.index("Deltas:") < plain.index("Artifacts:")
-    assert plain.index("Artifacts:") < plain.index("▸ MEMORY")
+    assert plain.index("Deltas:") < plain.index("Files:")
+    assert plain.index("Files:") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
     for section_label in (
@@ -780,8 +780,8 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
 ) -> None:
     agent = make_agent(agent_name="planner", step_type="bash")
     plan = _plan_summary(actual_path="/tmp/plan.md", display_path="~/plan.md")
-    other = AgentArtifactPath("notes.md", "/tmp/notes.md")
-    duplicate = AgentArtifactPath("plan.md", "/tmp/plan.md", view_mode="markdown")
+    other = ArtifactFilePath("notes.md", "/tmp/notes.md")
+    duplicate = ArtifactFilePath("plan.md", "/tmp/plan.md", view_mode="markdown")
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
         "resolve_agent_plan_enrichment",
@@ -793,13 +793,13 @@ def test_canonical_plan_is_removed_from_generic_artifact_metadata(
         ),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_artifacts.agent_artifact_paths",
+        "sase.ace.tui.widgets.prompt_panel._artifact_files.artifact_file_paths",
         lambda _agent: [duplicate, other],
     )
 
     summary = build_detail_header_summary(agent)
 
-    assert summary.artifact_paths == [other]
+    assert summary.artifact_file_paths == [other]
 
 
 def test_phase_plan_is_not_exposed_as_generic_artifact(
@@ -811,8 +811,8 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
         phase_bead_id="sase-9.2",
         step_type="bash",
     )
-    other = AgentArtifactPath("notes.md", "/tmp/notes.md")
-    duplicate = AgentArtifactPath("epic.md", "/tmp/epic.md", view_mode="markdown")
+    other = ArtifactFilePath("notes.md", "/tmp/notes.md")
+    duplicate = ArtifactFilePath("epic.md", "/tmp/epic.md", view_mode="markdown")
     monkeypatch.setattr(
         "sase.ace.tui.widgets.prompt_panel._agent_display_header_summary."
         "resolve_agent_plan_enrichment",
@@ -824,14 +824,14 @@ def test_phase_plan_is_not_exposed_as_generic_artifact(
         ),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.prompt_panel._agent_artifacts.agent_artifact_paths",
+        "sase.ace.tui.widgets.prompt_panel._artifact_files.artifact_file_paths",
         lambda _agent: [duplicate, other],
     )
 
     summary = build_detail_header_summary(agent)
 
     assert summary.associated_plan is None
-    assert summary.artifact_paths == [other]
+    assert summary.artifact_file_paths == [other]
 
 
 def test_cheap_header_never_resolves_or_stats_plan(monkeypatch) -> None:  # type: ignore[no-untyped-def]

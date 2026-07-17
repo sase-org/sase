@@ -171,12 +171,12 @@ def _lifecycle_app(calls: list[str]) -> LifecycleMixin:
     app = LifecycleMixin.__new__(LifecycleMixin)
     app.changespecs = []
     app._stop_artifact_watcher = lambda: calls.append("watcher")
-    app._cancel_pending_artifact_discovery = lambda: calls.append("discovery")
+    app._cancel_pending_artifact_file_discovery = lambda: calls.append("discovery")
     app._cancel_pending_content_search_refresh = lambda: calls.append("content-search")
-    app._restore_artifact_tmux_decoration = lambda notify_warnings=True: calls.append(
-        "restore-decoration"
+    app._restore_artifact_file_tmux_decoration = lambda notify_warnings=True: (
+        calls.append("restore-decoration")
     )
-    app._restore_artifact_viewer_close_signal_handler = lambda: calls.append(
+    app._restore_artifact_file_viewer_close_signal_handler = lambda: calls.append(
         "restore-signal"
     )
     app.exit = lambda: calls.append("exit")

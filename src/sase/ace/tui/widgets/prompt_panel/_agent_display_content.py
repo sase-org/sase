@@ -7,7 +7,7 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.agent.agent_artifacts_cache import get_global_cache
+from sase.agent.artifact_files_cache import get_global_cache
 from sase.core.time import get_timezone, to_local
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,

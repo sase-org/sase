@@ -93,7 +93,7 @@ class _StubApp(
         del old_focused_idx
         self._refresh_agents_display(list_changed=False)
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
         return False
 
     def notify(self, message: str, **_kwargs: Any) -> None:

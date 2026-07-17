@@ -14,20 +14,20 @@ from sase.attachments.markdown_pdf import render_markdown_pdf
 
 from . import _viewer_loop, _viewer_render
 from ._viewer_launch import (
-    artifact_tmux_pane_exists,
-    artifact_viewer_module_command,
-    close_artifact_tmux_pane,
-    decorate_artifact_tmux_panes,
+    artifact_file_tmux_pane_exists,
+    artifact_file_viewer_module_command,
+    close_artifact_file_tmux_pane,
+    decorate_artifact_file_tmux_panes,
     is_tmux_session,
-    restore_artifact_tmux_pane_decoration,
+    restore_artifact_file_tmux_pane_decoration,
     select_tmux_pane,
     TmuxPaneDecorationResult,
     TmuxPaneDecorationState,
-    toggle_artifact_tmux_pane_zoom,
-    view_agent_artifact,
-    view_agent_artifact_in_tmux_pane,
-    view_agent_artifacts,
-    view_agent_artifacts_in_tmux_pane,
+    toggle_artifact_file_tmux_pane_zoom,
+    view_registered_artifact_file,
+    view_registered_artifact_file_in_tmux_pane,
+    view_registered_artifact_files,
+    view_registered_artifact_files_in_tmux_pane,
     view_artifact_file,
     view_artifact_file_in_tmux_pane,
     view_artifact_files,
@@ -52,40 +52,40 @@ from ._viewer_loop import (
 )
 from ._viewer_render import (
     artifact_markdown_pdf_profile_for_image_area,
-    artifact_view_mode,
+    artifact_file_view_mode,
     convert_pdf_to_png_pages,
-    validate_artifact_viewer_dependencies,
+    validate_artifact_file_viewer_dependencies,
 )
 from ._viewer_types import (
-    ArtifactImageArea,
+    ArtifactFileImageArea,
     ArtifactRenderResult,
-    ArtifactViewerResult,
-    ArtifactViewerWarning,
+    ArtifactFileViewerResult,
+    ArtifactFileViewerWarning,
     ArtifactViewMode,
-    ArtifactViewSpec,
+    ArtifactFileViewSpec,
     ImageViewerResult,
 )
 from .videos import SUPPORTED_VIDEO_EXTENSIONS, is_supported_video_path
 
 _artifact_header_panel = artifact_header_panel
-_artifact_viewer_module_command = artifact_viewer_module_command
+_artifact_file_viewer_module_command = artifact_file_viewer_module_command
 _format_artifact_header_path = format_artifact_header_path
 _print_page_prompt = print_page_prompt
 
 
-def render_artifact_pages(
+def render_artifact_file_pages(
     path: str | Path,
     *,
     kind: str | None = None,
     cache_dir: str | Path | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
 ) -> ArtifactRenderResult:
     """Render *path* into one or more image pages for terminal display."""
 
     original = _viewer_render.render_markdown_pdf
     _viewer_render.render_markdown_pdf = render_markdown_pdf
     try:
-        return _viewer_render.render_artifact_pages(
+        return _viewer_render.render_artifact_file_pages(
             path,
             kind=kind,
             cache_dir=cache_dir,
@@ -96,23 +96,23 @@ def render_artifact_pages(
 
 
 def run_artifact_sequence_loop(
-    artifacts: Sequence[ArtifactViewSpec],
+    artifacts: Sequence[ArtifactFileViewSpec],
     *,
     cache_root: str | Path,
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
     return_pane_id: str | None = None,
-    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    select_pane: Callable[[str], ArtifactFileViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
-    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    toggle_zoom: Callable[[], ArtifactFileViewerResult] | None = None,
     video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> _viewer_loop._PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
 
-    original = _viewer_loop.render_artifact_pages
-    _viewer_loop.render_artifact_pages = render_artifact_pages
+    original = _viewer_loop.render_artifact_file_pages
+    _viewer_loop.render_artifact_file_pages = render_artifact_file_pages
     try:
         return _viewer_loop.run_artifact_sequence_loop(
             artifacts,
@@ -127,7 +127,7 @@ def run_artifact_sequence_loop(
             video_config=video_config,
         )
     finally:
-        _viewer_loop.render_artifact_pages = original
+        _viewer_loop.render_artifact_file_pages = original
 
 
 def _parse_viewer_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -156,7 +156,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     kinds = args.kind or [None] * len(args.path)
     result = view_artifact_files(
         tuple(
-            ArtifactViewSpec(path, kind or None)
+            ArtifactFileViewSpec(path, kind or None)
             for path, kind in zip(args.path, kinds, strict=True)
         )
     )
@@ -168,12 +168,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "ArtifactImageArea",
+    "ArtifactFileImageArea",
     "ArtifactRenderResult",
     "ArtifactViewMode",
-    "ArtifactViewSpec",
-    "ArtifactViewerResult",
-    "ArtifactViewerWarning",
+    "ArtifactFileViewSpec",
+    "ArtifactFileViewerResult",
+    "ArtifactFileViewerWarning",
     "ArtifactVideoPlaybackConfig",
     "ImageViewerResult",
     "SUPPORTED_VIDEO_EXTENSIONS",
@@ -181,9 +181,9 @@ __all__ = [
     "artifact_markdown_pdf_profile_for_image_area",
     "artifact_text_viewer_command",
     "artifact_video_player_command",
-    "artifact_tmux_pane_exists",
-    "artifact_view_mode",
-    "close_artifact_tmux_pane",
+    "artifact_file_tmux_pane_exists",
+    "artifact_file_view_mode",
+    "close_artifact_file_tmux_pane",
     "convert_pdf_to_png_pages",
     "is_tmux_session",
     "is_supported_video_path",
@@ -193,17 +193,17 @@ __all__ = [
     "page_index_after_key",
     "page_loop_available_keys",
     "print_text_prompt",
-    "render_artifact_pages",
+    "render_artifact_file_pages",
     "run_artifact_page_loop",
     "run_artifact_sequence_loop",
     "run_artifact_text_viewer",
     "select_tmux_pane",
-    "toggle_artifact_tmux_pane_zoom",
-    "validate_artifact_viewer_dependencies",
-    "view_agent_artifact",
-    "view_agent_artifact_in_tmux_pane",
-    "view_agent_artifacts",
-    "view_agent_artifacts_in_tmux_pane",
+    "toggle_artifact_file_tmux_pane_zoom",
+    "validate_artifact_file_viewer_dependencies",
+    "view_registered_artifact_file",
+    "view_registered_artifact_file_in_tmux_pane",
+    "view_registered_artifact_files",
+    "view_registered_artifact_files_in_tmux_pane",
     "view_artifact_file",
     "view_artifact_file_in_tmux_pane",
     "view_artifact_files",

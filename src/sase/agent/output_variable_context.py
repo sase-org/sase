@@ -293,7 +293,7 @@ def _resolve_waited_agent(
     wait_name: str,
 ) -> tuple[str, str, str | None] | None:
     from sase.agent.names import resolve_resume_agent_name
-    from sase.core.agent_artifact_helpers import read_json_object
+    from sase.core.artifact_file_helpers import read_json_object
 
     agent = resolve_resume_agent_name(wait_name)
     if agent is None:

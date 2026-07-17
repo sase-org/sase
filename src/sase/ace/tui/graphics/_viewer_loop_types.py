@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ._viewer_types import ArtifactViewerWarning
+from ._viewer_types import ArtifactFileViewerWarning
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,7 @@ class PageLoopResult:
     """Terminal page loop subprocess status."""
 
     returncode: int = 0
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class TextDisplayResult:
 
     command: tuple[str, ...] = ()
     returncode: int = 0
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -40,4 +40,4 @@ class VideoDisplayResult:
 
     command: tuple[str, ...] = ()
     returncode: int = 0
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()

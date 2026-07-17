@@ -52,8 +52,12 @@ from ._viewer_loop_types import (
     TextDisplayResult,
     VideoDisplayResult,
 )
-from ._viewer_render import render_artifact_pages
-from ._viewer_types import ArtifactImageArea, ArtifactViewerResult, ArtifactViewSpec
+from ._viewer_render import render_artifact_file_pages
+from ._viewer_types import (
+    ArtifactFileImageArea,
+    ArtifactFileViewerResult,
+    ArtifactFileViewSpec,
+)
 
 _PageLoopResult = PageLoopResult
 _TextDisplayResult = TextDisplayResult
@@ -74,17 +78,17 @@ _video_vo_uses_kitty_placement = video_vo_uses_kitty_placement
 
 
 def run_artifact_sequence_loop(
-    artifacts: Sequence[ArtifactViewSpec],
+    artifacts: Sequence[ArtifactFileViewSpec],
     *,
     cache_root: str | Path,
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
     return_pane_id: str | None = None,
-    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    select_pane: Callable[[str], ArtifactFileViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
-    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    toggle_zoom: Callable[[], ArtifactFileViewerResult] | None = None,
     video_config: ArtifactVideoPlaybackConfig | None = None,
 ) -> _PageLoopResult:
     """Display an artifact sequence with page and document navigation."""
@@ -100,7 +104,7 @@ def run_artifact_sequence_loop(
         tmux_zoom_available=tmux_zoom_available,
         toggle_zoom=toggle_zoom,
         video_config=video_config,
-        render_pages=render_artifact_pages,
+        render_pages=render_artifact_file_pages,
     )
 
 
@@ -142,7 +146,7 @@ __all__ = [
     "page_loop_available_keys",
     "print_page_prompt",
     "print_text_prompt",
-    "render_artifact_pages",
+    "render_artifact_file_pages",
     "run_artifact_page_loop",
     "run_artifact_sequence_loop",
     "run_artifact_text_viewer",

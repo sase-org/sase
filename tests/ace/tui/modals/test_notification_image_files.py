@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.console import Group
 from rich.text import Text
 
-from sase.ace.tui.graphics import ArtifactViewerResult
+from sase.ace.tui.graphics import ArtifactFileViewerResult
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.notifications import Notification
 
@@ -191,10 +191,10 @@ def test_notification_view_image_action_runs_viewer_inside_suspend(
     modal.notify = MagicMock()  # type: ignore[method-assign]
     calls: list[str] = []
 
-    def fake_viewer(path: str) -> ArtifactViewerResult:
+    def fake_viewer(path: str) -> ArtifactFileViewerResult:
         calls.append(path)
         assert suspend_recorder.entered is True
-        return ArtifactViewerResult(True)
+        return ArtifactFileViewerResult(True)
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.notification_modal_attachments.view_artifact_file",
@@ -230,10 +230,10 @@ def test_notification_view_image_action_runs_viewer_for_video(
     modal.notify = MagicMock()  # type: ignore[method-assign]
     calls: list[str] = []
 
-    def fake_viewer(path: str) -> ArtifactViewerResult:
+    def fake_viewer(path: str) -> ArtifactFileViewerResult:
         calls.append(path)
         assert suspend_recorder.entered is True
-        return ArtifactViewerResult(True)
+        return ArtifactFileViewerResult(True)
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.notification_modal_attachments.view_artifact_file",

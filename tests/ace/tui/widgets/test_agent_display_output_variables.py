@@ -10,7 +10,7 @@ from sase.ace.tui.models._loaders._meta_enrichment import (
     enrich_agent_from_meta_wire,
 )
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.widgets.prompt_panel._agent_artifacts import AgentArtifactPath
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     _DetailHeaderSummary,
     build_header_text,
@@ -80,8 +80,8 @@ def test_output_variables_section_orders_before_artifacts_and_workflow_variables
         step_output={"meta_result": "ready"},
     )
     summary = _DetailHeaderSummary(
-        artifact_paths=[
-            AgentArtifactPath(
+        artifact_file_paths=[
+            ArtifactFilePath(
                 display_path="artifact.txt",
                 actual_path="/tmp/artifact.txt",
             )
@@ -95,7 +95,7 @@ def test_output_variables_section_orders_before_artifacts_and_workflow_variables
     assert "a_notes:\n  line one\n  line two\n" in plain
     assert "z_status: ok\n" in plain
     assert plain.index("a_notes:") < plain.index("z_status:")
-    assert plain.index("OUTPUT VARIABLES\n") < plain.index("Artifacts:\n")
+    assert plain.index("OUTPUT VARIABLES\n") < plain.index("Files:\n")
     assert plain.index("OUTPUT VARIABLES\n") < plain.index("WORKFLOW VARIABLES\n")
     assert_dim_divider_before(header, "OUTPUT VARIABLES\n")
     assert_logical_section_is_compact(header, "OUTPUT VARIABLES", "a_notes:")

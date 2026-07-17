@@ -104,8 +104,8 @@ def test_helper_resumes_and_records_on_exception(
     with pytest.raises(RuntimeError, match="boom"):
         with suspend_for_external_tool(
             app,
-            action="open_artifact",
-            tool_kind="artifact_viewer",
+            action="open_artifact_file",
+            tool_kind="artifact_file_viewer",
             path_count=1,
         ):
             raise RuntimeError("boom")
@@ -115,7 +115,7 @@ def test_helper_resumes_and_records_on_exception(
     assert watchdog.resumed == 1
     records = _records(path)
     assert len(records) == 1
-    assert records[0]["action"] == "open_artifact"
+    assert records[0]["action"] == "open_artifact_file"
     assert "command" not in records[0]
 
 
@@ -130,8 +130,8 @@ def test_helper_skips_manual_pause_when_signals_wired(
 
     with suspend_for_external_tool(
         app,
-        action="open_artifacts",
-        tool_kind="artifact_viewer",
+        action="open_artifact_files",
+        tool_kind="artifact_file_viewer",
         path_count=3,
     ):
         pass

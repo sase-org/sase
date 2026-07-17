@@ -19,8 +19,12 @@ from ._viewer_loop_types import (
     TextDisplayResult,
     VideoDisplayResult,
 )
-from ._viewer_render import validate_artifact_viewer_dependencies
-from ._viewer_types import ArtifactImageArea, ArtifactViewerWarning, ArtifactViewSpec
+from ._viewer_render import validate_artifact_file_viewer_dependencies
+from ._viewer_types import (
+    ArtifactFileImageArea,
+    ArtifactFileViewerWarning,
+    ArtifactFileViewSpec,
+)
 
 
 def artifact_text_viewer_command(path: str | Path) -> list[str]:
@@ -41,7 +45,7 @@ def artifact_text_viewer_command(path: str | Path) -> list[str]:
 
 def artifact_video_player_command(
     path: str | Path,
-    image_area: ArtifactImageArea,
+    image_area: ArtifactFileImageArea,
     config: ArtifactVideoPlaybackConfig | None = None,
 ) -> list[str]:
     """Build the bounded ``mpv`` command for a terminal video artifact."""
@@ -90,10 +94,10 @@ def load_artifact_video_playback_config() -> ArtifactVideoPlaybackConfig:
     ace = merged.get("ace", {})
     if not isinstance(ace, dict):
         return ArtifactVideoPlaybackConfig()
-    artifact_viewer = ace.get("artifact_viewer", {})
-    if not isinstance(artifact_viewer, dict):
+    artifact_file_viewer = ace.get("artifact_file_viewer", {})
+    if not isinstance(artifact_file_viewer, dict):
         return ArtifactVideoPlaybackConfig()
-    raw_video = artifact_viewer.get("video", {})
+    raw_video = artifact_file_viewer.get("video", {})
     if not isinstance(raw_video, dict):
         return ArtifactVideoPlaybackConfig()
 
@@ -132,7 +136,7 @@ def _coerce_mpv_args(value: object) -> tuple[str, ...]:
 
 
 def display_text_artifact(
-    spec: ArtifactViewSpec,
+    spec: ArtifactFileViewSpec,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
     *,
     artifact_index: int = 0,
@@ -140,13 +144,13 @@ def display_text_artifact(
 ) -> TextDisplayResult:
     path = Path(spec.path).expanduser().resolve(strict=False)
     if not path.exists():
-        warning = ArtifactViewerWarning(
+        warning = ArtifactFileViewerWarning(
             "artifact_not_found",
             "Artifact file not found",
         )
         return TextDisplayResult(warnings=(warning,))
     if not path.is_file():
-        warning = ArtifactViewerWarning(
+        warning = ArtifactFileViewerWarning(
             "artifact_not_file",
             "Artifact path is not a file",
         )
@@ -164,7 +168,7 @@ def display_text_artifact(
     result = run_command(command)
     if result.returncode != 0:
         tool = Path(command[0]).name if command else None
-        warning = ArtifactViewerWarning(
+        warning = ArtifactFileViewerWarning(
             "text_viewer_failed",
             f"{tool or 'text viewer'} failed with exit code {result.returncode}",
             tool=tool,
@@ -178,8 +182,8 @@ def display_text_artifact(
 
 
 def display_video_artifact(
-    spec: ArtifactViewSpec,
-    image_area: ArtifactImageArea,
+    spec: ArtifactFileViewSpec,
+    image_area: ArtifactFileImageArea,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]],
     *,
     video_config: ArtifactVideoPlaybackConfig,
@@ -188,19 +192,19 @@ def display_video_artifact(
 ) -> VideoDisplayResult:
     path = Path(spec.path).expanduser().resolve(strict=False)
     if not path.exists():
-        warning = ArtifactViewerWarning(
+        warning = ArtifactFileViewerWarning(
             "artifact_not_found",
             "Artifact file not found",
         )
         return VideoDisplayResult(warnings=(warning,))
     if not path.is_file():
-        warning = ArtifactViewerWarning(
+        warning = ArtifactFileViewerWarning(
             "artifact_not_file",
             "Artifact path is not a file",
         )
         return VideoDisplayResult(warnings=(warning,))
 
-    warnings = validate_artifact_viewer_dependencies("video")
+    warnings = validate_artifact_file_viewer_dependencies("video")
     if warnings:
         return VideoDisplayResult(warnings=warnings)
 

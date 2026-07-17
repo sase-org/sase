@@ -16,8 +16,8 @@ from ._viewer_tmux_common import (
     tmux_warning_result,
 )
 from ._viewer_types import (
-    ArtifactViewerResult,
-    ArtifactViewerWarning,
+    ArtifactFileViewerResult,
+    ArtifactFileViewerWarning,
     viewer_result_from_warnings,
 )
 
@@ -72,18 +72,18 @@ class TmuxPaneDecorationResult:
     ok: bool
     state: TmuxPaneDecorationState | None = None
     warning: str | None = None
-    warnings: tuple[ArtifactViewerWarning, ...] = ()
+    warnings: tuple[ArtifactFileViewerWarning, ...] = ()
 
 
 def _decoration_warning_result(
     code: str,
     message: str,
 ) -> TmuxPaneDecorationResult:
-    warning = ArtifactViewerWarning(code, message, tool="tmux")
+    warning = ArtifactFileViewerWarning(code, message, tool="tmux")
     return TmuxPaneDecorationResult(False, warning=message, warnings=(warning,))
 
 
-def decorate_artifact_tmux_panes(
+def decorate_artifact_file_tmux_panes(
     artifact_pane_id: str,
 ) -> TmuxPaneDecorationResult:
     """Add window-scoped tmux pane decoration for artifact viewer focus state."""
@@ -106,7 +106,7 @@ def decorate_artifact_tmux_panes(
 
     origin_pane_id = os.environ.get("TMUX_PANE") or None
     target_pane_id = origin_pane_id or artifact_pane_id
-    warnings: list[ArtifactViewerWarning] = []
+    warnings: list[ArtifactFileViewerWarning] = []
     option_snapshots: list[_TmuxWindowOptionSnapshot] = []
     title_snapshots: list[_TmuxPaneTitleSnapshot] = []
 
@@ -190,9 +190,9 @@ def decorate_artifact_tmux_panes(
     )
 
 
-def restore_artifact_tmux_pane_decoration(
+def restore_artifact_file_tmux_pane_decoration(
     state: TmuxPaneDecorationState,
-) -> ArtifactViewerResult:
+) -> ArtifactFileViewerResult:
     """Restore tmux pane/window decoration saved before artifact viewing."""
 
     if shutil.which("tmux") is None:
@@ -201,7 +201,7 @@ def restore_artifact_tmux_pane_decoration(
             "tmux executable not found",
         )
 
-    warnings: list[ArtifactViewerWarning] = []
+    warnings: list[ArtifactFileViewerWarning] = []
     for option in state.window_options:
         result = tmux_set_window_option(
             state.target_pane_id,
@@ -226,4 +226,4 @@ def restore_artifact_tmux_pane_decoration(
 
     if warnings:
         return viewer_result_from_warnings(tuple(warnings))
-    return ArtifactViewerResult(True)
+    return ArtifactFileViewerResult(True)

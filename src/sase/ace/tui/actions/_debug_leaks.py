@@ -52,7 +52,7 @@ def _count_open_fds() -> int | None:
 
 def _collect_leak_snapshot(app: Any) -> dict[str, int | None]:
     """Return current sizes of the structures known to grow unbounded."""
-    cache = getattr(app, "_agent_artifact_page_cache", None)
+    cache = getattr(app, "_artifact_file_page_cache", None)
     artifact_cache_len = len(cache) if cache is not None else 0
 
     watcher = getattr(app, "_fs_watcher", None)

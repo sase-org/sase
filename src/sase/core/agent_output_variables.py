@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_artifact_helpers import read_json_object
+from sase.core.artifact_file_helpers import read_json_object
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )

@@ -9,7 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.core.agent_artifact_facade import store_default_agent_artifact
+from sase.core.artifact_file_facade import store_default_artifact_file
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -47,7 +47,7 @@ def _artifact_icon_agent(
         source = workspace / filename
         source.write_bytes(b"visual artifact")
         assert (
-            store_default_agent_artifact(
+            store_default_artifact_file(
                 source,
                 artifacts_dir,
                 kind=kind,
@@ -70,7 +70,7 @@ def _artifact_icon_agent(
     )
 
 
-async def test_agents_artifact_type_icons_png_snapshot(
+async def test_agents_artifact_file_type_icons_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -85,12 +85,12 @@ async def test_agents_artifact_type_icons_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "Artifacts:")
+        assert_page_svg_contains(page, "Files:")
         for icon in ("▨", "▶", "▤", "•"):
             assert_page_svg_contains(page, icon)
 
         ace_png_visual.assert_page_png(
             page,
             "agents_artifact_type_icons_120x40",
-            title="ACE agents artifact type icons",
+            title="ACE agents artifact-file type icons",
         )

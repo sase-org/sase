@@ -1,0 +1,27 @@
+---
+name: sase_artifact_file
+description: Create explicit SASE artifact files produced during an agent run.
+skill: true
+---
+
+Use this skill when the user asks you to produce an artifact file that should be available from the SASE Agents tab.
+
+## Workflow
+
+1. Create the requested file in your workspace.
+2. Register it as an explicit artifact file:
+
+   ```bash
+   sase artifact-file create -p <path> -n "<label>"
+   ```
+
+3. Report the artifact-file id and stored path printed by the command.
+
+## Options
+
+- `-p, --path` is required and points to the file you created.
+- `-n, --label` sets the artifact-file display name.
+- `-k, --kind` may be one of `chat`, `plan`, `image`, `markdown`, `pdf`, or `file`. Omit it to infer from the file
+  extension.
+
+The command moves the file into SASE artifact-file storage, so do not edit the original path after registration.

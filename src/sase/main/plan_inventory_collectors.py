@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_artifact_helpers import path_key
+from sase.core.artifact_file_helpers import path_key
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.time import get_timezone

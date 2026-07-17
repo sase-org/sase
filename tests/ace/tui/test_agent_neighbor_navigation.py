@@ -70,7 +70,7 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
         self._agent_search_query = ""
         self._countdown_remaining = 0
         self.refresh_interval = 10
-        self.artifact_viewer_guard_active = False
+        self.artifact_file_viewer_guard_active = False
         self.notify = MagicMock()
         self.armed_departures: list[Agent] = []
         self.acknowledged: list[Agent] = []
@@ -91,8 +91,8 @@ class _NeighborApp(TreeNavigationMixin, AdvancedNavigationMixin, AgentDisplayMix
             return self._agents[self.current_idx]
         return None
 
-    def _guard_agent_navigation_for_artifact_viewer(self) -> bool:
-        if not self.artifact_viewer_guard_active:
+    def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
+        if not self.artifact_file_viewer_guard_active:
             return False
         self.notify(
             "Close the artifact viewer before switching agents",
@@ -452,7 +452,7 @@ def test_agent_neighbor_navigation_excludes_collapsed_hidden_rows() -> None:
 def test_agent_neighbor_navigation_guard_blocks_row_change() -> None:
     agents = [_agent("foo.plan"), _agent("foo.code")]
     app = _NeighborApp(agents)
-    app.artifact_viewer_guard_active = True
+    app.artifact_file_viewer_guard_active = True
     app._entry_jump_agents_anchor_stack = [("agent", 1, None)]
 
     app.action_start_sibling_mode()

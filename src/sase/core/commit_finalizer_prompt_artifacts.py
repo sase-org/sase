@@ -8,8 +8,8 @@ the original prompt — so they would hijack the AGENT PROMPT panel.
 
 This module is the single source of truth for that filename convention so the
 writer (``sase.llm_provider.commit_finalizer``) and the display-selection
-readers (``sase.agent.agent_artifacts_cache`` and
-``sase.core.agent_artifact_defaults``) cannot drift apart. It lives in
+readers (``sase.agent.artifact_files_cache`` and
+``sase.core.artifact_file_defaults``) cannot drift apart. It lives in
 ``sase.core`` — the lowest layer the writer and both readers can import without
 inverting the existing ``core`` < ``llm_provider`` dependency direction.
 """

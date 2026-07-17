@@ -85,7 +85,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
 
     def _prepare_agents_jump_maps(self) -> bool:
         """Allocate agent-row, banner, and collapsed-panel hints without rendering."""
-        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return False
         targets = self._jump_candidate_targets()

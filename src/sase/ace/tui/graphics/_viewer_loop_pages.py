@@ -29,17 +29,21 @@ from ._viewer_loop_terminal import (
     toggle_tmux_zoom,
 )
 from ._viewer_loop_types import PageLoopResult
-from ._viewer_types import ArtifactImageArea, ArtifactViewerResult, ArtifactViewSpec
+from ._viewer_types import (
+    ArtifactFileImageArea,
+    ArtifactFileViewerResult,
+    ArtifactFileViewSpec,
+)
 
 
 def run_artifact_text_viewer(
-    artifact: ArtifactViewSpec,
+    artifact: ArtifactFileViewSpec,
     *,
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
     return_pane_id: str | None = None,
-    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    select_pane: Callable[[str], ArtifactFileViewerResult] | None = None,
 ) -> PageLoopResult:
     """Display one raw artifact file with ``bat`` or ``cat``."""
 
@@ -71,11 +75,11 @@ def run_artifact_page_loop(
     read_key: Callable[[], str] | None = None,
     run_command: Callable[[Sequence[str]], subprocess.CompletedProcess[Any]]
     | None = None,
-    image_area: ArtifactImageArea | None = None,
+    image_area: ArtifactFileImageArea | None = None,
     return_pane_id: str | None = None,
-    select_pane: Callable[[str], ArtifactViewerResult] | None = None,
+    select_pane: Callable[[str], ArtifactFileViewerResult] | None = None,
     tmux_zoom_available: bool | None = None,
-    toggle_zoom: Callable[[], ArtifactViewerResult] | None = None,
+    toggle_zoom: Callable[[], ArtifactFileViewerResult] | None = None,
 ) -> PageLoopResult:
     """Display rendered pages with ``kitten icat`` and a small key loop."""
 

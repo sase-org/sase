@@ -12,7 +12,7 @@ from sase.ace.changespec.models import DeltaEntry, DeltaLineStats
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets.prompt_panel import _agent_display_parts
-from sase.ace.tui.widgets.prompt_panel._agent_artifacts import AgentArtifactPath
+from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
 from sase.ace.tui.widgets.prompt_panel._agent_display_hints import (
     AgentHintsDisplayMixin,
@@ -100,8 +100,8 @@ def _summary() -> _DetailHeaderSummary:
                 line_stats=DeltaLineStats(modified=1),
             )
         ],
-        artifact_paths=[
-            AgentArtifactPath(
+        artifact_file_paths=[
+            ArtifactFilePath(
                 display_path="artifact.txt",
                 actual_path="/tmp/artifact.txt",
             )
@@ -133,7 +133,7 @@ def test_update_display_schedules_header_enrichment_without_sync_build(
     assert calls == []
     assert panel.worker_fn is not None
     assert "Deltas:" not in plain_of(panel.captured[-1])
-    assert "Artifacts:" not in plain_of(panel.captured[-1])
+    assert "Files:" not in plain_of(panel.captured[-1])
 
     assert panel.worker_fn() is summary
     assert calls == [agent]
@@ -164,7 +164,7 @@ def test_successful_header_enrichment_repaints_from_cache(
 
     plain = plain_of(panel.captured[-1])
     assert "  Deltas:\n    ~ src/foo.py  ~1\n" in plain
-    assert "  Artifacts:\n    \u2022 artifact.txt\n" in plain
+    assert "  Files:\n    \u2022 artifact.txt\n" in plain
 
 
 def test_successful_header_enrichment_posts_completion_message(

@@ -210,7 +210,7 @@ class CommandContext:
     attempt_pinned: bool = False
     group_focused: bool = False
     file_panel_visible: bool = False
-    has_agent_artifacts: bool = False
+    has_artifact_files: bool = False
     # Axe tab state
     axe_running: bool = False
     selected_axe_slot_done: bool = False

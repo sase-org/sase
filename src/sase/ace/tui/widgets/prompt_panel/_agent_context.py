@@ -13,7 +13,7 @@ from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 
 from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
-from ._agent_artifacts import AgentArtifactPath
+from ._artifact_files import ArtifactFilePath
 from ._agent_artifacts_lane import append_agent_artifacts_lane
 from ._agent_memory_reads import append_agent_memory_reads_section
 from ._agent_opened_workspaces import append_agent_opened_workspaces_section
@@ -36,7 +36,7 @@ def append_agent_context_section(
     agent: Agent | None = None,
     delta_entries: list[DeltaEntry] | None = None,
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
-    artifact_paths: list[AgentArtifactPath] | None = None,
+    artifact_file_paths: list[ArtifactFilePath] | None = None,
     hint_state: HeaderHintState | None = None,
 ) -> tuple[int, int] | None:
     """Append present SASE CONTEXT lanes in the declared narrative order."""
@@ -71,7 +71,7 @@ def append_agent_context_section(
             agent=agent,
             delta_entries=delta_entries,
             linked_delta_groups=linked_delta_groups,
-            artifact_paths=artifact_paths,
+            artifact_file_paths=artifact_file_paths,
             hint_state=hint_state,
         ),
     }

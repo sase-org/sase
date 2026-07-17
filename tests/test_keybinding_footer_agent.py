@@ -204,9 +204,9 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
         )
     ]
 
-    bindings = footer._compute_agent_bindings(agent, has_agent_artifacts=True)
+    bindings = footer._compute_agent_bindings(agent, has_artifact_files=True)
 
-    assert ("a", "artifacts") in bindings
+    assert ("a", "artifact files") in bindings
     assert ("D", "attempt view") in bindings
 
 
@@ -274,12 +274,12 @@ def test_keybinding_footer_tmux_choices_label_with_cached_choices() -> None:
     assert "tmux (primary)" in labels
 
 
-def test_keybinding_footer_agent_artifact_viewer_active_advertises_focus_key() -> None:
+def test_keybinding_footer_artifact_file_viewer_active_advertises_focus_key() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    inactive = footer._compute_agent_bindings(agent, artifact_viewer_active=False)
-    active = footer._compute_agent_bindings(agent, artifact_viewer_active=True)
+    inactive = footer._compute_agent_bindings(agent, artifact_file_viewer_active=False)
+    active = footer._compute_agent_bindings(agent, artifact_file_viewer_active=True)
 
     assert ("<tab>", "focus artifact pane") not in inactive
     assert ("q", "close artifact pane") not in inactive

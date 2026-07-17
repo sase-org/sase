@@ -85,7 +85,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         stops = self._panel_navigation_stops()  # type: ignore[attr-defined]
         if not stops:
             return
-        guard = getattr(self, "_guard_agent_navigation_for_artifact_viewer", None)
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return
         old_key = self._current_group_key
@@ -472,7 +472,9 @@ class BasicNavigationMixin(NavigationMixinBase):
         self._last_input_action = "next_tab"  # type: ignore[attr-defined]
         self._record_input_event()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
-            focus_artifact = getattr(self, "_focus_tracked_artifact_tmux_pane", None)
+            focus_artifact = getattr(
+                self, "_focus_tracked_artifact_file_tmux_pane", None
+            )
             if callable(focus_artifact) and focus_artifact():
                 return
         self._save_current_tab_position()

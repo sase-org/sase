@@ -7,12 +7,12 @@ import subprocess
 from collections.abc import Sequence
 
 from ._viewer_types import (
-    ArtifactViewerResult,
-    ArtifactViewerWarning,
+    ArtifactFileViewerResult,
+    ArtifactFileViewerWarning,
     viewer_result_from_warnings,
 )
 
-_ARTIFACT_NOTIFY_PID_ENV = "SASE_ARTIFACT_NOTIFY_PID"
+_ARTIFACT_FILE_NOTIFY_PID_ENV = "SASE_ARTIFACT_FILE_NOTIFY_PID"
 _ARTIFACT_RETURN_PANE_ID_ENV = "SASE_ARTIFACT_RETURN_PANE_ID"
 
 
@@ -27,8 +27,8 @@ def tmux_warning_result(
     message: str,
     *,
     tool: str | None = "tmux",
-) -> ArtifactViewerResult:
-    warning = ArtifactViewerWarning(code, message, tool=tool)
+) -> ArtifactFileViewerResult:
+    warning = ArtifactFileViewerWarning(code, message, tool=tool)
     return viewer_result_from_warnings((warning,))
 
 
@@ -50,12 +50,12 @@ def tmux_warning(
     code: str,
     message: str,
     result: subprocess.CompletedProcess[str] | None = None,
-) -> ArtifactViewerWarning:
+) -> ArtifactFileViewerWarning:
     if result is not None:
         stderr = result.stderr.strip()
         if stderr:
             message = f"{message}: {stderr}"
-    return ArtifactViewerWarning(code, message, tool="tmux")
+    return ArtifactFileViewerWarning(code, message, tool="tmux")
 
 
 def tmux_display(target: str, fmt: str) -> subprocess.CompletedProcess[str] | None:

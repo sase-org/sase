@@ -7,7 +7,7 @@ from collections.abc import Callable
 from types import FrameType
 from typing import TYPE_CHECKING, Any
 
-from ._panel_artifacts import AgentPanelArtifactMixin
+from ._panel_artifact_files import AgentPanelArtifactFileMixin
 from ._panel_detail import AgentPanelDetailMixin
 from ._panel_navigation import AgentPanelNavigationMixin
 from ._panel_tmux import AgentPanelTmuxMixin
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class AgentPanelsMixin(
-    AgentPanelArtifactMixin,
+    AgentPanelArtifactFileMixin,
     AgentPanelNavigationMixin,
     AgentPanelDetailMixin,
     AgentPanelTmuxMixin,
@@ -37,8 +37,8 @@ class AgentPanelsMixin(
     _current_group_key: tuple[str, ...] | None
     _agent_panels_grouped: bool
     _agents: list[Agent]
-    _artifact_tmux_pane_id: str | None
-    _artifact_tmux_decoration_state: TmuxPaneDecorationState | None
-    _artifact_viewer_previous_sigusr1_handler: (
+    _artifact_file_tmux_pane_id: str | None
+    _artifact_file_tmux_decoration_state: TmuxPaneDecorationState | None
+    _artifact_file_viewer_previous_sigusr1_handler: (
         signal.Handlers | int | Callable[[int, FrameType | None], Any] | None
     )

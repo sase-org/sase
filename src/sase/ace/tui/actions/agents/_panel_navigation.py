@@ -74,7 +74,7 @@ class AgentPanelNavigationMixin:
         """
         if self.current_tab != "agents":
             return
-        if self._guard_agent_navigation_for_artifact_viewer():  # type: ignore[attr-defined]
+        if self._guard_agent_navigation_for_artifact_file_viewer():  # type: ignore[attr-defined]
             return
         if len(self._panel_group.panel_keys) <= 1:
             return

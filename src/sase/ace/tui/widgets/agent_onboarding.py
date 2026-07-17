@@ -37,7 +37,7 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
     "agents": (
         "Agents",
         "#87D7FF",
-        "Inspect prompts, diffs, tools, and artifacts. You are here.",
+        "Inspect prompts, diffs, tools, and artifact files. You are here.",
     ),
     "changespecs": (
         "Artifacts",
@@ -260,8 +260,8 @@ class AgentOnboarding(VerticalScroll):
         text.append("\n")
         append_keycap(text, key_display_name(app.jump_to_agent_changespec))
         text.append("jump to the PR it produced.")
-        append_keycap(text, key_display_name(app.open_agent_artifacts))
-        text.append("browse artifacts.")
+        append_keycap(text, key_display_name(app.open_artifact_files))
+        text.append("browse artifact files.")
         return text
 
     @staticmethod

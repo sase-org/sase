@@ -39,20 +39,20 @@ def handle_repro_replay(args: argparse.Namespace) -> int:
         size = _parse_size(str(getattr(args, "size", "120x40")))
         bundle = load_bundle(bundle_path)
         result = asyncio.run(replay_agents_tab_bundle(bundle, size=size))
-        artifact_paths = _write_replay_artifacts(
+        artifact_file_paths = _write_replay_artifacts(
             result.steps,
             _optional_path(getattr(args, "write_artifacts", None)),
         )
         payload = _replay_result_to_json(
             result,
             bundle_path=bundle_path,
-            screen_paths=artifact_paths["screen_paths"],
-            screenshot_paths=artifact_paths["screenshot_paths"],
+            screen_paths=artifact_file_paths["screen_paths"],
+            screenshot_paths=artifact_file_paths["screenshot_paths"],
         )
         if json_output:
             print(json.dumps(payload, indent=2, sort_keys=True))
         else:
-            _print_replay_human(result, artifact_paths)
+            _print_replay_human(result, artifact_file_paths)
 
         assert_stable = bool(getattr(args, "assert_stable", False))
         return 0 if result.ok or not assert_stable else 1
@@ -295,17 +295,17 @@ def _step_snapshot_to_json(step: ReproReplayStepSnapshot) -> dict[str, Any]:
 
 def _print_replay_human(
     result: ReproReplayResult,
-    artifact_paths: dict[str, list[str]],
+    artifact_file_paths: dict[str, list[str]],
 ) -> None:
     print(result.verdict)
     if result.invariant_report.failures:
         for failure in result.invariant_report.failures:
             print(f"{failure.code}: {failure.message}")
-    if artifact_paths["screen_paths"] or artifact_paths["screenshot_paths"]:
+    if artifact_file_paths["screen_paths"] or artifact_file_paths["screenshot_paths"]:
         print(
             "wrote replay artifacts: "
-            f"{len(artifact_paths['screen_paths'])} screens, "
-            f"{len(artifact_paths['screenshot_paths'])} SVGs"
+            f"{len(artifact_file_paths['screen_paths'])} screens, "
+            f"{len(artifact_file_paths['screenshot_paths'])} SVGs"
         )
 
 
