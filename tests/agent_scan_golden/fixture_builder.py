@@ -106,6 +106,8 @@ def _build_ace_run_running(root: Path) -> None:
         {
             "name": "running_alpha",
             "workflow_name": "wf_alpha",
+            "agent_family": "legacy_clan",
+            "agent_family_role": "phase",
             "agent_family_parallel": True,
             "pid": 22222,
             "model": "claude-sonnet-4-6",

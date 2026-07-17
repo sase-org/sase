@@ -159,6 +159,11 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     payload = dict(data)
+    if bool(payload.get("agent_family_parallel", False)):
+        if not payload.get("agent_clan"):
+            payload["agent_clan"] = payload.get("agent_family")
+        payload["agent_family"] = None
+        payload["agent_family_role"] = None
     raw_plan_committed = payload.get("plan_committed")
     payload["plan_committed"] = (
         raw_plan_committed if type(raw_plan_committed) is bool else None

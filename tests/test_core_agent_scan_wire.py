@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import fields
+
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
@@ -23,8 +25,8 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 1
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 10
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 2
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 11
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -101,6 +103,8 @@ def test_agent_meta_output_variables_round_trip() -> None:
                     "timestamp": "20260601010101",
                     "agent_meta": {
                         "name": "producer",
+                        "agent_family": "legacy_clan",
+                        "agent_family_role": "phase",
                         "agent_family_parallel": True,
                         "output_path": "/tmp/producer.log",
                         "linked_repos": [
@@ -132,6 +136,9 @@ def test_agent_meta_output_variables_round_trip() -> None:
     record = snapshot.records[0]
     assert record.agent_meta is not None
     assert record.agent_meta.agent_family_parallel is True
+    assert record.agent_meta.agent_clan == "legacy_clan"
+    assert record.agent_meta.agent_family is None
+    assert record.agent_meta.agent_family_role is None
     assert record.agent_meta.output_variables == {
         "report_path": "/tmp/report.md",
         "status": "ok",
@@ -146,6 +153,8 @@ def test_agent_meta_output_variables_round_trip() -> None:
     ]
     payload = agent_scan_wire_to_json_dict(snapshot)
     assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
+    assert payload["records"][0]["agent_meta"]["agent_clan"] == "legacy_clan"
+    assert payload["records"][0]["agent_meta"]["agent_family"] is None
     assert payload["records"][0]["agent_meta"]["linked_repos"] == [
         {
             "name": "sase-core",
@@ -159,6 +168,33 @@ def test_agent_meta_output_variables_round_trip() -> None:
     }
     assert payload["records"][0]["agent_meta"]["agent_family_parallel"] is True
     assert payload["records"][0]["agent_meta"]["output_path"] == "/tmp/producer.log"
+
+
+def test_agent_meta_clan_field_order_matches_rust_wire() -> None:
+    from sase.core.agent_scan_wire import AgentMetaWire
+
+    names = [field.name for field in fields(AgentMetaWire)]
+    workflow_index = names.index("workflow_name")
+    assert names[workflow_index : workflow_index + 5] == [
+        "workflow_name",
+        "agent_clan",
+        "agent_family",
+        "agent_family_role",
+        "agent_family_parallel",
+    ]
+
+
+def test_explicit_agent_clan_preserves_sequential_family_fields() -> None:
+    from sase.core.agent_scan_wire import AgentMetaWire
+
+    meta = AgentMetaWire(
+        agent_clan="alpha",
+        agent_family="alpha.family",
+        agent_family_role="code",
+    )
+    assert meta.agent_clan == "alpha"
+    assert meta.agent_family == "alpha.family"
+    assert meta.agent_family_role == "code"
 
 
 def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
