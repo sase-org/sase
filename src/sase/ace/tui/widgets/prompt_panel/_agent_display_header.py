@@ -16,6 +16,7 @@ from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
     status_bucket_for_values,
 )
+from sase.agent.bead_display import derive_agent_bead_id_from_name
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.project_display_names import humanize_cl_name
 
@@ -243,6 +244,10 @@ def build_header_text(
             bead_display = summary.bead_display
         elif agent.phase_bead_id:
             bead_display = agent.phase_bead_id
+        elif agent.agent_family_role == "phase":
+            bead_display = (
+                derive_agent_bead_id_from_name(agent.agent_name) or agent.agent_name
+            )
         else:
             cached_display = cached_bead_display(agent)
             bead_display = cached_display if isinstance(cached_display, str) else None

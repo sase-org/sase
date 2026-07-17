@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
@@ -134,6 +135,53 @@ def test_preprocessing_failure_records_failed_done_and_finalizes(
     assert done["error"] == "RuntimeError: xprompt bootstrap failed"
     assert "preprocess_prompt_xprompts" in done["traceback"]
     assert finalize.call_count == 1
+
+
+def test_refreshed_bootstrap_preserves_phase_launch_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+    args = _runner_args(tmp_path)
+    Path(args.prompt_file).write_text("Do phase work", encoding="utf-8")
+    existing_meta = {
+        "pid": 123,
+        "output_path": "/tmp/old-output.log",
+        "wait_completed_at": "2026-07-01T01:02:03+00:00",
+        "sdd_plan_path": "sdd/plans/202607/epic.md",
+        "epic_bead_id": "sase-6k",
+        "phase_bead_id": "sase-6k.3",
+        "plan_committed": True,
+        "agent_family": "sase-6k",
+        "agent_family_role": "phase",
+        "agent_family_parallel": True,
+        "parent_timestamp": "20260701000000",
+    }
+
+    with ExitStack() as stack:
+        artifacts_dir, _, _, _ = _runner_patches(stack, tmp_path=tmp_path)
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(existing_meta),
+            encoding="utf-8",
+        )
+        stack.enter_context(
+            patch.object(
+                run_agent_runner,
+                "preprocess_prompt_xprompts",
+                side_effect=RuntimeError("stop after refreshed bootstrap"),
+            )
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            run_agent_runner.main()
+
+    assert exc_info.value.code == 1
+    meta = json.loads((artifacts_dir / "agent_meta.json").read_text(encoding="utf-8"))
+    for key, value in existing_meta.items():
+        if key not in {"pid", "output_path"}:
+            assert meta[key] == value
+    assert meta["pid"] == os.getpid()
+    assert meta["output_path"] == str(tmp_path / "output.log")
 
 
 def test_user_kill_during_bootstrap_preserves_exit_and_skips_error_recording(

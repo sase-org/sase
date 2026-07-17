@@ -10,6 +10,7 @@ The core execution loop (retry, plan approval, question handling) lives in
 ``axe.run_agent_runner_finalize``.
 """
 
+import json
 import os
 import sys
 import time
@@ -93,6 +94,28 @@ install_sigterm_handler("agent", soft=True)
 # Editable sase installs can fast-forward while a detached runner spends hours
 # waiting. Capture the imported code's checkout identity before that wait starts.
 _STARTUP_CODE_IDENTITY = runner_code_identity()
+
+
+def _write_bootstrap_agent_meta(
+    artifacts_dir: str,
+    *,
+    output_path: str,
+    refreshed: bool,
+) -> None:
+    """Seed process metadata without erasing a refreshed run's launch identity."""
+    agent_meta: dict[str, Any] = {}
+    if refreshed:
+        meta_path = os.path.join(artifacts_dir, "agent_meta.json")
+        try:
+            with open(meta_path, encoding="utf-8") as f:
+                existing_meta = json.load(f)
+            if isinstance(existing_meta, dict):
+                agent_meta.update(existing_meta)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+    agent_meta.update({"pid": os.getpid(), "output_path": output_path})
+    write_agent_meta(artifacts_dir, agent_meta)
 
 
 def main() -> None:
@@ -191,11 +214,13 @@ def main() -> None:
             signal_fallback_artifacts_dir = artifacts_dir
 
             # Persist the raw output location before any prompt processing or
-            # dependency wait. Later directive metadata replaces this seed, so
-            # the field is explicitly carried into the full metadata below.
-            write_agent_meta(
+            # dependency wait. A refreshed pass reuses the artifact directory,
+            # so retain its durable launch metadata until directive extraction
+            # can carry it into the rebuilt record.
+            _write_bootstrap_agent_meta(
                 artifacts_dir,
-                {"pid": os.getpid(), "output_path": output_path},
+                output_path=output_path,
+                refreshed=RUNNER_CODE_REFRESHED_ENV in os.environ,
             )
 
             refreshed_prompt_fallback: str | None = None

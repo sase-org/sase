@@ -9,14 +9,25 @@ from tests._agent_names_extract_fixtures import mock_provider, run_extract
 
 
 class TestExtractDirectivesMetadata:
-    def test_preserves_completed_wait_across_refreshed_extract(
+    def test_preserves_phase_launch_metadata_across_refreshed_extract(
         self, tmp_path: Path
     ) -> None:
         artifacts = tmp_path / "artifacts"
         artifacts.mkdir()
         timestamp = "2026-07-13T16:00:00+00:00"
+        durable_metadata = {
+            "wait_completed_at": timestamp,
+            "sdd_plan_path": "sdd/plans/202607/epic.md",
+            "epic_bead_id": "sase-6k",
+            "phase_bead_id": "sase-6k.3",
+            "plan_committed": True,
+            "agent_family": "sase-6k",
+            "agent_family_role": "phase",
+            "agent_family_parallel": True,
+            "parent_timestamp": "20260713150000",
+        }
         (artifacts / "agent_meta.json").write_text(
-            json.dumps({"pid": 123, "wait_completed_at": timestamp}),
+            json.dumps({"pid": 123, **durable_metadata}),
             encoding="utf-8",
         )
 
@@ -26,8 +37,9 @@ class TestExtractDirectivesMetadata:
             prompt="%wait(60s)\ndo stuff",
         )
 
-        assert result["info"].meta["wait_completed_at"] == timestamp
-        assert result["meta"]["wait_completed_at"] == timestamp
+        for key, value in durable_metadata.items():
+            assert result["info"].meta[key] == value
+            assert result["meta"][key] == value
 
     def test_persists_wait_runners_metadata(self, tmp_path: Path) -> None:
         result = run_extract(

@@ -127,7 +127,9 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     enriched_bead_display = plan_enrichment.bead_display
     legacy_candidate_id = derive_agent_bead_id_from_name(agent.agent_name)
     if enriched_bead_display is not None and (
-        agent.phase_bead_id is not None or enriched_bead_display != legacy_candidate_id
+        agent.phase_bead_id is not None
+        or agent.agent_family_role == "phase"
+        or enriched_bead_display != legacy_candidate_id
     ):
         bead_display = enriched_bead_display
 

@@ -60,6 +60,7 @@ def associated_plan_cache_key(agent: Agent) -> tuple[object, ...]:
         agent.plan_action,
         agent.epic_bead_id,
         agent.phase_bead_id,
+        agent.agent_family_role,
         agent.agent_name,
         agent.workspace_dir,
         agent.effective_workspace_num,
@@ -83,27 +84,35 @@ def resolve_agent_plan_enrichment(
     role: AgentPlanRole = "phase" if initial_role == "ambiguous" else initial_role
     plan_path: Path | None
 
-    # A modern phase worker has all identity inputs in agent_meta.json. Keep
-    # the failure mode bead-only even when its plan reference is missing or
-    # damaged, and never fall back to mutable bead storage.
-    if agent.phase_bead_id:
+    # A modern phase worker normally has all identity inputs in agent_meta.json.
+    # Explicit family-role metadata remains authoritative when a damaged or
+    # historical record has lost its child-specific phase bead field. Keep the
+    # failure mode bead-only and never fall back to mutable bead storage.
+    explicit_phase = agent.agent_family_role == "phase"
+    phase_bead_id = agent.phase_bead_id
+    if phase_bead_id is None and explicit_phase:
+        phase_bead_id = derive_agent_bead_id_from_name(agent.agent_name)
+    phase_display = phase_bead_id or (agent.agent_name if explicit_phase else None)
+    if agent.phase_bead_id or explicit_phase:
         if not reference:
             return _AgentPlanEnrichment(
                 role="phase",
-                bead_display=agent.phase_bead_id,
+                bead_display=phase_display,
                 associated_plan=None,
                 resolved_plan_path=None,
             )
         plan_path = _resolve_cached_reference(agent, "direct", reference)
         metadata = _load_plan_metadata(plan_path)
-        return _AgentPlanEnrichment(
-            role="phase",
-            bead_display=_phase_bead_display(
+        if phase_bead_id is not None:
+            phase_display = _phase_bead_display(
                 metadata,
                 epic_bead_id=agent.epic_bead_id,
-                phase_bead_id=agent.phase_bead_id,
+                phase_bead_id=phase_bead_id,
                 plan_reference=reference,
-            ),
+            )
+        return _AgentPlanEnrichment(
+            role="phase",
+            bead_display=phase_display,
             associated_plan=None,
             resolved_plan_path=str(plan_path),
         )
@@ -230,7 +239,7 @@ def _direct_plan_reference(agent: Agent) -> str | None:
 
 
 def _initial_agent_plan_role(agent: Agent) -> _InitialAgentPlanRole:
-    if agent.phase_bead_id:
+    if agent.phase_bead_id or agent.agent_family_role == "phase":
         return "phase"
 
     derived_bead_id = derive_agent_bead_id_from_name(agent.agent_name)
