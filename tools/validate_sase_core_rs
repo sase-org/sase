@@ -55,6 +55,11 @@ REQUIRED_BINDINGS = (
     "rewrite_prompt_stash",
     "plan_validate",
     "plan_frontmatter_schema",
+    "telemetry_record_batch",
+    "telemetry_query_instant",
+    "telemetry_query_range",
+    "telemetry_prune",
+    "telemetry_store_stats",
 )
 
 

@@ -78,6 +78,12 @@ ace:
     auto_directive_menu: true
     max_auto_rows: 1
   keymaps:
+    # Focused Admin Center Telemetry-pane bindings. These keys are inactive
+    # everywhere else, even when they overlap app-level actions.
+    telemetry:
+      cycle_subsystem: "s"
+      cycle_range: "t"
+      refresh: "r"
     app:
       # Navigation
       next_changespec: "j"

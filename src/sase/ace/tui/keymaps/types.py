@@ -157,6 +157,15 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("dismiss_toasts", "Dismiss Toasts", False),
 ]
 
+# Scoped bindings owned by the focused Admin Center Telemetry pane.  These are
+# deliberately excluded from ``AppKeymaps`` so common keys such as ``s`` and
+# ``r`` never become globally active.
+_TELEMETRY_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("cycle_subsystem", "Subsystem"),
+    ("cycle_range", "Time Range"),
+    ("refresh", "Refresh"),
+)
+
 # Maps mode name -> the app-level action that activates it.
 _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "fold_mode": "start_fold_mode",
@@ -433,6 +442,15 @@ class AppKeymaps:
 
 
 @dataclass
+class TelemetryPaneKeymaps:
+    """Focused-pane actions for the Admin Center Telemetry tab."""
+
+    cycle_subsystem: str = "s"
+    cycle_range: str = "t"
+    refresh: str = "r"
+
+
+@dataclass
 class ModeKeymaps:
     """Generic container for a prefix-key mode."""
 
@@ -580,6 +598,7 @@ class KeymapRegistry:
     """Top-level container for all keymap configuration."""
 
     app: AppKeymaps
+    telemetry: TelemetryPaneKeymaps = field(default_factory=TelemetryPaneKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

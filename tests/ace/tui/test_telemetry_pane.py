@@ -10,6 +10,7 @@ import pytest
 from sase_core_rs import telemetry_record_batch
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.keymaps import load_keymap_registry, telemetry_help_bindings
 from sase.ace.tui.modals import telemetry_pane as tp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.telemetry_pane import TelemetryPane
@@ -178,6 +179,81 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
         assert calls[-1] == ("llm", "6h")
         assert pane._load_debouncer is not None
         assert not pane._load_debouncer.is_pending
+
+
+async def test_configured_bindings_dispatch_and_render_effective_help(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[TelemetrySubsystem, TelemetryRange]] = []
+    _patch_center(monkeypatch, calls)
+    registry = load_keymap_registry(
+        {
+            "keymaps": {
+                "telemetry": {
+                    "cycle_subsystem": "f12",
+                    "cycle_range": "f11",
+                    "refresh": "f10",
+                }
+            }
+        }
+    )
+
+    assert telemetry_help_bindings(registry.telemetry) == [
+        ("f12", "Subsystem"),
+        ("f11", "Time Range"),
+        ("f10", "Refresh"),
+    ]
+
+    async with AcePage() as page:
+        page.app._keymap_registry = registry
+        _, pane = await _open_telemetry(page)
+
+        assert pane.query_one("#telemetry-hints", tp.Static).render().plain == (
+            "f12 subsystem   f11 time range   f10 refresh"
+        )
+        assert pane._bindings.get_bindings_for_key("f12")[0].action == (
+            "cycle_subsystem"
+        )
+        assert pane._bindings.get_bindings_for_key("f11")[0].description == (
+            "Time Range"
+        )
+
+        await page.press("f12", "f11")
+        await page.wait_for(
+            lambda _state: (
+                pane._last_result is not None
+                and pane._last_result.subsystem == "llm"
+                and pane._last_result.range_key == "6h"
+            )
+        )
+        await page.press("f10")
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+
+        assert calls[-1] == ("llm", "6h")
+
+
+async def test_telemetry_bindings_are_inactive_on_other_admin_center_tabs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[TelemetrySubsystem, TelemetryRange]] = []
+    _patch_center(monkeypatch, calls)
+    registry = load_keymap_registry(
+        {"keymaps": {"telemetry": {"cycle_subsystem": "f12"}}}
+    )
+
+    async with AcePage() as page:
+        page.app._keymap_registry = registry
+        modal = ConfigCenterModal(initial_tab="config")
+        page.app.push_screen(modal)
+        await page.expect_modal("ConfigCenterModal")
+        await page.wait_for(lambda _state: bool(modal.query("#telemetry")))
+        pane = modal.query_one("#telemetry", TelemetryPane)
+
+        await page.press("f12")
+        await page.pause()
+
+        assert pane._subsystem == "agents"
+        assert calls == []
 
 
 async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(

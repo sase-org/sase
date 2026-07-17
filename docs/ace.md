@@ -1859,8 +1859,8 @@ the keybinding footer when the selected agent has one or more prior attempts.
 
 ## Custom Keymaps
 
-All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap any built-in key and
-define entirely new prefix-key modes.
+All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap app-level and focused
+Telemetry-pane keys and define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys
 
@@ -1874,6 +1874,22 @@ ace:
       prev_changespec: "p" # Remap k → p
       show_notifications: "N" # Remap i → N
 ```
+
+### Remapping Telemetry Pane Keys
+
+Override focused Telemetry bindings under `ace.keymaps.telemetry`:
+
+```yaml
+ace:
+  keymaps:
+    telemetry:
+      cycle_subsystem: "f12"
+      cycle_range: "f11"
+      refresh: "f10"
+```
+
+These keys dispatch only while the Admin Center Telemetry pane is focused. They may overlap app-level bindings without
+creating a global conflict, and the pane's hint bar always shows the effective keys.
 
 ### Custom Modes
 
@@ -1905,7 +1921,7 @@ Pressing `;` activates the mode, then pressing `t` runs `just test`, `l` shows t
 The keymap loader validates all configuration:
 
 - **Invalid keys** are reverted to their defaults with a warning
-- **Duplicate keys** (two actions bound to the same key) are detected and the conflicting override is reverted
+- **Duplicate keys within one binding scope** are detected and the conflicting override is reverted
 - **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
 
 See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration reference.

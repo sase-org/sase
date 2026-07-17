@@ -443,3 +443,21 @@ jobs:
         run: just install
       - name: Health check (Rust extension loadable)
         run: .venv/bin/sase core health --json
+
+  # The editable install smoke above intentionally follows the linked Rust
+  # checkout. This separate lane installs the exact minimum accepted by SASE
+  # from the package index, with no source checkout or dependency override.
+  published-core-minimum-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install exact published core minimum
+        run: |
+          core_minimum="$(python3 tools/smoke_sase_core_rs_telemetry --print-minimum pyproject.toml)"
+          uv venv --python 3.12 /tmp/published-core-smoke
+          uv pip install --python /tmp/published-core-smoke/bin/python "sase-core-rs==${core_minimum}"
+      - name: Smoke all telemetry bindings
+        run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_telemetry

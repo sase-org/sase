@@ -49,3 +49,20 @@ def test_validate_sase_core_rs_requires_plan_validation_bindings() -> None:
         assert not validator._validate_bindings(
             _module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    telemetry_bindings = {
+        "telemetry_record_batch",
+        "telemetry_query_instant",
+        "telemetry_query_range",
+        "telemetry_prune",
+        "telemetry_store_stats",
+    }
+
+    assert telemetry_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in telemetry_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )

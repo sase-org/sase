@@ -158,6 +158,38 @@ def test_compound_key_conflict_logs_warning(
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 
+def test_telemetry_key_can_overlap_global_app_key() -> None:
+    """Scoped Telemetry keys do not participate in global app conflicts."""
+    reg = load_keymap_registry({"keymaps": {"telemetry": {"cycle_subsystem": "q"}}})
+
+    assert reg.telemetry.cycle_subsystem == "q"
+    assert reg.app.quit == "q"
+
+
+def test_duplicate_telemetry_keys_revert_overrides() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "telemetry": {
+                    "cycle_subsystem": "f12",
+                    "cycle_range": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.telemetry.cycle_subsystem == "s"
+    assert reg.telemetry.cycle_range == "t"
+
+
+def test_invalid_telemetry_key_reverts_to_default() -> None:
+    reg = load_keymap_registry(
+        {"keymaps": {"telemetry": {"refresh": "not_a_real_key"}}}
+    )
+
+    assert reg.telemetry.refresh == "r"
+
+
 def test_custom_mode_prefix_conflicts_with_compound_app_key(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

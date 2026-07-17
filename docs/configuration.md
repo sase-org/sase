@@ -297,6 +297,10 @@ ace:
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
   keymaps:
+    telemetry:
+      cycle_subsystem: "s" # active only while Telemetry is focused
+      cycle_range: "t"
+      refresh: "r"
     app:
       next_changespec: "j"
       prev_changespec: "k"
@@ -347,7 +351,17 @@ ace:
 
 #### `ace.keymaps`
 
-All TUI keybindings are configurable. The `keymaps` section has two sub-sections:
+All TUI keybindings are configurable. The `keymaps` section has three scopes:
+
+**`telemetry`** — Bindings active only while the Admin Center Telemetry pane is focused. The available actions are:
+
+| Field             | Default | Description                             |
+| ----------------- | ------- | --------------------------------------- |
+| `cycle_subsystem` | `s`     | Cycle to the next subsystem chart set.  |
+| `cycle_range`     | `t`     | Cycle to the next telemetry time range. |
+| `refresh`         | `r`     | Refresh from the local telemetry store. |
+
+Telemetry keys may overlap app-level bindings because they are registered on the focused pane, not globally.
 
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string. See `src/sase/default_config.yml`
 for the full list of configurable actions and their defaults.
@@ -370,8 +384,8 @@ Custom mode key fields:
 
 \*Exactly one of `shell` or `action` must be provided.
 
-The keymap loader validates configuration: invalid keys are reverted to defaults, duplicate bindings are warned, and
-prefix conflicts between custom modes and app bindings are detected.
+The keymap loader validates configuration: invalid keys are reverted to defaults, duplicate bindings within a scope are
+warned, and prefix conflicts between custom modes and app bindings are detected.
 
 Source: `src/sase/default_config.yml`, `src/sase/ace/tui/keymaps/`
 

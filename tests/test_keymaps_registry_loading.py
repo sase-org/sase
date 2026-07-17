@@ -6,6 +6,7 @@ from sase.ace.tui.keymaps import (
     FoldModeKeymaps,
     LeaderModeKeymaps,
     ModeKeymaps,
+    TelemetryPaneKeymaps,
     load_keymap_registry,
 )
 
@@ -38,6 +39,28 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.copy_mode, CopyModeKeymaps)
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
     assert isinstance(reg.bang_mode, BangModeKeymaps)
+    assert isinstance(reg.telemetry, TelemetryPaneKeymaps)
+    assert reg.telemetry.cycle_subsystem == "s"
+    assert reg.telemetry.cycle_range == "t"
+    assert reg.telemetry.refresh == "r"
+
+
+def test_telemetry_pane_keys_can_be_overridden_independently() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "telemetry": {
+                    "cycle_subsystem": "f12",
+                    "cycle_range": "f11",
+                    "refresh": "f10",
+                }
+            }
+        }
+    )
+
+    assert reg.telemetry.cycle_subsystem == "f12"
+    assert reg.telemetry.cycle_range == "f11"
+    assert reg.telemetry.refresh == "f10"
 
 
 def test_leader_repeat_last_default_binding() -> None:

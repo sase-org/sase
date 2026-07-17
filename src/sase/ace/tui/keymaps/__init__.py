@@ -7,10 +7,13 @@ system (``default_config.yml`` -> plugins -> ``sase.yml`` -> overlays).
 
 from sase.ace.tui.keymaps.loader import (
     build_app_bindings,
+    build_telemetry_bindings,
     footer_key_display,
     key_display_name,
     load_builtin_app_defaults,
+    load_builtin_telemetry_defaults,
     load_keymap_registry,
+    telemetry_help_bindings,
 )
 from sase.ace.tui.keymaps.types import (
     BUILTIN_MODE_NAMES,
@@ -21,6 +24,7 @@ from sase.ace.tui.keymaps.types import (
     KeymapRegistry,
     LeaderModeKeymaps,
     ModeKeymaps,
+    TelemetryPaneKeymaps,
     _BINDING_META,
     canonicalize_key_binding,
     canonicalize_single_key,
@@ -38,15 +42,19 @@ __all__ = [
     "KeymapRegistry",
     "LeaderModeKeymaps",
     "ModeKeymaps",
+    "TelemetryPaneKeymaps",
     "_BINDING_META",
     "build_app_bindings",
+    "build_telemetry_bindings",
     "canonicalize_key_binding",
     "canonicalize_single_key",
     "footer_key_display",
     "is_valid_key",
     "key_display_name",
     "load_builtin_app_defaults",
+    "load_builtin_telemetry_defaults",
     "load_keymap_registry",
     "normalize_key_binding",
     "split_key_alternatives",
+    "telemetry_help_bindings",
 ]

@@ -204,6 +204,9 @@ class ConfigCenterModal(ModalScreen[None]):
         # Admin Center itself is opened.
         from .telemetry_pane import TelemetryPane
 
+        registry = getattr(self.app, "_keymap_registry", None)
+        telemetry_keymaps = getattr(registry, "telemetry", None)
+
         with Container(id="config-center-container"):
             yield Label(
                 _gradient_text(_TITLE_TEXT, bold=True), id="config-center-title"
@@ -228,7 +231,7 @@ class ConfigCenterModal(ModalScreen[None]):
                 yield LogsPane(id="logs")
                 yield ProjectsPane(id="projects")
                 yield TasksPane(id="tasks")
-                yield TelemetryPane(id="telemetry")
+                yield TelemetryPane(id="telemetry", keymaps=telemetry_keymaps)
                 yield PluginsBrowserPane(
                     id="updates", auto_update_on_load=self._auto_update
                 )

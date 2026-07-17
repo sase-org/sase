@@ -181,6 +181,20 @@ renderers and local query adapter. It loads only when opened, runs store queries
 | `t` | Cycle `15m`, `1h`, `6h`, `24h`, and `7d`. |
 | `r` | Refresh immediately.                      |
 
+Override these focused-pane bindings under `ace.keymaps.telemetry`; the effective keys are reflected in the pane's hint
+bar:
+
+```yaml
+ace:
+  keymaps:
+    telemetry:
+      cycle_subsystem: "f12"
+      cycle_range: "f11"
+      refresh: "f10"
+```
+
+The bindings are inactive on every other Admin Center tab and may safely overlap global app keys.
+
 The pane shows loading, empty-store, disabled, and query-error states directly instead of leaving blank charts.
 
 ## Metric catalog and integration

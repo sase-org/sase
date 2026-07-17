@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Smoke the telemetry API from the exact published Rust-core minimum."""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import re
+import sys
+import tempfile
+import tomllib
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+
+DEPENDENCY_NAME = "sase-core-rs"
+TELEMETRY_BINDINGS = (
+    "telemetry_record_batch",
+    "telemetry_query_instant",
+    "telemetry_query_range",
+    "telemetry_prune",
+    "telemetry_store_stats",
+)
+_MINIMUM_PATTERN = re.compile(r"(?:^|,)\s*>=\s*([^,;\s]+)")
+
+
+def declared_minimum_version(pyproject_path: Path) -> str:
+    """Return the inclusive minimum from SASE's core distribution range."""
+
+    data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    dependencies = data.get("project", {}).get("dependencies", [])
+    if not isinstance(dependencies, list):
+        raise ValueError("project.dependencies must be a list")
+    for dependency in dependencies:
+        if not isinstance(dependency, str):
+            continue
+        requirement = dependency.strip()
+        normalized = requirement.lower().replace("_", "-")
+        if not normalized.startswith(DEPENDENCY_NAME):
+            continue
+        specifier = requirement[len(DEPENDENCY_NAME) :]
+        match = _MINIMUM_PATTERN.search(specifier)
+        if match is None:
+            raise ValueError(
+                f"{DEPENDENCY_NAME} dependency has no inclusive minimum: "
+                f"{requirement!r}"
+            )
+        return match.group(1)
+    raise ValueError(f"project does not declare a {DEPENDENCY_NAME} dependency")
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in TELEMETRY_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError("missing telemetry binding(s): " + ", ".join(missing))
+
+
+def _first_value(payload: dict[str, Any], *path: str) -> Any:
+    current: Any = payload
+    for part in path:
+        if isinstance(current, list):
+            current = current[0]
+        if not isinstance(current, dict) or part not in current:
+            raise RuntimeError(f"telemetry response is missing {'.'.join(path)}")
+        current = current[part]
+    return current
+
+
+def validate_round_trip(module: ModuleType) -> dict[str, Any]:
+    """Exercise all five public telemetry bindings against a temporary store."""
+
+    _require_bindings(module)
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-telemetry-smoke-") as tmp:
+        store_path = str(Path(tmp) / "metrics.sqlite")
+        recorded = module.telemetry_record_batch(
+            store_path,
+            {
+                "samples": [
+                    {
+                        "ts": 100,
+                        "metric": "sase_agent_runs_total",
+                        "kind": "counter",
+                        "labels": {"provider": "codex"},
+                        "source": "published-wheel-smoke",
+                        "value": 3.0,
+                    }
+                ],
+                "now_ts": 110,
+            },
+            1_000,
+        )
+        if recorded.get("samples_recorded") != 1:
+            raise RuntimeError(f"unexpected record result: {recorded!r}")
+
+        instant = module.telemetry_query_instant(
+            store_path,
+            {
+                "metric": "sase_agent_runs_total",
+                "group_by": [],
+                "now_ts": 110,
+            },
+            1_000,
+        )
+        if _first_value(instant, "values", "value") != 3.0:
+            raise RuntimeError(f"unexpected instant-query result: {instant!r}")
+
+        ranged = module.telemetry_query_range(
+            store_path,
+            {
+                "metric": "sase_agent_runs_total",
+                "start_ts": 100,
+                "end_ts": 159,
+                "step_seconds": 60,
+                "group_by": [],
+                "aggregation": "sum",
+            },
+            1_000,
+        )
+        if _first_value(ranged, "series", "points", "value") != 3.0:
+            raise RuntimeError(f"unexpected range-query result: {ranged!r}")
+
+        before_prune = module.telemetry_store_stats(store_path, 1_000)
+        if before_prune.get("raw_sample_count") != 1:
+            raise RuntimeError(f"unexpected pre-prune stats: {before_prune!r}")
+
+        pruned = module.telemetry_prune(
+            store_path,
+            {
+                "now_ts": 1_000,
+                "retention": {
+                    "raw_seconds": 100,
+                    "rollup_5m_seconds": 10_000,
+                    "rollup_1h_seconds": 100_000,
+                },
+            },
+            1_000,
+        )
+        if pruned.get("raw_rows_folded") != 1:
+            raise RuntimeError(f"unexpected prune result: {pruned!r}")
+
+        after_prune = module.telemetry_store_stats(store_path, 1_000)
+        if (
+            after_prune.get("raw_sample_count") != 0
+            or after_prune.get("rollup_5m_count") != 1
+        ):
+            raise RuntimeError(f"unexpected post-prune stats: {after_prune!r}")
+
+        return {
+            "samples_recorded": recorded["samples_recorded"],
+            "instant_value": _first_value(instant, "values", "value"),
+            "range_value": _first_value(ranged, "series", "points", "value"),
+            "raw_rows_folded": pruned["raw_rows_folded"],
+            "raw_sample_count": after_prune["raw_sample_count"],
+            "rollup_5m_count": after_prune["rollup_5m_count"],
+        }
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--print-minimum",
+        type=Path,
+        metavar="PYPROJECT",
+        help="print the declared inclusive sase-core-rs minimum and exit",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if args.print_minimum is not None:
+        try:
+            print(declared_minimum_version(args.print_minimum))
+        except (OSError, ValueError, tomllib.TOMLDecodeError) as error:
+            print(f"[telemetry-smoke] {error}", file=sys.stderr)
+            return 1
+        return 0
+
+    try:
+        module = importlib.import_module("sase_core_rs")
+        result = validate_round_trip(module)
+    except Exception as error:
+        print(f"[telemetry-smoke] {error}", file=sys.stderr)
+        return 1
+    version = getattr(module, "__version__", "<unknown>")
+    print(f"[telemetry-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

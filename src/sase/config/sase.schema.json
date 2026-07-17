@@ -369,6 +369,25 @@
           "description": "Keymap configuration for the TUI",
           "additionalProperties": false,
           "properties": {
+            "telemetry": {
+              "type": "object",
+              "description": "Bindings active only while the Admin Center Telemetry pane is focused",
+              "additionalProperties": false,
+              "properties": {
+                "cycle_subsystem": {
+                  "type": "string",
+                  "description": "Cycle to the next telemetry subsystem"
+                },
+                "cycle_range": {
+                  "type": "string",
+                  "description": "Cycle to the next telemetry time range"
+                },
+                "refresh": {
+                  "type": "string",
+                  "description": "Refresh telemetry from the local store"
+                }
+              }
+            },
             "app": {
               "type": "object",
               "description": "Top-level application keybindings (action name to key string)",

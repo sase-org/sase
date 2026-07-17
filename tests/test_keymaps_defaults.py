@@ -8,8 +8,10 @@ from sase.ace.tui.keymaps import (
     AppKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
+    TelemetryPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
+    load_builtin_telemetry_defaults,
     load_keymap_registry,
 )
 from sase.ace.tui.modals.help_modal.bindings import (
@@ -274,6 +276,19 @@ def test_default_config_covers_all_app_keymaps() -> None:
     field_names = {f.name for f in fields(AppKeymaps)}
     missing = field_names - set(defaults.keys())
     assert not missing, f"default_config.yml missing: {sorted(missing)}"
+
+
+def test_default_config_covers_all_telemetry_keymaps() -> None:
+    """The bundled config is the source of truth for Telemetry-pane keys."""
+    defaults = load_builtin_telemetry_defaults()
+    field_names = {field.name for field in fields(TelemetryPaneKeymaps)}
+
+    assert defaults == {
+        "cycle_subsystem": "s",
+        "cycle_range": "t",
+        "refresh": "r",
+    }
+    assert field_names == set(defaults)
 
 
 def test_binding_meta_matches_app_keymaps() -> None:

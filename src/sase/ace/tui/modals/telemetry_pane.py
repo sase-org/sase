@@ -9,10 +9,17 @@ from rich.align import Align
 from rich.panel import Panel
 from rich.text import Text
 from textual.app import ComposeResult
+from textual.binding import BindingsMap
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.keymaps import (
+    TelemetryPaneKeymaps,
+    build_telemetry_bindings,
+    load_keymap_registry,
+    telemetry_help_bindings,
+)
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.telemetry.render import render_line_chart, render_stat_tile, status_color
 
@@ -34,14 +41,18 @@ class TelemetryPane(Vertical):
     """Stat tiles and chart grid backed by the local Rust telemetry store."""
 
     can_focus = True
-    BINDINGS = [
-        ("s", "cycle_subsystem", "Subsystem"),
-        ("t", "cycle_range", "Time Range"),
-        ("r", "refresh", "Refresh"),
-    ]
+    BINDINGS = []
 
-    def __init__(self, *, auto_load: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        auto_load: bool = True,
+        keymaps: TelemetryPaneKeymaps | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
+        self._keymaps = keymaps or load_keymap_registry({}).telemetry
+        self._bindings = BindingsMap(build_telemetry_bindings(self._keymaps))
         self._subsystem: TelemetrySubsystem = "agents"
         self._range_key: TelemetryRange = "1h"
         self._auto_load = auto_load
@@ -330,12 +341,14 @@ class TelemetryPane(Vertical):
 
     def _hints_text(self) -> Text:
         hints = Text(justify="center")
-        hints.append("s", style=f"bold {_ACCENT}")
-        hints.append(" subsystem   ")
-        hints.append("t", style="bold #87D7FF")
-        hints.append(" time range   ")
-        hints.append("r", style="bold #FFD700")
-        hints.append(" refresh")
+        styles = (f"bold {_ACCENT}", "bold #87D7FF", "bold #FFD700")
+        for index, ((key, description), style) in enumerate(
+            zip(telemetry_help_bindings(self._keymaps), styles, strict=True)
+        ):
+            if index:
+                hints.append("   ")
+            hints.append(key, style=style)
+            hints.append(f" {description.lower()}")
         return hints
 
     def _update_heading(self) -> None:

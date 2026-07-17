@@ -46,6 +46,38 @@ def test_default_config_matches_public_schema() -> None:
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_scoped_telemetry_keymaps() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "telemetry": {
+                        "cycle_subsystem": "f12",
+                        "cycle_range": "f11",
+                        "refresh": "f10",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "telemetry",
+    [
+        {"cycle_subsystem": 12},
+        {"unknown_action": "x"},
+    ],
+)
+def test_config_schema_rejects_invalid_scoped_telemetry_keymaps(
+    telemetry: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {"ace": {"keymaps": {"telemetry": telemetry}}}
+        )
+
+
 def test_config_schema_accepts_max_running_agents() -> None:
     Draft7Validator(_schema()).validate({"max_running_agents": 1})
     Draft7Validator(_schema()).validate({"max_running_agents": 25})

@@ -11,6 +11,7 @@ import logging
 from dataclasses import fields
 from collections.abc import Mapping
 from types import MappingProxyType
+from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 from textual.binding import Binding
@@ -23,6 +24,7 @@ from sase.ace.tui.keymaps.types import (
     AppKeymaps,
     KeymapRegistry,
     ModeKeymaps,
+    TelemetryPaneKeymaps,
     canonicalize_key_binding,
     canonicalize_single_key,
     is_valid_key,
@@ -31,7 +33,7 @@ from sase.ace.tui.keymaps.types import (
 )
 
 # Re-import _BINDING_META so build_app_bindings can use it.
-from sase.ace.tui.keymaps.types import _BINDING_META
+from sase.ace.tui.keymaps.types import _BINDING_META, _TELEMETRY_BINDING_META
 
 log = logging.getLogger(__name__)
 
@@ -64,20 +66,27 @@ _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
 
 
 @functools.cache
-def _builtin_app_defaults() -> Mapping[str, str]:
-    """Parse and cache the app-level keymap defaults as an immutable mapping.
+def _builtin_keymaps_config() -> Mapping[str, Any]:
+    """Parse and cache the bundled keymap configuration."""
 
-    This file is the **single source of truth** for default keybindings.
-    Adding a new field to ``AppKeymaps`` without a corresponding entry in
-    ``default_config.yml`` will cause startup to fail.
-    """
     ref = importlib.resources.files("sase").joinpath("default_config.yml")
     text = ref.read_text(encoding="utf-8")
     data = yaml.safe_load(text)
     if not isinstance(data, dict):
         msg = "default_config.yml is not a valid YAML mapping"
         raise RuntimeError(msg)
-    app = data.get("ace", {}).get("keymaps", {}).get("app", {})
+    keymaps = data.get("ace", {}).get("keymaps", {})
+    if not isinstance(keymaps, dict):
+        msg = "default_config.yml missing ace.keymaps section"
+        raise RuntimeError(msg)
+    return MappingProxyType(keymaps)
+
+
+@functools.cache
+def _builtin_app_defaults() -> Mapping[str, str]:
+    """Cache app-level defaults from the bundled configuration."""
+
+    app = _builtin_keymaps_config().get("app", {})
     if not isinstance(app, dict):
         msg = "default_config.yml missing ace.keymaps.app section"
         raise RuntimeError(msg)
@@ -93,6 +102,89 @@ def load_builtin_app_defaults() -> dict[str, str]:
     corrupting the cached parse.
     """
     return dict(_builtin_app_defaults())
+
+
+@functools.cache
+def _builtin_telemetry_defaults() -> Mapping[str, str]:
+    """Cache focused Telemetry-pane defaults from bundled configuration."""
+
+    telemetry = _builtin_keymaps_config().get("telemetry", {})
+    if not isinstance(telemetry, dict):
+        msg = "default_config.yml missing ace.keymaps.telemetry section"
+        raise RuntimeError(msg)
+    return MappingProxyType(
+        {k: canonicalize_key_binding(str(v)) for k, v in telemetry.items()}
+    )
+
+
+def load_builtin_telemetry_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused Telemetry-pane defaults."""
+
+    return dict(_builtin_telemetry_defaults())
+
+
+def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps:
+    """Load and validate the focused Telemetry-pane binding scope."""
+
+    defaults = load_builtin_telemetry_defaults()
+    field_names = {field.name for field in fields(TelemetryPaneKeymaps)}
+    missing = sorted(field_names - set(defaults))
+    if missing:
+        raise ValueError(
+            "default_config.yml missing telemetry keymaps: "
+            f"{', '.join(missing)}. Add these under ace.keymaps.telemetry."
+        )
+
+    raw_overrides = keymaps_cfg.get("telemetry", {})
+    overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
+    extra = sorted(set(overrides) - field_names)
+    if extra:
+        log.warning(
+            "Unknown telemetry keymap action(s) in config (ignored): %s",
+            ", ".join(extra),
+        )
+
+    values = {
+        name: canonicalize_key_binding(overrides[name])
+        if isinstance(overrides.get(name), str)
+        else defaults[name]
+        for name in field_names
+    }
+    user_overridden = {name for name in field_names if values[name] != defaults[name]}
+
+    for name in sorted(user_overridden):
+        key = values[name]
+        if not is_valid_key(key):
+            log.warning(
+                "Invalid key %r for telemetry action %r; reverting to default %r",
+                key,
+                name,
+                defaults[name],
+            )
+            values[name] = defaults[name]
+            user_overridden.discard(name)
+        else:
+            values[name] = normalize_key_binding(key)
+
+    key_to_actions: dict[str, list[str]] = {}
+    for name, key_value in values.items():
+        for key_part in split_key_alternatives(key_value):
+            key_to_actions.setdefault(key_part, []).append(name)
+    for key_value, actions in key_to_actions.items():
+        if len(actions) <= 1:
+            continue
+        for name in [action for action in actions if action in user_overridden]:
+            log.warning(
+                "Duplicate telemetry key %r: action %r conflicts with %s; "
+                "reverting to default %r",
+                key_value,
+                name,
+                [action for action in actions if action != name],
+                defaults[name],
+            )
+            values[name] = defaults[name]
+
+    return TelemetryPaneKeymaps(**values)
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +324,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
             app_kwargs[fname] = default_val
 
     app_km = AppKeymaps(**app_kwargs)
+    telemetry_km = _load_telemetry_keymaps(keymaps_cfg)
 
     # --- Mode keymaps ---
     modes_cfg = keymaps_cfg.get("modes", {})
@@ -319,7 +412,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                 keys[k] = spec
         modes[mode_name] = ModeKeymaps(prefix=prefix, keys=keys)
 
-    registry = KeymapRegistry(app=app_km, modes=modes)
+    registry = KeymapRegistry(app=app_km, telemetry=telemetry_km, modes=modes)
 
     # --- Prefix sync: mode prefix wins over app action ---
     for mode_name, action_name in _MODE_PREFIX_ACTIONS.items():
@@ -389,6 +482,31 @@ def build_app_bindings(app_km: AppKeymaps) -> list[Binding]:
         bindings.append(Binding(key, action, desc, show=False, priority=priority))
     bindings.extend(_ARTIFACT_SUBTAB_BINDINGS)
     return bindings
+
+
+def build_telemetry_bindings(keymaps: TelemetryPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the focused Telemetry pane."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+        )
+        for action, description in _TELEMETRY_BINDING_META
+    ]
+
+
+def telemetry_help_bindings(
+    keymaps: TelemetryPaneKeymaps,
+) -> list[tuple[str, str]]:
+    """Return effective Telemetry keys and descriptions for help surfaces."""
+
+    return [
+        (key_display_name(getattr(keymaps, action)), description)
+        for action, description in _TELEMETRY_BINDING_META
+    ]
 
 
 # ---------------------------------------------------------------------------
