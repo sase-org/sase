@@ -1,0 +1,204 @@
+"""Axis scaling and human-readable telemetry value formatting."""
+
+from __future__ import annotations
+
+import math
+import textwrap
+from datetime import UTC, datetime, tzinfo
+from typing import Literal
+
+from rich.cells import cell_len, set_cell_size
+from rich.text import Text
+
+from sase.telemetry.render.palette import DARK_THEME, ChartTheme
+
+ValueFormat = Literal["number", "duration", "tokens", "percent", "bytes"]
+Timestamp = float | int | datetime
+
+
+def format_value(value: float, value_format: ValueFormat = "number") -> str:
+    """Format an axis or stat value without consulting locale or wall time."""
+
+    if not math.isfinite(value):
+        return "—"
+    if value_format == "duration":
+        return format_duration(value)
+    if value_format == "tokens":
+        return format_tokens(value)
+    if value_format == "percent":
+        return format_percentage(value)
+    if value_format == "bytes":
+        return format_bytes(value)
+    return _format_compact(value)
+
+
+def format_duration(seconds: float) -> str:
+    """Return a compact duration suitable for an axis tick."""
+
+    sign = "-" if seconds < 0 else ""
+    seconds = abs(seconds)
+    if seconds < 1:
+        return f"{sign}{seconds * 1_000:.0f}ms"
+    if seconds < 60:
+        precision = 1 if seconds < 10 else 0
+        return f"{sign}{seconds:.{precision}f}s"
+    if seconds < 3_600:
+        minutes = int(seconds // 60)
+        rest = int(seconds % 60)
+        return f"{sign}{minutes}m{rest:02d}s"
+    if seconds < 86_400:
+        hours = int(seconds // 3_600)
+        minutes = int(seconds % 3_600 // 60)
+        return f"{sign}{hours}h{minutes:02d}m"
+    days = seconds / 86_400
+    return f"{sign}{days:.1f}d"
+
+
+def format_tokens(value: float) -> str:
+    """Return a compact token count."""
+
+    return _format_scaled(value, ("", "k", "M", "B", "T"))
+
+
+def format_percentage(value: float) -> str:
+    """Format a percentage value where ``5.2`` means 5.2 percent."""
+
+    magnitude = abs(value)
+    precision = 1 if magnitude < 100 else 0
+    return f"{value:.{precision}f}%"
+
+
+def format_bytes(value: float) -> str:
+    """Return a compact binary byte count."""
+
+    return _format_scaled(value, ("B", "KiB", "MiB", "GiB", "TiB"), base=1024)
+
+
+def timestamp_seconds(value: Timestamp) -> float:
+    """Convert supported timestamps to Unix seconds deterministically."""
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.timestamp()
+    return float(value)
+
+
+def format_timestamp(value: Timestamp, *, timezone: tzinfo = UTC) -> str:
+    """Format an axis endpoint, including the date for non-today inputs."""
+
+    instant = datetime.fromtimestamp(timestamp_seconds(value), tz=timezone)
+    return instant.strftime("%m-%d %H:%M")
+
+
+def format_recording_started(value: Timestamp | None, *, timezone: tzinfo = UTC) -> str:
+    """Build the shared labeled empty-state sentence."""
+
+    if value is None:
+        return "no samples in range"
+    instant = datetime.fromtimestamp(timestamp_seconds(value), tz=timezone)
+    return (
+        "no samples in range — telemetry began recording "
+        f"{instant.strftime('%Y-%m-%d %H:%M %Z')}"
+    )
+
+
+def empty_state(
+    recording_started_at: Timestamp | None,
+    *,
+    width: int,
+    timezone: tzinfo = UTC,
+    theme: ChartTheme = DARK_THEME,
+    multiline: bool = False,
+) -> Text:
+    """Return the consistent, width-bounded empty-state renderable."""
+
+    message = format_recording_started(recording_started_at, timezone=timezone)
+    if multiline:
+        bounded = "\n".join(
+            textwrap.wrap(
+                message,
+                width=max(1, width),
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
+    else:
+        bounded = set_cell_size(message, max(1, width))
+    return Text(bounded, style=f"italic {theme.empty}", justify="center")
+
+
+def normalize_bounds(
+    values: list[float],
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+) -> tuple[float, float]:
+    """Return safe chart bounds, expanding constant ranges."""
+
+    finite = [value for value in values if math.isfinite(value)]
+    low = lower if lower is not None else min(finite, default=0.0)
+    high = upper if upper is not None else max(finite, default=1.0)
+    if not math.isfinite(low) or not math.isfinite(high):
+        return (0.0, 1.0)
+    if low > high:
+        low, high = high, low
+    if low == high:
+        padding = max(abs(low) * 0.05, 1.0)
+        low -= padding
+        high += padding
+    return low, high
+
+
+def scale(value: float, low: float, high: float, extent: int) -> int:
+    """Scale and clip a value into an integer coordinate range."""
+
+    if extent <= 1 or high <= low:
+        return 0
+    ratio = min(1.0, max(0.0, (value - low) / (high - low)))
+    return round(ratio * (extent - 1))
+
+
+def endpoint_axis(
+    start: Timestamp,
+    end: Timestamp,
+    *,
+    width: int,
+    timezone: tzinfo = UTC,
+) -> str:
+    """Return a one-line time axis with fixed start and end labels."""
+
+    left = format_timestamp(start, timezone=timezone)
+    right = format_timestamp(end, timezone=timezone)
+    if width <= cell_len(left):
+        return set_cell_size(left, max(1, width))
+    if width < cell_len(left) + cell_len(right) + 1:
+        return set_cell_size(f"{left} {right}", width)
+    gap = " " * (width - cell_len(left) - cell_len(right))
+    return f"{left}{gap}{right}"
+
+
+def _format_compact(value: float) -> str:
+    if value == 0:
+        return "0"
+    magnitude = abs(value)
+    if magnitude >= 1_000:
+        return _format_scaled(value, ("", "k", "M", "B", "T"))
+    if magnitude < 0.01:
+        return f"{value:.2e}"
+    if magnitude < 10:
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    if magnitude < 100:
+        return f"{value:.1f}".rstrip("0").rstrip(".")
+    return f"{value:.0f}"
+
+
+def _format_scaled(value: float, suffixes: tuple[str, ...], *, base: int = 1000) -> str:
+    sign = "-" if value < 0 else ""
+    scaled = abs(value)
+    suffix_index = 0
+    while scaled >= base and suffix_index < len(suffixes) - 1:
+        scaled /= base
+        suffix_index += 1
+    precision = 1 if scaled < 10 and suffix_index else 0
+    return f"{sign}{scaled:.{precision}f}{suffixes[suffix_index]}"
