@@ -37,6 +37,7 @@ from tests.test_core_facade._agent_cleanup_helpers import (
     _scenario_focused_panel_kill_dismiss,
     _scenario_marked_set,
     _scenario_pidless_dismiss_fallback,
+    _scenario_parallel_family_root,
     _scenario_tag_scope,
     _scenario_workflow_parent_with_children,
 )
@@ -93,6 +94,11 @@ def test_python_cleanup_planner_matches_legacy_partitions(scenario: Any) -> None
             ("child", KILL_KIND_RUNNING)
         ]
         assert plan.dismiss_items == ()
+    elif scenario is _scenario_parallel_family_root:
+        assert [item.identity.cl_name for item in plan.kill_items] == [
+            "sase-6g",
+            "sase-6g.1",
+        ]
 
 
 def test_python_cleanup_planner_side_effect_intents_for_workflow_dismissal() -> None:
@@ -291,3 +297,133 @@ def test_python_cleanup_planner_treats_stopped_as_dismissable() -> None:
 
     assert plan.kill_items == ()
     assert [item.identity.cl_name for item in plan.dismiss_items] == ["stopped"]
+
+
+def test_python_cleanup_planner_cascades_parallel_root_kill_only_to_members() -> None:
+    root = _agent(
+        cl_name="sase-6g",
+        raw_suffix="root-ts",
+        pid=100,
+        agent_family_parallel=True,
+    )
+    member_one = _agent(
+        cl_name="sase-6g.1",
+        raw_suffix="member-one-ts",
+        parent_timestamp="root-ts",
+        pid=101,
+        agent_family_parallel=True,
+    )
+    member_two = _agent(
+        cl_name="sase-6g.2",
+        raw_suffix="member-two-ts",
+        parent_timestamp="root-ts",
+        pid=102,
+        agent_family_parallel=True,
+    )
+    serial_child = _agent(
+        cl_name="sase-6g--code",
+        raw_suffix="serial-ts",
+        parent_timestamp="root-ts",
+        pid=103,
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(root),),
+    )
+
+    plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([root, member_one, member_two, serial_child]),
+        request,
+    )
+
+    assert [item.identity.cl_name for item in plan.kill_items] == [
+        "sase-6g",
+        "sase-6g.1",
+        "sase-6g.2",
+    ]
+    assert [item.cl_name for item in plan.side_effects.dismissed_index_additions] == [
+        "sase-6g",
+        "sase-6g.1",
+        "sase-6g.2",
+    ]
+
+
+def test_python_cleanup_planner_parallel_member_kill_does_not_cascade() -> None:
+    root = _agent(
+        cl_name="sase-6g",
+        raw_suffix="root-ts",
+        pid=100,
+        agent_family_parallel=True,
+    )
+    selected = _agent(
+        cl_name="sase-6g.1",
+        raw_suffix="member-one-ts",
+        parent_timestamp="root-ts",
+        pid=101,
+        agent_family_parallel=True,
+    )
+    sibling = _agent(
+        cl_name="sase-6g.2",
+        raw_suffix="member-two-ts",
+        parent_timestamp="root-ts",
+        pid=102,
+        agent_family_parallel=True,
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(selected),),
+    )
+
+    plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([root, selected, sibling]),
+        request,
+    )
+
+    assert [item.identity.cl_name for item in plan.kill_items] == ["sase-6g.1"]
+
+
+def test_python_cleanup_planner_gates_parallel_root_dismissal_until_done() -> None:
+    root = _agent(
+        cl_name="root",
+        raw_suffix="root-ts",
+        status="DONE",
+        pid=None,
+        agent_family_parallel=True,
+    )
+    member = _agent(
+        cl_name="member",
+        raw_suffix="member-ts",
+        parent_timestamp="root-ts",
+        status="RUNNING",
+        pid=101,
+        agent_family_parallel=True,
+    )
+    request = _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_DISMISS_COMPLETED,
+        identities=(_id(root),),
+    )
+
+    active_plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([root, member]),
+        request,
+    )
+    assert active_plan.dismiss_items == ()
+    assert any(
+        item.identity.cl_name == "root"
+        and item.detail == "parallel family still active"
+        for item in active_plan.skipped_items
+    )
+
+    member.status = "DONE"
+    member.pid = None
+    finished_plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets([root, member]),
+        request,
+    )
+    assert [item.identity.cl_name for item in finished_plan.dismiss_items] == [
+        "root",
+        "member",
+    ]

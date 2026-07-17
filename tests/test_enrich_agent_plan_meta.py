@@ -70,6 +70,31 @@ def test_tag_from_agent_meta_wire() -> None:
     assert agent.tag == "sase-26"
 
 
+def test_parallel_family_marker_from_agent_meta(tmp_path: Path) -> None:
+    """Filesystem metadata exposes the explicit cleanup-cascade marker."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "agent_family_parallel": True})
+    )
+    agent = make_agent()
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.agent_family_parallel is True
+
+
+def test_parallel_family_marker_from_agent_meta_wire() -> None:
+    """Snapshot metadata mirrors filesystem parallel-family enrichment."""
+    agent = make_agent()
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(agent_family_parallel=True),
+        None,
+    )
+
+    assert agent.agent_family_parallel is True
+
+
 def test_auto_epic_plan_before_submission_stays_running(tmp_path: Path) -> None:
     """An auto-epic plan writer is still active before it submits a plan."""
     meta = {"pid": 1234, "plan": True, "auto_approve_plan_action": "epic"}

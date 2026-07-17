@@ -84,6 +84,38 @@ def test_apply_dismissal_includes_workflow_children() -> None:
     assert dismissed_ids == {parent.identity, child.identity}
 
 
+def test_apply_dismissal_includes_parallel_family_members_not_serial_children() -> None:
+    """Only explicitly parallel family members follow a root dismissal."""
+    app = FakeDismissApp()
+    root = make_agent(
+        cl_name="sase-6g",
+        raw_suffix="root-ts",
+        agent_family_parallel=True,
+    )
+    member = make_agent(
+        cl_name="sase-6g.1",
+        raw_suffix="member-ts",
+        parent_timestamp="root-ts",
+        agent_family_parallel=True,
+    )
+    serial_child = make_agent(
+        cl_name="sase-6g--code",
+        raw_suffix="serial-ts",
+        parent_timestamp="root-ts",
+    )
+    app._agents_with_children = [root, member, serial_child]
+
+    app._apply_dismissal_in_memory([root])
+
+    assert [agent.identity for agent in app._agents_with_children] == [
+        serial_child.identity
+    ]
+    assert {agent.identity for agent in app._dismissed_agent_objects} == {
+        root.identity,
+        member.identity,
+    }
+
+
 def test_apply_dismissal_calls_refilter_not_load() -> None:
     """The in-memory path triggers _refilter_agents instead of _load_agents."""
     app = FakeDismissApp()

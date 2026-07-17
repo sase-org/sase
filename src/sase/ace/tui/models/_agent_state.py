@@ -253,6 +253,10 @@ class AgentState:
     # Agent-family metadata for plan/question/feedback/coder handoff flows.
     agent_family: str | None = None
     agent_family_role: str | None = None
+    # Explicitly marks execution-neutral parallel family membership. Unlike
+    # serial plan-chain linkage, these children own independent processes and
+    # must be included when their family root is killed or dismissed.
+    agent_family_parallel: bool = False
     plan_chain_root: bool = False
 
     # User-managed tag (no '@' prefix; at most one per agent).

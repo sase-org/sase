@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 1
+AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 2
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
 CLEANUP_SCOPE_ALL_PANELS = "all_panels"
@@ -84,6 +84,7 @@ class AgentCleanupTargetWire:
     start_time: str | None = None
     stop_time: str | None = None
     is_workflow_child: bool = False
+    agent_family_parallel: bool = False
     appears_as_agent: bool = False
     step_type: str | None = None
 
@@ -268,6 +269,7 @@ def cleanup_target_from_dict(data: dict[str, Any]) -> AgentCleanupTargetWire:
         start_time=None if data.get("start_time") is None else str(data["start_time"]),
         stop_time=None if data.get("stop_time") is None else str(data["stop_time"]),
         is_workflow_child=bool(data.get("is_workflow_child", False)),
+        agent_family_parallel=bool(data.get("agent_family_parallel", False)),
         appears_as_agent=bool(data.get("appears_as_agent", False)),
         step_type=None if data.get("step_type") is None else str(data["step_type"]),
     )

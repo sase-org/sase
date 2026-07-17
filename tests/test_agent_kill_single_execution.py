@@ -132,6 +132,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         workflow=None,
         pid=111,
         raw_suffix="parent-12345",
+        agent_family_parallel=True,
     )
     child = Agent(
         agent_type=AgentType.RUNNING,
@@ -143,6 +144,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         pid=222,
         raw_suffix="child-12345",
         parent_timestamp="parent-12345",
+        agent_family_parallel=True,
     )
     sibling = Agent(
         agent_type=AgentType.RUNNING,
@@ -154,6 +156,7 @@ def test_do_kill_agent_child_removes_child_only() -> None:
         pid=333,
         raw_suffix="sibling-12345",
         parent_timestamp="parent-12345",
+        agent_family_parallel=True,
     )
     app = MockApp()
     app._agents = [parent, child, sibling]
@@ -171,6 +174,110 @@ def test_do_kill_agent_child_removes_child_only() -> None:
     assert parent.identity not in app._dismissed_agents
     assert sibling.identity not in app._dismissed_agents
     assert app.refresh_calls == [(True, True)]
+
+
+def test_do_kill_parallel_family_root_signals_and_removes_every_member() -> None:
+    """A root kill must signal independent member process groups before cleanup."""
+    from sase.ace.tui.actions.agents import AgentsMixin
+    from sase.core.agent_cleanup_facade import (
+        _plan_agent_cleanup_python,
+        agents_to_cleanup_targets,
+    )
+    from sase.core.agent_cleanup_wire import (
+        AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+        CLEANUP_MODE_KILL_AND_DISMISS,
+        CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        AgentCleanupIdentityWire,
+        AgentCleanupRequestWire,
+    )
+
+    class MockApp(TrackedTaskRecorderMixin, AgentsMixin):
+        def __init__(self, agents: list[Agent]) -> None:
+            self._init_tracked_task_recorder()
+            self._notifications: list[tuple[str, str]] = []
+            self.current_tab = "agents"
+            self.current_idx = 0
+            self._kill_persistence_inflight = set()
+            self._agent_status_overrides = {}
+            self._agent_pre_question_status = {}
+            self._dismissed_agents = set()
+            self._agents_with_children = list(agents)
+            self._agents = list(agents)
+
+        def notify(self, msg: str, severity: str = "information") -> None:
+            self._notifications.append((msg, severity))
+
+        def _refresh_notification_count(self) -> None:
+            return
+
+        def _refresh_agents_display(
+            self, *, list_changed: bool = False, defer_detail: bool = False
+        ) -> None:
+            return
+
+        def call_later(self, callback: object, *args: object) -> None:
+            return
+
+        def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+            del source
+
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-6g",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        pid=111,
+        raw_suffix="root-ts",
+        agent_family_parallel=True,
+    )
+    member_one = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-6g.1",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        pid=222,
+        raw_suffix="member-one-ts",
+        parent_timestamp="root-ts",
+        agent_family_parallel=True,
+    )
+    member_two = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="sase-6g.2",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        pid=333,
+        raw_suffix="member-two-ts",
+        parent_timestamp="root-ts",
+        agent_family_parallel=True,
+    )
+    agents = [root, member_one, member_two]
+    plan = _plan_agent_cleanup_python(
+        agents_to_cleanup_targets(agents),
+        AgentCleanupRequestWire(
+            schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
+            scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+            mode=CLEANUP_MODE_KILL_AND_DISMISS,
+            identities=(
+                AgentCleanupIdentityWire(
+                    agent_type=root.agent_type.value,
+                    cl_name=root.cl_name,
+                    raw_suffix=root.raw_suffix,
+                ),
+            ),
+        ),
+    )
+    app = MockApp(agents)
+
+    with patch.object(app, "_kill_agent_process_group", return_value=True) as kill:
+        app._do_kill_agent(root, plan)
+
+    assert [args.args[0] for args in kill.call_args_list] == agents
+    assert app._agents == []
+    assert app._agents_with_children == []
+    assert app._dismissed_agents == {agent.identity for agent in agents}
 
 
 def test_do_kill_agent_hook_persistence_runs_async() -> None:

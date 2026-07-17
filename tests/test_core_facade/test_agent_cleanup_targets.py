@@ -16,6 +16,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
         raw_suffix="20260430090102",
         tag="triage",
         agent_name="friendly",
+        agent_family_parallel=True,
         stop_time=_STOP,
     )
 
@@ -31,6 +32,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
     assert target.from_changespec is False
     assert target.tag == "triage"
     assert target.agent_name == "friendly"
+    assert target.agent_family_parallel is True
     assert target.display_name == "convert"
     assert target.start_time == "2026-04-30T09:00:00"
     assert target.stop_time == "2026-04-30T09:05:00"

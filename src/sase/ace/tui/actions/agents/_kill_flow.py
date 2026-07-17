@@ -6,7 +6,8 @@ import logging
 import time
 from typing import TYPE_CHECKING, cast
 
-from ._dismiss_cleanup import dismissed_identities_from_plan
+from ._dismiss_cleanup import agent_identity_from_wire, dismissed_identities_from_plan
+from ._family_cleanup import parallel_family_members_for_root
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
 from ._recent_dismissal_groups import (
     agents_for_recent_group,
@@ -43,11 +44,43 @@ class AgentKillFlowMixin:
             )
             return
 
-        if agent.pid is not None and not self._kill_agent_process_group(agent):  # type: ignore[attr-defined]
+        agents_with_children_snapshot = list(self._agents_with_children)
+        by_identity = {
+            candidate.identity: candidate for candidate in agents_with_children_snapshot
+        }
+        kill_targets = [agent]
+        if cleanup_plan is not None:
+            kill_targets.extend(
+                candidate
+                for item in cleanup_plan.kill_items
+                if (
+                    candidate := by_identity.get(
+                        agent_identity_from_wire(item.identity)
+                    )
+                )
+                is not None
+                and candidate.identity != agent.identity
+            )
+        else:
+            kill_targets.extend(
+                parallel_family_members_for_root(
+                    agent,
+                    agents_with_children_snapshot,
+                )
+            )
+
+        signaled: set[AgentIdentity] = set()
+        signal_failed = False
+        for target in kill_targets:
+            if target.identity in signaled:
+                continue
+            signaled.add(target.identity)
+            if target.pid is not None and not self._kill_agent_process_group(target):  # type: ignore[attr-defined]
+                signal_failed = True
+        if signal_failed:
             return
         self._notify_killed_agent(agent, kind)  # type: ignore[attr-defined]
 
-        agents_with_children_snapshot = list(self._agents_with_children)
         immediate_identities = self._collect_planned_kill_identities(  # type: ignore[attr-defined]
             agent,
             cleanup_plan,
@@ -98,8 +131,22 @@ class AgentKillFlowMixin:
                 )
                 failed_ids.add(agent.identity)
                 continue
-            if agent.pid is not None and not self._kill_agent_process_group(agent):  # type: ignore[attr-defined]
-                failed_ids.add(agent.identity)
+            cascade_targets = [
+                agent,
+                *parallel_family_members_for_root(
+                    agent,
+                    agents_with_children_snapshot,
+                ),
+            ]
+            signal_failed = False
+            for target in cascade_targets:
+                if target.pid is None:
+                    continue
+                kill_succeeded = self._kill_agent_process_group(target)  # type: ignore[attr-defined]
+                if not kill_succeeded:
+                    signal_failed = True
+            if signal_failed:
+                failed_ids.update(target.identity for target in cascade_targets)
                 continue
             identities = self._collect_immediate_kill_identities(agent)  # type: ignore[attr-defined]
             seen_ids.update(identities)

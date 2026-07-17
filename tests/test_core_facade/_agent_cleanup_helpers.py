@@ -35,6 +35,7 @@ def _agent(
     workflow: str | None = None,
     parent_workflow: str | None = None,
     parent_timestamp: str | None = None,
+    agent_family_parallel: bool = False,
     tag: str | None = None,
     agent_name: str | None = None,
     workspace_num: int | None = 7,
@@ -55,6 +56,7 @@ def _agent(
         raw_suffix=raw_suffix,
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
+        agent_family_parallel=agent_family_parallel,
         tag=tag,
         agent_name=agent_name,
         artifacts_dir=artifacts_dir,
@@ -336,6 +338,33 @@ def _scenario_custom_child_running() -> tuple[list[Agent], AgentCleanupRequestWi
     )
 
 
+def _scenario_parallel_family_root() -> tuple[list[Agent], AgentCleanupRequestWire]:
+    root = _agent(
+        cl_name="sase-6g",
+        raw_suffix="root-ts",
+        pid=1001,
+        agent_family_parallel=True,
+    )
+    member = _agent(
+        cl_name="sase-6g.1",
+        raw_suffix="member-ts",
+        pid=1002,
+        parent_timestamp="root-ts",
+        agent_family_parallel=True,
+    )
+    serial_child = _agent(
+        cl_name="sase-6g--code",
+        raw_suffix="serial-ts",
+        pid=1003,
+        parent_timestamp="root-ts",
+    )
+    return [root, member, serial_child], _request(
+        scope=CLEANUP_SCOPE_EXPLICIT_IDENTITIES,
+        mode=CLEANUP_MODE_KILL_AND_DISMISS,
+        identities=(_id(root),),
+    )
+
+
 _SCENARIOS = [
     pytest.param(_scenario_focused_panel_dismiss, id="focused-panel-dismiss-done"),
     pytest.param(
@@ -354,4 +383,5 @@ _SCENARIOS = [
     pytest.param(_scenario_explicit_child_running, id="explicit-child-running"),
     pytest.param(_scenario_explicit_child_done, id="explicit-child-done"),
     pytest.param(_scenario_custom_child_running, id="custom-child-running"),
+    pytest.param(_scenario_parallel_family_root, id="parallel-family-root"),
 ]

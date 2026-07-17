@@ -8,6 +8,7 @@ from ._dismiss_cleanup import (
     agent_identity_from_wire,
     dismissed_identities_from_plan,
 )
+from ._family_cleanup import parallel_family_members_for_root
 from ._kill_persistence import AgentIdentity, KillKind
 
 if TYPE_CHECKING:
@@ -48,6 +49,10 @@ def _immediate_kill_identities(
     from ...models.agent import AgentType
 
     identities = {agent.identity}
+    identities.update(
+        member.identity
+        for member in parallel_family_members_for_root(agent, agents_with_children)
+    )
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         for step in agents_with_children:
             if (
@@ -83,14 +88,17 @@ def agents_related_to_kill(
 ) -> list[Agent]:
     """Return agents whose notifications should be dismissed when killing ``agent``.
 
-    Includes the agent itself plus any workflow-child rows when killing a
-    workflow parent (mirroring :func:`collect_immediate_kill_identities` but
-    returning Agent objects so they can be passed to
-    ``dismiss_notifications_for_agents``).
+    Includes the agent itself, parallel family members, and any workflow-child
+    rows when killing a workflow parent (mirroring
+    :func:`collect_immediate_kill_identities` but returning Agent objects so
+    they can be passed to ``dismiss_notifications_for_agents``).
     """
     from ...models.agent import AgentType
 
-    related: list[Agent] = [agent]
+    related: list[Agent] = [
+        agent,
+        *parallel_family_members_for_root(agent, agents_with_children),
+    ]
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         for step in agents_with_children:
             if (

@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from ._dismiss_cleanup import AgentIdentity
+from ._family_cleanup import parallel_family_members_for_root
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
@@ -62,10 +63,11 @@ class AgentDismissMemoryMixin:
     def _apply_dismissal_in_memory(self, agents: Iterable[Agent]) -> None:
         """Update in-memory agent state after a dismiss without a disk reload.
 
-        Removes the dismissed agents (and workflow-child steps when the
-        dismissed agent is a workflow parent) from the cached unfiltered
-        agent list, appends them to ``_dismissed_agent_objects`` for
-        same-session revive, and re-runs the in-memory filter pipeline.
+        Removes the dismissed agents (plus parallel family members and
+        workflow-child steps that cascade from a dismissed root) from the
+        cached unfiltered agent list, appends them to
+        ``_dismissed_agent_objects`` for same-session revive, and re-runs the
+        in-memory filter pipeline.
         """
         from ...models.agent import AgentType
 
@@ -88,8 +90,15 @@ class AgentDismissMemoryMixin:
             a.identity for a in agents_list
         }
 
-        # Include workflow child steps when dismissing a workflow parent.
+        # Include parallel members and workflow steps when dismissing a root.
         for agent in agents_list:
+            for member in parallel_family_members_for_root(
+                agent,
+                self._agents_with_children,
+            ):
+                if member.identity not in removed_identities:
+                    removed.append(member)
+                    removed_identities.add(member.identity)
             if (
                 agent.agent_type == AgentType.WORKFLOW
                 and not agent.is_workflow_child
@@ -201,6 +210,13 @@ class AgentDismissMemoryMixin:
 
         identities = {a.identity for a in agents}
         for agent in agents:
+            identities.update(
+                member.identity
+                for member in parallel_family_members_for_root(
+                    agent,
+                    self._agents_with_children,
+                )
+            )
             if (
                 agent.agent_type == AgentType.WORKFLOW
                 and not agent.is_workflow_child

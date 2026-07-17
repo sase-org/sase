@@ -128,6 +128,8 @@ def enrich_agent_from_meta(
         agent.agent_family = data["agent_family"]
     if not workflow_child and data.get("agent_family_role"):
         agent.agent_family_role = data["agent_family_role"]
+    if not workflow_child:
+        agent.agent_family_parallel = bool(data.get("agent_family_parallel", False))
     if not workflow_child and data.get("plan_chain_root"):
         agent.plan_chain_root = True
     if workflow_child:

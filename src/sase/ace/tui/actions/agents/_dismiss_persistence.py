@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import agent_wire_identity, wire_identity_key
+from ._family_cleanup import parallel_family_members_for_root
 from ._killing_utils import (
     delete_agent_artifacts,
     dismiss_notifications_for_agents,
@@ -156,6 +157,12 @@ def _save_dismissed_bundles_for(
     if agent._from_changespec:
         return
     save_dismissed_bundle(agent)
+    for member in parallel_family_members_for_root(
+        agent,
+        agents_with_children_snapshot,
+    ):
+        if not member._from_changespec:
+            save_dismissed_bundle(member)
     if agent.is_workflow_child or not agent.raw_suffix:
         return
     for step in agents_with_children_snapshot:
@@ -216,6 +223,13 @@ def _artifact_delete_paths_for(
     from ...models.agent import AgentType
 
     paths: list[str | None] = [agent.artifacts_dir or agent.get_artifacts_dir()]
+    paths.extend(
+        member.artifacts_dir or member.get_artifacts_dir()
+        for member in parallel_family_members_for_root(
+            agent,
+            agents_with_children_snapshot,
+        )
+    )
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.is_workflow_child
@@ -295,10 +309,13 @@ def agents_related_to_dismissal(
     agent: Agent,
     agents_with_children_snapshot: list[Agent],
 ) -> list[Agent]:
-    """Return the primary agent plus workflow children dismissed with it."""
+    """Return the primary agent plus family/workflow children dismissed with it."""
     from ...models.agent import AgentType
 
-    agents = [agent]
+    agents = [
+        agent,
+        *parallel_family_members_for_root(agent, agents_with_children_snapshot),
+    ]
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.is_workflow_child

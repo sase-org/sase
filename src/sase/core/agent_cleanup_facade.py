@@ -118,6 +118,7 @@ def agent_to_cleanup_target(agent: Any) -> AgentCleanupTargetWire:
         start_time=_iso_or_none(agent.start_time),
         stop_time=_iso_or_none(agent.stop_time),
         is_workflow_child=agent.is_workflow_child,
+        agent_family_parallel=bool(getattr(agent, "agent_family_parallel", False)),
         appears_as_agent=agent.appears_as_agent,
         step_type=agent.step_type,
     )
@@ -247,6 +248,42 @@ def _classify_kill_kind(target: AgentCleanupTargetWire) -> str | None:
     if target.agent_type == "run":
         return KILL_KIND_RUNNING
     return None
+
+
+def _parallel_members_by_parent(
+    targets: Sequence[AgentCleanupTargetWire],
+) -> dict[str, list[AgentCleanupTargetWire]]:
+    members: dict[str, list[AgentCleanupTargetWire]] = defaultdict(list)
+    for target in targets:
+        if (
+            target.agent_family_parallel
+            and target.parent_workflow is None
+            and target.parent_timestamp is not None
+        ):
+            members[target.parent_timestamp].append(target)
+    return members
+
+
+def _parallel_family_members(
+    root: AgentCleanupTargetWire,
+    members_by_parent: dict[str, list[AgentCleanupTargetWire]],
+) -> list[AgentCleanupTargetWire]:
+    if (
+        not root.agent_family_parallel
+        or _is_workflow_child(root)
+        or root.raw_suffix is None
+    ):
+        return []
+    return members_by_parent[root.raw_suffix]
+
+
+def _target_is_dismissable(
+    target: AgentCleanupTargetWire,
+    request: AgentCleanupRequestWire,
+) -> bool:
+    return target.status in DISMISSABLE_STATUSES or (
+        request.include_pidless_as_dismissable and target.pid is None
+    )
 
 
 def _add_skip(
@@ -482,6 +519,7 @@ def _plan_agent_cleanup_python(
             children_by_parent[
                 (target.parent_timestamp, target.parent_workflow)
             ].append(target)
+    parallel_members_by_parent = _parallel_members_by_parent(wire_targets)
 
     seen_live: set[AgentCleanupIdentityWire] = set()
     selected: list[AgentCleanupIdentityWire] = []
@@ -531,13 +569,27 @@ def _plan_agent_cleanup_python(
             )
             continue
 
-        dismissable = dismissable_status or (
-            wire_request.include_pidless_as_dismissable and target.pid is None
-        )
+        dismissable = _target_is_dismissable(target, wire_request)
         killable = target.pid is not None and not dismissable_status
 
         if wire_request.mode == CLEANUP_MODE_DISMISS_COMPLETED:
             if dismissable:
+                live_family_members = [
+                    member
+                    for member in _parallel_family_members(
+                        target,
+                        parallel_members_by_parent,
+                    )
+                    if not _target_is_dismissable(member, wire_request)
+                ]
+                if live_family_members:
+                    _add_skip(
+                        skipped_items,
+                        target,
+                        SKIPPED_NOT_DISMISSABLE,
+                        "parallel family still active",
+                    )
+                    continue
                 dismiss_items.append(
                     AgentCleanupDismissItemWire(
                         identity=target.identity,
@@ -589,6 +641,39 @@ def _plan_agent_cleanup_python(
                 if child.identity not in seen_live:
                     seen_live.add(child.identity)
                     cascaded_children.append(child.identity)
+
+    action_identities = {item.identity for item in kill_items} | {
+        item.identity for item in dismiss_items
+    }
+    for root in wire_targets:
+        if root.identity not in action_identities:
+            continue
+        for member in _parallel_family_members(root, parallel_members_by_parent):
+            if member.identity in action_identities:
+                continue
+            if _target_is_dismissable(member, wire_request):
+                dismiss_items.append(
+                    AgentCleanupDismissItemWire(
+                        identity=member.identity,
+                        display_name=member.display_name,
+                    )
+                )
+                action_identities.add(member.identity)
+                continue
+            if wire_request.mode != CLEANUP_MODE_KILL_AND_DISMISS or member.pid is None:
+                continue
+            kind = _classify_kill_kind(member)
+            if kind is None:
+                continue
+            kill_items.append(
+                AgentCleanupKillItemWire(
+                    identity=member.identity,
+                    kind=kind,
+                    pid=member.pid,
+                    display_name=member.display_name,
+                )
+            )
+            action_identities.add(member.identity)
 
     counts = AgentCleanupCountsWire(
         candidates=len(wire_targets),
