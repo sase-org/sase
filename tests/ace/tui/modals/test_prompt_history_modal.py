@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
+from threading import Event
+
 import pytest
 
 from textual.app import App, ComposeResult
@@ -34,6 +38,48 @@ class _PromptHistoryTestApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+def test_prompt_history_mount_handler_is_synchronous() -> None:
+    assert not inspect.iscoroutinefunction(PromptHistoryModal.on_mount)
+
+
+async def test_prompt_history_opens_while_initial_disk_load_is_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = Event()
+    release = Event()
+
+    def slow_load_prompt_record_page(**_kwargs: object) -> PromptHistoryPage:
+        started.set()
+        release.wait()
+        return PromptHistoryPage(records=[], next_cursor=None, exhausted=True)
+
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "load_prompt_record_page",
+        slow_load_prompt_record_page,
+    )
+    modal = PromptHistoryModal()
+
+    async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        try:
+            assert await asyncio.wait_for(
+                asyncio.to_thread(started.wait, 10.0), timeout=11.0
+            )
+            filter_input = modal.query_one("#prompt-history-filter-input", Input)
+            assert filter_input.has_focus
+            await pilot.press("a")
+            assert filter_input.value == "a"
+            assert not modal._history_loaded_once
+        finally:
+            release.set()
+            for _ in range(100):
+                if modal._history_loaded_once:
+                    break
+                await pilot.pause()
+            assert modal._history_loaded_once
 
 
 @pytest.fixture

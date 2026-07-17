@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from pathlib import Path
+from threading import Event
 
 import pytest
 from textual.app import App, ComposeResult
@@ -39,6 +42,50 @@ class _ModalHost(App[None]):
 
     def on_mount(self) -> None:
         self.push_screen(self.modal)
+
+
+def test_revive_modal_mount_handler_is_synchronous() -> None:
+    assert not inspect.iscoroutinefunction(DismissedAgentSelectModal.on_mount)
+
+
+@pytest.mark.asyncio
+async def test_revive_modal_opens_while_initial_archive_load_is_blocked() -> None:
+    started = Event()
+    release = Event()
+    loaded = make_agent(cl_name="alpha", raw_suffix="20260512120000")
+
+    def page_loader() -> tuple[list[object], list[object], bool]:
+        started.set()
+        release.wait()
+        return [loaded], [loaded], True
+
+    modal = DismissedAgentSelectModal(
+        [],
+        loading_archive=True,
+        page_loader=page_loader,  # type: ignore[arg-type]
+    )
+
+    async with _ModalHost(modal).run_test(size=(100, 30)) as pilot:
+        try:
+            assert await asyncio.wait_for(
+                asyncio.to_thread(started.wait, 10.0), timeout=11.0
+            )
+            filter_input = modal.query_one("#dismissed-filter", Input)
+            assert filter_input.has_focus
+            await pilot.press("a")
+            assert filter_input.value == "a"
+            option_list = modal.query_one("#dismissed-agent-list", OptionList)
+            assert (
+                "Loading dismissed archive"
+                in option_list.get_option_at_index(0).prompt.plain
+            )
+        finally:
+            release.set()
+            for _ in range(100):
+                if not modal._initial_loading:
+                    break
+                await pilot.pause()
+            assert not modal._initial_loading
 
 
 def test_modal_exposes_legacy_filter_placeholder_and_bindings() -> None:

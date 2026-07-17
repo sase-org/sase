@@ -100,6 +100,7 @@ async def replay_agents_tab_bundle(
             size=size,
             changespecs=[] if changespecs is None else changespecs,
             initial_tab="agents",
+            wait_for_startup_state=False,
         ) as page:
             await page.expect_state("tab", "agents")
 

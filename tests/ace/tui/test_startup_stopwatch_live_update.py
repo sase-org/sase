@@ -1,10 +1,9 @@
-"""Tests for the async startup wiring that keeps the stopwatch ticking.
+"""Tests for startup wiring that keeps first paint and input responsive.
 
 These tests lock in the contract used by
-``sdd/plans/202604/startup_stopwatch_live_update.md``: ``AceApp.on_mount`` is
-a coroutine (so awaits between disk reads yield to the event loop and
-``KeybindingFooter._on_stopwatch_tick`` fires), and the new split
-helpers are pure disk reads with no Textual widget access.
+``sdd/plans/202604/startup_stopwatch_live_update.md``: ``AceApp.on_mount``
+finishes synchronously, post-mount workers perform disk reads after first
+paint, and the split helpers are pure disk reads with no Textual widget access.
 """
 
 from __future__ import annotations
@@ -12,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Callable
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -21,11 +21,13 @@ from sase.ace.tui.actions.axe_display._data import AxeCollectedData
 from sase.ace.tui.actions.changespec import ChangeSpecMixin
 from sase.ace.tui.actions.lifecycle import LifecycleMixin
 from sase.ace.tui.app import AceApp
+from sase.ace.testing import AcePage
 
 
-def test_on_mount_is_coroutine() -> None:
-    """``AceApp.on_mount`` must be async so each disk read can yield."""
-    assert inspect.iscoroutinefunction(AceApp.on_mount)
+def test_on_mount_is_synchronous() -> None:
+    """``AceApp.on_mount`` must return before any slow disk body runs."""
+    assert not inspect.iscoroutinefunction(AceApp.on_mount)
+    assert "to_thread" not in inspect.getsource(AceApp.on_mount)
 
 
 def test_on_mount_seeds_current_tab_in_trace_context() -> None:
@@ -128,12 +130,48 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
 
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
+    assert scheduled.count(app._run_mount_state_loads) == 1
     assert scheduled.count(app._run_agents_fold_state_load) == 1
     assert scheduled.count(app._run_startup_update_toast_check) == 1
     assert intervals == [
         (600.0, app._on_periodic_update_check, "automatic-update-check")
     ]
     assert app._post_mount_background_loads_started is True
+
+
+@pytest.mark.asyncio
+async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first slow post-mount read must not occupy the App message pump."""
+    started = Event()
+    release = Event()
+
+    def slow_notifications(_self: AceApp) -> tuple[set[str], int, int, int]:
+        started.set()
+        release.wait()
+        return set(), 0, 0, 0
+
+    monkeypatch.setattr(AceApp, "_read_notifications_for_startup", slow_notifications)
+
+    async with AcePage(wait_for_startup_state=False) as page:
+        try:
+            assert await asyncio.wait_for(
+                asyncio.to_thread(started.wait, 10.0), timeout=11.0
+            )
+            assert page.app.current_tab == "changespecs"
+            await page.press("tab")
+            for _ in range(20):
+                if page.app.current_tab != "changespecs":
+                    break
+                await page.pause()
+            assert page.app.current_tab == "axe"
+        finally:
+            release.set()
+            await page.wait_for(
+                lambda _state: page.app._mount_state_loads_done,
+                timeout=15.0,
+            )
 
 
 def test_startup_configures_periodic_update_interval_from_loaded_config() -> None:

@@ -133,6 +133,7 @@ class AcePage:
         model_tier_override: Literal["large", "small"] | None = None,
         initial_tab: Literal["changespecs", "agents", "axe"] = "changespecs",
         notifications: bool = False,
+        wait_for_startup_state: bool = True,
     ) -> None:
         self._query = query
         self._size = size
@@ -144,6 +145,7 @@ class AcePage:
         )
         self._initial_tab: Literal["changespecs", "agents", "axe"] = initial_tab
         self._notifications = notifications
+        self._wait_for_startup_state = wait_for_startup_state
         self._app: AceApp | None = None
         self._pilot: Any = None
         self._patch: Any = None
@@ -171,6 +173,14 @@ class AcePage:
             notifications=self._notifications,
         )
         self._pilot = await self._pilot_cm.__aenter__()
+        if self._wait_for_startup_state:
+            deadline = asyncio.get_running_loop().time() + 15.0
+            while not self._app._mount_state_loads_done:
+                if asyncio.get_running_loop().time() >= deadline:
+                    raise AssertionError(
+                        "AcePage startup state did not load within 15 seconds"
+                    )
+                await self._pilot.pause()
         return self
 
     async def __aexit__(

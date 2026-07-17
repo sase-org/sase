@@ -11,7 +11,10 @@ for parity with the Select XPrompt ``Ctrl+I`` path.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 from pathlib import Path
+from threading import Event
 
 import pytest
 
@@ -89,6 +92,56 @@ async def _open_xprompts_tab(
 def _hint_text(pane: XPromptBrowserPane) -> str:
     """Return the current rendered hint line for the XPrompts pane."""
     return str(pane.query_one("#browser-hints", Static).render())
+
+
+def test_xprompt_edit_and_forward_handlers_are_synchronous() -> None:
+    assert not inspect.iscoroutinefunction(XPromptBrowserPane.action_edit_xprompt)
+    assert not inspect.iscoroutinefunction(BrowserFilterInput.action_forward)
+
+
+async def test_enter_returns_while_xprompt_file_read_is_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "slow.md"
+    source.write_text("Slow definition body.", encoding="utf-8")
+    prompts = {
+        "slow": _md_xprompt(
+            "slow",
+            "Slow definition body.",
+            source_path=str(source),
+        )
+    }
+    started = Event()
+    release = Event()
+    original_read_text = Path.read_text
+
+    def slow_read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == source:
+            started.set()
+            release.wait()
+        return original_read_text(path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", slow_read_text)
+
+    async with AcePage() as page:
+        _, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
+        try:
+            assert pane.action_edit_xprompt() is None
+            assert await asyncio.wait_for(
+                asyncio.to_thread(started.wait, 10.0), timeout=11.0
+            )
+            heartbeat = asyncio.Event()
+            asyncio.get_running_loop().call_soon(heartbeat.set)
+            await asyncio.wait_for(heartbeat.wait(), timeout=2.0)
+        finally:
+            release.set()
+            await page.wait_for(
+                lambda _s: bool(page.app.query("#prompt-input-bar")),
+                timeout=10.0,
+            )
+
+        await page.expect_no_modal()
 
 
 async def test_ctrl_i_loads_non_yaml_xprompt_into_prompt_bar(

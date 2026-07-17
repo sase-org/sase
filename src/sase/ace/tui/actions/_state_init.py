@@ -96,6 +96,7 @@ class StateInitMixin:
         self._changespecs_first_load_done = False
         self._agents_first_load_done = False
         self._axe_first_load_done = False
+        self._mount_state_loads_done = False
         self._agents_onboarding_launch_targets_available = False
         self._agents_onboarding_launch_targets_refresh_scheduled = False
         self._agents_onboarding_launch_targets_refresh_running = False

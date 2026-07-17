@@ -14,14 +14,8 @@ class StartupMountMixin:
 
     _stall_watchdog: Any
 
-    async def on_mount(self: Any) -> None:
-        """Set up the app on mount.
-
-        Async so each disk read can ``await asyncio.to_thread(...)``
-        between applying to widgets - the event loop stays free between
-        helpers so the ``KeybindingFooter`` startup stopwatch can tick at
-        ~10Hz through the multi-second startup gap.
-        """
+    def on_mount(self: Any) -> None:
+        """Set up the app synchronously and defer slow reads until first paint."""
         import asyncio
 
         from ..widgets import (
@@ -91,19 +85,6 @@ class StartupMountMixin:
                 except Exception:
                     log.debug("widget ref cache skipped: %s not found", selector)
 
-            notif_state = await asyncio.to_thread(self._read_notifications_for_startup)
-            self._initialize_agent_tracking(notif_state)
-
-            stash_counts = await asyncio.to_thread(self._read_prompt_stash_counts)
-            self._apply_prompt_stash_counts(*stash_counts)
-
-            all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
-            self._apply_changespecs(all_cs)
-
-            last_name = await asyncio.to_thread(self._read_last_selection_name)
-            self._restore_last_selection(last_name)
-            await asyncio.to_thread(self._save_current_query)
-
             self._apply_startup_loading_state()
             self.call_after_refresh(self._start_post_mount_background_loads)
 
@@ -133,21 +114,6 @@ class StartupMountMixin:
                     self.refresh_interval, auto_refresh, name="auto-refresh"
                 )
 
-            # Best-effort title refinement. Runs last (after first paint is
-            # already scheduled) and off-thread because resolving a
-            # git-derived dev version blocks on git subprocesses for editable
-            # installs. Wheel installs typically resolve to the same string
-            # and see no visible change; a ``None`` result keeps the instant
-            # ``__version__``-based title from ``__init__``.
-            from ..util.app_version import (
-                format_app_title,
-                initial_app_version,
-                resolved_app_version,
-            )
-
-            version = await asyncio.to_thread(resolved_app_version)
-            if version and version != initial_app_version():
-                self.title = format_app_title(version)
         finally:
             self._mounting = False
 

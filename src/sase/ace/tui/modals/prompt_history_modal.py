@@ -147,7 +147,7 @@ class PromptHistoryModal(
                             id="prompt-history-columns",
                         )
                         yield OptionList(
-                            *self._create_options(self._filtered_items),
+                            *self._create_initial_options(),
                             id="prompt-history-list",
                         )
                 with Vertical(id="prompt-history-preview-panel"):
@@ -166,6 +166,18 @@ class PromptHistoryModal(
             item,
             preview_width=self._last_preview_width_budget,
         )
+
+    def _create_initial_options(self) -> list[Option]:
+        """Return initial rows, including a loading row before disk data lands."""
+        options = self._create_options(self._filtered_items)
+        if options or self._history_loaded_once:
+            return options
+        return [self._loading_option()]
+
+    @staticmethod
+    def _loading_option() -> Option:
+        """Return the disabled placeholder shown during the initial page load."""
+        return Option(Text("Loading prompt history...", style="dim"), disabled=True)
 
     def _create_options(
         self,
@@ -215,6 +227,8 @@ class PromptHistoryModal(
             )
         )
         if not self._filtered_items:
+            if not self._history_loaded_once:
+                option_list.add_option(self._loading_option())
             return
         if preserve_highlight and highlighted is not None:
             option_list.highlighted = min(highlighted, len(self._filtered_items) - 1)
@@ -306,12 +320,16 @@ class PromptHistoryModal(
             event.stop()
             self.action_toggle_cancelled()
 
-    async def on_mount(self) -> None:
-        """Focus the input and show initial preview on mount."""
+    def on_mount(self) -> None:
+        """Focus immediately and load the initial page outside the modal pump."""
         filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
         filter_input.focus()
         filter_input.cursor_position = len(filter_input.value)
-        await self._load_more_async(preserve_highlight=False)
+        self.run_worker(
+            self._load_more_async(preserve_highlight=False),
+            exclusive=True,
+            group="prompt-history-load",
+        )
 
     def on_resize(self, _event: events.Resize) -> None:
         """Recompute adaptive row widths after terminal resize/layout changes."""
@@ -353,7 +371,11 @@ class PromptHistoryModal(
         if self._history_loading or self._history_exhausted:
             self._update_history_count_label()
             return
-        self.run_worker(self._load_more_async(), exclusive=True)
+        self.run_worker(
+            self._load_more_async(),
+            exclusive=True,
+            group="prompt-history-load",
+        )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input change - update the option list."""

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from typing import TYPE_CHECKING, cast
 
 from textual import events
@@ -67,13 +66,11 @@ class BrowserFilterInput(Input):
             node = getattr(node, "parent", None)
         return None
 
-    async def action_forward(self, action_name: str) -> None:
+    def action_forward(self, action_name: str) -> None:
         """Forward an action to the owning pane."""
         pane = self._pane()
         if pane is not None:
-            result = getattr(pane, f"action_{action_name}")()
-            if inspect.isawaitable(result):
-                await result
+            getattr(pane, f"action_{action_name}")()
 
     def action_scroll_preview_down(self) -> None:
         """Scroll the preview panel down."""

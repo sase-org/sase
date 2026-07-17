@@ -117,6 +117,7 @@ class DismissedAgentSelectModal(
         self._page_size = page_size
         self._page_loading = False
         self._page_exhausted = page_loader is None
+        self._initial_loading = True
 
     def _compute_step_counts(self) -> dict[str, int]:
         """Count child steps per parent, keyed by raw suffix."""
@@ -140,18 +141,42 @@ class DismissedAgentSelectModal(
         children.sort(key=lambda a: a.step_index if a.step_index is not None else 0)
         return children
 
-    async def on_mount(self) -> None:
-        """Focus the filter input and pre-load chat contents."""
-        self._filter_labels, self._chat_contents = await asyncio.to_thread(
-            self._filter_corpora_for_agents, self.agents
-        )
-
+    def on_mount(self) -> None:
+        """Focus immediately and load archive/filter corpora off the modal pump."""
         filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
         filter_input.focus()
-        if self._filtered:
-            self._update_preview(self._filtered[0][1])
+        self.run_worker(
+            self._load_initial_async(),
+            exclusive=True,
+            group="dismissed-archive-load",
+        )
+
+    async def _load_initial_async(self) -> None:
+        """Populate initial archive rows/corpora without blocking modal input."""
         if self._page_loader is not None:
             await self._load_more_async(preserve_highlight=False)
+            self._initial_loading = False
+            self._rebuild_options()
+            self._update_preview_for_current_highlight()
+            return
+
+        try:
+            filter_labels, response_corpora = await asyncio.to_thread(
+                self._filter_corpora_for_agents, self.agents
+            )
+        except Exception as exc:
+            self.notify(
+                f"Failed to load dismissed agent details: {exc}", severity="error"
+            )
+            return
+
+        self._filter_labels = filter_labels
+        self._chat_contents = response_corpora
+        self._initial_loading = False
+        filter_input = self.query_one("#dismissed-filter", _ReviveFilterInput)
+        self._filtered = self._get_filtered_agents(filter_input.value)
+        self._rebuild_options()
+        self._update_preview_for_current_highlight()
 
     def on_key(self, event: events.Key) -> None:
         """Intercept Ctrl+K before the focused filter input consumes it."""
@@ -224,8 +249,7 @@ class DismissedAgentSelectModal(
         if self.is_mounted:
             self._apply_agents_to_widgets(preserve_identity)
         else:
-            # set_agents() can run before mount completes (the initial page load is
-            # awaited inside on_mount(), where is_mounted is still False). Defer the
+            # A worker can finish while the modal is still mounting. Defer the
             # widget refresh so the loaded page is not stranded in model state.
             self.call_after_refresh(self._apply_agents_to_widgets, preserve_identity)
 
@@ -271,6 +295,8 @@ class DismissedAgentSelectModal(
 
     def _create_options_or_placeholder(self) -> list[Option]:
         """Create agent options or a disabled loading/empty placeholder."""
+        if self._initial_loading:
+            return [placeholder_option(loading_archive=True)]
         if self.agents:
             return self._create_options(self.agents)
         return [placeholder_option(loading_archive=self._loading_archive)]
@@ -351,7 +377,9 @@ class DismissedAgentSelectModal(
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         old_highlighted = option_list.highlighted
         option_list.clear_options()
-        if self._filtered:
+        if self._initial_loading:
+            option_list.add_option(placeholder_option(loading_archive=True))
+        elif self._filtered:
             for orig_idx, agent in self._filtered:
                 option_list.add_option(
                     Option(self._format_agent_label(agent, orig_idx), id=str(orig_idx))
@@ -462,11 +490,20 @@ class DismissedAgentSelectModal(
         if self._page_loader is None or self._page_loading or self._page_exhausted:
             self._update_hints()
             return
-        self.run_worker(self._load_more_async(), exclusive=True)
+        self.run_worker(
+            self._load_more_async(),
+            exclusive=True,
+            group="dismissed-archive-load",
+        )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle filter input change."""
         self._filtered = self._get_filtered_agents(event.value)
+        if self._initial_loading:
+            self._rebuild_options()
+            self._clear_preview()
+            self._update_hints()
+            return
         option_list = self.query_one("#dismissed-agent-list", OptionList)
         option_list.clear_options()
         if self._filtered:

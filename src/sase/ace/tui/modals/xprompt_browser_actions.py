@@ -30,14 +30,11 @@ class XPromptBrowserActionsMixin:
     - ``notify()``, ``app`` (from ``ModalScreen``)
     """
 
-    async def action_edit_xprompt(self) -> None:
-        """Load a simple definition raw into a bound prompt bar."""
-        import asyncio
+    _edit_xprompt_request_id = 0
 
+    def action_edit_xprompt(self) -> None:
+        """Schedule loading a simple definition into a bound prompt bar."""
         from sase.ace.tui.modals.xprompt_browser_helpers import is_yaml_backed_source
-        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
-        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
-        from sase.xprompt.save import load_config_xprompt_markdown
 
         item = self._get_highlighted_item()  # type: ignore[attr-defined]
         if item is None:
@@ -49,37 +46,68 @@ class XPromptBrowserActionsMixin:
         if file_path is None:
             self.notify("Definition source is unavailable", severity="error")  # type: ignore[attr-defined]
             return
+        config_backed = is_yaml_backed_source(item.source_path)
+        request_id = self._edit_xprompt_request_id + 1
+        self._edit_xprompt_request_id = request_id
+        self.run_worker(  # type: ignore[attr-defined]
+            self._load_xprompt_definition(
+                file_path=file_path,
+                name=item.name,
+                editable=item.is_editable,
+                config_backed=config_backed,
+                request_id=request_id,
+            ),
+            exclusive=True,
+            group="xprompt-definition-load",
+        )
+
+    async def _load_xprompt_definition(
+        self,
+        *,
+        file_path: str,
+        name: str,
+        editable: bool,
+        config_backed: bool,
+        request_id: int,
+    ) -> None:
+        """Read and apply one xprompt definition outside the widget pump."""
+        import asyncio
+
+        from sase.ace.tui.widgets.prompt_stack import XPromptBinding
+        from sase.xprompt.prompt_frontmatter import PromptFrontmatter
+        from sase.xprompt.save import load_config_xprompt_markdown
+
         try:
-            config_backed = is_yaml_backed_source(item.source_path)
             if config_backed:
                 markdown = await asyncio.to_thread(
-                    load_config_xprompt_markdown, file_path, item.name
+                    load_config_xprompt_markdown, file_path, name
                 )
                 binding = (
-                    XPromptBinding.for_config(file_path, item.name)
-                    if item.is_editable
-                    else None
+                    XPromptBinding.for_config(file_path, name) if editable else None
                 )
             else:
                 markdown = await asyncio.to_thread(
                     Path(file_path).read_text, encoding="utf-8"
                 )
-                binding = (
-                    XPromptBinding.for_file(file_path) if item.is_editable else None
-                )
+                binding = XPromptBinding.for_file(file_path) if editable else None
         except Exception as exc:
-            self.notify(f"Could not load definition: {exc}", severity="error")  # type: ignore[attr-defined]
+            if request_id == self._edit_xprompt_request_id:
+                self.notify(f"Could not load definition: {exc}", severity="error")  # type: ignore[attr-defined]
             return
 
+        if request_id != self._edit_xprompt_request_id:
+            return
+        if not getattr(self, "is_mounted", False):
+            return
         loader = getattr(self.app, "load_xprompt_definition_into_home_prompt_bar", None)  # type: ignore[attr-defined]
         if not callable(loader):
             return
         model = PromptFrontmatter.parse(markdown)
         loader(
             markdown,
-            display_name=f"#{item.name}",
+            display_name=f"#{name}",
             binding=binding,
-            read_only=not item.is_editable,
+            read_only=not editable,
             has_comments=model.has_comments,
         )
 

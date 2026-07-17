@@ -38,6 +38,16 @@ class StartupLoadsMixin:
         if self._post_mount_background_loads_started:
             return
         self._post_mount_background_loads_started = True
+        try:
+            self.run_worker(
+                cast(Any, self._run_mount_state_loads),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            self._mount_state_loads_done = True
+            log.exception("Failed to schedule post-mount state loads")
         # Independent, non-gating one-shot: its worker performs both bounded
         # file I/O and JSON decoding off-thread. Agents/AXE startup proceeds
         # immediately whether this is fast, slow, missing, or malformed.
@@ -98,6 +108,38 @@ class StartupLoadsMixin:
             self._schedule_startup_update_toast_check()
         except Exception:
             log.debug("Failed to schedule startup update toast", exc_info=True)
+
+    async def _run_mount_state_loads(self: Any) -> None:
+        """Load mount-time disk state without occupying the App message pump."""
+        import asyncio
+
+        try:
+            notif_state = await asyncio.to_thread(self._read_notifications_for_startup)
+            self._initialize_agent_tracking(notif_state)
+
+            stash_counts = await asyncio.to_thread(self._read_prompt_stash_counts)
+            self._apply_prompt_stash_counts(*stash_counts)
+
+            all_cs = await asyncio.to_thread(self._read_changespecs_from_disk)
+            self._apply_changespecs(all_cs)
+
+            last_name = await asyncio.to_thread(self._read_last_selection_name)
+            self._restore_last_selection(last_name)
+            await asyncio.to_thread(self._save_current_query)
+
+            # Resolving a git-derived dev version can block on subprocesses for
+            # editable installs. Wheel installs usually keep the instant title.
+            from ..util.app_version import (
+                format_app_title,
+                initial_app_version,
+                resolved_app_version,
+            )
+
+            version = await asyncio.to_thread(resolved_app_version)
+            if version and version != initial_app_version():
+                self.title = format_app_title(version)
+        finally:
+            self._mount_state_loads_done = True
 
     async def _run_agent_index_startup_prepare_and_refresh(self: Any) -> None:
         """Paint from a bounded scan before rebuilding a stale index."""
