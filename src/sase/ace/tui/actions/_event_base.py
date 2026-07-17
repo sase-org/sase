@@ -44,6 +44,7 @@ class EventHandlersBase:
     _custom_mode_prefixes: dict[str, str]
     _entry_jump_mode_active: bool
     _last_input_mono: float
+    _last_input_action: str | None
     _nav_gate: NavigationGate
     _dirty_changespecs: bool
     _dirty_agents: bool

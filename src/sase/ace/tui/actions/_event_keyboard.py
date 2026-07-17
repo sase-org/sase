@@ -18,6 +18,7 @@ class EventKeyboardMixin(EventHandlersBase):
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events, including fold, checkout, copy, and ancestry sub-keys."""
+        self._last_input_action = event.key
         self._record_input_event()
         if self._entry_jump_mode_active:
             key = normalize_jump_key(event.key, event.character)
@@ -70,6 +71,7 @@ class EventKeyboardMixin(EventHandlersBase):
         The ``Input.Changed`` message still bubbles, so we catch it here
         to keep input-quiescence timing accurate while the user types.
         """
+        self._last_input_action = "input_changed"
         self._record_input_event()
 
     def on_text_area_changed(self, _event: TextArea.Changed) -> None:
@@ -79,4 +81,5 @@ class EventKeyboardMixin(EventHandlersBase):
         message. Recording that message keeps the same input-quiescence timing
         that plain ``Input`` widgets had before conversion.
         """
+        self._last_input_action = "text_area_changed"
         self._record_input_event()

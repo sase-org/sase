@@ -447,6 +447,7 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_next_tab(self) -> None:
         """Switch to the next tab (cycling: Agents -> ChangeSpecs -> Axe -> Agents)."""
+        self._last_input_action = "next_tab"  # type: ignore[attr-defined]
         self._record_input_event()  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             focus_artifact = getattr(self, "_focus_tracked_artifact_tmux_pane", None)
@@ -457,6 +458,7 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_prev_tab(self) -> None:
         """Switch to the previous tab (cycling: Agents <- ChangeSpecs <- Axe <- Agents)."""
+        self._last_input_action = "prev_tab"  # type: ignore[attr-defined]
         self._record_input_event()  # type: ignore[attr-defined]
         self._save_current_tab_position()
         self._switch_to_tab(adjacent_tab(self.current_tab, -1))

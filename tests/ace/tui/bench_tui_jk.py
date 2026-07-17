@@ -19,6 +19,7 @@ addressable on the UI thread. The samples in the JSONL still capture any
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import statistics
@@ -38,6 +39,19 @@ from sase.ace.tui.models.agent_panels import AgentPanelGroup
 pytestmark = pytest.mark.slow
 
 _KEYS_PER_SCENARIO = 20
+
+
+async def _wait_for_startup(app: AceApp, pilot: object) -> None:
+    """Keep asynchronous startup work out of navigation measurements."""
+    deadline = asyncio.get_running_loop().time() + 20.0
+    while not (
+        app._mount_state_loads_done
+        and app._agents_first_load_done
+        and app._axe_first_load_done
+    ):
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("ACE benchmark startup did not settle within 20s")
+        await pilot.pause()  # type: ignore[attr-defined]
 
 
 def _make_changespec(name: str, file_path: Path) -> ChangeSpec:
@@ -142,10 +156,17 @@ async def test_bench_changespecs_jk(_perf_jsonl: Path, tmp_path: Path) -> None:
     gp_file.write_text("")
     cs_list = [_make_changespec(f"cs_{i:03d}", gp_file) for i in range(50)]
 
-    with patch("sase.ace.changespec.find_all_changespecs", return_value=cs_list):
-        app = AceApp(query="!!!", auto_start_axe=False)
+    with patch(
+        "sase.ace.changespec.find_all_changespecs_cached",
+        return_value=cs_list,
+    ):
+        app = AceApp(
+            query='"cs_"',
+            auto_start_axe=False,
+            initial_tab="changespecs",
+        )
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await _wait_for_startup(app, pilot)
             for _ in range(_KEYS_PER_SCENARIO):
                 await pilot.press("j")
                 await pilot.pause(0.01)
@@ -163,7 +184,7 @@ async def test_bench_axe_jk(_perf_jsonl: Path) -> None:
     """Measure j/k latency on the Axe tab with synthetic bgcmd items."""
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
-        await pilot.pause()
+        await _wait_for_startup(app, pilot)
         await pilot.press("ctrl+l")  # next_tab: agents → changespecs
         await pilot.pause()
         await pilot.press("ctrl+l")  # next_tab: changespecs → axe
@@ -193,7 +214,7 @@ async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
     """Measure Agents-tab row and tag-panel navigation on a large synthetic list."""
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
-        await pilot.pause()
+        await _wait_for_startup(app, pilot)
         await pilot.press("ctrl+l")
         await pilot.pause()
         _install_agents_fixture(app)

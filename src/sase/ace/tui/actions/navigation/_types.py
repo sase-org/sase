@@ -40,6 +40,7 @@ class NavigationMixinBase:
     current_idx: int
     current_attempt_number: int | None
     current_tab: TabName
+    _last_input_action: str | None
     hooks_collapsed: FoldLevel
     commits_collapsed: FoldLevel
     mentors_collapsed: FoldLevel

@@ -229,6 +229,7 @@ class StateInitMixin:
 
         # Last input timestamp used to defer non-urgent background work.
         self._last_input_mono = 0.0
+        self._last_input_action: str | None = None
         # Stable widget refs cached during ``on_mount`` so hot paths (j/k
         # navigation, debounced detail refresh, mark toggle) skip repeated
         # ``query_one`` walks against the DOM. ``None`` until mount runs;

@@ -69,6 +69,19 @@ _QUERY_EDIT_SEQUENCE: tuple[str, ...] = (
 )
 
 
+async def _wait_for_startup(app: AceApp, pilot: object) -> None:
+    """Wait for background startup surfaces before timing follow-up actions."""
+    deadline = asyncio.get_running_loop().time() + 20.0
+    while not (
+        app._mount_state_loads_done
+        and app._agents_first_load_done
+        and app._axe_first_load_done
+    ):
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("ACE benchmark startup did not settle within 20s")
+        await pilot.pause()  # type: ignore[attr-defined]
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -149,7 +162,8 @@ async def _run_scenario(
         started_wall[name] = time.perf_counter()
 
     with patch(
-        "sase.ace.changespec.find_all_changespecs", return_value=fixture.changespecs
+        "sase.ace.changespec.find_all_changespecs_cached",
+        return_value=fixture.changespecs,
     ):
 
         def _apply_query(query: str) -> None:
@@ -161,10 +175,15 @@ async def _run_scenario(
 
         # Cold start
         _mark_start("cold_start")
-        app = AceApp(query="!!!", auto_start_axe=False)
+        app = AceApp(
+            query='"cs_"',
+            auto_start_axe=False,
+            initial_tab="changespecs",
+        )
         async with app.run_test() as pilot:
             await pilot.pause()
             _mark("cold_start")
+            await _wait_for_startup(app, pilot)
 
             # Query change: filter to a subset
             _mark_start("query_change")
@@ -181,7 +200,7 @@ async def _run_scenario(
             _mark("repeated_query_edits")
 
             # Reset query so subsequent scenarios have full list.
-            _apply_query("!!!")
+            _apply_query('"cs_"')
             await pilot.pause()
 
             # 50-key j/k burst

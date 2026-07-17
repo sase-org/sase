@@ -102,6 +102,47 @@ Override the key-to-paint path with `SASE_TUI_PERF_PATH=/tmp/tui_jk.jsonl`.
 Agents that launch the TUI via `sase ace --tmux` get `SASE_TUI_TRACE=1` and `SASE_TUI_PERF=1` injected automatically;
 export the variable to `0` before invoking to opt out.
 
+## Freeze and hitch capture
+
+ACE's always-on watchdog writes event-loop and Textual message-pump diagnostics to `~/.sase/logs/tui_stalls.jsonl`.
+There are two independent severity tiers:
+
+- `tui_hitch` / `tui_pump_hitch` fire after 1.5 seconds by default. These are compact records containing the current tab
+  and selection, the last action, keypress age, and the main-thread stack. Recovery rows use the corresponding
+  `*_recovered` event and include the episode duration. Hitch records deliberately omit full asyncio-task and worker
+  thread dumps, and are rate-limited; `suppressed_count` reports episodes omitted since the previous admitted record.
+- `tui_stall` / `tui_pump_stall` retain the existing 5-second threshold and richer task/thread diagnostics. A long
+  freeze can produce both a hitch and a stall because the two state machines are independent.
+
+Lower both tiers for a short verification soak with:
+
+```bash
+SASE_TUI_HITCH_THRESHOLD_SECONDS=0.25 \
+SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS=0.25 \
+SASE_TUI_STALL_THRESHOLD_SECONDS=0.75 \
+SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS=0.75 \
+SASE_TUI_STALL_POLL_INTERVAL=0.02 \
+SASE_TUI_PUMP_STALL_POLL_INTERVAL=0.02 \
+SASE_TUI_STALL_PATH=/tmp/sase-tui-soak.jsonl \
+sase ace
+```
+
+Exercise startup typing, launch and cleanup bursts, prompt-history and revive-agent modal opens, tab switching during
+agent churn, and refreshes while the artifact or dismissed-bundle indexes are contended. A fixed path should stay
+interactive and produce no hitch/stall rows. Inspect any records in chronological order:
+
+```bash
+jq -c '{event, stall_seconds, duration_seconds, current_tab, current_idx,
+        last_action, last_keypress_age_s, suppressed_count, main_thread_stack}' \
+  /tmp/sase-tui-soak.jsonl
+```
+
+Read `main_thread_stack` from its final frame upward to find the blocking call. For a pump-only event, the loop may
+still be running while one Textual message pump is awaiting slow work; a loop event means the event loop itself stopped
+servicing the watchdog beacon. Disable the compact tiers independently with `SASE_TUI_HITCH_DISABLE=1` and
+`SASE_TUI_PUMP_HITCH_DISABLE=1`; the existing stall-tier disable flags remain `SASE_TUI_STALL_DISABLE=1` and
+`SASE_TUI_PUMP_STALL_DISABLE=1`.
+
 ## Synthetic-data benchmark harness
 
 The harness lives at `tests/perf/bench_tui_trace.py`. It generates in-memory ChangeSpec and agent fixtures, then drives

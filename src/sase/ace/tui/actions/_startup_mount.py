@@ -128,6 +128,7 @@ class StartupMountMixin:
             "current_tab": self.current_tab,
             "current_idx": self.current_idx,
             "current_attempt_number": self._current_attempt_number,
+            "last_action": getattr(self, "_last_input_action", None),
             "last_keypress_age_s": (
                 None if last_keypress_age_s is None else round(last_keypress_age_s, 3)
             ),

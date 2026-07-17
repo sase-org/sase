@@ -67,6 +67,7 @@ class StartupMixin(
     _countdown_timer: Timer | None
     _countdown_remaining: int
     _last_input_mono: float
+    _last_input_action: str | None
     _post_mount_background_loads_started: bool
     _jump_all_last_position: JumpAllResult | None
     _nav_gate: NavigationGate
