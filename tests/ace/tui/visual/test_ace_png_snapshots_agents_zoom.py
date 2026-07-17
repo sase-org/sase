@@ -11,8 +11,10 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -411,21 +413,41 @@ async def test_agents_context_zoom_modal_png_snapshot(
             scroll_selector="#zoom-metadata-scroll",
         )
 
+        metadata_panel = page.app.screen.query_one(
+            "#zoom-metadata-panel",
+            AgentPromptPanel,
+        )
+        metadata = renderable_to_text(metadata_panel.content) or ""
+        assert metadata.index("▸ PLAN") < metadata.index("▸ ARTIFACTS")
+        assert metadata.index("▸ ARTIFACTS") < metadata.index("▸ MEMORY")
+        assert metadata.index("▸ MEMORY") < metadata.index("▸ SKILLS")
+        assert metadata.index("▸ SKILLS") < metadata.index("▸ WORKSPACES")
+        for expected in (
+            "src/app.py",
+            "generated_skills.md",
+            "sase_plan",
+            "sase-core",
+        ):
+            assert expected in metadata
+
         assert_page_svg_contains(page, "SASE CONTEXT")
         assert_page_svg_contains(page, "PLAN")
         assert_page_svg_contains(page, "tale")
         assert_page_svg_contains(page, "Unified agent context")
-        assert_page_svg_contains(page, "◇")
-        assert_page_svg_contains(page, "generated_skills.md")
-        assert_page_svg_contains(page, "◆")
-        assert_page_svg_contains(page, "sase_plan")
-        assert_page_svg_contains(page, "▣")
-        assert_page_svg_contains(page, "sase-core")
+        assert_page_svg_contains(page, "ARTIFACTS")
+        assert_page_svg_contains(page, "Deltas:")
         ace_png_visual.assert_page_png(
             page,
             "agents_context_zoom_modal_120x40",
             title="ACE agents context zoom modal",
         )
+
+        scroll = page.app.screen.query_one("#zoom-metadata-scroll", VerticalScroll)
+        assert scroll.max_scroll_y > 0
+        await page.press("G")
+        await page.wait_for(lambda _s: scroll.scroll_y == scroll.max_scroll_y)
+        assert_page_svg_contains(page, "▣")
+        assert_page_svg_contains(page, "sase-core")
 
 
 async def test_agents_metadata_zoom_modal_png_snapshot(

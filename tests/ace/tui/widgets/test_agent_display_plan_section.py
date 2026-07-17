@@ -319,7 +319,7 @@ def test_plan_lane_header_is_immediately_followed_by_title(
     assert lines[heading_index + 1].startswith("  Title:")
 
 
-def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
+def test_plan_and_artifacts_lead_context_in_maximal_append_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.ace.tui.widgets.prompt_panel import _agent_context
@@ -356,8 +356,8 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
         text.append_text(plan_section.logical_text)
         plan_range = (plan_start, len(text))
         text.append(
-            "\n▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n\n"
-            "▸ ARTIFACTS\n  Commits:\n  Deltas:\n  Artifacts:\n"
+            "\n▸ ARTIFACTS\n  Commits:\n  Deltas:\n  Artifacts:\n\n"
+            "▸ MEMORY\n\n▸ SKILLS\n\n▸ WORKSPACES\n"
         )
         return plan_range
 
@@ -426,12 +426,14 @@ def test_plan_is_leading_lane_in_context_in_maximal_append_flow(
     ):
         assert plain.index(section_label) < context_index
     assert context_index < plan_index
-    for lane_label in ("▸ MEMORY", "▸ SKILLS", "▸ WORKSPACES"):
-        assert plan_index < plain.index(lane_label)
-    assert plain.index("▸ WORKSPACES") < plain.index("▸ ARTIFACTS")
-    assert plain.index("▸ ARTIFACTS") < plain.index("Commits:")
+    artifacts_index = plain.index("▸ ARTIFACTS")
+    assert plan_index < artifacts_index
+    assert artifacts_index < plain.index("Commits:")
     assert plain.index("Commits:") < plain.index("Deltas:")
     assert plain.index("Deltas:") < plain.index("Artifacts:")
+    assert plain.index("Artifacts:") < plain.index("▸ MEMORY")
+    assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
+    assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
     for section_label in (
         "SLOW TOOL CALLS",
         "ERROR",

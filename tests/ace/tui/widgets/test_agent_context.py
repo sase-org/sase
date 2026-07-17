@@ -41,6 +41,14 @@ from tests.ace.tui.widgets._agent_display_metadata_helpers import (
 )
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
+_EXPECTED_CONTEXT_LANE_ORDER = (
+    "PLAN",
+    "ARTIFACTS",
+    "MEMORY",
+    "SKILLS",
+    "WORKSPACES",
+)
+
 
 @pytest.fixture(autouse=True)
 def _pin_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -275,8 +283,9 @@ def test_artifacts_lane_chrome_uses_its_palette_and_shared_path_idiom() -> None:
 
 
 def test_context_lane_order_contract_holds_for_every_presence_combination() -> None:
-    for presence in product((False, True), repeat=len(CONTEXT_LANE_ORDER)):
-        enabled = dict(zip(CONTEXT_LANE_ORDER, presence, strict=True))
+    assert CONTEXT_LANE_ORDER == _EXPECTED_CONTEXT_LANE_ORDER
+    for presence in product((False, True), repeat=len(_EXPECTED_CONTEXT_LANE_ORDER)):
+        enabled = dict(zip(_EXPECTED_CONTEXT_LANE_ORDER, presence, strict=True))
         text = Text()
         append_agent_context_section(
             text,
@@ -296,12 +305,14 @@ def test_context_lane_order_contract_holds_for_every_presence_combination() -> N
             for line in text.plain.splitlines()
             if line.startswith("▸ ")
         ]
-        expected_labels = [label for label in CONTEXT_LANE_ORDER if enabled[label]]
+        expected_labels = [
+            label for label in _EXPECTED_CONTEXT_LANE_ORDER if enabled[label]
+        ]
         assert rendered_labels == expected_labels
         if enabled["PLAN"]:
             assert rendered_labels[0] == "PLAN"
         if enabled["ARTIFACTS"]:
-            assert rendered_labels[-1] == "ARTIFACTS"
+            assert rendered_labels.index("ARTIFACTS") == (1 if enabled["PLAN"] else 0)
 
 
 def test_context_lanes_render_in_parent_context_order() -> None:
@@ -317,13 +328,60 @@ def test_context_lanes_render_in_parent_context_order() -> None:
 
     plain = text.plain
     assert plain.index("SASE CONTEXT\n") < plain.index("▸ PLAN")
-    assert plain.index("▸ PLAN") < plain.index("▸ MEMORY")
+    assert plain.index("▸ PLAN") < plain.index("▸ ARTIFACTS")
+    assert plain.index("▸ ARTIFACTS") < plain.index("▸ MEMORY")
     assert plain.index("▸ MEMORY") < plain.index("▸ SKILLS")
     assert plain.index("▸ SKILLS") < plain.index("▸ WORKSPACES")
-    assert plain.index("▸ WORKSPACES") < plain.index("▸ ARTIFACTS")
     assert "needed generated skill rules" in plain
     assert "needed an implementation plan" in plain
     assert "needed to inspect core boundary" in plain
+
+
+def test_context_hint_numbers_follow_display_order() -> None:
+    text = Text()
+    hint_state = HeaderHintState(
+        hint_counter=1,
+        hint_mappings={},
+        workspace_dir="/tmp/workspace",
+        tool_call_reports={},
+    )
+    agent = make_agent(
+        workspace_dir="/tmp/workspace",
+        step_output={
+            "meta_commits": [
+                {
+                    "message": "feat: ordered hints",
+                    "sha": "abcdef1234567890",
+                }
+            ]
+        },
+    )
+
+    append_agent_context_section(
+        text,
+        plan_section=_plan_section(),
+        agent=agent,
+        delta_entries=[DeltaEntry(path="src/output.py", change_type="M")],
+        artifact_paths=[
+            AgentArtifactPath("reports/result.md", "/tmp/reports/result.md"),
+        ],
+        memory_reads=(_memory_event(),),
+        hint_state=hint_state,
+    )
+
+    plain = text.plain
+    assert plain.index("Path: [1]") < plain.index("[2] abcdef123456")
+    assert plain.index("[2] abcdef123456") < plain.index("[3] src/output.py")
+    assert plain.index("[3] src/output.py") < plain.index("[4] reports/result.md")
+    assert plain.index("[4] reports/result.md") < plain.index("[5] generated_skills.md")
+    assert hint_state.hint_mappings == {
+        1: "/tmp/workspace/sase/repos/plans/plan.md",
+        3: "/tmp/workspace/src/output.py",
+        4: "/tmp/reports/result.md",
+        5: "/tmp/test/memory/generated_skills.md",
+    }
+    assert list(hint_state.commit_views) == [2]
+    assert hint_state.hint_counter == 6
 
 
 def test_count_phrase_pluralizes_context_counts() -> None:

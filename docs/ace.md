@@ -452,9 +452,9 @@ media from saved prompt artifacts, and explicit files saved with
 `sase artifact create -p <path> [-n <label>] [-k <kind>]`. ACE always opens the panel, even for a single artifact, so
 the label, kind, and path are visible before launching the terminal viewer.
 
-The prompt/detail header includes those non-chat entries in the bottom-ranked `SASE CONTEXT` `ARTIFACTS` lane, after its
-`Commits` and `Deltas` fields when those outputs exist. Paths are made workspace-relative when possible, and hint mode
-assigns numbers to those paths so they can be opened with the normal file-hint flow.
+The prompt/detail header includes those non-chat entries in the plan-adjacent `SASE CONTEXT` `ARTIFACTS` lane. Within
+that lane, `Commits`, `Deltas`, and `Artifacts` stay in that order when present. Paths are made workspace-relative when
+possible, and hint mode assigns numbers to those paths so they can be opened with the normal file-hint flow.
 
 Artifact panel controls:
 
@@ -1585,15 +1585,16 @@ a pinned attempt view resets the cursor.
   Every value wraps without truncation in the normal panel and metadata zoom view, and only the path participates in
   file hint mode. Invalid known epics show `phases unavailable` in the lane header without leaking partial entries;
   tales do not show a phase roadmap. A plan alone renders `SASE CONTEXT`; across every combination of present lanes, the
-  full order is `PLAN`, `MEMORY`, `SKILLS`, `WORKSPACES`, then `ARTIFACTS`. `PLAN` is always first when present and
-  `ARTIFACTS` is always last when present.
-- **SASE CONTEXT / ARTIFACTS**: The bottom-ranked output lane groups `Commits`, `Deltas`, and `Artifacts` as compact
-  fields and summarizes only the present fields in its header. Commits persisted by the selected agent's post-run steps
-  are grouped by repository; primary workspace, linked-repo, sidecar, and external-repo commits retain their repository
-  identity. Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and group linked or external files by
-  repository. Artifact type remains visible through its icon shape, while every artifact icon and path uses the shared
-  blue output-lane/file-path palette. The lane is rendered atomically with full header enrichment, so it is omitted from
-  the immediate cheap navigation frame rather than appearing first with partial content.
+  full order is `PLAN`, `ARTIFACTS`, `MEMORY`, `SKILLS`, then `WORKSPACES`. `PLAN` is always first when present, and
+  `ARTIFACTS` follows it directly; when `PLAN` is absent, `ARTIFACTS` is the leading present lane.
+- **SASE CONTEXT / ARTIFACTS**: The plan-adjacent output lane groups `Commits`, `Deltas`, and `Artifacts` as compact
+  fields, preserves that internal order, and summarizes only the present fields in its header. Commits persisted by the
+  selected agent's post-run steps are grouped by repository; primary workspace, linked-repo, sidecar, and external-repo
+  commits retain their repository identity. Deltas preserve their green `+`, gold `~`, and red `-` change glyphs and
+  group linked or external files by repository. Artifact type remains visible through its icon shape, while every
+  artifact icon and path uses the shared blue output-lane/file-path palette. The lane is rendered atomically with full
+  header enrichment, so it is omitted from the immediate cheap navigation frame rather than appearing first with partial
+  content.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or longer, ordered by start time and
   capped at 8 rows (an overflow line points to the full [Tools panel](#agents-tab-tools-panel) timeline via `]`). For a
   root agent the list aggregates calls across its children while attributing each call to the child that made it.

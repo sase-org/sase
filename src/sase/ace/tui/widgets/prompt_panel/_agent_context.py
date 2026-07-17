@@ -23,7 +23,7 @@ from ._agent_display_state import HeaderHintState
 from ._helpers import append_major_section_divider, append_section_heading
 
 _COLOR_HEADER = "bold #D7AF5F underline"
-CONTEXT_LANE_ORDER = ("PLAN", "MEMORY", "SKILLS", "WORKSPACES", "ARTIFACTS")
+CONTEXT_LANE_ORDER = ("PLAN", "ARTIFACTS", "MEMORY", "SKILLS", "WORKSPACES")
 
 
 def append_agent_context_section(
