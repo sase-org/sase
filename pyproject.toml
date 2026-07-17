@@ -1,12 +1,12 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling>=1.27", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
 name = "sase"
 version = "0.10.2"
 description = "Structured Agentic Software Engineering"
-readme = "README.md"
+dynamic = ["readme"]
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -163,6 +163,30 @@ packages = ["src/sase"]
 # per-file upload limit.
 [tool.hatch.build.targets.sdist]
 only-include = ["src/sase"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+# PyPI does not provide GitHub's controls for animated images, so use a still
+# for the one GIF that remains animated in the GitHub README.
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = 'docs/images/blog/sase_ace_multi_model_fanout\.gif'
+replacement = 'docs/images/blog/sase_ace_multi_model_fanout_still.png'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = 'src="((?:docs|demos)/[^"]+)"'
+replacement = 'src="https://raw.githubusercontent.com/sase-org/sase/master/\1"'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = 'href="(demos/[^"]+)"'
+replacement = 'href="https://github.com/sase-org/sase/blob/master/\1"'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((INSTALL\.md|LICENSE|CONTRIBUTING\.md|docs/acknowledgements\.md)\)'
+replacement = '](https://github.com/sase-org/sase/blob/master/\1)'
 
 # --- Ruff ---
 [tool.ruff]
