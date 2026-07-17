@@ -23,7 +23,7 @@ def _launch_with_captured_spawns(
         calls.append(kwargs)
         return AgentLaunchResult(
             pid=len(calls),
-            workspace_num=int(kwargs["workspace_num"]),
+            workspace_num=int(str(kwargs["workspace_num"])),
             workspace_dir=str(kwargs["workspace_dir"]),
             output_path="/tmp/out",
             project_file=str(kwargs["project_file"]),
@@ -89,6 +89,140 @@ def test_member_before_template_root_gets_pinned_family_identity(
     assert root_payload["root_timestamp"] == (
         "20" + str(calls[1]["timestamp"])[:6] + str(calls[1]["timestamp"])[7:]
     )
+
+
+def test_family_membership_is_execution_neutral_for_multi_prompt_launches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    baseline_segments = [
+        "%name:research.@.final\n%model:opus\nLead",
+        "%name:research.@.worker\n%model:sonnet\n%wait:research.@.final\nWork",
+        "%name:review\n%wait\nReview",
+    ]
+    family_segments = [
+        baseline_segments[0],
+        baseline_segments[1].replace(
+            "%model:sonnet\n",
+            "%model:sonnet\n%family(research.@.final, role=researcher)\n",
+        ),
+        baseline_segments[2],
+    ]
+    template_groups = [
+        "xprompt:research:0",
+        "xprompt:research:0",
+        None,
+    ]
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "baseline" / ".sase"))
+    baseline = _launch_with_captured_spawns(
+        baseline_segments,
+        template_groups=template_groups,
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "family" / ".sase"))
+    family = _launch_with_captured_spawns(
+        family_segments,
+        template_groups=template_groups,
+    )
+
+    def planned_names(calls: list[dict[str, object]]) -> list[str]:
+        return [
+            str(call["extra_env"]["SASE_AGENT_PLANNED_NAME"])  # type: ignore[index]
+            for call in calls
+        ]
+
+    assert planned_names(family) == planned_names(baseline)
+    assert planned_names(family) == [
+        "research.0.final",
+        "research.0.worker",
+        "review",
+    ]
+
+    family_prompts_without_membership = [
+        str(call["prompt"]).replace(
+            "%family(research.@.final, role=researcher)\n",
+            "",
+        )
+        for call in family
+    ]
+    baseline_prompts = [str(call["prompt"]) for call in baseline]
+    assert family_prompts_without_membership == baseline_prompts
+    assert "%wait:research.0.final" in baseline_prompts[1]
+    assert "%wait:research.0.worker" in baseline_prompts[2]
+
+    def model_directive(prompt: str) -> str | None:
+        return next(
+            (
+                line.removeprefix("%model:")
+                for line in prompt.splitlines()
+                if line.startswith("%model:")
+            ),
+            None,
+        )
+
+    baseline_models = [model_directive(prompt) for prompt in baseline_prompts]
+    family_models = [model_directive(str(call["prompt"])) for call in family]
+    assert family_models == baseline_models == ["opus", "sonnet", None]
+
+    context_keys = (
+        "cl_name",
+        "project_file",
+        "project_name",
+        "history_sort_key",
+        "update_target",
+        "is_home_mode",
+        "vcs_ref",
+    )
+    workspace_keys = ("workspace_num", "workspace_dir", "deferred_workspace")
+    for baseline_call, family_call in zip(baseline, family, strict=True):
+        assert {key: family_call[key] for key in context_keys} == {
+            key: baseline_call[key] for key in context_keys
+        }
+        assert {key: family_call[key] for key in workspace_keys} == {
+            key: baseline_call[key] for key in workspace_keys
+        }
+
+    family_envs = [call["extra_env"] for call in family]
+    assert all(isinstance(env, dict) for env in family_envs)
+    assert FAMILY_MEMBERSHIP_ENV not in baseline[0]["extra_env"]  # type: ignore[operator]
+    assert FAMILY_MEMBERSHIP_ENV in family_envs[0]  # type: ignore[operator]
+    assert FAMILY_MEMBERSHIP_ENV in family_envs[1]  # type: ignore[operator]
+    assert FAMILY_MEMBERSHIP_ENV not in family_envs[2]  # type: ignore[operator]
+
+
+def test_family_member_fanout_variants_join_the_same_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    calls = _launch_with_captured_spawns(
+        [
+            "%name:worker\n%family(root, role=worker)\n%{First | Second}",
+            "%name:root\nLead",
+        ]
+    )
+
+    assert len(calls) == 3
+    assert [
+        call["extra_env"]["SASE_AGENT_PLANNED_NAME"]  # type: ignore[index]
+        for call in calls
+    ] == ["worker.1", "worker.2", "root"]
+    member_payloads = [
+        json.loads(str(calls[index]["extra_env"][FAMILY_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for index in (0, 1)
+    ]
+    root_payload = json.loads(
+        str(calls[2]["extra_env"][FAMILY_MEMBERSHIP_ENV])  # type: ignore[index]
+    )
+
+    assert member_payloads[0] == member_payloads[1]
+    assert member_payloads[0] == {
+        **root_payload,
+        "is_root": False,
+        "role": "worker",
+    }
+    assert root_payload["is_root"] is True
+    assert root_payload["role"] == "root"
 
 
 def test_family_root_fanout_is_rejected_before_spawn(

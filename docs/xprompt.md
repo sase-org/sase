@@ -997,6 +997,7 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
 | `%name`   | `%n`  | Assign an agent name or attach a member to an existing family         |
+| `%family` | `%f`  | Join a parallel family rooted at another launch segment               |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
 | `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
@@ -1028,6 +1029,9 @@ Directives use the same argument syntax as xprompt references:
 %n(parent, @)                # Attach the next free feedback/Q&A suffix
 %name                        # Bare — auto-generates a unique name
 %name:!reviewer              # Force reuse by wiping the previous owner
+%family:research.@.final     # Join the family rooted at this sibling segment
+%f:research.@.final          # Same, using alias
+%family(research.@.final, role=researcher) # Join with an open-ended role token
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -1061,6 +1065,13 @@ Directives use the same argument syntax as xprompt references:
 
 Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
 `%m("provider/Model Name (Variant)")`); colon syntax cannot express those values.
+
+The `%family` directive declares execution-neutral membership in a parallel agent family. Adding it does not change the
+member's planned name, model, waits, fan-out, spawn order, VCS/project context, or workspace behavior; it only adds
+family metadata and strips the directive before model execution. A member segment may fan out, in which case every
+variant joins the same root generation, while the referenced root segment must resolve to exactly one launch slot. Root
+names and `role=` values are open-ended rather than editor-enumerated. See [Agent Families](agent_families.md) for the
+full launch, status, and cleanup contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
