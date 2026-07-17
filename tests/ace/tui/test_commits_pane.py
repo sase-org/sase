@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from io import StringIO
 from typing import Any
@@ -14,9 +15,15 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.modals.help_modal import HelpModal
+from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
+from sase.ace.tui.widgets.artifacts.commits_rendering import build_commit_detail
 import sase.ace.tui.widgets.artifacts.commits as commits_module
-from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
+from sase.core.vcs_log_wire import (
+    AggregatedCommitWire,
+    CommitPresence,
+    VcsCommitWire,
+)
 from sase.vcs_log.models import LogRepo, RepoRemoteState, VcsLogResult
 from sase.vcs_log.render import build_pretty_legend
 
@@ -41,29 +48,41 @@ def _result(timestamp: int | None = None) -> VcsLogResult:
     now = timestamp or int(datetime.now(tz=UTC).timestamp())
     commits = (
         AggregatedCommitWire(
-            "alpha",
+            "alpha-platform-repository",
             VcsCommitWire(
                 full_id="a" * 40,
                 short_id="aaaaaaa",
-                author_name="Ada Lovelace",
+                author_name="Ada Lovelace, Principal Analytical Engine Programmer",
                 author_email="ada@example.com",
                 timestamp=now,
-                subject="feat: interactive timeline",
+                subject=(
+                    "feat(artifacts): keep every commit timeline entry on one calm "
+                    "physical row"
+                ),
                 body=(
-                    "Render a rich commit detail.\n\nSASE_AGENT=sase-69.3\nSASE_BUG=42"
+                    "Render the selected commit's complete metadata without "
+                    "sacrificing scan density.\n\n"
+                    "SASE_TYPE=bead_work\n"
+                    "SASE_AGENT=sase-69.3\n"
+                    "SASE_MACHINE=athena\n"
+                    "SASE_PLAN=sdd/plans/commits_single_line_timeline.md\n"
+                    "SASE_BUG=42"
                 ),
                 presence="local_only",
             ),
         ),
         AggregatedCommitWire(
-            "sase-core",
+            "sase-core-foundation",
             VcsCommitWire(
                 full_id="b" * 40,
                 short_id="bbbbbbb",
-                author_name="Grace Hopper",
+                author_name="Rear Admiral Grace Murray Hopper",
                 author_email="grace@example.com",
                 timestamp=now - 60,
-                subject="fix: preserve selection",
+                subject=(
+                    "fix(artifacts): preserve the selected commit identity across "
+                    "timeline refreshes"
+                ),
                 body="Keep the highlighted SHA across refreshes.",
                 presence="remote_only",
             ),
@@ -71,35 +90,161 @@ def _result(timestamp: int | None = None) -> VcsLogResult:
     )
     return VcsLogResult(
         repos=(
-            LogRepo("alpha", "/tmp/alpha", "primary"),
-            LogRepo("sase-core", "/tmp/core", "linked"),
+            LogRepo("alpha-platform-repository", "/tmp/alpha", "primary"),
+            LogRepo("sase-core-foundation", "/tmp/core", "linked"),
         ),
         commits=commits,
         warnings=(),
         remote_states=(
-            RepoRemoteState("alpha", "origin/main", 1, 0, False, 1.0),
-            RepoRemoteState("sase-core", "origin/main", 0, 1, True, 1.0),
+            RepoRemoteState(
+                "alpha-platform-repository", "origin/main", 1, 0, False, 1.0
+            ),
+            RepoRemoteState("sase-core-foundation", "origin/main", 0, 1, True, 1.0),
         ),
     )
 
 
-def test_commits_renderer_builds_legend_headers_rows_and_tag_chips() -> None:
+def test_commits_renderer_builds_compact_single_line_rows() -> None:
     result = _result()
 
     legend = build_pretty_legend(result)
     timeline = CommitsTimeline()
     selected = timeline.update_result(result)
 
-    assert "alpha (1)" in legend.plain
+    assert "alpha-platform-repository (1)" in legend.plain
     assert "↑1 ↓0" in legend.plain
     assert "↑ unpushed" in legend.plain
     assert selected == 0
     assert timeline.option_count == 3  # one day banner + two commit rows
     first = timeline.get_option_at_index(1).prompt
     assert "aaaaaaa" in first.plain
-    assert "@sase-69.3" in first.plain
-    assert "#42" in first.plain
-    assert "Ada Lovelace" in first.plain
+    assert "alpha-platform-repository" in first.plain
+    assert "feat(artifacts): keep every commit" in first.plain
+    assert "@sase-69.3" not in first.plain
+    assert "#42" not in first.plain
+    assert "Ada Lovelace" not in first.plain
+    assert "\n" not in first.plain
+    assert first.no_wrap is True
+    assert first.overflow == "ellipsis"
+
+
+@pytest.mark.parametrize(
+    ("presence", "indicator"),
+    (
+        ("local_only", "↑ unpushed"),
+        ("remote_only", "↓ GitHub-only"),
+        ("synced", "● synced"),
+        ("unknown", "· unknown"),
+    ),
+)
+def test_commit_detail_preserves_full_metadata_for_every_presence(
+    presence: CommitPresence,
+    indicator: str,
+) -> None:
+    timestamp = int(datetime(2026, 7, 6, 14, 30, tzinfo=UTC).timestamp())
+    result = _result(timestamp)
+    original = result.commits[0]
+    entry = replace(
+        original,
+        commit=replace(original.commit, presence=presence),
+    )
+
+    detail = build_commit_detail(
+        entry,
+        _DIFF,
+        loading=False,
+        result=result,
+        render_cache=LazySyntaxRenderCache(),
+    )
+    text = _rendered_text(detail)
+
+    assert "alpha-platform-repository  aaaaaaa" in text
+    assert "Ada Lovelace, Principal Analytical Engine Programmer" in text
+    assert "Monday, July 6, 2026 at 10:30:00" in text
+    assert indicator in text
+    assert entry.commit.subject in text
+    assert "Render the selected commit's complete metadata" in text
+    assert "type" in text and "bead_work" in text
+    assert "agent" in text and "sase-69.3" in text
+    assert "machine" in text and "athena" in text
+    assert "plan" in text and "commits_single_line_timeline.md" in text
+    assert "bug" in text and "42" in text
+    assert "Changes:" in text
+    assert "+new" in text
+
+
+def test_commit_detail_omits_empty_author() -> None:
+    result = _result()
+    original = result.commits[0]
+    entry = replace(
+        original,
+        commit=replace(original.commit, author_name=""),
+    )
+
+    detail = build_commit_detail(
+        entry,
+        None,
+        loading=False,
+        result=result,
+        render_cache=LazySyntaxRenderCache(),
+    )
+
+    assert "Author" not in _rendered_text(detail)
+
+
+async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs", size=(80, 30)) as page:
+        await page.press("]")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        timeline = pane.query_one("#commits-timeline", CommitsTimeline)
+
+        def assert_one_line_contract() -> None:
+            timeline._line_cache.clear()
+            timeline._update_lines()
+            commit_indexes = [
+                index
+                for index, option in enumerate(timeline.options)
+                if option.id is not None
+                and option.id.startswith("commit-")
+                and not option.id.startswith("commit-day-")
+            ]
+            assert timeline.styles.text_wrap == "nowrap"
+            assert timeline.styles.text_overflow == "ellipsis"
+            assert commit_indexes
+            assert all(
+                timeline._line_cache.heights[index] == 1 for index in commit_indexes
+            )
+            assert all(
+                timeline.get_option_at_index(index).prompt.no_wrap is True
+                and timeline.get_option_at_index(index).prompt.overflow == "ellipsis"
+                for index in commit_indexes
+            )
+            assert all(
+                option.disabled
+                for option in timeline.options
+                if option.id is not None and option.id.startswith("commit-day-")
+            )
+
+        assert_one_line_contract()
+        target = pane.entry_targets()[1]
+        assert pane.select_entry_target(target) is True
+        selected_target = pane.selected_entry_target()
+        pane.apply_entry_jump_hints(
+            {
+                entry_target: str(index + 1)
+                for index, entry_target in enumerate(pane.entry_targets())
+            }
+        )
+        assert pane.selected_entry_target() == selected_target
+        assert timeline.get_option_at_index(1).prompt.plain.startswith("[1] ")
+        assert_one_line_contract()
 
 
 async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
@@ -138,7 +283,7 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
             "a all  F fetch  R refresh  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
-        assert "feat: interactive timeline" in _rendered_text(detail.content)
+        assert "feat(artifacts): keep every commit" in _rendered_text(detail.content)
 
         assert calls[0]["no_fetch"] is True
         assert calls[0]["force_fetch"] is False

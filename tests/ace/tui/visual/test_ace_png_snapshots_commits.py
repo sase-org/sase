@@ -51,7 +51,7 @@ async def test_commits_timeline_and_detail_png_snapshot(
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        await wait_for_svg_contains(page, "feat: interactive timeline")
+        await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await wait_for_svg_contains(page, "Changes:")
         await wait_for_visual_idle(page)
 
@@ -122,7 +122,7 @@ async def test_commits_jump_hints_png_snapshot(
         await page.expect_state("artifacts_subtab", "commits")
         pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
         await page.wait_for(lambda _state: pane.result is result)
-        await wait_for_svg_contains(page, "feat: interactive timeline")
+        await wait_for_svg_contains(page, "feat(artifacts): keep every commit")
         await page.press("apostrophe")
         await wait_for_svg_contains(page, "JUMP")
         await wait_for_svg_contains(page, "[1]")

@@ -132,15 +132,18 @@ class CommitsTimeline(OptionList):
                 )
                 mapping.append(None)
                 current_day = day
-            options.append(
-                Option(
-                    prepend_jump_hint(
-                        build_timeline_commit(entry, result),
-                        self._jump_hints.get(_commit_entry_target(entry)),
-                    ),
-                    id=f"commit-{commit_index}",
-                )
+            prompt = prepend_jump_hint(
+                build_timeline_commit(
+                    entry,
+                    result,
+                    show_tags=False,
+                    show_author=False,
+                ),
+                self._jump_hints.get(_commit_entry_target(entry)),
             )
+            prompt.no_wrap = True
+            prompt.overflow = "ellipsis"
+            options.append(Option(prompt, id=f"commit-{commit_index}"))
             mapping.append(commit_index)
 
         if not options:

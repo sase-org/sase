@@ -14,7 +14,11 @@ from sase.repo_inventory import RepoKind
 from sase.vcs_log._style import GOLD, repo_colors
 from sase.vcs_log._tag_style import full_tag_lines
 from sase.vcs_log.models import VcsLogResult
-from sase.vcs_log.render import build_pretty_legend
+from sase.vcs_log.render import (
+    build_commit_presence,
+    build_pretty_legend,
+    format_commit_timestamp,
+)
 from sase.vcs_log.tags import commit_tag_view
 
 from .commit_filters import CommitLogFilterValues
@@ -158,7 +162,17 @@ def build_commit_detail(
     header.append("  ")
     header.append(commit.short_id, style=GOLD)
     if commit.author_name:
-        header.append(f"  ·  {commit.author_name}", style="dim")
+        header.append("\nAuthor     ", style="dim")
+        header.append(commit.author_name)
+    header.append("\nCommitted  ", style="dim")
+    header.append(format_commit_timestamp(commit.timestamp))
+    header.append("\nPresence   ", style="dim")
+    header.append_text(
+        build_commit_presence(
+            commit.presence,
+            repo_color=colors.get(entry.repo, "#87D7FF"),
+        )
+    )
 
     message = Text()
     message.append("Message\n", style="bold #87D7FF")

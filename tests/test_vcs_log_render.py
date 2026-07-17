@@ -16,7 +16,7 @@ from sase.core.vcs_log_wire import (
     VcsCommitWire,
 )
 from sase.vcs_log.models import CommitFilters, LogRepo, RepoRemoteState, VcsLogResult
-from sase.vcs_log.render import render
+from sase.vcs_log.render import build_timeline_commit, render
 
 
 def _entry(
@@ -413,6 +413,54 @@ def test_pretty_tag_spans_use_semantic_chip_colors() -> None:
     assert _styles_covering(line, "foo.md") == ["#5FAFFF"]
     assert _styles_covering(line, "#") == ["#FF8787"]
     assert _styles_covering(line, "412") == ["#FF8787"]
+
+
+def test_compact_timeline_row_is_one_line_and_ellipsizes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry = _entry(
+        "sase-platform-repository",
+        "a1b2c3d4",
+        300,
+        "feat: keep this deliberately long timeline subject on one physical row",
+        author="A deliberately long commit author name",
+        body="body\n\nSASE_AGENT=worker-1\nSASE_BUG=412",
+        presence="local_only",
+    )
+    result = VcsLogResult(
+        repos=(LogRepo(entry.repo, "/p/sase", "primary"),),
+        commits=(entry,),
+        warnings=(),
+    )
+    monkeypatch.setattr(
+        render_mod, "_to_local", lambda _ts: datetime(2026, 7, 8, 14, 22)
+    )
+
+    row = build_timeline_commit(
+        entry,
+        result,
+        show_tags=False,
+        show_author=False,
+    )
+
+    assert "↑" in row.plain
+    assert "14:22" in row.plain
+    assert "a1b2c3d" in row.plain
+    assert entry.repo in row.plain
+    assert entry.commit.subject in row.plain
+    assert "worker-1" not in row.plain
+    assert "#412" not in row.plain
+    assert entry.commit.author_name not in row.plain
+    assert "\n" not in row.plain
+    assert row.no_wrap is True
+    assert row.overflow == "ellipsis"
+
+    out = io.StringIO()
+    console = render_mod.make_console("never", file=out, width=36)
+    console.print(row, no_wrap=row.no_wrap, overflow=row.overflow)
+    rendered_lines = out.getvalue().splitlines()
+    assert len(rendered_lines) == 1
+    assert rendered_lines[0].endswith("…")
 
 
 def test_pretty_filter_summary_and_empty_message(

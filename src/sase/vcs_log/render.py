@@ -28,6 +28,19 @@ from sase.vcs_log.tags import commit_tag_view
 
 _HEADER_WIDTH = 56
 
+_PRESENCE_GLYPHS: dict[CommitPresence, str] = {
+    "synced": "●",
+    "remote_only": "↓",
+    "local_only": "↑",
+    "unknown": "·",
+}
+_PRESENCE_LABELS: dict[CommitPresence, str] = {
+    "synced": "synced",
+    "remote_only": "GitHub-only",
+    "local_only": "unpushed",
+    "unknown": "unknown",
+}
+
 
 def render(
     result: VcsLogResult,
@@ -275,11 +288,11 @@ def _legend(
         text.append("  ·  ", style="dim")
         text.append(summary, style="dim")
     text.append("  ·  ", style="dim")
-    text.append("↑ unpushed", style=UNPUSHED)
+    text.append_text(build_commit_presence("local_only"))
     text.append("  ", style="dim")
-    text.append("↓ GitHub-only", style=INCOMING)
+    text.append_text(build_commit_presence("remote_only"))
     text.append("  ", style="dim")
-    text.append("● synced", style="dim")
+    text.append_text(build_commit_presence("synced", repo_color="dim"))
     remote_summary = _remote_summary(result.remote_states)
     if remote_summary:
         text.append("\n  ", style="dim")
@@ -303,6 +316,7 @@ def _commit_line(
     sha_width: int,
     dt_local: datetime,
     show_tags: bool,
+    show_author: bool = True,
 ) -> Text:
     commit = entry.commit
     repo_color = colors.get(entry.repo, "")
@@ -315,18 +329,18 @@ def _commit_line(
     line.append(f"{dt_local:%H:%M}  ", style="dim")
     line.append(f"{commit.short_id.ljust(sha_width)}  ", style=GOLD)
     line.append(
-        entry.repo.ljust(repo_width),
+        _single_line(entry.repo).ljust(repo_width),
         style=f"bold {repo_color}".strip() or None,
     )
     line.append("  ")
-    line.append(commit.subject)
+    line.append(_single_line(commit.subject))
     if show_tags:
         tags = commit_tag_view(commit).tags
         if tags:
             line.append("  · ", style="dim")
             line.append_text(inline_tag_text(tags))
-    if commit.author_name:
-        line.append(f"  · {commit.author_name}", style="dim")
+    if show_author and commit.author_name:
+        line.append(f"  · {_single_line(commit.author_name)}", style="dim")
     return line
 
 
@@ -404,12 +418,7 @@ def _format_tags(tags: tuple[tuple[str, str], ...], *, separator: str) -> str:
 
 
 def _presence_glyph(presence: CommitPresence) -> str:
-    return {
-        "synced": "●",
-        "remote_only": "↓",
-        "local_only": "↑",
-        "unknown": "·",
-    }.get(presence, "·")
+    return _PRESENCE_GLYPHS.get(presence, _PRESENCE_GLYPHS["unknown"])
 
 
 def _presence_style(presence: CommitPresence, repo_color: str) -> str | None:
@@ -423,12 +432,12 @@ def _presence_style(presence: CommitPresence, repo_color: str) -> str | None:
 
 
 def _presence_label(presence: CommitPresence) -> str:
-    return {
-        "synced": "synced",
-        "remote_only": "GitHub-only",
-        "local_only": "unpushed",
-        "unknown": "unknown",
-    }.get(presence, "unknown")
+    return _PRESENCE_LABELS.get(presence, _PRESENCE_LABELS["unknown"])
+
+
+def _single_line(value: str) -> str:
+    """Return display text that cannot add a physical timeline row."""
+    return value.replace("\r", " ").replace("\n", " ")
 
 
 def _remote_state(result: VcsLogResult, repo_name: str) -> RepoRemoteState:
@@ -586,6 +595,7 @@ def build_timeline_commit(
     result: VcsLogResult,
     *,
     show_tags: bool = True,
+    show_author: bool = True,
 ) -> Text:
     """Build one shared pretty timeline row for an aggregated commit."""
     commits = tuple(result.commits)
@@ -594,19 +604,45 @@ def build_timeline_commit(
         (len(item.commit.short_id) for item in commits),
         default=len(entry.commit.short_id),
     )
-    return _commit_line(
+    line = _commit_line(
         entry,
         _repo_colors(result),
         repo_width,
         sha_width,
         _to_local(entry.commit.timestamp),
         show_tags,
+        show_author,
     )
+    line.no_wrap = True
+    line.overflow = "ellipsis"
+    return line
+
+
+def build_commit_presence(
+    presence: CommitPresence,
+    *,
+    repo_color: str = "",
+) -> Text:
+    """Build the shared glyph and human-readable label for a presence state."""
+    text = Text()
+    text.append(
+        f"{_presence_glyph(presence)} {_presence_label(presence)}",
+        style=_presence_style(presence, repo_color),
+    )
+    return text
+
+
+def format_commit_timestamp(timestamp: int) -> str:
+    """Format a complete commit timestamp in the configured local timezone."""
+    dt_local = _to_local(timestamp)
+    return f"{dt_local:%A, %B} {dt_local.day}, {dt_local:%Y at %H:%M:%S}"
 
 
 __all__ = [
+    "build_commit_presence",
     "build_pretty_legend",
     "build_timeline_commit",
     "build_timeline_day",
+    "format_commit_timestamp",
     "render",
 ]

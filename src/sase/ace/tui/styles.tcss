@@ -104,6 +104,8 @@
     height: 1fr;
     border: solid #FFD700;
     padding: 0 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 #commits-footer {
