@@ -259,17 +259,20 @@ def _execute_neutral_plan_approval_response(
         if resolved_choice == "reject" and feedback is not None
         else resolved_choice
     )
+    choice_record = require_plan_approval_choice(resolved_choice)
     input_data: dict[str, Any] = {}
     if feedback is not None:
         input_data["feedback"] = feedback
-    if commit_plan is not None:
-        input_data["commit_plan"] = commit_plan
-    if run_coder is not None:
-        input_data["run_coder"] = run_coder
-    if coder_prompt is not None:
-        input_data["coder_prompt"] = coder_prompt
-    if coder_model is not None:
-        input_data["coder_model"] = coder_model
+    if choice_record.allow_protocol_overrides:
+        if commit_plan is not None:
+            input_data["commit_plan"] = commit_plan
+        if run_coder is not None:
+            input_data["run_coder"] = run_coder
+    if choice_record.allow_coder_options:
+        if coder_prompt is not None:
+            input_data["coder_prompt"] = coder_prompt
+        if coder_model is not None:
+            input_data["coder_model"] = coder_model
     if choice_id == "epic":
         input_data["epic_launch_mode"] = epic_launch_mode
 

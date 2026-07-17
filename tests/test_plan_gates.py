@@ -370,6 +370,52 @@ def test_plan_action_api_executes_selected_approval_extras(gate_home: Path) -> N
     assert action_result.response_json["result"]["run_coder"] is False
 
 
+def test_plan_action_api_filters_protocol_overrides_for_tale_preset(
+    gate_home: Path,
+) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, "action-tale.md", VALID_TALE_PLAN),
+        "action-tale",
+    )
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+
+    action_result = execute_plan_approval_response(
+        plan_context_from_envelope(gate.bundle_path, envelope),
+        "tale",
+        commit_plan=True,
+        run_coder=True,
+    )
+
+    assert action_result.response_json["choice_id"] == "tale"
+    assert action_result.response_json["input"] == {}
+    assert action_result.response_json["result"]["commit_plan"] is True
+    assert action_result.response_json["result"]["run_coder"] is True
+
+
+def test_plan_action_api_filters_coder_options_for_commit_preset(
+    gate_home: Path,
+) -> None:
+    gate = create_plan_approval_gate(
+        _write_plan(gate_home, "action-commit.md", VALID_TALE_PLAN),
+        "action-commit",
+    )
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+
+    action_result = execute_plan_approval_response(
+        plan_context_from_envelope(gate.bundle_path, envelope),
+        "commit",
+        coder_prompt="#review+",
+    )
+
+    assert action_result.response_json["choice_id"] == "commit"
+    assert action_result.response_json["input"] == {}
+    assert action_result.response_json["result"] == {
+        "action": "approve",
+        "commit_plan": True,
+        "run_coder": False,
+    }
+
+
 @pytest.mark.parametrize(
     ("choice", "expected_commit", "expected_run"),
     [

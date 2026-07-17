@@ -329,7 +329,7 @@ def submit_neutral_plan_response(
     result: PlanApprovalResult,
 ) -> bool:
     """Execute a neutral plan choice as tracked background work."""
-    choice = _plan_approval_choice_for_status(result)
+    choice = result.choice or _plan_approval_choice_for_status(result)
     if choice is None:
         choice = "feedback" if result.feedback else "reject"
     host_owns_epic_launch = False
