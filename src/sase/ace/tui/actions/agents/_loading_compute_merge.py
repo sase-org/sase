@@ -182,6 +182,8 @@ def merge_incomplete_load_after_complete_history(
     }
 
     def is_dismissed(agent: Agent) -> bool:
+        if agent.runner_is_live:
+            return False
         if agent.identity in dismissed:
             return True
         if agent.raw_suffix is None:

@@ -42,6 +42,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
     """
     if target.workspace_num is None and source.workspace_num is not None:
         target.workspace_num = source.workspace_num
+    if source.runner_is_live:
+        target.runner_is_live = True
     if target.model is None and source.model is not None:
         target.model = source.model
     if target.llm_provider is None and source.llm_provider is not None:

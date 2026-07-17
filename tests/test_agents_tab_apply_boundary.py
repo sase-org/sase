@@ -56,6 +56,28 @@ def test_compute_apply_attaches_project_display_names_to_dismissed_loader_object
     assert dismissed.display_name == "widgets"
 
 
+def test_compute_apply_keeps_verified_live_retry_over_stale_dismissal() -> None:
+    """A previously dismissed terminal identity cannot hide its live retry."""
+    root = _make_agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retry-family",
+        status="RETRYING",
+        raw_suffix="20260706115800",
+    )
+    root.runner_is_live = True
+    root.retry_status = "retrying"
+
+    prep = compute_apply_loaded_agents(
+        all_agents=[root],
+        dismissed_from_loader=[],
+        dismissed_snapshot={root.identity},
+        hide_non_run_agents=False,
+    )
+
+    assert prep.filtered_agents == [root]
+    assert prep.dismissed_agent_objects == []
+
+
 def test_prepared_apply_boundary_matches_apply_projection_for_folded_data() -> None:
     """The apply path should install the prepared unfiltered/folded payload."""
     parent = _make_agent(
@@ -385,6 +407,96 @@ def test_artifact_delta_deleted_dir_removes_cached_row() -> None:
     merge_incomplete_load_after_complete_history(prep, snapshot)
 
     assert prep.filtered_agents == []
+
+
+def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> None:
+    """An exact root retry delta must outrank its cached failed coder child."""
+    root_timestamp = "20260706115800"
+    cached_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retry-family",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=datetime(2026, 7, 6, 11, 58, 0),
+        raw_suffix=root_timestamp,
+        role_suffix="--plan",
+        plan_action="tale",
+        agent_family="retry-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    cached_coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retry-family--code",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=datetime(2026, 7, 6, 11, 59, 0),
+        raw_suffix="20260706115900",
+        parent_timestamp=root_timestamp,
+        role_suffix="--code",
+        agent_family="retry-family",
+        agent_family_role="code",
+    )
+    refreshed_parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retry-family",
+        project_file="/tmp/test.sase",
+        status="RETRYING",
+        start_time=datetime(2026, 7, 6, 11, 58, 0),
+        raw_suffix=root_timestamp,
+        role_suffix="--plan",
+        plan_action="tale",
+        agent_family="retry-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        runner_is_live=True,
+        retry_status="retrying",
+        retry_count=2,
+        max_retries=3,
+        retry_next_at_epoch=1_800_000_000.0,
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[refreshed_parent],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached_parent, cached_coder],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=False,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    root = next(
+        agent
+        for agent in prep.filtered_agents
+        if agent.raw_suffix == root_timestamp and not agent.is_child_row
+    )
+    coder = next(
+        agent for agent in prep.filtered_agents if agent.agent_family_role == "code"
+    )
+    assert root is refreshed_parent
+    assert root.status == "RETRYING"
+    assert (root.retry_count, root.max_retries) == (2, 3)
+    assert root.retry_next_at_epoch == 1_800_000_000.0
+    assert coder is cached_coder
+    assert coder.status == "FAILED"
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:

@@ -559,6 +559,26 @@ def _normalize_loaded_agents(
     return _sort_and_reorder(agents, workflow_agent_steps)
 
 
+def _mark_live_artifact_delta_runners(agents: list[Agent]) -> None:
+    """Attach bounded PID liveness proof to exact-delta rows.
+
+    Artifact deltas intentionally do not rescan ProjectSpec RUNNING claims.
+    Rechecking only the PIDs already present in the exact delta keeps the
+    worker-side operation bounded while preventing a stale retry marker from
+    reviving a dead terminal row.
+    """
+    liveness_by_pid: dict[int, bool] = {}
+    for agent in agents:
+        if agent.runner_is_live or agent.pid is None:
+            continue
+        live = liveness_by_pid.get(agent.pid)
+        if live is None:
+            live = is_process_running(agent.pid)
+            liveness_by_pid[agent.pid] = live
+        if live:
+            agent.runner_is_live = True
+
+
 def _normalize_live_plan_agents(agents: list[Agent]) -> list[Agent]:
     """Normalize the cheap visibility-affecting pieces for plan-list matching."""
 
@@ -710,4 +730,6 @@ def load_artifact_delta_agents(
         snapshot,
         changespec_snapshot=changespec_snapshot,
     )
-    return _normalize_loaded_agents(agents, workflow_agent_steps), state
+    normalized = _normalize_loaded_agents(agents, workflow_agent_steps)
+    _mark_live_artifact_delta_runners(normalized)
+    return normalized, state

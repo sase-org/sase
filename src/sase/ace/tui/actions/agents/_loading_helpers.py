@@ -298,7 +298,9 @@ def _apply_loaded_agent_disk_projections(
     dismissed_agents: set[tuple[AgentType, str, str | None]],
     load_state: AgentLoadState,
 ) -> _AgentDiskLoadResult:
-    # Populate retry fields from retry_state.json for running agents.  Prior
+    # Populate retry fields from retry_state.json for running agents. Runtime
+    # liveness provenance keeps family roots eligible even after semantic
+    # aggregation mirrors a failed child onto their display status. Prior
     # attempt history is hydrated lazily by selected detail/search paths; doing
     # it here would list/stat artifacts/attempts/<N>/ for every row.
     from sase.ace.agent_tags import load_agent_tags
@@ -313,7 +315,7 @@ def _apply_loaded_agent_disk_projections(
             agent.tag = tags_by_identity[agent.identity]
         artifacts_dir = agent.get_artifacts_dir()
 
-        if agent.status != "RUNNING":
+        if agent.status != "RUNNING" and not agent.runner_is_live:
             continue
         if not artifacts_dir:
             continue
@@ -336,13 +338,15 @@ def _apply_loaded_agent_disk_projections(
     }
 
     # Capture dismissed agents found by the loader (for revive + self-healing).
-    # Exclude RUNNING agents: a done.json auto-dismiss can share the same
-    # identity/raw_suffix as a still-active RUNNING field agent; treating the
-    # running agent as dismissed would delete its artifacts and hide it.
+    # Exclude live agents: a done.json auto-dismiss can share the same
+    # identity/raw_suffix as a still-active runner; treating the live row as
+    # dismissed would delete its artifacts and hide it. Display status is not
+    # sufficient because retrying family roots can temporarily mirror FAILED.
     dismissed_from_loader = [
         a
         for a in all_agents
         if a.status != "RUNNING"
+        and not a.runner_is_live
         and (
             a.identity in dismissed_agents
             or (a.raw_suffix is not None and a.raw_suffix in dismissed_suffixes)

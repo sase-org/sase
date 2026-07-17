@@ -25,6 +25,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
             "diff_has_real_edits",
             "live_file_change_hint",
             "linked_file_change_hint",
+            "runner_is_live",
             "project_display_name",
             "_loaded_from_dismissed_bundle",
             "_dismissed_bundle_path",

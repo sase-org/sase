@@ -20,6 +20,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
+from tests.ace.tui._retry_family_loader_fixture import build_retrying_plan_family
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.fakey.harness import (
     FakeyRetryHarness,
@@ -119,6 +120,46 @@ async def test_real_fakey_retry_countdown_png_snapshot(
                 runner_utils._killed_state["killed"] = True
                 handle.thread.join(5)
         runner_utils.reset_killed()
+
+
+async def test_real_loader_plan_family_retry_countdown_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed coder attempt cannot conceal its live family's backoff."""
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    now_epoch = _VISUAL_NOW.timestamp()
+    build_retrying_plan_family(
+        sase_home,
+        next_retry_at_epoch=now_epoch + 9,
+    )
+    _patch_sentinel_pid_liveness(monkeypatch)
+    monkeypatch.setattr(time, "time", lambda: now_epoch)
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_display_async."
+        "should_refresh_detail_header_summary",
+        lambda *_args: False,
+    )
+    patch_startup_loaders(monkeypatch, use_real_agent_loader=True)
+
+    async with AcePage(query='"retry-family"', changespecs=changespecs()) as page:
+        await _open_agents_tab(page, agent_count=1)
+
+        loaded = page.app._agents[0]
+        assert (loaded.status, loaded.retry_status) == ("RETRYING", "retrying")
+        assert (loaded.retry_count, loaded.max_retries) == (2, 3)
+        await wait_for_svg_contains(page, "RETRYING (9s)")
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "RETRYING (9s)")
+        assert_page_svg_contains(page, "Retries:")
+        assert_page_svg_contains(page, "2/3")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_retry_e2e_plan_family_countdown_120x40",
+            title="ACE real-loader plan family retry countdown",
+        )
 
 
 async def test_real_fakey_running_fallback_png_snapshot(

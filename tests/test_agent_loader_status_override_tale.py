@@ -81,6 +81,86 @@ def test_apply_status_overrides_active_code_child_without_plan_action_is_working
     assert code_child.status == "WORKING PLAN"
 
 
+def test_live_retrying_root_outranks_failed_coder_attempt() -> None:
+    """A failed child stays visible without making its live retrying root terminal."""
+    root_timestamp = "20260706115800"
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retry-family",
+        project_file="/tmp/test.sase",
+        status="RETRYING",
+        start_time=datetime(2026, 7, 6, 11, 58, 0),
+        raw_suffix=root_timestamp,
+        role_suffix="--plan",
+        plan_action="tale",
+        agent_family="retry-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        runner_is_live=True,
+        retry_status="retrying",
+        retry_count=2,
+        max_retries=3,
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retry-family--code",
+        project_file="/tmp/test.sase",
+        status="FAILED",
+        start_time=datetime(2026, 7, 6, 11, 59, 0),
+        parent_timestamp=root_timestamp,
+        role_suffix="--code",
+        agent_family="retry-family",
+        agent_family_role="code",
+    )
+
+    agents = [parent, coder]
+    _apply_status_overrides(agents)
+    _apply_status_overrides(agents)
+
+    assert parent.status == "RETRYING"
+    assert parent.retry_status == "retrying"
+    assert coder.status == "FAILED"
+
+
+def test_running_retry_with_active_coder_returns_to_working_tale() -> None:
+    """Once the next attempt runs, semantic family work replaces RETRYING."""
+    root_timestamp = "20260706115800"
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="retry-family",
+        project_file="/tmp/test.sase",
+        status="RETRYING",
+        start_time=datetime(2026, 7, 6, 11, 58, 0),
+        raw_suffix=root_timestamp,
+        role_suffix="--plan",
+        plan_action="tale",
+        agent_family="retry-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        runner_is_live=True,
+        retry_status="running_retry",
+        retry_count=2,
+        max_retries=3,
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retry-family--code",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 6, 12, 4, 0),
+        parent_timestamp=root_timestamp,
+        role_suffix="--code",
+        agent_family="retry-family",
+        agent_family_role="code",
+    )
+
+    _apply_status_overrides([parent, coder])
+
+    assert parent.status == "WORKING TALE"
+    assert coder.status == "WORKING TALE"
+    assert parent.retry_status == "running_retry"
+
+
 def test_apply_status_overrides_active_code_child_with_tale_child_action_is_working_tale() -> (
     None
 ):

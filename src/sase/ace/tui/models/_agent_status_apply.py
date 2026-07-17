@@ -356,6 +356,14 @@ def apply_status_overrides(
                     copy_missing_display_metadata(parent, next_waiting)
             continue
 
+        # A live outer runner waiting in provider backoff outranks the failed
+        # serial child attempt that it is about to retry. Keep the child
+        # evidence intact while ensuring repeated normalization (including
+        # after an artifact-delta merge) cannot overwrite the root projection.
+        if parent.runner_is_live and parent.retry_status == "retrying":
+            parent.status = "RETRYING"
+            continue
+
         is_plan_root = is_root_plan_workflow(parent)
         candidates = list(children)
         if not is_plan_root and parent.agent_type == AgentType.RUNNING:

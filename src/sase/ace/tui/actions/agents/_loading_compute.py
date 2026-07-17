@@ -243,8 +243,11 @@ def compute_apply_loaded_agents(
         if raw_suffix is not None
     }
 
-    # Filter out dismissed agents.  Non-RUNNING agents use the broad
-    # dismissed_suffixes index (suffix-only).  RUNNING agents use the
+    # Filter out dismissed agents. Verified live-runner rows outrank stale
+    # terminal dismissal identities: family normalization may have replaced
+    # their RUNNING label with RETRYING or another semantic status.
+    # Non-RUNNING agents use the broad dismissed_suffixes index (suffix-only).
+    # RUNNING agents use the
     # narrower dismissed_cl_suffixes index (cl_name, raw_suffix) to
     # avoid cross-ChangeSpec contamination while still catching agents that
     # reappear with a different AgentType after dedup (e.g. a killed
@@ -256,13 +259,15 @@ def compute_apply_loaded_agents(
     filtered = [
         a
         for a in all_agents
-        if a.identity not in effective_dismissed
+        if (a.runner_is_live or a.identity not in effective_dismissed)
         and (
-            a.status == "RUNNING"
+            a.runner_is_live
+            or a.status == "RUNNING"
             or (a.raw_suffix is None or a.raw_suffix not in dismissed_suffixes)
         )
         and not (
-            a.status == "RUNNING"
+            not a.runner_is_live
+            and a.status == "RUNNING"
             and a.raw_suffix is not None
             and (
                 (a.cl_name, a.raw_suffix) in dismissed_cl_suffixes

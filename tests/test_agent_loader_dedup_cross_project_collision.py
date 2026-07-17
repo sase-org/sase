@@ -241,3 +241,37 @@ def test_dedup_running_vs_workflow_same_project_still_merges() -> None:
     assert merged.cl_name == "my_feature"
     assert merged.workspace_num == 7
     assert merged.pid == 99999
+
+
+def test_dedup_running_vs_workflow_preserves_live_runner_provenance() -> None:
+    """A richer workflow row retains proof from its verified RUNNING claim."""
+    project = "/home/u/.sase/projects/proj/proj.sase"
+    suffix = "20260706115800"
+    running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="retry-family",
+        project_file=project,
+        status="RUNNING",
+        start_time=None,
+        workflow="run",
+        raw_suffix=suffix,
+        pid=4242,
+        runner_is_live=True,
+    )
+    workflow = _workflow_agent(
+        project_file=project,
+        raw_suffix=suffix,
+        status="FAILED",
+        cl_name="retry-family",
+        appears_as_agent=True,
+        pid=4242,
+    )
+
+    result = dedup_running_vs_workflow([running, workflow])
+
+    assert result == [workflow]
+    assert workflow.runner_is_live is True
+    assert workflow.status == "RUNNING"
+    bundle = workflow.to_bundle_dict()
+    assert "runner_is_live" not in bundle
+    assert Agent.from_bundle_dict(bundle).runner_is_live is False

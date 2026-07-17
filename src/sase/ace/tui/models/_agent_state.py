@@ -40,6 +40,12 @@ class AgentState:
     # PID for process management
     pid: int | None = None
 
+    # Runtime-only proof that this row is backed by a runner whose PID was
+    # verified live. The visible status is intentionally not authoritative:
+    # family normalization may replace RUNNING with semantic or failed child
+    # states while the outer runner is still alive and waiting to retry.
+    runner_is_live: bool = field(default=False, compare=False, repr=False)
+
     # For agent suffix parsing
     raw_suffix: str | None = None
 

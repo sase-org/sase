@@ -168,6 +168,7 @@ def load_agents_from_running_field(
                 workspace_num=claim.workspace_num,
                 workflow=workflow_name,
                 pid=claim.pid,
+                runner_is_live=True,
                 # Use normalized timestamp as raw_suffix for prompt lookup
                 raw_suffix=normalized_ts,
                 bug=bug_by_cl_name.get(cl_name),
@@ -227,6 +228,7 @@ def load_running_home_agents_from_snapshot(
             start_time=start_time,
             workflow="ace(run)",
             pid=pid,
+            runner_is_live=True,
             raw_suffix=record.timestamp,
             model=running.model,
             llm_provider=running.llm_provider,
@@ -305,6 +307,7 @@ def load_running_home_agents() -> list[Agent]:
                 start_time=start_time,
                 workflow="ace(run)",
                 pid=pid,
+                runner_is_live=True,
                 raw_suffix=timestamp_str,
                 model=data.get("model"),
                 llm_provider=data.get("llm_provider"),
