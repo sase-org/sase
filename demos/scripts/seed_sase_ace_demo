@@ -27,27 +27,48 @@ fi
 
 root=$(cd "$root" && pwd -P)
 demo_home="$root/home"
-sase_home="$root/sase-home"
+sase_home="$demo_home/.sase"
 sase_tmpdir="$root/tmp"
 workspace="$root/workspaces/nova"
 bare_repo="$root/repos/nova.git"
+sdd_bare_repo="$root/repos/nova--sdd.git"
 project_dir="$sase_home/projects/nova"
 project_file="$project_dir/nova.sase"
+github_workspace="$demo_home/projects/github/acme/nova"
+github_project_dir="$sase_home/projects/gh_acme__nova"
+github_project_file="$github_project_dir/gh_acme__nova.sase"
+github_sdd="$github_workspace/.sase/sdd"
+bare_git_sdd="$workspace/.sase/sdd"
+fake_github_ssh="$root/bin/fake-github-ssh"
 
 mkdir -p \
   "$demo_home/.config/sase" \
   "$sase_home/prompt_history" \
   "$project_dir/artifacts/ace-run" \
+  "$github_project_dir" \
   "$sase_tmpdir" \
+  "$(dirname "$fake_github_ssh")" \
   "$(dirname "$bare_repo")" \
+  "$(dirname "$github_workspace")" \
   "$workspace/.github/workflows" \
   "$workspace/examples" \
+  "$workspace/sase" \
   "$workspace/src/nova/renderers" \
   "$workspace/tests" \
   "$workspace/tests/fixtures" \
   "$workspace/docs"
 
 cat >"$demo_home/.config/sase/sase.yml" <<'YAML'
+llm_provider:
+  model_aliases:
+    custom:
+      gpt53:
+        model: codex/gpt-5.3-codex
+        description: Codex model used by the multi-model fan-out demo.
+      pro31h:
+        model: agy/Gemini 3.1 Pro (High)
+        description: Antigravity model used by the multi-model fan-out demo.
+
 xprompts:
   add_tests:
     description: Add focused tests for a source file.
@@ -83,6 +104,10 @@ name = "nova"
 version = "0.1.0"
 description = "Fictional parser service for SASE demos"
 TOML
+
+cat >"$workspace/sase/sase.yml" <<'YAML'
+is_sase_managed: true
+YAML
 
 cat >"$workspace/src/nova/__init__.py" <<'PY'
 """Nova demo package."""
@@ -245,10 +270,85 @@ git init -q "$workspace"
 git -C "$workspace" checkout -q -B main
 git -C "$workspace" config user.name "SASE Demo"
 git -C "$workspace" config user.email "demo@example.test"
-git -C "$workspace" add README.md pyproject.toml src tests docs examples .github
+git -C "$workspace" add README.md pyproject.toml src tests docs examples .github sase
 git -C "$workspace" commit -q -m "Initial demo workspace"
 git -C "$workspace" remote add origin "$bare_repo"
 git -C "$workspace" push -q -u origin main
+
+# Seed a second checkout that looks exactly like a GitHub workspace to the
+# sase-github plugin while remaining fully local. The hosted-looking origin is
+# classification metadata only; the demo never fetches it.
+git clone -q --branch main "$bare_repo" "$github_workspace"
+git -C "$github_workspace" remote set-url origin git@github.com:acme/nova.git
+github_head=$(git -C "$github_workspace" rev-parse HEAD)
+git -C "$github_workspace" update-ref refs/remotes/origin/main "$github_head"
+git -C "$github_workspace" symbolic-ref \
+  refs/remotes/origin/HEAD refs/remotes/origin/main
+
+# Current GitHub workspaces require a provider-owned SDD sidecar. Seed its
+# primary clone and materialization record so agent preparation can clone it
+# locally without probing GitHub.
+git init -q --bare -b main "$sdd_bare_repo"
+mkdir -p "$(dirname "$github_sdd")"
+git clone -q "$sdd_bare_repo" "$github_sdd"
+git -C "$github_sdd" config user.name "SASE Demo"
+git -C "$github_sdd" config user.email "demo@example.test"
+cat >"$github_sdd/README.md" <<'MARKDOWN'
+# Nova SDD
+
+Hermetic planning sidecar for the fictional Nova demo repository.
+MARKDOWN
+git -C "$github_sdd" add README.md
+git -C "$github_sdd" commit -q -m "Initialize demo SDD sidecar"
+git -C "$github_sdd" push -q -u origin main
+git -C "$github_sdd" remote set-url origin git@github.com:acme/nova--sdd.git
+cat >"$github_workspace/.sase/sdd-store.json" <<'JSON'
+{
+  "schema_version": 1,
+  "storage": "separate_repo",
+  "provider": "github",
+  "host": "github.com",
+  "repo": "acme/nova--sdd",
+  "remote_url": "git@github.com:acme/nova--sdd.git",
+  "discovery": "found",
+  "probed_at": "2026-07-06T14:00:00Z"
+}
+JSON
+printf '/.sase/\n' >>"$github_workspace/.git/info/exclude"
+
+# The built-in bare-git plugin identifies any `nova` clone by repository
+# basename before the managed-workspace marker fallback runs. Mirror the same
+# SDD record into the older bare-git seed so that compatibility lookup still
+# reaches the hermetic sidecar during GitHub workspace preparation.
+mkdir -p "$(dirname "$bare_git_sdd")"
+git clone -q "$sdd_bare_repo" "$bare_git_sdd"
+git -C "$bare_git_sdd" remote set-url origin git@github.com:acme/nova--sdd.git
+cp "$github_workspace/.sase/sdd-store.json" "$workspace/.sase/sdd-store.json"
+printf '/.sase/\n' >>"$workspace/.git/info/exclude"
+
+# Serve the one fictional GitHub remote from the local bare repository. This
+# preserves the hosted-looking origin in every numbered clone, so sase-github
+# remains the active VCS provider, without allowing recording-time network I/O.
+cat >"$fake_github_ssh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "\$*" in
+  *"git-upload-pack 'acme/nova.git'"*) exec git-upload-pack "$bare_repo" ;;
+  *"git-upload-pack 'acme/nova'"*) exec git-upload-pack "$bare_repo" ;;
+  *"git-upload-pack 'acme/nova--sdd.git'"*) exec git-upload-pack "$sdd_bare_repo" ;;
+  *"git-upload-pack 'acme/nova--sdd'"*) exec git-upload-pack "$sdd_bare_repo" ;;
+esac
+
+printf 'error: demo SSH transport only serves acme/nova\n' >&2
+exit 1
+EOF
+chmod +x "$fake_github_ssh"
+
+cat >"$demo_home/.gitconfig" <<EOF
+[core]
+  sshCommand = $fake_github_ssh
+EOF
 
 cat >"$project_file" <<EOF
 PROJECT_NAME: nova
@@ -331,6 +431,25 @@ COMMITS:
       | DIFF: $sase_home/diffs/nova_seed_cleanup.diff
 TIMESTAMPS:
   [260705_170000] STATUS  Mailed -> Submitted
+EOF
+
+cat >"$github_project_file" <<EOF
+PROJECT_NAME: acme-nova
+PROJECT_STATE: active
+WORKSPACE_DIR: $github_workspace
+## ChangeSpec
+
+NAME: harden_parser
+DESCRIPTION:
+  Harden malformed command parsing and add focused regression coverage.
+PARENT:
+PR: https://github.com/acme/nova/pull/17
+STATUS: Draft
+HOOKS:
+  just test
+      | (1) [260706_134500] PASSED (7s)
+TIMESTAMPS:
+  [260706_134500] STATUS  WIP -> Draft
 EOF
 
 mkdir -p "$sase_home/chats" "$sase_home/diffs" "$sase_home/comments"
@@ -420,6 +539,18 @@ cat >"$sase_home/prompt_history/2607.json" <<'JSON'
       "text": "#git:nova Summarize the Nova architecture notes and call out parser, configuration, and renderer ownership.",
       "timestamp": "260702_093000",
       "last_used": "260702_093000",
+      "cancelled": false
+    },
+    {
+      "text": "#gh:acme/nova %{%m:opus | %m:@gpt53 | %m:@pro31h} Harden the command parser against malformed input and add regression tests.",
+      "timestamp": "260701_103000",
+      "last_used": "260701_103000",
+      "cancelled": false
+    },
+    {
+      "text": "#gh:acme/nova Review parser edge cases and summarize the regression-test plan.",
+      "timestamp": "260701_101500",
+      "last_used": "260701_101500",
       "cancelled": false
     }
   ]
@@ -567,3 +698,4 @@ printf 'export SASE_HOME=%q\n' "$sase_home"
 printf 'export SASE_TMPDIR=%q\n' "$sase_tmpdir"
 printf 'export SASE_DEMO_ROOT=%q\n' "$root"
 printf 'export SASE_DEMO_WORKSPACE=%q\n' "$workspace"
+printf 'export SASE_DEMO_GITHUB_WORKSPACE=%q\n' "$github_workspace"

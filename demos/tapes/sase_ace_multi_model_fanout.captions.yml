@@ -1,0 +1,26 @@
+version: 1
+defaults:
+  font: "Fira Code"
+  size: 40
+  position: lower-third
+  margin_x: 80
+  margin_y: 90
+  fade_ms: 250
+  box_color: "#000000"
+  box_opacity: 0.70
+  text_color: "#ffffff"
+cues:
+  - at: 3.0s
+    until: 6.5s
+    position: top-center
+    text: "One GitHub prompt targets three models"
+  - at: 9.3s
+    until: 12.5s
+    position: top-center
+    text: "Alternation expands one request into three launches"
+  - at: 19.5s
+    until: 23.2s
+    text: "Claude, Codex, and Antigravity run in parallel"
+  - at: 25.1s
+    until: 29.6s
+    text: "Kill live agents from the same control surface"

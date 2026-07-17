@@ -9,11 +9,22 @@ check:
 postprocess:
     #!/usr/bin/env bash
     set -euo pipefail
-    for name in \
-        sase_ace_prompt_input \
-        sase_ace_agents_observability \
-        sase_ace_prompt_history_stash \
-        sase_ace_prs_pipeline \
-        sase_ace_multi_model_fanout; do
-        {{ python }} scripts/postprocess_demo_media "$name"
-    done
+    {{ python }} scripts/postprocess_demo_media sase_ace_prompt_input \
+        --optimized-gif ../docs/images/blog/sase_ace_prompt_input.gif \
+        --optimized-width 832 --optimized-colors 64 --optimized-fps 10
+    {{ python }} scripts/postprocess_demo_media sase_ace_agents_observability \
+        --optimized-gif ../docs/images/blog/sase_ace_agents_observability.gif \
+        --optimized-width 832 --optimized-colors 64 --optimized-fps 10 \
+        --still ../docs/images/blog/agents_observability_still.png \
+        --still-at 12.0s
+    {{ python }} scripts/postprocess_demo_media sase_ace_prompt_history_stash \
+        --optimized-gif ../docs/images/blog/sase_ace_prompt_history_stash.gif \
+        --optimized-width 832 --optimized-colors 64 --optimized-fps 10
+    {{ python }} scripts/postprocess_demo_media sase_ace_prs_pipeline \
+        --still ../docs/images/blog/sase_ace_prs_pipeline_still.png \
+        --still-at 12.0s
+    {{ python }} scripts/postprocess_demo_media sase_ace_multi_model_fanout \
+        --optimized-gif ../docs/images/blog/sase_ace_multi_model_fanout.gif \
+        --optimized-width 832 --optimized-colors 64 --optimized-fps 10 \
+        --still ../docs/images/blog/sase_ace_multi_model_fanout_still.png \
+        --still-at 22.0s

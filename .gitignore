@@ -19,6 +19,7 @@ node_modules/
 
 # Virtual environments
 .venv/
+.venv-demos/
 venv/
 ENV/
 

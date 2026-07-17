@@ -11,8 +11,10 @@ generated media under `demos/out/`.
 - `git`
 - the repo virtualenv installed with `just install`
 
-The demo tapes prepend `.venv/bin` to `PATH` during tape setup so the rendered clips use the checked-out SASE code.
-`ttyd` must still be available on the outer `PATH` because VHS checks it before the tape setup commands run.
+Most tapes prepend `.venv/bin` to `PATH` during tape setup so the rendered clips use the checked-out SASE code. The live
+GitHub fan-out tape uses an isolated `.venv-demos` environment containing both the checkout and `sase-github`;
+`just demos` creates it automatically. `ttyd` must still be available on the outer `PATH` because VHS checks it before
+the tape setup commands run.
 
 ## Layout
 
@@ -23,8 +25,9 @@ The demo tapes prepend `.venv/bin` to `PATH` during tape setup so the rendered c
 
 ## Regenerating
 
-`demos/scripts/seed_sase_ace_demo` creates the fake HOME, SASE_HOME, local bare-git project, terminal agent artifacts,
-and curated xprompts used by the tape.
+`demos/scripts/seed_sase_ace_demo` creates the fake HOME, SASE_HOME, local bare-git project, hosted-looking GitHub
+project, GitHub SDD sidecar, terminal agent artifacts, and curated xprompts used by the tapes. A local SSH shim serves
+the fictional `acme/nova` repositories, so the GitHub workspace path never reaches the network.
 
 Run:
 
@@ -35,6 +38,10 @@ just demos
 The recipe renders all tapes, post-processes their media, updates `demos/out/last_generated_date.txt` after successful
 renders, and then prompts to commit the refreshed `demos/out/` artifacts. Pass `-y` or `--yes` to commit without
 prompting. Non-interactive runs never commit automatically.
+
+The demo environment prefers a workspace-matched linked `sase-github` checkout when one is available and otherwise
+installs the published package. Keeping the plugin isolated prevents GitHub provider discovery from changing normal
+development and test behavior in `.venv`.
 
 Every GIF is derived from its rendered MP4 with ffmpeg's `palettegen`/`paletteuse` filters at the frame rate measured by
 `ffprobe`. Do not infer the output frame rate from `Set Framerate` in a tape: VHS can produce a different rate (the
@@ -113,8 +120,8 @@ writes:
 - `demos/out/sase_ace_prs_pipeline.gif`
 - `demos/out/sase_ace_prs_pipeline.mp4`
 
-The multi-model fan-out tape shows one prompt becoming three launch-previewed agents across Claude, Codex, and Gemini,
-then stops at the Launch Approval modal without approving, and writes:
+The multi-model fan-out tape submits one GitHub prompt, launches real fakey-backed agent subprocesses across Claude,
+Codex, and Antigravity, shows all three running together, and kills them from the Agents tab. It writes:
 
 - `demos/out/sase_ace_multi_model_fanout.gif`
 - `demos/out/sase_ace_multi_model_fanout.mp4`
@@ -123,10 +130,12 @@ The recipe writes:
 
 - `demos/out/last_generated_date.txt`
 
-The seed data is fictional and hermetic. It sets both `HOME` and `SASE_HOME`, then runs ACE from a seeded fake workspace
-so prompt `@` file completion never exposes real local project paths. Keep future demos on the same pattern: fixed data,
-fixed geometry, pinned seed directories, no live agent submission, and no personal project names. Tapes should disable
-auto-refresh and axe (`--refresh-interval 0 -x`), hide startup and teardown capture with VHS `Hide`/`Show`, and export
-`SASE_ACE_RELEASE_VERSION_TITLE=1` so editable installs render the clean release title in the ACE header.
+The seed data is fictional and hermetic. It sets both `HOME` and `SASE_HOME`, then runs ACE from seeded fake workspaces
+so prompt `@` file completion never exposes real local project paths. The fan-out demo launches real SASE subprocesses,
+but the execution-provider override routes every model through deterministic `fakey`; no provider CLI or remote GitHub
+repository is contacted. Keep future demos on the same pattern: fixed data, fixed geometry, pinned seed directories, and
+no personal project names. Tapes should disable axe (`-x`), pin refresh timing, hide startup and teardown capture with
+VHS `Hide`/`Show`, and export `SASE_ACE_RELEASE_VERSION_TITLE=1` so editable installs render the clean release title in
+the ACE header.
 
 Future compression work can add a small `ffmpeg`/`gifsicle` post-processing recipe after `gifsicle` is available.

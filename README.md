@@ -37,17 +37,17 @@ sase does not replace coding agents; it makes agent-driven engineering dependabl
 
 ## See it in action
 
-**One prompt, three agents, three models.** A single prompt fans out to Claude, Codex, and Gemini agents with per-agent
-model directives and a launch preview.
+**One prompt, three live agents, three models.** A single GitHub prompt fans out to Claude, Codex, and Antigravity, runs
+all three agents in isolated workspaces, and keeps kill controls close at hand.
 
-<img src="docs/images/blog/sase_ace_multi_model_fanout.gif" alt="SASE ACE previewing one prompt fanning out to three coding agents and models" width="830">
+<img src="docs/images/blog/sase_ace_multi_model_fanout.gif" alt="SASE ACE launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them from the Agents tab" width="830">
 
 **Supervise every run.** The Agents tab shows live status, retry chains, per-agent diffs, chats, and artifact files from
 one control surface.
 
 <a href="demos/out/sase_ace_agents_observability.mp4"><img src="docs/images/blog/agents_observability_still.png" alt="SASE ACE Agents tab showing live runs, retry chains, diffs, chats, and artifact files" width="830"></a>
 
-<em>Select the still to watch the 20-second demo.</em>
+<em>Select the still to watch the 29-second demo.</em>
 
 **Land tracked changes.** The PRs tab follows the ChangeSpec lifecycle from WIP to Submitted, with grouping, search,
 commits, and diffs.

@@ -1,14 +1,12 @@
-"""Read-only launch preview and approval request files."""
+"""Read-only launch preview and approval request payloads."""
 
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import time
 from collections import Counter
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -107,37 +105,6 @@ def build_launch_preview_request(
         },
         "plan": agent_launch_wire_to_json_dict(plan),
         "slots": slots,
-    }
-
-
-# symvision: demos/tapes/sase_ace_multi_model_fanout.tape
-def write_launch_preview_files(
-    request: Mapping[str, Any],
-    *,
-    response_dir: Path | None = None,
-) -> dict[str, Path]:
-    """Write ``launch_request.json`` and ``launch_preview.md`` for a request."""
-    request_id = str(request["request_id"])
-    if response_dir is None:
-        from sase.core.paths import sase_subdir
-
-        response_dir = sase_subdir("launch_requests") / request_id
-    response_dir.mkdir(parents=True, exist_ok=True)
-    request_path = response_dir / LAUNCH_REQUEST_FILE
-    preview_path = response_dir / LAUNCH_PREVIEW_FILE
-    response_path = response_dir / LAUNCH_RESPONSE_FILE
-    request_path.write_text(
-        json.dumps(dict(request), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    preview_path.write_text(render_launch_preview_markdown(request), encoding="utf-8")
-    if response_path.exists():
-        response_path.unlink()
-    return {
-        "response_dir": response_dir,
-        "request": request_path,
-        "preview": preview_path,
-        "response": response_path,
     }
 
 
@@ -348,5 +315,4 @@ __all__ = [
     "LAUNCH_RESPONSE_FILE",
     "build_launch_preview_request",
     "render_launch_preview_markdown",
-    "write_launch_preview_files",
 ]

@@ -19,7 +19,6 @@ from sase.agent.launch_preview import (
     LAUNCH_REQUEST_FILE,
     build_launch_preview_request,
     render_launch_preview_markdown,
-    write_launch_preview_files,
 )
 from sase.agent.launch_request import (
     cancel_launch_approval_request,
@@ -190,7 +189,7 @@ def _isolated_notification_paths(tmp_path: Path) -> tuple[Path, Path]:
     return notifications_path, pending_path
 
 
-def test_launch_preview_request_and_files_cover_batch(tmp_path: Path) -> None:
+def test_launch_preview_request_covers_batch(tmp_path: Path) -> None:
     plan = plan_fake_fanout("multi_prompt", ["first prompt", "second prompt"])
     request = build_launch_preview_request(
         plan=plan,
@@ -209,12 +208,6 @@ def test_launch_preview_request_and_files_cover_batch(tmp_path: Path) -> None:
     assert request["slots"][0]["workspace"]["vcs_ref"] == "feature"
     assert request["slots"][0]["prompt_sha256"]
     assert request["plan"]["slots"][1]["prompt"] == "second prompt"
-
-    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch")
-    written = json.loads(paths["request"].read_text(encoding="utf-8"))
-    assert written["request_id"] == "launch-test"
-    assert paths["preview"].read_text(encoding="utf-8").startswith("# Launch Preview\n")
-    assert paths["response"].name == "launch_response.json"
 
 
 def test_launch_preview_markdown_renders_full_prompt(tmp_path: Path) -> None:
@@ -237,8 +230,7 @@ def test_launch_preview_markdown_renders_full_prompt(tmp_path: Path) -> None:
     )
     request["slots"][0]["prompt_snippet"] = "truncated snippet only"
 
-    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch-full")
-    preview = paths["preview"].read_text(encoding="utf-8")
+    preview = render_launch_preview_markdown(request)
 
     assert preview.startswith("# Launch Preview\n\n")
     assert (
@@ -272,8 +264,7 @@ def test_launch_preview_markdown_uses_safe_fence_for_backticks(
         created_at_unix=10.0,
     )
 
-    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch-fence")
-    preview = paths["preview"].read_text(encoding="utf-8")
+    preview = render_launch_preview_markdown(request)
 
     assert f"````sase\n{prompt}\n````" in preview
 
@@ -303,8 +294,7 @@ def test_launch_preview_models_come_from_prompt_directives(tmp_path: Path) -> No
         "gemini-2.5-pro",
     ]
 
-    paths = write_launch_preview_files(request, response_dir=tmp_path / "launch")
-    preview = paths["preview"].read_text(encoding="utf-8")
+    preview = render_launch_preview_markdown(request)
     assert (
         "**3 agents** · source `ace` · all-or-nothing · models "
         "`claude-sonnet-4-6`, `gpt-5-codex`, `gemini-2.5-pro` · "
@@ -331,10 +321,7 @@ def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
         "coder": "sonnet",
         "phase_worker": "@coder",
     }
-    preview = write_launch_preview_files(
-        request,
-        response_dir=tmp_path / "launch-overrides",
-    )["preview"].read_text(encoding="utf-8")
+    preview = render_launch_preview_markdown(request)
     assert (
         "model `opus` · alias overrides: coder → sonnet, phase_worker → @coder"
     ) in preview

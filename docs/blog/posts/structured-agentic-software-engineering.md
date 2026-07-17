@@ -97,10 +97,10 @@ tool protocols than it would have if it called raw model APIs directly. It also 
 CLI behavior changes. I still prefer that bargain. The agent CLIs are where the provider-specific work is moving
 fastest, and SASE is more useful as a durable control plane around them than as a second-rate replacement for them.
 
-![ACE launch review previewing three agent launches with Claude, Codex, and a Gemini-named model](../../images/blog/sase_ace_multi_model_fanout.gif)
+![ACE launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them](../../images/blog/sase_ace_multi_model_fanout.gif)
 
-_One prompt fans out to Claude, Codex, and a Gemini-named model routed through the Antigravity CLI; SASE previews the
-launches before they run._
+_One GitHub prompt fans out to Claude, Codex, and Antigravity. All three agents run in isolated workspaces and remain
+controllable from the same ACE view._
 
 <!-- DIAGRAM: one_prompt_five_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to five provider CLIs. -->
 

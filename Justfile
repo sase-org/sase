@@ -4,6 +4,9 @@ venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
 venv_dir_abs := if venv_dir =~ "^/" { venv_dir } else { justfile_directory() / venv_dir }
 venv_bin_abs := venv_dir_abs / "bin"
+demo_venv_dir := ".venv-demos"
+demo_venv_bin := demo_venv_dir / "bin"
+demo_venv_dir_abs := justfile_directory() / demo_venv_dir
 keep_sorted_version := "v0.8.0"
 keep_sorted_bin := venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
@@ -19,6 +22,12 @@ prettier_bin := "node_modules/.bin/prettier"
 workspace_sase_core_dir := "sase/repos/linked/sase-core"
 fallback_sase_core_dir := if path_exists(workspace_sase_core_dir) == "true" { workspace_sase_core_dir } else { "../sase-core" }
 sase_core_dir := env_var_or_default("SASE_CORE_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_CORE_DIR", env_var_or_default("SASE_SIBLING_REPO_CORE_DIR", fallback_sase_core_dir))))
+
+# Prefer the workspace-matched sase-github checkout for demo recordings. The
+# PyPI package remains the fallback for source trees without a linked checkout.
+workspace_sase_github_dir := "sase/repos/linked/sase-github"
+fallback_sase_github_dir := if path_exists(workspace_sase_github_dir) == "true" { workspace_sase_github_dir } else { "../sase-github" }
+sase_github_dir := env_var_or_default("SASE_GITHUB_DIR", env_var_or_default("SASE_LINKED_REPO_SASE_GITHUB_DIR", env_var_or_default("SASE_SIBLING_REPO_SASE_GITHUB_DIR", fallback_sase_github_dir)))
 
 # Dev installs build sase_core_rs from the local checkout, so the published
 # sase-core-rs version window in pyproject.toml must not constrain (or
@@ -126,6 +135,26 @@ install-visual: _venv
 _setup-visual: _setup
     @if ! {{ venv_bin }}/python tools/validate_dependency_group visual; then \
         uv pip install --python {{ venv_bin }}/python --no-sources $(just _core-overrides-arg) -e ".[dev,visual]"; \
+    fi
+
+# Keep sase-github out of the main dev environment because its workspace entry
+# points intentionally change provider discovery. The fan-out demo uses this
+# isolated venv while sharing the workspace-matched Rust core build.
+_setup-demos:
+    @[ -x {{ demo_venv_bin }}/python ] || uv venv {{ demo_venv_dir }}
+    @if [ -f "{{ sase_core_dir }}/Cargo.toml" ] && command -v cargo > /dev/null 2>&1; then \
+        if ! {{ demo_venv_bin }}/python tools/validate_sase_core_rs; then \
+            printf "[setup-demos] Rebuilding sase_core_rs from {{ sase_core_dir }} for the demo venv.\n"; \
+            just --set venv_dir "{{ demo_venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ demo_venv_dir_abs }}"; \
+            {{ demo_venv_bin }}/python tools/validate_sase_core_rs; \
+        fi; \
+    fi
+    uv pip install --python {{ demo_venv_bin }}/python --no-sources $(just --set venv_dir "{{ demo_venv_dir }}" _core-overrides-arg) -e .
+    @if [ -f "{{ sase_github_dir }}/pyproject.toml" ]; then \
+        printf "[setup-demos] Installing workspace-matched sase-github from %s.\n" "{{ sase_github_dir }}"; \
+        uv pip install --python {{ demo_venv_bin }}/python --no-deps -e "{{ sase_github_dir }}"; \
+    else \
+        uv pip install --python {{ demo_venv_bin }}/python sase-github; \
     fi
 
 # Install in editable mode with dev and real-terminal smoke-test dependencies.
@@ -290,7 +319,7 @@ check: _setup
 # demos/out/last_generated_date.txt, and offer to commit the results.
 # Pass -y/--yes to skip the commit confirmation prompt.
 [positional-arguments]
-demos *args: _setup-visual
+demos *args: _setup-visual _setup-demos
     #!/usr/bin/env bash
     set -euo pipefail
 
