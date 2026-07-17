@@ -111,7 +111,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
     )
     epic = Issue(
         id="alpha-1",
-        title="Artifacts plans",
+        title="Artifacts plans with a deliberately long title that stays on one line",
         status=Status.OPEN,
         issue_type=IssueType.PLAN,
         tier=BeadTier.EPIC,
@@ -601,9 +601,106 @@ def test_plan_list_rows_are_compact_single_line_labels(
     assert "phases" not in labels[1].plain
     assert "alpha-cl" not in labels[1].plain
     assert "#42" not in labels[1].plain
-    assert labels[1].plain.endswith("READY  2mo")
+    assert labels[1].plain.startswith("▸ ○ alpha-1 0/2 ► ")
+    assert labels[1].plain.endswith("  2mo")
     assert "codex/gpt-5" not in labels[2].plain
+    assert labels[2].plain.startswith("↳ ○ alpha-1.1 ► ")
     assert labels[3].plain.endswith("epic  done  07-04")
+
+
+def test_plan_list_rows_use_fixed_width_state_glyphs(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    epic = snapshot.epics[0].issue
+    phases = tuple(item.issue for item in snapshot.phases_by_epic[("alpha", epic.id)])
+
+    def epic_label(
+        *,
+        ready: bool = False,
+        blocked: bool = False,
+        launched: bool = False,
+    ) -> str:
+        issue = replace(epic, is_ready_to_work=launched)
+        key = ("alpha", issue.id)
+        return plans_pane._epic_text(
+            issue,
+            phases,
+            expanded=False,
+            project="alpha",
+            ready_ids=frozenset({key}) if ready else frozenset(),
+            blocked_ids=frozenset({key}) if blocked else frozenset(),
+        ).plain
+
+    assert " 0/2 ⊜ " in epic_label(blocked=True)
+    assert " 0/2 ► " in epic_label(ready=True)
+    assert " 0/2 ▶ " in epic_label(launched=True)
+    assert " 0/2 · " in epic_label()
+
+    ready_phase = plans_pane._phase_text(
+        phases[0],
+        project="alpha",
+        ready_ids=frozenset({("alpha", phases[0].id)}),
+        blocked_ids=frozenset(),
+    ).plain
+    blocked_phase = plans_pane._phase_text(
+        phases[1],
+        project="alpha",
+        ready_ids=frozenset(),
+        blocked_ids=frozenset({("alpha", phases[1].id)}),
+    ).plain
+    active_phase = plans_pane._phase_text(
+        replace(phases[0], status=Status.IN_PROGRESS),
+        project="alpha",
+        ready_ids=frozenset(),
+        blocked_ids=frozenset(),
+    ).plain
+
+    assert ready_phase.startswith("↳ ○ alpha-1.1 ► ")
+    assert blocked_phase.startswith("↳ ○ alpha-1.2 ⊜ ")
+    assert active_phase.startswith("↳ ◐ alpha-1.1 · ")
+    assert "active" not in active_phase
+
+
+async def test_plan_list_options_stay_single_line_when_narrow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("[")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        option_list = pane.query_one("#plans-list", OptionList)
+
+        option_list._line_cache.clear()
+        option_list._update_lines()
+
+        assert option_list.styles.text_wrap == "nowrap"
+        assert option_list.styles.text_overflow == "ellipsis"
+        assert option_list.option_count > 0
+        assert set(option_list._line_cache.heights.values()) == {1}
+        assert len(option_list._line_cache.lines) == option_list.option_count
+
+
+def test_epics_section_header_explains_state_glyphs(tmp_path: Path) -> None:
+    snapshot = _snapshot(tmp_path)
+    options, _rows = plans_pane.build_plan_options(
+        snapshot,
+        project_scope="alpha",
+        loading=False,
+        expanded_epics=set(),
+    )
+    header = next(option for option in options if option.id == "header:epics")
+
+    assert header.prompt.plain == ("── Epics (1) · ⊜ blocked ► ready ▶ launched ──")
 
 
 def test_project_badges_render_only_for_all_projects_scope(tmp_path: Path) -> None:

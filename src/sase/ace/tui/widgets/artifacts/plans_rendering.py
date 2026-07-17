@@ -14,6 +14,12 @@ from .plans_data import PlanProposal, PlansSnapshot
 from .types import ARTIFACTS_ACCENTS
 
 
+BLOCKED_STATE_GLYPH = "⊜"
+READY_STATE_GLYPH = "►"
+LAUNCHED_STATE_GLYPH = "▶"
+EMPTY_STATE_GLYPH = "·"
+
+
 def build_plans_scope(
     registry: KeymapRegistry,
     *,
@@ -162,16 +168,18 @@ def epic_text(
     )
     text.append(_status_glyph(epic.status), style=_status_style(epic.status))
     text.append(f" {epic.id} ", style="bold #FFD700")
-    text.append(epic.title, style="bold white")
     closed = sum(phase.status == Status.CLOSED for phase in phases)
-    text.append(f"  {closed}/{len(phases)}", style="#87D7FF")
+    text.append(f"{closed}/{len(phases)} ", style="#87D7FF")
     issue_key = (project, epic.id)
-    if issue_key in blocked_ids:
-        text.append("  BLOCKED", style="bold #FF5F5F")
-    elif issue_key in ready_ids:
-        text.append("  READY", style="bold #5FD787")
-    elif epic.is_ready_to_work:
-        text.append("  LAUNCHED", style="bold #00D7AF")
+    state_glyph, state_style = _state_glyph(
+        issue_key,
+        ready_ids=ready_ids,
+        blocked_ids=blocked_ids,
+        launched=epic.is_ready_to_work,
+    )
+    text.append(state_glyph, style=state_style)
+    text.append(" ")
+    text.append(epic.title, style="bold white")
     age = _compact_relative_age(epic.created_at)
     if age:
         text.append(f"  {age}", style="dim")
@@ -187,17 +195,18 @@ def phase_text(
     blocked_ids: frozenset[tuple[str, str]],
 ) -> Text:
     """Render one expanded epic phase row."""
-    text = single_line_text("   ↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
+    text = single_line_text("↳ ", style=f"dim {ARTIFACTS_ACCENTS['plans']}")
     text.append(_status_glyph(phase.status), style=_status_style(phase.status))
     text.append(f" {phase.id} ", style="bold #FFD700")
-    text.append(phase.title, style="white")
     issue_key = (project, phase.id)
-    if issue_key in blocked_ids:
-        text.append("  blocked", style="bold #FF5F5F")
-    elif issue_key in ready_ids:
-        text.append("  ready", style="bold #5FD787")
-    elif phase.status == Status.IN_PROGRESS:
-        text.append("  active", style="bold #FFD700")
+    state_glyph, state_style = _state_glyph(
+        issue_key,
+        ready_ids=ready_ids,
+        blocked_ids=blocked_ids,
+    )
+    text.append(state_glyph, style=state_style)
+    text.append(" ")
+    text.append(phase.title, style="white")
     return text
 
 
@@ -221,7 +230,11 @@ def archive_text(
 
 
 def single_line_text(text: str = "", *, style: str = "") -> Text:
-    """Return a compact row label that never wraps."""
+    """Return a compact row label with one-line Rich ``Text`` intent.
+
+    Textual 8 converts option prompts to ``Content`` and drops these Rich wrapping
+    attributes, so the owning OptionList's CSS enforces the one-line contract.
+    """
     return Text(text, style=style, no_wrap=True, overflow="ellipsis")
 
 
@@ -235,6 +248,23 @@ def project_badge(snapshot: PlansSnapshot, project: str) -> str | None:
 def _append_project_badge(text: Text, project_badge: str | None) -> None:
     if project_badge:
         text.append(f"  [{project_badge}]", style="dim")
+
+
+def _state_glyph(
+    issue_key: tuple[str, str],
+    *,
+    ready_ids: frozenset[tuple[str, str]],
+    blocked_ids: frozenset[tuple[str, str]],
+    launched: bool = False,
+) -> tuple[str, str]:
+    """Return the fixed-width readiness state column for a bead row."""
+    if issue_key in blocked_ids:
+        return BLOCKED_STATE_GLYPH, "bold #FF5F5F"
+    if issue_key in ready_ids:
+        return READY_STATE_GLYPH, "bold #5FD787"
+    if launched:
+        return LAUNCHED_STATE_GLYPH, "bold #00D7AF"
+    return EMPTY_STATE_GLYPH, "dim"
 
 
 def _compact_inventory_age(age: str) -> str:

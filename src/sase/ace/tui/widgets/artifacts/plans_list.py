@@ -12,6 +12,9 @@ from sase.plan_search.model import PlanSearchMatch
 
 from .plans_data import PlanProposal, PlansSnapshot, ProjectArchive, ProjectIssue
 from .plans_rendering import (
+    BLOCKED_STATE_GLYPH,
+    LAUNCHED_STATE_GLYPH,
+    READY_STATE_GLYPH,
     archive_text,
     epic_text,
     phase_text,
@@ -184,7 +187,17 @@ def _section_option(label: str, count: int) -> Option:
     text = single_line_text()
     text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
     text.append(f"({count}) ", style="dim")
-    text.append("─" * 8, style="dim #5F5F87")
+    if label == "Epics":
+        text.append("· ", style="dim")
+        text.append(BLOCKED_STATE_GLYPH, style="bold #FF5F5F")
+        text.append(" blocked ", style="dim")
+        text.append(READY_STATE_GLYPH, style="bold #5FD787")
+        text.append(" ready ", style="dim")
+        text.append(LAUNCHED_STATE_GLYPH, style="bold #00D7AF")
+        text.append(" launched ", style="dim")
+        text.append("──", style="dim #5F5F87")
+    else:
+        text.append("─" * 8, style="dim #5F5F87")
     return Option(
         text, id=f"header:{label.casefold().replace(' ', '-')}", disabled=True
     )
