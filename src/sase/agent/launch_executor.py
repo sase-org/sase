@@ -139,7 +139,7 @@ def execute_launch_plan(
                 request,
                 family_attach_plan.agent_name,
                 family_base=family_attach_plan.parent_base,
-                can_attach_parent=False,
+                can_attach_parent=True,
             )
             if sibling is not None:
                 pending_siblings.append(sibling)

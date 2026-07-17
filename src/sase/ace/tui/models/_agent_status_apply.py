@@ -12,7 +12,6 @@ from ._agent_status_family import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
     approved_followup_planner_status,
-    assign_bare_family_root_zero_suffix,
     child_launch_time,
     children_by_parent_timestamp,
     copy_missing_display_metadata,
@@ -411,12 +410,6 @@ def apply_status_overrides(
             agent.retry_chain_siblings.sort(
                 key=lambda a: a.retry_attempt or 0,
             )
-
-    # Give a bare family root (`foo`) the reserved `--0` display slot once a
-    # dynamically attached sibling (`foo--bar`) exists, so both rows render with
-    # distinct `--<id>` suffixes under the `foo` banner. Runs last so status
-    # mirroring above still sees the original bare identity (display-only).
-    assign_bare_family_root_zero_suffix(all_agents, children_by_parent)
 
     if classify_diff_badges:
         classifier = diff_badge_classifier or classify_persisted_diff_badges

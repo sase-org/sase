@@ -68,6 +68,15 @@ def get_reserved_clan_names() -> set[str]:
     }
 
 
+def get_reserved_family_names() -> set[str]:
+    """Return every name owned by a sequential family container."""
+    return {
+        name
+        for name, entry in load_name_registry()["entries"].items()
+        if isinstance(entry, dict) and entry.get("container_kind") == "family"
+    }
+
+
 def get_reserved_agent_name_map() -> dict[str, str]:
     """Return ``{name: owner_path}`` for registered names with a known owner path."""
     out: dict[str, str] = {}
@@ -99,13 +108,8 @@ def claim_registered_name(
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
-        if isinstance(existing, dict) and existing.get("container_kind") == "clan":
-            from sase.agent.names._common import NameCollisionError
-
-            raise NameCollisionError(
-                f"agent name '{name}' is reserved for clan '{name}'; "
-                f"choose a name inside the clan hood, such as '{name}.member'"
-            )
+        if isinstance(existing, dict) and existing.get("container_kind"):
+            _raise_container_name_collision(name, existing)
         if isinstance(existing, dict) and not replace_existing:
             if _entry_has_other_owner(existing, artifact_dir):
                 from sase.agent.names._common import NameCollisionError
@@ -133,13 +137,8 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
-        if isinstance(existing, dict) and existing.get("container_kind") == "clan":
-            from sase.agent.names._common import NameCollisionError
-
-            raise NameCollisionError(
-                f"agent name '{name}' is reserved for clan '{name}'; "
-                f"choose a name inside the clan hood, such as '{name}.member'"
-            )
+        if isinstance(existing, dict) and existing.get("container_kind"):
+            _raise_container_name_collision(name, existing)
         if isinstance(existing, dict) and _entry_has_other_owner(
             existing, artifact_dir
         ):
@@ -224,6 +223,48 @@ def claim_registered_clan_name(
         entry["container_kind"] = "clan"
         entry["clan_generation"] = generation
         entries[name] = entry
+        _save_entries(entries)
+
+
+def convert_registered_agent_to_family(
+    name: str,
+    member_name: str,
+    claiming_dir: str | Path,
+) -> None:
+    """Convert one agent claim into a family container plus member claim."""
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if isinstance(existing, dict):
+            container_kind = existing.get("container_kind")
+            if container_kind == "clan":
+                _raise_container_name_collision(name, existing)
+            if container_kind not in {None, "family"}:
+                _raise_container_name_collision(name, existing)
+            if container_kind is None and _entry_has_other_owner(
+                existing, artifact_dir
+            ):
+                _raise_name_collision(name)
+
+        member_existing = entries.get(member_name)
+        if isinstance(member_existing, dict) and _entry_has_other_owner(
+            member_existing, artifact_dir
+        ):
+            _raise_name_collision(member_name)
+
+        family_entry = _owner_from_artifact_name(
+            artifact_dir,
+            name,
+            reservation_kind="family",
+        )
+        family_entry["container_kind"] = "family"
+        entries[name] = family_entry
+        entries[member_name] = _owner_from_artifact_name(
+            artifact_dir,
+            member_name,
+            reservation_kind="claimed",
+        )
         _save_entries(entries)
 
 
@@ -364,6 +405,20 @@ def _raise_name_collision(name: str) -> None:
     suggestion = lowest_name_suggestion(name)
     raise NameCollisionError(
         f"agent name '{name}' is already taken; try '{suggestion}'"
+    )
+
+
+def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> None:
+    from sase.agent.names._common import NameCollisionError
+
+    if entry.get("container_kind") == "clan":
+        raise NameCollisionError(
+            f"agent name '{name}' is reserved for clan '{name}'; "
+            f"choose a name inside the clan hood, such as '{name}.member'"
+        )
+    raise NameCollisionError(
+        f"agent name '{name}' is reserved for agent family '{name}'; "
+        "attach a member with %n(parent, suffix) instead"
     )
 
 

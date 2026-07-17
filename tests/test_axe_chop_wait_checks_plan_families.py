@@ -1,6 +1,7 @@
 """Plan-family wait_checks chop script tests."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -72,6 +73,50 @@ def test_successful_plan_family_dependency_resolves(
 
     ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["planfam"]}
+
+
+def test_running_sequential_grandchild_keeps_family_waiting(
+    tmp_path: Path, monkeypatch
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "chain")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260701010101",
+        "chain--0",
+        workflow_name="chain",
+        agent_family="chain",
+        role_suffix="--0",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260701010202",
+        "chain--review",
+        workflow_name="chain",
+        agent_family="chain",
+        role_suffix="--review",
+        parent_timestamp="20260701010101",
+        done=True,
+        outcome="completed",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260701010303",
+        "chain--land",
+        workflow_name="chain",
+        agent_family="chain",
+        role_suffix="--land",
+        parent_timestamp="20260701010202",
+        pid=os.getpid(),
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
 
 
 def test_identity_wait_successful_plan_family_generation_resolves(
@@ -182,6 +227,43 @@ def test_queued_family_child_does_not_block_its_parent_dependency(
 
     ready = json.loads((child_dir / "ready.json").read_text(encoding="utf-8"))
     assert ready == {"resolved_deps": ["b"]}
+
+
+def test_queued_family_child_blocks_external_wait_on_whole_family(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    parent_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706130831",
+        "b--0",
+        workflow_name="b",
+        agent_family="b",
+        role_suffix="--0",
+        done=True,
+        outcome="completed",
+    )
+    child_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260706131004",
+        "b--launch",
+        workflow_name="b",
+        agent_family="b",
+        role_suffix="--launch",
+        parent_timestamp=parent_dir.name,
+    )
+    _write_waiting_marker(
+        child_dir,
+        "b",
+        wait_for_artifacts=[_identity_dep(parent_dir, name="b")],
+    )
+    external_waiter = make_waiting_agent(tmp_path, "b", suffix="external-waiter")
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (external_waiter / "ready.json").exists()
 
 
 def test_queued_family_siblings_do_not_mutually_block_parent_dependency(

@@ -175,10 +175,6 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_helpers_artifacts.py:promote_to_workflow": Review(
-        mutation_calls=("open", "dump"),
-        lifecycle_calls=(_UPDATE_INDEX,),
-    ),
     "src/sase/axe/run_agent_helpers_handoff.py:normalize_handoff_interruption_state": Review(
         mutation_calls=("open", "dump", "open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),

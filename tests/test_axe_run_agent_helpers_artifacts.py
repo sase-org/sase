@@ -1,6 +1,7 @@
 """Tests for axe_run_agent artifact helper utilities."""
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe.run_agent_helpers import (
@@ -10,7 +11,10 @@ from sase.axe.run_agent_helpers import (
     update_meta_field,
     update_meta_suffix,
 )
-from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
+from sase.plan_chain import (
+    PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
+    allocate_agent_family_child_suffix,
+)
 
 
 def test_update_meta_field_sets_key(tmp_path) -> None:
@@ -37,9 +41,16 @@ def test_meta_helpers_update_artifact_index_after_write(tmp_path) -> None:
     meta_path = tmp_path / "agent_meta.json"
     calls: list[str] = []
 
-    with patch(
-        "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
-        side_effect=lambda path: calls.append(path),
+    with (
+        patch(
+            "sase.axe.run_agent_helpers.update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(path),
+        ),
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation",
+            side_effect=lambda path: calls.append(str(path)),
+        ),
     ):
         meta_path.write_text(json.dumps({"pid": 123}), encoding="utf-8")
         append_meta_list_field(str(tmp_path), "retry_started_at", "ts-1")
@@ -56,36 +67,48 @@ def test_meta_helpers_update_artifact_index_after_write(tmp_path) -> None:
     assert calls == [str(tmp_path)] * 4
 
 
-def test_promote_to_workflow_marks_stable_family_root(tmp_path) -> None:
-    """promote_to_workflow keeps the root name stable and marks the family."""
+def test_promote_to_workflow_renames_plan_root_to_first_member(tmp_path) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"name": "a", "pid": 123}))
 
     promote_to_workflow(str(tmp_path), "a")
 
     meta = json.loads(meta_path.read_text())
-    assert meta["name"] == "a"
+    assert meta["name"] == "a--plan-0"
     assert meta["workflow_name"] == "a"
     assert meta["plan_chain_root"] is True
     assert meta["agent_family"] == "a"
     assert meta["agent_family_role"] == "root"
-    assert meta["role_suffix"] == "--plan"
+    assert meta["role_suffix"] == "--plan-0"
     assert meta["pid"] == 123
 
 
-def test_promote_to_workflow_can_promote_question_phase(tmp_path) -> None:
-    """Question handoff roots record the question suffix without renaming."""
+def test_promote_to_workflow_renames_generic_root_to_zero_member(tmp_path) -> None:
     meta_path = tmp_path / "agent_meta.json"
     meta_path.write_text(json.dumps({"name": "a", "pid": 123}))
 
     promote_to_workflow(str(tmp_path), "a", role_suffix=".q")
 
     meta = json.loads(meta_path.read_text())
-    assert meta["name"] == "a"
+    assert meta["name"] == "a--0"
     assert meta["workflow_name"] == "a"
     assert meta["agent_family"] == "a"
     assert meta["agent_family_role"] == "root"
-    assert meta["role_suffix"] == "--q"
+    assert meta["role_suffix"] == "--0"
+
+
+def test_promoted_plan_root_reserves_plan_zero_before_feedback_allocation(
+    tmp_path: Path,
+) -> None:
+    artifact_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260701010101"
+    artifact_dir.mkdir(parents=True)
+    (artifact_dir / "agent_meta.json").write_text(json.dumps({"name": "a"}))
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        promote_to_workflow(str(artifact_dir), "a")
+        suffix = allocate_agent_family_child_suffix("a", "--plan-@")
+
+    assert suffix == "--plan-1"
 
 
 def test_create_followup_with_name_override(tmp_path) -> None:

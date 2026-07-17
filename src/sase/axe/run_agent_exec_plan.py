@@ -179,6 +179,8 @@ def handle_plan_marker(
             feedback_submitted_at,
         )
 
+        if state.agent_step == 1 and ctx.agent_name:
+            promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
         suffix = (
             allocate_agent_family_child_suffix(
                 ctx.agent_name,
@@ -199,8 +201,6 @@ def handle_plan_marker(
         )
         state.current_role_suffix = suffix
         state.agent_step += 1
-        if state.agent_step == 2 and ctx.agent_name:
-            promote_to_workflow(ctx.artifacts_dir, ctx.agent_name)
         state.current_artifacts_dir = create_followup_artifacts(
             ctx.project_name,
             ctx.agent_meta,

@@ -7,6 +7,7 @@ from typing import Any, TYPE_CHECKING
 from sase.agent import _family_attach_candidates as _candidates
 from sase.agent import _family_attach_directives as _directives
 from sase.agent import _family_attach_launch as _launch
+from sase.agent import _family_promotion as _promotion
 from sase.agent import _family_attach_resolution as _resolution
 from sase.agent import _family_attach_types as _types
 
@@ -28,6 +29,8 @@ default_with_feedback_parent_from_family_attach = (
     _directives.default_with_feedback_parent_from_family_attach
 )
 parse_name_directive_args = _directives.parse_name_directive_args
+promote_agent_to_family = _promotion.promote_agent_to_family
+promote_family_parent_for_attach = _promotion.promote_family_parent_for_attach
 
 
 def prepare_family_attach_launch(
@@ -101,5 +104,7 @@ __all__ = [
     "normalize_family_suffix_arg",
     "parse_name_directive_args",
     "prepare_family_attach_launch",
+    "promote_agent_to_family",
+    "promote_family_parent_for_attach",
     "resolve_family_attach_plan",
 ]

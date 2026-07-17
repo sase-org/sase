@@ -11,7 +11,6 @@ from sase.agent.status_buckets import (
     WORKING_TALE_STATUS,
 )
 from sase.plan_chain import (
-    AGENT_FAMILY_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
     agent_family_base,
     agent_family_phase_name,
@@ -50,7 +49,7 @@ def is_root_plan_workflow(agent: Agent) -> bool:
     """Check if an agent is the top-level plan workflow entry."""
     if agent.is_child_row or agent.agent_family_parallel:
         return False
-    if agent.plan_chain_root or agent.agent_family_role == "root":
+    if agent.plan_chain_root:
         return True
     return agent.agent_type == AgentType.WORKFLOW and (
         canonical_plan_chain_suffix(agent.role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
@@ -612,67 +611,3 @@ def ensure_synthetic_planner_children(
         planner.question_session_id = parent.question_session_id
         agents.append(planner)
         all_agents.append(planner)
-
-
-def _is_bare_family_root(agent: Agent) -> bool:
-    """Return True for a top-level plain-named agent anchoring a family.
-
-    The dynamic ``%n(parent, suffix)`` attach flow can add a suffixed member
-    to an agent that was launched with plain naming (``%n:foo``). The original
-    row keeps its bare ``foo`` identity: no plan-chain suffix and an
-    ``agent_name`` equal to its own family base. Plan-chain roots (which derive
-    a ``--plan`` main step) and rows whose name already carries a family suffix
-    are excluded.
-    """
-    if agent.is_child_row or agent.agent_family_parallel or not agent.raw_suffix:
-        return False
-    if is_root_plan_workflow(agent):
-        return False
-    if canonical_plan_chain_suffix(agent.role_suffix) is not None:
-        return False
-    name = agent.agent_name
-    if not name:
-        return False
-    if agent_family_base(name, include_legacy_dash=True) is not None:
-        return False
-    return not (agent.agent_family and agent.agent_family != name)
-
-
-def assign_bare_family_root_zero_suffix(
-    all_agents: list[Agent],
-    children_by_parent: dict[str, list[Agent]],
-) -> None:
-    """Give a bare family root the reserved ``--0`` display identity.
-
-    When a plain-named agent (``foo``) gains a dynamically attached sibling
-    (``foo--bar``), both rows group under the ``foo`` name-root banner but the
-    root still renders its bare ``foo`` name while the sibling renders
-    ``foo--bar`` — leaving the root without the ``--<id>`` suffix its neighbors
-    carry. Assign the reserved ``--0`` slot to the bare root *in memory only*
-    so the family renders as two distinct suffixed rows (``foo--0`` and
-    ``foo--bar``).
-
-    The stored/registry name stays ``foo`` (no disk mutation), and marking the
-    row as a family root (``agent_family`` + ``agent_family_role="root"``) keeps
-    it grouped under ``foo`` and keeps prompt/copy/``%wait`` references resolving
-    to ``foo`` rather than the display-only ``foo--0``.
-    """
-    # Snapshot names before mutating so an explicit ``{base}--0`` sibling (from
-    # ``%n(foo, 0)``) suppresses normalization instead of yielding two ``foo--0``
-    # rows. There is at most one bare candidate per family (registry names are
-    # unique), so the snapshot never needs to see in-loop renames.
-    existing_names = {agent.agent_name for agent in all_agents if agent.agent_name}
-    for agent in all_agents:
-        if not _is_bare_family_root(agent):
-            continue
-        if not has_family_followup_child(agent, all_agents, children_by_parent):
-            continue
-        base = agent.agent_name
-        assert base is not None  # guaranteed by _is_bare_family_root
-        zero_name = f"{base}{AGENT_FAMILY_SEPARATOR}0"
-        if zero_name in existing_names:
-            continue
-        agent.agent_name = zero_name
-        agent.role_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
-        agent.agent_family = base
-        agent.agent_family_role = "root"

@@ -317,6 +317,8 @@ def _split_agent_family_name(
         if not sep or not head or not tail:
             continue
         suffix = canonical_plan_chain_suffix(f"{sep}{tail}")
+        if suffix is None and separator == AGENT_FAMILY_SEPARATOR:
+            suffix = f"{separator}{tail}" if _TOKEN_RE.match(tail) else None
         if suffix is not None:
             return head, suffix
     return None

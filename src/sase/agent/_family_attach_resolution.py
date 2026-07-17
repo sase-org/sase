@@ -83,6 +83,40 @@ def resolve_family_attach_plan(
         pending_family_parents=pending_family_parents,
     )
     agent_name = f"{parent_base}{role_suffix}"
+    if parent_sibling is not None:
+        parent_family_role_suffix = parent_sibling.family_root_role_suffix
+    else:
+        assert parent_record is not None and parent_record.agent_meta is not None
+        from sase.agent._family_promotion import family_root_role_suffix
+
+        parent_meta = parent_record.agent_meta
+        parent_family_role_suffix = family_root_role_suffix(
+            {
+                "role_suffix": getattr(parent_meta, "role_suffix", None),
+                "plan_chain_root": getattr(parent_meta, "plan_chain_root", False),
+                "approve": getattr(parent_meta, "approve", False),
+                "plan": getattr(parent_meta, "plan", False),
+            }
+        )
+    parent_needs_rename = parent_name == parent_base
+    parent_family_member_name = (
+        f"{parent_base}{parent_family_role_suffix}"
+        if parent_needs_rename
+        else parent_name
+    )
+    if parent_needs_rename:
+        _ensure_family_name_available(
+            parent_family_member_name,
+            directive,
+            snapshot.records,
+            pending_family_parents=pending_family_parents,
+            member_kind="original family member",
+        )
+    if agent_name == parent_family_member_name:
+        raise _types.FamilyAttachError(
+            f"Agent family member '{agent_name}' is reserved for the original "
+            f"parent. Use %n({directive.parent}, @) to allocate the next free suffix."
+        )
     _ensure_family_name_available(
         agent_name,
         directive,
@@ -95,6 +129,8 @@ def resolve_family_attach_plan(
         parent_workspace_dir = parent_sibling.workspace_dir
         parent_workspace_num = parent_sibling.workspace_num
         model_alias_overrides = dict(parent_sibling.model_alias_overrides)
+        parent_agent_clan = parent_sibling.agent_clan
+        parent_agent_clan_generation = parent_sibling.agent_clan_generation
     else:
         if parent_record is None or parent_record.agent_meta is None:
             raise _types.FamilyAttachError(
@@ -107,6 +143,17 @@ def resolve_family_attach_plan(
         model_alias_overrides = _read_parent_model_alias_overrides(
             str(parent["artifact_dir"])
         )
+        parent_agent_clan = getattr(parent_record.agent_meta, "agent_clan", None)
+        parent_agent_clan_generation = getattr(
+            parent_record.agent_meta,
+            "agent_clan_generation",
+            None,
+        )
+        if parent_agent_clan and not parent_agent_clan_generation:
+            parent_agent_clan_generation = (
+                getattr(parent_record.agent_meta, "parent_timestamp", None)
+                or parent_record.timestamp
+            )
 
     return _types.FamilyAttachLaunchPlan(
         parent_arg=directive.parent,
@@ -118,9 +165,14 @@ def resolve_family_attach_plan(
         role_suffix=role_suffix,
         agent_name=agent_name,
         agent_family_role=role,
+        parent_family_member_name=parent_family_member_name,
+        parent_family_role_suffix=parent_family_role_suffix,
+        parent_needs_rename=parent_needs_rename,
         parent_project_name=project_name,
         parent_is_running=kind == "running",
         parent_cl_name=parent_cl_name,
+        parent_agent_clan=parent_agent_clan,
+        parent_agent_clan_generation=parent_agent_clan_generation,
         parent_workspace_dir=parent_workspace_dir,
         parent_workspace_num=parent_workspace_num,
         sase_plan=_candidates.family_sase_plan(snapshot.records, parent_base)
@@ -191,6 +243,7 @@ def _ensure_family_name_available(
     records: list[Any] | None = None,
     *,
     pending_family_parents: list[_types.FamilyAttachSibling] | None = None,
+    member_kind: str = "family member",
 ) -> None:
     from sase.agent.names import get_reserved_agent_names
 
@@ -202,7 +255,7 @@ def _ensure_family_name_available(
     )
     if agent_name in known_names:
         raise _types.FamilyAttachError(
-            f"Agent family member '{agent_name}' already exists. "
+            f"Agent {member_kind} '{agent_name}' already exists. "
             f"Use %n({directive.parent}, @) to allocate the next free suffix."
         )
 

@@ -113,9 +113,18 @@ def load_family_attach_plan_from_env(
         role_suffix=str(data["role_suffix"]),
         agent_name=str(data["agent_name"]),
         agent_family_role=str(data["agent_family_role"]),
+        parent_family_member_name=str(
+            data.get("parent_family_member_name") or data["parent_name"]
+        ),
+        parent_family_role_suffix=str(data.get("parent_family_role_suffix") or "--0"),
+        parent_needs_rename=bool(data.get("parent_needs_rename", False)),
         parent_project_name=str(data.get("parent_project_name") or ""),
         parent_is_running=bool(data.get("parent_is_running", False)),
         parent_cl_name=_str_or_none(data.get("parent_cl_name")),
+        parent_agent_clan=_str_or_none(data.get("parent_agent_clan")),
+        parent_agent_clan_generation=_str_or_none(
+            data.get("parent_agent_clan_generation")
+        ),
         parent_workspace_dir=_str_or_none(data.get("parent_workspace_dir")),
         parent_workspace_num=_int_or_none(data.get("parent_workspace_num")),
         sase_plan=_str_or_none(data.get("sase_plan")),
@@ -145,6 +154,13 @@ def build_family_attach_sibling_from_spawn(
     from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 
     raw_overrides = (request.extra_env or {}).get(SASE_MODEL_ALIAS_OVERRIDES_ENV, "")
+    from sase.agent.clan_membership import (
+        CLAN_MEMBERSHIP_ENV,
+        decode_clan_membership_plan,
+    )
+
+    raw_clan = (request.extra_env or {}).get(CLAN_MEMBERSHIP_ENV, "")
+    clan_plan = decode_clan_membership_plan(raw_clan) if raw_clan else None
     return _types.FamilyAttachSibling(
         name=name,
         family_base=base,
@@ -161,6 +177,9 @@ def build_family_attach_sibling_from_spawn(
         workspace_dir=request.workspace_dir,
         workspace_num=request.workspace_num,
         can_attach_parent=can_attach_parent,
+        family_root_role_suffix=_prompt_family_root_role_suffix(request.prompt),
+        agent_clan=None if clan_plan is None else clan_plan.clan_name,
+        agent_clan_generation=None if clan_plan is None else clan_plan.generation,
         model_alias_overrides=(
             _decode_model_alias_overrides(raw_overrides)
             if raw_overrides
@@ -184,6 +203,20 @@ def _prompt_model_alias_overrides(prompt: str) -> dict[str, str]:
     except Exception:
         return {}
     return dict(directives.model_alias_overrides)
+
+
+def _prompt_family_root_role_suffix(prompt: str) -> str:
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:
+        return "--0"
+    from sase.agent._family_promotion import normalized_family_root_role_suffix
+
+    return normalized_family_root_role_suffix(
+        "--plan" if directives.auto_mode in {"plan", "tale", "epic"} else None
+    )
 
 
 def _string_mapping(value: object) -> dict[str, str]:

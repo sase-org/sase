@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import json
 import os
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.agent.family_attach import prepare_family_attach_launch
+from sase.agent.family_attach import (
+    FAMILY_ATTACH_ENV,
+    FamilyAttachLaunchPlan,
+    prepare_family_attach_launch,
+)
+from sase.agent._family_promotion import promote_agent_to_family
 from sase.agent.launch_executor import LaunchExecutionContext
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
 from sase.axe.run_agent_helpers import create_followup_artifacts
@@ -128,6 +134,12 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
 
     assert info.name == "foo--code"
     member_meta = json.loads((member_dir / "agent_meta.json").read_text())
+    promoted_parent_meta = json.loads((parent_dir / "agent_meta.json").read_text())
+    assert promoted_parent_meta["name"] == "foo--plan-0"
+    assert promoted_parent_meta["workflow_name"] == "foo"
+    assert promoted_parent_meta["role_suffix"] == "--plan-0"
+    assert promoted_parent_meta[AGENT_FAMILY_FIELD] == "foo"
+    assert promoted_parent_meta[AGENT_FAMILY_ROLE_FIELD] == "root"
 
     followup_dir = tmp_path / "followup"
     followup_dir.mkdir()
@@ -173,7 +185,10 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     assert family is not None
     assert family.root is not None
     assert family.root.timestamp == parent_ts
-    assert {member.name for member in family.members} == {"foo", "foo--code"}
+    assert {member.name for member in family.members} == {
+        "foo--plan-0",
+        "foo--code",
+    }
 
     tui_agent = Agent(
         agent_type=AgentType.WORKFLOW,
@@ -189,3 +204,98 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
         agent_family_role=str(member_meta[AGENT_FAMILY_ROLE_FIELD]),
     )
     assert tui_agent.is_family_member_child is True
+
+
+def test_family_attach_child_inherits_parent_clan_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    child_dir = tmp_path / "child"
+    child_dir.mkdir()
+    plan = FamilyAttachLaunchPlan(
+        parent_arg="research.worker",
+        suffix_arg="reviewer",
+        parent_name="research.worker--0",
+        parent_base="research.worker",
+        parent_timestamp="20260701010101",
+        parent_artifacts_dir=str(tmp_path / "parent"),
+        role_suffix="--reviewer",
+        agent_name="research.worker--reviewer",
+        agent_family_role="reviewer",
+        parent_family_member_name="research.worker--0",
+        parent_family_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+        parent_cl_name="feature",
+        parent_agent_clan="research",
+        parent_agent_clan_generation="20260701010000",
+    )
+    prompt = "%n(research.worker, reviewer)\nReview"
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+
+    with (
+        patch("sase.agent.names.ensure_historical_auto_name_migration"),
+        patch(
+            "sase.agent.names.agent_name_allocation_lock", return_value=nullcontext()
+        ),
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.xprompt.process_xprompt_references",
+            side_effect=lambda prompt, **_: prompt,
+        ),
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch(
+            "sase.llm_provider.config.resolve_effective_effort",
+            return_value=(None, None),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        extract_directives_and_write_meta(
+            prompt,
+            workspace_dir="/tmp/workspace",
+            artifacts_dir=str(child_dir),
+            cl_name="feature",
+            raw_resolved_prompt=prompt,
+        )
+
+    child_meta = json.loads((child_dir / "agent_meta.json").read_text())
+    assert child_meta["agent_clan"] == "research"
+    assert child_meta["agent_clan_generation"] == "20260701010000"
+
+
+def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    @contextmanager
+    def allocation_lock():
+        events.append("lock")
+        yield
+
+    def read_meta(_path: Path, *, timeout_seconds: float) -> dict[str, object]:
+        events.append(f"read:{timeout_seconds}")
+        return {"name": "foo"}
+
+    with (
+        patch(
+            "sase.agent.names.agent_name_allocation_lock",
+            return_value=allocation_lock(),
+        ),
+        patch(
+            "sase.agent._family_promotion._read_meta_with_retry",
+            side_effect=read_meta,
+        ),
+        patch("sase.agent._family_promotion._write_json_atomic"),
+        patch("sase.agent.names.convert_registered_agent_to_family"),
+        patch("sase.agent._family_promotion._refresh_artifact_index"),
+    ):
+        promote_agent_to_family(
+            tmp_path,
+            "foo",
+            wait_for_meta_seconds=5.0,
+        )
+
+    assert events == ["read:5.0", "lock", "read:0.0"]

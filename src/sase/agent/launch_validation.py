@@ -58,6 +58,17 @@ class _AgentNameClanCollisionError(_LaunchNameValidationError):
         )
 
 
+class _AgentNameFamilyCollisionError(_LaunchNameValidationError):
+    """Raised when an agent tries to claim a family container's name."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Agent name '{name}' is reserved for agent family '{name}'. "
+            "Attach a member with %n(parent, suffix) instead."
+        )
+
+
 class AgentNameReuseConfirmationRequiredError(_LaunchNameValidationError):
     """Raised when a non-TUI surface submits ``%name:!<name>``."""
 
@@ -155,6 +166,7 @@ def validate_launch_name_requests(
         agent_name_allocation_lock,
         get_reserved_agent_names,
         get_reserved_clan_names,
+        get_reserved_family_names,
         parse_agent_name_template,
         render_agent_name_template,
         lowest_name_suggestion,
@@ -169,6 +181,7 @@ def validate_launch_name_requests(
     # same collision contract while making validation independent of segment count.
     reserved_names: set[str] | None = None
     clan_names: set[str] | None = None
+    family_names: set[str] | None = None
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
@@ -193,9 +206,12 @@ def validate_launch_name_requests(
             if reserved_names is None:
                 reserved_names = get_reserved_agent_names()
                 clan_names = get_reserved_clan_names()
+                family_names = get_reserved_family_names()
             if request.name in seen or request.name in reserved_names:
                 if clan_names is not None and request.name in clan_names:
                     raise _AgentNameClanCollisionError(request.name)
+                if family_names is not None and request.name in family_names:
+                    raise _AgentNameFamilyCollisionError(request.name)
                 raise AgentNameLaunchCollisionError(
                     request.name, lowest_name_suggestion(request.name)
                 )

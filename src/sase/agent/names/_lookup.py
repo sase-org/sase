@@ -327,16 +327,22 @@ def find_agent_family(base_name: str) -> AgentFamily | None:
     roots = [member for member in members if member.parent_timestamp is None]
     if roots:
         root = max(roots, key=lambda member: member.timestamp)
+        generation_members = [root]
+        generation_timestamps = {root.timestamp}
+        remaining = [member for member in members if member is not root]
+        while remaining:
+            attached = [
+                member
+                for member in remaining
+                if member.parent_timestamp in generation_timestamps
+            ]
+            if not attached:
+                break
+            generation_members.extend(attached)
+            generation_timestamps.update(member.timestamp for member in attached)
+            remaining = [member for member in remaining if member not in attached]
         generation = tuple(
-            sorted(
-                (
-                    member
-                    for member in members
-                    if member.timestamp == root.timestamp
-                    or member.parent_timestamp == root.timestamp
-                ),
-                key=lambda member: member.timestamp,
-            )
+            sorted(generation_members, key=lambda member: member.timestamp)
         )
         return AgentFamily(base_name=base_name, root=root, members=generation)
 

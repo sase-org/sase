@@ -384,12 +384,14 @@ def extract_directives_and_write_meta(
             agent_meta["changespec_name"] = cl_name
             agent_meta.setdefault("cl_name", cl_name)
         if family_attach_plan:
+            from sase.agent.family_attach import promote_family_parent_for_attach
             from sase.plan_chain import (
                 AGENT_FAMILY_FIELD,
                 AGENT_FAMILY_ROLE_FIELD,
                 PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
             )
 
+            promote_family_parent_for_attach(family_attach_plan)
             agent_meta["name"] = family_attach_plan.agent_name
             agent_meta["workflow_name"] = family_attach_plan.parent_base
             agent_meta["role_suffix"] = family_attach_plan.role_suffix
@@ -406,6 +408,17 @@ def extract_directives_and_write_meta(
             if family_attach_plan.parent_cl_name:
                 agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
                 agent_meta["cl_name"] = family_attach_plan.parent_cl_name
+            if family_attach_plan.parent_agent_clan:
+                from sase.agent.clan_membership import (
+                    AGENT_CLAN_FIELD,
+                    AGENT_CLAN_GENERATION_FIELD,
+                )
+
+                agent_meta[AGENT_CLAN_FIELD] = family_attach_plan.parent_agent_clan
+                if family_attach_plan.parent_agent_clan_generation:
+                    agent_meta[AGENT_CLAN_GENERATION_FIELD] = (
+                        family_attach_plan.parent_agent_clan_generation
+                    )
         if clan_membership_plan:
             from sase.agent.clan_membership import (
                 AGENT_CLAN_FIELD,

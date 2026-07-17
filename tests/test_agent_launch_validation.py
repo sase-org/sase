@@ -26,6 +26,9 @@ from sase.agent.launch_validation import (
 from sase.agent.launch_validation import (
     _AgentNameClanCollisionError as AgentNameClanCollisionError,
 )
+from sase.agent.launch_validation import (
+    _AgentNameFamilyCollisionError as AgentNameFamilyCollisionError,
+)
 
 
 def _make_agent(home: Path, name: str, suffix: str = "run-old") -> Path:
@@ -71,6 +74,24 @@ def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
             match=r"inside the clan hood.*research\.member",
         ):
             validate_launch_name_requests(["%name:research\nDo work"])
+
+
+def test_collision_validation_preserves_family_container(tmp_path: Path) -> None:
+    from sase.agent.names import (
+        claim_registered_name,
+        convert_registered_agent_to_family,
+    )
+
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    artifacts_dir.mkdir(parents=True)
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("review", artifacts_dir)
+        convert_registered_agent_to_family("review", "review--0", artifacts_dir)
+        with pytest.raises(
+            AgentNameFamilyCollisionError,
+            match=r"Attach a member with %n\(parent, suffix\)",
+        ):
+            validate_launch_name_requests(["%name:review\nDo work"])
 
 
 def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:

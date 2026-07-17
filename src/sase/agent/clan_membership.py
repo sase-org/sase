@@ -33,7 +33,7 @@ def consume_clan_membership_plan_from_env() -> ClanMembershipPlan | None:
     raw = os.environ.pop(CLAN_MEMBERSHIP_ENV, None)
     if not raw:
         return None
-    return _decode_clan_membership_plan(raw)
+    return decode_clan_membership_plan(raw)
 
 
 def resolve_existing_clan_membership(target: str) -> ClanMembershipPlan:
@@ -63,7 +63,8 @@ def resolve_existing_clan_membership(target: str) -> ClanMembershipPlan:
     return ClanMembershipPlan(clan_name=clan.name, generation=clan.generation)
 
 
-def _decode_clan_membership_plan(raw: str) -> ClanMembershipPlan:
+def decode_clan_membership_plan(raw: str) -> ClanMembershipPlan:
+    """Decode a clan membership payload without consuming process state."""
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -89,6 +90,7 @@ __all__ = [
     "ClanMembershipError",
     "ClanMembershipPlan",
     "consume_clan_membership_plan_from_env",
+    "decode_clan_membership_plan",
     "encode_clan_membership_plan",
     "resolve_existing_clan_membership",
 ]

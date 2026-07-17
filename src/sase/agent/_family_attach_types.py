@@ -31,9 +31,14 @@ class FamilyAttachLaunchPlan:
     role_suffix: str
     agent_name: str
     agent_family_role: str
+    parent_family_member_name: str
+    parent_family_role_suffix: str
+    parent_needs_rename: bool
     parent_project_name: str
     parent_is_running: bool = False
     parent_cl_name: str | None = None
+    parent_agent_clan: str | None = None
+    parent_agent_clan_generation: str | None = None
     parent_workspace_dir: str | None = None
     parent_workspace_num: int | None = None
     sase_plan: str | None = None
@@ -53,6 +58,9 @@ class FamilyAttachSibling:
     workspace_dir: str | None = None
     workspace_num: int | None = None
     can_attach_parent: bool = True
+    family_root_role_suffix: str = "--0"
+    agent_clan: str | None = None
+    agent_clan_generation: str | None = None
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
 
 

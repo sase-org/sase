@@ -195,6 +195,7 @@ class WaitDependencyIndex:
         family_agents = self._aggregate_candidates(
             self.families.get(name),
             exclude_artifact_dir=exclude_artifact_dir,
+            exclude_queued=False,
         )
         if not family_agents:
             return None
@@ -204,12 +205,7 @@ class WaitDependencyIndex:
         ]
         if roots:
             root = max(roots, key=lambda candidate: candidate.timestamp)
-            generation = [
-                candidate
-                for candidate in family_agents
-                if candidate.timestamp == root.timestamp
-                or candidate.parent_timestamp == root.timestamp
-            ]
+            generation = self._family_generation(family_agents, root)
             newest_timestamp = max(
                 (candidate.timestamp for candidate in generation),
                 default=root.timestamp,
@@ -254,12 +250,7 @@ class WaitDependencyIndex:
         )
         if not family_agents:
             return None
-        generation = [
-            candidate
-            for candidate in family_agents
-            if candidate.timestamp == root.timestamp
-            or candidate.parent_timestamp == root.timestamp
-        ]
+        generation = self._family_generation(family_agents, root)
         if not generation:
             return None
         newest_timestamp = max(candidate.timestamp for candidate in generation)
@@ -336,17 +327,42 @@ class WaitDependencyIndex:
             self.named[name] = candidate
 
     @staticmethod
+    def _family_generation(
+        candidates: list[ArtifactCandidate],
+        root: ArtifactCandidate,
+    ) -> list[ArtifactCandidate]:
+        """Return every descendant in the root's sequential family chain."""
+        generation = [root]
+        timestamps = {root.timestamp}
+        remaining = [candidate for candidate in candidates if candidate is not root]
+        while remaining:
+            attached = [
+                candidate
+                for candidate in remaining
+                if candidate.parent_timestamp in timestamps
+            ]
+            if not attached:
+                break
+            generation.extend(attached)
+            timestamps.update(candidate.timestamp for candidate in attached)
+            remaining = [
+                candidate for candidate in remaining if candidate not in attached
+            ]
+        return generation
+
+    @staticmethod
     def _aggregate_candidates(
         candidates: list[ArtifactCandidate] | None,
         *,
         exclude_artifact_dir: str | Path | None,
+        exclude_queued: bool = True,
     ) -> list[ArtifactCandidate]:
         if not candidates:
             return []
         return [
             candidate
             for candidate in candidates
-            if not candidate.is_queued
+            if (not exclude_queued or not candidate.is_queued)
             and not same_artifact_dir(candidate.artifact_dir, exclude_artifact_dir)
         ]
 

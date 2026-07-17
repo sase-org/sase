@@ -1,12 +1,4 @@
-"""Tests for auto-assigning ``--0`` to the bare dynamic-family root row.
-
-A plain-named agent (``%n:foo``) that later gains a dynamically attached
-family member (``%n(foo, bar)``) should have its bare ``foo`` row promoted to
-the reserved ``--0`` slot *in memory*, so the family renders as ``foo--0`` and
-``foo--bar`` — two distinct suffixed rows under the ``foo`` banner. The stored
-name stays ``foo`` (no disk mutation) so ``%wait``/``@``/copy references still
-resolve to ``foo``.
-"""
+"""Legacy-loader coverage after family promotion moved to persisted metadata."""
 
 from __future__ import annotations
 
@@ -63,36 +55,31 @@ def _attached_member(
     )
 
 
-def test_bare_root_takes_zero_slot_when_member_attached() -> None:
-    """Attaching ``foo--bar`` promotes the bare ``foo`` to ``foo--0``."""
+def test_legacy_bare_root_is_not_renamed_in_memory() -> None:
+    """The loader no longer invents a display-only identity for old artifacts."""
     root = _bare_root()
     member = _attached_member(name="foo--bar", role_suffix="--bar", role="bar")
 
     _apply_status_overrides([root, member])
 
-    assert root.agent_name == "foo--0"
-    assert root.role_suffix == "--0"
-    assert root.agent_family == "foo"
-    assert root.agent_family_role == "root"
-    # The sibling is untouched.
+    assert root.agent_name == "foo"
+    assert root.role_suffix is None
+    assert root.agent_family is None
+    assert root.agent_family_role is None
     assert member.agent_name == "foo--bar"
 
 
-def test_zero_slot_reference_identity_stays_foo() -> None:
-    """The row shows ``foo--0`` but references still resolve to ``foo``."""
+def test_legacy_bare_root_reference_identity_stays_foo() -> None:
     root = _bare_root()
     member = _attached_member(name="foo--bar", role_suffix="--bar", role="bar")
 
     _apply_status_overrides([root, member])
 
-    # `%wait`/`@`/copy all route through `agent_prompt_name`, which resolves a
-    # family root to its base name rather than the display-only `--0` identity.
     assert agent_prompt_name(root) == "foo"
     assert agent_prompt_name(member) == "foo--bar"
 
 
-def test_zero_slot_and_member_group_under_foo_banner() -> None:
-    """Both rows render with distinct suffixes under a single ``foo`` banner."""
+def test_legacy_bare_root_and_member_still_group_under_foo_banner() -> None:
     root = _bare_root()
     member = _attached_member(name="foo--bar", role_suffix="--bar", role="bar")
 
@@ -110,7 +97,22 @@ def test_zero_slot_and_member_group_under_foo_banner() -> None:
     assert len(foo_banners) == 1
     # The name-root banner covers both family rows.
     assert set(foo_banners[0].agent_indices) == {0, 1}
-    assert {root.agent_name, member.agent_name} == {"foo--0", "foo--bar"}
+    assert {root.agent_name, member.agent_name} == {"foo", "foo--bar"}
+
+
+def test_persisted_generic_root_does_not_create_synthetic_planner() -> None:
+    root = _bare_root(name="foo--0")
+    root.role_suffix = "--0"
+    root.agent_family = "foo"
+    root.agent_family_role = "root"
+    member = _attached_member(name="foo--bar", role_suffix="--bar", role="bar")
+    agents = [root, member]
+
+    _apply_status_overrides(agents)
+
+    assert len(agents) == 2
+    assert root.agent_name == "foo--0"
+    assert root.plan_chain_root is False
 
 
 def test_single_bare_member_stays_bare() -> None:

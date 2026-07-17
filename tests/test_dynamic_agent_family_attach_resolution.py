@@ -173,7 +173,47 @@ def test_family_attach_running_parent_builds_queued_plan(
     assert plan.parent_project_name == "sase"
     assert plan.parent_timestamp == "20260701010101"
     assert plan.agent_name == "foo--reviewer"
+    assert plan.parent_needs_rename is True
+    assert plan.parent_family_member_name == "foo--0"
+    assert plan.parent_family_role_suffix == "--0"
     assert plan.parent_workspace_num == 7
+
+
+def test_family_attach_reserves_original_parent_zero_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(monkeypatch, [_artifact_record(name="foo")])
+
+    with pytest.raises(FamilyAttachError, match="reserved for the original parent"):
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="foo", suffix="0"),
+            project_name="sase",
+        )
+
+
+def test_family_attach_inherits_parent_clan_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(
+        monkeypatch,
+        [
+            _artifact_record(
+                name="research.worker",
+                agent_clan="research",
+                agent_clan_generation="20260701010000",
+            )
+        ],
+    )
+
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="research.worker", suffix="reviewer"),
+        project_name="sase",
+    )
+
+    assert plan.parent_agent_clan == "research"
+    assert plan.parent_agent_clan_generation == "20260701010000"
+    assert plan.parent_family_member_name == "research.worker--0"
+    assert plan.agent_name == "research.worker--reviewer"
 
 
 def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
@@ -247,7 +287,7 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
             name=first.agent_name,
             timestamp="20260701010303",
             artifact_dir="/tmp/sase/artifacts/ace-run/20260701010303",
-            can_attach_parent=False,
+            can_attach_parent=True,
         )
     )
     second = resolve_family_attach_plan(
@@ -258,6 +298,8 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
 
     assert first.role_suffix == "--1"
     assert second.role_suffix == "--2"
+    assert second.parent_name == "foo--1"
+    assert second.parent_timestamp == "20260701010303"
     with pytest.raises(FamilyAttachError, match=r"%n\(foo, @\)"):
         resolve_family_attach_plan(
             FamilyAttachDirective(parent="foo", suffix="1"),

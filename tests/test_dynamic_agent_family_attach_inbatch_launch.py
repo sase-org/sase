@@ -33,13 +33,18 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     _patch_empty_attach_snapshot(monkeypatch)
     plan = plan_fake_fanout(
         "multi",
-        ["%n:foo\nPlan the change.", "%n(foo, reviewer)\nReview foo's plan."],
+        [
+            "%n:foo\nPlan the change.",
+            "%n(foo, reviewer)\nReview foo's plan.",
+            "%n(foo, land)\nLand after review.",
+        ],
     )
     plan = replace(
         plan,
         slots=[
             replace(plan.slots[0], timestamp="260701_010101"),
             replace(plan.slots[1], timestamp="260701_010102"),
+            replace(plan.slots[2], timestamp="260701_010103"),
         ],
     )
     requests: list[LaunchSpawnRequest] = []
@@ -76,8 +81,8 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
             spawn=spawn,
         )
 
-    assert execution.launched_count == 2
-    assert [request.workspace_num for request in requests] == [100, 0]
+    assert execution.launched_count == 3
+    assert [request.workspace_num for request in requests] == [100, 0, 0]
     assert requests[1].workspace_dir == "/workspace/100"
     assert requests[1].deferred_workspace is True
     assert requests[1].extra_env is not None
@@ -89,6 +94,12 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert payload["parent_workspace_dir"] == "/workspace/100"
     assert payload["parent_workspace_num"] == 100
     assert payload["parent_is_running"] is True
+    assert requests[2].extra_env is not None
+    chained_payload = json.loads(requests[2].extra_env[FAMILY_ATTACH_ENV])
+    assert chained_payload["agent_name"] == "foo--land"
+    assert chained_payload["parent_name"] == "foo--reviewer"
+    assert chained_payload["parent_timestamp"] == "20260701010102"
+    assert chained_payload["parent_is_running"] is True
 
 
 def test_multi_prompt_family_attach_can_reference_earlier_named_segment(

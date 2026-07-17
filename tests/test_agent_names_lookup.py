@@ -5,7 +5,11 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.agent.names import find_named_agent, get_most_recent_agent_name
+from sase.agent.names import (
+    find_agent_family,
+    find_named_agent,
+    get_most_recent_agent_name,
+)
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
 from tests._agent_names_fixtures import make_agent as _make_agent
@@ -176,3 +180,48 @@ class TestGetMostRecentAgentName:
         with patch.object(Path, "home", return_value=tmp_path):
             result = get_most_recent_agent_name()
         assert result is None
+
+
+def test_find_agent_family_includes_sequential_descendants(tmp_path: Path) -> None:
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010101",
+        "foo--0",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--0",
+        done=True,
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010202",
+        "foo--review",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--review",
+        parent_timestamp="20260701010101",
+        done=True,
+    )
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260701010303",
+        "foo--land",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--land",
+        parent_timestamp="20260701010202",
+        done=True,
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        family = find_agent_family("foo")
+
+    assert family is not None
+    assert [member.name for member in family.members] == [
+        "foo--0",
+        "foo--review",
+        "foo--land",
+    ]

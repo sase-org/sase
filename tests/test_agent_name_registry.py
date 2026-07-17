@@ -16,9 +16,11 @@ from sase.agent.names import (
     NameCollisionError,
     claim_registered_name,
     claim_registered_clan_name,
+    convert_registered_agent_to_family,
     delete_registered_name,
     get_reserved_agent_names,
     get_reserved_clan_names,
+    get_reserved_family_names,
     load_name_registry,
     lookup_registered_name,
     lowest_name_suggestion,
@@ -98,6 +100,29 @@ def test_registry_rebuild_collects_clan_container(tmp_path: Path) -> None:
     assert {"foo", "foo.member"} <= set(data["entries"])
     assert data["entries"]["foo"]["container_kind"] == "clan"
     assert data["entries"]["foo"]["clan_generation"] == "run0"
+
+
+def test_registry_rebuild_collects_family_container(tmp_path: Path) -> None:
+    artifact_dir = _make_agent(tmp_path, "proj", "run1", "foo--0")
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "foo--0",
+                "workflow_name": "foo",
+                "agent_family": "foo",
+                "agent_family_role": "root",
+                "role_suffix": "--0",
+            }
+        ),
+        encoding="utf-8",
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    assert {"foo", "foo--0"} <= set(data["entries"])
+    assert data["entries"]["foo"]["container_kind"] == "family"
+    assert data["entries"]["foo"]["reservation_kind"] == "family"
+    assert data["entries"]["foo--0"]["reservation_kind"] == "claimed"
 
 
 def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
@@ -386,6 +411,24 @@ def test_clan_reservation_rejects_existing_agent_and_claims_first_member(
     assert entry is not None
     assert entry["reservation_kind"] == "clan"
     assert entry["container_kind"] == "clan"
+
+
+def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    root_dir = artifacts_root / "run1"
+    other_dir = artifacts_root / "run2"
+    root_dir.mkdir(parents=True)
+    other_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("foo", root_dir)
+        convert_registered_agent_to_family("foo", "foo--0", root_dir)
+
+        assert get_reserved_family_names() == {"foo"}
+        assert lookup_registered_name("foo")["container_kind"] == "family"
+        assert lookup_registered_name("foo--0")["reservation_kind"] == "claimed"
+        with pytest.raises(NameCollisionError, match="reserved for agent family"):
+            claim_registered_name("foo", other_dir, replace_existing=True)
 
 
 def test_template_reservation_rejects_existing_namespace_descendant(

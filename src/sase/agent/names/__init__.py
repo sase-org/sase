@@ -70,10 +70,12 @@ from sase.agent.names._migration import (
 )
 from sase.agent.names._registry import (
     claim_registered_name,
+    convert_registered_agent_to_family,
     delete_registered_name,
     get_reserved_agent_name_map,
     get_reserved_agent_names,
     get_reserved_clan_names,
+    get_reserved_family_names,
     is_name_reserved,
     load_name_registry,
     lookup_registered_name,
@@ -251,6 +253,7 @@ __all__ = [
     "allocate_wait_names",
     "claim_agent_name",
     "claim_registered_name",
+    "convert_registered_agent_to_family",
     "compare_agent_name_template_tokens",
     "delete_registered_name",
     "find_named_agent",
@@ -270,6 +273,7 @@ __all__ = [
     "get_reserved_agent_name_map",
     "get_reserved_agent_names",
     "get_reserved_clan_names",
+    "get_reserved_family_names",
     "ensure_historical_auto_name_migration",
     "indexed_agent_name_base",
     "is_agent_name_template",

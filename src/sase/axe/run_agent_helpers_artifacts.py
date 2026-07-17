@@ -15,7 +15,6 @@ from sase.plan_chain import (
     AGENT_FAMILY_FIELD,
     AGENT_FAMILY_ROLE_FIELD,
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-    PLAN_CHAIN_ROOT_FIELD,
     agent_family_base,
     agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
@@ -75,23 +74,17 @@ def promote_to_workflow(
     base_name: str,
     role_suffix: str,
 ) -> None:
-    """Retroactively mark the initial agent as a plan-chain family root."""
-    canonical_suffix = canonical_plan_chain_suffix(role_suffix) or role_suffix
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    try:
-        with open(meta_path, encoding="utf-8") as f:
-            meta = json.load(f)
-        meta["name"] = base_name
-        meta["workflow_name"] = base_name
-        meta[PLAN_CHAIN_ROOT_FIELD] = True
-        meta[AGENT_FAMILY_FIELD] = base_name
-        meta[AGENT_FAMILY_ROLE_FIELD] = "root"
-        meta["role_suffix"] = canonical_suffix
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-        update_agent_artifact_index_for_marker_mutation(artifacts_dir)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass
+    """Rename the initial agent into the first plan-chain family member."""
+    from sase.agent._family_promotion import (
+        normalized_family_root_role_suffix,
+        promote_agent_to_family,
+    )
+
+    promote_agent_to_family(
+        artifacts_dir,
+        base_name,
+        root_role_suffix=normalized_family_root_role_suffix(role_suffix),
+    )
 
 
 def create_followup_artifacts(

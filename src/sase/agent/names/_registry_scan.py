@@ -108,7 +108,11 @@ def collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
                     state=state,
                 )
                 _add_owner_clan(entries, _clan_from_payload(meta), owner)
+                family = _family_from_payload(meta)
+                _add_owner_family(entries, family, owner)
                 names = _names_from_payloads(meta, done)
+                if family is not None:
+                    names.discard(family)
                 _add_owner_names(entries, names, owner)
 
 
@@ -128,7 +132,11 @@ def collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None
             continue
         owner = _bundle_owner(path, bundle)
         _add_owner_clan(entries, _clan_from_payload(bundle), owner)
+        family = _family_from_payload(bundle)
+        _add_owner_family(entries, family, owner)
         names = _names_from_payloads(bundle, None, bundle_name_keys=True)
+        if family is not None:
+            names.discard(family)
         _add_owner_names(entries, names, owner)
 
 
@@ -164,6 +172,13 @@ def _clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None
     return clan, generation
 
 
+def _family_from_payload(payload: dict[str, Any] | None) -> str | None:
+    if not isinstance(payload, dict) or payload.get("agent_family_parallel") is True:
+        return None
+    family = payload.get("agent_family")
+    return family if isinstance(family, str) and family else None
+
+
 def _add_owner_clan(
     entries: dict[str, dict[str, Any]],
     clan: tuple[str, str] | None,
@@ -188,6 +203,31 @@ def _add_owner_clan(
             _entry_owner_identity(existing) == _entry_owner_identity(entry)
         ):
             entries[name] = entry
+        return
+    _add_owner_name(entries, name, owner, reservation_kind="claimed")
+
+
+def _add_owner_family(
+    entries: dict[str, dict[str, Any]],
+    name: str | None,
+    owner: dict[str, Any],
+) -> None:
+    if name is None:
+        return
+    entry = {
+        **owner,
+        "name": name,
+        "reservation_kind": "family",
+        "container_kind": "family",
+    }
+    existing = entries.get(name)
+    if not isinstance(existing, dict):
+        entries[name] = entry
+        return
+    if existing.get("container_kind") == "family":
+        return
+    if _entry_owner_identity(existing) == _entry_owner_identity(entry):
+        entries[name] = entry
         return
     _add_owner_name(entries, name, owner, reservation_kind="claimed")
 
