@@ -32,7 +32,6 @@ class _CollectedDirectives:
     wait_time_args: list[str] = field(default_factory=list)
     wait_runners_args: list[str] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
-    family_role: str | None = None
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
@@ -57,6 +56,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         raw_args: list[str] = []
 
         if has_open_paren:
+            if name == "clan":
+                raise DirectiveError(
+                    "%clan uses the colon form only (e.g., %clan:research)"
+                )
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(prompt, paren_start)
             if paren_end is not None:
@@ -64,7 +67,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 try:
                     positional_args, named_args = parse_args(
                         paren_content,
-                        reject_duplicate_named_args=name in {"family", "model", "wait"},
+                        reject_duplicate_named_args=name in {"model", "wait"},
                     )
                 except ValueError as exc:
                     raise DirectiveError(str(exc)) from exc
@@ -98,12 +101,6 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_time_args.append(named_args["time"])
                     if "runners" in named_args:
                         collected.wait_runners_args.append(named_args["runners"])
-                if name == "family":
-                    _collect_family_paren_args(
-                        collected,
-                        positional_args,
-                        named_args,
-                    )
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
                 if is_multi:
@@ -135,7 +132,11 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     "use %model(alias=model), not %model:alias=model."
                 )
         elif plus_suffix is not None:
-            raw_args = [""] if name == "family" else ["true"]
+            if name == "clan":
+                raise DirectiveError(
+                    "%clan uses the colon form only (e.g., %clan:research)"
+                )
+            raw_args = ["true"]
         else:
             raw_args = [""]
 
@@ -208,26 +209,6 @@ def _collect_name_paren_args(
         [parsed_name.plain_name] if parsed_name.plain_name is not None else [],
         False,
     )
-
-
-def _collect_family_paren_args(
-    collected: _CollectedDirectives,
-    positional_args: list[str],
-    named_args: dict[str, str],
-) -> None:
-    """Validate the shape of ``%family(target, role=...)`` arguments."""
-    unknown_keys = sorted(key for key in named_args if key != "role")
-    if unknown_keys:
-        keys = ", ".join(f"{key}=" for key in unknown_keys)
-        raise DirectiveError(
-            f"Unsupported keyword on %family: {keys}. Only role= is supported."
-        )
-    if len(positional_args) > 1:
-        raise DirectiveError(
-            "%family accepts exactly one positional root-name argument and "
-            "an optional role= keyword."
-        )
-    collected.family_role = named_args.get("role")
 
 
 def _store_single_directive(

@@ -59,6 +59,15 @@ def get_reserved_agent_names() -> set[str]:
     return set(load_name_registry()["entries"])
 
 
+def get_reserved_clan_names() -> set[str]:
+    """Return every name owned by a clan container."""
+    return {
+        name
+        for name, entry in load_name_registry()["entries"].items()
+        if isinstance(entry, dict) and entry.get("container_kind") == "clan"
+    }
+
+
 def get_reserved_agent_name_map() -> dict[str, str]:
     """Return ``{name: owner_path}`` for registered names with a known owner path."""
     out: dict[str, str] = {}
@@ -90,6 +99,13 @@ def claim_registered_name(
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
+        if isinstance(existing, dict) and existing.get("container_kind") == "clan":
+            from sase.agent.names._common import NameCollisionError
+
+            raise NameCollisionError(
+                f"agent name '{name}' is reserved for clan '{name}'; "
+                f"choose a name inside the clan hood, such as '{name}.member'"
+            )
         if isinstance(existing, dict) and not replace_existing:
             if _entry_has_other_owner(existing, artifact_dir):
                 from sase.agent.names._common import NameCollisionError
@@ -117,6 +133,13 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
         artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
         entries = dict(load_name_registry()["entries"])
         existing = entries.get(name)
+        if isinstance(existing, dict) and existing.get("container_kind") == "clan":
+            from sase.agent.names._common import NameCollisionError
+
+            raise NameCollisionError(
+                f"agent name '{name}' is reserved for clan '{name}'; "
+                f"choose a name inside the clan hood, such as '{name}.member'"
+            )
         if isinstance(existing, dict) and _entry_has_other_owner(
             existing, artifact_dir
         ):
@@ -130,6 +153,99 @@ def reserve_registered_name(name: str, claiming_dir: str | Path) -> None:
             artifact_dir, name, reservation_kind="planned"
         )
         entries[name] = entry
+        _save_entries(entries)
+
+
+def reserve_registered_clan_name(
+    name: str,
+    generation: str,
+    claiming_dir: str | Path,
+) -> str:
+    """Reserve a clan and return its allocation-locked generation."""
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if isinstance(existing, dict):
+            if existing.get("container_kind") == "clan":
+                existing_generation = existing.get("clan_generation")
+                return (
+                    existing_generation
+                    if isinstance(existing_generation, str) and existing_generation
+                    else generation
+                )
+            from sase.agent.names._common import NameCollisionError
+
+            raise NameCollisionError(
+                f"clan name '{name}' is already reserved by an agent; "
+                "choose a different clan name"
+            )
+        entry = _owner_from_artifact_name(
+            artifact_dir,
+            name,
+            reservation_kind="planned_clan",
+        )
+        entry["container_kind"] = "clan"
+        entry["clan_generation"] = generation
+        entries[name] = entry
+        _save_entries(entries)
+        return generation
+
+
+def claim_registered_clan_name(
+    name: str,
+    generation: str,
+    claiming_dir: str | Path,
+) -> None:
+    """Persist a clan container after one of its members publishes metadata."""
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if isinstance(existing, dict):
+            if existing.get("container_kind") != "clan":
+                from sase.agent.names._common import NameCollisionError
+
+                raise NameCollisionError(
+                    f"clan name '{name}' is already reserved by an agent; "
+                    "choose a different clan name"
+                )
+            if existing.get(
+                "reservation_kind"
+            ) != "planned_clan" and not _entry_belongs_to_artifact(
+                existing, artifact_dir
+            ):
+                return
+        entry = _owner_from_artifact_name(
+            artifact_dir,
+            name,
+            reservation_kind="clan",
+        )
+        entry["container_kind"] = "clan"
+        entry["clan_generation"] = generation
+        entries[name] = entry
+        _save_entries(entries)
+
+
+def release_planned_registered_clan_name(
+    name: str,
+    generation: str,
+    claiming_dir: str | Path,
+) -> None:
+    """Release a clan reservation when no member in its batch spawned."""
+    with _registry_mutation_lock():
+        artifact_dir = Path(claiming_dir).expanduser().resolve(strict=False)
+        entries = dict(load_name_registry()["entries"])
+        existing = entries.get(name)
+        if not isinstance(existing, dict):
+            return
+        if existing.get("reservation_kind") != "planned_clan":
+            return
+        if existing.get("clan_generation") != generation:
+            return
+        if not _entry_belongs_to_artifact(existing, artifact_dir):
+            return
+        entries.pop(name, None)
         _save_entries(entries)
 
 
@@ -179,7 +295,11 @@ def reserve_registered_template_names(
         # still share a namespace.
         occupied_namespaces = {
             prefix
-            for existing_name in entries
+            for existing_name, existing_entry in entries.items()
+            if not (
+                isinstance(existing_entry, dict)
+                and existing_entry.get("container_kind") == "clan"
+            )
             if existing_name not in allowed
             for prefix in _dotted_namespace_prefixes(existing_name)
         }

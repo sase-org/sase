@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.agent.status_buckets import status_bucket_for_values
-from ._agent_parallel_family import agent_summary_status_counts
+from ._agent_clan import agent_summary_status_counts
 from .agent import Agent, AgentType, compute_row_runtime
 from .agent_panels import PanelKey
 

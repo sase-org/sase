@@ -14,8 +14,8 @@ from ._directive_values import (
     normalize_model_directive,
     parse_repeat_count,
     parse_tribe_tag,
+    resolve_clan_membership,
     resolve_auto_argument,
-    resolve_family_membership,
     resolve_auto_mode,
     resolve_name_template,
     resolve_model_alias_overrides,
@@ -56,10 +56,10 @@ def extract_prompt_directives(
             prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
-    if "family" in collected.seen and collected.name_family_args is not None:
+    if "clan" in collected.seen and collected.name_family_args is not None:
         raise DirectiveError(
-            "Cannot combine %family with %n(parent, suffix); choose parallel "
-            "family membership or serial family attachment."
+            "Cannot combine %clan with %n(parent, suffix); choose clan "
+            "membership or serial family attachment."
         )
 
     name_explicit = collected.name_family_args is None and bool(
@@ -108,10 +108,7 @@ def extract_prompt_directives(
 
     repeat_count = parse_repeat_count(expanded_args)
     parsed_tag = parse_tribe_tag(expanded_args)
-    family_target, family_role = resolve_family_membership(
-        expanded_args,
-        raw_role=collected.family_role,
-    )
+    clan = resolve_clan_membership(expanded_args)
     reasoning_effort = resolve_reasoning_effort(
         effort_directive=expanded_args.get("effort"),
         effort_present="effort" in expanded_args,
@@ -135,8 +132,7 @@ def extract_prompt_directives(
         name=expanded_args.get("name") or None,
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
-        family_target=family_target,
-        family_role=family_role,
+        clan=clan,
         family_attach_parent=(
             collected.name_family_args[0]
             if collected.name_family_args is not None

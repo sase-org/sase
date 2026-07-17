@@ -8,7 +8,7 @@ from ._dismiss_cleanup import (
     agent_identity_from_wire,
     dismissed_identities_from_plan,
 )
-from ._family_cleanup import parallel_family_members_for_root
+from ._clan_cleanup import clan_members_for_container
 from ._kill_persistence import AgentIdentity, KillKind
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ def _immediate_kill_identities(
     identities = {agent.identity}
     identities.update(
         member.identity
-        for member in parallel_family_members_for_root(agent, agents_with_children)
+        for member in clan_members_for_container(agent, agents_with_children)
     )
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         for step in agents_with_children:
@@ -97,7 +97,7 @@ def agents_related_to_kill(
 
     related: list[Agent] = [
         agent,
-        *parallel_family_members_for_root(agent, agents_with_children),
+        *clan_members_for_container(agent, agents_with_children),
     ]
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         for step in agents_with_children:

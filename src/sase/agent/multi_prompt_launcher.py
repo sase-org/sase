@@ -11,14 +11,18 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from sase.agent.family_membership import FAMILY_MEMBERSHIP_ENV
+from sase.agent.clan_membership import (
+    CLAN_MEMBERSHIP_ENV,
+    ClanMembershipPlan,
+    encode_clan_membership_plan,
+)
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_references import (
     _GENERATED_AGENT_NAME_ENV,
     _PLANNED_AGENT_NAME_ENV,
     PlannedNameAllocator as _PlannedNameAllocator,
-    StaticFamilyDirective as _StaticFamilyDirective,
-    extract_static_family_directive as _extract_static_family_directive,
+    StaticClanDirective as _StaticClanDirective,
+    extract_static_clan_directive as _extract_static_clan_directive,
     extract_static_name_directive as _extract_static_name_directive,
     has_bare_resume_reference as _has_bare_resume_reference,
     has_bare_wait_directive as _has_bare_wait_directive,
@@ -150,16 +154,34 @@ def _plan_segment_fanout(
 
 
 @dataclass
-class _ParallelFamilyPrepass:
-    """Launch values pinned before any parallel-family member can spawn."""
+class _ClanPrepass:
+    """Clan launch values pinned before any member can spawn."""
 
-    root_timestamps: dict[int, str]
-    root_contexts: dict[int, _SegmentVcsContext]
-    root_planned_names: dict[int, tuple[str, str | None]]
+    plans_by_segment: dict[int, LaunchFanoutPlanWire]
+    contexts_by_slot: dict[tuple[int, int], _SegmentVcsContext]
+    artifacts_dirs_by_slot: dict[tuple[int, int], Path]
+    planned_names_by_slot: dict[tuple[int, int], str]
+    planned_env_names_by_slot: dict[tuple[int, int], str | None]
     membership_env_by_segment: dict[int, str]
+    membership_by_segment: dict[int, ClanMembershipPlan]
+    planned_clan_reservations: list[tuple[str, str, Path]]
+
+    def release_uncommitted_clan_reservations(self) -> None:
+        from sase.agent.names import release_planned_registered_clan_name
+
+        for clan_name, generation, artifacts_dir in self.planned_clan_reservations:
+            release_planned_registered_clan_name(
+                clan_name,
+                generation,
+                artifacts_dir,
+            )
 
 
-def _prepare_parallel_family_launches(
+def _empty_clan_prepass() -> _ClanPrepass:
+    return _ClanPrepass({}, {}, {}, {}, {}, {}, {}, [])
+
+
+def _prepare_clan_launches(
     *,
     segments: list[str],
     local_xprompts: dict[str, XPrompt],
@@ -173,152 +195,229 @@ def _prepare_parallel_family_launches(
     default_bare_segments_to_home: bool,
     timestamp_allocator: LaunchTimestampBatchAllocator,
     name_allocator: _PlannedNameAllocator,
-) -> _ParallelFamilyPrepass:
-    """Resolve in-launch family roots before the first segment is spawned."""
-    from sase.agent.family_membership import (
-        FamilyMembershipPlan,
-        encode_family_membership_plan,
-    )
+) -> _ClanPrepass:
+    """Resolve rootless clan identity and validate every member before spawn."""
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
     from sase.xprompt._exceptions import DirectiveError
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
     from sase.xprompt.directives import has_deferred_start_directive
 
-    directives: list[_StaticFamilyDirective | None] = [
-        _extract_static_family_directive(segment) for segment in segments
+    directives: list[_StaticClanDirective | None] = [
+        _extract_static_clan_directive(segment) for segment in segments
     ]
     if not any(directive is not None for directive in directives):
-        return _ParallelFamilyPrepass({}, {}, {}, {})
+        return _empty_clan_prepass()
 
-    names = [_extract_static_name_directive(segment) for segment in segments]
-    members_by_target: dict[str, list[int]] = {}
+    members_by_raw_clan: dict[str, list[int]] = {}
     for index, directive in enumerate(directives):
         if directive is None:
             continue
-        if names[index] == directive.target:
-            raise DirectiveError(
-                f"Multi-prompt segment {index + 1} cannot target itself with "
-                f"%family:{directive.target}"
-            )
-        members_by_target.setdefault(directive.target, []).append(index)
+        members_by_raw_clan.setdefault(directive.name, []).append(index)
 
-    root_timestamps: dict[int, str] = {}
-    root_contexts: dict[int, _SegmentVcsContext] = {}
-    root_planned_names: dict[int, tuple[str, str | None]] = {}
+    plans_by_segment: dict[int, LaunchFanoutPlanWire] = {}
+    contexts_by_slot: dict[tuple[int, int], _SegmentVcsContext] = {}
+    artifacts_dirs_by_slot: dict[tuple[int, int], Path] = {}
+    planned_names_by_slot: dict[tuple[int, int], str] = {}
+    planned_env_names_by_slot: dict[tuple[int, int], str | None] = {}
     membership_env_by_segment: dict[int, str] = {}
+    membership_by_segment: dict[int, ClanMembershipPlan] = {}
+    reservations: list[tuple[str, str, Path]] = []
+    pending_reservations: list[tuple[str, str, str, Path]] = []
 
-    def set_membership(index: int, payload: str) -> None:
-        if index in membership_env_by_segment:
-            raise DirectiveError(
-                f"Multi-prompt segment {index + 1} belongs to more than one "
-                "parallel family"
-            )
-        membership_env_by_segment[index] = payload
-
-    for target, member_indexes in members_by_target.items():
-        root_indexes = [index for index, name in enumerate(names) if name == target]
-        if len(root_indexes) > 1:
-            raise DirectiveError(
-                f"%family target '{target}' matches more than one sibling root segment"
-            )
-        if not root_indexes:
-            # A directive-only launch or retry resolves the root in the runner.
+    for index, directive in enumerate(directives):
+        if directive is None:
             continue
-
-        root_index = root_indexes[0]
-        root_segment = canonicalize_project_aliases_in_prompt(segments[root_index])
+        prepared_segment = canonicalize_project_aliases_in_prompt(segments[index])
         if default_bare_segments_to_home:
-            root_segment = normalize_default_vcs_workflow_segment(root_segment)
-        root_local_xprompts = _local_xprompts_for_segment(
-            root_segment,
+            prepared_segment = normalize_default_vcs_workflow_segment(prepared_segment)
+        segment_local_xprompts = _local_xprompts_for_segment(
+            prepared_segment,
             local_xprompts,
         )
         preplanned = (
-            None
-            if preplanned_fanout_plans is None
-            else preplanned_fanout_plans[root_index]
+            None if preplanned_fanout_plans is None else preplanned_fanout_plans[index]
         )
-        root_plan, _ = _plan_segment_fanout(
-            root_segment,
-            segment_local_xprompts=root_local_xprompts,
+        plan, _ = _plan_segment_fanout(
+            prepared_segment,
+            segment_local_xprompts=segment_local_xprompts,
             preplanned_fanout_plan=preplanned,
         )
-        root_plan = _assign_missing_slot_timestamps(root_plan, timestamp_allocator)
-        if len(root_plan.slots) != 1:
-            raise DirectiveError(
-                f"%family root segment for '{target}' must resolve to exactly "
-                "one launch slot"
-            )
-        root_slot = root_plan.slots[0]
-        assert root_slot.timestamp is not None
-        root_timestamp = root_slot.timestamp
-        has_wait = has_deferred_start_directive(root_segment)
-        root_context = _resolve_segment_vcs_context(
-            prompt=root_slot.prompt,
-            fallback_cl_name=cl_name,
-            fallback_project_file=project_file,
-            fallback_project_name=project_name,
-            fallback_is_home_mode=is_home_mode,
-            fallback_vcs_ref=vcs_ref,
-            has_wait=has_wait,
-        )
-        root_artifacts_dir = _future_agent_artifacts_dir(
-            project_name=root_context.project_name,
-            timestamp=root_timestamp,
-        )
+        plan = _assign_missing_slot_timestamps(plan, timestamp_allocator)
+        plans_by_segment[index] = plan
+        has_wait = has_deferred_start_directive(prepared_segment)
         template_group = (
-            None
-            if segment_template_groups is None
-            else segment_template_groups[root_index]
+            None if segment_template_groups is None else segment_template_groups[index]
         )
-        root_name, root_env_name = name_allocator.planned_name_for_prompt(
-            root_slot.prompt,
-            artifacts_dir=root_artifacts_dir,
-            template_group=template_group,
-        )
-        if root_name is None:
-            raise DirectiveError(
-                f"%family root segment for '{target}' has no plannable %name"
+        for slot in plan.slots:
+            assert slot.timestamp is not None
+            context = _resolve_segment_vcs_context(
+                prompt=slot.prompt,
+                fallback_cl_name=cl_name,
+                fallback_project_file=project_file,
+                fallback_project_name=project_name,
+                fallback_is_home_mode=is_home_mode,
+                fallback_vcs_ref=vcs_ref,
+                has_wait=has_wait,
             )
-
-        from sase.artifacts import convert_timestamp_to_artifacts_format
-
-        root_identity_timestamp = convert_timestamp_to_artifacts_format(root_timestamp)
-        root_payload = encode_family_membership_plan(
-            FamilyMembershipPlan(
-                family_base=root_name,
-                root_timestamp=root_identity_timestamp,
-                root_artifacts_dir=str(root_artifacts_dir),
-                root_project_name=root_context.project_name,
-                role="root",
-                is_root=True,
+            key = (index, slot.slot_index)
+            contexts_by_slot[key] = context
+            artifacts_dir = _future_agent_artifacts_dir(
+                project_name=context.project_name,
+                timestamp=slot.timestamp,
             )
-        )
-        set_membership(root_index, root_payload)
-        for member_index in member_indexes:
-            directive = directives[member_index]
-            assert directive is not None
-            member_payload = encode_family_membership_plan(
-                FamilyMembershipPlan(
-                    family_base=root_name,
-                    root_timestamp=root_identity_timestamp,
-                    root_artifacts_dir=str(root_artifacts_dir),
-                    root_project_name=root_context.project_name,
-                    role=directive.role,
-                    is_root=False,
+            artifacts_dirs_by_slot[key] = artifacts_dir
+            planned_name, env_name = name_allocator.planned_name_for_prompt(
+                slot.prompt,
+                artifacts_dir=artifacts_dir,
+                template_group=template_group,
+            )
+            if planned_name is None:
+                raise DirectiveError(
+                    f"Clan member segment {index + 1} has no plannable agent name"
                 )
+            planned_names_by_slot[key] = planned_name
+            planned_env_names_by_slot[key] = env_name
+
+    # Name planning above records every template token in the batch. Rewrite
+    # clan-member wait/fork references only after that shared namespace is
+    # complete, then reuse these exact plans during execution.
+    for index, plan in list(plans_by_segment.items()):
+        plans_by_segment[index] = replace(
+            plan,
+            slots=[
+                replace(
+                    slot,
+                    prompt=name_allocator.rewrite_template_references(slot.prompt),
+                )
+                for slot in plan.slots
+            ],
+        )
+
+    from sase.agent.names import (
+        AgentNameTemplateError,
+        find_agent_clan,
+        get_reserved_clan_names,
+        is_agent_name_template,
+        match_agent_name_template,
+        render_agent_name_template,
+        reserve_registered_clan_name,
+        resolve_agent_name_template_reference,
+    )
+    from sase.artifacts import convert_timestamp_to_artifacts_format
+
+    resolved_raw_names: dict[str, str] = {}
+    for raw_clan, member_indexes in members_by_raw_clan.items():
+        resolved_clan = raw_clan
+        if is_agent_name_template(raw_clan):
+            try:
+                resolved_clan = resolve_agent_name_template_reference(
+                    raw_clan,
+                    names=get_reserved_clan_names(),
+                )
+            except AgentNameTemplateError:
+                resolved_clan = ""
+                for index in member_indexes:
+                    plan = plans_by_segment[index]
+                    for slot in plan.slots:
+                        name_template = _extract_static_name_directive(slot.prompt)
+                        if not name_template or not is_agent_name_template(
+                            name_template
+                        ):
+                            continue
+                        planned_name = planned_names_by_slot[(index, slot.slot_index)]
+                        token = match_agent_name_template(name_template, planned_name)
+                        if token is not None:
+                            resolved_clan = render_agent_name_template(raw_clan, token)
+                            break
+                    if resolved_clan:
+                        break
+                if not resolved_clan:
+                    raise DirectiveError(
+                        f"Cannot resolve %clan template '{raw_clan}' from any "
+                        "member name in this launch"
+                    ) from None
+        if resolved_clan in resolved_raw_names.values():
+            other = next(
+                raw
+                for raw, resolved in resolved_raw_names.items()
+                if resolved == resolved_clan
             )
-            set_membership(member_index, member_payload)
+            raise DirectiveError(
+                f"Distinct clan declarations '{other}' and '{raw_clan}' resolve "
+                f"to the same clan '{resolved_clan}'"
+            )
+        resolved_raw_names[raw_clan] = resolved_clan
 
-        root_timestamps[root_index] = root_timestamp
-        root_contexts[root_index] = root_context
-        root_planned_names[root_index] = (root_name, root_env_name)
+        member_slots = [
+            (index, slot)
+            for index in member_indexes
+            for slot in plans_by_segment[index].slots
+        ]
+        for index, slot in member_slots:
+            agent_name = planned_names_by_slot[(index, slot.slot_index)]
+            required_prefix = f"{resolved_clan}."
+            if not agent_name.startswith(
+                required_prefix
+            ) or not agent_name.removeprefix(required_prefix):
+                raise DirectiveError(
+                    f"Agent '{agent_name}' cannot join clan '{resolved_clan}': "
+                    f"clan members must use the '{required_prefix}<suffix>' hood"
+                )
 
-    return _ParallelFamilyPrepass(
-        root_timestamps=root_timestamps,
-        root_contexts=root_contexts,
-        root_planned_names=root_planned_names,
+        first_index, first_slot = min(
+            member_slots,
+            key=lambda item: str(item[1].timestamp),
+        )
+        assert first_slot.timestamp is not None
+        existing_clan = find_agent_clan(resolved_clan)
+        if existing_clan is not None:
+            generation = existing_clan.generation
+        else:
+            generation = convert_timestamp_to_artifacts_format(first_slot.timestamp)
+        first_dir = artifacts_dirs_by_slot[(first_index, first_slot.slot_index)]
+        pending_reservations.append((raw_clan, resolved_clan, generation, first_dir))
+
+    try:
+        for (
+            raw_clan,
+            clan_name,
+            proposed_generation,
+            artifacts_dir,
+        ) in pending_reservations:
+            generation = reserve_registered_clan_name(
+                clan_name,
+                proposed_generation,
+                artifacts_dir,
+            )
+            reservations.append((clan_name, generation, artifacts_dir))
+            membership = ClanMembershipPlan(
+                clan_name=clan_name,
+                generation=generation,
+            )
+            payload = encode_clan_membership_plan(membership)
+            for index in members_by_raw_clan[raw_clan]:
+                membership_env_by_segment[index] = payload
+                membership_by_segment[index] = membership
+    except Exception:
+        from sase.agent.names import release_planned_registered_clan_name
+
+        for clan_name, generation, artifacts_dir in reservations:
+            release_planned_registered_clan_name(
+                clan_name,
+                generation,
+                artifacts_dir,
+            )
+        raise
+
+    return _ClanPrepass(
+        plans_by_segment=plans_by_segment,
+        contexts_by_slot=contexts_by_slot,
+        artifacts_dirs_by_slot=artifacts_dirs_by_slot,
+        planned_names_by_slot=planned_names_by_slot,
+        planned_env_names_by_slot=planned_env_names_by_slot,
         membership_env_by_segment=membership_env_by_segment,
+        membership_by_segment=membership_by_segment,
+        planned_clan_reservations=reservations,
     )
 
 
@@ -445,8 +544,9 @@ def _spawn_segments_into(
             "segment_template_groups must have one entry per multi-prompt segment"
         )
     name_allocator = _PlannedNameAllocator()
+    clan_prepass = _empty_clan_prepass()
     try:
-        family_prepass = _prepare_parallel_family_launches(
+        clan_prepass = _prepare_clan_launches(
             segments=segments,
             local_xprompts=local_xprompts,
             cl_name=cl_name,
@@ -469,6 +569,7 @@ def _spawn_segments_into(
             ),
         )
     except Exception:
+        clan_prepass.release_uncommitted_clan_reservations()
         name_allocator.release_uncommitted_template_reservations()
         raise
     previous_agent_name: str | None = None
@@ -519,24 +620,16 @@ def _spawn_segments_into(
             None if preplanned_fanout_plans is None else preplanned_fanout_plans[i]
         )
         with timer.stage("fanout_plan", segment_index=i, fanout_kind="prompt"):
-            plan, is_fanout = _plan_segment_fanout(
-                segment,
-                segment_local_xprompts=segment_local_xprompts,
-                preplanned_fanout_plan=preplanned_fanout_plan,
-            )
-        root_timestamp = family_prepass.root_timestamps.get(i)
-        if root_timestamp is not None:
-            if len(plan.slots) != 1:
-                from sase.xprompt._exceptions import DirectiveError
-
-                raise DirectiveError(
-                    "Parallel-family root segment changed to a multi-slot fan-out "
-                    "after launch pre-planning"
+            prepass_plan = clan_prepass.plans_by_segment.get(i)
+            if prepass_plan is not None:
+                plan = prepass_plan
+                is_fanout = len(plan.slots) > 1
+            else:
+                plan, is_fanout = _plan_segment_fanout(
+                    segment,
+                    segment_local_xprompts=segment_local_xprompts,
+                    preplanned_fanout_plan=preplanned_fanout_plan,
                 )
-            plan = replace(
-                plan,
-                slots=[replace(plan.slots[0], timestamp=root_timestamp)],
-            )
         plan = _assign_missing_slot_timestamps(plan, timestamp_allocator)
         if (
             multi_agent_prompt_text is not None
@@ -556,9 +649,13 @@ def _spawn_segments_into(
         slot_local_xprompts_files: dict[int, str | None] = {}
         planned_names: dict[int, str | None] = {}
         planned_env_names: dict[int, str | None] = {}
-        pinned_root_name = family_prepass.root_planned_names.get(i)
-        if pinned_root_name is not None:
-            planned_names[0], planned_env_names[0] = pinned_root_name
+        for slot in plan.slots:
+            key = (i, slot.slot_index)
+            if key in clan_prepass.planned_names_by_slot:
+                planned_names[slot.slot_index] = clan_prepass.planned_names_by_slot[key]
+                planned_env_names[slot.slot_index] = (
+                    clan_prepass.planned_env_names_by_slot[key]
+                )
         explicit_templates: dict[int, str | None] = {}
         try:
             for slot in plan.slots:
@@ -566,8 +663,8 @@ def _spawn_segments_into(
                 sub_prompt = slot.prompt
                 assert slot.timestamp is not None
                 with timer.stage("vcs_resolution", segment_index=i, slot_index=j):
-                    segment_ctx = family_prepass.root_contexts.get(i)
-                    if segment_ctx is None or j != 0:
+                    segment_ctx = clan_prepass.contexts_by_slot.get((i, j))
+                    if segment_ctx is None:
                         segment_ctx = _resolve_segment_vcs_context(
                             prompt=sub_prompt,
                             fallback_cl_name=cl_name,
@@ -673,9 +770,9 @@ def _spawn_segments_into(
                     slot_env[_GENERATED_AGENT_NAME_ENV] = "1"
                 if multi_agent_prompt_file is not None:
                     slot_env[MULTI_AGENT_PROMPT_FILE_ENV] = multi_agent_prompt_file
-                family_payload = family_prepass.membership_env_by_segment.get(i)
-                if family_payload is not None:
-                    slot_env[FAMILY_MEMBERSHIP_ENV] = family_payload
+                clan_payload = clan_prepass.membership_env_by_segment.get(i)
+                if clan_payload is not None:
+                    slot_env[CLAN_MEMBERSHIP_ENV] = clan_payload
                 slot_planned_env[j] = slot_env
 
             with timer.stage(
@@ -707,12 +804,22 @@ def _spawn_segments_into(
                     record: LaunchExecutionRecord,
                     planned_names_by_slot: dict[int, str | None] = planned_names,
                     artifact_dirs_by_slot: dict[int, Path] = slot_artifacts_dirs,
+                    segment_index: int = i,
                 ) -> None:
                     slot_index = record.slot.slot_index
                     name_allocator.mark_template_reservation_committed(
                         planned_names_by_slot.get(slot_index),
                         artifact_dirs_by_slot.get(slot_index),
                     )
+                    membership = clan_prepass.membership_by_segment.get(segment_index)
+                    if membership is not None:
+                        from sase.agent.names import claim_registered_clan_name
+
+                        claim_registered_clan_name(
+                            membership.clan_name,
+                            membership.generation,
+                            artifact_dirs_by_slot[slot_index],
+                        )
                     if on_agent_spawned is not None:
                         on_agent_spawned()
 
@@ -729,6 +836,7 @@ def _spawn_segments_into(
                     pending_family_parents=pending_family_parents,
                 )
         except Exception:
+            clan_prepass.release_uncommitted_clan_reservations()
             name_allocator.release_uncommitted_template_reservations()
             raise
 

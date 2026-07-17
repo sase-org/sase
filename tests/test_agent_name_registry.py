@@ -15,13 +15,16 @@ import pytest
 from sase.agent.names import (
     NameCollisionError,
     claim_registered_name,
+    claim_registered_clan_name,
     delete_registered_name,
     get_reserved_agent_names,
+    get_reserved_clan_names,
     load_name_registry,
     lookup_registered_name,
     lowest_name_suggestion,
     rebuild_name_registry,
     reserve_registered_name,
+    reserve_registered_clan_name,
     reserve_registered_template_name,
     reserve_registered_template_names,
 )
@@ -75,6 +78,26 @@ def test_registry_rebuild_collects_active_agent(tmp_path: Path) -> None:
         data = rebuild_name_registry()
         assert "foo" in data["entries"]
         assert lookup_registered_name("foo")["state"] == "active"
+
+
+def test_registry_rebuild_collects_clan_container(tmp_path: Path) -> None:
+    artifact_dir = _make_agent(tmp_path, "proj", "run1", "foo.member")
+    (artifact_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "foo.member",
+                "agent_clan": "foo",
+                "agent_clan_generation": "run0",
+            }
+        ),
+        encoding="utf-8",
+    )
+    with patch.object(Path, "home", return_value=tmp_path):
+        data = rebuild_name_registry()
+
+    assert {"foo", "foo.member"} <= set(data["entries"])
+    assert data["entries"]["foo"]["container_kind"] == "clan"
+    assert data["entries"]["foo"]["clan_generation"] == "run0"
 
 
 def test_registry_rebuild_collects_sharded_agent_and_tracks_day_dir(
@@ -320,6 +343,49 @@ def test_planned_reservation_survives_rebuild_until_child_claims(
         claimed = lookup_registered_name("research.cdx-1")
         assert claimed["reservation_kind"] == "claimed"
         assert claimed["artifacts_dir"] == str(artifacts_dir)
+
+
+def test_clan_reservation_blocks_exact_agent_name_but_allows_hood_members(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    first_dir = artifacts_root / "run1"
+    second_dir = artifacts_root / "run2"
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_clan_name("research", "run0", first_dir)
+        assert get_reserved_clan_names() == {"research"}
+        with pytest.raises(NameCollisionError, match="reserved for clan"):
+            claim_registered_name("research", second_dir, replace_existing=True)
+        reserve_registered_template_name(
+            "research.0.worker",
+            "research.0",
+            second_dir,
+        )
+
+
+def test_clan_reservation_rejects_existing_agent_and_claims_first_member(
+    tmp_path: Path,
+) -> None:
+    artifacts_root = tmp_path / ".sase/projects/proj/artifacts/ace-run"
+    agent_dir = artifacts_root / "run1"
+    clan_dir = artifacts_root / "run2"
+    agent_dir.mkdir(parents=True)
+    clan_dir.mkdir(parents=True)
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        claim_registered_name("taken", agent_dir)
+        with pytest.raises(NameCollisionError, match="already reserved by an agent"):
+            reserve_registered_clan_name("taken", "run0", clan_dir)
+
+        assert reserve_registered_clan_name("free", "run0", clan_dir) == "run0"
+        assert reserve_registered_clan_name("free", "run1", agent_dir) == "run0"
+        claim_registered_clan_name("free", "run0", clan_dir)
+        entry = lookup_registered_name("free")
+
+    assert entry is not None
+    assert entry["reservation_kind"] == "clan"
+    assert entry["container_kind"] == "clan"
 
 
 def test_template_reservation_rejects_existing_namespace_descendant(

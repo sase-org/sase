@@ -7,7 +7,7 @@ from sase.agent.status_buckets import FEEDBACK_STATUS, agent_is_active
 from sase.plan_chain import canonical_plan_chain_suffix
 
 from ._agent_status_diff import classify_diff_badges as classify_persisted_diff_badges
-from ._agent_parallel_family import aggregate_parallel_family_status
+from ._agent_clan import aggregate_clan_status
 from ._agent_status_family import (
     active_approved_plan_handoff_status,
     append_unique_timestamps,
@@ -341,7 +341,7 @@ def apply_status_overrides(
 
         parallel_members = [child for child in children if child.agent_family_parallel]
         if parallel_members:
-            aggregate_status = aggregate_parallel_family_status(
+            aggregate_status = aggregate_clan_status(
                 [parent.status, *(member.status for member in parallel_members)]
             )
             if aggregate_status is not None:

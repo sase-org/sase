@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING, cast
 
 from ._dismiss_cleanup import agent_identity_from_wire, dismissed_identities_from_plan
-from ._family_cleanup import parallel_family_members_for_root
+from ._clan_cleanup import clan_members_for_container
 from ._kill_persistence import AgentIdentity, BulkKillItem, KillKind
 from ._recent_dismissal_groups import (
     agents_for_recent_group,
@@ -63,7 +63,7 @@ class AgentKillFlowMixin:
             )
         else:
             kill_targets.extend(
-                parallel_family_members_for_root(
+                clan_members_for_container(
                     agent,
                     agents_with_children_snapshot,
                 )
@@ -133,7 +133,7 @@ class AgentKillFlowMixin:
                 continue
             cascade_targets = [
                 agent,
-                *parallel_family_members_for_root(
+                *clan_members_for_container(
                     agent,
                     agents_with_children_snapshot,
                 ),

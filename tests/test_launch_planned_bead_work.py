@@ -236,7 +236,7 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     mock_create_artifacts.return_value = "/artifacts/dir"
     mock_spawn.return_value = MagicMock(pid=1)
 
-    from sase.agent.family_membership import FAMILY_MEMBERSHIP_ENV
+    from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 
     segments = [
         "%name:phase\n%family(land, role=phase)\nwork one",
@@ -262,15 +262,7 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     assert [c.kwargs["prompt"] for c in calls] == segments
     assert calls[0].kwargs["extra_env"]["SASE_BEAD_ID"] == "1"
     assert calls[1].kwargs["extra_env"]["SASE_BEAD_ID"] == "2"
-    member_family = json.loads(calls[0].kwargs["extra_env"][FAMILY_MEMBERSHIP_ENV])
-    root_family = json.loads(calls[1].kwargs["extra_env"][FAMILY_MEMBERSHIP_ENV])
-    assert member_family == {
-        **root_family,
-        "is_root": False,
-        "role": "phase",
-    }
-    assert root_family["family_base"] == "land"
-    assert root_family["is_root"] is True
-    assert root_family["role"] == "root"
+    assert CLAN_MEMBERSHIP_ENV not in calls[0].kwargs["extra_env"]
+    assert CLAN_MEMBERSHIP_ENV not in calls[1].kwargs["extra_env"]
     # No fan-out probing means the naming-wait artifacts path is never hit.
     assert mock_create_artifacts.call_count == 0

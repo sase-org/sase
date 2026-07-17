@@ -68,6 +68,32 @@ def test_parallel_family_marker_from_filesystem_and_wire(tmp_path: Path) -> None
     assert wire_agent.agent_family_parallel is True
 
 
+def test_clan_membership_from_filesystem_and_wire(tmp_path: Path) -> None:
+    """Both enrichment paths expose rootless clan identity."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "pid": 1234,
+                "agent_clan": "research",
+                "agent_clan_generation": "20260717010101",
+            }
+        )
+    )
+    filesystem_agent = make_agent()
+    wire_agent = make_agent()
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(agent_clan="research"),
+        None,
+    )
+
+    assert filesystem_agent.agent_clan == "research"
+    assert filesystem_agent.agent_clan_generation == "20260717010101"
+    assert wire_agent.agent_clan == "research"
+
+
 def test_invalid_tag_from_agent_meta_is_ignored(tmp_path: Path) -> None:
     """Malformed stored directive metadata is not surfaced as a UI tag."""
     (tmp_path / "agent_meta.json").write_text(

@@ -73,7 +73,7 @@ class TestRenderEdgeCases:
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r"
 
-    def test_dotted_family_directives_extract_cleanly(self) -> None:
+    def test_legacy_dotted_family_directive_awaits_bead_work_migration(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42.3",
             launch_tag_id="sase-42.3",
@@ -100,12 +100,12 @@ class TestRenderEdgeCases:
         phase_segment, land_segment = rendered.split("\n---\n")
         _, phase_directives = extract_prompt_directives(phase_segment)
         _, land_directives = extract_prompt_directives(land_segment)
-        assert phase_directives.family_target == "sase-42.3"
-        assert phase_directives.family_role == "phase"
-        assert land_directives.family_target is None
+        assert phase_directives.clan is None
+        assert land_directives.clan is None
         assert phase_directives.tag is None
         assert land_directives.tag is None
 
+        assert "%family(sase-42.3, role=phase)" in phase_segment
         assert "%name:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
         assert "%name:!sase-42.3" in land_segment

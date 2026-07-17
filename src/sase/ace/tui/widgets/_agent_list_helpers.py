@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from ..models._agent_parallel_family import parallel_family_members
+from ..models._agent_clan import clan_members
 from ..models.agent import Agent, AgentType
 
 
@@ -57,7 +57,7 @@ def _is_foldable_parent(agent: Agent) -> bool:
     """Check if an agent is a foldable parent (workflow)."""
     if agent.is_workflow_child:
         return False
-    if agent.agent_type == AgentType.WORKFLOW or parallel_family_members(agent):
+    if agent.agent_type == AgentType.WORKFLOW or clan_members(agent):
         return True
     return False
 

@@ -16,9 +16,9 @@ from sase.agent.status_buckets import (
 )
 
 from ..agent_count_chip import format_agent_count_chip
-from ..models._agent_parallel_family import (
-    ParallelFamilyStatusCounts,
-    parallel_family_member_counts,
+from ..models._agent_clan import (
+    ClanStatusCounts as ParallelFamilyStatusCounts,
+    clan_member_counts as parallel_family_member_counts,
 )
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import (

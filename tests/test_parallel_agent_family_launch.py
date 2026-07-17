@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.family_membership import FAMILY_MEMBERSHIP_ENV
+from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.xprompt._exceptions import DirectiveError
@@ -50,48 +50,34 @@ def _launch_with_captured_spawns(
     return calls
 
 
-def test_member_before_template_root_gets_pinned_family_identity(
+def test_template_clan_is_resolved_once_without_a_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     calls = _launch_with_captured_spawns(
         [
-            "%name:research.@.worker\n"
-            "%wait:research.@.final\n"
-            "%family(research.@.final, role=researcher)\nWork",
-            "%name:research.@.final\nLead",
+            "%name:research.@.worker\n%clan:research.@\nWork",
+            "%name:research.@.final\n%clan:research.@\nLead",
         ],
         template_groups=["xprompt:research:0", "xprompt:research:0"],
     )
 
     assert len(calls) == 2
-    member_env = calls[0]["extra_env"]
-    root_env = calls[1]["extra_env"]
-    assert isinstance(member_env, dict)
-    assert isinstance(root_env, dict)
-    member_payload = json.loads(str(member_env[FAMILY_MEMBERSHIP_ENV]))
-    root_payload = json.loads(str(root_env[FAMILY_MEMBERSHIP_ENV]))
-
-    root_name = str(root_env["SASE_AGENT_PLANNED_NAME"])
-    member_name = str(member_env["SASE_AGENT_PLANNED_NAME"])
-    token = root_name.removeprefix("research.").removesuffix(".final")
-    assert member_name == f"research.{token}.worker"
-    assert "%wait:" + root_name in str(calls[0]["prompt"])
-    assert member_payload == {
-        **root_payload,
-        "is_root": False,
-        "role": "researcher",
-    }
-    assert root_payload["family_base"] == root_name
-    assert root_payload["is_root"] is True
-    assert root_payload["role"] == "root"
-    assert root_payload["root_timestamp"] == (
-        "20" + str(calls[1]["timestamp"])[:6] + str(calls[1]["timestamp"])[7:]
-    )
+    envs = [call["extra_env"] for call in calls]
+    assert all(isinstance(env, dict) for env in envs)
+    names = [str(env["SASE_AGENT_PLANNED_NAME"]) for env in envs]  # type: ignore[index]
+    assert names == ["research.0.worker", "research.0.final"]
+    payloads = [
+        json.loads(str(env[CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for env in envs
+    ]
+    assert payloads[0] == payloads[1]
+    assert payloads[0]["clan_name"] == "research.0"
+    assert set(payloads[0]) == {"clan_name", "generation"}
 
 
-def test_family_membership_is_execution_neutral_for_multi_prompt_launches(
+def test_clan_membership_is_execution_neutral(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -100,28 +86,25 @@ def test_family_membership_is_execution_neutral_for_multi_prompt_launches(
         "%name:research.@.worker\n%model:sonnet\n%wait:research.@.final\nWork",
         "%name:review\n%wait\nReview",
     ]
-    family_segments = [
-        baseline_segments[0],
+    clan_segments = [
+        baseline_segments[0].replace(
+            "%model:opus\n", "%model:opus\n%clan:research.@\n"
+        ),
         baseline_segments[1].replace(
-            "%model:sonnet\n",
-            "%model:sonnet\n%family(research.@.final, role=researcher)\n",
+            "%model:sonnet\n", "%model:sonnet\n%clan:research.@\n"
         ),
         baseline_segments[2],
     ]
-    template_groups = [
-        "xprompt:research:0",
-        "xprompt:research:0",
-        None,
-    ]
+    template_groups = ["xprompt:research:0", "xprompt:research:0", None]
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "baseline" / ".sase"))
     baseline = _launch_with_captured_spawns(
         baseline_segments,
         template_groups=template_groups,
     )
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "family" / ".sase"))
-    family = _launch_with_captured_spawns(
-        family_segments,
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "clan" / ".sase"))
+    clan = _launch_with_captured_spawns(
+        clan_segments,
         template_groups=template_groups,
     )
 
@@ -131,133 +114,57 @@ def test_family_membership_is_execution_neutral_for_multi_prompt_launches(
             for call in calls
         ]
 
-    assert planned_names(family) == planned_names(baseline)
-    assert planned_names(family) == [
-        "research.0.final",
-        "research.0.worker",
-        "review",
-    ]
-
-    family_prompts_without_membership = [
-        str(call["prompt"]).replace(
-            "%family(research.@.final, role=researcher)\n",
-            "",
-        )
-        for call in family
-    ]
-    baseline_prompts = [str(call["prompt"]) for call in baseline]
-    assert family_prompts_without_membership == baseline_prompts
-    assert "%wait:research.0.final" in baseline_prompts[1]
-    assert "%wait:research.0.worker" in baseline_prompts[2]
-
-    def model_directive(prompt: str) -> str | None:
-        return next(
-            (
-                line.removeprefix("%model:")
-                for line in prompt.splitlines()
-                if line.startswith("%model:")
-            ),
-            None,
-        )
-
-    baseline_models = [model_directive(prompt) for prompt in baseline_prompts]
-    family_models = [model_directive(str(call["prompt"])) for call in family]
-    assert family_models == baseline_models == ["opus", "sonnet", None]
-
-    context_keys = (
-        "cl_name",
-        "project_file",
-        "project_name",
-        "history_sort_key",
-        "update_target",
-        "is_home_mode",
-        "vcs_ref",
+    assert (
+        planned_names(clan)
+        == planned_names(baseline)
+        == [
+            "research.0.final",
+            "research.0.worker",
+            "review",
+        ]
     )
-    workspace_keys = ("workspace_num", "workspace_dir", "deferred_workspace")
-    for baseline_call, family_call in zip(baseline, family, strict=True):
-        assert {key: family_call[key] for key in context_keys} == {
-            key: baseline_call[key] for key in context_keys
-        }
-        assert {key: family_call[key] for key in workspace_keys} == {
-            key: baseline_call[key] for key in workspace_keys
-        }
-
-    family_envs = [call["extra_env"] for call in family]
-    assert all(isinstance(env, dict) for env in family_envs)
-    assert FAMILY_MEMBERSHIP_ENV not in baseline[0]["extra_env"]  # type: ignore[operator]
-    assert FAMILY_MEMBERSHIP_ENV in family_envs[0]  # type: ignore[operator]
-    assert FAMILY_MEMBERSHIP_ENV in family_envs[1]  # type: ignore[operator]
-    assert FAMILY_MEMBERSHIP_ENV not in family_envs[2]  # type: ignore[operator]
+    clan_prompts = [str(call["prompt"]) for call in clan]
+    assert "%wait:research.0.final" in clan_prompts[1]
+    assert "%wait:research.0.worker" in clan_prompts[2]
+    assert CLAN_MEMBERSHIP_ENV in clan[0]["extra_env"]  # type: ignore[operator]
+    assert CLAN_MEMBERSHIP_ENV in clan[1]["extra_env"]  # type: ignore[operator]
+    assert CLAN_MEMBERSHIP_ENV not in clan[2]["extra_env"]  # type: ignore[operator]
 
 
-def test_family_member_fanout_variants_join_the_same_generation(
+def test_clan_member_fanout_variants_share_generation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     calls = _launch_with_captured_spawns(
-        [
-            "%name:worker\n%family(root, role=worker)\n%{First | Second}",
-            "%name:root\nLead",
-        ]
+        ["%name:root.worker\n%clan:root\n%{First | Second}"]
     )
 
-    assert len(calls) == 3
-    assert [
-        call["extra_env"]["SASE_AGENT_PLANNED_NAME"]  # type: ignore[index]
+    assert len(calls) == 2
+    payloads = [
+        json.loads(str(call["extra_env"][CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
         for call in calls
-    ] == ["worker.1", "worker.2", "root"]
-    member_payloads = [
-        json.loads(str(calls[index]["extra_env"][FAMILY_MEMBERSHIP_ENV]))  # type: ignore[index]
-        for index in (0, 1)
     ]
-    root_payload = json.loads(
-        str(calls[2]["extra_env"][FAMILY_MEMBERSHIP_ENV])  # type: ignore[index]
-    )
-
-    assert member_payloads[0] == member_payloads[1]
-    assert member_payloads[0] == {
-        **root_payload,
-        "is_root": False,
-        "role": "worker",
-    }
-    assert root_payload["is_root"] is True
-    assert root_payload["role"] == "root"
+    assert payloads[0] == payloads[1]
+    assert payloads[0]["clan_name"] == "root"
 
 
-def test_family_root_fanout_is_rejected_before_spawn(
+@pytest.mark.parametrize(
+    "segments",
+    [
+        ["%name:outsider\n%clan:root\nWork"],
+        ["%name:root\n%clan:root\nWork"],
+        [
+            "%name:root.one\n%clan:root\nWork",
+            "%name:other.two\n%clan:root\nReview",
+        ],
+    ],
+)
+def test_clan_rejects_members_outside_its_hood_before_spawn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    segments: list[str],
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    with pytest.raises(DirectiveError, match="exactly one launch slot"):
-        _launch_with_captured_spawns(
-            [
-                "%name:worker\n%family:root\nWork",
-                "%name:root\n%{First | Second}",
-            ]
-        )
-
-
-def test_family_target_rejects_duplicate_sibling_roots(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    with pytest.raises(DirectiveError, match="more than one sibling root"):
-        _launch_with_captured_spawns(
-            [
-                "%name:worker\n%family:root\nWork",
-                "%name:root\nLead one",
-                "%name:root\nLead two",
-            ]
-        )
-
-
-def test_family_segment_cannot_target_itself(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    with pytest.raises(DirectiveError, match="cannot target itself"):
-        _launch_with_captured_spawns(["%name:root\n%family:root\nWork"])
+    with pytest.raises(DirectiveError, match="clan members must use"):
+        _launch_with_captured_spawns(segments)

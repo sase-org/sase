@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from ...widgets import AgentDetail, KeybindingFooter
     from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 
-from ...models._agent_parallel_family import agent_summary_status_counts
+from ...models._agent_clan import agent_summary_status_counts
 from ...models.agent_groups import GroupingMode
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace

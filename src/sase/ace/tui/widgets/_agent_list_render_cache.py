@@ -13,9 +13,9 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from ..models._agent_parallel_family import (
-    ParallelFamilyStatusCounts,
-    parallel_family_member_counts,
+from ..models._agent_clan import (
+    ClanStatusCounts as ParallelFamilyStatusCounts,
+    clan_member_counts as parallel_family_member_counts,
 )
 from ..models.agent import Agent
 from ..models.agent_bead import agent_has_confirmed_bead

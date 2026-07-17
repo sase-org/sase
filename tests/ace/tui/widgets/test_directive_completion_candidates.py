@@ -113,17 +113,15 @@ def test_directive_completion_includes_tribe_and_alias() -> None:
     )
 
 
-def test_directive_completion_includes_family_and_alias() -> None:
-    family, _ = single_directive_candidate("%fam")
-    alias, _ = single_directive_candidate("%f")
+def test_directive_completion_includes_clan_and_alias() -> None:
+    clan, _ = single_directive_candidate("%cla")
+    alias, _ = single_directive_candidate("%c")
 
-    assert family.insertion == "%family"
-    assert alias.insertion == "%family"
-    assert directive_metadata(family).aliases == ("f",)
-    assert directive_metadata(family).argument_hint == (":root or (root, role=token)")
-    assert directive_metadata(family).description == (
-        "join a parallel agent family rooted at another launch segment"
-    )
+    assert clan.insertion == "%clan"
+    assert alias.insertion == "%clan"
+    assert directive_metadata(clan).aliases == ("c",)
+    assert directive_metadata(clan).argument_hint == ":name"
+    assert directive_metadata(clan).description == "join a named parallel agent clan"
 
 
 def test_all_directive_completion_candidates_have_descriptions() -> None:

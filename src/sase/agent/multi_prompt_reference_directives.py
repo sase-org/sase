@@ -5,20 +5,19 @@ import re
 
 
 @dataclass(frozen=True)
-class StaticFamilyDirective:
-    """Top-level parallel-family declaration visible before xprompt expansion."""
+class StaticClanDirective:
+    """Top-level clan declaration visible before xprompt expansion."""
 
-    target: str
-    role: str
+    name: str
 
 
-def extract_static_family_directive(prompt: str) -> StaticFamilyDirective | None:
-    """Return a validated top-level ``%family`` declaration, when present."""
+def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
+    """Return a validated top-level ``%clan:<name>`` declaration, when present."""
     if "%" not in prompt:
         return None
 
     from sase.xprompt._directive_collect import collect_prompt_directive_matches
-    from sase.xprompt._directive_values import resolve_family_membership
+    from sase.xprompt._directive_values import resolve_clan_membership
     from sase.xprompt._disabled_regions import protect_disabled_regions
     from sase.xprompt._exceptions import DirectiveError
     from sase.xprompt._fenced_blocks import protect_fenced_blocks
@@ -28,19 +27,16 @@ def extract_static_family_directive(prompt: str) -> StaticFamilyDirective | None
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
     collected = collect_prompt_directive_matches(protected)
-    if "family" not in collected.seen:
+    if "clan" not in collected.seen:
         return None
     if collected.name_family_args is not None:
         raise DirectiveError(
-            "Cannot combine %family with %n(parent, suffix); choose parallel "
-            "family membership or serial family attachment."
+            "Cannot combine %clan with %n(parent, suffix); choose clan "
+            "membership or serial family attachment."
         )
-    target, role = resolve_family_membership(
-        collected.seen,
-        raw_role=collected.family_role,
-    )
-    assert target is not None and role is not None
-    return StaticFamilyDirective(target=target, role=role)
+    clan = resolve_clan_membership(collected.seen)
+    assert clan is not None
+    return StaticClanDirective(name=clan)
 
 
 def extract_static_name_directive(prompt: str) -> str | None:

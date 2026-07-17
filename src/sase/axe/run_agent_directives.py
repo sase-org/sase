@@ -31,6 +31,10 @@ def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
             preserved[key] = value
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
+    for key in ("agent_clan", "agent_clan_generation"):
+        value = existing_meta.get(key)
+        if isinstance(value, str) and value:
+            preserved[key] = value
     if existing_meta.get("agent_family_parallel") is True:
         for key in (
             "agent_family",
@@ -160,27 +164,17 @@ def extract_directives_and_write_meta(
     from sase.agent.family_attach import load_family_attach_plan_from_env
 
     family_attach_plan = load_family_attach_plan_from_env()
-    from sase.agent.family_membership import (
-        FamilyMembershipError,
-        consume_family_membership_plan_from_env,
-        resolve_existing_family_membership,
+    from sase.agent.clan_membership import (
+        ClanMembershipError,
+        consume_clan_membership_plan_from_env,
+        resolve_existing_clan_membership,
     )
 
-    family_membership_plan = consume_family_membership_plan_from_env()
-    if family_membership_plan is None and directives.family_target is not None:
-        assert directives.family_role is not None
-        family_membership_plan = resolve_existing_family_membership(
-            directives.family_target,
-            role=directives.family_role,
-        )
-    elif (
-        family_membership_plan is not None
-        and not family_membership_plan.is_root
-        and directives.family_target is None
-    ):
-        raise FamilyMembershipError(
-            "Parallel family member payload requires a %family directive"
-        )
+    clan_membership_plan = consume_clan_membership_plan_from_env()
+    if clan_membership_plan is None and directives.clan is not None:
+        clan_membership_plan = resolve_existing_clan_membership(directives.clan)
+    elif clan_membership_plan is not None and directives.clan is None:
+        raise ClanMembershipError("Clan membership payload requires a %clan directive")
     from sase.llm_provider.launch_alias_overrides import (
         active_launch_alias_overrides,
         export_launch_alias_overrides,
@@ -220,17 +214,6 @@ def extract_directives_and_write_meta(
                 "name": family_attach_plan.parent_name,
             }
         )
-    if family_membership_plan is not None and not family_membership_plan.is_root:
-        wait_aliases = {family_membership_plan.family_base}
-        if directives.family_target is not None:
-            wait_aliases.add(directives.family_target)
-        for dependency_name in wait_names:
-            if dependency_name not in wait_aliases:
-                continue
-            wait_identity_deps.append(
-                family_membership_plan.identity_dependency(name=dependency_name)
-            )
-
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
 
     agent_name = (
@@ -423,25 +406,25 @@ def extract_directives_and_write_meta(
             if family_attach_plan.parent_cl_name:
                 agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
                 agent_meta["cl_name"] = family_attach_plan.parent_cl_name
-        if family_membership_plan:
-            from sase.plan_chain import (
-                AGENT_FAMILY_FIELD,
-                AGENT_FAMILY_PARALLEL_FIELD,
-                AGENT_FAMILY_ROLE_FIELD,
+        if clan_membership_plan:
+            from sase.agent.clan_membership import (
+                AGENT_CLAN_FIELD,
+                AGENT_CLAN_GENERATION_FIELD,
             )
 
-            agent_meta[AGENT_FAMILY_FIELD] = family_membership_plan.family_base
-            agent_meta[AGENT_FAMILY_ROLE_FIELD] = family_membership_plan.role
-            agent_meta[AGENT_FAMILY_PARALLEL_FIELD] = True
-            if family_membership_plan.is_root:
-                if agent_name != family_membership_plan.family_base:
-                    raise FamilyMembershipError(
-                        "Parallel family root name changed after launch planning: "
-                        f"expected '{family_membership_plan.family_base}', got "
-                        f"'{agent_name or ''}'"
-                    )
-            else:
-                agent_meta["parent_timestamp"] = family_membership_plan.root_timestamp
+            clan_prefix = f"{clan_membership_plan.clan_name}."
+            if (
+                not agent_name
+                or not agent_name.startswith(clan_prefix)
+                or not agent_name.removeprefix(clan_prefix)
+            ):
+                raise ClanMembershipError(
+                    f"Agent '{agent_name or ''}' cannot join clan "
+                    f"'{clan_membership_plan.clan_name}': clan members must use "
+                    f"the '{clan_prefix}<suffix>' hood"
+                )
+            agent_meta[AGENT_CLAN_FIELD] = clan_membership_plan.clan_name
+            agent_meta[AGENT_CLAN_GENERATION_FIELD] = clan_membership_plan.generation
 
         if agent_name:
             from sase.agent.names import claim_agent_name
@@ -461,6 +444,14 @@ def extract_directives_and_write_meta(
                 explicit=name_user_explicit,
                 force_reuse=directives.name_force_reuse,
             )
+            if clan_membership_plan:
+                from sase.agent.names import claim_registered_clan_name
+
+                claim_registered_clan_name(
+                    clan_membership_plan.clan_name,
+                    clan_membership_plan.generation,
+                    artifacts_dir,
+                )
             os.environ["SASE_AGENT_NAME"] = agent_name
 
         # Write agent_meta.json after the name reservation succeeds so

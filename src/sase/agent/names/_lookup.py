@@ -87,6 +87,40 @@ class AgentFamily:
         )
 
 
+@dataclass(frozen=True)
+class AgentClanMember:
+    """One artifact member of an agent clan."""
+
+    name: str
+    artifacts_dir: Path
+    timestamp: str
+    outcome: str | None
+    generation: str
+
+    @property
+    def is_done(self) -> bool:
+        return self.outcome is not None
+
+
+@dataclass(frozen=True)
+class AgentClan:
+    """Newest known generation of a rootless agent clan."""
+
+    name: str
+    generation: str
+    members: tuple[AgentClanMember, ...]
+
+    @property
+    def newest_member_timestamp(self) -> str:
+        return max((member.timestamp for member in self.members), default="")
+
+    @property
+    def is_complete(self) -> bool:
+        return bool(self.members) and all(
+            member.outcome == _SUCCESS_OUTCOME for member in self.members
+        )
+
+
 def _ace_run_scan_options() -> Any:
     """Return the scan-facade options for ace-run-only name lookups.
 
@@ -189,6 +223,91 @@ def _iter_family_members(base_name: str) -> list[AgentFamilyMember]:
         )
 
     return members
+
+
+def _clan_identity_from_meta(
+    meta: dict[str, Any], artifact_dir: Path
+) -> tuple[str, str] | None:
+    clan = meta.get("agent_clan")
+    legacy_parallel = meta.get("agent_family_parallel") is True
+    if not isinstance(clan, str) or not clan:
+        legacy_family = meta.get(AGENT_FAMILY_FIELD)
+        if (
+            not legacy_parallel
+            or not isinstance(legacy_family, str)
+            or not legacy_family
+        ):
+            return None
+        clan = legacy_family
+
+    generation = meta.get("agent_clan_generation")
+    if not isinstance(generation, str) or not generation:
+        parent_timestamp = _meta_parent_timestamp(meta)
+        generation = parent_timestamp or artifact_dir.name
+    return clan, generation
+
+
+def _iter_clan_members(clan_name: str) -> list[AgentClanMember]:
+    members: list[AgentClanMember] = []
+    for artifact_dir in _iter_ace_run_artifact_dirs():
+        meta = _read_json_dict(artifact_dir / "agent_meta.json")
+        if meta is None:
+            continue
+        identity = _clan_identity_from_meta(meta, artifact_dir)
+        if identity is None or identity[0] != clan_name:
+            continue
+        name = meta.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        members.append(
+            AgentClanMember(
+                name=name,
+                artifacts_dir=artifact_dir,
+                timestamp=artifact_dir.name,
+                outcome=_done_outcome(artifact_dir),
+                generation=identity[1],
+            )
+        )
+    return members
+
+
+def find_agent_clan(clan_name: str) -> AgentClan | None:
+    """Return the newest known generation of *clan_name*."""
+    members = _iter_clan_members(clan_name)
+    if not members:
+        return None
+    generation = max(member.generation for member in members)
+    generation_members = tuple(
+        sorted(
+            (member for member in members if member.generation == generation),
+            key=lambda member: member.timestamp,
+        )
+    )
+    return AgentClan(
+        name=clan_name,
+        generation=generation,
+        members=generation_members,
+    )
+
+
+def is_agent_clan_complete(clan_name: str) -> bool | None:
+    """Return whether every member of the newest clan generation completed."""
+    clan = find_agent_clan(clan_name)
+    return None if clan is None else clan.is_complete
+
+
+def most_recent_completed_clan_member(clan_name: str) -> NamedAgent | None:
+    """Return the newest successful member once the whole clan is complete."""
+    clan = find_agent_clan(clan_name)
+    if clan is None or not clan.is_complete:
+        return None
+    member = max(clan.members, key=lambda item: item.timestamp)
+    return NamedAgent(
+        name=member.name,
+        artifacts_dir=str(member.artifacts_dir),
+        is_done=True,
+        outcome=member.outcome,
+    )
 
 
 def find_agent_family(base_name: str) -> AgentFamily | None:
@@ -312,6 +431,9 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
     exact-name behavior when no family exists.
     """
     name = resolve_agent_name_template_reference(name)
+    clan_member = most_recent_completed_clan_member(name)
+    if clan_member is not None:
+        return clan_member
     is_self_family, self_root = _self_parallel_family_root(name)
     if is_self_family:
         if (
@@ -330,6 +452,9 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
 
 def resolve_wait_dependency(name: str) -> bool:
     """Return whether a wait dependency has completed successfully."""
+    clan_complete = is_agent_clan_complete(name)
+    if clan_complete is not None:
+        return clan_complete
     is_self_family, self_root = _self_parallel_family_root(name)
     if is_self_family:
         return bool(

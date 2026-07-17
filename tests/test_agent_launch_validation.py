@@ -23,6 +23,9 @@ from sase.agent.launch_validation import (
     validate_user_agent_name,
     validate_launch_name_requests,
 )
+from sase.agent.launch_validation import (
+    _AgentNameClanCollisionError as AgentNameClanCollisionError,
+)
 
 
 def _make_agent(home: Path, name: str, suffix: str = "run-old") -> Path:
@@ -55,6 +58,19 @@ def test_collision_validation_uses_registry_suggestion(tmp_path: Path) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameLaunchCollisionError, match="Try 'sasefoo1'"):
             validate_launch_name_requests(["%name:sasefoo\nDo work"])
+
+
+def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
+    from sase.agent.names import reserve_registered_clan_name
+
+    artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
+    with patch.object(Path, "home", return_value=tmp_path):
+        reserve_registered_clan_name("research", "run0", artifacts_dir)
+        with pytest.raises(
+            AgentNameClanCollisionError,
+            match=r"inside the clan hood.*research\.member",
+        ):
+            validate_launch_name_requests(["%name:research\nDo work"])
 
 
 def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:

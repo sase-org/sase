@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._dismiss_cleanup import agent_wire_identity, wire_identity_key
-from ._family_cleanup import parallel_family_members_for_root
+from ._clan_cleanup import clan_members_for_container
 from ._killing_utils import (
     delete_agent_artifacts,
     dismiss_notifications_for_agents,
@@ -157,7 +157,7 @@ def _save_dismissed_bundles_for(
     if agent._from_changespec:
         return
     save_dismissed_bundle(agent)
-    for member in parallel_family_members_for_root(
+    for member in clan_members_for_container(
         agent,
         agents_with_children_snapshot,
     ):
@@ -225,7 +225,7 @@ def _artifact_delete_paths_for(
     paths: list[str | None] = [agent.artifacts_dir or agent.get_artifacts_dir()]
     paths.extend(
         member.artifacts_dir or member.get_artifacts_dir()
-        for member in parallel_family_members_for_root(
+        for member in clan_members_for_container(
             agent,
             agents_with_children_snapshot,
         )
@@ -314,7 +314,7 @@ def agents_related_to_dismissal(
 
     agents = [
         agent,
-        *parallel_family_members_for_root(agent, agents_with_children_snapshot),
+        *clan_members_for_container(agent, agents_with_children_snapshot),
     ]
     if (
         agent.agent_type == AgentType.WORKFLOW

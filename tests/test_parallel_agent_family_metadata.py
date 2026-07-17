@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -9,18 +8,15 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.family_membership import (
-    FAMILY_MEMBERSHIP_ENV,
-    FamilyMembershipPlan,
-    encode_family_membership_plan,
+from sase.agent.clan_membership import (
+    AGENT_CLAN_FIELD,
+    AGENT_CLAN_GENERATION_FIELD,
+    CLAN_MEMBERSHIP_ENV,
+    ClanMembershipError,
+    ClanMembershipPlan,
+    encode_clan_membership_plan,
 )
 from sase.axe.run_agent_directives import AgentInfo, extract_directives_and_write_meta
-from sase.plan_chain import (
-    AGENT_FAMILY_FIELD,
-    AGENT_FAMILY_PARALLEL_FIELD,
-    AGENT_FAMILY_ROLE_FIELD,
-    PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
-)
 
 
 def _write_artifact(
@@ -53,6 +49,7 @@ def _extract_runner_metadata(
             return_value=nullcontext(),
         ),
         patch("sase.agent.names.claim_agent_name"),
+        patch("sase.agent.names.claim_registered_clan_name"),
         patch(
             "sase.xprompt.process_xprompt_references",
             side_effect=lambda value, **_: value,
@@ -77,162 +74,132 @@ def _extract_runner_metadata(
         )
 
 
-def test_runner_writes_execution_neutral_root_and_member_metadata(
+def test_runner_writes_rootless_clan_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    root_timestamp = "20260716010101"
-    root_dir = (
-        sase_home / "projects" / "sase" / "artifacts" / "ace-run" / root_timestamp
+    plan = ClanMembershipPlan(clan_name="root", generation="20260716010101")
+
+    one = _extract_runner_metadata(
+        "%name:root.one\n%clan:root\nWork",
+        artifacts_dir=sase_home / "projects/sase/artifacts/ace-run/20260716010101",
+        env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
-    root_plan = FamilyMembershipPlan(
-        family_base="root",
-        root_timestamp=root_timestamp,
-        root_artifacts_dir=str(root_dir),
-        root_project_name="sase",
-        role="root",
-        is_root=True,
-    )
-    root_info = _extract_runner_metadata(
-        "%name:root\nLead",
-        artifacts_dir=root_dir,
-        env={FAMILY_MEMBERSHIP_ENV: encode_family_membership_plan(root_plan)},
+    two = _extract_runner_metadata(
+        "%name:root.two\n%clan:root\nReview",
+        artifacts_dir=sase_home / "projects/sase/artifacts/ace-run/20260716010202",
+        env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
 
-    assert root_info.meta[AGENT_FAMILY_FIELD] == "root"
-    assert root_info.meta[AGENT_FAMILY_ROLE_FIELD] == "root"
-    assert root_info.meta[AGENT_FAMILY_PARALLEL_FIELD] is True
-    assert "parent_timestamp" not in root_info.meta
-    assert "workflow_name" not in root_info.meta
-    assert "role_suffix" not in root_info.meta
-
-    member_plan = replace(root_plan, role="phase", is_root=False)
-    member_dir = root_dir.parent / "20260716010202"
-    member_info = _extract_runner_metadata(
-        "%name:worker\n%wait:root\n%family(root, role=phase)\nWork",
-        artifacts_dir=member_dir,
-        env={FAMILY_MEMBERSHIP_ENV: encode_family_membership_plan(member_plan)},
-    )
-
-    assert member_info.meta[AGENT_FAMILY_FIELD] == "root"
-    assert member_info.meta[AGENT_FAMILY_ROLE_FIELD] == "phase"
-    assert member_info.meta[AGENT_FAMILY_PARALLEL_FIELD] is True
-    assert member_info.meta["parent_timestamp"] == root_timestamp
-    assert "workflow_name" not in member_info.meta
-    assert "role_suffix" not in member_info.meta
-    assert PLAN_CHAIN_PARENT_TIMESTAMP_FIELD not in member_info.meta
-    assert member_info.wait_identity_deps == [
-        member_plan.identity_dependency(name="root")
-    ]
+    for info in (one, two):
+        assert info.meta[AGENT_CLAN_FIELD] == "root"
+        assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716010101"
+        assert "agent_family" not in info.meta
+        assert "agent_family_role" not in info.meta
+        assert "agent_family_parallel" not in info.meta
+        assert "parent_timestamp" not in info.meta
+    assert one.wait_identity_deps == []
+    assert two.wait_identity_deps == []
 
 
-def test_runner_fallback_joins_exact_named_root(
+def test_runner_fallback_joins_existing_clan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    root_timestamp = "20260716020101"
-    root_dir = _write_artifact(
+    _write_artifact(
         sase_home,
-        timestamp=root_timestamp,
-        meta={"name": "existing-root", "pid": 123},
-        outcome="completed",
-    )
-    member_dir = root_dir.parent / "20260716020202"
-
-    info = _extract_runner_metadata(
-        "%name:late-member\n%family(existing-root, role=late)\nWork",
-        artifacts_dir=member_dir,
-    )
-
-    assert info.meta[AGENT_FAMILY_FIELD] == "existing-root"
-    assert info.meta[AGENT_FAMILY_ROLE_FIELD] == "late"
-    assert info.meta[AGENT_FAMILY_PARALLEL_FIELD] is True
-    assert info.meta["parent_timestamp"] == root_timestamp
-
-
-def test_member_base_reference_resolves_to_generation_root(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sase_home = tmp_path / ".sase"
-    monkeypatch.setenv("SASE_HOME", str(sase_home))
-    root_timestamp = "20260716030101"
-    root_dir = _write_artifact(
-        sase_home,
-        timestamp=root_timestamp,
+        timestamp="20260716020101",
         meta={
-            "name": "family",
-            AGENT_FAMILY_FIELD: "family",
-            AGENT_FAMILY_ROLE_FIELD: "root",
-            AGENT_FAMILY_PARALLEL_FIELD: True,
+            "name": "existing.one",
+            AGENT_CLAN_FIELD: "existing",
+            AGENT_CLAN_GENERATION_FIELD: "20260716020000",
         },
         outcome="completed",
     )
-    _write_artifact(
+
+    info = _extract_runner_metadata(
+        "%name:existing.late\n%clan:existing\nWork",
+        artifacts_dir=(sase_home / "projects/sase/artifacts/ace-run/20260716020202"),
+    )
+
+    assert info.meta[AGENT_CLAN_FIELD] == "existing"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716020000"
+
+
+def test_clan_wait_and_fork_resolve_only_after_every_member_completes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    generation = "20260716030000"
+    first = _write_artifact(
+        sase_home,
+        timestamp="20260716030101",
+        meta={
+            "name": "family.one",
+            AGENT_CLAN_FIELD: "family",
+            AGENT_CLAN_GENERATION_FIELD: generation,
+        },
+        outcome="completed",
+    )
+    second = _write_artifact(
         sase_home,
         timestamp="20260716030202",
         meta={
-            "name": "family-sibling",
-            AGENT_FAMILY_FIELD: "family",
-            AGENT_FAMILY_ROLE_FIELD: "sibling",
-            AGENT_FAMILY_PARALLEL_FIELD: True,
-            "parent_timestamp": root_timestamp,
-        },
-        outcome="completed",
-    )
-    current_dir = _write_artifact(
-        sase_home,
-        timestamp="20260716030303",
-        meta={
-            "name": "family-current",
-            AGENT_FAMILY_FIELD: "family",
-            AGENT_FAMILY_ROLE_FIELD: "current",
-            AGENT_FAMILY_PARALLEL_FIELD: True,
-            "parent_timestamp": root_timestamp,
+            "name": "family.two",
+            AGENT_CLAN_FIELD: "family",
+            AGENT_CLAN_GENERATION_FIELD: generation,
         },
     )
-    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
 
     from sase.agent.names import resolve_resume_agent_name, resolve_wait_dependency
 
+    assert resolve_wait_dependency("family") is False
+    assert resolve_resume_agent_name("family") is None
+    (second / "done.json").write_text(json.dumps({"outcome": "completed"}))
+    assert resolve_wait_dependency("family") is True
     resolved = resolve_resume_agent_name("family")
     assert resolved is not None
-    assert Path(resolved.artifacts_dir) == root_dir
-    assert resolve_wait_dependency("family") is True
+    assert Path(resolved.artifacts_dir) == second
+    assert Path(resolved.artifacts_dir) != first
 
 
-def test_parallel_family_membership_survives_runner_reexec(
+@pytest.mark.parametrize("agent_name", ["outsider", "root."])
+def test_runner_rejects_member_outside_clan_hood(
+    tmp_path: Path,
+    agent_name: str,
+) -> None:
+    plan = ClanMembershipPlan(clan_name="root", generation="20260716040000")
+    with pytest.raises(ClanMembershipError, match="clan members must use"):
+        _extract_runner_metadata(
+            f"%name:{agent_name}\n%clan:root\nWork",
+            artifacts_dir=tmp_path / "run",
+            env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
+        )
+
+
+def test_clan_membership_survives_runner_reexec(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
-    root_timestamp = "20260716040101"
-    root_dir = (
-        sase_home / "projects" / "sase" / "artifacts" / "ace-run" / root_timestamp
-    )
-    plan = FamilyMembershipPlan(
-        family_base="reexec-root",
-        root_timestamp=root_timestamp,
-        root_artifacts_dir=str(root_dir),
-        root_project_name="sase",
-        role="root",
-        is_root=True,
-    )
+    artifacts_dir = sase_home / "projects/sase/artifacts/ace-run/20260716040101"
+    plan = ClanMembershipPlan(clan_name="reexec", generation="20260716040000")
     _extract_runner_metadata(
-        "%name:reexec-root\nLead",
-        artifacts_dir=root_dir,
-        env={FAMILY_MEMBERSHIP_ENV: encode_family_membership_plan(plan)},
+        "%name:reexec.member\n%clan:reexec\nWork",
+        artifacts_dir=artifacts_dir,
+        env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
 
     second = _extract_runner_metadata(
-        "%name:reexec-root\nLead",
-        artifacts_dir=root_dir,
+        "%name:reexec.member\nWork",
+        artifacts_dir=artifacts_dir,
     )
-    assert second.meta[AGENT_FAMILY_FIELD] == "reexec-root"
-    assert second.meta[AGENT_FAMILY_ROLE_FIELD] == "root"
-    assert second.meta[AGENT_FAMILY_PARALLEL_FIELD] is True
+    assert second.meta[AGENT_CLAN_FIELD] == "reexec"
+    assert second.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716040000"

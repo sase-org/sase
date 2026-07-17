@@ -542,8 +542,13 @@ class PlannedNameAllocator:
             self._template_reserved = get_reserved_agent_names()
             self._template_index = None
         if self._template_index is None:
-            self._template_index = AgentNameNamespaceReservationIndex.from_names(
-                self._template_reserved
+            from sase.agent.names import get_reserved_clan_names
+
+            self._template_index = (
+                AgentNameNamespaceReservationIndex.from_registry_names(
+                    self._template_reserved,
+                    namespace_containers=get_reserved_clan_names(),
+                )
             )
         return self._template_index
 

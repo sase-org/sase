@@ -47,6 +47,17 @@ class AgentNameLaunchCollisionError(_LaunchNameValidationError):
         super().__init__(f"Agent name '{name}' is taken. Try '{suggestion}'.")
 
 
+class _AgentNameClanCollisionError(_LaunchNameValidationError):
+    """Raised when an agent tries to claim a clan container's name."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        super().__init__(
+            f"Agent name '{name}' is reserved for clan '{name}'. "
+            f"Choose a name inside the clan hood, such as '{name}.member'."
+        )
+
+
 class AgentNameReuseConfirmationRequiredError(_LaunchNameValidationError):
     """Raised when a non-TUI surface submits ``%name:!<name>``."""
 
@@ -143,6 +154,7 @@ def validate_launch_name_requests(
     from sase.agent.names import (
         agent_name_allocation_lock,
         get_reserved_agent_names,
+        get_reserved_clan_names,
         parse_agent_name_template,
         render_agent_name_template,
         lowest_name_suggestion,
@@ -156,6 +168,7 @@ def validate_launch_name_requests(
     # that cost N times. Computing the set once under the allocation lock keeps the
     # same collision contract while making validation independent of segment count.
     reserved_names: set[str] | None = None
+    clan_names: set[str] | None = None
     with agent_name_allocation_lock():
         for request in requests:
             if request.name_template:
@@ -179,7 +192,10 @@ def validate_launch_name_requests(
                 continue
             if reserved_names is None:
                 reserved_names = get_reserved_agent_names()
+                clan_names = get_reserved_clan_names()
             if request.name in seen or request.name in reserved_names:
+                if clan_names is not None and request.name in clan_names:
+                    raise _AgentNameClanCollisionError(request.name)
                 raise AgentNameLaunchCollisionError(
                     request.name, lowest_name_suggestion(request.name)
                 )

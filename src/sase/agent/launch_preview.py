@@ -111,7 +111,7 @@ def build_launch_preview_request(
 def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
     """Render a human-readable launch preview with complete prompts."""
     slots = [slot for slot in request.get("slots", []) if isinstance(slot, Mapping)]
-    family_annotations = _family_annotations_for_preview(slots)
+    clan_annotations = _clan_annotations_for_preview(slots)
     declared_slot_count = int(request.get("slot_count") or 0)
     slot_count = max(declared_slot_count, len(slots))
     source = str(request.get("source_surface") or "unknown")
@@ -133,8 +133,8 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
         " · ".join(summary),
         "",
     ]
-    for ordinal, (slot, family_annotation) in enumerate(
-        zip(slots, family_annotations, strict=True),
+    for ordinal, (slot, clan_annotation) in enumerate(
+        zip(slots, clan_annotations, strict=True),
         start=1,
     ):
         workspace = slot.get("workspace")
@@ -158,14 +158,8 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
                 "",
             ]
         )
-        if family_annotation is not None:
-            family_target, family_role, is_root = family_annotation
-            family_label = (
-                f"family root `{family_target}`"
-                if is_root
-                else f"family member of `{family_target}`"
-            )
-            lines.extend([f"{family_label} · role `{family_role}`", ""])
+        if clan_annotation is not None:
+            lines.extend([f"clan `{clan_annotation}`", ""])
         lines.append(opening_fence)
         lines.extend(prompt.split("\n") if prompt else [""])
         lines.extend(
@@ -179,39 +173,23 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _family_annotations_for_preview(
+def _clan_annotations_for_preview(
     slots: list[Mapping[str, Any]],
-) -> list[tuple[str, str, bool] | None]:
-    """Describe family members and their in-launch roots without spawning."""
+) -> list[str | None]:
+    """Describe clan membership without spawning."""
     from sase.agent.multi_prompt_reference_directives import (
-        StaticFamilyDirective,
-        extract_static_family_directive,
-        extract_static_name_directive,
+        extract_static_clan_directive,
     )
 
-    family_directives: list[StaticFamilyDirective | None] = []
-    names: list[str | None] = []
+    annotations: list[str | None] = []
     for slot in slots:
         prompt = str(slot.get("prompt") or "")
         try:
-            family_directives.append(extract_static_family_directive(prompt))
-            names.append(extract_static_name_directive(prompt))
+            directive = extract_static_clan_directive(prompt)
+            annotations.append(None if directive is None else directive.name)
         except Exception:
             # Preview rendering remains best-effort; launch validation owns
             # malformed directives and will report the precise error.
-            family_directives.append(None)
-            names.append(None)
-
-    family_targets = {
-        directive.target for directive in family_directives if directive is not None
-    }
-    annotations: list[tuple[str, str, bool] | None] = []
-    for name, directive in zip(names, family_directives, strict=True):
-        if directive is not None:
-            annotations.append((directive.target, directive.role, False))
-        elif name is not None and name in family_targets:
-            annotations.append((name, "root", True))
-        else:
             annotations.append(None)
     return annotations
 

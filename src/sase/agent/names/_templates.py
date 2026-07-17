@@ -65,6 +65,21 @@ class AgentNameNamespaceReservationIndex:
             index.occupied_namespaces.update(_dotted_namespace_prefixes(name))
         return index
 
+    @classmethod
+    def from_registry_names(
+        cls,
+        names: Collection[str],
+        *,
+        namespace_containers: Collection[str] = (),
+    ) -> AgentNameNamespaceReservationIndex:
+        """Build an index while allowing descendants of container names."""
+        containers = set(namespace_containers)
+        index = cls(exact_names=set(names), occupied_namespaces=set())
+        for name in names:
+            if name not in containers:
+                index.occupied_namespaces.update(_dotted_namespace_prefixes(name))
+        return index
+
     def add_name(self, name: str) -> None:
         self.exact_names.add(name)
         self.occupied_namespaces.update(_dotted_namespace_prefixes(name))
@@ -190,9 +205,21 @@ def allocate_agent_name_template(
     # Validate the template before loading the registry so syntax errors stay
     # independent of local agent state.
     parse_agent_name_template(template)
-    pool = _reserved_names() if reserved is None else reserved
+    registry_backed = reserved is None
+    if reserved is None:
+        pool = _reserved_names()
+    else:
+        pool = reserved
     if index is None:
-        index = AgentNameNamespaceReservationIndex.from_names(pool)
+        if registry_backed:
+            from sase.agent.names._registry import get_reserved_clan_names
+
+            index = AgentNameNamespaceReservationIndex.from_registry_names(
+                pool,
+                namespace_containers=get_reserved_clan_names(),
+            )
+        else:
+            index = AgentNameNamespaceReservationIndex.from_names(pool)
     # The namespace template depends only on *template*, so derive it once and
     # render the per-token namespace from it inside the loop.
     namespace_template = agent_name_template_namespace_template(template)

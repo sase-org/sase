@@ -130,6 +130,16 @@ def enrich_agent_from_meta(
         agent.agent_family_role = data["agent_family_role"]
     if not workflow_child:
         agent.agent_family_parallel = bool(data.get("agent_family_parallel", False))
+        raw_clan = data.get("agent_clan")
+        if not isinstance(raw_clan, str) or not raw_clan:
+            legacy_family = data.get("agent_family")
+            if agent.agent_family_parallel and isinstance(legacy_family, str):
+                raw_clan = legacy_family
+        if isinstance(raw_clan, str) and raw_clan:
+            agent.agent_clan = raw_clan
+        raw_generation = data.get("agent_clan_generation")
+        if isinstance(raw_generation, str) and raw_generation:
+            agent.agent_clan_generation = raw_generation
     if not workflow_child and data.get("plan_chain_root"):
         agent.plan_chain_root = True
     if workflow_child:

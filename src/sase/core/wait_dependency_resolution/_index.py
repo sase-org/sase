@@ -34,6 +34,7 @@ class WaitDependencyIndex:
     named: dict[str, WaitCandidate]
     workflows: dict[str, list[ArtifactCandidate]]
     families: dict[str, list[ArtifactCandidate]]
+    clans: dict[str, dict[str, list[ArtifactCandidate]]]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
 
@@ -43,6 +44,7 @@ class WaitDependencyIndex:
             named={},
             workflows={},
             families={},
+            clans={},
             artifacts={},
             artifacts_by_dir={},
         )
@@ -141,6 +143,50 @@ class WaitDependencyIndex:
             self.workflows.setdefault(workflow_name, []).append(artifact)
             if family_name is not None:
                 self.families.setdefault(family_name, []).append(artifact)
+
+        clan_name = meta.get("agent_clan")
+        if not isinstance(clan_name, str) or not clan_name:
+            legacy_family = meta.get("agent_family")
+            if (
+                meta.get("agent_family_parallel") is True
+                and isinstance(legacy_family, str)
+                and legacy_family
+            ):
+                clan_name = legacy_family
+        if isinstance(clan_name, str) and clan_name:
+            generation = meta.get("agent_clan_generation")
+            if not isinstance(generation, str) or not generation:
+                generation = artifact.parent_timestamp or artifact.timestamp
+            self.clans.setdefault(clan_name, {}).setdefault(generation, []).append(
+                artifact
+            )
+
+    def clan_candidate(
+        self,
+        name: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> FamilyCandidate | None:
+        """Return aggregate completion for the newest rootless clan generation."""
+        generations = self.clans.get(name)
+        if not generations:
+            return None
+        generation = max(generations)
+        members = self._aggregate_candidates(
+            generations[generation],
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+        if not members:
+            return None
+        return FamilyCandidate(
+            timestamp=max(member.timestamp for member in members),
+            is_resolved=all(member.is_resolved for member in members),
+            is_done=all(member.is_done for member in members),
+            is_identity_success=all(
+                member.is_identity_success for member in members
+            ),
+            is_failed=any(member.is_failed for member in members),
+        )
 
     def family_candidate(
         self,
@@ -328,6 +374,7 @@ class WaitDependencyIndex:
         candidates = [
             candidate
             for candidate in (
+                self.clan_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
                 self.family_candidate(name, exclude_artifact_dir=exclude_artifact_dir),
                 self.workflow_candidate(
                     name,

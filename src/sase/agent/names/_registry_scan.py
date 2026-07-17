@@ -62,7 +62,7 @@ def collect_planned_reservation_entries(
     for name, entry in existing_entries.items():
         if not isinstance(name, str) or not isinstance(entry, dict):
             continue
-        if entry.get("reservation_kind") != "planned":
+        if entry.get("reservation_kind") not in {"planned", "planned_clan"}:
             continue
         entries[name] = dict(entry)
 
@@ -107,6 +107,7 @@ def collect_artifact_entries(entries: dict[str, dict[str, Any]]) -> None:
                     artifact_dir=artifact_dir,
                     state=state,
                 )
+                _add_owner_clan(entries, _clan_from_payload(meta), owner)
                 names = _names_from_payloads(meta, done)
                 _add_owner_names(entries, names, owner)
 
@@ -126,6 +127,7 @@ def collect_dismissed_bundle_entries(entries: dict[str, dict[str, Any]]) -> None
         if bundle is None:
             continue
         owner = _bundle_owner(path, bundle)
+        _add_owner_clan(entries, _clan_from_payload(bundle), owner)
         names = _names_from_payloads(bundle, None, bundle_name_keys=True)
         _add_owner_names(entries, names, owner)
 
@@ -140,6 +142,54 @@ def _add_owner_names(
         prefix = extract_auto_name_prefix(name)
         if prefix is not None and prefix not in names:
             _add_owner_name(entries, prefix, owner, reservation_kind="auto_prefix")
+
+
+def _clan_from_payload(payload: dict[str, Any] | None) -> tuple[str, str] | None:
+    if not isinstance(payload, dict):
+        return None
+    clan = payload.get("agent_clan")
+    if not isinstance(clan, str) or not clan:
+        family = payload.get("agent_family")
+        if (
+            payload.get("agent_family_parallel") is not True
+            or not isinstance(family, str)
+            or not family
+        ):
+            return None
+        clan = family
+    generation = payload.get("agent_clan_generation")
+    if not isinstance(generation, str) or not generation:
+        parent = payload.get("parent_timestamp")
+        generation = parent if isinstance(parent, str) and parent else "legacy"
+    return clan, generation
+
+
+def _add_owner_clan(
+    entries: dict[str, dict[str, Any]],
+    clan: tuple[str, str] | None,
+    owner: dict[str, Any],
+) -> None:
+    if clan is None:
+        return
+    name, generation = clan
+    entry = {
+        **owner,
+        "name": name,
+        "reservation_kind": "clan",
+        "container_kind": "clan",
+        "clan_generation": generation,
+    }
+    existing = entries.get(name)
+    if not isinstance(existing, dict):
+        entries[name] = entry
+        return
+    if existing.get("container_kind") == "clan":
+        if existing.get("reservation_kind") == "planned_clan" and (
+            _entry_owner_identity(existing) == _entry_owner_identity(entry)
+        ):
+            entries[name] = entry
+        return
+    _add_owner_name(entries, name, owner, reservation_kind="claimed")
 
 
 def _add_owner_name(

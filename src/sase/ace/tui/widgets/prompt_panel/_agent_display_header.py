@@ -158,12 +158,12 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     text.append(f"{token}\n", style=style)
 
 
-def _append_parallel_family_members_section(text: Text, agent: Agent) -> None:
-    """Append the already-loaded parallel members for a selected family root."""
-    from ...models._agent_parallel_family import parallel_family_members
+def _append_clan_members_section(text: Text, agent: Agent) -> None:
+    """Append the already-loaded members for a selected clan container."""
+    from ...models._agent_clan import clan_members
 
     members = sorted(
-        parallel_family_members(agent),
+        clan_members(agent),
         key=lambda member: (
             member.start_time is None,
             member.start_time.isoformat() if member.start_time is not None else "",
@@ -512,7 +512,7 @@ def build_header_text(
             style="#D7D7FF",
         )
 
-    _append_parallel_family_members_section(header_text, agent)
+    _append_clan_members_section(header_text, agent)
 
     append_agent_output_variables_section(header_text, agent)
 

@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 from ._dismiss_cleanup import AgentIdentity
-from ._family_cleanup import parallel_family_members_for_root
+from ._clan_cleanup import clan_members_for_container
 from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index,
 )
@@ -92,7 +92,7 @@ class AgentDismissMemoryMixin:
 
         # Include parallel members and workflow steps when dismissing a root.
         for agent in agents_list:
-            for member in parallel_family_members_for_root(
+            for member in clan_members_for_container(
                 agent,
                 self._agents_with_children,
             ):
@@ -212,7 +212,7 @@ class AgentDismissMemoryMixin:
         for agent in agents:
             identities.update(
                 member.identity
-                for member in parallel_family_members_for_root(
+                for member in clan_members_for_container(
                     agent,
                     self._agents_with_children,
                 )

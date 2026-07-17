@@ -49,8 +49,8 @@ class DirectiveArgCompletionMetadata:
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
     "auto": ":argument (e.g. plan|tale|epic)",
+    "clan": ":name",
     "effort": ":level",
-    "family": ":root or (root, role=token)",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
     "name": ":agent or (parent, suffix)",
@@ -63,8 +63,8 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
 _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "alt": "split a prompt into variants; shorthand %{A | B}",
     "auto": "request automatic gate resolution; arguments are gate-specific",
+    "clan": "join a named parallel agent clan",
     "effort": "set the reasoning-effort level for this prompt",
-    "family": "join a parallel agent family rooted at another launch segment",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose a model and optional launch-family alias overrides",
     "name": "assign an agent name or attach a member to an existing family",

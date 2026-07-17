@@ -259,6 +259,10 @@ class AgentState:
     # Agent-family metadata for plan/question/feedback/coder handoff flows.
     agent_family: str | None = None
     agent_family_role: str | None = None
+    # Rootless parallel clan membership. Clan names are containers and never
+    # identify a real agent row.
+    agent_clan: str | None = None
+    agent_clan_generation: str | None = None
     # Explicitly marks execution-neutral parallel family membership. Unlike
     # serial plan-chain linkage, these children own independent processes and
     # must be included when their family root is killed or dismissed.

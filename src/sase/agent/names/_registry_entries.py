@@ -38,7 +38,7 @@ def entry_has_other_owner(entry: dict[str, Any], artifact_dir: Path) -> bool:
 
 
 def entry_owner_missing(entry: dict[str, Any]) -> bool:
-    if entry.get("reservation_kind") == "planned":
+    if entry.get("reservation_kind") in {"planned", "planned_clan"}:
         return False
     source = entry.get("source")
     if source == "artifact":

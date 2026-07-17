@@ -327,29 +327,26 @@ def test_launch_preview_renders_model_alias_overrides(tmp_path: Path) -> None:
     ) in preview
 
 
-def test_launch_preview_annotates_family_members_and_root(tmp_path: Path) -> None:
+def test_launch_preview_annotates_rootless_clan_members(tmp_path: Path) -> None:
     request = build_launch_preview_request(
         plan=plan_fake_fanout(
             "multi_prompt",
             [
-                "%name:demo.phase-a\n%family(demo.root, role=phase)\nImplement",
-                "%name:!demo.root\nLand the family",
-                "%name:demo.review\n%f:demo.root\nReview",
+                "%name:demo.phase-a\n%clan:demo\nImplement",
+                "%name:demo.land\n%clan:demo\nLand the clan",
+                "%name:demo.review\n%clan:demo\nReview",
             ],
         ),
         context=_context(tmp_path),
         source_surface="agent_skill",
-        request_id="launch-family",
+        request_id="launch-clan",
         created_at_unix=10.0,
     )
 
     preview = render_launch_preview_markdown(request)
 
-    member = "family member of `demo.root` · role `phase`"
-    root = "family root `demo.root` · role `root`"
-    default_member = "family member of `demo.root` · role `member`"
-    assert preview.index(member) < preview.index(root) < preview.index(default_member)
-    assert preview.count("family root `demo.root`") == 1
+    assert preview.count("clan `demo`") == 3
+    assert "family root" not in preview
 
 
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:

@@ -13,7 +13,7 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models._agent_parallel_family import agent_summary_status_counts
+from ...models._agent_clan import agent_summary_status_counts
 
 if TYPE_CHECKING:
     from ...models import Agent
