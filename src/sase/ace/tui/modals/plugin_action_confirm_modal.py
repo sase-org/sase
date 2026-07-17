@@ -344,9 +344,12 @@ class PluginActionConfirmModal(ModalScreen[PluginActionConfirmResult | None]):
         scroll, _body = widgets
         if not scroll.display:
             return
-        scroll.border_subtitle = (
-            "ctrl+d/u scroll" if int(getattr(scroll, "max_scroll_y", 0)) > 0 else ""
-        )
+        has_overflow = int(getattr(scroll, "max_scroll_y", 0)) > 0
+        if has_overflow and not self.has_class("has-scrollable-commits"):
+            self.add_class("has-scrollable-commits")
+            self.call_after_refresh(self._sync_commits_scroll_hint)
+            return
+        scroll.border_subtitle = "ctrl+d/u scroll" if has_overflow else ""
 
     def _commits_widgets(self) -> tuple[VerticalScroll, Static] | None:
         if not getattr(self, "is_attached", True):

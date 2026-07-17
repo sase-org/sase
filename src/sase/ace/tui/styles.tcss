@@ -4985,6 +4985,11 @@ PluginActionConfirmModal.has-commits > #plugin-action-container {
     max-width: 95%;
 }
 
+PluginActionConfirmModal.has-scrollable-commits > #plugin-action-container {
+    height: 32;
+    max-height: 95%;
+}
+
 PluginActionConfirmModal #plugin-action-preview {
     width: 100%;
     height: auto;
@@ -4999,6 +5004,10 @@ PluginActionConfirmModal #plugin-action-commits {
     padding: 0 1;
     border: round $primary;
     border-subtitle-align: right;
+}
+
+PluginActionConfirmModal.has-scrollable-commits #plugin-action-commits {
+    height: 1fr;
 }
 
 PluginActionConfirmModal #plugin-action-commits-body {

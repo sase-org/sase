@@ -513,8 +513,9 @@ async def test_plugin_action_modal_without_loader_has_no_commits_box() -> None:
         await page.expect_modal("PluginActionConfirmModal")
 
         assert len(modal.query("#plugin-action-commits")) == 0
-        modal.action_scroll_commits_down()
-        modal.action_scroll_commits_up()
+        await page.press("ctrl+d")
+        await page.press("ctrl+u")
+        assert page.app.screen is modal
 
 
 async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
@@ -558,6 +559,13 @@ async def test_plugin_action_modal_loads_grouped_incoming_commits() -> None:
                 and "↑ github — 1 incoming commit" in _render(body.content)
             )
         )
+        scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
+        await page.pause()
+        assert int(scroll.max_scroll_y) == 0
+        assert scroll.border_subtitle == ""
+        await page.press("ctrl+d")
+        await page.press("ctrl+u")
+        assert scroll.scroll_y == 0
 
 
 async def test_plugin_action_modal_summarizes_long_grouped_incoming_commits() -> None:
@@ -628,6 +636,9 @@ async def test_plugin_action_modal_empty_incoming_commits_hides_box() -> None:
 
         scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
         await page.wait_for(lambda _s: not scroll.display)
+        await page.press("ctrl+d")
+        await page.press("ctrl+u")
+        assert scroll.scroll_y == 0
 
 
 async def test_plugin_action_modal_incoming_commits_loader_error() -> None:
@@ -651,25 +662,41 @@ async def test_plugin_action_modal_incoming_commits_loader_error() -> None:
         )
 
 
-async def test_plugin_action_modal_scrolls_incoming_commits() -> None:
-    group = RepoIncomingCommits(
-        "sase",
-        IncomingCommits(
-            total=60,
-            commits=tuple(
-                CommitSummary(f"{idx:07x}", f"Incoming change {idx}")
-                for idx in range(60)
+@pytest.mark.parametrize("size", [(100, 24), (120, 40)])
+async def test_plugin_action_modal_scrolls_incoming_commits(
+    size: tuple[int, int],
+) -> None:
+    groups = (
+        RepoIncomingCommits(
+            "sase",
+            IncomingCommits(
+                total=60,
+                commits=tuple(
+                    CommitSummary(f"{idx:07x}", f"Incoming SASE change {idx}")
+                    for idx in range(60)
+                ),
+                source="git",
             ),
-            source="git",
+        ),
+        RepoIncomingCommits(
+            "github",
+            IncomingCommits(
+                total=8,
+                commits=tuple(
+                    CommitSummary(f"f{idx:06x}", f"Incoming plugin change {idx}")
+                    for idx in range(8)
+                ),
+                source="git",
+            ),
         ),
     )
 
-    async with AcePage(size=(100, 24)) as page:
+    async with AcePage(size=size) as page:
         modal = PluginActionConfirmModal(
             title="Update SASE",
             intro="Confirm",
             variants=(_modal_variant(),),
-            incoming_commits_loader=lambda: (group,),
+            incoming_commits_loader=lambda: groups,
         )
         page.app.push_screen(modal)
         await page.expect_modal("PluginActionConfirmModal")
@@ -677,8 +704,50 @@ async def test_plugin_action_modal_scrolls_incoming_commits() -> None:
 
         scroll = modal.query_one("#plugin-action-commits", VerticalScroll)
         await page.wait_for(lambda _s: int(scroll.max_scroll_y) > 0)
-        start = scroll.scroll_y
-        modal.action_scroll_commits_down()
-        await page.wait_for(lambda _s: scroll.scroll_y > start)
-        modal.action_scroll_commits_up()
-        await page.wait_for(lambda _s: scroll.scroll_y <= start)
+        await page.wait_for(lambda _s: scroll.border_subtitle == "ctrl+d/u scroll")
+
+        container = modal.query_one("#plugin-action-container")
+        buttons = modal.query_one("#plugin-action-buttons")
+        bounds = container.content_region
+        for child in (scroll, buttons):
+            assert child.region.x >= bounds.x
+            assert child.region.y >= bounds.y
+            assert child.region.right <= bounds.right
+            assert child.region.bottom <= bounds.bottom
+
+        half_page = max(1, scroll.scrollable_content_region.height // 2)
+        max_scroll_y = int(scroll.max_scroll_y)
+        assert scroll.scroll_y == 0
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == min(half_page, max_scroll_y)
+
+        near_bottom = max(0, max_scroll_y - half_page + 1)
+        scroll.scroll_to(y=near_bottom, animate=False)
+        await page.pause()
+        assert scroll.scroll_y == near_bottom
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == max_scroll_y
+        await page.press("ctrl+d")
+        await page.pause()
+        assert scroll.scroll_y == max_scroll_y
+
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == max(0, max_scroll_y - half_page)
+        near_top = min(max_scroll_y, max(0, half_page - 1))
+        scroll.scroll_to(y=near_top, animate=False)
+        await page.pause()
+        assert scroll.scroll_y == near_top
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
+        await page.press("ctrl+u")
+        await page.pause()
+        assert scroll.scroll_y == 0
