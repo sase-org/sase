@@ -287,7 +287,7 @@ check: _setup
 # demos/out/last_generated_date.txt, and offer to commit the results.
 # Pass -y/--yes to skip the commit confirmation prompt.
 [positional-arguments]
-demos *args: _setup
+demos *args: _setup-visual
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -305,6 +305,7 @@ demos *args: _setup
     vhs demos/tapes/sase_ace_prs_pipeline.tape
     vhs demos/tapes/sase_ace_multi_model_fanout.tape
     just --justfile demos/Justfile postprocess
+    just --justfile demos/Justfile check
     date +%Y-%m-%dT%H:%M:%S > demos/out/last_generated_date.txt
 
     if ! git status --porcelain -- demos/out | grep -q .; then

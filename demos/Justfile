@@ -1,4 +1,8 @@
-python := "../.venv/bin/python"
+python := absolute_path("../.venv/bin/python")
+
+# Reject final GIFs whose representative frames have regressed to grayscale.
+check:
+    {{ python }} scripts/check_demo_media
 
 # Derive every final GIF from its measured MP4 and burn captions when a
 # same-named tapes/*.captions.yml sidecar exists.

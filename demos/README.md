@@ -40,6 +40,16 @@ Every GIF is derived from its rendered MP4 with ffmpeg's `palettegen`/`paletteus
 `ffprobe`. Do not infer the output frame rate from `Set Framerate` in a tape: VHS can produce a different rate (the
 current artifacts are 25 fps despite requesting 30 fps).
 
+Every tape pins `COLORTERM=truecolor` and `TERM=xterm-256color`, then unsets `FORCE_COLOR` and `NO_COLOR` in its hidden
+shell setup, matching the PNG visual-snapshot environment. Keep that environment setup in new tapes so Rich and Textual
+preserve the theme and provider badge colors instead of disabling color or quantizing them to a nearly grayscale
+256-color palette.
+
+After post-processing, `scripts/check_demo_media` samples representative frames from every final GIF and requires mean
+HSV saturation of at least 0.05. The guard runs automatically as part of `just demos` and fails the build if a terminal
+environment change makes the demos nearly grayscale again. Run `just --justfile demos/Justfile check` to check existing
+artifacts without rerendering them.
+
 ## Captions
 
 Add an optional `tapes/<name>.captions.yml` sidecar to burn timed captions into a demo:

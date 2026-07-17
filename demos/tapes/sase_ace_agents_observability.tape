@@ -19,10 +19,15 @@ Set Framerate 30
 Set CursorBlink false
 Set WaitTimeout 15s
 
+Env COLORTERM "truecolor"
+Env TERM "xterm-256color"
+
 Hide
 Type "repo_root=$PWD"
 Enter
 Type "export PATH=$repo_root/.venv/bin:$PATH"
+Enter
+Type "unset FORCE_COLOR NO_COLOR"
 Enter
 Type "export SASE_ACE_RELEASE_VERSION_TITLE=1"
 Enter
@@ -77,7 +82,7 @@ Wait+Screen /pytest tests\/test_parser.py/
 Sleep 2s
 
 Type "z"
-Wait+Screen /ZOOM - TOOLS/
+Wait+Screen /ZOOM.*TOOLS/
 Sleep 2.7s
 Type "j"
 Sleep 600ms
