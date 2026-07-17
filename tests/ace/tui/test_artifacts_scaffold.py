@@ -79,6 +79,28 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         await page.expect_state("artifacts_subtab", "plans")
 
 
+async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
+    async with AcePage(initial_tab="changespecs") as page:
+        calls: list[str] = []
+
+        def record_repeat_agent() -> None:
+            calls.append(page.app.current_artifacts_subtab)
+
+        page.app.action_start_agent_from_changespec = record_repeat_agent  # type: ignore[method-assign]
+
+        expected = ("prs", "commits", "bugs", "plans")
+        for index, (key, subtab) in enumerate(
+            zip(("1", "2", "3", "4"), expected, strict=True),
+            start=1,
+        ):
+            await page.press(key)
+            await page.expect_state("artifacts_subtab", subtab)
+            assert page.app.check_action("start_agent_from_changespec", ()) is True
+
+            await page.press("ctrl+@")
+            assert calls == list(expected[:index])
+
+
 async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> None:
     async with AcePage(initial_tab="changespecs") as page:
         switcher = page.query_one_widget("#artifacts-content-switcher", ContentSwitcher)

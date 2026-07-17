@@ -52,6 +52,7 @@ NON_PRS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "quit",
         "stop_axe_and_quit",
         "start_custom_agent",
+        "start_agent_from_changespec",
         "start_agent_home",
         "start_last_vcs_xprompt_in_editor",
         "restore_prompt_stash",
