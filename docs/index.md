@@ -25,7 +25,7 @@ title: Structured Agentic Software Engineering
   </div>
 
   <figure class="sase-hero__visual">
-    <img src="images/sase_overview.png" alt="Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state">
+    <img src="images/sase_overview.png" alt="One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable results">
   </figure>
 </section>
 

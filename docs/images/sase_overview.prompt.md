@@ -6,79 +6,57 @@ pdf: false
 
 ## Target
 
-- Docs: `README.md` and `docs/index.md`
-- README insertion point: after the opening description and before `## Why sase`
-- Docs homepage insertion point: inside the hero visual
+- Documents: `README.md` and `docs/index.md`
+- README insertion point: centered hero block below the user-facing badges
+- Docs homepage insertion point: existing hero visual
 - Final image: `docs/images/sase_overview.png`
-- Alt text: "Overview of SASE coordinating parallel coding agents, isolated workspaces, and durable workflow state"
+- Final size: 1672×941 PNG, sRGB
+- Alt text: "One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable
+  results"
 
 ## Final GPT Image Prompt
 
+The built-in GPT Image tool generated a completely text-free structural base. Exact labels were added locally so the
+committed image contains no model-generated text.
+
+```text
 Use case: infographic-diagram
+Asset type: dark 16:9 landing-page hero infographic base for the GitHub README and documentation homepage of a software engineering tool
+Primary request: Create a polished, completely text-free structural base for a bold technical infographic showing one developer coordinating parallel coding agents through a control system. This base will receive exact deterministic labels later, so every label zone must be blank and there must be absolutely no readable words, letters, numbers, pseudo-text, tiny fake text, or watermark.
+Scene/backdrop: near-black slate canvas matching GitHub dark mode, approximately #0d1117, with crisp thin light strokes, subtle dark panels, high contrast, and no texture.
+Composition/framing: 16:9 landscape with generous safe margins. Reserve a clean centered header zone across the top for a large title and smaller subtitle. Below it, build one clear left-to-right flow in five beats. Beat 1 at far left: one developer node represented by a generic thin-line person icon, with two compact blank chips beneath it for interactive and scheduled controls. Beat 2 left-center: one wide blank prompt pill represented by a generic message/document icon. Beat 3 in the center: three equal isolated workspace cards side by side, each with a blank title zone, a blank agent pill, and a generic terminal/folder/branch line icon; show obvious fan-out arrows from the prompt into all three cards. Beat 4 beneath the workspace cards: one long shared durable-state rail split into four equal blank segments, connected from all three workspaces. Beat 5 at far right: three compact stacked outcome cards with blank label zones, connected from the durable-state rail. Use one unambiguous forward arrow path between every beat, with arrowheads fully inside the canvas.
+Style/medium: crisp flat vector-like technical architecture illustration rendered as a high-resolution raster, terminal-inspired, professional and minimal. Slightly rounded rectangles, thin borders, disciplined spacing, no fake screenshot.
+Color palette: near-black slate #0d1117 background; teal #00D7AF for interactive coordination and state connections; light blue #87D7FF for workspaces and parallel fan-out; coral #FF5F5F for scheduled controls; restrained amber and green for small status accents; warm off-white for primary strokes.
+Constraints: no company or product logos, no provider logos, no mascots, no decorative gradients, no starbursts, no fake terminal text, no code snippets, no readable glyphs beyond generic line icons, no letters, no numerals, no pseudo-text, no watermark. Keep every label zone empty, clean, and large enough for DejaVu Sans labels at an eventual 1672x941 canvas. Do not crop any panel or arrow. The structure must remain legible when displayed at 830 pixels wide.
+```
 
-Asset type: GitHub README overview image for the open-source project "sase - Structured Agentic Software Engineering".
+## Deterministic Post-Processing Record
 
-Primary request: Create a clean 16:9 landscape technical architecture infographic that accurately explains how SASE
-works. It must be readable at about 800px wide in a GitHub README, with short labels and precise flow.
+The generated base already matched the 1672×941 target. A transparent SVG overlay rendered with ImageMagick and DejaVu
+Sans supplied every visible label. The overlay also removed a direct workspace-to-outcome edge and a stray lower arrow,
+then made the durable-state rail the single source of the outcome spine. The final image was stripped and normalized to
+sRGB:
 
-Exact visible labels to include, spelled exactly:
+```bash
+magick -background none "$LABELS_SVG" "$LABELS_PNG"
+magick "$BASE_PNG" "$LABELS_PNG" -compose over -composite \
+  -strip -colorspace sRGB docs/images/sase_overview.png
+```
 
-- Title: SASE
-- Subtitle: Structured Agentic Software Engineering
-- Top-left actor: Developer supervises many agents
-- Coordination layer: ACE TUI + AXE Automation
-- Input lane: Prompt / XPrompt / Workflow
-- Planning handoff: Planner agent -> plan artifact -> coder agents
-- Workspace fan-out labels: Workspace 1, Workspace 2, Workspace 3
-- Agent labels inside workspaces: Claude Code, Codex, Antigravity CLI
-- Provider boundary label: Agent, VCS, Workspace, Notification plugins
-- Durable state labels: ChangeSpecs, Beads, Comments, Commits, Artifacts
-- Outcome labels: Reviewed changes, Tracked runs, Scheduled work
-- Footer note: One developer coordinates parallel coding agents with durable workflow state
+The deterministic labels are:
 
-Composition:
+- Header: `SASE` and `Structured Agentic Software Engineering`
+- Operator controls: `You`, `ACE TUI` / `interactive`, and `AXE` / `scheduled`
+- Input: `ONE PROMPT`, `Prompt`, `XPrompt`, and `Workflow`
+- Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`; and `Workspace 3` /
+  `Antigravity CLI`
+- Durable state: `ChangeSpecs`, `Beads`, `Commits`, and `Artifacts`
+- Outcomes: `Reviewed PRs`, `Tracked runs`, and `Scheduled work`
 
-- Show a left-to-right and top-to-bottom systems diagram, not a marketing poster.
-- Top left: a single Developer node supervising the system, with multiple thin lines reaching parallel workspaces.
-- Left/middle: a horizontal coordination layer labeled "ACE TUI + AXE Automation". ACE should read as interactive
-  control surface; AXE should read as background scheduling/automation.
-- Input lane feeds the coordination layer: "Prompt / XPrompt / Workflow".
-- Below input lane, show the planning handoff explicitly: "Planner agent -> plan artifact -> coder agents". The plan
-  artifact is produced by the planner and then handed to coder agents, not shown as a normal user input.
-- Center/right: show fan-out into three isolated workspace columns labeled "Workspace 1", "Workspace 2", and "Workspace
-  3". Each workspace contains one neutral terminal/chat agent pill labeled "Claude Code", "Codex", or "Antigravity CLI"
-  and a small branch/file icon, implying real coding work happens in external agents inside isolated checkouts.
-- Beneath the workspaces, show a durable state layer as shared repositories/records: "ChangeSpecs", "Beads", "Comments",
-  "Commits", "Artifacts". Use database/document/node icons and arrows from workspaces back into state.
-- Along the lower edge, show a provider boundary strip labeled "Agent, VCS, Workspace, Notification plugins" to clarify
-  plugins are integration boundaries.
-- Right side outcomes: three compact blocks labeled "Reviewed changes", "Tracked runs", and "Scheduled work".
+## Final Review
 
-Accuracy constraints:
-
-- Do not draw ACE, AXE, XPrompt, ChangeSpecs, Workspaces, Beads, and Plugins as equal sibling modules around a hub.
-- Do not make "Plan" look like a normal user-supplied input; show it as a planner-agent output handed to coder agents.
-- Do not draw agents as passive leaves. They are the execution workers inside isolated workspaces.
-- Do not use the phrase "Agent Operating Layer" anywhere.
-- Show parallelism clearly: one developer, several workspace columns, several agents working at once.
-- Show durable state separately from runtime coordination.
-- Show plugins as boundaries/integrations, not as a central feature box.
-
-Strict visual constraints: Do NOT draw or imitate any company, model, provider, or product logos. The supported-agent
-labels must be plain text pills or neutral generic terminal/chat icons only. Do not use starbursts, official-looking app
-marks, mascots, badges, trademarks, branded color marks, fake screenshots, code paragraphs, or watermarks. Icons must be
-generic thin line icons: user, terminal, clock, calendar, branch, folder, database, document, comment, checklist,
-artifact cube, plug.
-
-Style requirements: Technical architecture infographic, not marketing art. Light neutral background, dark readable text,
-crisp rectangles with radius no more than 8px, precise arrows, generous spacing. Restrained varied palette: neutral base
-plus teal for coordination, blue for workspaces, amber for planning handoff, green for durable state, slate for provider
-boundary. Avoid one-hue palettes and decorative gradients. All text must be large, clean, and legible at README width.
-16:9 landscape PNG-like output, professional systems diagram.
-
-## Post-Processing Notes
-
-Generated with the built-in image generation tool and copied into `docs/images/sase_overview.png`. This replacement was
-generated after an accuracy review of the earlier overview image. The revised prompt emphasizes one developer
-supervising parallel agents, planner-to-coder handoff through a plan artifact, isolated workspaces, durable workflow
-state, and plugins as provider boundaries.
+- Inspected at full 1672×941 resolution and at the README display width of 830 pixels.
+- Confirmed exact label spelling, high contrast, clear fan-out arrows, complete safe margins, and no generated
+  pseudo-text, logos, fake screenshots, gradients, cropping, or watermark.
+- Confirmed the same asset works in the dark README banner and the existing `docs/index.md` hero slot.
+- Final SHA-256: `5c2ef949d060f5239eacaf8e86e1962aa9def546a84765bfe1dc4fc72c190547`.
