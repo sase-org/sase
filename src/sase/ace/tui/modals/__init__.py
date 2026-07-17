@@ -102,6 +102,7 @@ from .auto_approve_modal import AutoApproveChoice, AutoApproveModal
 from .custom_model_input_modal import CustomModelInputModal
 from .model_picker_modal import ModelPickerModal
 from .launch_approval_modal import LaunchApprovalModal, LaunchApprovalResult
+from .gate_debug_modal import GateDebugModal
 from .plan_approval_modal import PlanApprovalModal, PlanApprovalResult
 from .user_question_modal import UserQuestionModal, UserQuestionResult
 from .workflow_hitl_modal import WorkflowHITLInput, WorkflowHITLModal
@@ -221,6 +222,7 @@ __all__ = [
     "JumpAllResult",
     "LaunchApprovalModal",
     "LaunchApprovalResult",
+    "GateDebugModal",
     "LocalXPromptNameModal",
     "RecursiveFileFinderModal",
     "ModelPickerModal",

@@ -43,6 +43,11 @@ def _notifications_path() -> Path:
     return Path(_notifications_file())
 
 
+def notifications_file_path() -> Path:
+    """Return the configured notification JSONL path without touching disk."""
+    return _notifications_path()
+
+
 def _ensure_notifications_dir() -> None:
     os.makedirs(_notifications_dir(), exist_ok=True)
 

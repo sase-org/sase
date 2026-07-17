@@ -54,6 +54,7 @@ class NotificationModal(
             if b[0] not in ("ctrl+n", "ctrl+p")
         ),
         ("x", "dismiss_notification", "Dismiss"),
+        ("d", "debug_view", "Debug"),
         ("y", "confirm_dismiss_notification", "Confirm Dismiss"),
         ("n", "cancel_dismiss_notification", "Cancel Dismiss"),
         ("e", "open_in_editor", "Edit"),
@@ -173,6 +174,20 @@ class NotificationModal(
         if idx is not None and 0 <= idx < len(self._notifications):
             return self._notifications[idx]
         return None
+
+    def action_debug_view(self) -> None:
+        """Open Gate Debug for the selected row, gate-backed or otherwise."""
+        notification = self._get_highlighted_notification()
+        if notification is None:
+            self.notify("No notification selected", severity="warning")
+            return
+        from sase.notification_gates.debug import debug_context_from_notification
+
+        from .gate_debug_modal import GateDebugModal
+
+        self.app.push_screen(
+            GateDebugModal(debug_context_from_notification(notification))
+        )
 
     def on_option_list_option_highlighted(
         self, event: OptionList.OptionHighlighted

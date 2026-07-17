@@ -22,6 +22,7 @@ from textual.widgets._toggle_button import ToggleButton
 from textual.widgets.option_list import Option
 
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.notification_gates.debug import GateDebugContext
 
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
@@ -131,6 +132,7 @@ class UserQuestionModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("d", "debug_view", "Debug"),
         ("j", "next_option", "Next option"),
         ("k", "prev_option", "Prev option"),
         ("n", "next_question", "Next"),
@@ -142,7 +144,12 @@ class UserQuestionModal(
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, questions: list[dict]) -> None:
+    def __init__(
+        self,
+        questions: list[dict],
+        *,
+        debug_context: GateDebugContext | None = None,
+    ) -> None:
         """Initialize the user question modal.
 
         Args:
@@ -155,6 +162,7 @@ class UserQuestionModal(
         self._other_text: dict[int, str] = {}
         self._global_note: str | None = None
         self._input_mode: str | None = None  # None | "other" | "global"
+        self._debug_context = debug_context
 
     def compose(self) -> ComposeResult:
         """Compose the two-pane modal layout."""
@@ -289,9 +297,15 @@ class UserQuestionModal(
         parts.append("[bold green]S[/bold green]=Submit all")
         parts.append("[yellow]g[/yellow]=Global note")
         parts.append("[cyan]y[/cyan]=Copy")
+        parts.append("[cyan]d[/cyan]=Debug")
         parts.append("[dim]q[/dim]=Cancel")
         parts.append("Ctrl+D/U=Scroll")
         return "  ".join(parts)
+
+    def action_debug_view(self) -> None:
+        from .gate_debug_modal import show_gate_debug
+
+        show_gate_debug(self, self._debug_context)
 
     def _is_multi_select(self) -> bool:
         """Check whether the current question allows multiple selections."""

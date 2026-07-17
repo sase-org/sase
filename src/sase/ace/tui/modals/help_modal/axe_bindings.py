@@ -141,7 +141,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                     d(a.open_config_center),
                     "Admin Center: 1-6 jumps to tab",
                 ),
-                (d(a.show_notifications), "Show notifications"),
+                (d(a.show_notifications), "Notifications (d debugs row)"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.refresh), "Refresh"),
                 (d(a.quit), "Quit"),

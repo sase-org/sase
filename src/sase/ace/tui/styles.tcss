@@ -1285,6 +1285,81 @@ LaunchApprovalModal {
     padding-top: 1;
 }
 
+/* Gate lifecycle and artifact diagnostics */
+GateDebugModal {
+    align: center middle;
+}
+
+GateDebugModal > #gate-debug-container {
+    width: 94%;
+    max-width: 180;
+    height: 92%;
+    border: double #a8a8a8;
+    background: $surface;
+    padding: 1 2;
+}
+
+GateDebugModal.kind-plan > #gate-debug-container {
+    border: double #ff87d7;
+}
+
+GateDebugModal.kind-epic > #gate-debug-container {
+    border: double #d787ff;
+}
+
+GateDebugModal.kind-epic_plan > #gate-debug-container {
+    border: double #d787ff;
+}
+
+GateDebugModal.kind-question > #gate-debug-container {
+    border: double #87d7ff;
+}
+
+GateDebugModal.kind-launch > #gate-debug-container {
+    border: double #5fffff;
+}
+
+GateDebugModal.kind-custom > #gate-debug-container {
+    border: double #ffaf5f;
+}
+
+GateDebugModal.kind-hitl > #gate-debug-container {
+    border: double #ffd75f;
+}
+
+GateDebugModal #gate-debug-header {
+    height: auto;
+    text-align: center;
+    padding: 0 1 1 1;
+}
+
+GateDebugModal #gate-debug-tabs {
+    height: 4;
+    text-align: center;
+    border-top: solid $secondary;
+    border-bottom: solid $secondary;
+    padding: 1 0 0 0;
+}
+
+GateDebugModal #gate-debug-scroll {
+    height: 1fr;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+}
+
+GateDebugModal #gate-debug-content {
+    width: 100%;
+    height: auto;
+}
+
+GateDebugModal #gate-debug-footer {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 
 /* Custom Approval Modal styling */
 ApproveOptionsModal {

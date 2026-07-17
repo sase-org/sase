@@ -47,27 +47,37 @@ def handle_hitl(app: object, notification: Notification) -> bool:
 def _handle_legacy_hitl(app: object, notification: Notification) -> bool:
     """Keep the direct response writer for pre-gate workflow bundles only."""
     from sase.xprompt import HITLResult
+    from sase.notification_gates.debug import debug_context_from_notification
 
     from ...modals import WorkflowHITLInput, WorkflowHITLModal
 
     artifacts_dir = notification.action_data.get("artifacts_dir")
     workflow_name = notification.action_data.get("workflow_name", "unknown")
     if not artifacts_dir:
-        app.notify("No artifacts_dir in notification", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No artifacts_dir in notification; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     artifacts_path = Path(artifacts_dir)
     request_path = artifacts_path / "hitl_request.json"
 
     if not request_path.exists():
-        app.notify("No HITL request found", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No HITL request found; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     try:
         with open(request_path, encoding="utf-8") as f:
             request_data = json.load(f)
     except Exception as e:
-        app.notify(f"Error reading HITL request: {e}", severity="error")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            f"Error reading HITL request: {e}; press d on the notification to debug",
+            severity="error",
+        )
         return False
 
     input_data = WorkflowHITLInput(
@@ -114,7 +124,13 @@ def _handle_legacy_hitl(app: object, notification: Notification) -> bool:
         except Exception as e:
             app.notify(f"Error writing response: {e}", severity="error")  # type: ignore[attr-defined]
 
-    app.push_screen(WorkflowHITLModal(input_data), on_dismiss)  # type: ignore[attr-defined]
+    app.push_screen(  # type: ignore[attr-defined]
+        WorkflowHITLModal(
+            input_data,
+            debug_context=debug_context_from_notification(notification),
+        ),
+        on_dismiss,
+    )
     return True
 
 
@@ -126,10 +142,14 @@ def _handle_neutral_hitl(app: object, notification: Notification) -> bool:
         try:
             data = await asyncio.to_thread(_load_neutral_hitl_data, notification)
         except Exception as exc:
-            app.notify(f"Could not open HITL gate: {exc}", severity="error")  # type: ignore[attr-defined]
+            app.notify(  # type: ignore[attr-defined]
+                f"Could not open HITL gate: {exc}; press d on the notification to debug",
+                severity="error",
+            )
             return
 
         from sase.xprompt import HITLResult
+        from sase.notification_gates.debug import debug_context_from_notification
 
         from ...modals import WorkflowHITLModal
 
@@ -170,7 +190,13 @@ def _handle_neutral_hitl(app: object, notification: Notification) -> bool:
                 ),
             )
 
-        app.push_screen(WorkflowHITLModal(data.input_data), on_dismiss)  # type: ignore[attr-defined]
+        app.push_screen(  # type: ignore[attr-defined]
+            WorkflowHITLModal(
+                data.input_data,
+                debug_context=debug_context_from_notification(notification),
+            ),
+            on_dismiss,
+        )
 
     task = spawn_pump_free_task(
         app,

@@ -36,10 +36,14 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
         try:
             data = await asyncio.to_thread(_load_custom_gate_modal_data, notification)
         except Exception as exc:
-            app.notify(f"Could not open custom gate: {exc}", severity="error")  # type: ignore[attr-defined]
+            app.notify(  # type: ignore[attr-defined]
+                f"Could not open custom gate: {exc}; press d on the notification to debug",
+                severity="error",
+            )
             return
 
         from ...modals import CustomGateModal, CustomGateModalResult
+        from sase.notification_gates.debug import debug_context_from_notification
         from ._notification_gate_execution import (
             GateSubmission,
             submit_gate_execution_task,
@@ -59,7 +63,13 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
                 ),
             )
 
-        app.push_screen(CustomGateModal(data), on_dismiss)  # type: ignore[attr-defined]
+        app.push_screen(  # type: ignore[attr-defined]
+            CustomGateModal(
+                data,
+                debug_context=debug_context_from_notification(notification),
+            ),
+            on_dismiss,
+        )
 
     task = spawn_pump_free_task(
         app,

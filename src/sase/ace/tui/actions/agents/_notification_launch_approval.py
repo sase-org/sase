@@ -48,15 +48,22 @@ def handle_launch_approval(app: object, notification: Notification) -> bool:
     """Show the launch approval modal for a pending launch request."""
     from ...modals import LaunchApprovalModal, LaunchApprovalResult
 
+    from sase.notification_gates.debug import debug_context_from_notification
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
     if bundle is None:
-        app.notify("No launch request in notification", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No launch request in notification; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     if not bundle.request.exists():
-        app.notify("Launch approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "Launch approval request expired or not found; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     preview_file = next(
@@ -76,7 +83,11 @@ def handle_launch_approval(app: object, notification: Notification) -> bool:
         _submit_launch_approval_task(app, notification, result.action, result.feedback)
 
     app.push_screen(  # type: ignore[attr-defined]
-        LaunchApprovalModal(preview_file=preview_file, request_id=request_id),
+        LaunchApprovalModal(
+            preview_file=preview_file,
+            request_id=request_id,
+            debug_context=debug_context_from_notification(notification),
+        ),
         on_dismiss,
     )
     return True

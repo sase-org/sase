@@ -11,6 +11,8 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.notification_gates.debug import GateDebugContext
+
 from .base import CopyModeForwardingMixin
 
 
@@ -30,6 +32,7 @@ class LaunchApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("d", "debug_view", "Debug"),
         ("a", "approve", "Approve"),
         ("r", "reject", "Reject"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -38,15 +41,22 @@ class LaunchApprovalModal(
         ("G", "scroll_to_bottom", "Bottom"),
     ]
 
-    def __init__(self, *, preview_file: str | None, request_id: str | None) -> None:
+    def __init__(
+        self,
+        *,
+        preview_file: str | None,
+        request_id: str | None,
+        debug_context: GateDebugContext | None = None,
+    ) -> None:
         super().__init__()
         self._preview_file = preview_file
         self._request_id = request_id
+        self._debug_context = debug_context
 
     def compose(self) -> ComposeResult:
         hints = (
             "[green]a[/green]=Approve  [red]r[/red]=Reject  "
-            "[dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
+            "[cyan]d[/cyan]=Debug  [dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
         with Container(id="launch-approval-container"):
             yield Static(self._title_markup(), id="launch-approval-title")
@@ -70,6 +80,11 @@ class LaunchApprovalModal(
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    def action_debug_view(self) -> None:
+        from .gate_debug_modal import show_gate_debug
+
+        show_gate_debug(self, self._debug_context)
 
     def action_scroll_down(self) -> None:
         scroll = self.query_one("#launch-approval-scroll", VerticalScroll)

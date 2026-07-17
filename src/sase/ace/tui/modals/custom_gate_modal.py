@@ -14,6 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, SelectionList, Static
 
 from sase.notification_gates.models import GateChoice, GateExtra
+from sase.notification_gates.debug import GateDebugContext
 
 from .base import CopyModeForwardingMixin
 
@@ -92,6 +93,7 @@ class CustomGateModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("d", "debug_view", "Debug"),
         ("left", "previous_choice", "Previous choice"),
         ("right", "next_choice", "Next choice"),
         ("ctrl+s", "submit", "Submit"),
@@ -101,10 +103,16 @@ class CustomGateModal(
         ("G", "scroll_to_bottom", "Bottom"),
     ]
 
-    def __init__(self, data: CustomGateModalData) -> None:
+    def __init__(
+        self,
+        data: CustomGateModalData,
+        *,
+        debug_context: GateDebugContext | None = None,
+    ) -> None:
         super().__init__()
         self._data = data
         self._choice_index = 0
+        self._debug_context = debug_context
 
     def compose(self) -> ComposeResult:
         with Container(id="custom-gate-container"):
@@ -200,7 +208,7 @@ class CustomGateModal(
                     disabled=self._data.choices[0].feedback == "required",
                 )
             yield Static(
-                "←/→ choice  space toggle  tab navigate  Ctrl+S submit  q cancel",
+                "←/→ choice  space toggle  tab navigate  Ctrl+S submit  d debug  q cancel",
                 id="custom-gate-footer",
             )
 
@@ -222,6 +230,11 @@ class CustomGateModal(
 
     def action_cancel(self) -> None:
         self.dismiss(None)
+
+    def action_debug_view(self) -> None:
+        from .gate_debug_modal import show_gate_debug
+
+        show_gate_debug(self, self._debug_context)
 
     def action_previous_choice(self) -> None:
         self._move_choice(-1)

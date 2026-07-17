@@ -11,6 +11,8 @@ from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
+from sase.notification_gates.debug import GateDebugContext
+from sase.notification_gates.models import GateExtra
 from sase.plan_approval_choices import (
     PlanApprovalModalChoice as PlanApprovalChoice,
     PlanApprovalProtocolFields,
@@ -22,8 +24,6 @@ from sase.plan_gate import (
     PLAN_RUN_CODER_EXTRA_ID,
     plan_gate_preset_extra_ids,
 )
-from sase.notification_gates.models import GateExtra
-
 from ..actions.clipboard import copy_to_system_clipboard
 from .base import CopyModeForwardingMixin
 
@@ -100,6 +100,7 @@ class PlanApprovalModal(
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("d", "debug_view", "Debug"),
         ("enter", "approve_default", "Default"),
         *review_modal_choice_bindings(),
         ("c", "custom", "Custom"),
@@ -124,6 +125,7 @@ class PlanApprovalModal(
         default_choice: PlanApprovalChoice | None = None,
         allowed_choices: Iterable[PlanApprovalChoice] | None = None,
         approval_extras: Iterable[GateExtra] | None = None,
+        debug_context: GateDebugContext | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -147,6 +149,7 @@ class PlanApprovalModal(
             allowed_choices or ("approve", "tale", "epic")
         )
         self._approval_extras = tuple(approval_extras or ())
+        self._debug_context = debug_context
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -188,7 +191,7 @@ class PlanApprovalModal(
             "[yellow]f[/yellow]=Feedback  "
             "[blue]e[/blue]=Edit  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
-            "[dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
+            "[cyan]d[/cyan]=Debug  [dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
 
         with Container(id="plan-approval-container"):
@@ -268,6 +271,11 @@ class PlanApprovalModal(
     def action_cancel(self) -> None:
         """Cancel the modal (no response written)."""
         self.dismiss(None)
+
+    def action_debug_view(self) -> None:
+        from .gate_debug_modal import show_gate_debug
+
+        show_gate_debug(self, self._debug_context)
 
     def action_approve(self) -> None:
         """Apply the legacy plain-approval preset."""

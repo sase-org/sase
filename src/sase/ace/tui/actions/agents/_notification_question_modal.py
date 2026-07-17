@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from ._notification_utils import refresh_notification_agent_or_request
 
 if TYPE_CHECKING:
+    from sase.notification_gates.debug import GateDebugContext
     from sase.notifications import Notification
 
     from ...models import Agent
@@ -38,11 +39,15 @@ def handle_user_question(app: object, notification: Notification) -> bool:
     Returns:
         True if the user question modal was pushed.
     """
+    from sase.notification_gates.debug import debug_context_from_notification
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
     if bundle is None:
-        app.notify("No question request in notification", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No question request in notification; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     return _open_user_question_modal(
@@ -50,6 +55,7 @@ def handle_user_question(app: object, notification: Notification) -> bool:
         str(bundle.root),
         notification_id=notification.id,
         action_data=dict(notification.action_data),
+        debug_context=debug_context_from_notification(notification),
         on_response_written=lambda: _on_user_question_response_written(
             app, notification
         ),
@@ -88,6 +94,7 @@ def open_user_question_modal_from_marker(
             response_dir,
             notification_id=None,
             action_data={"response_dir": response_dir},
+            debug_context=None,
             on_response_written=None,
         )
 
@@ -101,6 +108,7 @@ def open_user_question_modal_from_marker(
         response_dir,
         notification_id=None,
         action_data={"response_dir": response_dir},
+        debug_context=None,
         on_response_written=on_written,
     )
 
@@ -111,6 +119,7 @@ def _open_user_question_modal(
     *,
     notification_id: str | None,
     action_data: dict[str, str],
+    debug_context: GateDebugContext | None,
     on_response_written: Callable[[], None] | None,
 ) -> bool:
     from ...modals import UserQuestionModal, UserQuestionResult
@@ -123,7 +132,10 @@ def _open_user_question_modal(
     try:
         request_data = read_user_question_request(response_path)
     except UserQuestionActionError as e:
-        app.notify(f"Error reading question request: {e}", severity="error")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            f"Error reading question request: {e}; press d on the notification to debug",
+            severity="error",
+        )
         return False
 
     questions = request_data.get("questions", [])
@@ -155,7 +167,10 @@ def _open_user_question_modal(
             on_response_written=on_response_written,
         )
 
-    app.push_screen(UserQuestionModal(questions), on_dismiss)  # type: ignore[attr-defined]
+    app.push_screen(  # type: ignore[attr-defined]
+        UserQuestionModal(questions, debug_context=debug_context),
+        on_dismiss,
+    )
     return True
 
 

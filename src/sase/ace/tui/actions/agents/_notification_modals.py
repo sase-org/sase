@@ -64,22 +64,32 @@ def handle_plan_approval(
     """
     from ...modals import PlanApprovalModal, PlanApprovalResult
 
+    from sase.notification_gates.debug import debug_context_from_notification
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
     if bundle is None:
-        app.notify("No plan request in notification", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No plan request in notification; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     response_path = bundle.root
     request_path = bundle.request
 
     if not request_path.exists():
-        app.notify("Plan approval request expired or not found", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "Plan approval request expired or not found; press d on the notification to debug",
+            severity="warning",
+        )
         return False
     # Get plan file path from notification files
     if not notification.files:
-        app.notify("No plan file in notification", severity="warning")  # type: ignore[attr-defined]
+        app.notify(  # type: ignore[attr-defined]
+            "No plan file in notification; press d on the notification to debug",
+            severity="warning",
+        )
         return False
 
     plan_file = notification.files[0]
@@ -158,6 +168,7 @@ def handle_plan_approval(
                     default_choice=default_choice,
                     allowed_choices=allowed_choices,
                     approval_extras=approval_extras,
+                    debug_context=debug_context_from_notification(notification),
                 ),
                 on_dismiss,
             )
@@ -316,6 +327,7 @@ def handle_plan_approval(
             default_choice=default_choice,
             allowed_choices=allowed_choices,
             approval_extras=approval_extras,
+            debug_context=debug_context_from_notification(notification),
         ),
         on_dismiss,
     )

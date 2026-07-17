@@ -6,6 +6,7 @@ from typing import Any
 
 from rich.syntax import Syntax
 from sase.content import dump_yaml
+from sase.notification_gates.debug import GateDebugContext
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
@@ -51,6 +52,7 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
+        ("d", "debug_view", "Debug"),
         ("a", "accept", "Accept"),
         ("x", "reject", "Reject"),
         ("e", "edit", "Edit"),  # Agent steps only
@@ -59,7 +61,12 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
         ("ctrl+u", "scroll_up", "Scroll up"),
     ]
 
-    def __init__(self, input_data: WorkflowHITLInput) -> None:
+    def __init__(
+        self,
+        input_data: WorkflowHITLInput,
+        *,
+        debug_context: GateDebugContext | None = None,
+    ) -> None:
         """Initialize the HITL modal.
 
         Args:
@@ -67,6 +74,7 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
         """
         super().__init__()
         self.input_data = input_data
+        self._debug_context = debug_context
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
@@ -82,7 +90,7 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
             hints += "  [yellow]e[/yellow]=Edit"
         if self.input_data.step_type in ("bash", "python"):
             hints += "  [yellow]r[/yellow]=Rerun"
-        hints += "  |  Ctrl+D/U to scroll"
+        hints += "  [cyan]d[/cyan]=Debug  |  Ctrl+D/U to scroll"
 
         with Container(id="hitl-container"):
             yield Static(
@@ -164,6 +172,11 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
     def action_cancel(self) -> None:
         """Cancel/reject the modal."""
         self.dismiss(HITLResult(action="reject", approved=False))
+
+    def action_debug_view(self) -> None:
+        from .gate_debug_modal import show_gate_debug
+
+        show_gate_debug(self, self._debug_context)
 
     def action_accept(self) -> None:
         """Accept the step output."""

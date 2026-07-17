@@ -1173,6 +1173,12 @@ classification, and the per-notification snooze and mute affordances.
 Rows and the detail header begin with the notification's single-glyph icon when one is present, with a per-action
 fallback icon otherwise. The text action badge remains visible as the secondary label.
 
+Press `d` on the highlighted inbox row to open Gate Debug, even when the row is not gate-backed or its gate modal can no
+longer load. The same `d` binding is available inside plan/epic approval, user-question, launch-approval, custom-gate,
+and workflow HITL panels. Gate Debug presents Overview, Request, Response, Errors, and raw Row tabs; `[` / `]` switch
+tabs, `y` copies the current tab, `Y` copies the bundle path, `e` opens the backing file, and `d`, `q`, or `Esc` closes
+the overlay without losing state in the underlying panel.
+
 The top-bar notification indicator color reflects the highest-priority unread bucket: orange for unmuted priority or
 error notifications (plan approvals, launch approvals, user questions, mentor reviews, axe errors, CRS results, agent
 error reports), gold for regular unmuted notifications, and cyan when only muted or snoozed notifications remain. A
