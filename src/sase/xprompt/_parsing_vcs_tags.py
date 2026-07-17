@@ -14,7 +14,10 @@ DEFAULT_VCS_WORKFLOW_PREFIX = "#git:home"
 _VCS_TAG_PATTERN: re.Pattern[str] | None = None
 _VCS_TAG_EMBEDDED_PATTERN: re.Pattern[str] | None = None
 _VCS_REPLACE_PATTERN: re.Pattern[str] | None = None
-_DIRECTIVE_PREFIX_RE = re.compile(r"(%\S+[\s]+)+")
+# Keep parenthesized directive arguments together even when they contain spaces.
+# This matcher is intentionally limited to the leading launch-directive prefix;
+# the directive parser still owns full syntax validation.
+_DIRECTIVE_PREFIX_RE = re.compile(r"(%[^\s(]+(?:\((?:[^()]|\([^()]*\))*\))?[\s]+)+")
 _SEGMENT_SEPARATOR_RE = re.compile(r"^---\s*$", re.MULTILINE)
 
 

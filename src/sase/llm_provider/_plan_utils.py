@@ -191,7 +191,11 @@ def handle_plan_approval(
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
     )
-    reviewed_plan = gate.bundle_path / "plan.md"
+    from sase.plan_gate import original_plan_file_from_bundle
+
+    reviewed_plan = original_plan_file_from_bundle(gate.bundle_path) or (
+        gate.bundle_path / "plan.md"
+    )
     if auto_enabled:
         _mark_auto_approved_plan_handled(
             plan_file,

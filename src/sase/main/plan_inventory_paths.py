@@ -77,3 +77,22 @@ def plan_metadata_for_path(path: str | None) -> _PlanPathMetadata:
         title=title or None,
         tier=normalize_plan_tier(frontmatter.get("tier")) or "-",
     )
+
+
+def normalize_plan_inventory_path(path: str | None) -> str | None:
+    """Map a historical neutral-bundle resource to its durable proposal."""
+    if not path:
+        return path
+    candidate = Path(path).expanduser()
+    from sase.notification_gates.paths import interaction_requests_dir
+
+    requests_root = interaction_requests_dir().expanduser().resolve(strict=False)
+    try:
+        candidate.resolve(strict=False).relative_to(requests_root)
+    except ValueError:
+        return path
+
+    from sase.plan_gate import original_plan_file_for_resource
+
+    original = original_plan_file_for_resource(candidate)
+    return str(original) if original is not None else path

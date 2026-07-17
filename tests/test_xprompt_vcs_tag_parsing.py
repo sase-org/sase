@@ -8,6 +8,7 @@ from sase.xprompt._parsing import (
     find_vcs_workflow_tag,
     find_vcs_workflow_tag_prepend_offset,
     find_vcs_workflow_tag_span,
+    normalize_default_vcs_workflow_segment,
     normalize_launch_xprompt_at_refs,
     normalize_vcs_underscore_refs,
     replace_ref_in_vcs_tag,
@@ -57,6 +58,27 @@ def test_extract_vcs_workflow_tag_multiple_directives() -> None:
     with _patch_vcs_pattern():
         result = extract_vcs_workflow_tag("%name\n%model:opus\n#gh:sase Fix the bug")
         assert result == "#gh:sase "
+
+
+def test_extract_vcs_workflow_tag_after_parenthesized_directive() -> None:
+    """Spaces in parenthesized directive args stay inside the directive."""
+    with _patch_vcs_pattern():
+        result = extract_vcs_workflow_tag(
+            "%family(epic-1, role=phase)\n#gh:sase Fix the bug"
+        )
+        assert result == "#gh:sase "
+
+
+def test_normalize_default_vcs_after_parenthesized_directive() -> None:
+    """Default VCS insertion must not split parenthesized directive args."""
+    with patch(
+        "sase.workspace_provider.get_ref_patterns",
+        return_value={"git": re.compile(r"#git(?::([^\s]+)|\(([^)]*)\))")},
+    ):
+        prompt = "%family(epic-1, role=phase)\nDo the work"
+        assert normalize_default_vcs_workflow_segment(prompt) == (
+            "%family(epic-1, role=phase)\n#git:home Do the work"
+        )
 
 
 def test_extract_vcs_workflow_tag_no_tag() -> None:

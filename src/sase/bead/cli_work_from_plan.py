@@ -104,6 +104,7 @@ def work_from_plan_file(
     from sase.sdd.plan_validate import validate_plan_file
 
     source_path = Path(target).expanduser().resolve(strict=False)
+    destination_name = _neutral_gate_destination_name(source_path)
     validation = validate_plan_file(source_path, "epic")
     if not validation.ok or validation.plan is None:
         if render:
@@ -127,7 +128,11 @@ def work_from_plan_file(
 
     try:
         location, store, workspace_dir = _resolve_context(dry_run=dry_run)
-        archive_destination = plan_archive_destination(source_path, store)
+        archive_destination = plan_archive_destination(
+            source_path,
+            store,
+            destination_name=destination_name,
+        )
     except Exception as exc:
         raise _error_with_resume(
             f"could not resolve the SDD and bead stores: {exc}",
@@ -141,6 +146,15 @@ def work_from_plan_file(
         )
 
     if dry_run:
+        if archive_destination.is_file() and not _same_path(
+            source_path, archive_destination
+        ):
+            _require_matching_plan_identity(
+                source_path,
+                source_title=plan.title,
+                archived_path=archive_destination,
+                no_push=no_push,
+            )
         existing_epic_id = _linked_bead_id_if_present(archive_destination)
         if existing_epic_id is not None:
             _require_linked_epic(location, existing_epic_id, archive_destination)
@@ -166,6 +180,7 @@ def work_from_plan_file(
             source_path,
             store,
             tier="epic",
+            destination_name=destination_name,
             preserve_existing=True,
         )
     except Exception as exc:
@@ -175,13 +190,20 @@ def work_from_plan_file(
             no_push=no_push,
         ) from exc
     archived_path = archive_result.path
+    if not archive_result.written and not _same_path(source_path, archived_path):
+        _require_matching_plan_identity(
+            source_path,
+            source_title=plan.title,
+            archived_path=archived_path,
+            no_push=no_push,
+        )
     if archive_result.written and not _commit_plan_file(
         store,
         workspace_dir=workspace_dir,
         plan_path=archived_path,
         no_push=no_push,
         push_after_commit=False,
-        message=f"Archive approved plan {source_path.stem}",
+        message=f"Archive approved plan {archived_path.stem}",
     ):
         raise _error_with_resume(
             f"failed to commit archived epic plan {archived_path}",
@@ -368,6 +390,58 @@ def _linked_bead_id_if_present(plan_path: Path) -> str | None:
     if raw in (None, ""):
         return None
     return str(raw)
+
+
+def _neutral_gate_destination_name(source_path: Path) -> str | None:
+    """Return the durable proposal name for a neutral gate plan resource."""
+    from sase.plan_gate import original_plan_file_for_resource
+
+    original = original_plan_file_for_resource(source_path)
+    return original.name if original is not None else None
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return left.resolve(strict=False) == right.resolve(strict=False)
+
+
+def _require_matching_plan_identity(
+    source_path: Path,
+    *,
+    source_title: str,
+    archived_path: Path,
+    no_push: bool,
+) -> None:
+    """Reject a preserved archive entry belonging to a different plan."""
+    from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
+
+    try:
+        content = archived_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise _error_with_resume(
+            f"could not read existing archived plan {archived_path}: {exc}",
+            archived_path,
+            no_push=no_push,
+        ) from exc
+    frontmatter, error = parse_plan_frontmatter(content)
+    archived_tier = (
+        normalize_plan_tier(frontmatter.get("tier")) if error is None else None
+    )
+    raw_title = frontmatter.get("title") if error is None else None
+    archived_title = raw_title.strip() if isinstance(raw_title, str) else None
+    if archived_tier == "epic" and archived_title == source_title.strip():
+        return
+
+    resume = _error_with_resume(
+        (
+            f"epic plan archive collision: source {source_path} "
+            f"(tier epic, title {source_title!r}) maps to existing {archived_path} "
+            f"(tier {archived_tier or 'unknown'}, title {archived_title!r}); "
+            "the existing archive belongs to a different plan"
+        ),
+        archived_path,
+        no_push=no_push,
+    )
+    raise resume
 
 
 def _require_linked_epic(

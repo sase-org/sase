@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -22,6 +23,7 @@ from sase.plan_approval_actions import (
 from sase.plan_gate import (
     _build_plan_gate_spec,
     create_plan_approval_gate,
+    plan_context_from_envelope,
     plan_gate_choice_ids,
 )
 
@@ -88,16 +90,20 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_request["operations"] == tale_request["operations"]
     assert (tale.bundle_path / "plan.md").read_text() == VALID_TALE_PLAN
     assert (epic.bundle_path / "plan.md").read_text() == VALID_EPIC_PLAN
+    assert tale_request["presentation"]["action_data"]["original_plan_file"] == str(
+        gate_home / "tale.md"
+    )
+    assert epic_request["presentation"]["action_data"]["original_plan_file"] == str(
+        gate_home / "epic.md"
+    )
 
     actions = {row.action for row in load_notifications()}
     assert actions == {"PlanApproval", "EpicApproval"}
 
 
 def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> None:
-    gate = create_plan_approval_gate(
-        _write_plan(gate_home, "edit.md", VALID_TALE_PLAN),
-        "edit-request",
-    )
+    plan = _write_plan(gate_home, "edit.md", VALID_TALE_PLAN)
+    gate = create_plan_approval_gate(plan, "edit-request")
     reviewed = gate.bundle_path / "plan.md"
     request_before = json.loads(gate.request_path.read_text(encoding="utf-8"))
     reviewed.write_text("# missing frontmatter\n", encoding="utf-8")
@@ -121,6 +127,46 @@ def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> 
     assert execute_gate_choice(gate.bundle_path, "approve").response["choice_id"] == (
         "approve"
     )
+    assert plan.read_text(encoding="utf-8") == edited
+
+
+def test_plan_context_recovers_original_file_from_old_bundle_payload(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "old.md", VALID_TALE_PLAN)
+    gate = create_plan_approval_gate(plan, "old-request")
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    envelope["presentation"]["action_data"].pop("original_plan_file")
+
+    context = plan_context_from_envelope(gate.bundle_path, envelope)
+
+    assert context.host_action_data["original_plan_file"] == str(plan)
+
+
+def test_epic_gate_host_launch_uses_durable_plan_path(gate_home: Path) -> None:
+    from sase.notification_gates.registry import adapter_for_kind
+
+    plan = _write_plan(gate_home, "durable_epic.md", VALID_EPIC_PLAN)
+    gate = create_plan_approval_gate(plan, "durable-launch")
+    response = {
+        "choice_id": "epic",
+        "input": {"epic_launch_mode": "foreground"},
+        "result": {"action": "epic", "epic_launch_owner": "host"},
+        "source": "test",
+    }
+
+    with (
+        patch("sase.plan_approval_actions.run_plan_side_effects"),
+        patch(
+            "sase.plan_approval_actions.prepare_epic_launch", return_value=True
+        ) as prepare,
+    ):
+        adapter_for_kind("epic_plan").apply_side_effects(
+            bundle_path=gate.bundle_path,
+            response=response,
+        )
+
+    assert prepare.call_args.args[1] == plan
 
 
 @pytest.mark.parametrize(

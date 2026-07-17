@@ -86,8 +86,9 @@ class GateAdapter:
                 str(bundle_path / "response.json"),
                 "plan response is missing its choice or result",
             )
+        context = plan_context_from_envelope(bundle_path, envelope)
         run_plan_side_effects(
-            plan_context_from_envelope(bundle_path, envelope),
+            context,
             choice,
             bundle_path / "response.json",
             result,
@@ -102,18 +103,25 @@ class GateAdapter:
                 else None
             )
             if mode in {"detached", "foreground"}:
-                from sase.plan_approval_actions import prepare_epic_launch
+                from sase.plan_approval_actions import (
+                    durable_plan_file_for_context,
+                    prepare_epic_launch,
+                )
+
+                launch_plan = durable_plan_file_for_context(context) or (
+                    bundle_path / "plan.md"
+                )
 
                 launched = prepare_epic_launch(
-                    plan_context_from_envelope(bundle_path, envelope),
-                    bundle_path / "plan.md",
+                    context,
+                    launch_plan,
                     mode=mode,
                     response_dir=bundle_path,
                 )
                 if not launched:
                     raise GateError(
                         "epic_launch_failed",
-                        str(bundle_path / "plan.md"),
+                        str(launch_plan),
                         "host claimed the epic launch but could not start it",
                     )
 

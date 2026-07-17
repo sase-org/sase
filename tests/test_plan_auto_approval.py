@@ -38,9 +38,9 @@ def test_handle_plan_approval_auto_approve(
         return_value="approve",
     ):
         result = handle_plan_approval(str(plan), "session-123")
-    bundle = _plan_gate_bundle(sase_home, "tale", "session-123")
+    _plan_gate_bundle(sase_home, "tale", "session-123")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=False
+        action="approve", plan_file=str(plan), commit_plan=False
     )
 
 
@@ -57,10 +57,8 @@ def test_handle_plan_approval_auto_epic_skips_notification(
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
-    bundle = _plan_gate_bundle(sase_home, "epic", "session-123")
-    assert result == PlanApprovalResult(
-        action="epic", plan_file=str(bundle / "plan.md")
-    )
+    _plan_gate_bundle(sase_home, "epic", "session-123")
+    assert result == PlanApprovalResult(action="epic", plan_file=str(plan))
 
 
 def test_handle_plan_approval_auto_tale_skips_notification(
@@ -76,9 +74,9 @@ def test_handle_plan_approval_auto_tale_skips_notification(
     ):
         result = handle_plan_approval(str(plan), "session-123")
 
-    bundle = _plan_gate_bundle(sase_home, "tale", "session-123")
+    _plan_gate_bundle(sase_home, "tale", "session-123")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=True
+        action="approve", plan_file=str(plan), commit_plan=True
     )
 
 
@@ -134,7 +132,7 @@ def test_handle_plan_approval_rechecks_auto_approve_while_waiting(
     response_dir = _plan_gate_bundle(sase_home, tier, session_id)
     assert result == PlanApprovalResult(
         action="epic" if auto_action == "epic" else "approve",
-        plan_file=str(response_dir / "plan.md"),
+        plan_file=plan_file,
         commit_plan=auto_action != "approve",
     )
     assert get_auto_action.call_count == 3
@@ -242,9 +240,9 @@ def test_handle_plan_approval_auto_marks_stale_telegram_action_handled(
     ):
         result = handle_plan_approval(plan_file, "session-xyz", agent_name="plan.agent")
 
-    bundle = _plan_gate_bundle(sase_home, "tale", "session-xyz")
+    _plan_gate_bundle(sase_home, "tale", "session-xyz")
     assert result == PlanApprovalResult(
-        action="approve", plan_file=str(bundle / "plan.md"), commit_plan=False
+        action="approve", plan_file=plan_file, commit_plan=False
     )
     store = pending_actions.read_pending_action_store()
     assert store["actions"]["abcdef01"]["state"] == "already_handled"

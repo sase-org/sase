@@ -83,6 +83,7 @@ def _build_plan_gate_spec(
 ) -> dict[str, Any]:
     """Build the only request shape accepted by the plan adapters."""
     action_data = _plan_action_data(
+        original_plan_file=str(plan_file),
         session_id=session_id,
         agent_name=agent_name,
         agent_model=agent_model,
@@ -267,6 +268,9 @@ def plan_context_from_envelope(bundle_path: Path, envelope: Mapping[str, Any]) -
             "request_kind": str(envelope.get("kind") or "plan"),
         }
     )
+    original_plan_file = _original_plan_file_from_envelope(envelope)
+    if original_plan_file is not None:
+        action_data["original_plan_file"] = str(original_plan_file)
     notification_id = envelope.get("notification_id")
     return PlanApprovalActionContext(
         id=(
@@ -326,6 +330,7 @@ def execute_plan_gate_auto_choice(
 
 def _plan_action_data(
     *,
+    original_plan_file: str,
     session_id: str,
     agent_name: str | None,
     agent_model: str | None,
@@ -334,6 +339,7 @@ def _plan_action_data(
     agent_vcs_tag: str | None,
 ) -> dict[str, str]:
     values = {
+        "original_plan_file": original_plan_file,
         "session_id": session_id,
         "project_dir": os.environ.get("CLAUDE_PROJECT_DIR"),
         "artifacts_dir": os.environ.get("SASE_ARTIFACTS_DIR"),
@@ -348,6 +354,59 @@ def _plan_action_data(
         "agent_vcs_tag": agent_vcs_tag,
     }
     return {key: value for key, value in values.items() if value}
+
+
+def _original_plan_file_from_envelope(
+    envelope: Mapping[str, Any],
+) -> Path | None:
+    """Return the durable proposal path carried by a plan gate envelope."""
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return None
+    raw_path = payload.get("original_plan_file")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    return Path(raw_path).expanduser()
+
+
+def original_plan_file_from_bundle(bundle_path: Path) -> Path | None:
+    """Read the durable proposal path from a neutral plan gate bundle."""
+    try:
+        envelope = json.loads(
+            (bundle_path.expanduser() / "request.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(envelope, Mapping) or envelope.get("kind") not in {
+        "plan",
+        "epic_plan",
+    }:
+        return None
+    return _original_plan_file_from_envelope(envelope)
+
+
+def original_plan_file_for_resource(resource_path: Path) -> Path | None:
+    """Resolve a neutral plan resource back to its durable proposal path."""
+    resource = resource_path.expanduser()
+    bundle_path = resource.parent
+    try:
+        envelope = json.loads(
+            (bundle_path / "request.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(envelope, Mapping) or envelope.get("kind") not in {
+        "plan",
+        "epic_plan",
+    }:
+        return None
+    payload = envelope.get("payload")
+    if not isinstance(payload, Mapping):
+        return None
+    plan_resource = payload.get("plan_resource")
+    if not isinstance(plan_resource, str) or resource.name != plan_resource:
+        return None
+    return _original_plan_file_from_envelope(envelope)
 
 
 def _plan_gate_choice(choice: str) -> dict[str, Any]:
@@ -443,6 +502,8 @@ __all__ = [
     "create_plan_approval_gate",
     "execute_plan_gate_auto_choice",
     "execute_plan_gate_command",
+    "original_plan_file_for_resource",
+    "original_plan_file_from_bundle",
     "plan_context_from_envelope",
     "plan_gate_choice_ids",
     "plan_gate_command_script",

@@ -57,18 +57,15 @@ def test_handle_plan_approval_commit(
     """The neutral commit command maps back to the runner's no-coder result."""
     plan = tmp_path / "plan.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    sase_home = redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
     desktop, bell, prefix = _ui_patches()
 
     with _respond_after_gate_creation("commit"), desktop, bell, prefix:
         result = handle_plan_approval(str(plan), "test-commit-session")
 
-    reviewed = (
-        sase_home / "interaction_requests" / "plan" / "test-commit-session" / "plan.md"
-    )
     assert result == PlanApprovalResult(
         action="approve",
-        plan_file=str(reviewed),
+        plan_file=str(plan),
         commit_plan=True,
         run_coder=False,
     )

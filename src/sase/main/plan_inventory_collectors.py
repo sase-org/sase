@@ -18,7 +18,11 @@ from sase.main.plan_inventory_models import (
     ProposedPlan,
     RejectedPlan,
 )
-from sase.main.plan_inventory_paths import display_path, plan_metadata_for_path
+from sase.main.plan_inventory_paths import (
+    display_path,
+    normalize_plan_inventory_path,
+    plan_metadata_for_path,
+)
 from sase.notifications.models import Notification, format_relative_time
 from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 
@@ -44,7 +48,13 @@ def _proposed_plan_from_notification(
     display_roots: DisplayPathRoots,
 ) -> ProposedPlan:
     action_data = notification.action_data
-    plan_path = _first_str(*notification.files, action_data.get("plan_file"))
+    plan_path = normalize_plan_inventory_path(
+        _first_str(
+            action_data.get("original_plan_file"),
+            *notification.files,
+            action_data.get("plan_file"),
+        )
+    )
     provider_model = _provider_model_label(
         action_data.get("llm_provider"),
         action_data.get("model"),
@@ -93,7 +103,9 @@ def collect_approved_plans(
         meta = read_meta(meta_path)
         if not _truthy(meta.get("plan_approved")):
             continue
-        plan_path = _first_str(meta.get("plan_path"), meta.get("sdd_plan_path"))
+        plan_path = normalize_plan_inventory_path(
+            _first_str(meta.get("plan_path"), meta.get("sdd_plan_path"))
+        )
         if not plan_path:
             continue
         timestamp = _approval_timestamp(meta, meta_path)

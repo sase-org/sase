@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -217,6 +218,49 @@ def test_inventory_includes_day_sharded_approved_plan() -> None:
     assert any(path.endswith("/legacy-approved.md") for path in approved_paths)
     rejected_paths = [str(row["plan_path"]) for row in payload["rejected"]]
     assert all(not path.endswith("/sharded-approved.md") for path in rejected_paths)
+
+
+def test_inventory_normalizes_historical_bundle_plan_path() -> None:
+    approved = _archived_plan("canonical-approved.md", minutes_ago=2)
+    bundle = (
+        Path(os.environ["SASE_HOME"]).expanduser()
+        / "interaction_requests"
+        / "epic_plan"
+        / "historical"
+    )
+    bundle.mkdir(parents=True)
+    bundle_plan = bundle / "plan.md"
+    bundle_plan.write_text(approved.read_text(encoding="utf-8"), encoding="utf-8")
+    (bundle / "request.json").write_text(
+        json.dumps(
+            {
+                "kind": "epic_plan",
+                "payload": {
+                    "original_plan_file": str(approved),
+                    "plan_resource": "plan.md",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_agent_meta(
+        "demo",
+        "workflow-plan",
+        "20260716192139",
+        {
+            "plan_approved": True,
+            "plan_action": "epic",
+            "plan_path": str(bundle_plan),
+        },
+        minutes_ago=1,
+    )
+
+    payload = plan_inventory_to_json(build_plan_inventory())
+
+    assert len(payload["approved"]) == 1
+    assert str(payload["approved"][0]["plan_path"]).endswith("/canonical-approved.md")
+    assert payload["approved"][0]["title"] == "Canonical Approved"
+    assert payload["rejected"] == []
 
 
 def test_inventory_tier_filter_and_json_breakdown() -> None:

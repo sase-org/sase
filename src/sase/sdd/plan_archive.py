@@ -25,6 +25,7 @@ def plan_archive_destination(
     store: SddStore,
     *,
     yyyymm: str | None = None,
+    destination_name: str | None = None,
 ) -> Path:
     """Return the canonical archive destination for *source*.
 
@@ -41,7 +42,10 @@ def plan_archive_destination(
         from sase.sdd.files import get_yyyymm
 
         yyyymm = get_yyyymm()
-    return plans_root / yyyymm / source.name
+    archive_name = destination_name or source.name
+    if not archive_name or Path(archive_name).name != archive_name:
+        raise ValueError("plan archive destination_name must be a file name")
+    return plans_root / yyyymm / archive_name
 
 
 def archive_plan_file(
@@ -50,6 +54,7 @@ def archive_plan_file(
     *,
     tier: PlanTier,
     yyyymm: str | None = None,
+    destination_name: str | None = None,
     preserve_existing: bool = True,
 ) -> _PlanArchiveResult:
     """Prepare *source* and copy it into the canonical plan archive.
@@ -71,7 +76,12 @@ def archive_plan_file(
         return _PlanArchiveResult(path=source, written=False)
 
     archive_month = yyyymm or get_yyyymm()
-    destination = plan_archive_destination(source, store, yyyymm=archive_month)
+    destination = plan_archive_destination(
+        source,
+        store,
+        yyyymm=archive_month,
+        destination_name=destination_name,
+    )
     if preserve_existing and destination.is_file():
         return _PlanArchiveResult(path=destination, written=False)
 

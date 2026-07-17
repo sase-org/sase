@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shlex
@@ -30,6 +31,7 @@ from sase.sdd.plan_validate import (
 PLAN_APPROVAL_KINDS = PLAN_APPROVAL_CLI_KINDS
 PLAN_APPROVAL_ACTIONS = frozenset({"PlanApproval", "EpicApproval"})
 EpicLaunchMode = Literal["detached", "foreground", "skip"]
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,31 @@ class PlanApprovalValidationError(PlanApprovalActionError):
             message += f": {details}"
         message += f". Fix the plan and retry; run `{command}` for the full schema."
         super().__init__("plan_validation_failed", str(plan_path), message)
+
+
+def durable_plan_file_for_context(
+    notification: PlanApprovalActionContext,
+) -> Path | None:
+    """Resolve the durable proposal file represented by an approval context."""
+    explicit = _nonempty(notification.host_action_data.get("original_plan_file"))
+    if explicit is not None:
+        return Path(explicit).expanduser()
+
+    from sase.plan_gate import (
+        original_plan_file_for_resource,
+        original_plan_file_from_bundle,
+    )
+
+    for raw_file in notification.host_files:
+        if original := original_plan_file_for_resource(Path(raw_file)):
+            return original
+    for key in ("bundle_path", "response_dir"):
+        raw_bundle = _nonempty(notification.host_action_data.get(key))
+        if raw_bundle and (
+            original := original_plan_file_from_bundle(Path(raw_bundle))
+        ):
+            return original
+    return None
 
 
 def execute_plan_approval_response(
@@ -585,6 +612,8 @@ def run_plan_side_effects(
     if persisted_action is None:
         return
 
+    _sync_reviewed_plan_to_durable_best_effort(notification)
+
     if approval_choice_archives_plan(choice):
         saved_path = _archive_plan_for_approval(notification, persisted_action)
         if saved_path:
@@ -603,6 +632,31 @@ def run_plan_side_effects(
                     )
             except OSError:
                 pass
+
+
+def _sync_reviewed_plan_to_durable_best_effort(
+    notification: PlanApprovalActionContext,
+) -> None:
+    """Copy reviewed bundle edits back to the durable proposal when known."""
+    if not notification.host_files:
+        return
+    durable = durable_plan_file_for_context(notification)
+    if durable is None:
+        return
+    reviewed = Path(notification.host_files[0]).expanduser()
+    if reviewed.resolve(strict=False) == durable.resolve(strict=False):
+        return
+    try:
+        content = reviewed.read_text(encoding="utf-8")
+        durable.parent.mkdir(parents=True, exist_ok=True)
+        durable.write_text(content, encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        _logger.warning(
+            "Failed to sync reviewed plan %s to durable proposal %s",
+            reviewed,
+            durable,
+            exc_info=True,
+        )
 
 
 def _add_optional_coder_fields(
@@ -838,7 +892,9 @@ def _archive_plan_for_approval(
                 push=False,
             )
         tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
-        src_plan = Path(notification.host_files[0])
+        src_plan = durable_plan_file_for_context(notification) or Path(
+            notification.host_files[0]
+        )
         archived = archive_plan_file(
             src_plan,
             sdd_store,

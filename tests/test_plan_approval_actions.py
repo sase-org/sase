@@ -11,10 +11,12 @@ from sase.plan_approval_actions import (
     PlanApprovalActionContext,
     PlanApprovalActionError,
     _archive_plan_for_approval,
+    durable_plan_file_for_context,
     execute_plan_approval_response,
     resolve_plan_agent_artifacts_dir,
+    run_plan_side_effects,
 )
-from tests.plan_validation_helpers import VALID_EPIC_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
 
 
@@ -69,6 +71,103 @@ def test_archive_plan_for_approval_rejects_invalid_cutover_plan(
 
     assert saved is None
     assert not (workspace / "sdd" / "plans" / "202608" / "plan.md").exists()
+
+
+def test_approval_syncs_reviewed_bundle_to_durable_plan(tmp_path: Path) -> None:
+    bundle = tmp_path / "interaction_requests" / "plan" / "request"
+    bundle.mkdir(parents=True)
+    reviewed = bundle / "plan.md"
+    edited = VALID_TALE_PLAN.replace("requested change", "reviewed change")
+    reviewed.write_text(edited, encoding="utf-8")
+    durable = tmp_path / "plans" / "canonical.md"
+    durable.parent.mkdir()
+    durable.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    context = PlanApprovalActionContext(
+        id="request",
+        host_files=(str(reviewed),),
+        host_action_data={"original_plan_file": str(durable)},
+    )
+
+    with (
+        patch(
+            "sase.plan_approval_actions._persist_plan_approved_metadata",
+            return_value="approve",
+        ),
+        patch(
+            "sase.plan_approval_actions._archive_plan_for_approval",
+            return_value=None,
+        ),
+    ):
+        run_plan_side_effects(context, "approve", bundle / "response.json", {})
+
+    assert durable.read_text(encoding="utf-8") == edited
+
+
+def test_durable_plan_file_falls_back_to_bundle_envelope(tmp_path: Path) -> None:
+    durable = tmp_path / "plans" / "canonical.md"
+    bundle = tmp_path / "interaction_requests" / "plan" / "request"
+    bundle.mkdir(parents=True)
+    reviewed = bundle / "plan.md"
+    reviewed.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    (bundle / "request.json").write_text(
+        json.dumps(
+            {
+                "kind": "plan",
+                "payload": {
+                    "original_plan_file": str(durable),
+                    "plan_resource": "plan.md",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    context = PlanApprovalActionContext(
+        id="request",
+        host_files=(str(reviewed),),
+        host_action_data={"bundle_path": str(bundle)},
+    )
+
+    assert durable_plan_file_for_context(context) == durable
+
+
+def test_archive_plan_for_approval_uses_canonical_durable_stem(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    bundle_plan = tmp_path / "bundle" / "plan.md"
+    bundle_plan.parent.mkdir()
+    bundle_plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    durable = tmp_path / "plans" / "canonical_plan.md"
+    durable.parent.mkdir()
+    durable.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    context = PlanApprovalActionContext(
+        id="plan-approval",
+        host_files=(str(bundle_plan),),
+        host_action_data={
+            "project_dir": str(workspace),
+            "original_plan_file": str(durable),
+        },
+    )
+
+    with (
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patched_sdd_policy("in_tree"),
+        patch("sase.sdd.files.get_yyyymm", return_value="202608"),
+        patch("sase.sdd.files.ensure_bare_git_sdd_initialized"),
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda content: content,
+        ),
+    ):
+        saved = _archive_plan_for_approval(context, "tale")
+
+    expected = workspace / "sdd" / "plans" / "202608" / "canonical_plan.md"
+    assert saved == str(expected)
+    assert expected.is_file()
 
 
 def _epic_context(tmp_path: Path) -> tuple[PlanApprovalActionContext, Path, Path]:
