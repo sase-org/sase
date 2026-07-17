@@ -406,6 +406,8 @@ async def test_parallel_family_root_counts_png_snapshot(
 
         assert_page_svg_contains(page, "visual-parallel-family")
         assert_page_svg_styled_text_contains(page, "[R2 D1]")
+        # (unread, stopped, running, waiting, failed, done, total, starting)
+        assert page.app._agent_info_metrics() == (0, 0, 2, 0, 0, 1, 1, 0)
         ace_png_visual.assert_page_png(
             page,
             "agents_parallel_family_counts_120x40",

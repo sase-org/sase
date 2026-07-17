@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from rich.text import Text
-from sase.agent.status_buckets import agent_is_asking
 
 from ...agent_count_chip import (
     AGENT_COUNT_CHIP_METRIC_STYLES,
@@ -14,8 +13,7 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models.agent_groups import status_bucket_for
-from ._loading_helpers import DISMISSABLE_STATUSES
+from ...models._agent_parallel_family import agent_summary_status_counts
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -62,34 +60,17 @@ def agent_panel_counts(
     visible_top_level_agents = [
         agent for agent in agents if not agent.is_workflow_child
     ]
-    buckets = [(agent, status_bucket_for(agent)) for agent in visible_top_level_agents]
-    asking = sum(1 for agent, _bucket in buckets if agent_is_asking(agent.status))
-    running = sum(
-        1
-        for agent, bucket in buckets
-        if agent.status not in DISMISSABLE_STATUSES
-        and bucket != "Starting"
-        and bucket != "Waiting"
-        and bucket != "Failed"
-        and not agent_is_asking(agent.status)
-    )
-    waiting = sum(1 for _agent, bucket in buckets if bucket == "Waiting")
-    failed = sum(1 for _agent, bucket in buckets if bucket == "Failed")
-    unread = sum(
-        1 for agent in visible_top_level_agents if agent.identity in unread_ids
-    )
-    read = sum(
-        1
-        for agent, bucket in buckets
-        if bucket == "Done" and agent.identity not in unread_ids
+    projected = agent_summary_status_counts(
+        visible_top_level_agents,
+        unread_ids,
     )
     return AgentPanelCounts(
-        asking=asking,
-        running=running,
-        waiting=waiting,
-        failed=failed,
-        unread=unread,
-        read=read,
+        asking=projected.stopped,
+        running=projected.running,
+        waiting=projected.waiting,
+        failed=projected.failed,
+        unread=projected.unread,
+        read=projected.done,
     )
 
 

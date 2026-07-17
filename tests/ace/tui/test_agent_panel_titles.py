@@ -107,6 +107,7 @@ def _agent(
     suffix: str,
     status: str = "RUNNING",
     parent_timestamp: str | None = None,
+    agent_family_parallel: bool = False,
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -118,6 +119,7 @@ def _agent(
         tag=tag,
         raw_suffix=suffix,
         parent_timestamp=parent_timestamp,
+        agent_family_parallel=agent_family_parallel,
     )
 
 
@@ -370,6 +372,92 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
         "#apple · 2 [R1]"
+    )
+
+
+def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> None:
+    ordinary_running = _agent(
+        name="ordinary-running",
+        tag="apple",
+        suffix="ordinary-running",
+    )
+    apple_root = _agent(
+        name="apple-family",
+        tag="apple",
+        suffix="apple-root",
+        status="WAITING",
+        agent_family_parallel=True,
+    )
+    apple_members = [
+        _agent(
+            name=f"apple-{status.lower()}-{index}",
+            suffix=f"apple-member-{index}",
+            status=status,
+            parent_timestamp=apple_root.raw_suffix,
+            agent_family_parallel=True,
+        )
+        for index, status in enumerate(
+            ("RUNNING", "STARTING", "WAITING", "DONE", "DONE")
+        )
+    ]
+    apple_serial_child = _agent(
+        name="apple-serial-failed",
+        suffix="apple-serial",
+        status="FAILED",
+        parent_timestamp=apple_root.raw_suffix,
+    )
+    apple_root.runtime_children.extend([*apple_members, apple_serial_child])
+
+    banana_root = _agent(
+        name="banana-family",
+        tag="banana",
+        suffix="banana-root",
+        status="RUNNING",
+        agent_family_parallel=True,
+    )
+    banana_members = [
+        _agent(
+            name=f"banana-{status.lower()}-{index}",
+            suffix=f"banana-member-{index}",
+            status=status,
+            parent_timestamp=banana_root.raw_suffix,
+            agent_family_parallel=True,
+        )
+        for index, status in enumerate(("QUESTION", "FAILED", "DONE"))
+    ]
+    banana_serial_child = _agent(
+        name="banana-serial-running",
+        suffix="banana-serial",
+        parent_timestamp=banana_root.raw_suffix,
+    )
+    banana_root.runtime_children.extend([*banana_members, banana_serial_child])
+
+    agents = [
+        ordinary_running,
+        apple_root,
+        *apple_members,
+        apple_serial_child,
+        banana_root,
+        *banana_members,
+        banana_serial_child,
+    ]
+    app = _FakeApp(agents)
+    app._unread_completed_agent_ids.update(
+        {
+            apple_members[3].identity,
+            apple_serial_child.identity,
+        }
+    )
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    # Hidden family members replace the aggregate root status in each chip,
+    # while the existing panel row totals and panel scoping stay unchanged.
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
+        "#apple · 7 [R3 W1 U1 D1]"
+    )
+    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
+        "#banana · 5 [S1 F1 D1]"
     )
 
 

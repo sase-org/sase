@@ -12,8 +12,6 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.status_buckets import agent_is_asking
-
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -21,13 +19,13 @@ if TYPE_CHECKING:
     from ...widgets import AgentDetail, KeybindingFooter
     from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 
-from ...models.agent_groups import GroupingMode, status_bucket_for
+from ...models._agent_parallel_family import agent_summary_status_counts
+from ...models.agent_groups import GroupingMode
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
 from ...widgets.prompt_panel._messages import AgentDetailHeaderEnriched
 from .._widget_visibility import set_widget_hidden, widget_has_class
 from ._display_helpers import TabName
-from ._loading_helpers import DISMISSABLE_STATUSES
 
 log = logging.getLogger(__name__)
 
@@ -468,45 +466,18 @@ class DetailMixin:
         hidden_starting_agents = [
             self._agents[i] for i in panel_index.hidden_starting_indices
         ]
-        unread_count = sum(
-            1 for agent in visible_top_level_agents if agent.identity in unread_ids
-        )
-        visible_agent_buckets = [
-            (agent, status_bucket_for(agent)) for agent in visible_top_level_agents
-        ]
-        waiting_count = sum(
-            1 for _agent, bucket in visible_agent_buckets if bucket == "Waiting"
+        projected = agent_summary_status_counts(
+            visible_top_level_agents,
+            unread_ids,
         )
         starting_count = len(hidden_starting_agents)
-        failed_count = sum(
-            1 for _agent, bucket in visible_agent_buckets if bucket == "Failed"
-        )
-        asking_count = sum(
-            1
-            for agent, _bucket in visible_agent_buckets
-            if agent_is_asking(agent.status)
-        )
-        running_count = sum(
-            1
-            for agent, bucket in visible_agent_buckets
-            if agent.status not in DISMISSABLE_STATUSES
-            and bucket != "Starting"
-            and bucket != "Waiting"
-            and bucket != "Failed"
-            and not agent_is_asking(agent.status)
-        )
-        read_count = sum(
-            1
-            for agent, bucket in visible_agent_buckets
-            if bucket == "Done" and agent.identity not in unread_ids
-        )
         metrics = (
-            unread_count,
-            asking_count,
-            running_count,
-            waiting_count,
-            failed_count,
-            read_count,
+            projected.unread,
+            projected.stopped,
+            projected.running,
+            projected.waiting,
+            projected.failed,
+            projected.done,
             panel_index.top_level_total,
             starting_count,
         )

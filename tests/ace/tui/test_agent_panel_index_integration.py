@@ -13,7 +13,14 @@ from sase.ace.tui.models.agent_panel_index import AgentPanelIndex
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 
 
-def _agent(*, suffix: str, tag: str | None = None, status: str = "RUNNING") -> Agent:
+def _agent(
+    *,
+    suffix: str,
+    tag: str | None = None,
+    status: str = "RUNNING",
+    parent_timestamp: str | None = None,
+    agent_family_parallel: bool = False,
+) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="cl",
@@ -23,7 +30,33 @@ def _agent(*, suffix: str, tag: str | None = None, status: str = "RUNNING") -> A
         agent_name="alpha",
         tag=tag,
         raw_suffix=suffix,
+        parent_timestamp=parent_timestamp,
+        agent_family_parallel=agent_family_parallel,
     )
+
+
+def _parallel_family(
+    *,
+    suffix: str,
+    root_status: str,
+    member_statuses: tuple[str, ...],
+) -> tuple[Agent, list[Agent]]:
+    root = _agent(
+        suffix=suffix,
+        status=root_status,
+        agent_family_parallel=True,
+    )
+    members = [
+        _agent(
+            suffix=f"{suffix}-member-{index}",
+            status=status,
+            parent_timestamp=suffix,
+            agent_family_parallel=True,
+        )
+        for index, status in enumerate(member_statuses)
+    ]
+    root.runtime_children.extend(members)
+    return root, members
 
 
 class _Bare(AgentDisplayMixin):
@@ -188,6 +221,7 @@ class _RecordingInfoPanel:
 
     counts: tuple[int, int, int, int, int, int, int, int] | None = None
     position: tuple[int, int] | None = None
+    panel_mode_label = ""
 
     def update_position(self, position: int, total: int) -> None:
         self.position = (position, total)
@@ -309,3 +343,83 @@ def test_info_panel_total_counts_lone_hidden_starting_agent() -> None:
     assert info_panel.position == (0, 0)
     # (unread, asking, starting, running, waiting, failed, read, total)
     assert info_panel.counts == (0, 0, 1, 0, 0, 0, 0, 1)
+
+
+def test_info_panel_projects_parallel_family_member_statuses() -> None:
+    family_one_root, family_one_members = _parallel_family(
+        suffix="family-one",
+        root_status="WAITING",
+        member_statuses=(
+            "RUNNING",
+            "RUNNING",
+            "STARTING",
+            "WAITING",
+            "DONE",
+            "DONE",
+        ),
+    )
+    family_two_root, family_two_members = _parallel_family(
+        suffix="family-two",
+        root_status="DONE",
+        member_statuses=(
+            "RUNNING",
+            "RUNNING",
+            "WAITING",
+            "WAITING",
+            "WAITING",
+            "WAITING",
+            "WAITING",
+        ),
+    )
+    serial_child = _agent(
+        suffix="serial-child",
+        status="FAILED",
+        parent_timestamp=family_one_root.raw_suffix,
+    )
+    family_one_root.runtime_children.append(serial_child)
+    ordinary_agents = [
+        _agent(suffix="ordinary-running-one"),
+        _agent(suffix="ordinary-running-two"),
+        _agent(suffix="ordinary-waiting", status="WAITING"),
+    ]
+    bare = _Bare(
+        [
+            family_one_root,
+            *family_one_members,
+            serial_child,
+            family_two_root,
+            *family_two_members,
+            *ordinary_agents,
+        ]
+    )
+    bare._unread_completed_agent_ids = {
+        family_one_members[4].identity,
+        serial_child.identity,
+    }
+
+    info_panel = _run_info_panel(bare)
+
+    assert info_panel.position == (1, 5)
+    # Family STARTING contributes to running, terminal members split by their
+    # own unread identities, and family/serial child rows are not counted again.
+    assert info_panel.counts == (1, 0, 0, 7, 7, 0, 1, 5)
+
+
+def test_info_panel_parallel_root_without_loaded_members_falls_back_to_root() -> None:
+    unloaded_family_root = _agent(
+        suffix="unloaded-family",
+        status="WAITING",
+        agent_family_parallel=True,
+    )
+    bare = _Bare(
+        [
+            unloaded_family_root,
+            _agent(suffix="ordinary-done", status="DONE"),
+            _agent(suffix="ordinary-starting", status="STARTING"),
+        ]
+    )
+
+    info_panel = _run_info_panel(bare)
+
+    assert info_panel.position == (1, 2)
+    assert info_panel.counts == (0, 0, 1, 0, 1, 0, 1, 3)
