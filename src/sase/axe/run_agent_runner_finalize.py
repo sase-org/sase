@@ -1,7 +1,7 @@
 """Post-execution finalization helpers for ``run_agent_runner``.
 
 Contains the bookkeeping that runs after the agent's execution loop:
-exec-outcome classification, error done.json writing, Prometheus run
+exec-outcome classification, error done.json writing, telemetry run
 metrics + structured run log, and the user-completion notification.
 """
 
@@ -113,7 +113,7 @@ def record_completion_metrics(
     active_agent_started: bool = True,
     completion_time: datetime | None = None,
 ) -> None:
-    """Record Prometheus run metrics, stop time, and structured run log."""
+    """Record run metrics, stop time, and the structured run log."""
     provider = agent_llm_provider or ""
     AGENT_RUNS.labels(
         llm_provider=provider,

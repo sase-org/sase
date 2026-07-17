@@ -61,32 +61,3 @@ def test_error_digest_emits_action_summary(
     assert "recent=2" in out
     assert "notified=2" in out
     assert "newest=2099-05-12T10:05:00-04:00" in out
-
-
-def test_pushgateway_cleanup_emits_noop_summary(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_pushgateway_cleanup")
-
-    monkeypatch.setattr(script, "cleanup_stale_groups", lambda: 0)
-
-    script.main()
-
-    out = capsys.readouterr().out
-    assert (
-        out
-        == "pushgateway_cleanup: deleted=0 reason=no_stale_groups_or_telemetry_disabled\n"
-    )
-
-
-def test_pushgateway_cleanup_emits_action_summary(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    script = importlib.import_module("sase.scripts.sase_chop_pushgateway_cleanup")
-
-    monkeypatch.setattr(script, "cleanup_stale_groups", lambda: 3)
-
-    script.main()
-
-    out = capsys.readouterr().out
-    assert out == "pushgateway_cleanup: deleted=3\n"

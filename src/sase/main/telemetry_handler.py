@@ -16,12 +16,6 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         handle_telemetry_dashboard(args)
         sys.exit(0)
 
-    if sub == "export-config":
-        from sase.telemetry.cli_export_config import handle_telemetry_export_config
-
-        handle_telemetry_export_config(args)
-        sys.exit(0)
-
     if sub == "graph":
         from sase.telemetry.cli_graph import handle_telemetry_graph
 
@@ -52,8 +46,5 @@ def handle_telemetry_command(args: argparse.Namespace) -> None:
         handle_telemetry_status()
         sys.exit(0)
 
-    print(
-        "Usage: sase telemetry "
-        "{dashboard,export-config,graph,health,list,snapshot,status}"
-    )
+    print("Usage: sase telemetry {dashboard,graph,health,list,snapshot,status}")
     sys.exit(1)

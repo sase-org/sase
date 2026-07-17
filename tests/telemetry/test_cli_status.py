@@ -48,8 +48,15 @@ def test_status_reports_store_counts_and_freshness(tmp_path: Path) -> None:
     assert payload["store"]["db_size_bytes"] > 0
     assert payload["flusher"]["state"] == "healthy"
     assert payload["freshness"]["agent"]["age_seconds"] == 10
-    assert "pushgateway" not in payload
-    assert "exposition" not in payload
+    assert set(payload) == {
+        "enabled",
+        "metric_count",
+        "metric_kind_counts",
+        "store",
+        "flusher",
+        "freshness",
+        "store_error",
+    }
 
 
 def test_status_renders_local_details(

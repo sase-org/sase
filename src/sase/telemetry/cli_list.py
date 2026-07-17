@@ -39,14 +39,14 @@ def handle_telemetry_list(args: argparse.Namespace) -> None:
 
         table = Table(show_header=True, header_style="bold", box=None, pad_edge=False)
         table.add_column("Name", style="bold")
-        table.add_column("Prometheus Name")
+        table.add_column("Metric Name")
         table.add_column("Type")
         table.add_column("Labels")
 
         for m in filtered:
             kind_badge = Text(m.kind, style=_KIND_STYLES.get(m.kind, ""))
             labels_str = ", ".join(m.labels) if m.labels else "-"
-            table.add_row(m.attr, m.prometheus_name, kind_badge, labels_str)
+            table.add_row(m.attr, m.metric_name, kind_badge, labels_str)
 
         title = f"{subsystem_name} ({len(filtered)} metric{'s' if len(filtered) != 1 else ''})"
         panel = Panel(table, title=title, border_style="cyan")

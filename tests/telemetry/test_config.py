@@ -101,10 +101,8 @@ def test_get_telemetry_config_ignores_legacy_prometheus_block() -> None:
         cfg = get_telemetry_config()
 
     assert cfg.enabled is True
-    # Transitional CLI properties stay fixed and are not configured by the
-    # ignored legacy block.
-    assert cfg.exposition_port == 9464
-    assert cfg.pushgateway_url == "localhost:9091"
+    assert cfg.flush_interval_seconds == 15
+    assert cfg.retention == _RetentionConfig()
 
 
 def test_reset_clears_cache() -> None:

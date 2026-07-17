@@ -64,21 +64,6 @@ class _TelemetryConfig:
         """Resolve the store lazily so ``SASE_HOME`` redirection is honored."""
         return self.store_path or _default_telemetry_store_path()
 
-    # Transitional read-only defaults for the old CLI modules.  Legacy
-    # ``telemetry.prometheus`` configuration is deliberately ignored; the CLI
-    # phase removes these consumers entirely.
-    @property
-    def exposition_port(self) -> int:
-        return 9464
-
-    @property
-    def pushgateway_url(self) -> str:
-        return "localhost:9091"
-
-    @property
-    def prometheus_url(self) -> str:
-        return "localhost:9090"
-
 
 def get_telemetry_config() -> _TelemetryConfig:
     """Return the telemetry config, loading and caching on first call."""

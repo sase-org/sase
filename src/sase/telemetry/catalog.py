@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from sase.telemetry.metrics import METRIC_DEFS
 
-# Prometheus name prefix → human-readable subsystem name
+# Metric name prefix → human-readable subsystem name
 _PREFIX_TO_SUBSYSTEM: dict[str, str] = {
     "sase_agent": "Agent Lifecycle",
     "sase_llm": "LLM Provider",
@@ -45,16 +45,16 @@ class MetricInfo:
 
     attr: str  # Module attribute name, e.g. "AGENT_RUNS"
     kind: str  # "counter", "gauge", or "histogram"
-    prometheus_name: str  # e.g. "sase_agent_runs_total"
+    metric_name: str  # e.g. "sase_agent_runs_total"
     description: str  # Human-readable description
     labels: list[str]  # Label names
     subsystem: str  # e.g. "Agent Lifecycle"
 
 
-def _derive_subsystem(prometheus_name: str) -> str:
-    """Derive subsystem from the Prometheus metric name prefix."""
+def _derive_subsystem(metric_name: str) -> str:
+    """Derive a subsystem from the metric name prefix."""
     for prefix, subsystem in _PREFIX_TO_SUBSYSTEM.items():
-        if prometheus_name.startswith(prefix):
+        if metric_name.startswith(prefix):
             return subsystem
     return "Other"
 
@@ -65,7 +65,7 @@ def get_catalog() -> list[MetricInfo]:
         MetricInfo(
             attr=attr,
             kind=kind,
-            prometheus_name=name,
+            metric_name=name,
             description=doc,
             labels=list(labels),
             subsystem=_derive_subsystem(name),

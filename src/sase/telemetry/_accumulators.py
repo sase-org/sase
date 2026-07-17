@@ -1,7 +1,7 @@
 """Thread-safe in-process telemetry accumulators.
 
 The public metric surface intentionally mirrors the small subset of the
-``prometheus_client`` API used by SASE.  Accumulators retain only data that has
+instrumentation API used by SASE. Accumulators retain only data that has
 not yet been flushed: counters and histograms drain deltas, while gauges emit
 their latest value on every flush so live processes do not become stale.
 """

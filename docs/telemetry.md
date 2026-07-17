@@ -1,363 +1,202 @@
 # Telemetry
 
-This document describes the Prometheus-based telemetry system in sase. Telemetry tracks metrics across all major
-subsystems — agent lifecycle, LLM providers, axe daemon, hooks, beads, VCS/workspace, and notifications — and provides
-CLI tools for monitoring, health checks, and a bundled Docker Compose monitoring stack.
+SASE records metric history locally and renders it directly in terminal interfaces. No network service is required:
+instrumented processes accumulate metric deltas in memory, periodically flush them to a SQLite store through the Rust
+core, and query the same store for the CLI and the Admin Center Telemetry tab.
 
-## Table of Contents
+Telemetry is enabled by default. Set `telemetry.enabled: false` to opt out; instrumentation then remains connected to
+lightweight no-op stubs and no samples are written.
 
-- [Overview](#overview)
-- [Configuration](#configuration)
-- [CLI Commands](#cli-commands)
-  - [status](#sase-telemetry-status)
-  - [list](#sase-telemetry-list)
-  - [snapshot](#sase-telemetry-snapshot)
-  - [dashboard](#sase-telemetry-dashboard)
-  - [health](#sase-telemetry-health)
-  - [export-config](#sase-telemetry-export-config)
-- [Architecture](#architecture)
-- [Metric Catalog](#metric-catalog)
-- [Monitoring Stack](#monitoring-stack)
-- [Integration Points](#integration-points)
+## Architecture
 
-## Overview
+```text
+Instrumentation (.labels().inc() / .observe() / .set())
+        |
+        v
+In-process accumulators
+        |  periodic flush for daemons; exit flush for runners
+        v
+sase_core_rs telemetry bindings
+        |
+        v
+~/.sase/telemetry/metrics.sqlite
+        |
+        +---- sase telemetry CLI
+        |
+        +---- Admin Center > Telemetry
+```
 
-The telemetry system uses [Prometheus](https://prometheus.io/) metrics to instrument sase internals. Key design
-principles:
+Counters and histograms flush only the delta accumulated since the previous write. Gauges flush their latest value with
+a process source identifier; queries discard stale sources so crashed processes do not remain active forever. Writes use
+short transactions, WAL mode, and a bounded busy timeout. A failed flush is retried a bounded number of times and then
+dropped at debug log level rather than interrupting normal SASE work.
 
-- **Lightweight when disabled**: All metrics are lightweight no-op stubs when `telemetry.enabled` is `false` (the
-  default). Instrumentation calls still run, but they do not create Prometheus clients, open network connections, or
-  start an exposition server.
-- **Dual data collection**: Short-lived processes (agents) push metrics to a Push Gateway. Long-lived processes (axe
-  daemon) expose metrics via an HTTP endpoint for Prometheus to scrape.
-- **37 metrics across 8 subsystems**: Comprehensive coverage of the full sase lifecycle.
-
-Telemetry data appears only after telemetry is enabled and an instrumented process has run. For local dashboards, export
-the monitoring stack first, start it with Docker Compose, then run or restart the relevant sase processes so they
-initialize telemetry with the enabled config.
+The Rust core owns storage, rollups, retention, range aggregation, and histogram quantiles. Python owns instrumentation,
+configuration, local path selection, and presentation.
 
 ## Configuration
 
-Telemetry is configured under the `telemetry` key in `sase.yml`:
+The default configuration is:
 
 ```yaml
 telemetry:
-  enabled: false # Toggle telemetry on/off globally
-  prometheus:
-    exposition_port: 9464 # HTTP server port for the axe exposition server
-    pushgateway_url: "localhost:9091" # Push Gateway address
-    url: "localhost:9090" # Prometheus API address for charts mode
+  enabled: true
+  flush_interval_seconds: 15
+  retention:
+    raw_seconds: 172800
+    rollup_5m_seconds: 2592000
+    rollup_1h_seconds: 31536000
   health_thresholds:
-    error_rate_warn: 10.0 # % threshold for warn status
-    error_rate_critical: 25.0 # % threshold for critical status
+    error_rate_warn: 10.0
+    error_rate_critical: 25.0
     retry_rate_warn: 10.0
     retry_rate_critical: 25.0
-    p95_latency_warn: 300.0 # seconds
+    p95_latency_warn: 300.0
     p95_latency_critical: 600.0
 ```
 
-| Field                                       | Type  | Default          | Description                                                |
-| ------------------------------------------- | ----- | ---------------- | ---------------------------------------------------------- |
-| `telemetry.enabled`                         | bool  | `false`          | Enable or disable telemetry globally.                      |
-| `telemetry.prometheus.exposition_port`      | int   | `9464`           | HTTP server port for the axe metric exposition endpoint.   |
-| `telemetry.prometheus.pushgateway_url`      | str   | `localhost:9091` | Push Gateway address used by short-lived runner processes. |
-| `telemetry.prometheus.url`                  | str   | `localhost:9090` | Prometheus API address used by dashboard charts mode.      |
-| `telemetry.health_thresholds.*_warn`        | float | varies           | Percentage threshold for WARN health status.               |
-| `telemetry.health_thresholds.*_critical`    | float | varies           | Percentage threshold for CRITICAL status.                  |
-| `telemetry.health_thresholds.p95_latency_*` | float | 300/600          | P95 latency thresholds in seconds.                         |
+| Field                                              | Default    | Meaning                                         |
+| -------------------------------------------------- | ---------- | ----------------------------------------------- |
+| `telemetry.enabled`                                | `true`     | Record telemetry locally.                       |
+| `telemetry.flush_interval_seconds`                 | `15`       | Flush cadence for long-lived processes.         |
+| `telemetry.retention.raw_seconds`                  | `172800`   | Raw sample retention: 48 hours.                 |
+| `telemetry.retention.rollup_5m_seconds`            | `2592000`  | Five-minute rollup retention: 30 days.          |
+| `telemetry.retention.rollup_1h_seconds`            | `31536000` | Hourly rollup retention: one year.              |
+| `telemetry.health_thresholds.error_rate_warn`      | `10.0`     | Error-rate percentage that produces WARN.       |
+| `telemetry.health_thresholds.error_rate_critical`  | `25.0`     | Error-rate percentage that produces CRITICAL.   |
+| `telemetry.health_thresholds.retry_rate_warn`      | `10.0`     | Retry-rate percentage that produces WARN.       |
+| `telemetry.health_thresholds.retry_rate_critical`  | `25.0`     | Retry-rate percentage that produces CRITICAL.   |
+| `telemetry.health_thresholds.p95_latency_warn`     | `300.0`    | P95 duration in seconds that produces WARN.     |
+| `telemetry.health_thresholds.p95_latency_critical` | `600.0`    | P95 duration in seconds that produces CRITICAL. |
 
-Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
+The default database path is `~/.sase/telemetry/metrics.sqlite` (under the effective SASE home). The parent directory
+and database are created when the first batch is recorded.
 
-## CLI Commands
+### Retention and rollups
 
-With no subcommand, `sase telemetry` defaults to `sase telemetry list` with default options. Use the explicit
-`sase telemetry list` form when passing metric-catalog filters.
+Raw samples support the highest-resolution recent graphs. As raw data ages, the store folds it into five-minute and
+hourly rollups; range queries choose the appropriate resolution transparently. Retention pruning is opportunistic on
+writes, so a read-only command never performs cleanup.
+
+## CLI commands
+
+With no subcommand, `sase telemetry` delegates to `sase telemetry list`.
 
 ### `sase telemetry status`
 
-Quick health check and configuration display. Shows telemetry enabled/disabled status, metric counts by type, and
-reachability of the Push Gateway and HTTP exposition server.
+Show whether recording is enabled, the resolved database path and size, raw and rollup sample counts, inferred flusher
+state, and last-write freshness by subsystem.
 
 ```bash
 sase telemetry status
 ```
 
-When telemetry is disabled, this command prints the config snippet needed to enable it and does not probe metric
-endpoints.
-
 ### `sase telemetry list`
 
-Display the metric catalog from internal definitions, grouped by subsystem.
+Display the metric catalog derived from the same definitions used by instrumentation.
 
 ```bash
-sase telemetry list                      # All metrics
-sase telemetry list -s "Agent Lifecycle" # Filter by subsystem
-sase telemetry list -t counter           # Filter by type (counter, gauge, histogram)
+sase telemetry list
+sase telemetry list -s "Agent Lifecycle"
+sase telemetry list -t histogram
 ```
 
-| Flag              | Values                          | Default | Description           |
-| ----------------- | ------------------------------- | ------- | --------------------- |
-| `-s, --subsystem` | subsystem name                  | -       | Filter to a subsystem |
-| `-t, --type`      | `counter`, `gauge`, `histogram` | -       | Filter by metric type |
+| Flag              | Values                          | Meaning                     |
+| ----------------- | ------------------------------- | --------------------------- |
+| `-s, --subsystem` | subsystem name                  | Restrict the catalog group. |
+| `-t, --type`      | `counter`, `gauge`, `histogram` | Restrict the metric kind.   |
 
 ### `sase telemetry snapshot`
 
-Fetch and display current metric values from the Push Gateway or exposition endpoint.
+Query current values from the local store. Counters are summed, current gauges use only fresh source values, and
+histograms include count, average, minimum, and maximum.
 
 ```bash
-sase telemetry snapshot                          # Rich table (default)
-sase telemetry snapshot -f json                  # JSON output
-sase telemetry snapshot -f prometheus            # Raw Prometheus text format
-sase telemetry snapshot -S pushgateway           # Force pushgateway source
+sase telemetry snapshot
+sase telemetry snapshot -f json
+sase telemetry snapshot -s "LLM Provider"
 ```
 
-| Flag              | Values                              | Default | Description         |
-| ----------------- | ----------------------------------- | ------- | ------------------- |
-| `-S, --source`    | `auto`, `pushgateway`, `exposition` | `auto`  | Data source         |
-| `-f, --format`    | `rich`, `json`, `prometheus`        | `rich`  | Output format       |
-| `-s, --subsystem` | subsystem name                      | -       | Filter by subsystem |
+| Flag              | Values         | Default | Meaning                    |
+| ----------------- | -------------- | ------- | -------------------------- |
+| `-f, --format`    | `rich`, `json` | `rich`  | Output format.             |
+| `-s, --subsystem` | subsystem name | all     | Restrict returned metrics. |
 
 ### `sase telemetry dashboard`
 
-Live auto-refreshing TUI dashboard with two modes: summary (default) and charts.
+Open a live Rich dashboard backed by range and instant queries. It shows a stat-tile strip and a subsystem-specific
+chart grid; charts are always available when samples exist.
 
 ```bash
-sase telemetry dashboard                  # Summary mode, 5s refresh
-sase telemetry dashboard -c               # Charts mode with historical data
-sase telemetry dashboard -c -r 24h        # Charts over last 24 hours
-sase telemetry dashboard -c -s "LLM Provider"  # Focus on one subsystem
-sase telemetry dashboard -i 10            # 10-second refresh interval
+sase telemetry dashboard
+sase telemetry dashboard -r 24h
+sase telemetry dashboard -s llm -i 10
 ```
 
-| Flag              | Values                              | Default | Description                                 |
-| ----------------- | ----------------------------------- | ------- | ------------------------------------------- |
-| `-i, --interval`  | int (seconds)                       | `5`     | Refresh interval                            |
-| `-S, --source`    | `auto`, `pushgateway`, `exposition` | `auto`  | Data source                                 |
-| `-c, --charts`    | flag                                | -       | Enable charts mode with historical data     |
-| `-r, --range`     | `1h`, `6h`, `24h`, `7d`             | `1h`    | Time range for charts                       |
-| `-s, --subsystem` | subsystem name                      | -       | Focus on a single subsystem (larger charts) |
+| Flag              | Values                                                                           | Default  | Meaning          |
+| ----------------- | -------------------------------------------------------------------------------- | -------- | ---------------- |
+| `-i, --interval`  | seconds                                                                          | `5`      | Refresh cadence. |
+| `-r, --range`     | `15m`, `1h`, `6h`, `24h`, `7d`                                                   | `1h`     | Query window.    |
+| `-s, --subsystem` | `agents`, `axe`, `beads`, `hooks`, `llm`, `memory`, `notifications`, `workspace` | `agents` | Chart set.       |
 
-**Summary mode** shows styled stat panels with color-coded gauges (Active Agents, Active Workspaces, Active Beads) and
-compact subsystem metric tables.
+### `sase telemetry graph`
 
-**Charts mode** (`-c`) renders historical line and bar charts via Prometheus range queries, showing: Agent Run Duration,
-Active Agents, Agent Throughput, LLM Token Usage, LLM Latency, and Error Rate. Falls back to summary mode when
-Prometheus is unreachable.
+Render one metric as a one-shot, pipeable terminal chart. A metric may be named by its wire name or catalog attribute.
 
-The `--source` flag selects the Push Gateway or exposition endpoint for summary mode. Charts mode uses the Prometheus
-HTTP API from `telemetry.prometheus.url` because it needs historical range queries.
+```bash
+sase telemetry graph sase_agent_runs_total
+sase telemetry graph AGENT_RUNS -r 24h -g status -a rate
+sase telemetry graph sase_llm_input_tokens_total -g provider -w 100 -n
+```
+
+| Flag                | Meaning                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `-a, --aggregation` | `sum`, `rate`, `avg`, `min`, `max`, `count`, `quantile`, or `pNN`. |
+| `-g, --group-by`    | Comma-separated metric labels rendered as separate series.         |
+| `-n, --no-color`    | Disable ANSI colors.                                               |
+| `-r, --range`       | `15m`, `1h`, `6h`, `24h`, or `7d`; default `1h`.                   |
+| `-w, --width`       | Chart width in terminal cells; minimum 20, default 80.             |
 
 ### `sase telemetry health`
 
-Traffic-light health assessment with OK/WARN/CRITICAL status for subsystems that have scraped data. Configured
-thresholds apply to agent and LLM error rates plus hook retry rates; other entries are informational or use fixed
-heuristics.
+Assess the last hour of data using the configured error-rate, retry-rate, and p95 thresholds. Rich output is the
+default; JSON is available for automation.
 
 ```bash
-sase telemetry health                    # Rich output
-sase telemetry health -j                 # Machine-readable JSON
+sase telemetry health
+sase telemetry health -j
 ```
 
-| Flag           | Values                              | Default | Description |
-| -------------- | ----------------------------------- | ------- | ----------- |
-| `-j, --json`   | flag                                | -       | JSON output |
-| `-S, --source` | `auto`, `pushgateway`, `exposition` | `auto`  | Data source |
+Exit codes are `0` for healthy, `1` for degraded/WARN, and `2` for CRITICAL.
 
-Exit codes: `0` (healthy), `1` (degraded/warn), `2` (critical).
+## Admin Center Telemetry tab
 
-### `sase telemetry export-config`
+Open the SASE Admin Center with `#` or the command palette, then select **Telemetry**. The tab shares the CLI chart
+renderers and local query adapter. It loads only when opened, runs store queries off the UI thread, and refreshes every
+10 seconds while visible.
 
-Export the bundled monitoring stack (Docker Compose, Prometheus config, Grafana dashboard) to a local directory.
+| Key | Action                                    |
+| --- | ----------------------------------------- |
+| `s` | Cycle subsystem chart sets.               |
+| `t` | Cycle `15m`, `1h`, `6h`, `24h`, and `7d`. |
+| `r` | Refresh immediately.                      |
 
-```bash
-sase telemetry export-config                     # Default: ./sase-monitoring/
-sase telemetry export-config -o /tmp/monitoring  # Custom output directory
-sase telemetry export-config -f                  # Overwrite existing
-```
+The pane shows loading, empty-store, disabled, and query-error states directly instead of leaving blank charts.
 
-| Flag               | Values | Default              | Description                   |
-| ------------------ | ------ | -------------------- | ----------------------------- |
-| `-o, --output-dir` | path   | `./sase-monitoring/` | Target directory              |
-| `-f, --force`      | flag   | -                    | Overwrite target if it exists |
+## Metric catalog and integration
 
-After exporting, start the stack with:
+The catalog currently contains 37 counters, gauges, and histograms across eight groups: Agent Lifecycle, LLM Provider,
+Axe Orchestrator, Hooks/Mentors/Workflows, Beads, VCS/Workspace, Notifications, and Memory. Run `sase telemetry list`
+for the authoritative metric names, kinds, and labels.
 
-```bash
-cd sase-monitoring && docker compose up -d
-```
+Instrumentation lives at the normal subsystem boundaries: agent runner setup/finalization, LLM invocation, axe and
+lumberjack loops, hook and mentor runners, bead and workspace operations, notification delivery, and memory proposal
+review. Call sites keep the stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether recording is
+enabled.
 
-## Architecture
+## Migration from the external stack
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    sase telemetry CLI                    │
-│  status · list · snapshot · dashboard · health · export  │
-├──────────────────────────────────────────────────────────┤
-│                       Scrape Client                      │
-│          (fetches from Push Gateway or exposition)       │
-├─────────────────────┬────────────────────────────────────┤
-│   Push Gateway      │   HTTP Exposition Server           │
-│ (short-lived procs) │   (long-lived: axe daemon)         │
-├─────────────────────┴────────────────────────────────────┤
-│                 Prometheus Metrics Layer                 │
-│       metrics.py (37 metric singletons, stub/real switch)│
-├──────────────────────────────────────────────────────────┤
-│                  Instrumentation Points                  │
-│       Agent · LLM · Axe · Hooks · Beads · VCS · Notify · Memory │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Source Layout
-
-| File / Directory                   | Purpose                                       |
-| ---------------------------------- | --------------------------------------------- |
-| `src/sase/telemetry/__init__.py`   | Public API exports                            |
-| `src/sase/telemetry/metrics.py`    | Module-level metric singletons (37 attrs)     |
-| `src/sase/telemetry/_registry.py`  | Init, Push Gateway integration, atexit        |
-| `src/sase/telemetry/_stubs.py`     | No-op stub classes used when telemetry is off |
-| `src/sase/telemetry/_config.py`    | Configuration loading from sase.yml           |
-| `src/sase/telemetry/catalog.py`    | Structured metric catalog and grouping        |
-| `src/sase/telemetry/scrape.py`     | HTTP client and Prometheus text parser        |
-| `src/sase/telemetry/prom_query.py` | Prometheus HTTP API client (range queries)    |
-| `src/sase/telemetry/charts.py`     | Terminal chart rendering via plotext          |
-| `src/sase/telemetry/cli_*.py`      | CLI subcommand handlers                       |
-| `src/sase/telemetry/monitoring/`   | Bundled Docker Compose + Prometheus + Grafana |
-
-## Metric Catalog
-
-37 metrics organized into 8 subsystems:
-
-### Agent Lifecycle
-
-| Prometheus Name                   | Type      | Labels                         | Description             |
-| --------------------------------- | --------- | ------------------------------ | ----------------------- |
-| `sase_agent_runs_total`           | counter   | llm_provider, status, workflow | Total agent runs        |
-| `sase_agent_run_duration_seconds` | histogram | llm_provider, workflow         | Agent run duration      |
-| `sase_agent_active`               | gauge     | llm_provider, project          | Currently active agents |
-| `sase_agent_spawns_total`         | counter   | llm_provider, project          | Total agent spawns      |
-| `sase_agent_kills_total`          | counter   | reason                         | Total agent kills       |
-
-### LLM Provider
-
-| Prometheus Name                        | Type      | Labels               | Description             |
-| -------------------------------------- | --------- | -------------------- | ----------------------- |
-| `sase_llm_invocations_total`           | counter   | provider, status     | Total LLM invocations   |
-| `sase_llm_invocation_duration_seconds` | histogram | provider             | Invocation duration     |
-| `sase_llm_errors_total`                | counter   | provider, error_type | LLM errors              |
-| `sase_llm_retries_total`               | counter   | provider             | LLM retries             |
-| `sase_llm_retry_spawns_total`          | counter   | outcome              | Cross-process retries   |
-| `sase_llm_input_tokens_total`          | counter   | provider             | Input tokens consumed   |
-| `sase_llm_output_tokens_total`         | counter   | provider             | Output tokens generated |
-| `sase_llm_cache_read_tokens_total`     | counter   | provider             | Cache-read tokens       |
-
-### Axe Orchestrator
-
-| Prometheus Name                      | Type      | Labels     | Description         |
-| ------------------------------------ | --------- | ---------- | ------------------- |
-| `sase_axe_cycles_total`              | counter   | cycle_type | Total axe cycles    |
-| `sase_axe_cycle_duration_seconds`    | histogram | cycle_type | Cycle duration      |
-| `sase_axe_lumberjacks_active`        | gauge     | -          | Active lumberjacks  |
-| `sase_axe_lumberjack_restarts_total` | counter   | -          | Lumberjack restarts |
-| `sase_axe_errors_total`              | counter   | error_type | Axe errors          |
-
-### Hooks / Mentors / Workflows
-
-| Prometheus Name                  | Type      | Labels            | Description               |
-| -------------------------------- | --------- | ----------------- | ------------------------- |
-| `sase_hook_executions_total`     | counter   | hook_type, status | Hook executions           |
-| `sase_hook_duration_seconds`     | histogram | hook_type         | Hook duration             |
-| `sase_hook_retries_total`        | counter   | hook_type         | Hook retries              |
-| `sase_mentor_executions_total`   | counter   | status            | Mentor executions         |
-| `sase_workflow_executions_total` | counter   | workflow, status  | Workflow executions       |
-| `sase_workflow_duration_seconds` | histogram | workflow          | Workflow duration         |
-| `sase_zombie_detections_total`   | counter   | -                 | Zombie process detections |
-
-### Beads
-
-| Prometheus Name                      | Type    | Labels                 | Description             |
-| ------------------------------------ | ------- | ---------------------- | ----------------------- |
-| `sase_bead_operations_total`         | counter | operation              | Bead CRUD operations    |
-| `sase_bead_status_transitions_total` | counter | from_status, to_status | Bead status transitions |
-| `sase_bead_active`                   | gauge   | project, status        | Active beads            |
-
-### VCS / Workspace
-
-| Prometheus Name                     | Type    | Labels                      | Description            |
-| ----------------------------------- | ------- | --------------------------- | ---------------------- |
-| `sase_vcs_commits_total`            | counter | provider, type              | VCS commits            |
-| `sase_vcs_operations_total`         | counter | provider, operation, status | VCS operations         |
-| `sase_workspace_acquisitions_total` | counter | project                     | Workspace acquisitions |
-| `sase_workspace_releases_total`     | counter | project                     | Workspace releases     |
-| `sase_workspace_active`             | gauge   | project                     | Active workspaces      |
-
-### Notifications
-
-| Prometheus Name                 | Type    | Labels       | Description        |
-| ------------------------------- | ------- | ------------ | ------------------ |
-| `sase_notifications_sent_total` | counter | type, status | Notifications sent |
-
-### Memory
-
-| Prometheus Name                        | Type    | Labels | Description               |
-| -------------------------------------- | ------- | ------ | ------------------------- |
-| `sase_memory_proposals_proposed_total` | counter | -      | Memory proposals created  |
-| `sase_memory_proposals_approved_total` | counter | edited | Memory proposals approved |
-| `sase_memory_proposals_rejected_total` | counter | -      | Memory proposals rejected |
-
-## Monitoring Stack
-
-The `sase telemetry export-config` command exports a ready-to-use Docker Compose stack:
-
-### Services
-
-| Service      | Port | Description                                                    |
-| ------------ | ---- | -------------------------------------------------------------- |
-| Push Gateway | 9091 | Receives metrics from short-lived agent processes              |
-| Prometheus   | 9090 | Scrapes Push Gateway and axe exposition server; stores metrics |
-| Grafana      | 3000 | Pre-configured dashboard with panels for all subsystems        |
-
-### Prometheus Scrape Configuration
-
-Prometheus is configured with two scrape jobs:
-
-- **`sase_axe`**: Scrapes the axe daemon's HTTP exposition server (port 9464)
-- **`pushgateway`**: Scrapes the Push Gateway (port 9091)
-
-Global scrape interval: 15 seconds.
-
-### Alerting Rules
-
-14 alert rules covering:
-
-- Agent error rate thresholds (10%, 25%)
-- Agent p95 latency thresholds (300s, 600s)
-- LLM error rate and retry rate
-- Axe cycle errors
-- Hook retry rates
-- Zombie process detection
-- Push Gateway reachability
-
-Alert labels use `severity: warning` and `severity: critical`.
-
-### Grafana Dashboard
-
-A pre-built Grafana dashboard is automatically provisioned with panels for all telemetry subsystems, accessible at
-`http://localhost:3000` after starting the stack.
-
-## Integration Points
-
-Telemetry is instrumented across the codebase:
-
-| Subsystem     | Location                                                                | What is tracked                      |
-| ------------- | ----------------------------------------------------------------------- | ------------------------------------ |
-| Agent         | Agent runner setup/finalize modules under `src/sase/axe/`               | Runs, duration, spawns, kills        |
-| LLM Provider  | `src/sase/llm_provider/_invoke.py`                                      | Invocations, tokens, errors, retries |
-| Axe           | `src/sase/axe/orchestrator.py`, `src/sase/axe/lumberjack.py`            | Cycles, errors, lumberjack activity  |
-| Hooks/Mentors | `src/sase/ace/hooks/execution.py`, runner modules under `src/sase/axe/` | Execution counts, durations, retries |
-| Beads         | `src/sase/bead/project.py`, `src/sase/main/bead_fast_path.py`           | CRUD operations, status transitions  |
-| VCS           | VCS provider plugins under `src/sase/vcs_provider/plugins/`             | Commits, operations                  |
-| Notifications | `src/sase/notifications/senders.py`                                     | Notifications sent                   |
-| Memory        | `src/sase/memory/proposals.py`                                          | Proposal review lifecycle            |
-
-The axe orchestrator calls `init_telemetry(start_http_server=True)` on startup to begin exposing metrics. Agent
-processes use `push_metrics()` to send data to the Push Gateway on exit via an `atexit` handler.
+The bundled Docker Compose, Grafana, Prometheus, and Pushgateway stack has been removed. Existing exported stacks are no
+longer used by SASE and may be stopped and deleted independently. Legacy `telemetry.prometheus` configuration is
+accepted but ignored; remove it when convenient. Historical data from the old stack is not imported, so local charts
+begin with samples recorded after upgrading.

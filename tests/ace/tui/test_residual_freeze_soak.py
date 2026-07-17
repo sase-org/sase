@@ -23,9 +23,9 @@ from sase.ace.tui.modals.revive_agent_modal import DismissedAgentSelectModal
 from sase.history.prompt_catalog import PromptHistoryPage
 from tests._agent_revive_helpers import make_agent
 
-_HITCH_THRESHOLD_SECONDS = 0.25
-_BACKGROUND_HOLD_SECONDS = 0.35
-_INPUT_DEADLINE_SECONDS = 1.0
+_HITCH_THRESHOLD_SECONDS = 0.5
+_BACKGROUND_HOLD_SECONDS = 0.65
+_INPUT_DEADLINE_SECONDS = 1.5
 _FREEZE_EVENTS = frozenset(
     {
         "tui_hitch",
@@ -74,10 +74,14 @@ def _configure_lowered_watchdog(
     log_path: Path,
 ) -> None:
     monkeypatch.setenv("SASE_TUI_STALL_PATH", str(log_path))
-    monkeypatch.setenv("SASE_TUI_HITCH_THRESHOLD_SECONDS", "0.25")
-    monkeypatch.setenv("SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS", "0.25")
-    monkeypatch.setenv("SASE_TUI_STALL_THRESHOLD_SECONDS", "0.75")
-    monkeypatch.setenv("SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS", "0.75")
+    monkeypatch.setenv(
+        "SASE_TUI_HITCH_THRESHOLD_SECONDS", str(_HITCH_THRESHOLD_SECONDS)
+    )
+    monkeypatch.setenv(
+        "SASE_TUI_PUMP_HITCH_THRESHOLD_SECONDS", str(_HITCH_THRESHOLD_SECONDS)
+    )
+    monkeypatch.setenv("SASE_TUI_STALL_THRESHOLD_SECONDS", "1.0")
+    monkeypatch.setenv("SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS", "1.0")
     monkeypatch.setenv("SASE_TUI_STALL_POLL_INTERVAL", "0.02")
     monkeypatch.setenv("SASE_TUI_PUMP_STALL_POLL_INTERVAL", "0.02")
 

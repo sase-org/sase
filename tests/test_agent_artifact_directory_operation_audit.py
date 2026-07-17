@@ -141,13 +141,6 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
-    (
-        "src/sase/telemetry/cli_export_config.py:handle_telemetry_export_config"
-    ): DirOpReview(
-        exemption=(
-            "Telemetry export output directory, not an agent artifact directory."
-        ),
-    ),
     "src/sase/workspace_provider/utils.py:ensure_git_clone_at": DirOpReview(
         exemption=(
             "Workspace checkout directory under a managed root, not an agent "

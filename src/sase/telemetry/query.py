@@ -115,7 +115,7 @@ def query_snapshot(*, now_ts: int | None = None) -> list[dict[str, Any]]:
     samples: list[dict[str, Any]] = []
     for info in get_catalog():
         result = query_instant(
-            info.prometheus_name,
+            info.metric_name,
             kind=info.kind,
             now_ts=now_ts,
         )
@@ -123,7 +123,7 @@ def query_snapshot(*, now_ts: int | None = None) -> list[dict[str, Any]]:
             samples.append(
                 {
                     **value,
-                    "metric": info.prometheus_name,
+                    "metric": info.metric_name,
                     "kind": info.kind,
                     "subsystem": info.subsystem,
                     "aggregation": result.get("aggregation", ""),
@@ -143,8 +143,8 @@ def resolve_metric(name: str) -> tuple[str, str] | None:
     """Resolve a catalog metric by wire name or Python attribute name."""
     normalized = name.lower()
     for info in get_catalog():
-        if normalized in {info.prometheus_name.lower(), info.attr.lower()}:
-            return info.prometheus_name, info.kind
+        if normalized in {info.metric_name.lower(), info.attr.lower()}:
+            return info.metric_name, info.kind
     return None
 
 

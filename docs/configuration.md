@@ -1358,15 +1358,17 @@ Source: `src/sase/default_config.yml`, `src/sase/workspace_provider/store.py`
 
 ### telemetry
 
-Configures Prometheus-based telemetry for monitoring sase internals. See [docs/telemetry.md](telemetry.md) for the full
-telemetry reference including CLI commands, metric catalog, and monitoring stack setup.
+Configures local telemetry recording and retention. See [docs/telemetry.md](telemetry.md) for the full telemetry
+reference, including the CLI, metric catalog, local store, and Admin Center tab.
 
 ```yaml
 telemetry:
-  enabled: false
-  prometheus:
-    exposition_port: 9464
-    pushgateway_url: "localhost:9091"
+  enabled: true
+  flush_interval_seconds: 15
+  retention:
+    raw_seconds: 172800
+    rollup_5m_seconds: 2592000
+    rollup_1h_seconds: 31536000
   health_thresholds:
     error_rate_warn: 10.0
     error_rate_critical: 25.0
@@ -1376,17 +1378,19 @@ telemetry:
     p95_latency_critical: 600.0
 ```
 
-| Field                                              | Type  | Default          | Description                                      |
-| -------------------------------------------------- | ----- | ---------------- | ------------------------------------------------ |
-| `telemetry.enabled`                                | bool  | `false`          | Enable or disable telemetry globally.            |
-| `telemetry.prometheus.exposition_port`             | int   | `9464`           | HTTP server port for metric exposition.          |
-| `telemetry.prometheus.pushgateway_url`             | str   | `localhost:9091` | Prometheus Push Gateway address.                 |
-| `telemetry.health_thresholds.error_rate_warn`      | float | `10.0`           | Error rate % threshold for WARN health status.   |
-| `telemetry.health_thresholds.error_rate_critical`  | float | `25.0`           | Error rate % threshold for CRITICAL status.      |
-| `telemetry.health_thresholds.retry_rate_warn`      | float | `10.0`           | Retry rate % threshold for WARN health status.   |
-| `telemetry.health_thresholds.retry_rate_critical`  | float | `25.0`           | Retry rate % threshold for CRITICAL status.      |
-| `telemetry.health_thresholds.p95_latency_warn`     | float | `300.0`          | P95 latency threshold (seconds) for WARN status. |
-| `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`          | P95 latency threshold (seconds) for CRITICAL.    |
+| Field                                              | Type  | Default    | Description                                      |
+| -------------------------------------------------- | ----- | ---------- | ------------------------------------------------ |
+| `telemetry.enabled`                                | bool  | `true`     | Enable or disable local telemetry recording.     |
+| `telemetry.flush_interval_seconds`                 | float | `15`       | Flush interval for long-lived processes.         |
+| `telemetry.retention.raw_seconds`                  | int   | `172800`   | Retain raw samples for 48 hours.                 |
+| `telemetry.retention.rollup_5m_seconds`            | int   | `2592000`  | Retain five-minute rollups for 30 days.          |
+| `telemetry.retention.rollup_1h_seconds`            | int   | `31536000` | Retain hourly rollups for one year.              |
+| `telemetry.health_thresholds.error_rate_warn`      | float | `10.0`     | Error rate % threshold for WARN health status.   |
+| `telemetry.health_thresholds.error_rate_critical`  | float | `25.0`     | Error rate % threshold for CRITICAL status.      |
+| `telemetry.health_thresholds.retry_rate_warn`      | float | `10.0`     | Retry rate % threshold for WARN health status.   |
+| `telemetry.health_thresholds.retry_rate_critical`  | float | `25.0`     | Retry rate % threshold for CRITICAL status.      |
+| `telemetry.health_thresholds.p95_latency_warn`     | float | `300.0`    | P95 latency threshold (seconds) for WARN status. |
+| `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`    | P95 latency threshold (seconds) for CRITICAL.    |
 
 Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
@@ -2173,9 +2177,9 @@ continuation; ordinary `%wait` consumers read it as a normal variable. See
 
 With no subcommand, `sase telemetry` defaults to `sase telemetry list`.
 
-| Flag         | Values                                                               | Default | Description          |
-| ------------ | -------------------------------------------------------------------- | ------- | -------------------- |
-| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `health`, `export-config` | `list`  | Telemetry subcommand |
+| Flag         | Values                                                       | Default | Description          |
+| ------------ | ------------------------------------------------------------ | ------- | -------------------- |
+| _subcommand_ | `status`, `list`, `snapshot`, `dashboard`, `graph`, `health` | `list`  | Telemetry subcommand |
 
 See [docs/telemetry.md](telemetry.md) for the full CLI reference including per-subcommand flags.
 

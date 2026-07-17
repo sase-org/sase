@@ -203,12 +203,12 @@ fmt-md: _setup-prettier
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
     @printf "\n---------- Fixing keep-sorted blocks in YAML files... ----------\n"
-    git ls-files '*.yml' '*.yaml' | xargs {{ keep_sorted_bin }}
+    git ls-files -z '*.yml' '*.yaml' | xargs -0 -r sh -c 'for path do [ ! -e "$path" ] || printf "%s\0" "$path"; done' sh | xargs -0 -r {{ keep_sorted_bin }}
 
 # Lint keep-sorted blocks in YAML files (CI mode)
 lint-keep-sorted: _setup-keep-sorted
     @printf "\n---------- Checking keep-sorted blocks in YAML files... ----------\n"
-    git ls-files '*.yml' '*.yaml' | xargs {{ keep_sorted_bin }} --mode lint
+    git ls-files -z '*.yml' '*.yaml' | xargs -0 -r sh -c 'for path do [ ! -e "$path" ] || printf "%s\0" "$path"; done' sh | xargs -0 -r {{ keep_sorted_bin }} --mode lint
 
 # Check all formatting (CI mode)
 fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check

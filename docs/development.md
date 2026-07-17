@@ -223,7 +223,7 @@ The repository is organized around the CLI entry point, operational subsystems, 
 | `src/sase/workspace_provider/` | Workspace provider hook specs, plugin registry, and bare-git workspace support.                        |
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
-| `src/sase/telemetry/`          | Prometheus metrics, health, dashboard, and monitoring export support.                                  |
+| `src/sase/telemetry/`          | Local metric accumulation, store queries, health checks, and terminal charts.                          |
 | `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` CLI command.                         |
 | `src/sase/integrations/`       | Public helper APIs consumed by external plugins and editors.                                           |
 | `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |

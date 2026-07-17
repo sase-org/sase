@@ -52,24 +52,6 @@ def register_telemetry_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Chart set to display (default: agents)",
     )
 
-    # sase telemetry export-config
-    export_config_parser = tel_subparsers.add_parser(
-        "export-config",
-        help="Export bundled monitoring config (Prometheus + Grafana + Docker Compose)",
-    )
-    export_config_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Overwrite the target directory if it already exists",
-    )
-    export_config_parser.add_argument(
-        "-o",
-        "--output-dir",
-        default="./sase-monitoring",
-        help="Target directory (default: ./sase-monitoring/)",
-    )
-
     # sase telemetry graph
     graph_parser = tel_subparsers.add_parser(
         "graph", help="Render one metric as a pipeable chart"

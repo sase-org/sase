@@ -27,6 +27,13 @@ def test_catalog_attr_names_match_metric_defs() -> None:
     assert actual_attrs == expected_attrs
 
 
+def test_catalog_metric_names_match_metric_defs() -> None:
+    catalog = get_catalog()
+    expected_names = [name for _, _, name, *_ in METRIC_DEFS]
+    actual_names = [m.metric_name for m in catalog]
+    assert actual_names == expected_names
+
+
 def test_catalog_kinds_are_valid() -> None:
     valid_kinds = {"counter", "gauge", "histogram"}
     catalog = get_catalog()
