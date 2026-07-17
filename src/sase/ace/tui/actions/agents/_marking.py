@@ -386,6 +386,11 @@ class AgentMarkingMixin:
                 self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
         else:
             self._refresh_agents_display(list_changed=True)  # type: ignore[attr-defined]
+        refresh_summary = getattr(self, "_refresh_collapsed_panel_summary_only", None)
+        if not callable(refresh_summary) or not refresh_summary():
+            refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+            if callable(refresh_footer):
+                refresh_footer()
         self.notify(f"Cleared {count} mark(s)")  # type: ignore[attr-defined]
 
     def _prune_stale_marked_agents(self) -> None:

@@ -48,3 +48,19 @@ def test_footer_tools_detail_chips_follow_level() -> None:
     assert ("h", "less detail") in full
     assert ("l", "more detail") not in hidden
     assert ("h", "less detail") not in hidden
+
+
+def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        completed_count=3,
+        marked_count=0,
+    )
+    labels = {label for _key, label in bindings}
+
+    assert labels == {"cleanup (3 done)"}
+    assert labels.isdisjoint(
+        {"retry", "dismiss", "kill", "edit chat", "tag/untag", "tmux"}
+    )

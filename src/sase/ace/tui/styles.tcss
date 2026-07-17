@@ -2399,6 +2399,31 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
+#agent-panel-summary-scroll {
+    display: none;
+    width: 100%;
+    height: 100%;
+    border: solid #FFD700;
+    border-title-color: #FFD75F;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+}
+
+#agent-panel-summary {
+    width: 100%;
+    height: auto;
+}
+
+#agent-detail-layout.-summary-active #agent-prompt-scroll,
+#agent-detail-layout.-summary-active #agent-file-scroll,
+#agent-detail-layout.-summary-active #agent-tools-scroll {
+    display: none;
+}
+
+#agent-detail-layout.-summary-active #agent-panel-summary-scroll {
+    display: block;
+}
+
 /* Agent list styling */
 AgentList {
     scrollbar-gutter: stable;

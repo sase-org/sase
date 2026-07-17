@@ -64,30 +64,77 @@ class DetailMixin:
     _hint_commit_views: dict[int, CommitViewSpec]
     _hint_tool_call_reports: dict[str, SlowToolCallReportSpec]
 
-    def _apply_agent_detail_immediate(self) -> None:
-        """Update the agent detail prompt header without spawning workers."""
+    def _apply_collapsed_panel_summary(
+        self,
+        agent_detail: AgentDetail,
+        footer_widget: KeybindingFooter | None = None,
+    ) -> bool:
+        """Render the live whole-panel snapshot when collapsed focus is active."""
+        resolver = getattr(self, "_focused_collapsed_panel_summary", None)
+        snapshot = resolver() if callable(resolver) else None
+        if snapshot is None:
+            return False
+        agent_detail.show_panel_summary(snapshot)
+        if footer_widget is not None:
+            self._apply_agent_footer_update(agent_detail, footer_widget, None)
+        return True
+
+    def _apply_agent_detail_immediate(self) -> bool:
+        """Update the detail surface without spawning agent-detail workers.
+
+        Returns True when a collapsed-panel summary handled the update and no
+        debounced agent-detail phase should be scheduled.
+        """
         from textual.css.query import NoMatches
 
-        from ...widgets import AgentDetail
+        from ...widgets import AgentDetail, KeybindingFooter
 
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         except NoMatches:
-            return
+            return False
 
         if self._sync_agents_onboarding(agent_detail=agent_detail):
-            return
+            return False
+
+        footer_widget = None
+        try:
+            footer_widget = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
+        except NoMatches:
+            pass
+        if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+            return True
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None:
             agent_detail.show_empty()
-            return
+            return False
         if self._should_render_agent_detail_with_hints():
             self._render_agent_detail_with_hints(agent_detail, current_agent)
-            return
+            return False
         agent_detail.update_display_immediate(
             current_agent, attempt_number=self.current_attempt_number
         )
+        return False
+
+    def _refresh_agent_focus_detail(self) -> None:
+        """Repaint info/detail after a focus change, debouncing real agents."""
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            update_info()
+        if self._apply_agent_detail_immediate():
+            self._agent_detail_debouncer.cancel()  # type: ignore[attr-defined]
+            return
+        self._agent_detail_debouncer.schedule(  # type: ignore[attr-defined]
+            self._fire_debounced_detail_update
+        )
+
+    def _refresh_collapsed_panel_summary_only(self) -> bool:
+        """Rebuild only an active summary after mark/unread state changes."""
+        resolver = getattr(self, "_resolve_focused_collapsed_panel", None)
+        if not callable(resolver) or resolver() is None:
+            return False
+        return self._apply_agent_detail_immediate()
 
     def _fire_debounced_detail_update(self) -> None:
         """Apply the debounced detail update once the j/k burst quiesces."""
@@ -118,6 +165,9 @@ class DetailMixin:
         if self._sync_agents_onboarding(
             agent_detail=agent_detail, footer_widget=footer_widget
         ):
+            return
+
+        if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
             return
 
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -169,6 +219,11 @@ class DetailMixin:
 
         from ...widgets import AgentDetail
 
+        if (
+            getattr(self, "_resolve_focused_collapsed_panel", lambda: None)()
+            is not None
+        ):
+            return
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if current_agent is None or current_agent.identity != message.agent_identity:
             return
@@ -544,7 +599,13 @@ class DetailMixin:
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
         neighbor_count = self._selected_agent_neighbor_count(current_agent)
         view_mode = ""
-        if current_agent is not None:
+        resolve_collapsed = getattr(self, "_resolve_focused_collapsed_panel", None)
+        summary_visible = bool(
+            callable(resolve_collapsed) and resolve_collapsed() is not None
+        )
+        if summary_visible:
+            view_mode = "summary"
+        elif current_agent is not None:
             try:
                 agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             except NoMatches:

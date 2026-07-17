@@ -39,6 +39,13 @@ class AgentNotificationUnreadMixin:
             refresh = getattr(self, "_refresh_agents_display", None)
             if callable(refresh):
                 refresh(list_changed=True, defer_detail=True)
+                return
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(getattr(self, "query_one", None)) and callable(update_info):
+            update_info()
+        refresh_summary = getattr(self, "_refresh_collapsed_panel_summary_only", None)
+        if callable(refresh_summary):
+            refresh_summary()
 
     def _reconcile_unread_from_cached_notifications(self: Any) -> None:
         """Apply cached completion notifications to visible agent unread state."""

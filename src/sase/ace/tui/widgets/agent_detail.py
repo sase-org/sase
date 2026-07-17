@@ -10,12 +10,14 @@ from sase.agent.status_buckets import ACTIVE_PLAN_HANDOFF_STATUSES
 
 from ..tools import supports_slow_tool_sources
 from ..models.agent import Agent, AgentType
+from ..models.agent_panel_summary import AgentPanelSummarySnapshot
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
     DetailPanelMode,
 )
 from .file_panel import AgentFilePanel
 from .file_panel._messages import LinkedDeltasRefreshed
+from .agent_panel_summary import AgentPanelSummary
 from .prompt_panel import AgentPromptPanel
 from .prompt_panel._agent_display_state import AgentHintRender
 from .tools_panel import AgentToolsPanel, ToolDetailLevel
@@ -69,6 +71,17 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 yield AgentFilePanel(id="agent-file-panel")
             with VerticalScroll(id="agent-tools-scroll", classes="hidden"):
                 yield AgentToolsPanel(id="agent-tools-panel")
+            with VerticalScroll(id="agent-panel-summary-scroll"):
+                yield AgentPanelSummary(id="agent-panel-summary")
+
+    def _set_panel_summary_active(self, active: bool) -> None:
+        """Switch between summary and agent surfaces without changing mode."""
+        layout = self.query_one("#agent-detail-layout", Vertical)
+        if not isinstance(layout, Vertical):
+            return
+        method = getattr(layout, "add_class" if active else "remove_class", None)
+        if callable(method):
+            method("-summary-active")
 
     def update_display(
         self,
@@ -89,6 +102,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 prior-attempt record (shows full error + that attempt's reply).
         """
         self._agent_detail_generation += 1
+        self._set_panel_summary_active(False)
         with tui_trace("widget.agent_detail.update_display", status=agent.status):
             self._update_display_impl(
                 agent,
@@ -109,6 +123,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         debouncer to settle on a final selection.
         """
         self._agent_detail_generation += 1
+        self._set_panel_summary_active(False)
         with tui_trace(
             "widget.agent_detail.update_display_immediate", status=agent.status
         ):
@@ -284,6 +299,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             File hint mappings and deferred tool-call report specs.
         """
         self._agent_detail_generation += 1
+        self._set_panel_summary_active(False)
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         cancel_slow_tick = getattr(prompt_panel, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
@@ -316,6 +332,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def show_empty(self) -> None:
         """Show empty state for all panels."""
+        self._agent_detail_generation += 1
+        self._current_agent = None
+        self._current_attempt_number = None
+        self._set_panel_summary_active(False)
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
@@ -342,6 +362,25 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prompt_scroll.border_subtitle = ""
         file_scroll.border_title = ""
         file_scroll.border_subtitle = ""
+
+    def show_panel_summary(self, snapshot: AgentPanelSummarySnapshot) -> None:
+        """Show a focused collapsed-panel snapshot and invalidate agent work."""
+        self._agent_detail_generation += 1
+        self._current_agent = None
+        self._current_attempt_number = None
+        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        cancel_slow_tick = getattr(prompt_panel, "_cancel_slow_tool_render_tick", None)
+        if callable(cancel_slow_tick):
+            cancel_slow_tick()
+        summary = self.query_one("#agent-panel-summary", AgentPanelSummary)
+        summary.show_snapshot(snapshot)
+        self._set_panel_summary_active(True)
+
+    def is_panel_summary_visible(self) -> bool:
+        """Return whether the collapsed-panel summary owns the detail area."""
+        layout = self.query_one("#agent-detail-layout", Vertical)
+        has_class = getattr(layout, "has_class", None)
+        return bool(callable(has_class) and has_class("-summary-active"))
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.
@@ -404,7 +443,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             True if the tools panel is visible, False otherwise.
         """
-        return self._panel_mode == DetailPanelMode.TOOLS
+        return (
+            not self.is_panel_summary_visible()
+            and self._panel_mode == DetailPanelMode.TOOLS
+        )
 
     @property
     def tools_detail_level(self) -> ToolDetailLevel:
@@ -441,6 +483,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             True if the file panel is visible, False otherwise.
         """
+        if self.is_panel_summary_visible():
+            return False
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         return not file_scroll.has_class("hidden")
 

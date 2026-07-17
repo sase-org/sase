@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
@@ -57,6 +58,7 @@ class _FakeAgentDetail:
         self.full_calls: list[tuple[str | None, int | None]] = []
         self._agent_detail_generation: int = 0
         self.tools_detail_level = 0
+        self.summary_calls: list[object] = []
 
     def update_display(
         self,
@@ -76,6 +78,10 @@ class _FakeAgentDetail:
 
     def show_empty(self) -> None:
         return
+
+    def show_panel_summary(self, snapshot: object) -> None:
+        self._agent_detail_generation += 1
+        self.summary_calls.append(snapshot)
 
     def is_file_visible(self) -> bool:
         return False
@@ -223,6 +229,21 @@ class _FakeApp(AgentDisplayMixin):
         return self._agents[self.current_idx]
 
 
+class _SummaryApp(AgentSelectionMixin, _FakeApp):
+    def __init__(self, *, agents: list[Agent]) -> None:
+        super().__init__(agents=agents)
+        from sase.ace.tui.models.agent_panels import AgentPanelGroup
+
+        self._collapsed_panel_keys = {"collapsed"}
+        for agent in self._agents:
+            agent.tag = "collapsed"
+        self._panel_group = AgentPanelGroup.from_agents(
+            self._agents,
+            focused_key="collapsed",
+            collapsed_panel_keys=self._collapsed_panel_keys,
+        )
+
+
 def test_debounced_refresh_runs_immediate_phase_only() -> None:
     app = _FakeApp(agents=[_make_agent("agent_0")])
 
@@ -254,6 +275,27 @@ def test_jk_burst_only_full_updates_final_selection() -> None:
 
     assert len(app.detail_widget.full_calls) == 1
     assert app.detail_widget.full_calls[0] == ("agent_49", None)
+
+
+def test_collapsed_panel_summary_skips_debounced_agent_work() -> None:
+    agents = [_make_agent("agent_0"), _make_agent("agent_1")]
+    app = _SummaryApp(agents=agents)
+
+    app._refresh_agents_display_debounced()
+
+    assert len(app.detail_widget.summary_calls) == 1
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
+    assert not app._agent_detail_debouncer.is_pending
+
+    agents[0].status = "WAITING"
+    app._fire_debounced_detail_update()
+
+    assert len(app.detail_widget.summary_calls) == 2
+    assert app.detail_widget.full_calls == []
+    refreshed = app.detail_widget.summary_calls[-1]
+    assert refreshed.counts.running == 1
+    assert refreshed.counts.waiting == 1
 
 
 def test_generation_token_increments_per_phase() -> None:

@@ -132,16 +132,20 @@ class AgentPanelNavigationMixin:
         else:
             self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
-        update_info = getattr(self, "_update_agents_info_panel", None)
-        if callable(update_info):
-            update_info()
-        apply_immediate = getattr(self, "_apply_agent_detail_immediate", None)
-        if callable(apply_immediate):
-            apply_immediate()
-        debouncer = getattr(self, "_agent_detail_debouncer", None)
-        fire_detail = getattr(self, "_fire_debounced_detail_update", None)
-        if debouncer is not None and callable(fire_detail):
-            debouncer.schedule(fire_detail)
+        refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+        if callable(refresh_detail):
+            refresh_detail()
+        else:
+            update_info = getattr(self, "_update_agents_info_panel", None)
+            if callable(update_info):
+                update_info()
+            apply_immediate = getattr(self, "_apply_agent_detail_immediate", None)
+            if callable(apply_immediate):
+                apply_immediate()
+            debouncer = getattr(self, "_agent_detail_debouncer", None)
+            fire_detail = getattr(self, "_fire_debounced_detail_update", None)
+            if debouncer is not None and callable(fire_detail):
+                debouncer.schedule(fire_detail)
 
     def action_focus_next_agent_panel(self) -> None:
         """Move focus to the next tag-driven side panel (with wrap)."""

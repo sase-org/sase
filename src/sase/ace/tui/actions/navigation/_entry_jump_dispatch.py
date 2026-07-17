@@ -90,6 +90,9 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     return True
                 if self._restore_agents_jump_anchor():
                     self._exit_entry_jump_mode()
+                    refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+                    if callable(refresh_detail):
+                        refresh_detail()
                     return True
                 key = "1"
             else:
@@ -217,6 +220,10 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                     if callable(ack_unread):
                         ack_unread(target_agent)
             self._exit_entry_jump_mode()
+            if panel_target is not None:
+                refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+                if callable(refresh_detail):
+                    refresh_detail()
             return True
 
         if self.current_tab == "changespecs":

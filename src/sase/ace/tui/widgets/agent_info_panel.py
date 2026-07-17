@@ -112,7 +112,8 @@ class AgentInfoPanel(Static):
 
         Args:
             mode: The current view mode label (``"file"``, ``"tools"``,
-                or ``"collapsed"``). Empty string hides the indicator.
+                ``"collapsed"``, or ``"summary"``). Empty string hides the
+                indicator.
         """
         self._view_mode = mode
         self._update_display()
@@ -237,6 +238,7 @@ class AgentInfoPanel(Static):
         "file": "bold green",
         "tools": "bold #87D7FF",
         "collapsed": "dim italic",
+        "summary": "bold #FFD75F",
     }
 
     _GROUPING_MODE_STYLES: dict[str, str] = {

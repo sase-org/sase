@@ -277,6 +277,16 @@ def test_grouping_badge_renders_by_date_label() -> None:
     assert f"[group: by date ({_DEFAULT_GROUPING_KEY})]" in plain
 
 
+def test_summary_view_badge_is_visible_and_gold() -> None:
+    panel = AgentInfoPanel()
+    panel._view_mode = "summary"
+
+    text = _collect_rich_text(panel)
+
+    assert "[view: summary]" in text.plain
+    assert _style_for_plain_segment(text, "summary") == "bold #FFD75F"
+
+
 def test_grouping_badge_suppressed_while_loading() -> None:
     """Loading state short-circuits before the badge segment is emitted."""
     panel = AgentInfoPanel()

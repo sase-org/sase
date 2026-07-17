@@ -448,6 +448,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 agent_detail=agent_detail, footer_widget=footer_widget
             ):
                 return True
+            if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+                return True
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             return True
 
@@ -520,6 +522,12 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                     time.perf_counter() - started,
                 )
                 return
+            if self._apply_collapsed_panel_summary(agent_detail, footer_widget):
+                log.debug(
+                    "agents display refresh collapsed-panel summary: elapsed=%.3fs",
+                    time.perf_counter() - started,
+                )
+                return
             self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
             log.debug(
                 "agents display refresh deferred detail: elapsed=%.3fs",
@@ -546,5 +554,9 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         with tui_trace("agents.refresh_debounced", agents=len(self._agents)):
             self._refresh_panel_highlights()
             self._update_agents_info_panel()
-            self._apply_agent_detail_immediate()
-            self._agent_detail_debouncer.schedule(self._fire_debounced_detail_update)
+            if self._apply_agent_detail_immediate():
+                self._agent_detail_debouncer.cancel()
+            else:
+                self._agent_detail_debouncer.schedule(
+                    self._fire_debounced_detail_update
+                )

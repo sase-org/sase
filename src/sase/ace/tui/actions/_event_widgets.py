@@ -11,6 +11,69 @@ from ._event_base import EventHandlersBase
 class EventWidgetHandlersMixin(EventHandlersBase):
     """Mixin providing list, tab, and resize message handlers."""
 
+    _current_group_key: tuple[str, ...] | None
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """Treat mouse focus on a collapsed AgentList as whole-panel focus."""
+        if self.current_tab != "agents":
+            return
+        from ..widgets import AgentList
+
+        widget = event.widget
+        if not isinstance(widget, AgentList):
+            return
+        wid = widget.id
+        try:
+            if wid == "agent-list-panel":
+                panel_idx = 0
+            elif wid is not None and wid.startswith("agent-list-panel-"):
+                panel_idx = int(wid.rsplit("-", 1)[-1])
+            else:
+                return
+        except ValueError:
+            return
+
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is None:
+            return
+        panel_keys = panel_group.panel_keys
+        if not (0 <= panel_idx < len(panel_keys)):
+            return
+        panel_key = panel_keys[panel_idx]
+        if (
+            panel_key not in getattr(self, "_collapsed_panel_keys", set())
+            or panel_idx == panel_group.focused_idx
+        ):
+            return
+        guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
+        if callable(guard) and guard():
+            return
+
+        old_focused_idx = panel_group.focused_idx
+        old_idx = self.current_idx
+        old_group_key = self._current_group_key
+        old_agent = (
+            self._agents[old_idx]
+            if old_group_key is None and 0 <= old_idx < len(self._agents)
+            else None
+        )
+        panel_group.focused_idx = panel_idx
+        self._current_group_key = None
+        self.current_attempt_number = None  # type: ignore[attr-defined]
+        slot = self._agent_panel_index().slice_for(panel_key)  # type: ignore[attr-defined]
+        if slot.global_indices:
+            self.current_idx = slot.global_indices[0]
+        if old_agent is not None:
+            arm_manual = getattr(self, "_arm_manual_unread_after_departure", None)
+            if callable(arm_manual):
+                arm_manual(old_agent)
+        refresh_panel = getattr(self, "_refresh_focused_agent_panel", None)
+        if callable(refresh_panel):
+            refresh_panel(old_focused_idx=old_focused_idx)
+        refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+        if callable(refresh_detail):
+            refresh_detail()
+
     def on_change_spec_list_selection_changed(
         self, event: ChangeSpecList.SelectionChanged
     ) -> None:

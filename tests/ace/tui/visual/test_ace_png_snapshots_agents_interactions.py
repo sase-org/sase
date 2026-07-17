@@ -10,7 +10,12 @@ from textual.widgets import Input
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets import HintInputBar
+from sase.ace.tui.widgets import (
+    AgentDetail,
+    AgentInfoPanel,
+    AgentPanelSummary,
+    HintInputBar,
+)
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -131,6 +136,30 @@ def _panel_auto_expand_agents() -> list[Agent]:
     return agents
 
 
+def _assert_collapsed_panel_summary(page: AcePage) -> None:
+    """Assert the right pane represents ``#chop``, not its hidden first row."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    summary = page.app.query_one("#agent-panel-summary", AgentPanelSummary)
+    info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
+
+    assert detail.is_panel_summary_visible()
+    assert detail._current_agent is None
+    assert page.app._get_selected_agent() is None
+    assert summary.snapshot is not None
+    assert summary.snapshot.label == "#chop"
+    rendered = summary.render().plain
+    assert "COLLAPSED AGENT PANEL" in rendered
+    assert "#chop  COLLAPSED" in rendered
+    assert "[R1 W1]" in rendered
+    assert "visual-collapse-primary-with-a-deliberately-wide-row" in rendered
+    assert "visual-collapse-secondary-with-another-wide-row" in rendered
+    assert info._view_mode == "summary"
+    assert "[view: summary]" in info._build_display_text().plain
+    svg = page.export_svg(title="ACE collapsed summary assertion")
+    assert "Name:" not in svg
+    assert "ChangeSpec:" not in svg
+
+
 async def test_agents_collapsed_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -166,6 +195,7 @@ async def test_agents_collapsed_panel_png_snapshot(
             Text.from_markup(collapsed_widget.border_title).plain
             == "▸ #chop · 2 [R1 W1]"
         )
+        _assert_collapsed_panel_summary(page)
         assert_page_svg_contains(page, "▸ ")
 
         ace_png_visual.assert_page_png(
@@ -188,6 +218,7 @@ async def test_agents_collapsed_panel_png_snapshot(
             Text.from_markup(collapsed_widget.border_title).plain
             == "[3] ▸ #chop · 2 [R1 W1]"
         )
+        _assert_collapsed_panel_summary(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -217,6 +248,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert panel_titles[2].startswith("[3] ▸ ")
         await wait_for_svg_contains(page, "Panels:")
         await wait_for_visual_idle(page)
+        _assert_collapsed_panel_summary(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -233,6 +265,16 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._panel_group.panel_keys == ["chop", "keep", None]
         assert page.app._panel_group.focused_key == "chop"
         assert page.app._agents[page.app.current_idx].tag == "chop"
+
+        # A collapsed panel has no selectable rows, so mouse focus itself must
+        # move whole-panel focus and route the detail pane to its summary.
+        await page.click("#agent-list-panel-2")
+        await page.wait_for(lambda _screen: page.app._panel_group.focused_key is None)
+        await wait_for_visual_idle(page)
+        summary = page.app.query_one("#agent-panel-summary", AgentPanelSummary)
+        assert page.app._get_selected_agent() is None
+        assert summary.snapshot is not None
+        assert summary.snapshot.label == "(untagged)"
 
 
 async def test_agents_unread_highlight_png_snapshot(
