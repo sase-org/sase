@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -11,9 +12,10 @@ import pytest
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
     segments = [
-        "#git:proj\n%name:proj-epic.1\n%group:proj-epic\n%model:@worker\n"
+        "#git:proj\n%name:proj-epic.1\n"
+        "%family(proj-epic, role=phase)\n%model:@worker\n"
         "%auto:tale\n#bd/work_phase_bead:proj-epic.1",
-        "#git:proj\n%name:proj-epic\n%group:proj-epic\n%auto:tale\n"
+        "#git:proj\n%name:proj-epic\n%auto:tale\n"
         "%w:proj-epic.1\n#bd/land_epic:proj-epic",
     ]
     envs = [
@@ -234,7 +236,12 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     mock_create_artifacts.return_value = "/artifacts/dir"
     mock_spawn.return_value = MagicMock(pid=1)
 
-    segments = ["%name:phase\nwork one", "%name:land\nwork two"]
+    from sase.agent.family_membership import FAMILY_MEMBERSHIP_ENV
+
+    segments = [
+        "%name:phase\n%family(land, role=phase)\nwork one",
+        "%name:land\nwork two",
+    ]
     plans = [plan_fake_fanout("multi_prompt", [segment]) for segment in segments]
 
     results = launch_multi_prompt_agents(
@@ -255,5 +262,15 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     assert [c.kwargs["prompt"] for c in calls] == segments
     assert calls[0].kwargs["extra_env"]["SASE_BEAD_ID"] == "1"
     assert calls[1].kwargs["extra_env"]["SASE_BEAD_ID"] == "2"
+    member_family = json.loads(calls[0].kwargs["extra_env"][FAMILY_MEMBERSHIP_ENV])
+    root_family = json.loads(calls[1].kwargs["extra_env"][FAMILY_MEMBERSHIP_ENV])
+    assert member_family == {
+        **root_family,
+        "is_root": False,
+        "role": "phase",
+    }
+    assert root_family["family_base"] == "land"
+    assert root_family["is_root"] is True
+    assert root_family["role"] == "root"
     # No fan-out probing means the naming-wait artifacts path is never hit.
     assert mock_create_artifacts.call_count == 0

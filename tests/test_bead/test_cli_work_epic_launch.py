@@ -68,9 +68,14 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     # Launcher was called exactly once with a multi-prompt referencing every phase.
     query = captured["query"]
     assert "---" in query
-    assert query.count(f"%group:{epic_id}") == len(phase_ids) + 1
+    family_directive = f"%family({epic_id}, role=phase)"
+    assert query.count(family_directive) == len(phase_ids)
+    assert "%group:" not in query
     for pid in phase_ids:
         assert f"#bd/work_phase_bead:{pid}" in query
+        assert f"%name:{pid}\n{family_directive}" in query
+    land_segment = query.split("\n---\n")[-1]
+    assert family_directive not in land_segment
     assert f"#bd/land_epic:{epic_id}" in query
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
@@ -247,7 +252,8 @@ def test_work_dry_run_never_mutates_or_launches(
     out = capsys.readouterr().out
     assert "Multi-prompt (dry run)" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
-    assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1
+    assert out.count(f"%family({epic_id}, role=phase)") == len(phase_ids)
+    assert "%group:" not in out
 
 
 def test_work_dry_run_renders_model_directives(
@@ -274,13 +280,19 @@ def test_work_dry_run_renders_model_directives(
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True))
 
     out = capsys.readouterr().out
+    family_directive = f"%family({epic_id}, role=phase)"
     assert (
-        f"%name:!{p1_id}\n%group:{epic_id}\n%model:codex/gpt-5.6-sol\n%auto:tale" in out
+        f"%name:!{p1_id}\n{family_directive}\n"
+        "%model:codex/gpt-5.6-sol\n%auto:tale" in out
     )
     # Phase without an explicit model defaults to the phase-worker role alias.
-    assert f"%name:!{p2_id}\n%group:{epic_id}\n%model:@phase_worker\n%auto:tale" in out
+    assert (
+        f"%name:!{p2_id}\n{family_directive}\n%model:@phase_worker\n%auto:tale" in out
+    )
     # The epic's explicit land model still wins over the epic-lander alias.
-    assert f"%name:!{epic_id}\n%group:{epic_id}\n%model:claude/opus\n%auto:tale" in out
+    assert f"%name:!{epic_id}\n%model:claude/opus\n%auto:tale" in out
+    assert out.count(family_directive) == 2
+    assert "%group:" not in out
     # Three %model directives: explicit phase, phase-worker phase, and land.
     assert out.count("%model:") == 3
     assert out.count("%auto:tale") == 3
@@ -322,12 +334,14 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
 
     assert launch_calls == []
     out = capsys.readouterr().out
+    family_directive = f"%family({epic_id}, role=phase)"
     for pid in phase_ids:
-        assert f"#git:sase\n%name:!{pid}\n%group:{epic_id}" in out
+        assert f"#git:sase\n%name:!{pid}\n{family_directive}" in out
         assert f"#bd/work_phase_bead:{pid}" in out
-    assert f"#git:sase\n%name:!{epic_id}\n%group:{epic_id}" in out
+    assert f"#git:sase\n%name:!{epic_id}\n%model:@epic_lander" in out
     assert f"#bd/land_epic:{epic_id}" in out
-    assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1
+    assert out.count(family_directive) == len(phase_ids)
+    assert "%group:" not in out
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False
@@ -373,16 +387,18 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
 
     assert launch_calls == []
     out = capsys.readouterr().out
+    family_directive = f"%family({epic_id}, role=phase)"
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
-        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n%name:!{phase_ids[0]}\n%group:{epic_id}"
-        in out
+        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n"
+        f"%name:!{phase_ids[0]}\n{family_directive}" in out
     )
-    assert f"#git:feature_epic\n%name:!{phase_ids[1]}\n%group:{epic_id}" in out
-    assert f"#git:feature_epic\n%name:!{epic_id}\n%group:{epic_id}" in out
+    assert f"#git:feature_epic\n%name:!{phase_ids[1]}\n{family_directive}" in out
+    assert f"#git:feature_epic\n%name:!{epic_id}\n%model:@epic_lander" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
-    assert out.count(f"%group:{epic_id}") == len(phase_ids) + 1
+    assert out.count(family_directive) == len(phase_ids)
+    assert "%group:" not in out
 
     with BeadProject(project_dir) as proj:
         assert proj.show(epic_id).is_ready_to_work is False

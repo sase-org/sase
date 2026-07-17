@@ -1,11 +1,67 @@
 # Agent Families
 
-An **agent family** is a group of agents that share a `--`-separated base name: `foo`, `foo--plan`, `foo--code`,
-`foo--reviewer`, and so on. SASE uses families to keep related work together while a plan moves through questions,
-feedback, coding, or manually requested follow-ups. ACE groups every member under the same root entry on the Agents tab.
+An **agent family** is a group of related agents that ACE folds under one root entry on the Agents tab. SASE supports
+two forms:
+
+- Serial plan-chain families use `--`-separated names such as `foo`, `foo--plan`, `foo--code`, and `foo--reviewer`.
+- Parallel families use explicit `%family` directives. Membership does not constrain member names or alter execution.
 
 Dot-separated names such as `foo.bar` are a separate ACE concept: agent _hoods_ and _neighbors_. They do not create
 plan-chain family membership.
+
+## Parallel Families with `%family`
+
+In a multi-agent prompt, add `%family:<root-name>` to each member segment. The sibling segment whose `%name` matches
+`<root-name>` becomes the root and needs no `%family` directive:
+
+```text
+%name:build
+%family(release, role=phase)
+Compile the release.
+---
+%name:test
+%family(release, role=phase)
+Test the release.
+---
+%name:release
+%wait:build,test
+Publish the release after both members finish.
+```
+
+The colon form, `%family:release`, assigns the default `member` role. The parenthesized form accepts one optional
+free-form role token, as in `%family(release, role=tester)`. Static names and templates such as
+`%family(research.@.final, role=researcher)` are supported. If no sibling segment has the target name, SASE resolves the
+new member against the newest matching family root or exact named agent already on disk.
+
+Parallel membership is execution-neutral: it does not add waits, change launch order, choose a workspace or model, or
+rewrite a member's name. Use `%wait` explicitly wherever ordering is required. `%family` and the serial
+`%n(parent, suffix)` attachment form cannot be combined in the same segment.
+
+Every parallel member counts toward runner-slot admission. Killing or dismissing the root cascades to its live members,
+while killing one member leaves the root and siblings alone. The root row aggregates the whole generation's status and
+shows member-state counts. A question or failure in any member is therefore visible even when the family is folded.
+
+Inside a parallel family, a `%wait` or `#fork` reference to the family base resolves to that generation's root agent.
+Outside the family, `%wait:<root-name>` waits for the whole family to complete. An exact member name always targets that
+member.
+
+### Epic bead-work example
+
+`sase bead work <epic-id>` renders every phase worker as a parallel member of the land agent. For an epic named
+`sase-6g`, the generated prompt has this shape:
+
+```text
+%name:!sase-6g.1
+%family(sase-6g, role=phase)
+#bd/work_phase_bead:sase-6g.1
+---
+%name:!sase-6g
+%wait:sase-6g.1
+#bd/land_epic:sase-6g
+```
+
+The land segment is the root. Phase dependency waits remain explicit, and no per-epic `%group` tag is emitted because
+the family root is the grouping surface.
 
 ## Family Roles and Suffixes
 

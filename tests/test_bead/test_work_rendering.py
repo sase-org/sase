@@ -73,7 +73,7 @@ class TestRenderEdgeCases:
         assert plan.waves[0][0].agent_name == "sase-r.1"
         assert plan.land_agent_name == "sase-r"
 
-    def test_dotted_launch_tag_directives_extract_cleanly(self) -> None:
+    def test_dotted_family_directives_extract_cleanly(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42.3",
             launch_tag_id="sase-42.3",
@@ -98,9 +98,13 @@ class TestRenderEdgeCases:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
-        for segment in (phase_segment, land_segment):
-            _, directives = extract_prompt_directives(segment)
-            assert directives.tag == "sase-42.3"
+        _, phase_directives = extract_prompt_directives(phase_segment)
+        _, land_directives = extract_prompt_directives(land_segment)
+        assert phase_directives.family_target == "sase-42.3"
+        assert phase_directives.family_role == "phase"
+        assert land_directives.family_target is None
+        assert phase_directives.tag is None
+        assert land_directives.tag is None
 
         assert "%name:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
@@ -159,14 +163,13 @@ class TestChangeSpecRendering:
         expected = (
             "#git:sase #pr:feature_epic\n"
             "%name:!p1\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
             "%name:!e1\n"
-            "%group:e1\n"
             "%model:@epic_lander\n"
             "%auto:tale\n"
             "%w:p1\n"
@@ -201,14 +204,14 @@ class TestChangeSpecRendering:
         expected = (
             "#gh:sase #pr:feature_epic\n"
             "%name:!p1\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p2\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "%w:p1\n"
@@ -216,7 +219,7 @@ class TestChangeSpecRendering:
             "---\n"
             "#gh:feature_epic\n"
             "%name:!p3\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%model:@phase_worker\n"
             "%auto:tale\n"
             "%w:p2\n"
@@ -224,7 +227,6 @@ class TestChangeSpecRendering:
             "---\n"
             "#gh:feature_epic\n"
             "%name:!e1\n"
-            "%group:e1\n"
             "%model:@epic_lander\n"
             "%auto:tale\n"
             "%w:p1,p2,p3\n"
@@ -253,9 +255,12 @@ class TestChangeSpecRendering:
         )
 
         assert rendered.count("#pr:feature_epic") == 1
-        assert "#git:sase #pr:feature_epic\n%name:!p1\n%group:e1" in rendered
-        assert "#git:feature_epic\n%name:!p2\n%group:e1" in rendered
-        assert "#git:feature_epic\n%name:!e1\n%group:e1" in rendered
+        family = "%family(e1, role=phase)"
+        assert f"#git:sase #pr:feature_epic\n%name:!p1\n{family}" in rendered
+        assert f"#git:feature_epic\n%name:!p2\n{family}" in rendered
+        assert "#git:feature_epic\n%name:!e1\n%model:@epic_lander" in rendered
+        assert rendered.count(family) == 2
+        assert "%group:" not in rendered
 
     def test_bug_id_uses_keyword_pr_syntax(self, conn: sqlite3.Connection) -> None:
         seed(conn, [epic("e1"), phase("p1")])
@@ -278,7 +283,7 @@ class TestChangeSpecRendering:
 
 
 class TestModelDirective:
-    def test_phase_model_emits_directive_after_group_before_plan(
+    def test_phase_model_emits_directive_after_family_before_plan(
         self, conn: sqlite3.Connection
     ) -> None:
         seed(conn, [epic("e1"), phase("p1", model="claude/opus")])
@@ -293,7 +298,7 @@ class TestModelDirective:
         phase_segment, land_segment = rendered.split("\n---\n")
         assert phase_segment == (
             "%name:!p1\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%model:claude/opus\n"
             "%auto:tale\n"
             "#bd/work_phase_bead:p1"
@@ -365,12 +370,7 @@ class TestModelDirective:
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
-            "%name:!e1\n"
-            "%group:e1\n"
-            "%model:claude/opus\n"
-            "%auto:tale\n"
-            "%w:p1\n"
-            "#bd/land_epic:e1"
+            "%name:!e1\n%model:claude/opus\n%auto:tale\n%w:p1\n#bd/land_epic:e1"
         )
 
     def test_no_model_only_adds_role_alias_directives_over_baseline(
@@ -395,17 +395,16 @@ class TestModelDirective:
 
         pre_model_baseline = (
             "%name:!p1\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%auto:tale\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
-            "%group:e1\n"
+            "%family(e1, role=phase)\n"
             "%auto:tale\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:!e1\n"
-            "%group:e1\n"
             "%auto:tale\n"
             "%w:p1,p2\n"
             "#bd/land_epic:e1"

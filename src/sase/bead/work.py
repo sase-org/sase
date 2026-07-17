@@ -218,11 +218,13 @@ def render_multi_prompt(
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
-    Each phase becomes a segment with ``%name``, optional ``%w``, and a
+    Each phase becomes a segment with ``%name``, ``%family`` membership in the
+    land agent's parallel family, optional ``%w``, and a
     ``#<work_phase_xprompt.name>:<bead_id>`` reference. A final land segment
-    invokes ``#<land_epic_xprompt.name>:<epic_id>`` and waits on every
-    launched phase agent. Tag-resolved xprompt names are substituted into the
-    ``#...`` references so user overrides flow through unchanged.
+    serves as the family root, invokes ``#<land_epic_xprompt.name>:<epic_id>``,
+    and waits on every launched phase agent. Tag-resolved xprompt names are
+    substituted into the ``#...`` references so user overrides flow through
+    unchanged.
 
     The emitted ``%name`` directives use the force-reuse prefix
     (``%name:!<name>``) so re-running ``sase bead work`` after a prior failed
@@ -251,7 +253,7 @@ def render_multi_prompt(
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
             lines.append(f"%name:!{assignment.agent_name}")
-            lines.append(_group_directive(plan.launch_tag_id))
+            lines.append(_family_directive(plan.land_agent_name, role="phase"))
             if assignment.model:
                 model_value = format_model_directive_value(assignment.model)
                 lines.append(f"%model:{model_value}")
@@ -266,7 +268,6 @@ def render_multi_prompt(
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:!{plan.land_agent_name}")
-    land_lines.append(_group_directive(plan.launch_tag_id))
     if plan.land_model:
         land_model = format_model_directive_value(plan.land_model)
         land_lines.append(f"%model:{land_model}")
@@ -338,8 +339,8 @@ def _validate_changespec_context(ctx: ChangeSpecLaunchContext) -> None:
         )
 
 
-def _group_directive(bead_id: str) -> str:
-    return f"%group:{bead_id}"
+def _family_directive(root_name: str, *, role: str) -> str:
+    return f"%family({root_name}, role={role})"
 
 
 def _bead_env(
