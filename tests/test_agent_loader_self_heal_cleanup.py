@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -108,6 +109,42 @@ def test_cleanup_does_not_probe_bundles_for_orphaned_identities() -> None:
     assert orphaned == set()
     assert cleaned_dirs == set()
     mock_has_bundle.assert_not_called()
+
+
+def test_cleanup_defers_busy_database_without_caching_dir(tmp_path: Path) -> None:
+    """A busy cleanup target remains eligible for the next self-healing pass."""
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent = make_agent(artifacts_dir=str(artifacts_dir))
+
+    with patch(
+        "sase.ace.tui.actions.agents._killing.delete_agent_artifacts",
+        side_effect=sqlite3.OperationalError("database is locked"),
+    ):
+        orphaned, cleaned_dirs = _loading._compute_loader_cleanup(
+            {agent.identity}, [agent]
+        )
+
+    assert orphaned == set()
+    assert cleaned_dirs == set()
+    assert str(artifacts_dir) not in _loading._CLEANED_ARTIFACT_DIRS
+
+
+def test_cleanup_defers_bounded_index_timeout_without_caching_dir(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    agent = make_agent(artifacts_dir=str(artifacts_dir))
+
+    with patch(
+        "sase.ace.tui.actions.agents._killing.delete_agent_artifacts",
+        return_value=False,
+    ):
+        _, cleaned_dirs = _loading._compute_loader_cleanup({agent.identity}, [agent])
+
+    assert cleaned_dirs == set()
+    assert str(artifacts_dir) not in _loading._CLEANED_ARTIFACT_DIRS
 
 
 def test_load_agents_from_disk_does_not_include_bundle_only_archive_rows() -> None:

@@ -22,6 +22,7 @@ and friends).
 from __future__ import annotations
 
 import logging
+import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -75,6 +76,7 @@ __all__ = [
 # ``delete_agent_artifacts``); subsequent full reloads skip it, saving the
 # stat/glob syscalls when many dismissed agents accumulate.
 _CLEANED_ARTIFACT_DIRS: set[str] = set()
+_LOADER_CLEANUP_CONTENTION_TIMEOUT_SECONDS = 0.25
 
 
 @dataclass(frozen=True)
@@ -110,7 +112,28 @@ def compute_loader_cleanup(
         if not Path(artifacts_dir).is_dir():
             cleaned_dirs.add(artifacts_dir)
             continue
-        delete_agent_artifacts(artifacts_dir)
+        try:
+            completed = delete_agent_artifacts(
+                artifacts_dir,
+                artifact_index_timeout_seconds=(
+                    _LOADER_CLEANUP_CONTENTION_TIMEOUT_SECONDS
+                ),
+            )
+        except sqlite3.OperationalError as exc:
+            message = str(exc).lower()
+            if "busy" not in message and "locked" not in message:
+                raise
+            log.debug(
+                "loader cleanup deferred for busy database: %s",
+                artifacts_dir,
+            )
+            continue
+        if completed is False:
+            log.debug(
+                "loader cleanup deferred for index contention: %s",
+                artifacts_dir,
+            )
+            continue
         cleaned_dirs.add(artifacts_dir)
 
     return orphaned, cleaned_dirs

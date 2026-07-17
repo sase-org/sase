@@ -120,6 +120,20 @@ class AgentLoadingStateMixin:
     _agents_refresh_scheduled_full_history_reason: str | None
     _agents_refresh_active_source: str
     _agents_refresh_async_tasks: set[asyncio.Task[None]]
+    # Loader self-healing cleanup runs independently after row application.
+    # A burst keeps only the latest pending request and runs one trailing pass.
+    _loader_cleanup_running: bool
+    _loader_cleanup_pending: bool
+    _loader_cleanup_pending_request: (
+        tuple[
+            set[tuple[AgentType, str, str | None]],
+            list[Agent],
+            str,
+            str,
+        ]
+        | None
+    )
+    _loader_cleanup_async_tasks: set[asyncio.Task[None]]
     # Sticky deferred Tier 2 reconcile state. ``_pending`` is True while
     # the last load reported incomplete history and a full-history pass
     # has not yet been scheduled; ``_armed_mono`` is the monotonic time

@@ -8,6 +8,7 @@ from sase.ace.tui.logs.sources import log_sources
 from sase.logs import (
     launch_failures_log_path,
     runs_log_path,
+    tui_agent_loads_jsonl_path,
     tui_external_tools_jsonl_path,
     tui_git_ops_jsonl_path,
     tui_launch_timing_jsonl_path,
@@ -33,6 +34,7 @@ class TestRegistryShape:
             "tui",
             "tui_toasts",
             "tui_stalls",
+            "tui_agent_loads",
             "tui_external_tools",
             "tui_git_ops",
             "tui_launch_timing",
@@ -45,6 +47,7 @@ class TestRegistryShape:
         assert _source("tui").render == "text"
         assert _source("tui_toasts").render == "toasts"
         assert _source("tui_stalls").render == "jsonl"
+        assert _source("tui_agent_loads").render == "jsonl"
         assert _source("tui_external_tools").render == "jsonl"
         assert _source("tui_git_ops").render == "jsonl"
         assert _source("tui_launch_timing").render == "jsonl"
@@ -57,6 +60,7 @@ class TestRegistryShape:
         assert _source("tui").path == tui_log_path()
         assert _source("tui_toasts").path == tui_toasts_jsonl_path()
         assert _source("tui_stalls").path == tui_stalls_jsonl_path()
+        assert _source("tui_agent_loads").path == tui_agent_loads_jsonl_path()
         assert _source("tui_external_tools").path == tui_external_tools_jsonl_path()
         assert _source("tui_git_ops").path == tui_git_ops_jsonl_path()
         assert _source("tui_launch_timing").path == tui_launch_timing_jsonl_path()

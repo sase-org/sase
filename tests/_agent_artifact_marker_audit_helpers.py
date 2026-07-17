@@ -38,6 +38,7 @@ _LIFECYCLE_CALL_NAMES = {
     "update_agent_artifact_index_for_marker_mutation",
     "upsert_agent_artifact_index_artifacts",
     "delete_agent_artifact_index_artifacts",
+    "delete_agent_artifact_index_artifacts_bounded",
     "sync_dismissed_agent_artifact_index",
 }
 _FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
@@ -46,6 +47,7 @@ _NESTED_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 _UPDATE_INDEX = "update_agent_artifact_index_for_marker_mutation"
 _UPSERT_INDEX = "upsert_agent_artifact_index_artifacts"
 _DELETE_INDEX = "delete_agent_artifact_index_artifacts"
+_DELETE_INDEX_BOUNDED = "delete_agent_artifact_index_artifacts_bounded"
 _SYNC_DISMISSED_INDEX = "sync_dismissed_agent_artifact_index"
 _SCHEDULE_DISMISSED_INDEX = "_schedule_artifact_index_maintenance"
 

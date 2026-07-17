@@ -27,6 +27,9 @@ _REVIEWED_DISMISSED_SAVE_CONTEXTS: dict[str, tuple[str, ...]] = {
     "src/sase/ace/tui/actions/agents/_loading_apply.py:_apply_loaded_agents_prepared_inner": (
         _SCHEDULE_DISMISSED_INDEX,
     ),
+    "src/sase/ace/tui/actions/agents/_loading_disk.py:_run_loader_cleanup": (
+        _SCHEDULE_DISMISSED_INDEX,
+    ),
     "src/sase/ace/tui/actions/agents/_marking.py:_persist_marked_agent_group_save": (
         _SYNC_DISMISSED_INDEX,
     ),

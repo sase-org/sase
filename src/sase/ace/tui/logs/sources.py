@@ -21,6 +21,7 @@ from sase.logs import (
     events_log_path,
     launch_failures_log_path,
     runs_log_path,
+    tui_agent_loads_jsonl_path,
     tui_external_tools_jsonl_path,
     tui_git_ops_jsonl_path,
     tui_launch_timing_jsonl_path,
@@ -119,6 +120,13 @@ def log_sources() -> list[LogSource]:
             title="TUI Stalls",
             description="Event-loop stall stack captures",
             path=tui_stalls_jsonl_path(),
+            render="jsonl",
+        ),
+        LogSource(
+            id="tui_agent_loads",
+            title="Agent Load Timing",
+            description="Slow Agents-tab loader and cleanup stage timings",
+            path=tui_agent_loads_jsonl_path(),
             render="jsonl",
         ),
         LogSource(

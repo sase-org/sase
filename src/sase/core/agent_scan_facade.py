@@ -27,6 +27,7 @@ from sase.core.agent_cleanup_wire import (
 )
 from sase.core.agent_artifact_index_lock import (
     agent_artifact_index_operation_lock,
+    try_agent_artifact_index_operation_lock,
 )
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
@@ -156,6 +157,31 @@ def delete_agent_artifact_index_row(
     with agent_artifact_index_operation_lock():
         rust_delete = require_rust_binding("delete_agent_artifact_index_row")
         payload: dict[str, Any] = rust_delete(str(index_path), str(artifact_dir))
+    return agent_artifact_index_update_from_dict(payload)
+
+
+def delete_agent_artifact_index_row_bounded(
+    index_path: Path | str,
+    artifact_dir: Path | str,
+    *,
+    lock_timeout_seconds: float,
+    busy_timeout_seconds: float,
+) -> AgentArtifactIndexUpdateWire | None:
+    """Delete one row without waiting indefinitely on process/SQLite locks.
+
+    ``None`` means the process-local lock was busy and the caller should retry
+    later. SQLite timeout errors remain exceptions so lifecycle callers can
+    distinguish a skipped mutation from a successful zero-row delete.
+    """
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
+        rust_delete = require_rust_binding("delete_agent_artifact_index_row_bounded")
+        payload: dict[str, Any] = rust_delete(
+            str(index_path),
+            str(artifact_dir),
+            max(0, round(busy_timeout_seconds * 1000.0)),
+        )
     return agent_artifact_index_update_from_dict(payload)
 
 
@@ -374,6 +400,7 @@ __all__ = [
     "agent_artifact_index_status",
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
+    "delete_agent_artifact_index_row_bounded",
     "query_agent_artifact_index",
     "query_related_agent_artifact_dirs",
     "read_agent_artifact_index_meta",

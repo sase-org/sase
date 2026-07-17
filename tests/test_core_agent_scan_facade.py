@@ -9,6 +9,7 @@ import pytest
 
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
+    delete_agent_artifact_index_row_bounded,
     query_related_agent_artifact_dirs,
     read_agent_artifact_index_meta,
     scan_agent_artifact_dirs,
@@ -216,6 +217,42 @@ def test_agent_artifact_index_metadata_helpers_call_rust_binding(
         (str(index_path), "dismissed_projection", None),
         (str(index_path), "dismissed_projection", "{}"),
     ]
+
+
+def test_bounded_artifact_index_delete_passes_timeout_to_rust(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str, int]] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+
+    def fake_delete(index: str, artifact_dir: str, timeout_ms: int) -> dict[str, Any]:
+        calls.append((index, artifact_dir, timeout_ms))
+        return {
+            "schema_version": 1,
+            "index_path": index,
+            "projects_root": "",
+            "rows_indexed": 0,
+            "rows_deleted": 1,
+            "rows_skipped": 0,
+        }
+
+    fake.delete_agent_artifact_index_row_bounded = fake_delete  # type: ignore[attr-defined]
+    index = tmp_path / "index.sqlite"
+    artifact_dir = tmp_path / "artifacts"
+
+    result = delete_agent_artifact_index_row_bounded(
+        index,
+        artifact_dir,
+        lock_timeout_seconds=0.2,
+        busy_timeout_seconds=0.125,
+    )
+
+    assert result is not None
+    assert result.rows_deleted == 1
+    assert calls == [(str(index), str(artifact_dir), 125)]
 
 
 def test_agent_artifact_index_status_calls_rust_binding(

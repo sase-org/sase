@@ -16,4 +16,20 @@ def agent_artifact_index_operation_lock() -> Iterator[None]:
         yield
 
 
-__all__ = ["agent_artifact_index_operation_lock"]
+@contextmanager
+def try_agent_artifact_index_operation_lock(
+    timeout_seconds: float,
+) -> Iterator[bool]:
+    """Try to enter the process-local index lock within a bounded window."""
+    acquired = _ARTIFACT_INDEX_OPERATION_LOCK.acquire(timeout=max(0.0, timeout_seconds))
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            _ARTIFACT_INDEX_OPERATION_LOCK.release()
+
+
+__all__ = [
+    "agent_artifact_index_operation_lock",
+    "try_agent_artifact_index_operation_lock",
+]

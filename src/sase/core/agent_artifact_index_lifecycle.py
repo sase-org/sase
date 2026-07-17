@@ -18,6 +18,7 @@ from sase.core.agent_artifact_index_lock import (
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     delete_agent_artifact_index_row,
+    delete_agent_artifact_index_row_bounded,
     read_agent_artifact_index_meta,
     rebuild_agent_artifact_index,
     replace_agent_artifact_index_dismissed_agents,
@@ -548,6 +549,48 @@ def delete_agent_artifact_index_artifacts(
         return deleted
 
 
+def delete_agent_artifact_index_artifacts_bounded(
+    artifact_dirs: Iterable[Path | str | None],
+    *,
+    index_path: Path | str | None = None,
+    timeout_seconds: float,
+) -> bool:
+    """Best-effort delete that reports contention instead of waiting.
+
+    Returns ``True`` only when every requested row was handled (including an
+    already-absent index). A process-lock miss, SQLite busy timeout, or stale
+    binding returns ``False`` so self-healing callers retry on their next pass.
+    """
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
+    if not index.is_file():
+        return True
+
+    for artifact_dir in artifact_dirs:
+        if artifact_dir is None:
+            continue
+        try:
+            update = delete_agent_artifact_index_row_bounded(
+                index,
+                Path(artifact_dir).expanduser(),
+                lock_timeout_seconds=timeout_seconds,
+                busy_timeout_seconds=timeout_seconds,
+            )
+        except _INDEX_ERRORS:
+            log.debug(
+                "bounded agent artifact index row delete deferred: %s",
+                artifact_dir,
+                exc_info=True,
+            )
+            return False
+        if update is None:
+            return False
+    return True
+
+
 def upsert_agent_artifact_index_artifacts(
     artifact_dirs: Iterable[Path | str | None],
     *,
@@ -696,6 +739,7 @@ __all__ = [
     "DismissedProjectionSyncReport",
     "build_dismissed_agent_projection_inputs",
     "delete_agent_artifact_index_artifacts",
+    "delete_agent_artifact_index_artifacts_bounded",
     "read_agent_artifact_index_schema_status",
     "refresh_agent_artifact_index_if_schema_stale",
     "sync_dismissed_agent_artifact_index",

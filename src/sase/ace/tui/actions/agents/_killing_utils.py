@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
+    delete_agent_artifact_index_artifacts_bounded,
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
@@ -28,7 +29,8 @@ def delete_agent_artifacts(
     artifacts_dir: str | None,
     *,
     before_delete: Callable[[str | None], None] | None = None,
-) -> None:
+    artifact_index_timeout_seconds: float | None = None,
+) -> bool:
     """Delete artifact files that cause an agent to be loaded.
 
     Removes workflow_state.json, done.json, and prompt_step_*.json files
@@ -38,30 +40,31 @@ def delete_agent_artifacts(
         artifacts_dir: Path to the agent's artifacts directory, or None.
     """
     if not artifacts_dir:
-        return
+        return True
 
     if before_delete is not None:
         before_delete(artifacts_dir)
 
     _resolve_waiters_before_artifact_delete(artifacts_dir)
 
-    if try_delete_agent_artifacts(artifacts_dir):
-        delete_agent_artifact_index_artifacts([artifacts_dir])
-        return
-
+    deleted = try_delete_agent_artifacts(artifacts_dir)
     artifacts_path = Path(artifacts_dir)
-    if not artifacts_path.is_dir():
-        delete_agent_artifact_index_artifacts([artifacts_dir])
-        return
+    if not deleted and artifacts_path.is_dir():
+        # Delete files that the loaders scan for.
+        for pattern in ("workflow_state.json", "done.json", "prompt_step_*.json"):
+            for f in artifacts_path.glob(pattern):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
 
-    # Delete files that the loaders scan for
-    for pattern in ("workflow_state.json", "done.json", "prompt_step_*.json"):
-        for f in artifacts_path.glob(pattern):
-            try:
-                f.unlink()
-            except OSError:
-                pass
-    delete_agent_artifact_index_artifacts([artifacts_dir])
+    if artifact_index_timeout_seconds is None:
+        delete_agent_artifact_index_artifacts([artifacts_dir])
+        return True
+    return delete_agent_artifact_index_artifacts_bounded(
+        [artifacts_dir],
+        timeout_seconds=artifact_index_timeout_seconds,
+    )
 
 
 def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:

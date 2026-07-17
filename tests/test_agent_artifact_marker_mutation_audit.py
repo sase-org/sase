@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from tests._agent_artifact_marker_audit_helpers import (
     _DELETE_INDEX,
+    _DELETE_INDEX_BOUNDED,
     _UPDATE_INDEX,
     _UPSERT_INDEX,
     BatchedCoverage,
@@ -45,7 +46,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
     ),
     "src/sase/ace/tui/actions/agents/_killing_utils.py:delete_agent_artifacts": Review(
         mutation_calls=("unlink",),
-        lifecycle_calls=(_DELETE_INDEX,),
+        lifecycle_calls=(_DELETE_INDEX, _DELETE_INDEX_BOUNDED),
     ),
     (
         "src/sase/ace/tui/actions/agents/_killing_utils.py:"

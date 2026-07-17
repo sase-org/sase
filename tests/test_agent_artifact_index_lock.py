@@ -5,7 +5,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
+from sase.core.agent_artifact_index_lock import (
+    agent_artifact_index_operation_lock,
+    try_agent_artifact_index_operation_lock,
+)
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row,
@@ -239,3 +242,25 @@ def test_artifact_index_status_facade_calls_serialize_before_entering_rust(
     assert not thread.is_alive()
     assert errors == []
     assert results == [7]
+
+
+def test_bounded_operation_lock_reports_contention() -> None:
+    acquired = threading.Event()
+    release = threading.Event()
+
+    def hold_lock() -> None:
+        with agent_artifact_index_operation_lock():
+            acquired.set()
+            release.wait(timeout=1.0)
+
+    thread = threading.Thread(target=hold_lock)
+    thread.start()
+    assert acquired.wait(timeout=1.0)
+    try:
+        with try_agent_artifact_index_operation_lock(0.01) as entered:
+            assert entered is False
+    finally:
+        release.set()
+        thread.join(timeout=1.0)
+
+    assert not thread.is_alive()

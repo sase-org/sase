@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -25,6 +27,9 @@ from ._refresh_trace import (
     record_agents_refresh_trace,
 )
 from ...util.trace import tui_trace
+from ...util.pump_tasks import spawn_pump_free_task
+
+_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = 2.0
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -170,6 +175,148 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         """
         result = self._external_dismissal_merge_result(set(self._dismissed_agents))
         self._apply_external_dismissal_merge(result)
+
+    def _schedule_loader_cleanup(
+        self,
+        dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+        dismissed_from_loader: list[Agent],
+        *,
+        source: str,
+        load_kind: str,
+    ) -> None:
+        """Queue one latest-wins self-healing pass after rows are applied."""
+        if not dismissed_snapshot and not dismissed_from_loader:
+            return
+        self._loader_cleanup_pending_request = (
+            set(dismissed_snapshot),
+            list(dismissed_from_loader),
+            source,
+            load_kind,
+        )
+        if getattr(self, "_loader_cleanup_running", False):
+            self._loader_cleanup_pending = True
+            return
+        self._loader_cleanup_running = True
+        self._loader_cleanup_pending = False
+        self._spawn_loader_cleanup_task()
+
+    def _spawn_loader_cleanup_task(self) -> None:
+        """Run loader cleanup outside Textual's serial message pump."""
+        task = spawn_pump_free_task(
+            self,
+            self._run_loader_cleanup(),
+            name="sase-agents-loader-cleanup",
+            registry_attr="_loader_cleanup_async_tasks",
+        )
+        if task is None:
+            self._loader_cleanup_running = False
+
+    async def _run_loader_cleanup(self) -> None:
+        """Run one cleanup request and coalesce any burst into one trailing pass."""
+        import asyncio
+
+        nav_gate = getattr(self, "_nav_gate", None)
+        if nav_gate is not None and nav_gate.is_navigating():
+            delay = nav_gate.time_until_idle() + 0.05
+            self.set_timer(delay, self._spawn_loader_cleanup_task)  # type: ignore[attr-defined]
+            return
+
+        request = getattr(self, "_loader_cleanup_pending_request", None)
+        self._loader_cleanup_pending_request = None
+        self._loader_cleanup_pending = False
+        if request is None:
+            self._loader_cleanup_running = False
+            return
+
+        dismissed_snapshot, dismissed_from_loader, source, load_kind = request
+        cleanup_start = time.perf_counter()
+        try:
+            orphaned, cleaned_dirs = await asyncio.to_thread(
+                compute_loader_cleanup,
+                dismissed_snapshot,
+                dismissed_from_loader,
+            )
+            cleanup_elapsed = time.perf_counter() - cleanup_start
+            if orphaned:
+                removed = set(self._dismissed_agents) & orphaned
+                if removed:
+                    self._dismissed_agents -= removed
+                    from ....dismissed_agents import (
+                        save_dismissed_agents,
+                        snapshot_dismissed_agents,
+                    )
+
+                    snapshot = snapshot_dismissed_agents(self._dismissed_agents)
+                    if await asyncio.to_thread(save_dismissed_agents, snapshot):
+                        self._schedule_artifact_index_maintenance(
+                            dismissed=set(self._dismissed_agents),
+                            force=True,
+                            source="loader_cleanup",
+                        )
+            if cleaned_dirs:
+                _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
+            log.debug(
+                "agents loader cleanup: elapsed=%.3fs orphaned=%d cleaned=%d",
+                cleanup_elapsed,
+                len(orphaned),
+                len(cleaned_dirs),
+            )
+            self._record_slow_loader_stages(
+                source=source,
+                load_kind=load_kind,
+                stages={"cleanup": cleanup_elapsed},
+                orphaned=len(orphaned),
+                cleaned=len(cleaned_dirs),
+            )
+        except Exception:
+            log.exception("Agents loader cleanup failed")
+        finally:
+            has_followup = self._loader_cleanup_pending_request is not None
+            self._loader_cleanup_running = False
+            if has_followup:
+                self._loader_cleanup_pending = False
+                self._loader_cleanup_running = True
+                self._spawn_loader_cleanup_task()
+
+    def _record_slow_loader_stages(
+        self,
+        *,
+        source: str,
+        load_kind: str,
+        stages: dict[str, float],
+        **fields: Any,
+    ) -> None:
+        """Persist slow-stage timings without putting log I/O on the UI loop."""
+        import asyncio
+
+        slow_stages = sorted(
+            name
+            for name, elapsed in stages.items()
+            if elapsed >= _SLOW_LOADER_STAGE_THRESHOLD_SECONDS
+        )
+        if not slow_stages:
+            return
+        from sase.logs import log_tui_agent_load
+
+        record: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "event": "tui_agent_load_slow",
+            "pid": os.getpid(),
+            "source": source,
+            "load_kind": load_kind,
+            "threshold_seconds": _SLOW_LOADER_STAGE_THRESHOLD_SECONDS,
+            "slow_stages": slow_stages,
+            "stages_seconds": {
+                name: round(elapsed, 6) for name, elapsed in stages.items()
+            },
+        }
+        record.update(fields)
+        spawn_pump_free_task(
+            self,
+            asyncio.to_thread(log_tui_agent_load, record),
+            name="sase-agents-loader-telemetry",
+            registry_attr="_loader_cleanup_async_tasks",
+        )
 
     def _load_agents(
         self, *, full_history: bool = False, source: str = "sync_load"
@@ -321,21 +468,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             artifact_source=load_result.load_state.artifact_source,
             complete_history=load_result.load_state.complete_history,
         )
-        cleanup_start = time.perf_counter()
-        orphaned, cleaned_dirs = await asyncio.to_thread(
-            compute_loader_cleanup, dismissed_snapshot, dismissed_from_loader
-        )
-        if orphaned:
-            self._dismissed_agents -= orphaned
-        if cleaned_dirs:
-            _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
-        log.debug(
-            "agents async load: cleanup=%.3fs orphaned=%d cleaned=%d",
-            time.perf_counter() - cleanup_start,
-            len(orphaned),
-            len(cleaned_dirs),
-        )
-
         # Capture current state AFTER the await — the user may have navigated
         # (j/k) or switched tabs while disk I/O was in flight.
         on_agents_tab = self.current_tab == "agents"
@@ -392,13 +524,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 worker_snapshot,
                 content_index=content_index,
             )
-        log.debug("agents async load: prep=%.3fs", time.perf_counter() - prep_start)
+        prep_elapsed = time.perf_counter() - prep_start
+        log.debug("agents async load: prep=%.3fs", prep_elapsed)
 
         apply_start = time.perf_counter()
-        # ``orphaned`` was already subtracted from ``self._dismissed_agents``
-        # above; pass ``persist_dismissed=True`` so the prep-time deltas
-        # (recovered + auto-dismissed) and the cleanup-time orphan removal
-        # are flushed to disk in a single ``save_dismissed_agents`` call.
         previous_active_source = getattr(
             self, "_agents_refresh_active_source", "unknown"
         )
@@ -411,10 +540,8 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 on_agents_tab=on_agents_tab,
                 selected_identity=selected_identity,
                 load_state=load_result.load_state,
-                persist_dismissed_changes=bool(orphaned)
-                or bool(prep.recovered_bundle_identities)
+                persist_dismissed_changes=bool(prep.recovered_bundle_identities)
                 or bool(prep.auto_dismissed_identities),
-                dismissed_changes_include_removals=bool(orphaned),
                 incomplete_merge_already_applied=True,
                 precomputed_boundary=boundary,
                 precomputed_fold_levels=worker_snapshot.fold_levels,
@@ -422,7 +549,25 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         finally:
             if installed_active_source:
                 self._agents_refresh_active_source = previous_active_source
-        log.debug("agents async load: apply=%.3fs", time.perf_counter() - apply_start)
+        apply_elapsed = time.perf_counter() - apply_start
+        log.debug("agents async load: apply=%.3fs", apply_elapsed)
+        self._schedule_loader_cleanup(
+            dismissed_snapshot,
+            dismissed_from_loader,
+            source=source,
+            load_kind="full",
+        )
+        self._record_slow_loader_stages(
+            source=source,
+            load_kind="full",
+            stages={
+                "disk": disk_elapsed,
+                "prep": prep_elapsed,
+                "apply": apply_elapsed,
+            },
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+        )
 
     async def _load_agent_artifact_delta_async(
         self,
@@ -486,21 +631,6 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             )
             return False
 
-        cleanup_start = time.perf_counter()
-        orphaned, cleaned_dirs = await asyncio.to_thread(
-            compute_loader_cleanup, dismissed_snapshot, dismissed_from_loader
-        )
-        if orphaned:
-            self._dismissed_agents -= orphaned
-        if cleaned_dirs:
-            _CLEANED_ARTIFACT_DIRS.update(cleaned_dirs)
-        log.debug(
-            "agents artifact delta load: cleanup=%.3fs orphaned=%d cleaned=%d",
-            time.perf_counter() - cleanup_start,
-            len(orphaned),
-            len(cleaned_dirs),
-        )
-
         on_agents_tab = self.current_tab == "agents"
         selected_identity: tuple[AgentType, str, str | None] | None = None
         if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
@@ -544,11 +674,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
             worker_snapshot,
             content_index=content_index,
         )
-        log.debug(
-            "agents artifact delta load: prep=%.3fs",
-            time.perf_counter() - prep_start,
-        )
+        prep_elapsed = time.perf_counter() - prep_start
+        log.debug("agents artifact delta load: prep=%.3fs", prep_elapsed)
 
+        apply_start = time.perf_counter()
         previous_active_source = getattr(
             self, "_agents_refresh_active_source", "unknown"
         )
@@ -561,10 +690,10 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
                 on_agents_tab=on_agents_tab,
                 selected_identity=selected_identity,
                 load_state=load_result.load_state,
-                persist_dismissed_changes=bool(orphaned)
-                or bool(boundary.prep.recovered_bundle_identities)
+                persist_dismissed_changes=bool(
+                    boundary.prep.recovered_bundle_identities
+                )
                 or bool(boundary.prep.auto_dismissed_identities),
-                dismissed_changes_include_removals=bool(orphaned),
                 incomplete_merge_already_applied=True,
                 precomputed_boundary=boundary,
                 precomputed_fold_levels=worker_snapshot.fold_levels,
@@ -572,6 +701,25 @@ class AgentLoadingDiskMixin(AgentLoadingStateMixin):
         finally:
             if installed_active_source:
                 self._agents_refresh_active_source = previous_active_source
+        apply_elapsed = time.perf_counter() - apply_start
+        log.debug("agents artifact delta load: apply=%.3fs", apply_elapsed)
+        self._schedule_loader_cleanup(
+            dismissed_snapshot,
+            dismissed_from_loader,
+            source=source,
+            load_kind="artifact_delta",
+        )
+        self._record_slow_loader_stages(
+            source=source,
+            load_kind="artifact_delta",
+            stages={
+                "disk": disk_elapsed,
+                "prep": prep_elapsed,
+                "apply": apply_elapsed,
+            },
+            agents=len(all_agents),
+            dismissed=len(dismissed_from_loader),
+        )
         return True
 
     def _apply_loaded_agents(
