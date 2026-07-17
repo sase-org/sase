@@ -18,6 +18,7 @@ from sase.updates import (
     OutdatedComponent,
     SCHEMA_VERSION,
     UpdateStatus,
+    build_update_status,
     compute_update_status,
     get_cached_update_status,
     read_update_status_snapshot,
@@ -154,6 +155,72 @@ def test_compute_update_status_reports_core_and_installed_plugins(
         ("github", "plugin"),
     ]
     assert result.count == 2
+
+
+@pytest.mark.parametrize(
+    ("roles", "expected"),
+    [
+        ((), False),
+        (("host",), False),
+        (("plugin",), False),
+        (("core",), True),
+        (("host", "core", "plugin"), True),
+    ],
+)
+def test_update_status_has_core_update(
+    roles: tuple[ComponentRole, ...],
+    expected: bool,
+) -> None:
+    status = UpdateStatus(
+        checked_at=100.0,
+        components=tuple(
+            OutdatedComponent(
+                display_name=f"component-{index}",
+                role=role,
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+                distribution_name=f"component-{index}",
+            )
+            for index, role in enumerate(roles)
+        ),
+    )
+
+    assert status.has_core_update is expected
+
+
+def test_build_update_status_reuses_enriched_panel_inventory() -> None:
+    core_versions = CoreVersions(
+        packages=(
+            CorePackageVersion(
+                name="sase",
+                distribution_name="sase",
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+                latest_checked=True,
+                update_available=True,
+            ),
+            CorePackageVersion(
+                name="sase-core",
+                distribution_name="sase-core-rs",
+                installed_version="2.0.0",
+                latest_version="2.1.0",
+                latest_checked=True,
+                update_available=True,
+            ),
+        )
+    )
+
+    result = build_update_status(core_versions, _catalog(plugin_update=True), now=123.0)
+
+    assert result.checked_at == 123.0
+    assert [
+        (component.display_name, component.role) for component in result.components
+    ] == [
+        ("sase", "host"),
+        ("sase-core", "core"),
+        ("github", "plugin"),
+    ]
+    assert result.has_core_update is True
 
 
 def test_compute_update_status_carries_install_context(

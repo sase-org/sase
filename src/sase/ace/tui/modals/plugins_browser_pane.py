@@ -380,6 +380,14 @@ class PluginsBrowserPane(
                 getattr(result, "core_incoming_commits", {}) or {}
             )
             self._render_all()
+            update_status = getattr(result, "update_status", None)
+            refresh_indicator = getattr(
+                self.app,
+                "_schedule_updates_indicator_revalidation",
+                None,
+            )
+            if update_status is not None and callable(refresh_indicator):
+                refresh_indicator(update_status)
             if self._auto_update_on_load:
                 self._auto_update_on_load = False
                 if self._all_up_to_date():

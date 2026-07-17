@@ -23,6 +23,7 @@ from .incoming_commits import (
 from .status import (
     OutdatedComponent,
     UpdateStatus,
+    build_update_status,
     compute_update_status,
 )
 
@@ -36,6 +37,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "UpdateStatus",
     "allocate_commit_budget",
+    "build_update_status",
     "component_commit_spec",
     "compute_update_status",
     "core_package_commit_spec",

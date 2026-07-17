@@ -58,6 +58,28 @@ def _status(count: int = 2) -> UpdateStatus:
     return UpdateStatus(checked_at=100.0, components=tuple(components[:count]))
 
 
+def _core_status() -> UpdateStatus:
+    return UpdateStatus(
+        checked_at=100.0,
+        components=(
+            OutdatedComponent(
+                display_name="sase",
+                role="host",
+                installed_version="1.0.0",
+                latest_version="1.1.0",
+                distribution_name="sase",
+            ),
+            OutdatedComponent(
+                display_name="sase-core",
+                role="core",
+                installed_version="2.0.0",
+                latest_version="2.1.0",
+                distribution_name="sase-core-rs",
+            ),
+        ),
+    )
+
+
 def _editable_component(
     name: str,
     *,
@@ -90,9 +112,11 @@ def _incoming(prefix: str, total: int) -> IncomingCommits:
 class _Indicator:
     def __init__(self, count: int = 0) -> None:
         self.count = count
+        self.core = False
 
-    def set_available(self, count: int) -> None:
+    def set_available(self, count: int, *, core: bool = False) -> None:
         self.count = count
+        self.core = core
 
 
 class _AutomaticCheckApp(UpdateToastMixin):
@@ -163,16 +187,14 @@ def test_timer_registration_uses_in_memory_interval_without_loading_config(
     ]
 
 
-def test_periodic_tick_skips_positive_indicator_and_in_flight_check() -> None:
+def test_periodic_tick_checks_positive_indicator_but_skips_in_flight_check() -> None:
     app = _AutomaticCheckApp(indicator_count=2)
 
     app._on_periodic_update_check()
-    assert app.workers == []
+    assert len(app.workers) == 1
 
-    app.indicator.count = 0
-    app._automatic_update_check_in_flight = True
     app._on_periodic_update_check()
-    assert app.workers == []
+    assert len(app.workers) == 1
 
 
 def test_periodic_tick_schedules_clear_indicator_off_thread() -> None:
@@ -245,7 +267,7 @@ def test_periodic_update_check_releases_guard_on_exception(
     assert app._automatic_update_check_in_flight is False
 
 
-def test_periodic_update_sets_surfaces_once_then_stops_status_work(
+def test_periodic_update_revalidates_each_tick_but_shows_toast_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = 0
@@ -279,11 +301,76 @@ def test_periodic_update_sets_surfaces_once_then_stops_status_work(
     app._on_periodic_update_check()
     app._on_periodic_update_check()
 
-    assert calls == 1
-    assert len(app.workers) == 1
+    assert calls == 2
+    assert len(app.workers) == 2
     assert app.indicator.count == 2
     assert len(app.notifications) == 1
     assert app._automatic_update_check_in_flight is False
+
+
+def test_periodic_update_threads_core_state_to_indicator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(startup_toast=False),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: _core_status(),
+    )
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers[0][0]()
+
+    assert app.indicator.count == 2
+    assert app.indicator.core is True
+
+
+def test_cached_revalidation_threads_core_state_to_indicator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "read_update_status_snapshot",
+        _core_status,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "revalidate_update_status",
+        lambda status: status,
+    )
+    app = _AutomaticCheckApp()
+
+    app._run_updates_indicator_revalidation()
+
+    assert app.indicator.count == 2
+    assert app.indicator.core is True
+
+
+def test_cached_revalidation_clears_state_when_indicator_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(indicator=False),
+    )
+    app = _AutomaticCheckApp(indicator_count=2)
+    app.indicator.core = True
+
+    app._run_updates_indicator_revalidation(_core_status())
+
+    assert app.indicator.count == 0
+    assert app.indicator.core is False
 
 
 def test_indicator_disabled_skips_periodic_status_but_keeps_startup_toast(
@@ -649,9 +736,11 @@ def test_startup_update_check_updates_indicator_when_toast_disabled(
     class _Indicator:
         def __init__(self) -> None:
             self.count = 0
+            self.core = False
 
-        def set_available(self, count: int) -> None:
+        def set_available(self, count: int, *, core: bool = False) -> None:
             self.count = count
+            self.core = core
 
     class _App(UpdateToastMixin):
         def __init__(self) -> None:

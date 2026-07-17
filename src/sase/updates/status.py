@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from sase.plugins.catalog import PluginCatalogEntry, load_plugin_catalog
+from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, load_plugin_catalog
 from sase.plugins.latest import enrich_with_latest, is_newer
 from sase.plugins.latest_cache import (
     CachedLatest,
@@ -18,6 +18,7 @@ from sase.plugins.latest_cache import (
 from sase.plugins.pypi_source import fetch_latest_version
 from sase.uv_tool.versions import (
     CorePackageVersion,
+    CoreVersions,
     collect_installed_core_versions,
     enrich_core_versions_latest,
 )
@@ -53,6 +54,11 @@ class UpdateStatus:
         return bool(self.components)
 
     @property
+    def has_core_update(self) -> bool:
+        """Return whether a pending update requires a Rust core rebuild."""
+        return any(component.role == "core" for component in self.components)
+
+    @property
     def count(self) -> int:
         """Return the number of known outdated components."""
         return len(self.components)
@@ -80,6 +86,38 @@ def compute_update_status(
             now=checked_at,
         )
     )
+    return _build_update_status(
+        checked_at=checked_at,
+        components=components,
+    )
+
+
+def build_update_status(
+    core_versions: CoreVersions,
+    catalog: PluginCatalog,
+    *,
+    now: float | None = None,
+) -> UpdateStatus:
+    """Build status from an already-enriched core and plugin inventory."""
+    checked_at = time.time() if now is None else now
+    components = [
+        _core_component(package)
+        for package in core_versions.packages
+        if package.update_available
+    ]
+    components.extend(
+        _plugin_component(entry)
+        for entry in catalog.entries
+        if entry.installed.installed and entry.update_available
+    )
+    return _build_update_status(checked_at=checked_at, components=components)
+
+
+def _build_update_status(
+    *,
+    checked_at: float,
+    components: list[OutdatedComponent],
+) -> UpdateStatus:
     return UpdateStatus(
         checked_at=checked_at,
         components=tuple(
@@ -233,5 +271,6 @@ __all__ = [
     "ComponentRole",
     "OutdatedComponent",
     "UpdateStatus",
+    "build_update_status",
     "compute_update_status",
 ]

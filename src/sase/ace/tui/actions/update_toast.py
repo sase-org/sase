@@ -127,18 +127,6 @@ class UpdateToastMixin:
 
     def _schedule_automatic_update_check(self, *, periodic: bool) -> None:
         """Schedule one guarded automatic update worker."""
-        if periodic:
-            from ..widgets import UpdatesAvailableIndicator
-
-            try:
-                indicator = self.query_one(  # type: ignore[attr-defined]
-                    "#updates-indicator",
-                    UpdatesAvailableIndicator,
-                )
-            except Exception:
-                return
-            if indicator.count > 0:
-                return
         if getattr(self, "_automatic_update_check_in_flight", False):
             return
 
@@ -273,11 +261,17 @@ class UpdateToastMixin:
             markup=True,
         )
 
-    def _schedule_updates_indicator_revalidation(self) -> None:
+    def _schedule_updates_indicator_revalidation(
+        self,
+        status: UpdateStatus | None = None,
+    ) -> None:
         """Refresh the updates badge from the cached snapshot off-thread."""
+        worker_fn: Any = self._run_updates_indicator_revalidation
+        if status is not None:
+            worker_fn = partial(self._run_updates_indicator_revalidation, status)
         try:
             self.run_worker(  # type: ignore[attr-defined]
-                cast(Any, self._run_updates_indicator_revalidation),
+                cast(Any, worker_fn),
                 thread=True,
                 exclusive=False,
                 group="startup-loads",
@@ -285,32 +279,38 @@ class UpdateToastMixin:
         except Exception:
             log.debug("Failed to schedule updates-indicator refresh", exc_info=True)
 
-    def _run_updates_indicator_revalidation(self) -> None:
+    def _run_updates_indicator_revalidation(
+        self,
+        status: UpdateStatus | None = None,
+    ) -> None:
         """Revalidate the cached update snapshot without network or git fetches."""
         try:
             config = _load_update_toast_config()
             if not config.indicator:
                 self.call_from_thread(  # type: ignore[attr-defined]
-                    self._set_updates_indicator_count,
+                    self._set_updates_indicator_state,
                     0,
+                    False,
                 )
                 return
-            status = read_update_status_snapshot()
+            if status is None:
+                status = read_update_status_snapshot()
             if status is not None:
                 status = revalidate_update_status(status)
             self.call_from_thread(  # type: ignore[attr-defined]
-                self._set_updates_indicator_count,
+                self._set_updates_indicator_state,
                 0 if status is None else status.count,
+                False if status is None else status.has_core_update,
             )
         except Exception:
             log.debug("Updates-indicator refresh failed", exc_info=True)
 
     def _refresh_updates_indicator(self, status: UpdateStatus) -> None:
         """Set the top-bar updates badge from a status object."""
-        self._set_updates_indicator_count(status.count)
+        self._set_updates_indicator_state(status.count, status.has_core_update)
 
-    def _set_updates_indicator_count(self, count: int) -> None:
-        """Set the top-bar updates badge count if the widget is mounted."""
+    def _set_updates_indicator_state(self, count: int, core: bool = False) -> None:
+        """Set the top-bar updates badge state if the widget is mounted."""
         from ..widgets import UpdatesAvailableIndicator
 
         try:
@@ -320,7 +320,7 @@ class UpdateToastMixin:
             )
         except Exception:
             return
-        indicator.set_available(count)
+        indicator.set_available(count, core=core)
 
 
 def _load_update_toast_config() -> _UpdateToastConfig:

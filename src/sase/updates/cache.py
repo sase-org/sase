@@ -121,7 +121,12 @@ def revalidate_update_status(
     is_newer_fn: IsNewerFn = is_newer,
     git_classifier_fn: GitClassifierFn = classify_git_upstream,
 ) -> UpdateStatus:
-    """Drop cached components that no longer look outdated locally."""
+    """Drop cached components that no longer look outdated locally.
+
+    This is deliberately a drop-only, no-network operation: it can remove
+    stale rows but cannot discover components that became outdated after the
+    snapshot was written. Use a full recompute to grow the component set.
+    """
     components = tuple(
         component
         for component in status.components

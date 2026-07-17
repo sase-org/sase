@@ -6,10 +6,13 @@ import pytest
 from textual.widgets import Input, OptionList
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions import update_toast
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.plugins_browser_pane import PluginsBrowserPane
 from sase.plugins.catalog import PluginCatalog
+from sase.ace.tui.widgets import UpdatesAvailableIndicator
+from sase.updates import build_update_status
 from sase.updates.incoming_commits import CommitSummary, IncomingCommits
 from tests.ace.tui._plugins_browser_pane_helpers import (
     _NOW,
@@ -60,6 +63,48 @@ async def test_plugins_pane_summary_counts(
         assert "2 installed" in summary
         assert "1 updates available" in summary
         assert "just now" in summary
+
+
+async def test_panel_fresh_compute_grows_badge_and_signals_core_rebuild(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    versions = _core_versions(sase_latest="0.6.0", core_latest="1.5.0")
+    catalog = _catalog()
+    status = build_update_status(versions, catalog, now=_NOW)
+    _patch_catalog(
+        monkeypatch,
+        catalog=catalog,
+        core_versions=versions,
+        update_status=status,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(startup_toast=False),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "revalidate_update_status",
+        lambda loaded: loaded,
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: None,
+    )
+
+    async with AcePage() as page:
+        indicator = page.app.query_one(
+            "#updates-indicator",
+            UpdatesAvailableIndicator,
+        )
+        indicator.set_available(1)
+
+        await _open_plugins_pane(page)
+        await page.wait_for(lambda _state: indicator.count == 3)
+
+        assert indicator.core is True
 
 
 async def test_updates_pane_core_panel_shows_versions_and_update_status(

@@ -189,6 +189,12 @@ async def test_startup_update_toast_grouped_commits_png_snapshot(
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         await page.wait_for(lambda _s: _toast_is_mounted(page))
         await wait_for_visual_idle(page)
+        # The wider core-rebuild badge changes the top-bar layout after the
+        # toast worker lands. Force a full repaint before exporting so Textual
+        # does not hand the PNG helper a partial dirty-region compositor frame.
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,

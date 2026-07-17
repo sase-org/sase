@@ -16,6 +16,11 @@ from sase.plugins.catalog import (
 )
 from sase.plugins.latest import enrich_with_latest, is_newer
 from sase.plugins.pypi_source import fetch_latest_version
+from sase.updates import (
+    UpdateStatus,
+    build_update_status,
+    write_update_status_snapshot,
+)
 from sase.uv_tool.detect import (
     NotUvToolInstall,
     UvToolInstall,
@@ -58,6 +63,7 @@ class PluginsLoadResult:
     install_mode: str | None = None
     dev_root: str | None = None
     fresh_editable_roots: frozenset[str] = frozenset()
+    update_status: UpdateStatus | None = None
 
 
 def probe_uv_tool() -> UvToolInstall | NotUvToolInstall | None:
@@ -124,6 +130,13 @@ def load_plugins_catalog_for_pane(
         catalog = enrich_with_latest(catalog, offline=offline, refresh=refresh)
     except Exception:  # noqa: BLE001 - list stays read-only; markers degrade only.
         pass
+    update_status: UpdateStatus | None = None
+    if not offline:
+        update_status = build_update_status(core_versions, catalog, now=load_now)
+        try:
+            _write_update_status_snapshot(update_status)
+        except Exception:  # noqa: BLE001 - the panel must survive cache failures.
+            pass
     return PluginsLoadResult(
         catalog=catalog,
         error=None,
@@ -134,6 +147,7 @@ def load_plugins_catalog_for_pane(
         install_mode=install_mode,
         dev_root=dev_root,
         fresh_editable_roots=_fresh_editable_roots(core_versions, catalog),
+        update_status=update_status,
     )
 
 
@@ -203,3 +217,4 @@ _PluginsLoadResult = PluginsLoadResult
 _collect_core_versions = _collect_core_versions_for_pane
 _probe_uv_tool = probe_uv_tool
 _load_plugins_catalog = load_plugins_catalog_for_pane
+_write_update_status_snapshot = write_update_status_snapshot

@@ -5,10 +5,12 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from sase.ace.tui.modals import plugins_browser_loading as loading
 from sase.plugins.latest import LatestInfo
 from sase.uv_tool.versions import CorePackageVersion, CoreVersions
-from tests.ace.tui._plugins_browser_pane_helpers import _catalog
+from tests.ace.tui._plugins_browser_pane_helpers import _catalog, _core_versions
 
 
 def test_fresh_editable_roots_include_only_successful_online_checks() -> None:
@@ -99,3 +101,87 @@ def test_fresh_editable_roots_include_only_successful_online_checks() -> None:
     assert loading._fresh_editable_roots(core_versions, catalog) == frozenset(
         {shared, plugin}
     )
+
+
+def test_online_panel_load_writes_shared_update_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    versions = _core_versions(core_latest="1.5.0")
+    catalog = _catalog()
+    written = []
+    monkeypatch.setattr(loading, "probe_uv_tool", lambda: None)
+    monkeypatch.setattr(loading, "load_merged_config", dict)
+    monkeypatch.setattr(loading, "config_dev_root", lambda _config: Path("/tmp/dev"))
+    monkeypatch.setattr(
+        loading,
+        "_collect_core_versions_for_pane",
+        lambda **_kwargs: versions,
+    )
+    monkeypatch.setattr(loading, "load_plugin_catalog", lambda **_kwargs: catalog)
+    monkeypatch.setattr(
+        loading,
+        "enrich_with_latest",
+        lambda loaded, **_kwargs: loaded,
+    )
+    monkeypatch.setattr(
+        loading,
+        "_fetch_core_incoming_commits_for_pane",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        loading,
+        "_write_update_status_snapshot",
+        written.append,
+    )
+
+    result = loading.load_plugins_catalog_for_pane(
+        incoming_commits_enabled=False,
+        now=123.0,
+    )
+
+    assert result.update_status is not None
+    assert written == [result.update_status]
+    assert [
+        (component.display_name, component.role) for component in written[0].components
+    ] == [
+        ("sase-core", "core"),
+        ("github", "plugin"),
+    ]
+    assert written[0].has_core_update is True
+
+
+def test_offline_panel_load_does_not_replace_shared_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(loading, "probe_uv_tool", lambda: None)
+    monkeypatch.setattr(loading, "load_merged_config", dict)
+    monkeypatch.setattr(loading, "config_dev_root", lambda _config: Path("/tmp/dev"))
+    monkeypatch.setattr(
+        loading,
+        "_collect_core_versions_for_pane",
+        lambda **_kwargs: _core_versions(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "load_plugin_catalog",
+        lambda **_kwargs: _catalog(),
+    )
+    monkeypatch.setattr(
+        loading,
+        "enrich_with_latest",
+        lambda catalog, **_kwargs: catalog,
+    )
+    monkeypatch.setattr(
+        loading,
+        "_fetch_core_incoming_commits_for_pane",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        loading,
+        "_write_update_status_snapshot",
+        lambda _status: pytest.fail("offline loads must not replace the snapshot"),
+    )
+
+    result = loading.load_plugins_catalog_for_pane(offline=True, now=123.0)
+
+    assert result.update_status is None
