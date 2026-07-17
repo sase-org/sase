@@ -1409,29 +1409,30 @@ Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 
 ### LLM Provider
 
-| Variable                                 | Description                                                                   |
-| ---------------------------------------- | ----------------------------------------------------------------------------- |
-| `SASE_MODEL_TIER_OVERRIDE`               | Force all LLM invocations to a specific tier (`large` or `small`).            |
-| `SASE_MODEL_SIZE_OVERRIDE`               | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).              |
-| `SASE_LLM_LARGE_ARGS`                    | Extra CLI args appended for `large` tier invocations (any provider).          |
-| `SASE_LLM_SMALL_ARGS`                    | Extra CLI args appended for `small` tier invocations (any provider).          |
-| `SASE_CLAUDE_LARGE_ARGS`                 | Claude-specific extra args for `large` tier (fallback if generic unset).      |
-| `SASE_CLAUDE_SMALL_ARGS`                 | Claude-specific extra args for `small` tier (fallback if generic unset).      |
-| `SASE_CODEX_PATH`                        | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).      |
-| `SASE_CODEX_LARGE_ARGS`                  | Codex-specific extra args for `large` tier (fallback if generic unset).       |
-| `SASE_CODEX_SMALL_ARGS`                  | Codex-specific extra args for `small` tier (fallback if generic unset).       |
-| `SASE_CODEX_DISABLE_SHADOW_HOME`         | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                   |
-| `SASE_QWEN_PATH`                         | Path to the Qwen Code CLI binary (default: `qwen`).                           |
-| `SASE_QWEN_LARGE_ARGS`                   | Qwen-specific extra args for `large` tier (fallback if generic unset).        |
-| `SASE_QWEN_SMALL_ARGS`                   | Qwen-specific extra args for `small` tier (fallback if generic unset).        |
-| `SASE_OPENCODE_PATH`                     | Path to the OpenCode CLI binary (default: `opencode`).                        |
-| `SASE_OPENCODE_LARGE_ARGS`               | OpenCode-specific extra args for `large` tier (fallback if generic unset).    |
-| `SASE_OPENCODE_SMALL_ARGS`               | OpenCode-specific extra args for `small` tier (fallback if generic unset).    |
-| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `agy`).                          |
-| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `24h`).              |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).                     |
-| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier (fallback if generic unset). |
-| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier (fallback if generic unset). |
+| Variable                                 | Description                                                                         |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| `SASE_MODEL_TIER_OVERRIDE`               | Force all LLM invocations to a specific tier (`large` or `small`).                  |
+| `SASE_MODEL_SIZE_OVERRIDE`               | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                    |
+| `SASE_LLM_EXEC_PROVIDER`                 | Execute through this registered provider while preserving requested model metadata. |
+| `SASE_LLM_LARGE_ARGS`                    | Extra CLI args appended for `large` tier invocations (any provider).                |
+| `SASE_LLM_SMALL_ARGS`                    | Extra CLI args appended for `small` tier invocations (any provider).                |
+| `SASE_CLAUDE_LARGE_ARGS`                 | Claude-specific extra args for `large` tier (fallback if generic unset).            |
+| `SASE_CLAUDE_SMALL_ARGS`                 | Claude-specific extra args for `small` tier (fallback if generic unset).            |
+| `SASE_CODEX_PATH`                        | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).            |
+| `SASE_CODEX_LARGE_ARGS`                  | Codex-specific extra args for `large` tier (fallback if generic unset).             |
+| `SASE_CODEX_SMALL_ARGS`                  | Codex-specific extra args for `small` tier (fallback if generic unset).             |
+| `SASE_CODEX_DISABLE_SHADOW_HOME`         | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                         |
+| `SASE_QWEN_PATH`                         | Path to the Qwen Code CLI binary (default: `qwen`).                                 |
+| `SASE_QWEN_LARGE_ARGS`                   | Qwen-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_QWEN_SMALL_ARGS`                   | Qwen-specific extra args for `small` tier (fallback if generic unset).              |
+| `SASE_OPENCODE_PATH`                     | Path to the OpenCode CLI binary (default: `opencode`).                              |
+| `SASE_OPENCODE_LARGE_ARGS`               | OpenCode-specific extra args for `large` tier (fallback if generic unset).          |
+| `SASE_OPENCODE_SMALL_ARGS`               | OpenCode-specific extra args for `small` tier (fallback if generic unset).          |
+| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `agy`).                                |
+| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `24h`).                    |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).                           |
+| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier (fallback if generic unset).       |
+| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier (fallback if generic unset).       |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If unset, the provider-specific
 variable is used as a fallback. Values are split on whitespace and appended to the CLI command.

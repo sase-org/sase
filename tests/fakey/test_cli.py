@@ -129,6 +129,7 @@ def test_list_scenarios_does_not_read_stdin(tmp_path: Path) -> None:
     assert result.stdout.splitlines() == [
         "@capacity",
         "@crash",
+        "@demo",
         "@flaky",
         "@flaky2",
         "@hang",

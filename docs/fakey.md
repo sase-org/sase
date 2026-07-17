@@ -42,9 +42,18 @@ usage: {input_tokens: 7, output_tokens: 3}
 ```
 ````
 
-List bundled scenarios with `fakey --list-scenarios`. The initial set includes `@ok`, `@flaky`, `@flaky2`, `@crash`,
-`@hang`, `@slow`, and `@capacity`. Use `fakey --scenario @flaky --explain` to print the resolved YAML without running
-it.
+List bundled scenarios with `fakey --list-scenarios`. The bundled set includes `@ok`, `@flaky`, `@flaky2`, `@crash`,
+`@hang`, `@slow`, `@capacity`, and the long-streaming `@demo`. Use `fakey --scenario @flaky --explain` to print the
+resolved YAML without running it.
+
+For a hermetic launch that still displays the requested real provider and model, set the execution-provider override:
+
+```bash
+FAKEY_SCENARIO=@demo SASE_LLM_EXEC_PROVIDER=fakey \
+  sase run '%model:opus Exercise the launch path without a model call'
+```
+
+The agent metadata remains `CLAUDE(opus)` while `exec_llm_provider: fakey` records what actually ran.
 
 ## Scenario Grammar
 
@@ -79,20 +88,21 @@ barrier-based tests deterministic without timing sleeps.
 
 ## Environment Controls
 
-| Variable                | Purpose                                                      |
-| ----------------------- | ------------------------------------------------------------ |
-| `FAKEY_SCENARIO`        | Scenario path or bundled name such as `@flaky`               |
-| `FAKEY_REPLY`           | One-line success reply override                              |
-| `FAKEY_FAIL_MESSAGE`    | One-line failure message                                     |
-| `FAKEY_EXIT_CODE`       | Failure exit code                                            |
-| `FAKEY_DELAY`           | Delay before the outcome                                     |
-| `FAKEY_FAIL_TIMES`      | Fail this many invocations, then succeed                     |
-| `FAKEY_STATE_DIR`       | Attempt cursor and `invocation-<n>.json` recording directory |
-| `SASE_FAKEY_PATH`       | Override the provider's fakey executable                     |
-| `SASE_FAKEY_LARGE_ARGS` | Extra provider args for the large tier                       |
-| `SASE_FAKEY_SMALL_ARGS` | Extra provider args for the small tier                       |
-| `SASE_LLM_LARGE_ARGS`   | Provider-neutral large-tier args; takes precedence           |
-| `SASE_LLM_SMALL_ARGS`   | Provider-neutral small-tier args; takes precedence           |
+| Variable                 | Purpose                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `FAKEY_SCENARIO`         | Scenario path or bundled name such as `@flaky`                                  |
+| `FAKEY_REPLY`            | One-line success reply override                                                 |
+| `FAKEY_FAIL_MESSAGE`     | One-line failure message                                                        |
+| `FAKEY_EXIT_CODE`        | Failure exit code                                                               |
+| `FAKEY_DELAY`            | Delay before the outcome                                                        |
+| `FAKEY_FAIL_TIMES`       | Fail this many invocations, then succeed                                        |
+| `FAKEY_STATE_DIR`        | Attempt cursor and `invocation-<n>.json` recording directory                    |
+| `SASE_LLM_EXEC_PROVIDER` | Runtime-only provider override; set to `fakey` for hermetic real-model launches |
+| `SASE_FAKEY_PATH`        | Override the provider's fakey executable                                        |
+| `SASE_FAKEY_LARGE_ARGS`  | Extra provider args for the large tier                                          |
+| `SASE_FAKEY_SMALL_ARGS`  | Extra provider args for the small tier                                          |
+| `SASE_LLM_LARGE_ARGS`    | Provider-neutral large-tier args; takes precedence                              |
+| `SASE_LLM_SMALL_ARGS`    | Provider-neutral small-tier args; takes precedence                              |
 
 Each invocation record contains argv, prompt, selected environment, resolved scenario and attempt, model, effort, and
 outcome. This makes provider wiring assertions possible without mocking the subprocess.

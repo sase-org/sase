@@ -997,12 +997,17 @@ Complete reference of environment variables used by the LLM provider layer.
 
 ### Generic (Provider-Agnostic)
 
-| Variable                   | Description                                    |
-| -------------------------- | ---------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier invocations    |
-| `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier invocations    |
-| `SASE_MODEL_TIER_OVERRIDE` | Force all invocations to a specific model tier |
-| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`    |
+| Variable                   | Description                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| `SASE_LLM_EXEC_PROVIDER`   | Execute through this provider while retaining the requested provider/model metadata |
+| `SASE_LLM_LARGE_ARGS`      | Extra CLI args for `large` tier invocations                                         |
+| `SASE_LLM_SMALL_ARGS`      | Extra CLI args for `small` tier invocations                                         |
+| `SASE_MODEL_TIER_OVERRIDE` | Force all invocations to a specific model tier                                      |
+| `SASE_MODEL_SIZE_OVERRIDE` | Legacy alias for `SASE_MODEL_TIER_OVERRIDE`                                         |
+
+`SASE_LLM_EXEC_PROVIDER` must name a registered provider. It changes subprocess dispatch and execution-provider retry
+policy only; agent, step, and chat metadata continue to show the provider and model the user requested. Run artifacts
+record the dispatched provider separately as `exec_llm_provider`.
 
 ### Claude-Specific
 

@@ -31,7 +31,13 @@ from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .commit_finalizer import run_commit_finalizer
 from .config import resolve_effective_effort
-from .registry import get_default_provider_name, get_provider, resolve_model_provider
+from .registry import (
+    LLM_EXEC_PROVIDER_ENV,
+    get_default_provider_name,
+    get_provider,
+    resolve_execution_provider_name,
+    resolve_model_provider,
+)
 from .types import (
     LLMInvocationError,
     LLMInvocationOptions,
@@ -248,14 +254,30 @@ def invoke_agent(
         )
 
     # 7. Get provider and invoke
-    provider_label = provider_name or get_default_provider_name()
-    context.metadata_llm_provider = provider_label
+    requested_provider_label = provider_name or get_default_provider_name()
+    execution_provider_label = resolve_execution_provider_name(requested_provider_label)
+    execution_override_active = bool(os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip())
+    provider_lookup_name = (
+        execution_provider_label if execution_override_active else provider_name
+    )
+    context.metadata_llm_provider = requested_provider_label
     context.metadata_model = model_override
     t0 = time.monotonic()
     try:
-        provider = get_provider(provider_name)
+        provider = get_provider(provider_lookup_name)
+        if artifacts_dir:
+            from sase.axe.run_agent_helpers import update_meta_field
+
+            update_meta_field(
+                artifacts_dir,
+                "exec_llm_provider",
+                execution_provider_label,
+            )
         if context.metadata_model is None:
-            resolved_model = provider.resolve_model_name(model_tier)
+            metadata_provider = provider
+            if execution_provider_label != requested_provider_label:
+                metadata_provider = get_provider(requested_provider_label)
+            resolved_model = metadata_provider.resolve_model_name(model_tier)
             if resolved_model and resolved_model != "unknown":
                 context.metadata_model = resolved_model
         invoke_result = provider.invoke(
@@ -279,16 +301,18 @@ def invoke_agent(
 
         # Record success metrics
         elapsed = time.monotonic() - t0
-        LLM_INVOCATIONS.labels(provider=provider_label, status="ok").inc()
-        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_INVOCATIONS.labels(provider=execution_provider_label, status="ok").inc()
+        LLM_INVOCATION_DURATION.labels(provider=execution_provider_label).observe(
+            elapsed
+        )
         if invoke_result.usage:
-            LLM_INPUT_TOKENS.labels(provider=provider_label).inc(
+            LLM_INPUT_TOKENS.labels(provider=execution_provider_label).inc(
                 invoke_result.usage.get("input_tokens", 0)
             )
-            LLM_OUTPUT_TOKENS.labels(provider=provider_label).inc(
+            LLM_OUTPUT_TOKENS.labels(provider=execution_provider_label).inc(
                 invoke_result.usage.get("output_tokens", 0)
             )
-            LLM_CACHE_READ_TOKENS.labels(provider=provider_label).inc(
+            LLM_CACHE_READ_TOKENS.labels(provider=execution_provider_label).inc(
                 invoke_result.usage.get("cache_read_input_tokens", 0)
             )
 
@@ -305,10 +329,12 @@ def invoke_agent(
 
     except subprocess.CalledProcessError as e:
         elapsed = time.monotonic() - t0
-        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
-        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_INVOCATIONS.labels(provider=execution_provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=execution_provider_label).observe(
+            elapsed
+        )
         LLM_ERRORS.labels(
-            provider=provider_label, error_type="CalledProcessError"
+            provider=execution_provider_label, error_type="CalledProcessError"
         ).inc()
 
         parts = [f"Error running LLM provider command (exit code {e.returncode})"]
@@ -330,10 +356,12 @@ def invoke_agent(
 
     except LLMInvocationError as e:
         elapsed = time.monotonic() - t0
-        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
-        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
+        LLM_INVOCATIONS.labels(provider=execution_provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=execution_provider_label).observe(
+            elapsed
+        )
         LLM_ERRORS.labels(
-            provider=provider_label, error_type="LLMInvocationError"
+            provider=execution_provider_label, error_type="LLMInvocationError"
         ).inc()
 
         error_content = str(e)
@@ -349,9 +377,13 @@ def invoke_agent(
 
     except Exception as e:
         elapsed = time.monotonic() - t0
-        LLM_INVOCATIONS.labels(provider=provider_label, status="error").inc()
-        LLM_INVOCATION_DURATION.labels(provider=provider_label).observe(elapsed)
-        LLM_ERRORS.labels(provider=provider_label, error_type=type(e).__name__).inc()
+        LLM_INVOCATIONS.labels(provider=execution_provider_label, status="error").inc()
+        LLM_INVOCATION_DURATION.labels(provider=execution_provider_label).observe(
+            elapsed
+        )
+        LLM_ERRORS.labels(
+            provider=execution_provider_label, error_type=type(e).__name__
+        ).inc()
 
         error_content = f"Error: {str(e)}"
 

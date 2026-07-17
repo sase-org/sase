@@ -439,6 +439,11 @@ def _final_transcript_model_provider(
     return model, llm_provider
 
 
+def _final_execution_provider(state: LoopState) -> str | None:
+    latest_meta = _read_transcript_agent_meta(state.current_artifacts_dir)
+    return _metadata_str(latest_meta, "exec_llm_provider")
+
+
 def finalize_loop(
     ctx: AgentExecContext,
     state: LoopState,
@@ -460,6 +465,7 @@ def finalize_loop(
         tracker,
         fallback_model_override,
     )
+    execution_llm_provider = _final_execution_provider(state)
 
     saved_path: str | None = None
     diff_path: str | None = None
@@ -518,6 +524,7 @@ def finalize_loop(
             agent_name=done_agent_name,
             agent_model=ctx.agent_model,
             agent_llm_provider=ctx.agent_llm_provider,
+            agent_exec_llm_provider=execution_llm_provider,
             agent_vcs_provider=ctx.agent_vcs_provider,
             agent_hidden=ctx.agent_hidden,
             response_path=saved_path,
@@ -560,6 +567,9 @@ def finalize_loop(
             actual_outcome,
             agent_name=done_agent_name,
             agent_model=ctx.agent_model,
+            agent_llm_provider=ctx.agent_llm_provider,
+            agent_exec_llm_provider=execution_llm_provider,
+            agent_vcs_provider=ctx.agent_vcs_provider,
             agent_hidden=ctx.agent_hidden,
             response_path=saved_path,
             retry_metadata=retry_meta,

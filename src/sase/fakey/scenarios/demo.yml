@@ -1,0 +1,45 @@
+version: 1
+delay: 2
+stream:
+  chunk_delay: 1
+reply: |-
+  Reading the project instructions and locating the parser entry points.
+  Mapping command tokenization from the CLI boundary into the core parser.
+  Reviewing existing malformed-input tests and their fixture coverage.
+  Reproducing the unmatched-quote failure with a focused regression case.
+  Confirming the current exception escapes before diagnostic formatting.
+  Tracing delimiter handling through the nested argument scanner.
+  Checking escaped commas inside quoted directive arguments.
+  Checking empty positional arguments and trailing separators.
+  Checking nested parentheses at the maximum supported depth.
+  Checking fenced blocks that contain directive-like text.
+  Comparing parser behavior across the CLI and interactive prompt bar.
+  Identifying one shared validation seam for all launch surfaces.
+  Drafting a bounded parser fix without changing valid-input behavior.
+  Adding a guard for unterminated quoted arguments.
+  Adding a guard for unbalanced nested parentheses.
+  Preserving literal content in disabled xprompt regions.
+  Keeping error locations anchored to the original prompt text.
+  Adding regression coverage for a missing closing quote.
+  Adding regression coverage for a missing closing parenthesis.
+  Adding regression coverage for a dangling escape character.
+  Adding regression coverage for an empty alternation branch.
+  Adding regression coverage for separators inside fenced code.
+  Running the focused parser unit tests.
+  Inspecting the first failure and tightening the expected diagnostic.
+  Re-running the focused parser unit tests after the adjustment.
+  Running launch-planning tests that consume parsed directives.
+  Verifying valid shorthand prompts still expand identically.
+  Verifying multi-model alternation still produces three launch slots.
+  Verifying prompt history retains the submitted source text.
+  Checking formatter and type-checker feedback for the touched modules.
+  Simplifying the validation helper to keep error paths readable.
+  Re-running the formatter on the parser and regression tests.
+  Running static analysis for the changed symbols.
+  Running the broader xprompt and launcher test groups.
+  Reviewing the diff for accidental metadata or display changes.
+  Confirming no provider-specific behavior entered the parser layer.
+  Confirming error messages remain actionable at every launch surface.
+  Preparing a concise implementation summary and verification notes.
+  Performing one final focused test run from a clean environment.
+  The parser hardening and regression coverage are ready for review.

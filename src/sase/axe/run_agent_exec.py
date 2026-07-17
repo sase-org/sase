@@ -178,10 +178,25 @@ def run_execution_loop(
     _publish_predicted_chat_path(ctx)
     _publish_root_timestamp(ctx)
 
+    from sase.llm_provider.registry import (
+        LLM_EXEC_PROVIDER_ENV,
+        resolve_execution_provider_name,
+    )
+
+    has_execution_provider = bool(
+        ctx.agent_llm_provider or os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip()
+    )
+    execution_provider = (
+        resolve_execution_provider_name(ctx.agent_llm_provider)
+        if has_execution_provider
+        else None
+    )
     tracker = RetryTracker(
-        retry_cfg=get_retry_config(ctx.agent_llm_provider)
-        if ctx.agent_llm_provider
-        else None,
+        retry_cfg=(
+            get_retry_config(execution_provider)
+            if execution_provider is not None
+            else None
+        ),
         attempt_start_epoch=time.time(),
     )
     state = LoopState(

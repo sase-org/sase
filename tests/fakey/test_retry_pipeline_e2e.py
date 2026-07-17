@@ -9,6 +9,7 @@ tests.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe import runner_utils
+from sase.axe.run_agent_exec import run_execution_loop
 from sase.xprompt.workflow_models import WorkflowExecutionError
 
 from tests.fakey.harness import (
@@ -23,6 +25,44 @@ from tests.fakey.harness import (
     retryable_failure,
     successful_attempt,
 )
+
+
+def test_execution_override_runs_fakey_with_requested_model_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = FakeyRetryHarness(tmp_path, monkeypatch)
+    monkeypatch.setenv("SASE_LLM_EXEC_PROVIDER", "fakey")
+    requested_meta = {
+        "name": "override-e2e",
+        "model": "opus",
+        "llm_provider": "claude",
+        "workspace_dir": str(harness.workspace),
+    }
+    (harness.artifacts / "agent_meta.json").write_text(
+        json.dumps(requested_meta, indent=2), encoding="utf-8"
+    )
+    context = harness.context()
+    context.agent_name = "override-e2e"
+    context.agent_model = "opus"
+    context.agent_llm_provider = "claude"
+    context.agent_meta = requested_meta
+
+    result = run_execution_loop(
+        context,
+        "%model:opus\nInspect the parser and report progress.",
+    )
+
+    assert result.success is True
+    invocation = harness.invocation_records()[0]
+    assert invocation["model"] == "opus"
+    assert invocation["outcome"]["status"] == "succeeded"
+    assert harness.agent_meta() == {
+        **requested_meta,
+        "exec_llm_provider": "fakey",
+    }
+    assert harness.done_marker()["model"] == "opus"
+    assert harness.done_marker()["llm_provider"] == "claude"
+    assert harness.done_marker()["exec_llm_provider"] == "fakey"
 
 
 def test_retryable_failure_then_success_records_lifecycle_and_nudge(

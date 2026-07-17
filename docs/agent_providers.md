@@ -111,6 +111,9 @@ The deterministic `fakey` CLI is bundled with SASE for launch, failure, retry, a
 installation or authentication and is deliberately placed last in provider autodetection. Select it explicitly with a
 model such as `%model:fakey-large` or `llm_provider.provider: fakey`; do not use it for production coding work.
 
+For demos and hermetic end-to-end tests, `SASE_LLM_EXEC_PROVIDER=fakey` dispatches through fakey while preserving the
+requested provider/model in display metadata. Run artifacts record the dispatched provider as `exec_llm_provider`.
+
 See the [fakey reference](fakey.md) for scenarios and environment controls.
 
 ## Verify

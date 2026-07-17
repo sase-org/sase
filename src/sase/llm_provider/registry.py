@@ -36,6 +36,8 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "openai": "#10A37F",
 }
 
+LLM_EXEC_PROVIDER_ENV = "SASE_LLM_EXEC_PROVIDER"
+
 
 @functools.cache
 def _build_llm_pm() -> pluggy.PluginManager:
@@ -232,6 +234,19 @@ def get_provider(name: str | None = None) -> LLMProvider:
     if name is None:
         name = get_default_provider_name()
     return _create_provider_for(name)
+
+
+def resolve_execution_provider_name(requested_provider: str | None = None) -> str:
+    """Return the provider that should execute an invocation.
+
+    ``SASE_LLM_EXEC_PROVIDER`` deliberately changes only runtime dispatch. The
+    requested provider and model remain the source of display and chat metadata.
+    Registration is validated later by :func:`get_provider`, at the same lookup
+    choke point used for ordinary invocations.
+    """
+    requested = requested_provider or get_default_provider_name()
+    override = os.environ.get(LLM_EXEC_PROVIDER_ENV, "").strip()
+    return override or requested
 
 
 def resolve_model_provider(

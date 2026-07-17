@@ -1,7 +1,9 @@
 """Tests for llm_provider invoke_agent orchestration."""
 
+import json
 import logging
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,6 +19,11 @@ from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.xprompt.directives import PromptDirectives
 
 _NO_EFFORT = LLMInvocationOptions(reasoning_effort=None, explicit=False)
+
+
+@pytest.fixture(autouse=True)
+def _clear_execution_provider_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_LLM_EXEC_PROVIDER", raising=False)
 
 
 @patch("sase.llm_provider._invoke.get_provider")
@@ -98,6 +105,114 @@ def test_invoke_agent_returns_local_ai_message_with_content(
 
     assert isinstance(result, AIMessage)
     assert result.content == "provider response"
+
+
+def test_invoke_agent_execution_provider_override_preserves_requested_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"llm_provider": "claude", "model": "opus"}),
+        encoding="utf-8",
+    )
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="response")
+    monkeypatch.setenv("SASE_LLM_EXEC_PROVIDER", "fakey")
+
+    with (
+        patch(
+            "sase.llm_provider._invoke.get_provider", return_value=provider
+        ) as get_provider,
+        patch("sase.llm_provider._invoke.postprocess_success"),
+    ):
+        invoke_agent(
+            "prompt",
+            agent_type="test",
+            artifacts_dir=str(artifacts),
+            provider_name="claude",
+            suppress_output=True,
+            skip_preprocessing=True,
+            directives=PromptDirectives(model="opus"),
+        )
+
+    get_provider.assert_called_once_with("fakey")
+    provider.invoke.assert_called_once_with(
+        "prompt",
+        model_tier="large",
+        suppress_output=True,
+        model_override="opus",
+        options=_NO_EFFORT,
+    )
+    assert json.loads((artifacts / "agent_meta.json").read_text()) == {
+        "llm_provider": "claude",
+        "model": "opus",
+        "exec_llm_provider": "fakey",
+    }
+
+
+def test_execution_override_resolves_display_model_with_requested_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    execution_provider = MagicMock()
+    execution_provider.invoke.return_value = InvokeResult(content="response")
+    execution_provider.resolve_model_name.return_value = "fakey-large"
+    requested_provider = MagicMock()
+    requested_provider.resolve_model_name.return_value = "opus"
+    monkeypatch.setenv("SASE_LLM_EXEC_PROVIDER", "fakey")
+
+    with (
+        patch(
+            "sase.llm_provider._invoke.get_provider",
+            side_effect=[execution_provider, requested_provider],
+        ) as get_provider,
+        patch("sase.llm_provider._invoke.postprocess_success") as postprocess,
+    ):
+        invoke_agent(
+            "prompt",
+            agent_type="test",
+            provider_name="claude",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    assert [call.args for call in get_provider.call_args_list] == [
+        ("fakey",),
+        ("claude",),
+    ]
+    context = postprocess.call_args.kwargs["context"]
+    assert context.metadata_llm_provider == "claude"
+    assert context.metadata_model == "opus"
+
+
+def test_invoke_agent_unknown_execution_provider_is_actionable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_LLM_EXEC_PROVIDER", "missing-provider")
+
+    with (
+        patch(
+            "sase.llm_provider._invoke.get_provider",
+            side_effect=KeyError(
+                "Unknown LLM provider: 'missing-provider'. Registered providers: "
+                "['claude', 'fakey']"
+            ),
+        ) as get_provider,
+        patch("sase.llm_provider._invoke.postprocess_error"),
+        pytest.raises(
+            LLMInvocationError,
+            match="Unknown LLM provider: 'missing-provider'",
+        ),
+    ):
+        invoke_agent(
+            "prompt",
+            agent_type="test",
+            provider_name="claude",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    get_provider.assert_called_once_with("missing-provider")
 
 
 @patch("sase.llm_provider._invoke.get_provider")

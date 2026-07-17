@@ -55,6 +55,7 @@ def build_done_marker(
     agent_name: str | None = None,
     agent_model: str | None = None,
     agent_llm_provider: str | None = None,
+    agent_exec_llm_provider: str | None = None,
     agent_vcs_provider: str | None = None,
     agent_hidden: bool = False,
     response_path: str | None = None,
@@ -91,6 +92,8 @@ def build_done_marker(
         marker["model"] = agent_model
     if agent_llm_provider:
         marker["llm_provider"] = agent_llm_provider
+    if agent_exec_llm_provider:
+        marker["exec_llm_provider"] = agent_exec_llm_provider
     if agent_vcs_provider:
         marker["vcs_provider"] = agent_vcs_provider
     if agent_hidden:

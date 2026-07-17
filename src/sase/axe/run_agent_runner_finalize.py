@@ -61,6 +61,16 @@ def write_error_done_marker(
     handler doesn't mask the original error.
     """
     try:
+        exec_llm_provider: str | None = None
+        try:
+            meta_path = os.path.join(current_artifacts_dir, "agent_meta.json")
+            with open(meta_path, encoding="utf-8") as f:
+                meta = json.load(f)
+            value = meta.get("exec_llm_provider")
+            if isinstance(value, str) and value:
+                exec_llm_provider = value
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
         error_done = build_done_marker(
             cl_name,
             project_file,
@@ -73,6 +83,7 @@ def write_error_done_marker(
             agent_name=agent_name,
             agent_model=agent_model,
             agent_llm_provider=agent_llm_provider,
+            agent_exec_llm_provider=exec_llm_provider,
             agent_vcs_provider=agent_vcs_provider,
             agent_hidden=agent_hidden,
             error=error,

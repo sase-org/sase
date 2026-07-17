@@ -1,9 +1,11 @@
 """Tests for completion metadata and attachment discovery helpers."""
 
+import json
 import subprocess
 
 from sase.axe.image_attachments import collect_agent_image_paths
 from sase.axe.run_agent_phases import build_done_marker
+from sase.axe.run_agent_runner_finalize import write_error_done_marker
 
 
 def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
@@ -16,6 +18,8 @@ def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
         "/tmp/workspace",
         "/tmp/output.log",
         "completed",
+        agent_llm_provider="claude",
+        agent_exec_llm_provider="fakey",
         markdown_pdf_paths=[str(tmp_path / "notes.pdf")],
         video_paths=[str(tmp_path / "demo.mp4")],
     )
@@ -23,6 +27,8 @@ def test_completed_done_marker_includes_markdown_pdf_paths(tmp_path):
     assert marker["markdown_pdf_paths"] == [str(tmp_path / "notes.pdf")]
     assert marker["video_paths"] == [str(tmp_path / "demo.mp4")]
     assert marker["workspace_dir"] == "/tmp/workspace"
+    assert marker["llm_provider"] == "claude"
+    assert marker["exec_llm_provider"] == "fakey"
 
 
 def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
@@ -39,6 +45,34 @@ def test_completed_done_marker_defaults_empty_markdown_pdf_paths():
 
     assert marker["markdown_pdf_paths"] == []
     assert marker["video_paths"] == []
+
+
+def test_failed_done_marker_copies_execution_provider_from_agent_meta(tmp_path):
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"exec_llm_provider": "fakey"}), encoding="utf-8"
+    )
+
+    write_error_done_marker(
+        current_artifacts_dir=str(tmp_path),
+        cl_name="test-cl",
+        project_file="/tmp/project.sase",
+        timestamp="20260430120000",
+        artifacts_timestamp="20260430120000",
+        workspace_num=1,
+        workspace_dir="/tmp/workspace",
+        output_path="/tmp/output.log",
+        agent_name="test-agent",
+        agent_model="opus",
+        agent_llm_provider="claude",
+        agent_vcs_provider="git",
+        agent_hidden=False,
+        error="provider failed",
+        traceback_str="traceback",
+    )
+
+    marker = json.loads((tmp_path / "done.json").read_text())
+    assert marker["llm_provider"] == "claude"
+    assert marker["exec_llm_provider"] == "fakey"
 
 
 def test_collect_agent_image_paths_from_working_tree(tmp_path):

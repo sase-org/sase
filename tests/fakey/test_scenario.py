@@ -20,6 +20,25 @@ def test_default_scenario_succeeds_with_canned_reply(tmp_path: Path) -> None:
     assert "attempts" not in resolved.data
 
 
+def test_demo_scenario_is_long_streaming_and_prompt_separator_safe(
+    tmp_path: Path,
+) -> None:
+    resolved = resolve_scenario(
+        "demo prompt",
+        env={
+            "FAKEY_SCENARIO": "@demo",
+            "FAKEY_STATE_DIR": str(tmp_path),
+        },
+    )
+
+    lines = resolved.data["reply"].splitlines()
+    assert resolved.source == "@demo"
+    assert resolved.data["delay"] == 2
+    assert resolved.data["stream"]["chunk_delay"] == 1
+    assert len(lines) >= 40
+    assert "---" not in lines
+
+
 def test_layers_env_then_file_then_prompt(tmp_path: Path) -> None:
     scenario = tmp_path / "scenario.yml"
     scenario.write_text("reply: from file\ndelay: 0.2\n")
