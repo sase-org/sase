@@ -9,6 +9,7 @@ from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
     CustomGateModalResult,
+    GateExtrasSelectionList,
 )
 from sase.notification_gates.models import GateChoice
 
@@ -124,3 +125,149 @@ async def test_choice_navigation_switches_feedback_and_submit_target() -> None:
         await pilot.pause()
 
     assert results == [CustomGateModalResult("cancel", (), None)]
+
+
+async def test_command_keymaps_work_from_initial_button_focus() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            _choice(
+                "proceed",
+                "Proceed",
+                extras=[
+                    {
+                        "id": "audit",
+                        "label": "Write audit record",
+                        "default_selected": True,
+                        "command": {"argv": ["commands/audit"]},
+                    },
+                    {
+                        "id": "notify",
+                        "label": "Notify the team",
+                        "command": {"argv": ["commands/notify"]},
+                    },
+                ],
+            )
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+
+        extras = modal.query_one("#custom-gate-extras-0", GateExtrasSelectionList)
+        assert pilot.app.focused is modal.query_one("#custom-gate-choice-0", Button)
+        assert extras.highlighted == 0
+
+        await pilot.press("j")
+        assert pilot.app.focused is extras
+        assert extras.highlighted == 1
+
+        await pilot.press("space")
+        assert extras.selected_extra_ids == ("audit", "notify")
+
+        await pilot.press("k")
+        assert extras.highlighted == 0
+        await pilot.press("space")
+        assert extras.selected_extra_ids == ("notify",)
+
+        await pilot.press("ctrl+s")
+
+    assert results == [CustomGateModalResult("proceed", ("notify",), None)]
+
+
+async def test_command_keymaps_only_target_active_choice() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            _choice(
+                "approve",
+                "Approve",
+                extras=[
+                    {
+                        "id": "audit",
+                        "label": "Write audit record",
+                        "default_selected": True,
+                        "command": {"argv": ["commands/audit"]},
+                    }
+                ],
+            ),
+            _choice("cancel", "Cancel operation"),
+            _choice(
+                "revise",
+                "Revise",
+                extras=[
+                    {
+                        "id": "notify",
+                        "label": "Notify the team",
+                        "command": {"argv": ["commands/notify"]},
+                    }
+                ],
+            ),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+
+        approve_extras = modal.query_one(
+            "#custom-gate-extras-0", GateExtrasSelectionList
+        )
+        revise_extras = modal.query_one(
+            "#custom-gate-extras-2", GateExtrasSelectionList
+        )
+
+        await pilot.press("right")
+        assert modal._choice_index == 1
+        cancel_button = modal.query_one("#custom-gate-choice-1", Button)
+        assert pilot.app.focused is cancel_button
+
+        await pilot.press("j", "k", "space")
+        assert pilot.app.focused is cancel_button
+        assert approve_extras.selected_extra_ids == ("audit",)
+        assert revise_extras.selected_extra_ids == ()
+
+        await pilot.press("right", "space")
+        assert modal._choice_index == 2
+        assert pilot.app.focused is revise_extras
+        assert revise_extras.selected_extra_ids == ("notify",)
+        assert approve_extras.selected_extra_ids == ("audit",)
+
+        await pilot.press("ctrl+s")
+
+    assert results == [CustomGateModalResult("revise", ("notify",), None)]
+
+
+async def test_feedback_input_keeps_printable_command_keys() -> None:
+    modal = CustomGateModal(
+        _data(
+            _choice(
+                "approve",
+                "Approve",
+                feedback="optional",
+                extras=[
+                    {
+                        "id": "audit",
+                        "label": "Write audit record",
+                        "default_selected": True,
+                        "command": {"argv": ["commands/audit"]},
+                    }
+                ],
+            )
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        feedback = modal.query_one("#custom-gate-feedback-0", Input)
+        extras = modal.query_one("#custom-gate-extras-0", GateExtrasSelectionList)
+        feedback.focus()
+        await pilot.press("j", "k", "space")
+
+        assert pilot.app.focused is feedback
+        assert feedback.value == "jk "
+        assert extras.highlighted == 0
+        assert extras.selected_extra_ids == ("audit",)

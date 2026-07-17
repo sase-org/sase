@@ -96,6 +96,9 @@ class CustomGateModal(
         ("d", "debug_view", "Debug"),
         ("left", "previous_choice", "Previous choice"),
         ("right", "next_choice", "Next choice"),
+        ("j", "next_command", "Next command"),
+        ("k", "previous_command", "Previous command"),
+        ("space", "toggle_command", "Toggle command"),
         ("ctrl+s", "submit", "Submit"),
         ("ctrl+d", "scroll_down", "Scroll down"),
         ("ctrl+u", "scroll_up", "Scroll up"),
@@ -208,7 +211,7 @@ class CustomGateModal(
                     disabled=self._data.choices[0].feedback == "required",
                 )
             yield Static(
-                "←/→ choice  space toggle  tab navigate  Ctrl+S submit  d debug  q cancel",
+                "←/→ choice  j/k commands  space toggle  Ctrl+S submit  d debug  q cancel",
                 id="custom-gate-footer",
             )
 
@@ -241,6 +244,21 @@ class CustomGateModal(
 
     def action_next_choice(self) -> None:
         self._move_choice(1)
+
+    def action_next_command(self) -> None:
+        extras = self._focus_active_extras()
+        if extras is not None:
+            extras.action_cursor_down()
+
+    def action_previous_command(self) -> None:
+        extras = self._focus_active_extras()
+        if extras is not None:
+            extras.action_cursor_up()
+
+    def action_toggle_command(self) -> None:
+        extras = self._focus_active_extras()
+        if extras is not None:
+            extras.action_select()
 
     def action_submit(self) -> None:
         choice = self._data.choices[self._choice_index]
@@ -286,6 +304,16 @@ class CustomGateModal(
         count = len(self._data.choices)
         self._select_choice((self._choice_index + delta) % count)
         self.query_one(f"#custom-gate-choice-{self._choice_index}", Button).focus()
+
+    def _focus_active_extras(self) -> GateExtrasSelectionList | None:
+        if not self._data.choices[self._choice_index].extras:
+            return None
+        extras = self.query_one(
+            f"#custom-gate-extras-{self._choice_index}",
+            GateExtrasSelectionList,
+        )
+        extras.focus(scroll_visible=False)
+        return extras
 
     def _select_choice(self, index: int) -> None:
         if index == self._choice_index:
