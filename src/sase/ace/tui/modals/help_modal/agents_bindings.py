@@ -97,11 +97,11 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Panel / Group / Workflow Folding",
+            "Panel / Group / Clan / Workflow Folding",
             [
                 (
                     f"{d(a.expand_or_layout)} / {d(a.hooks_or_collapse)}",
-                    "Expand / collapse focused group (Tools: detail level)",
+                    "Expand / collapse focused group or clan (Tools: detail level)",
                 ),
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
@@ -282,8 +282,9 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Agent Row Glyphs",
             [
+                ("⌂", "Agent clan container"),
                 ("×N", "N steps (collapsed)"),
-                ("×N +M / −M", "M shown / hidden steps"),
+                ("×N +M / −M", "M shown / hidden steps or family members"),
                 ("◆", "Bead-linked agent"),
                 ("↺", "Reverted (changes undone)"),
                 ("↻N", "N attempts / retry depth"),

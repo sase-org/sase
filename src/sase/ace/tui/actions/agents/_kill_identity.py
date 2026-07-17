@@ -183,12 +183,34 @@ class AgentKillIdentityMixin:
             and self._try_remove_agent_rows(identities)  # type: ignore[attr-defined]
         )
 
+        clan_projection_changed = any(
+            agent.identity in identities
+            and (agent.is_clan_container or agent.tree_parent_key)
+            for agent in self._agents_with_children
+        )
+
         self._agents = [a for a in self._agents if a.identity not in identities]  # type: ignore[attr-defined]
         self._agents_with_children = [
             a for a in self._agents_with_children if a.identity not in identities
         ]
+        if clan_projection_changed:
+            from ...models._agent_tree import project_clan_tree
+
+            self._agents_with_children = project_clan_tree(self._agents_with_children)
+            self._agents = project_clan_tree(self._agents)
         if hasattr(self, "_invalidate_agent_panel_cache"):
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
+
+        # A visible clan row is derived from the complete cached member set.
+        # Re-run the local fold/query pipeline after removing one of those
+        # members; projecting the currently-collapsed visible slice alone can
+        # otherwise make a non-empty clan disappear until the next disk load.
+        if (
+            clan_projection_changed and refresh and self.current_tab == "agents"  # type: ignore[attr-defined]
+        ):
+            self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
+            return
+
         self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
 
         if not refresh or self.current_tab != "agents":  # type: ignore[attr-defined]

@@ -292,7 +292,7 @@ class PanelPatchMixin:
             counts = agent_panel_counts(slot.agents, unread)
             widget.border_title = agent_panel_border_title(
                 agent_panel_key,
-                len(slot.agents),
+                counts.total,
                 merge_tag_panels=getattr(self, "_agent_panels_grouped", False),
                 counts=counts,
             )

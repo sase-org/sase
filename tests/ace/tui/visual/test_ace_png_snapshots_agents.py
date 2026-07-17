@@ -232,6 +232,113 @@ def _parallel_family_agents() -> list[Agent]:
     return sort_and_reorder(rows, [])
 
 
+def _clan_tree_agents() -> list[Agent]:
+    generation = "20260717100000"
+    family = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 17, 10, 2, 0),
+        run_start_time=datetime(2026, 7, 17, 10, 2, 0),
+        raw_suffix="20260717100200-family",
+        agent_name="research.family",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        agent_family="research.family",
+        agent_family_role="root",
+        tag="epic",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    family_member = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-family-code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 17, 10, 4, 0),
+        run_start_time=datetime(2026, 7, 17, 10, 4, 0),
+        raw_suffix="20260717100400-family-code",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--code",
+        agent_name="research.family--code",
+        agent_family="research.family",
+        agent_family_role="code",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    workflow = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="visual-research-audit",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 17, 10, 0, 0),
+        stop_time=datetime(2026, 7, 17, 10, 8, 0),
+        raw_suffix="20260717100000-audit",
+        workflow="audit",
+        agent_name="research.audit",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        tag="review",
+    )
+    workflow_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="audit-prompt",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 17, 10, 1, 0),
+        run_start_time=datetime(2026, 7, 17, 10, 1, 0),
+        stop_time=datetime(2026, 7, 17, 10, 7, 0),
+        raw_suffix="20260717100100-audit-prompt",
+        parent_workflow="audit",
+        parent_timestamp=workflow.raw_suffix,
+        step_name="audit",
+        step_type="agent",
+        step_index=0,
+        total_steps=2,
+        llm_provider="claude",
+        model="sonnet",
+    )
+    hidden_step = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="audit-setup",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 17, 10, 0, 30),
+        run_start_time=datetime(2026, 7, 17, 10, 0, 30),
+        stop_time=datetime(2026, 7, 17, 10, 0, 45),
+        raw_suffix="20260717100030-audit-setup",
+        parent_workflow="audit",
+        parent_timestamp=workflow.raw_suffix,
+        step_name="setup",
+        step_type="bash",
+        step_index=1,
+        total_steps=2,
+        is_hidden_step=True,
+    )
+    waiting = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-research-waiting",
+        project_file="/workspace/sase/visual_project.sase",
+        status="WAITING",
+        start_time=datetime(2026, 7, 17, 10, 3, 0),
+        raw_suffix="20260717100300-waiting",
+        agent_name="research.waiting",
+        agent_clan="research",
+        agent_clan_generation=generation,
+        tag="epic",
+        waiting_for=["research.family"],
+        llm_provider="gemini",
+        model="gemini-pro",
+    )
+    return sort_and_reorder(
+        [family, family_member, workflow, waiting],
+        [workflow_step, hidden_step],
+    )
+
+
 def _runner_slot_wait_agents() -> list[Agent]:
     return [
         Agent(
@@ -412,6 +519,56 @@ async def test_parallel_family_root_counts_png_snapshot(
             page,
             "agents_parallel_family_counts_120x40",
             title="ACE parallel family aggregate counts",
+        )
+
+
+async def test_clan_tree_fold_levels_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
+    patch_startup_loaders(monkeypatch, agents=_clan_tree_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[0].is_clan_container is True
+        assert page.app._agents[0].clan_tags == ("epic", "review")
+        assert_page_svg_contains(page, "⌂")
+        assert_page_svg_contains(page, "research")
+        assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
+        assert_page_svg_contains(page, "@epic")
+        assert_page_svg_contains(page, "@review")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_tree_collapsed_120x40",
+            title="ACE clan tree collapsed",
+        )
+
+        await page.press("l")
+        await page.expect_state("agent_count", 5)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "research.family")
+        assert_page_svg_contains(page, "research.audit")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_tree_expanded_120x40",
+            title="ACE clan tree expanded",
+        )
+
+        await page.press("l")
+        await page.expect_state("agent_count", 7)
+        await wait_for_visual_idle(page)
+        assert_page_svg_contains(page, "research.family--code")
+        assert_page_svg_contains(page, "setup")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_tree_fully_expanded_120x40",
+            title="ACE clan tree fully expanded",
         )
 
 

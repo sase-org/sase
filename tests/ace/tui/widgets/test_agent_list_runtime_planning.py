@@ -517,5 +517,7 @@ def test_workflow_root_aggregates_active_plan_and_code_children() -> None:
     ts, elapsed = compute_row_runtime(parent, now=now)
 
     assert ts is None
-    assert elapsed == "20m04s"
+    # The core interval union excludes the plan-review pause between the
+    # planner submission and code launch instead of charging it as runtime.
+    assert elapsed == "4m10s"
     assert runtime_suffix_ticks(parent) is True

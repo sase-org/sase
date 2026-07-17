@@ -1,0 +1,202 @@
+"""Agents-tab projection and fold behavior for rootless clans."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from sase.ace.tui.models._agent_tree import (
+    agent_fold_key,
+    project_clan_tree,
+)
+from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_groups import build_agent_tree
+from sase.ace.tui.models.fold_state import FoldStateManager
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
+
+_GENERATION = "20260717100000"
+
+
+def _agent(
+    name: str,
+    suffix: str,
+    *,
+    agent_type: AgentType = AgentType.RUNNING,
+    status: str = "RUNNING",
+    parent_timestamp: str | None = None,
+    parent_workflow: str | None = None,
+    step_type: str | None = None,
+    hidden: bool = False,
+    clan: str | None = "research",
+    generation: str | None = _GENERATION,
+    tag: str | None = None,
+) -> Agent:
+    return Agent(
+        agent_type=agent_type,
+        cl_name=name,
+        project_file="/tmp/sase.sase",
+        status=status,
+        start_time=datetime(2026, 7, 17, 10, 0, 0),
+        run_start_time=datetime(2026, 7, 17, 10, 0, 0),
+        raw_suffix=suffix,
+        agent_name=name,
+        parent_timestamp=parent_timestamp,
+        parent_workflow=parent_workflow,
+        step_type=step_type,
+        is_hidden_step=hidden,
+        agent_clan=clan,
+        agent_clan_generation=generation,
+        tag=tag,
+    )
+
+
+def test_project_clan_tree_inserts_container_and_three_depths() -> None:
+    family = _agent("research.family", "family", tag="epic")
+    family_member = _agent(
+        "research.family--code",
+        "family-code",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
+        tag="review",
+    )
+    solo = _agent("research.solo", "solo", status="DONE", tag="review")
+
+    projected = project_clan_tree([family, family_member, solo])
+
+    container = projected[0]
+    assert container.is_clan_container is True
+    assert container.display_name == "research"
+    assert container.agent_clan_generation == _GENERATION
+    assert container.clan_tags == ("epic", "review")
+    assert container.runtime_children == [family, solo]
+    assert projected == [container, family, family_member, solo]
+    assert [row.tree_depth for row in projected] == [0, 1, 2, 1]
+    assert {row.tree_parent_key for row in projected[1:]} == {agent_fold_key(container)}
+
+
+def test_project_clan_tree_keeps_generations_separate() -> None:
+    old = _agent("research.old", "old", generation="old")
+    new = _agent("research.new", "new", generation="new")
+
+    projected = project_clan_tree([new, old])
+
+    containers = [row for row in projected if row.is_clan_container]
+    assert [row.agent_clan_generation for row in containers] == ["new", "old"]
+    assert containers[0].runtime_children == [new]
+    assert containers[1].runtime_children == [old]
+    assert new.tree_parent_key == agent_fold_key(containers[0])
+    assert old.tree_parent_key == agent_fold_key(containers[1])
+
+
+def test_clan_tree_does_not_invent_a_changespec_banner_from_one_member() -> None:
+    one = _agent("first-changespec", "one")
+    two = _agent("second-changespec", "two")
+    projected = project_clan_tree([one, two])
+
+    group_keys = [
+        entry.group.group_key
+        for entry in build_agent_tree(projected)
+        if entry.group is not None
+    ]
+
+    assert group_keys == [("tmp",)]
+
+
+def test_clan_fold_walks_collapsed_expanded_and_fully_expanded() -> None:
+    family = _agent("research.family", "family")
+    family_member = _agent(
+        "research.family--code",
+        "family-code",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    workflow = _agent(
+        "research.workflow",
+        "workflow",
+        agent_type=AgentType.WORKFLOW,
+    )
+    workflow_step = _agent(
+        "prompt",
+        "workflow-step",
+        agent_type=AgentType.WORKFLOW,
+        parent_timestamp=workflow.raw_suffix,
+        parent_workflow="visual-workflow",
+        step_type="agent",
+        clan=None,
+        generation=None,
+    )
+    hidden_step = _agent(
+        "setup",
+        "workflow-hidden",
+        agent_type=AgentType.WORKFLOW,
+        parent_timestamp=workflow.raw_suffix,
+        parent_workflow="visual-workflow",
+        step_type="bash",
+        hidden=True,
+        clan=None,
+        generation=None,
+    )
+    projected = project_clan_tree(
+        [family, family_member, workflow, workflow_step, hidden_step]
+    )
+    container = projected[0]
+    fold_key = agent_fold_key(container)
+    assert fold_key is not None
+    manager = FoldStateManager()
+
+    collapsed, counts = filter_agents_by_fold_state(projected, manager)
+    assert collapsed == [container]
+    assert counts[fold_key] == (3, 2)
+    assert _compute_fold_annotation(container, counts, set()) == " ×5"
+
+    manager.expand(fold_key)
+    expanded, counts = filter_agents_by_fold_state(projected, manager)
+    assert expanded == [container, family, workflow, workflow_step]
+    assert _compute_fold_annotation(container, counts, {fold_key}) == " ×5 −2"
+
+    manager.expand(fold_key)
+    fully_expanded, counts = filter_agents_by_fold_state(projected, manager)
+    assert fully_expanded == projected
+    assert (
+        _compute_fold_annotation(container, counts, {fold_key}, {fold_key}) == " ×5 +2"
+    )
+
+
+def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
+    family = _agent("research.family", "family", tag="epic")
+    family_member = _agent(
+        "research.family--code",
+        "family-code",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    container, family, family_member = project_clan_tree([family, family_member])
+
+    container_text, _, _ = format_agent_option(
+        container,
+        0,
+        is_selected=False,
+        fold_annotation=" ×2",
+        now=datetime(2026, 7, 17, 10, 5, 0),
+    )
+    family_text, _, _ = format_agent_option(
+        family,
+        1,
+        is_selected=False,
+        now=datetime(2026, 7, 17, 10, 5, 0),
+    )
+    member_text, _, _ = format_agent_option(
+        family_member,
+        2,
+        is_selected=False,
+        now=datetime(2026, 7, 17, 10, 5, 0),
+    )
+
+    assert container_text.plain.startswith("⌂ research @epic (RUNNING) ×2 [R1]")
+    assert family_text.plain.startswith("  └─ research.family")
+    assert family_member.tree_depth == 2
+    assert member_text.plain.startswith("  │  └─ research.family--code")

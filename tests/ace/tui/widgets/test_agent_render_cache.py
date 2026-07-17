@@ -104,6 +104,28 @@ def test_cached_family_root_aggregates_members_once_per_render_attempt(
     assert calls == 1
 
 
+def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
+    cache = AgentRenderCache()
+    clan = _agent(status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.agent_clan_generation = "generation"
+    clan.clan_tags = ("epic",)
+
+    before = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    clan.clan_tags = ("epic", "review")
+    after_tag = cached_format_agent_option(cache, clan, 0, is_selected=False, now=None)
+    clan.tree_depth = 1
+    after_depth = cached_format_agent_option(
+        cache, clan, 0, is_selected=False, now=None
+    )
+
+    assert before[0] is not after_tag[0]
+    assert after_tag[0] is not after_depth[0]
+    assert "@review" not in before[0].plain
+    assert "@review" in after_tag[0].plain
+
+
 def test_invalidate_agent_drops_only_that_identity() -> None:
     cache = AgentRenderCache()
     a = _agent(cl_name="alpha")

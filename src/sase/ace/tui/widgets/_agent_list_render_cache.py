@@ -113,8 +113,11 @@ def _runtime_signature(
         agent.run_start_time,
         agent.stop_time,
         tuple(agent.plan_times),
+        tuple(agent.feedback_times),
         agent.code_time,
         tuple(agent.questions_times),
+        agent.question_response_path,
+        agent.runner_slot_yielded,
         child_signature,
         getattr(wait_agent, "wait_until", None),
         getattr(wait_agent, "wait_duration", None),
@@ -169,6 +172,12 @@ def agent_render_key(
         agent.approve,
         agent.auto_approve_plan_action,
         agent.tag,
+        agent.agent_clan,
+        agent.agent_clan_generation,
+        agent.is_clan_container,
+        agent.tree_parent_key,
+        agent.tree_depth,
+        agent.clan_tags,
         agent.agent_name,
         tuple(wait_agent.waiting_for),
         wait_deps_satisfied,
@@ -222,7 +231,17 @@ def banner_render_key(
     of the key because they affect the rendered Option directly.
     """
     member_sig = tuple(
-        (a.identity, a.status, a.hidden, a.is_workflow_child) for a in agents
+        (
+            a.identity,
+            a.status,
+            a.hidden,
+            a.is_workflow_child,
+            a.is_clan_container,
+            a.tree_parent_key,
+            a.tree_depth,
+            tuple((child.identity, child.status) for child in a.runtime_children),
+        )
+        for a in agents
     )
     return (
         group.group_key,

@@ -60,7 +60,7 @@ def test_format_agent_option_live_suffix_has_runtime_marker(
     assert suffix.plain == expected
 
 
-def test_format_agent_option_aggregate_parent_uses_child_sum() -> None:
+def test_format_agent_option_aggregate_parent_uses_interval_union() -> None:
     parent = agent(
         agent_type=AgentType.WORKFLOW,
         status="PLAN APPROVED",
@@ -91,6 +91,38 @@ def test_format_agent_option_aggregate_parent_uses_child_sum() -> None:
     )
 
     assert suffix.plain == "🏃‍♂️ 6m01s"
+
+
+def test_format_agent_option_aggregate_parent_does_not_double_count_overlap() -> None:
+    parent = agent(
+        agent_type=AgentType.WORKFLOW,
+        status="DONE",
+        start=datetime(2026, 7, 17, 10, 0, 0),
+    )
+    first = agent(
+        status="DONE",
+        start=datetime(2026, 7, 17, 10, 0, 0),
+        run_start=datetime(2026, 7, 17, 10, 0, 0),
+        stop=datetime(2026, 7, 17, 10, 10, 0),
+        raw_suffix="first",
+    )
+    second = agent(
+        status="DONE",
+        start=datetime(2026, 7, 17, 10, 5, 0),
+        run_start=datetime(2026, 7, 17, 10, 5, 0),
+        stop=datetime(2026, 7, 17, 10, 15, 0),
+        raw_suffix="second",
+    )
+    parent.runtime_children.extend([first, second])
+
+    _, suffix, _ = format_agent_option(
+        parent,
+        0,
+        is_selected=False,
+        now=datetime(2026, 7, 17, 10, 20, 0),
+    )
+
+    assert suffix.plain == "10:15:00 · 15m"
 
 
 def test_format_agent_option_finished_suffix_has_timestamp_and_elapsed() -> None:

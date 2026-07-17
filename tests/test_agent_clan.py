@@ -45,6 +45,7 @@ def test_clan_aggregation_keys_members_on_agent_clan() -> None:
 
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:
     container = _agent("research", "RUNNING", suffix=None)
+    container.is_clan_container = True
     one = _agent("research.one", "RUNNING", suffix="one")
     two = _agent("research.two", "WAITING", suffix="two")
     agents = [container, one, two]

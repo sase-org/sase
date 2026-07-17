@@ -62,6 +62,8 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
 
 def clan_members(agent: Agent) -> tuple[Agent, ...]:
     """Return already-loaded members belonging to ``agent``'s clan container."""
+    if agent.is_clan_container:
+        return tuple(agent.runtime_children)
     clan = agent.agent_clan
     if clan:
         return tuple(
@@ -109,10 +111,14 @@ def agent_summary_status_counts(
 ) -> _AgentSummaryStatusCounts:
     """Project clan containers into the status counts used by summaries."""
     total = stopped = running = waiting = failed = unread = done = 0
+    seen: set[tuple[AgentType, str, str | None]] = set()
     for agent in agents:
         members = clan_members(agent)
         projected_agents = members or (agent,)
         for projected_agent in projected_agents:
+            if projected_agent.identity in seen:
+                continue
+            seen.add(projected_agent.identity)
             total += 1
             bucket = status_bucket_for_values(projected_agent.status)
             is_unread = projected_agent.identity in unread_ids

@@ -14,6 +14,7 @@ from datetime import datetime
 
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -210,6 +211,44 @@ def test_l_expands_running_parent_with_family_child() -> None:
 
     assert app._fold_manager.get("parent-ts") is FoldLevel.EXPANDED
     assert app.refilter_calls == 1
+
+
+def test_clan_l_l_h_h_walks_all_three_fold_levels() -> None:
+    first = _agent(raw_suffix="first")
+    first.agent_clan = "research"
+    first.agent_clan_generation = "generation"
+    second = _agent(raw_suffix="second")
+    second.agent_clan = "research"
+    second.agent_clan_generation = "generation"
+    projected = project_clan_tree([first, second])
+    app = _StubApp(projected)
+    key = agent_fold_key(projected[0])
+    assert key is not None
+
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(key) is FoldLevel.EXPANDED
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(key) is FoldLevel.FULLY_EXPANDED
+    app.action_hooks_or_collapse()
+    assert app._fold_manager.get(key) is FoldLevel.EXPANDED
+    app.action_hooks_or_collapse()
+    assert app._fold_manager.get(key) is FoldLevel.COLLAPSED
+
+
+def test_h_on_expanded_clan_member_reanchors_the_container() -> None:
+    member = _agent(raw_suffix="member")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    projected = project_clan_tree([member])
+    app = _StubApp(projected, current_idx=1)
+    key = agent_fold_key(projected[0])
+    assert key is not None
+    app._fold_manager.expand(key)
+
+    app.action_hooks_or_collapse()
+
+    assert app._fold_manager.get(key) is FoldLevel.COLLAPSED
+    assert app.current_idx == 0
 
 
 def test_per_workflow_h_runs_before_group_collapse() -> None:

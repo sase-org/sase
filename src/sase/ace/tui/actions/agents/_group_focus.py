@@ -57,12 +57,14 @@ def get_focused_agent_group(owner: Any) -> GroupRow | None:
 
 def top_level_group_agents(group: GroupRow, agents: list[Agent]) -> list[Agent]:
     """Return non-workflow-child agents covered by ``group`` in tree order."""
+    from ...models._agent_tree import agent_is_tree_child
+
     members: list[Agent] = []
     for idx in group.agent_indices:
         if not (0 <= idx < len(agents)):
             continue
         agent = agents[idx]
-        if agent.is_workflow_child:
+        if agent_is_tree_child(agent):
             continue
         members.append(agent)
     return members

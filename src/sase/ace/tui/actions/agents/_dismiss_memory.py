@@ -129,6 +129,10 @@ class AgentDismissMemoryMixin:
             for a in self._agents_with_children
             if a.identity not in removed_identities
         ]
+        if any(agent.is_clan_container or agent.tree_parent_key for agent in removed):
+            from ...models._agent_tree import project_clan_tree
+
+            self._agents_with_children = project_clan_tree(self._agents_with_children)
 
         # Append to dismissed objects list for same-session revive.
         existing_identities = {a.identity for a in self._dismissed_agent_objects}

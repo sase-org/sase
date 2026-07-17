@@ -18,17 +18,24 @@ def clan_members_for_container(
     rootless synthetic row (no artifact suffix) activates the new cascade.
     The legacy branch preserves archived parallel-family root behavior.
     """
-    if container.agent_clan and container.raw_suffix is None:
+    if container.is_clan_container and container.agent_clan:
+        from ...models._agent_tree import agent_fold_key
+
+        container_key = agent_fold_key(container)
         return [
             candidate
             for candidate in agents_with_children
             if candidate.identity != container.identity
-            and candidate.agent_clan == container.agent_clan
+            and (
+                candidate.tree_parent_key == container_key
+                or candidate.agent_clan == container.agent_clan
+            )
             and (
                 container.agent_clan_generation is None
+                or candidate.agent_clan_generation is None
                 or candidate.agent_clan_generation == container.agent_clan_generation
             )
-            and candidate.parent_workflow is None
+            and not candidate.is_clan_container
         ]
     if (
         container.is_workflow_child

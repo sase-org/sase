@@ -40,7 +40,9 @@ def plan_bulk_kill_cleanup_side_effects(
         identities=identities,
     )
     return plan_agent_cleanup(
-        agents_to_cleanup_targets(agents_with_children_snapshot),
+        agents_to_cleanup_targets(
+            [a for a in agents_with_children_snapshot if not a.is_clan_container]
+        ),
         request,
     )
 
@@ -75,6 +77,8 @@ def plan_single_agent_kill_cleanup(
         include_pidless_as_dismissable=True,
     )
     return plan_agent_cleanup(
-        agents_to_cleanup_targets(agents_with_children_snapshot),
+        agents_to_cleanup_targets(
+            [a for a in agents_with_children_snapshot if not a.is_clan_container]
+        ),
         request,
     )

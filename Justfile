@@ -204,7 +204,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-6k(ChartData)' \
         --epic-symbol 'sase-6k(DashboardData)' \
         --epic-symbol 'sase-6k(load_dashboard_data)' \
-        --epic-symbol 'sase-6n(aggregate_clan_runtime)' \
         --epic-symbol 'sase-6n(set_prompt_clan)' \
         {{ args }}
 

@@ -25,21 +25,18 @@ from dataclasses import dataclass, field
 from typing import cast
 
 from .agent import Agent
+from ._agent_tree import tree_parent, tree_parent_lookup
 
 #: Panel key type — ``None`` for the untagged panel; a tag string otherwise.
 PanelKey = str | None
 
 
 def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:
-    return {a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child}
+    return tree_parent_lookup(agents)
 
 
 def _panel_key_for_agent(agent: Agent, parent_lookup: dict[str, Agent]) -> PanelKey:
-    target = agent
-    if agent.is_workflow_child and agent.parent_timestamp:
-        parent = parent_lookup.get(agent.parent_timestamp)
-        if parent is not None:
-            target = parent
+    target = tree_parent(agent, parent_lookup) or agent
     return target.tag if target.tag else None
 
 

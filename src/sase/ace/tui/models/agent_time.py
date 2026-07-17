@@ -1,10 +1,12 @@
 """Time/duration formatting helpers for the Agent model."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sase.core.time import get_timezone, local_now
+from sase.core.agent_runtime_facade import aggregate_clan_runtime
+from sase.core.agent_runtime_wire import ClanRuntimeMemberWire
 from sase.agent.status_buckets import (
     ACTIVE_PLAN_HANDOFF_STATUSES,
     APPROVED_PLAN_STATUSES,
@@ -338,26 +340,70 @@ def _aggregate_runtime(
     if not children:
         return None
 
-    elapsed_seconds = 0.0
-    active = False
+    runtime_members: list[ClanRuntimeMemberWire] = []
     terminal_times: list[datetime] = []
-    contributed = False
-    for child in children:
-        interval = _runtime_interval(child, now, seen)
-        if interval is None:
-            continue
-        contributed = True
-        elapsed_seconds += interval.elapsed_seconds
-        active = active or interval.active
-        if interval.terminal_time is not None:
-            terminal_times.append(interval.terminal_time)
 
-    if not contributed:
+    def timestamp(value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.isoformat()
+
+    def append_runtime_member(child: "Agent") -> None:
+        child_id = id(child)
+        if child_id in seen:
+            return
+        seen.add(child_id)
+        grandchildren = getattr(child, "runtime_children", ())
+        if grandchildren:
+            for grandchild in grandchildren:
+                append_runtime_member(grandchild)
+            return
+        terminal = _row_runtime_terminal_time(child)
+        if terminal is not None:
+            terminal_times.append(terminal)
+        pending_question = (
+            max(child.questions_times)
+            if child.questions_times
+            and child.question_response_path is None
+            and (
+                child.runner_slot_yielded
+                or child.status in {"QUESTION", "WAITING INPUT"}
+            )
+            else None
+        )
+        runtime_members.append(
+            ClanRuntimeMemberWire(
+                run_started_at=timestamp(
+                    child.run_start_time or (child.start_time if terminal else None)
+                ),
+                stopped_at=timestamp(terminal),
+                plan_submitted_at=[
+                    timestamp(value) or "" for value in child.plan_times
+                ],
+                feedback_submitted_at=[
+                    timestamp(value) or "" for value in child.feedback_times
+                ],
+                plan_approved=child.status in APPROVED_PLAN_STATUSES,
+                questions_submitted_at=[
+                    timestamp(value) or "" for value in child.questions_times
+                ],
+                question_response_path=child.question_response_path,
+                pending_question_submitted_at=timestamp(pending_question),
+            )
+        )
+
+    for child in children:
+        append_runtime_member(child)
+
+    if not runtime_members:
         return None
+    runtime = aggregate_clan_runtime(runtime_members, now=now)
     return _RuntimeInterval(
-        elapsed_seconds=elapsed_seconds,
-        terminal_time=None if active else max(terminal_times, default=None),
-        active=active,
+        elapsed_seconds=runtime.wall_clock_seconds,
+        terminal_time=None if runtime.active else max(terminal_times, default=None),
+        active=runtime.active,
     )
 
 

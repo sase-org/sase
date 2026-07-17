@@ -70,6 +70,12 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         elif not on_agents_tab:
             selected_identity = getattr(self, "_agents_last_identity", None)
 
+        # Rebuild the pure synthetic clan projection so optimistic status,
+        # tag, kill, and dismiss mutations cannot leave a stale container.
+        from ...models._agent_tree import project_clan_tree
+
+        self._agents_with_children = project_clan_tree(self._agents_with_children)
+
         # Start from the cached unfiltered list (already has dismiss/hide applied)
         if previous_agents is None:
             previous_agents = self._snapshot_agents_for_local_display()

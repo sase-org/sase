@@ -9,6 +9,12 @@ from pathlib import Path
 
 from sase.agent.status_buckets import status_bucket_for_values
 from ._agent_clan import agent_summary_status_counts
+from ._agent_tree import (
+    agent_is_tree_child,
+    agent_tree_depth,
+    tree_parent,
+    tree_parent_lookup,
+)
 from .agent import Agent, AgentType, compute_row_runtime
 from .agent_panels import PanelKey
 
@@ -92,20 +98,22 @@ def _root_for_agent(agent: Agent, by_suffix: dict[str, Agent]) -> Agent | None:
     """Resolve the available top-level ancestor of ``agent`` without I/O."""
     current = agent
     seen: set[int] = set()
-    while current.is_child_row and current.parent_timestamp:
+    while agent_is_tree_child(current):
         current_id = id(current)
         if current_id in seen:
             return None
         seen.add(current_id)
-        parent = by_suffix.get(current.parent_timestamp)
+        parent = tree_parent(current, by_suffix)
         if parent is None:
             return None
         current = parent
-    return current if not current.is_child_row else None
+    return current if not agent_is_tree_child(current) else None
 
 
 def _row_depth(agent: Agent, by_suffix: dict[str, Agent]) -> int:
     """Return the nesting depth represented by already-loaded parent links."""
+    if agent.tree_depth:
+        return agent_tree_depth(agent)
     if not agent.is_child_row:
         return 0
     depth = 1
@@ -134,12 +142,12 @@ def _ordered_roster_agents(
     retained within each bucket, and every child stays in its root's block even
     when its own exact status differs from the root's projected status.
     """
-    by_suffix = {agent.raw_suffix: agent for agent in agents if agent.raw_suffix}
+    by_suffix = tree_parent_lookup(agents)
     blocks: list[tuple[Agent, list[Agent]]] = []
     block_by_root_id: dict[int, list[Agent]] = {}
 
     for agent in agents:
-        if agent.is_child_row:
+        if agent_is_tree_child(agent):
             continue
         root_block: list[Agent] = []
         block_by_root_id[id(agent)] = root_block
@@ -175,6 +183,8 @@ def _ordered_roster_agents(
 
 def _loaded_display_name(agent: Agent) -> str:
     """Project an agent name using only metadata already on the row."""
+    if agent.is_clan_container:
+        return agent.display_name
     if (
         agent.agent_type == AgentType.WORKFLOW
         and not agent.appears_as_agent
@@ -240,7 +250,7 @@ def build_agent_panel_summary_snapshot(
     now: datetime | None = None,
 ) -> AgentPanelSummarySnapshot:
     """Build a complete collapsed-panel snapshot from in-memory row data."""
-    top_level_agents = [agent for agent in agents if not agent.is_child_row]
+    top_level_agents = [agent for agent in agents if not agent_is_tree_child(agent)]
     projected = agent_summary_status_counts(top_level_agents, unread_ids)
     counts = _AgentPanelSummaryCounts(
         stopped=projected.stopped,
@@ -251,7 +261,7 @@ def build_agent_panel_summary_snapshot(
         done=projected.done,
     )
 
-    by_suffix = {agent.raw_suffix: agent for agent in agents if agent.raw_suffix}
+    by_suffix = tree_parent_lookup(agents)
     rows: list[AgentPanelSummaryRow] = []
     for agent, block_root in _ordered_roster_agents(agents, unread_ids):
         display_name = _loaded_display_name(agent)
@@ -273,7 +283,7 @@ def build_agent_panel_summary_snapshot(
             )
         )
 
-    root_count = sum(not agent.is_child_row for agent in agents)
+    root_count = sum(not agent_is_tree_child(agent) for agent in agents)
     entry_count = len(agents)
     return AgentPanelSummarySnapshot(
         panel_key=panel_key,

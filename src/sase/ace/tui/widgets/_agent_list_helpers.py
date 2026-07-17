@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from ..models._agent_clan import clan_members
+from ..models._agent_tree import agent_fold_key
 from ..models.agent import Agent, AgentType
 
 
@@ -55,9 +56,15 @@ def ordered_row_providers(agent: Agent) -> tuple[str, ...]:
 
 def _is_foldable_parent(agent: Agent) -> bool:
     """Check if an agent is a foldable parent (workflow)."""
-    if agent.is_workflow_child:
+    if agent.tree_parent_key:
         return False
-    if agent.agent_type == AgentType.WORKFLOW or clan_members(agent):
+    if agent.is_workflow_child and not agent.is_clan_container:
+        return False
+    if (
+        agent.is_clan_container
+        or agent.agent_type == AgentType.WORKFLOW
+        or clan_members(agent)
+    ):
         return True
     return False
 
@@ -89,13 +96,14 @@ def compute_fold_annotation(
         Annotation string, or empty string if not applicable.
     """
     attempts_count = len(agent.attempt_history)
-    if _is_foldable_parent(agent) and fold_counts and agent.raw_suffix:
-        counts = fold_counts.get(agent.raw_suffix)
+    fold_key = agent_fold_key(agent)
+    if _is_foldable_parent(agent) and fold_counts and fold_key:
+        counts = fold_counts.get(fold_key)
         if counts:
             non_hidden, hidden = counts
             total = non_hidden + hidden
             if total > 0:
-                has_visible_children = agent.raw_suffix in parents_with_visible_children
+                has_visible_children = fold_key in parents_with_visible_children
                 suffix = _attempt_count_suffix(attempts_count)
                 if not has_visible_children:
                     if (
@@ -108,7 +116,7 @@ def compute_fold_annotation(
                     return f" ×{total}{suffix}"
                 is_fully_expanded = (
                     fully_expanded_parents is not None
-                    and agent.raw_suffix in fully_expanded_parents
+                    and fold_key in fully_expanded_parents
                 )
                 if hidden > 0 and is_fully_expanded:
                     return f" ×{total} +{hidden}{suffix}"

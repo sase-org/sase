@@ -99,6 +99,8 @@ class Agent(AgentState):
         Top-level workflow entries show the workflow name (e.g. "refresh_cl_desc")
         instead of the ChangeSpec name, since that's what the user cares about.
         """
+        if self.is_clan_container and self.agent_clan:
+            return self.agent_clan
         if (
             self.agent_type == AgentType.WORKFLOW
             and not self.appears_as_agent
@@ -235,6 +237,12 @@ class Agent(AgentState):
     @property
     def identity(self) -> tuple["AgentType", str, str | None]:
         """Unique identifier for this agent instance."""
+        if self.is_clan_container and self.agent_clan:
+            return (
+                AgentType.RUNNING,
+                f"clan:{self.agent_clan}",
+                self.agent_clan_generation,
+            )
         return (self.agent_type, self.cl_name, self.raw_suffix)
 
     @property
@@ -294,6 +302,8 @@ class Agent(AgentState):
         RUNNING agents, plus WORKFLOW entries that appear as agents
         and workflow child steps of type ``agent``.
         """
+        if self.is_clan_container:
+            return False
         if self.agent_type == AgentType.RUNNING:
             return True
         if self.agent_type == AgentType.WORKFLOW:
@@ -306,6 +316,8 @@ class Agent(AgentState):
     @property
     def is_project_agent(self) -> bool:
         """Check if this agent runs against a project (not a specific ChangeSpec)."""
+        if self.is_clan_container:
+            return False
         if not self.project_file:
             return False
         project_name = Path(self.project_file).parent.name

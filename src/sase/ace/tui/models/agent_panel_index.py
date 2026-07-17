@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from .agent import Agent
+from ._agent_tree import agent_is_tree_child
 from .agent_panels import (
     PanelKey,
     agent_is_rendered_in_agents_panel,
@@ -87,11 +88,11 @@ def build_agent_panel_index(
     non_child_indices: list[int] = []
     hidden_starting_indices: list[int] = []
     dismissable = set(dismissable_statuses)
-    completed_count = 0
+    completed_identities: set[tuple[object, str, str | None]] = set()
     for i, agent in enumerate(agents):
         key = keys_per_agent[i]
         if not agent_is_rendered_in_agents_panel(agent):
-            if not agent.is_workflow_child:
+            if not agent_is_tree_child(agent):
                 hidden_starting_indices.append(i)
             continue
         slot = panels.get(key)
@@ -102,14 +103,18 @@ def build_agent_panel_index(
         slot.agents.append(agent)
         slot.global_indices.append(i)
         slot.global_to_local[i] = local
-        if not agent.is_workflow_child:
+        if not agent_is_tree_child(agent):
             non_child_indices.append(i)
-        if agent.status in dismissable:
-            completed_count += 1
+        completed_candidates = (
+            tuple(agent.runtime_children) if agent.is_clan_container else (agent,)
+        )
+        for candidate in completed_candidates:
+            if candidate.status in dismissable:
+                completed_identities.add(candidate.identity)
     return AgentPanelIndex(
         keys_per_agent=keys_per_agent,
         panels=panels,
         non_child_indices=non_child_indices,
-        completed_count=completed_count,
+        completed_count=len(completed_identities),
         hidden_starting_indices=hidden_starting_indices,
     )

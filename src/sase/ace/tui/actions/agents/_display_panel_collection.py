@@ -92,11 +92,12 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         selection_hint = None
         if getattr(self, "_panel_fold_hint_mode_active", False):
             selection_hint = getattr(self, "_panel_fold_key_to_hint", {}).get(key)
+        counts = agent_panel_counts(panel_agents, unread)
         return agent_panel_border_title(
             key,
-            len(panel_agents),
+            counts.total,
             merge_tag_panels=merge_tag_panels,
-            counts=agent_panel_counts(panel_agents, unread),
+            counts=counts,
             collapsed=panel_collapsed,
             jump_hint=(
                 panel_jump_hints.get(("panel", key))

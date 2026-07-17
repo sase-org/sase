@@ -65,10 +65,15 @@ class AgentFoldingMixin:
         Returns:
             The workflow raw_suffix key, or None if not a foldable agent.
         """
+        from ...models._agent_tree import agent_fold_key
+
+        if agent.is_clan_container or agent.tree_parent_key:
+            return agent_fold_key(agent)
         if agent.is_child_row and agent.parent_timestamp:
             return agent.parent_timestamp
-        if not agent.is_child_row and agent.raw_suffix in self._fold_counts:
-            return agent.raw_suffix
+        fold_key = agent_fold_key(agent)
+        if not agent.is_child_row and fold_key in self._fold_counts:
+            return fold_key
         return None
 
     def _active_grouping_mode(self) -> GroupingMode:
@@ -301,7 +306,17 @@ class AgentFoldingMixin:
                     key is not None
                     and self._fold_manager.get(key) != FoldLevel.COLLAPSED
                 ):
-                    if agent.is_workflow_child and agent.parent_timestamp:
+                    if agent.tree_parent_key:
+                        if self._fold_manager.get(key) == FoldLevel.EXPANDED:
+                            for idx, candidate in enumerate(self._agents):
+                                if (
+                                    candidate.is_clan_container
+                                    and self._get_workflow_key_for_agent(candidate)
+                                    == key
+                                ):
+                                    self.current_idx = idx
+                                    break
+                    elif agent.is_workflow_child and agent.parent_timestamp:
                         if self._fold_manager.get(key) == FoldLevel.EXPANDED:
                             for idx, a in enumerate(self._agents):
                                 if (

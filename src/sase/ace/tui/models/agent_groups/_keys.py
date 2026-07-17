@@ -10,6 +10,7 @@ from sase.core.time import local_now
 from sase.plan_chain import agent_family_base, canonical_plan_chain_suffix
 
 from ..agent import Agent
+from .._agent_tree import tree_parent, tree_parent_lookup
 from ._buckets import (
     NO_PROJECT,
     GroupingMode,
@@ -31,6 +32,8 @@ def _agent_family_base_from_row(agent: Agent, name: str) -> str | None:
 
 def _grouping_name(agent: Agent) -> str:
     """Return the effective name used for root/prefix grouping."""
+    if agent.is_clan_container:
+        return ""
     if agent.agent_family:
         return agent.agent_family
 
@@ -116,6 +119,8 @@ def _changespec_name_for_grouping(agent: Agent) -> str:
     display/identity, but that value is not a ChangeSpec and should not create
     a duplicate project-name bucket under the project banner.
     """
+    if agent.is_clan_container:
+        return ""
     if agent.is_project_agent:
         return ""
     return agent.cl_name or ""
@@ -191,11 +196,7 @@ def grouping_keys_for(
     sub-unit, so the bucket renders as a flat list sorted by
     ``start_time``.
     """
-    target = agent
-    if agent.is_workflow_child and agent.parent_timestamp:
-        parent = parent_lookup.get(agent.parent_timestamp)
-        if parent is not None:
-            target = parent
+    target = tree_parent(agent, parent_lookup) or agent
     reference = now if now is not None else local_now()
     l0 = _l0_value_for(target, mode, reference)
     return _GroupingKeys(
@@ -223,9 +224,7 @@ def grouping_keys_for_agents(
     now: datetime | None = None,
 ) -> list[_GroupingKeys]:
     """Public-ish helper exposing per-agent grouping keys."""
-    parent_lookup: dict[str, Agent] = {
-        a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
-    }
+    parent_lookup = tree_parent_lookup(agents)
     reference = now if now is not None else local_now()
     return [grouping_keys_for(a, parent_lookup, mode, reference) for a in agents]
 
@@ -241,15 +240,9 @@ def panel_uses_changespec_level(
     """
     if mode is not GroupingMode.STANDARD:
         return False
-    parent_lookup: dict[str, Agent] = {
-        a.raw_suffix: a
-        for a in panel_agents
-        if a.raw_suffix and not a.is_workflow_child
-    }
+    parent_lookup = tree_parent_lookup(panel_agents)
     for agent in panel_agents:
-        target = agent
-        if agent.is_workflow_child and agent.parent_timestamp:
-            target = parent_lookup.get(agent.parent_timestamp, agent)
+        target = tree_parent(agent, parent_lookup) or agent
         if _changespec_name_for_grouping(target):
             return True
     return False
@@ -280,13 +273,8 @@ def walk_anchors(
         return [(0.0, 0)] * len(agents)
     out: list[tuple[float, int]] = []
     for agent in agents:
-        target = agent
-        is_child = 0
-        if agent.is_workflow_child and agent.parent_timestamp:
-            parent = parent_lookup.get(agent.parent_timestamp)
-            if parent is not None:
-                target = parent
-                is_child = 1
+        target = tree_parent(agent, parent_lookup) or agent
+        is_child = agent.tree_depth if target is not agent else 0
         anchor_time = hour_anchor_time(target)
         if anchor_time is None:
             anchor = float("inf")

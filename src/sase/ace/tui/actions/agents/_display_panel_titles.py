@@ -14,6 +14,7 @@ from ...agent_count_chip import (
     format_agent_count_chip,
 )
 from ...models._agent_clan import agent_summary_status_counts
+from ...models._agent_tree import agent_is_tree_child
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -37,6 +38,7 @@ _PANEL_METRIC_LABELS: tuple[tuple[str, str], ...] = tuple(
 class AgentPanelCounts:
     """Compact top-level agent counts scoped to one rendered panel."""
 
+    total: int = 0
     asking: int = 0
     running: int = 0
     waiting: int = 0
@@ -58,13 +60,29 @@ def agent_panel_counts(
 ) -> AgentPanelCounts:
     """Return the top-strip metric categories for a single panel slice."""
     visible_top_level_agents = [
-        agent for agent in agents if not agent.is_workflow_child
+        agent for agent in agents if not agent_is_tree_child(agent)
     ]
     projected = agent_summary_status_counts(
         visible_top_level_agents,
         unread_ids,
     )
+    # Ordinary panels retain their rendered-row count (including expanded
+    # workflow/family children). A clan substitutes its direct real members
+    # for the synthetic row and suppresses its presentation descendants so
+    # the panel total remains stable across clan fold levels.
+    if any(agent.is_clan_container for agent in agents):
+        total = sum(
+            len(agent.runtime_children)
+            if agent.is_clan_container
+            else 0
+            if agent.tree_parent_key
+            else 1
+            for agent in agents
+        )
+    else:
+        total = len(agents)
     return AgentPanelCounts(
+        total=total,
         asking=projected.stopped,
         running=projected.running,
         waiting=projected.waiting,

@@ -9,6 +9,7 @@ from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
+from .._agent_tree import agent_is_tree_child, tree_parent_lookup
 from ..agent_panels import panel_key_per_agent
 from ..group_fold import GroupFoldRegistry, GroupFoldView, GroupKey
 from ._buckets import (
@@ -98,11 +99,7 @@ def enumerate_group_keys(
     for indices in panel_to_indices.values():
         panel_agents = [agents[i] for i in indices]
         keys_per_agent = grouping_keys_for_agents(panel_agents, mode, reference)
-        parent_lookup: dict[str, Agent] = {
-            a.raw_suffix: a
-            for a in panel_agents
-            if a.raw_suffix and not a.is_workflow_child
-        }
+        parent_lookup = tree_parent_lookup(panel_agents)
         anchors = walk_anchors(panel_agents, parent_lookup, mode)
         use_cs = panel_uses_changespec_level(panel_agents, mode)
         walk = walk_order(
@@ -198,9 +195,7 @@ def build_agent_tree(
         renderer in order.
     """
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
-    parent_lookup: dict[str, Agent] = {
-        a.raw_suffix: a for a in agents if a.raw_suffix and not a.is_workflow_child
-    }
+    parent_lookup = tree_parent_lookup(agents)
     reference = now if now is not None else local_now()
     keys_per_agent = [
         grouping_keys_for(a, parent_lookup, mode, reference) for a in agents
@@ -405,12 +400,19 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
     running = 0
     failed = 0
     awaiting = 0
+    projected: list[Agent] = []
     for idx in group.agent_indices:
         if idx < 0 or idx >= len(agents):
             continue
         agent = agents[idx]
-        if agent.is_workflow_child:
+        if agent_is_tree_child(agent):
             continue
+        candidates = (
+            tuple(agent.runtime_children) if agent.is_clan_container else (agent,)
+        )
+        projected.extend(candidates)
+
+    for agent in projected:
         count += 1
         bucket = status_bucket_for(agent)
         if bucket == "Running":

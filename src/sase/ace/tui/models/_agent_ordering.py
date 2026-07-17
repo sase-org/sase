@@ -143,9 +143,13 @@ def sort_and_reorder(
             elif suffix in followups_by_parent:
                 # Non-workflow parent with follow-ups
                 result.extend(followups_by_parent.pop(suffix))
-        return result
+        from ._agent_tree import project_clan_tree
 
-    return sorted_agents
+        return project_clan_tree(result)
+
+    from ._agent_tree import project_clan_tree
+
+    return project_clan_tree(sorted_agents)
 
 
 def _clear_runtime_children(

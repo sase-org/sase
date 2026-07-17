@@ -308,6 +308,9 @@ def compute_apply_loaded_agents(
         result_agents = filtered
         hidden_count = 0
 
+    from ...models._agent_tree import project_clan_tree
+
+    result_agents = project_clan_tree(result_agents)
     attach_project_display_names([*result_agents, *dismissed_from_loader])
 
     return PreparedApplyData(

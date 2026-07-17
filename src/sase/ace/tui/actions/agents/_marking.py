@@ -495,6 +495,25 @@ class AgentMarkingMixin:
         prompt stack.
         """
         from ._core import DISMISSABLE_STATUSES
+        from ._clan_cleanup import clan_members_for_container
+
+        # A clan row is a synthetic selection target, never a persistence or
+        # process target. Expand it to its real loaded rows and deduplicate in
+        # tree order so marked/group cleanup uses the same cascade as focused x.
+        expanded_agents: list[Agent] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+        for agent in agents:
+            candidates = (
+                clan_members_for_container(agent, self._agents_with_children)
+                if getattr(agent, "is_clan_container", False)
+                else [agent]
+            )
+            for candidate in candidates:
+                if candidate.identity in seen:
+                    continue
+                seen.add(candidate.identity)
+                expanded_agents.append(candidate)
+        agents = expanded_agents
 
         killable: list[Agent] = [
             a

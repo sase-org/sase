@@ -116,22 +116,9 @@ def _filter_agents_by_query(
             parsed_ast, agent, now=now, content_cache=content_index
         )
 
-    matching_parent_names: set[str] = set()
-    for agent in agents:
-        if not agent.is_workflow_child and _matches(agent):
-            matching_parent_names.add(agent.agent_name or agent.cl_name)
+    from ...models._agent_tree import filter_tree_rows
 
-    return [
-        a
-        for a in agents
-        if (
-            _matches(a)
-            or (
-                a.is_workflow_child
-                and (a.agent_name or a.cl_name) in matching_parent_names
-            )
-        )
-    ]
+    return filter_tree_rows(agents, _matches)
 
 
 def _compute_query_plan(

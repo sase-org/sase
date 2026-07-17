@@ -9,6 +9,7 @@ from unittest.mock import patch
 from sase.ace.tui.actions.agents._kill_action import AgentKillMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -156,6 +157,35 @@ def test_action_kill_routes_to_group_when_banner_focused() -> None:
     assert killed_ids == {a1.identity, a2.identity}
     assert dismissed_ids == set()
     assert a3.identity not in killed_ids
+
+
+def test_action_kill_on_clan_container_cascades_to_real_members() -> None:
+    running = _make_agent(
+        cl_name="research.one",
+        raw_suffix="20260717100001",
+        agent_clan="research",
+        agent_clan_generation="generation",
+        pid=111,
+    )
+    done = _make_agent(
+        cl_name="research.two",
+        raw_suffix="20260717100002",
+        agent_clan="research",
+        agent_clan_generation="generation",
+        status="DONE",
+        pid=None,
+    )
+    projected = project_clan_tree([running, done])
+    container = projected[0]
+    app = _FakeGroupKillApp(projected)
+
+    with patch.object(app, "_do_bulk_kill_agents") as mock_bulk:
+        app.action_kill_agent()
+        app.pushed_callbacks[0](True)
+
+    mock_bulk.assert_called_once_with([running], [done])
+    assert container not in mock_bulk.call_args.args[0]
+    assert "Clan: research (2 agents)" in app.pushed_modals[0].agent_description
 
 
 def test_group_kill_modal_header_includes_group_label_and_count() -> None:

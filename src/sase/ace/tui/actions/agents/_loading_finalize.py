@@ -302,24 +302,9 @@ def finalize_agent_list(
                 parsed_ast, agent, now=now, content_cache=content_index
             )
 
-        # Collect identities of matching parents so children stay visible
-        matching_parent_names: set[str] = set()
-        for agent in app._agents:
-            if not agent.is_workflow_child and _matches(agent):
-                matching_parent_names.add(agent.agent_name or agent.cl_name)
+        from ...models._agent_tree import filter_tree_rows
 
-        app._agents = [
-            a
-            for a in app._agents
-            if (
-                _matches(a)
-                # Or child of a matching parent (preserve hierarchy)
-                or (
-                    a.is_workflow_child
-                    and (a.agent_name or a.cl_name) in matching_parent_names
-                )
-            )
-        ]
+        app._agents = filter_tree_rows(app._agents, _matches)
         # Release cache entries for agents no longer in the list so
         # memory stays bounded across many refresh cycles.
         app._agent_content_search_cache.prune(app._agents)

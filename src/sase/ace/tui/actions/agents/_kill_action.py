@@ -146,6 +146,14 @@ class AgentKillMixin:
         seen: set[tuple[AgentType, str, str | None]] = set()
 
         def add(agent: Agent) -> None:
+            if agent.is_clan_container:
+                from ._clan_cleanup import clan_members_for_container
+
+                for member in clan_members_for_container(
+                    agent, self._agents_with_children
+                ):
+                    add(member)
+                return
             if agent.identity in seen:
                 return
             seen.add(agent.identity)
@@ -316,10 +324,25 @@ class AgentKillMixin:
         )
 
         selected = set(identities)
+        selected_agents: list[Agent] = []
+        seen_selected: set[tuple[AgentType, str, str | None]] = set()
+        from ._clan_cleanup import clan_members_for_container
+
+        for agent in self._agents_with_children:
+            if agent.identity not in selected:
+                continue
+            candidates = (
+                clan_members_for_container(agent, self._agents_with_children)
+                if agent.is_clan_container
+                else [agent]
+            )
+            for candidate in candidates:
+                if candidate.identity in seen_selected:
+                    continue
+                seen_selected.add(candidate.identity)
+                selected_agents.append(candidate)
         selected_wire = tuple(
-            agent_to_cleanup_target(agent).identity
-            for agent in self._agents_with_children
-            if agent.identity in selected
+            agent_to_cleanup_target(agent).identity for agent in selected_agents
         )
         request = AgentCleanupRequestWire(
             schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
@@ -347,6 +370,9 @@ class AgentKillMixin:
         cleanup_targets = list(
             self._agents_with_children if targets is None else targets
         )
+        cleanup_targets = [
+            agent for agent in cleanup_targets if not agent.is_clan_container
+        ]
         plan = plan_agent_cleanup(agents_to_cleanup_targets(cleanup_targets), request)  # type: ignore[arg-type]
         by_wire_identity = {
             agent_to_cleanup_target(agent).identity: agent for agent in cleanup_targets
@@ -434,6 +460,24 @@ class AgentKillMixin:
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if agent.is_clan_container:
+            from ._clan_cleanup import clan_members_for_container
+
+            members = clan_members_for_container(
+                agent,
+                self._agents_with_children,
+            )
+            if not members:
+                self.notify("No agents remain in clan", severity="warning")  # type: ignore[attr-defined]
+                return
+            count = len(members)
+            plural = "s" if count != 1 else ""
+            self._present_bulk_kill_modal(  # type: ignore[attr-defined]
+                members,
+                header=f"Clan: {agent.agent_clan} ({count} agent{plural})",
+            )
             return
 
         cleanup_plan = self._plan_focused_agent_cleanup(agent)  # type: ignore[attr-defined]

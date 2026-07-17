@@ -163,6 +163,18 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
+        if agent.is_clan_container:
+            if marked_count == 0 and not group_focused:
+                bindings.append((x, "kill/dismiss clan"))
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
+                    )
+                )
+            return bindings
+
         bindings.append((self._kd("run_workflow"), "retry"))
 
         # --- Status-dependent actions ---

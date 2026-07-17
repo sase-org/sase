@@ -20,6 +20,7 @@ from ..models._agent_clan import (
     ClanStatusCounts as ParallelFamilyStatusCounts,
     clan_member_counts as parallel_family_member_counts,
 )
+from ..models._agent_tree import agent_is_tree_child, agent_tree_depth
 from ..provider_styles import provider_emoji_badge
 from ..models.agent import (
     Agent,
@@ -53,6 +54,8 @@ from ._agent_list_styling import (
     _BEAD_GLYPH,
     _BEAD_GLYPH_STYLE,
     _CHILD_INDENT,
+    _CLAN_GLYPH,
+    _CLAN_GLYPH_STYLE,
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
     _HIDDEN_ICON,
@@ -61,6 +64,7 @@ from ._agent_list_styling import (
     _STEP_TYPE_COLORS,
     _STEP_TYPE_GLYPHS,
     _TYPE_GLYPHS,
+    _TREE_GUIDE,
 )
 
 
@@ -73,7 +77,18 @@ def _has_file_change_hint(agent: Agent) -> bool:
 
 
 def _should_render_reverted_badge(agent: Agent) -> bool:
-    return agent.reverted and not agent.is_child_row
+    return agent.reverted and not agent_is_tree_child(agent)
+
+
+def _append_tree_indent(text: Text, depth: int) -> None:
+    """Append a depth-aware branch using the existing child-row footprint."""
+    if depth <= 0:
+        return
+    if depth == 1:
+        indent = _CHILD_INDENT
+    else:
+        indent = "  " + (_TREE_GUIDE * (depth - 1)) + _CHILD_INDENT.lstrip()
+    text.append(indent, style="dim #808080")
 
 
 def format_agent_option(
@@ -94,6 +109,7 @@ def format_agent_option(
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = render_tier_gutter(tier_styles)
+    tree_depth = agent_tree_depth(agent)
     if hint_char is not None:
         text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
@@ -110,19 +126,19 @@ def format_agent_option(
             approve_icon = f"{_APPROVE_ICON}T"
         else:
             approve_icon = _APPROVE_ICON
-    if approve_icon is not None and not agent.is_child_row:
+    if approve_icon is not None and tree_depth == 0:
         text.append(f"{approve_icon} ", style="bold #00FFFF")
 
     # Indentation for retry-chain attempts: render under the chain
     # root so the user sees the lineage at a glance.  retry_attempt
     # tracks chain depth (1 = first retry, 2 = retry-of-retry, …).
-    if agent.retry_attempt > 0 and not agent.is_child_row:
+    if agent.retry_attempt > 0 and tree_depth == 0:
         indent = "  " * agent.retry_attempt + "↳ "
         text.append(indent, style="dim #808080")
 
     # Indentation for rows linked under a parent agent/workflow.
-    if agent.is_child_row:
-        text.append(_CHILD_INDENT, style="dim #808080")
+    if tree_depth > 0:
+        _append_tree_indent(text, tree_depth)
         if approve_icon is not None:
             text.append(f"{approve_icon} ", style="bold #00FFFF")
         if agent.is_workflow_step_child:
@@ -162,7 +178,9 @@ def format_agent_option(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if not (is_appears_as_agent or agent.is_child_row):
+    if agent.is_clan_container:
+        text.append(f"{_CLAN_GLYPH} ", style=_CLAN_GLYPH_STYLE)
+    elif not (is_appears_as_agent or agent_is_tree_child(agent)):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
             text.append(f"{type_glyph} ", style=f"bold {color}")
@@ -176,17 +194,21 @@ def format_agent_option(
                 text.append(f"{emoji_badge} ")
 
     is_reverted_root = _should_render_reverted_badge(agent)
-    if is_reverted_root:
+    if agent.is_clan_container:
+        name_style = "bold #D7AFFF" if is_selected else "#D7AFFF"
+    elif is_reverted_root:
         text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
         text.append(" ")
-
-    # Agent display name (workflow name for top-level workflows, ChangeSpec name otherwise)
-    if is_reverted_root:
         name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
     else:
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+
+    # Agent display name (workflow name for top-level workflows, ChangeSpec name otherwise)
     text.append(agent.display_name, style=name_style)
-    if tag_label:
+    rendered_tags = agent.clan_tags if agent.is_clan_container else ()
+    for clan_tag in rendered_tags:
+        text.append(f" @{clan_tag}", style="bold #FFD75F")
+    if tag_label and tag_label not in rendered_tags:
         text.append(f" @{tag_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
@@ -333,12 +355,12 @@ def format_agent_option(
     # Authoritative-only: modern phase launch metadata renders immediately;
     # legacy candidates render after an O(1) confirmed-cache read warmed off
     # the event loop. Cold or missing legacy candidates render no glyph.
-    if agent_has_confirmed_bead(agent):
+    if not agent.is_clan_container and agent_has_confirmed_bead(agent):
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
     # Agent name annotation
-    if agent.agent_name:
+    if agent.agent_name and not agent.is_clan_container:
         text.append(f" {agent.agent_name}", style=_AGENT_NAME_ANNOTATION_STYLE)
 
     # Embedded workflow annotation for child steps
@@ -351,7 +373,7 @@ def format_agent_option(
         text.append(f"#{agent.embedded_workflow_name}", style="dim #AF87D7")
 
     runtime_suffix = build_runtime_suffix(agent, now=now, is_unread=is_unread)
-    if _has_file_change_hint(agent):
+    if not agent.is_clan_container and _has_file_change_hint(agent):
         runtime_with_file_change = Text()
         if runtime_suffix.cell_len:
             runtime_with_file_change.append_text(runtime_suffix)

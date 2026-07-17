@@ -20,6 +20,8 @@ from ..agent_completion import (
     wait_dependencies_satisfied,
 )
 from ..models.agent import Agent, AgentType
+from ..models._agent_tree import agent_fold_key
+from ..models._agent_tree import agent_is_tree_child
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
@@ -58,7 +60,13 @@ def _compute_visible_parents(
     parents_with_visible_children: set[str] = set()
     fully_expanded_parents: set[str] = set()
     for agent in agents:
-        if agent.is_child_row and agent.parent_timestamp:
+        if agent.tree_parent_key:
+            parents_with_visible_children.add(agent.tree_parent_key)
+            if agent.tree_depth > 1 and (
+                agent.is_hidden_step or agent.is_family_member_child
+            ):
+                fully_expanded_parents.add(agent.tree_parent_key)
+        elif agent.is_child_row and agent.parent_timestamp:
             parents_with_visible_children.add(agent.parent_timestamp)
             if agent.is_hidden_step:
                 fully_expanded_parents.add(agent.parent_timestamp)
@@ -172,7 +180,7 @@ def _banner_mark_state(
     member_identities = [
         agents[idx].identity
         for idx in group.agent_indices
-        if 0 <= idx < len(agents) and not agents[idx].is_child_row
+        if 0 <= idx < len(agents) and not agent_is_tree_child(agents[idx])
     ]
     if not member_identities:
         return "none"
@@ -252,9 +260,11 @@ def build_list(
     max_left = 0
     max_suffix = 0
     for i, agent in enumerate(agents):
-        is_expanded = (
-            agent.raw_suffix is not None
-            and agent.raw_suffix in parents_with_visible_children
+        fold_key = agent_fold_key(agent)
+        is_expanded = bool(
+            fold_key is not None
+            and fold_key in parents_with_visible_children
+            and not agent.tree_parent_key
         )
         is_marked = agent.identity in marked
         is_unread = agent.identity in unread
@@ -413,7 +423,7 @@ def try_remove_rows(
     when any conservative gate makes the in-place path unsafe:
 
     - grouping mode is not :data:`GroupingMode.STANDARD`;
-    - a removed agent is a workflow parent with visible folded children
+    - a removed agent is a workflow/clan parent with visible folded children
       (orphan child rows would be left behind);
     - the panel's per-row trackers don't have an entry for an identity we
       were asked to remove.
@@ -429,6 +439,11 @@ def try_remove_rows(
     for local_idx, agent in enumerate(widget._agents):
         if agent.identity not in removed_identities:
             continue
+        # Clan rows and members affect a synthetic container's count, status,
+        # runtime, and descendant topology. Let the caller rebuild that small
+        # in-memory projection instead of stranding a stale container row.
+        if agent.is_clan_container or agent.tree_parent_key:
+            return False
         row = widget._row_by_agent_idx.get(local_idx)
         if row is None:
             return False

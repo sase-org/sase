@@ -109,7 +109,10 @@ class DetailMixin:
         if current_agent is None:
             agent_detail.show_empty()
             return False
-        if self._should_render_agent_detail_with_hints():
+        if (
+            not current_agent.is_clan_container
+            and self._should_render_agent_detail_with_hints()
+        ):
             self._render_agent_detail_with_hints(agent_detail, current_agent)
             return False
         agent_detail.update_display_immediate(
@@ -174,10 +177,17 @@ class DetailMixin:
         if current_agent is not None:
             from ._loading_helpers import hydrate_agent_attempt_history
 
-            changed = hydrate_agent_attempt_history(current_agent)
+            changed = (
+                False
+                if current_agent.is_clan_container
+                else hydrate_agent_attempt_history(current_agent)
+            )
             if changed:
                 self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
-            if self._should_render_agent_detail_with_hints():
+            if (
+                not current_agent.is_clan_container
+                and self._should_render_agent_detail_with_hints()
+            ):
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
             else:
                 agent_detail.update_display(
@@ -446,12 +456,17 @@ class DetailMixin:
         else:
             completed_count = self._agent_panel_index().completed_count  # type: ignore[attr-defined]
             can_jump = (
-                self._resolve_agent_cl_name(current_agent) is not None  # type: ignore[attr-defined]
+                not current_agent.is_clan_container
+                and self._resolve_agent_cl_name(current_agent) is not None  # type: ignore[attr-defined]
                 if current_agent
                 else False
             )
             cached_artifacts = getattr(self, "_cached_artifact_files", None)
-            if current_agent is not None and callable(cached_artifacts):
+            if (
+                current_agent is not None
+                and not current_agent.is_clan_container
+                and callable(cached_artifacts)
+            ):
                 probe = cached_artifacts(current_agent)
                 if probe is None:
                     schedule = getattr(self, "_schedule_artifact_file_discovery", None)
@@ -475,8 +490,16 @@ class DetailMixin:
                 group_focused=self._current_group_key is not None,
                 has_artifact_files=has_artifact_files,
                 artifact_file_viewer_active=artifact_file_viewer_active,
-                neighbor_count=self._selected_agent_neighbor_count(current_agent),
-                tmux_choice_count=self._selected_agent_tmux_choice_count(current_agent),
+                neighbor_count=(
+                    0
+                    if current_agent is not None and current_agent.is_clan_container
+                    else self._selected_agent_neighbor_count(current_agent)
+                ),
+                tmux_choice_count=(
+                    0
+                    if current_agent is not None and current_agent.is_clan_container
+                    else self._selected_agent_tmux_choice_count(current_agent)
+                ),
                 tools_visible=agent_detail.is_tools_visible(),
                 tools_detail_level=int(agent_detail.tools_detail_level),
             )
