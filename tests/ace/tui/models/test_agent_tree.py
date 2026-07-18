@@ -6,7 +6,11 @@ from datetime import datetime
 
 from sase.ace.tui.models._agent_tree import (
     agent_fold_key,
+    agent_parent_fold_key,
+    filter_tree_rows,
     project_clan_tree,
+    tree_parent,
+    tree_parent_lookup,
 )
 from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -73,7 +77,17 @@ def test_project_clan_tree_inserts_container_and_three_depths() -> None:
     assert container.runtime_children == [family, solo]
     assert projected == [container, family, family_member, solo]
     assert [row.tree_depth for row in projected] == [0, 1, 2, 1]
-    assert {row.tree_parent_key for row in projected[1:]} == {agent_fold_key(container)}
+    clan_key = agent_fold_key(container)
+    assert family.tree_parent_key == clan_key
+    assert solo.tree_parent_key == clan_key
+    assert family_member.tree_parent_key == family.raw_suffix
+    assert agent_fold_key(family) == family.raw_suffix
+    assert agent_parent_fold_key(family) == clan_key
+    assert agent_parent_fold_key(family_member) == family.raw_suffix
+
+    lookup = tree_parent_lookup(projected)
+    assert tree_parent(family_member, lookup) is family
+    assert tree_parent(family, lookup) is container
 
 
 def test_project_clan_tree_keeps_generations_separate() -> None:
@@ -104,7 +118,7 @@ def test_clan_tree_does_not_invent_a_changespec_banner_from_one_member() -> None
     assert group_keys == [("tmp",)]
 
 
-def test_clan_fold_walks_collapsed_expanded_and_fully_expanded() -> None:
+def test_clan_and_members_fold_independently_through_recursive_ancestors() -> None:
     family = _agent("research.family", "family")
     family_member = _agent(
         "research.family--code",
@@ -145,24 +159,82 @@ def test_clan_fold_walks_collapsed_expanded_and_fully_expanded() -> None:
     container = projected[0]
     fold_key = agent_fold_key(container)
     assert fold_key is not None
+    family_key = agent_fold_key(family)
+    workflow_key = agent_fold_key(workflow)
+    assert family_key is not None
+    assert workflow_key is not None
     manager = FoldStateManager()
 
     collapsed, counts = filter_agents_by_fold_state(projected, manager)
     assert collapsed == [container]
-    assert counts[fold_key] == (3, 2)
-    assert _compute_fold_annotation(container, counts, set()) == " ×5"
+    assert counts == {
+        fold_key: (2, 0),
+        family_key: (1, 0),
+        workflow_key: (1, 1),
+    }
+    assert _compute_fold_annotation(container, counts, set()) == " ×2"
+    assert _compute_fold_annotation(family, counts, set()) == " ×1"
+    assert _compute_fold_annotation(workflow, counts, set()) == " ×2"
 
     manager.expand(fold_key)
     expanded, counts = filter_agents_by_fold_state(projected, manager)
-    assert expanded == [container, family, workflow, workflow_step]
-    assert _compute_fold_annotation(container, counts, {fold_key}) == " ×5 −2"
+    assert expanded == [container, family, workflow]
+    assert _compute_fold_annotation(container, counts, {fold_key}) == ""
+
+    manager.expand(workflow_key)
+    member_expanded, counts = filter_agents_by_fold_state(projected, manager)
+    assert member_expanded == [container, family, workflow, workflow_step]
+    assert family_member not in member_expanded
+    assert _compute_fold_annotation(workflow, counts, {workflow_key}) == " ×2 −1"
+
+    manager.expand(workflow_key)
+    member_fully_expanded, counts = filter_agents_by_fold_state(projected, manager)
+    assert member_fully_expanded == [
+        container,
+        family,
+        workflow,
+        workflow_step,
+        hidden_step,
+    ]
+    assert family_member not in member_fully_expanded
+    assert (
+        _compute_fold_annotation(
+            workflow,
+            counts,
+            {workflow_key},
+            {workflow_key},
+        )
+        == " ×2 +1"
+    )
+
+    manager.collapse(fold_key)
+    masked, _ = filter_agents_by_fold_state(projected, manager)
+    assert masked == [container]
+    assert manager.get(workflow_key).name == "FULLY_EXPANDED"
 
     manager.expand(fold_key)
-    fully_expanded, counts = filter_agents_by_fold_state(projected, manager)
-    assert fully_expanded == projected
-    assert (
-        _compute_fold_annotation(container, counts, {fold_key}, {fold_key}) == " ×5 +2"
+    reopened, _ = filter_agents_by_fold_state(projected, manager)
+    assert reopened == member_fully_expanded
+
+
+def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
+    family = _agent("research.family", "family")
+    family_member = _agent(
+        "research.family--code",
+        "family-code",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
     )
+    peer = _agent("research.peer", "peer")
+    projected = project_clan_tree([family, family_member, peer])
+
+    filtered = filter_tree_rows(
+        projected,
+        lambda row: row.raw_suffix == family_member.raw_suffix,
+    )
+
+    assert filtered == projected
 
 
 def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:

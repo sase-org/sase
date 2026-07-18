@@ -17,15 +17,20 @@ def _clan_fold_key(clan_name: str, generation: str | None = None) -> str:
 
 
 def agent_fold_key(agent: Agent) -> str | None:
-    """Return the fold key governing *agent*'s visible descendants."""
-    if agent.tree_parent_key:
-        return agent.tree_parent_key
+    """Return the fold key owned by *agent* for its visible descendants."""
     if agent.is_clan_container and agent.agent_clan:
         return _clan_fold_key(agent.agent_clan, agent.agent_clan_generation)
-    if agent.is_child_row and agent.parent_timestamp:
-        return agent.parent_timestamp
     if agent.raw_suffix:
         return agent.raw_suffix
+    return None
+
+
+def agent_parent_fold_key(agent: Agent) -> str | None:
+    """Return the fold key controlling *agent* as an immediate child row."""
+    if agent.tree_parent_key:
+        return agent.tree_parent_key
+    if agent.is_child_row and agent.parent_timestamp:
+        return agent.parent_timestamp
     return None
 
 
@@ -49,7 +54,12 @@ def tree_parent_lookup(agents: Iterable[Agent]) -> dict[str, Agent]:
             lookup[_clan_fold_key(agent.agent_clan, agent.agent_clan_generation)] = (
                 agent
             )
-        if agent.raw_suffix and not agent.is_child_row:
+        if agent.raw_suffix and (
+            not agent.is_child_row or agent.raw_suffix not in lookup
+        ):
+            # Some legacy workflow children repeat their parent's suffix.
+            # Prefer the root row while still indexing uniquely-keyed child
+            # rows for complete immediate-parent traversal.
             lookup[agent.raw_suffix] = agent
     return lookup
 
@@ -156,9 +166,12 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
         row_ids = {id(row) for row in rows}
         for row in rows:
             parent = parent_by_suffix.get(row.parent_timestamp or "")
-            is_descendant = parent is not None and id(parent) in row_ids
-            row.tree_depth = 2 if is_descendant else 1
-            row.tree_parent_key = fold_key
+            if parent is not None and id(parent) in row_ids:
+                row.tree_depth = 2
+                row.tree_parent_key = parent.raw_suffix
+            else:
+                row.tree_depth = 1
+                row.tree_parent_key = fold_key
         containers[clan_key] = _container_for_clan(clan_name, rows)
 
     projected: list[Agent] = []
@@ -214,17 +227,24 @@ def filter_tree_rows(
             included.add(parent_id)
             current = parent
 
-    # Matching a parent retains the visible tree beneath it.
-    changed = True
-    while changed:
-        changed = False
-        for agent in agents:
-            if id(agent) in included:
+    # Matching a parent retains the visible tree beneath it. Build immediate
+    # child buckets once so the complete clan -> member -> child projection is
+    # traversed in linear time.
+    children_by_parent: dict[int, list[Agent]] = {}
+    for agent in agents:
+        parent = tree_parent(agent, lookup)
+        if parent is not None:
+            children_by_parent.setdefault(id(parent), []).append(agent)
+
+    pending = list(included)
+    while pending:
+        parent_id = pending.pop()
+        for child in children_by_parent.get(parent_id, ()):
+            child_id = id(child)
+            if child_id in included:
                 continue
-            parent = tree_parent(agent, lookup)
-            if parent is not None and id(parent) in included:
-                included.add(id(agent))
-                changed = True
+            included.add(child_id)
+            pending.append(child_id)
 
     return [agent for agent in agents if id(agent) in included]
 
@@ -232,6 +252,7 @@ def filter_tree_rows(
 __all__ = [
     "agent_fold_key",
     "agent_is_tree_child",
+    "agent_parent_fold_key",
     "agent_tree_depth",
     "filter_tree_rows",
     "project_clan_tree",

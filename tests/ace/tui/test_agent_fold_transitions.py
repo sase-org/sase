@@ -15,6 +15,7 @@ from datetime import datetime
 from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
+from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
@@ -29,9 +30,7 @@ class _StubApp(AgentFoldingMixin):
         self.current_idx = current_idx
         self._agents = agents
         self._fold_manager = FoldStateManager()
-        self._fold_counts: dict[str, tuple[int, int]] = {
-            a.raw_suffix: (1, 0) for a in agents if a.raw_suffix
-        }
+        _, self._fold_counts = filter_agents_by_fold_state(agents, self._fold_manager)
         self._group_fold_registry = AgentGroupFoldRegistry()
         self._agent_panels_grouped = False
         self._panel_group = AgentPanelGroup.from_agents(agents)
@@ -213,7 +212,7 @@ def test_l_expands_running_parent_with_family_child() -> None:
     assert app.refilter_calls == 1
 
 
-def test_clan_l_l_h_h_walks_all_three_fold_levels() -> None:
+def test_clan_l_is_a_binary_outer_fold_and_second_l_is_clamped() -> None:
     first = _agent(raw_suffix="first")
     first.agent_clan = "research"
     first.agent_clan_generation = "generation"
@@ -228,33 +227,105 @@ def test_clan_l_l_h_h_walks_all_three_fold_levels() -> None:
     app.action_expand_or_layout()
     assert app._fold_manager.get(key) is FoldLevel.EXPANDED
     app.action_expand_or_layout()
-    assert app._fold_manager.get(key) is FoldLevel.FULLY_EXPANDED
-    app.action_hooks_or_collapse()
     assert app._fold_manager.get(key) is FoldLevel.EXPANDED
     app.action_hooks_or_collapse()
     assert app._fold_manager.get(key) is FoldLevel.COLLAPSED
+    assert app.refilter_calls == 2
 
 
-def test_h_on_expanded_clan_member_reanchors_the_container() -> None:
-    member = _agent(raw_suffix="member")
-    member.agent_clan = "research"
-    member.agent_clan_generation = "generation"
-    projected = project_clan_tree([member])
-    app = _StubApp(projected, current_idx=1)
-    key = agent_fold_key(projected[0])
-    assert key is not None
-    app._fold_manager.expand(key)
+def test_clan_member_l_l_and_child_member_h_h_are_isolated() -> None:
+    workflow = _agent(raw_suffix="workflow", agent_type=AgentType.WORKFLOW)
+    workflow.agent_clan = "research"
+    workflow.agent_clan_generation = "generation"
+    ordinary = _agent(raw_suffix="ordinary", agent_type=AgentType.WORKFLOW)
+    ordinary.parent_timestamp = workflow.raw_suffix
+    ordinary.parent_workflow = "workflow"
+    ordinary.step_type = "agent"
+    hidden = _agent(raw_suffix="hidden", agent_type=AgentType.WORKFLOW)
+    hidden.parent_timestamp = workflow.raw_suffix
+    hidden.parent_workflow = "workflow"
+    hidden.step_type = "bash"
+    hidden.is_hidden_step = True
+
+    family = _agent(raw_suffix="family")
+    family.agent_clan = "research"
+    family.agent_clan_generation = "generation"
+    followup = _agent(raw_suffix="followup")
+    followup.parent_timestamp = family.raw_suffix
+
+    projected = project_clan_tree([workflow, ordinary, hidden, family, followup])
+    container, workflow, ordinary, hidden, family, followup = projected
+    clan_key = agent_fold_key(container)
+    workflow_key = agent_fold_key(workflow)
+    family_key = agent_fold_key(family)
+    assert clan_key is not None
+    assert workflow_key is not None
+    assert family_key is not None
+    app = _StubApp(projected)
+
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
+
+    app.current_idx = projected.index(workflow)
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(workflow_key) is FoldLevel.FULLY_EXPANDED
+    assert app._fold_manager.get(family_key) is FoldLevel.COLLAPSED
+
+    app.current_idx = projected.index(hidden)
+    app.action_hooks_or_collapse()
+    assert app._fold_manager.get(workflow_key) is FoldLevel.EXPANDED
+    assert app.current_idx == projected.index(workflow)
 
     app.action_hooks_or_collapse()
+    assert app._fold_manager.get(workflow_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == projected.index(workflow)
 
-    assert app._fold_manager.get(key) is FoldLevel.COLLAPSED
-    assert app.current_idx == 0
+    app.action_hooks_or_collapse()
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert app.current_idx == projected.index(container)
+    assert app._group_fold_registry.collapsed == set()
+
+
+def test_collapsed_clan_masks_member_state_until_reopened() -> None:
+    member = _agent(raw_suffix="member", agent_type=AgentType.WORKFLOW)
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    child = _agent(raw_suffix="child", agent_type=AgentType.WORKFLOW)
+    child.parent_timestamp = member.raw_suffix
+    child.parent_workflow = "workflow"
+    child.step_type = "agent"
+    projected = project_clan_tree([member, child])
+    container, member, child = projected
+    clan_key = agent_fold_key(container)
+    member_key = agent_fold_key(member)
+    assert clan_key is not None
+    assert member_key is not None
+    app = _StubApp(projected)
+
+    app.action_expand_or_layout()
+    app.current_idx = projected.index(member)
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
+
+    app.current_idx = projected.index(container)
+    app.action_hooks_or_collapse()
+    assert app._fold_manager.get(clan_key) is FoldLevel.COLLAPSED
+    assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
+
+    app.action_expand_or_layout()
+    assert app._fold_manager.get(clan_key) is FoldLevel.EXPANDED
+    assert app._fold_manager.get(member_key) is FoldLevel.EXPANDED
 
 
 def test_per_workflow_h_runs_before_group_collapse() -> None:
     """Per-workflow ``h`` beats group collapse for an expanded workflow."""
     parent = _agent(raw_suffix="ts1", agent_type=AgentType.WORKFLOW)
     app = _StubApp([parent])
+    app._fold_counts["ts1"] = (1, 0)
     app._fold_manager.expand("ts1")  # EXPANDED
 
     app.action_hooks_or_collapse()

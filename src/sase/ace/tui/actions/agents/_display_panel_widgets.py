@@ -84,6 +84,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             self, "_unread_completed_agent_ids", set()
         )
         fold_counts = self._fold_counts
+        from ...widgets._agent_list_build import compute_visible_parents
+
+        visible_parent_keys, fully_expanded_parent_keys = compute_visible_parents(
+            self._agents
+        )
         attempt_number = self.current_attempt_number
         current_group_key = self._current_group_key
         global_idx = self.current_idx
@@ -177,6 +182,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,
                     panel_tag=key if not merge_tag_panels else None,
+                    parents_with_visible_children=visible_parent_keys,
+                    fully_expanded_parents=fully_expanded_parent_keys,
                 )
 
             if idx == focused_idx:
@@ -237,6 +244,11 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             self, "_unread_completed_agent_ids", set()
         )
         fold_counts = self._fold_counts
+        from ...widgets._agent_list_build import compute_visible_parents
+
+        visible_parent_keys, fully_expanded_parent_keys = compute_visible_parents(
+            self._agents
+        )
         attempt_number = self.current_attempt_number
         current_group_key = self._current_group_key
         global_idx = self.current_idx
@@ -343,6 +355,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,
                     panel_tag=key if not merge_tag_panels else None,
+                    parents_with_visible_children=visible_parent_keys,
+                    fully_expanded_parents=fully_expanded_parent_keys,
                 )
 
         self._apply_panel_heights(container, ordered_widgets)

@@ -57,24 +57,45 @@ class AgentFoldingMixin:
             record(panel_key, collapsed=collapsed)
 
     def _get_workflow_key_for_agent(self, agent: Agent) -> str | None:
-        """Get the fold state key for an agent (workflow parent or child).
+        """Get the fold state key targeted by actions on an agent row.
 
         Args:
             agent: The agent to get the key for.
 
         Returns:
-            The workflow raw_suffix key, or None if not a foldable agent.
+            The row's owned descendant key, its immediate parent's key when
+            selected as a child, or ``None`` when neither edge is foldable.
         """
+        from ...models._agent_tree import agent_fold_key, agent_parent_fold_key
+
+        if agent.is_clan_container:
+            return agent_fold_key(agent)
+        fold_key = agent_fold_key(agent)
+        if fold_key in self._fold_counts:
+            return fold_key
+        if agent.is_child_row:
+            return agent_parent_fold_key(agent)
+        return None
+
+    def _reanchor_to_fold_owner(self, fold_key: str) -> None:
+        """Move selection to the visible row that owns ``fold_key``."""
         from ...models._agent_tree import agent_fold_key
 
-        if agent.is_clan_container or agent.tree_parent_key:
-            return agent_fold_key(agent)
-        if agent.is_child_row and agent.parent_timestamp:
-            return agent.parent_timestamp
-        fold_key = agent_fold_key(agent)
-        if not agent.is_child_row and fold_key in self._fold_counts:
-            return fold_key
-        return None
+        for idx, candidate in enumerate(self._agents):
+            if agent_fold_key(candidate) == fold_key:
+                self.current_idx = idx
+                return
+
+    def _collapse_clan_fold(self, fold_key: str) -> bool:
+        """Collapse a clan's binary outer fold in a single action."""
+        from ...models.fold_state import FoldLevel
+
+        changed = False
+        while self._fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+            if not self._fold_manager.collapse(fold_key):
+                break
+            changed = True
+        return changed
 
     def _active_grouping_mode(self) -> GroupingMode:
         """Return the active grouping mode, defaulting to STANDARD.
@@ -222,7 +243,14 @@ class AgentFoldingMixin:
             if agent is None:
                 return
             wf_key = self._get_workflow_key_for_agent(agent)
-            if wf_key is not None and self._fold_manager.expand(wf_key):
+            if wf_key is None:
+                return
+            if agent.is_clan_container:
+                from ...models.fold_state import FoldLevel
+
+                if self._fold_manager.get(wf_key) != FoldLevel.COLLAPSED:
+                    return
+            if self._fold_manager.expand(wf_key):
                 self._refilter_agents()  # type: ignore[attr-defined]
             return
 
@@ -297,6 +325,7 @@ class AgentFoldingMixin:
           its now-visible banner.
         """
         if self.current_tab == "agents":
+            from ...models._agent_tree import agent_parent_fold_key
             from ...models.fold_state import FoldLevel
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
@@ -306,26 +335,37 @@ class AgentFoldingMixin:
                     key is not None
                     and self._fold_manager.get(key) != FoldLevel.COLLAPSED
                 ):
-                    if agent.tree_parent_key:
-                        if self._fold_manager.get(key) == FoldLevel.EXPANDED:
-                            for idx, candidate in enumerate(self._agents):
-                                if (
-                                    candidate.is_clan_container
-                                    and self._get_workflow_key_for_agent(candidate)
-                                    == key
-                                ):
-                                    self.current_idx = idx
-                                    break
-                    elif agent.is_workflow_child and agent.parent_timestamp:
-                        if self._fold_manager.get(key) == FoldLevel.EXPANDED:
-                            for idx, a in enumerate(self._agents):
-                                if (
-                                    a.raw_suffix == agent.parent_timestamp
-                                    and not a.is_workflow_child
-                                ):
-                                    self.current_idx = idx
-                                    break
-                    if self._fold_manager.collapse(key):
+                    level = self._fold_manager.get(key)
+                    selected_parent_key = agent_parent_fold_key(agent)
+                    selected_is_child = (
+                        selected_parent_key == key and agent.is_child_row
+                    )
+                    if selected_is_child and (
+                        level == FoldLevel.EXPANDED
+                        or (level == FoldLevel.FULLY_EXPANDED and agent.is_hidden_step)
+                    ):
+                        self._reanchor_to_fold_owner(key)
+
+                    changed = (
+                        self._collapse_clan_fold(key)
+                        if agent.is_clan_container
+                        else self._fold_manager.collapse(key)
+                    )
+                    if changed:
+                        self._refilter_agents()  # type: ignore[attr-defined]
+                    return
+
+                # Once a direct member's own fold is collapsed, walk up to
+                # the enclosing clan before falling through to group folds.
+                clan_parent_key = agent_parent_fold_key(agent)
+                if (
+                    agent.tree_depth == 1
+                    and clan_parent_key is not None
+                    and clan_parent_key.startswith("clan:")
+                    and self._fold_manager.get(clan_parent_key) != FoldLevel.COLLAPSED
+                ):
+                    self._reanchor_to_fold_owner(clan_parent_key)
+                    if self._collapse_clan_fold(clan_parent_key):
                         self._refilter_agents()  # type: ignore[attr-defined]
                     return
 

@@ -149,6 +149,8 @@ class AgentList(OptionList, inherit_bindings=False):
         grouping_mode: GroupingMode = GroupingMode.STANDARD,
         tag_labels: list[str | None] | None = None,
         panel_tag: str | None = None,
+        parents_with_visible_children: set[str] | None = None,
+        fully_expanded_parents: set[str] | None = None,
         now: datetime | None = None,
     ) -> None:
         """Update the list with new agents.
@@ -183,6 +185,10 @@ class AgentList(OptionList, inherit_bindings=False):
             panel_tag: Optional tag already communicated by the enclosing
                 split panel. Clan rows omit only this matching badge; merged
                 and untagged panels pass ``None``.
+            parents_with_visible_children: Optional global visible-parent keys
+                used when a parent and child render in different tag panels.
+            fully_expanded_parents: Optional global parent keys with visible
+                hidden children, paired with ``parents_with_visible_children``.
             now: Reference time for ``BY_DATE`` bucketing.  Defaults to
                 ``datetime.now()``; tests pass a fixed value so bucket
                 membership is deterministic.
@@ -231,6 +237,8 @@ class AgentList(OptionList, inherit_bindings=False):
                 grouping_mode=grouping_mode,
                 tag_labels=tag_labels,
                 panel_tag=panel_tag,
+                parents_with_visible_children=parents_with_visible_children,
+                fully_expanded_parents=fully_expanded_parents,
                 now=now,
             )
 

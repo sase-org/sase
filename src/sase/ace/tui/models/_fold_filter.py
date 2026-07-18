@@ -1,7 +1,7 @@
 """Fold-state filtering for agent lists."""
 
+from ._agent_tree import agent_fold_key, agent_parent_fold_key
 from .agent import Agent
-from ._agent_tree import agent_fold_key
 from .fold_state import FoldLevel, FoldStateManager
 
 
@@ -9,97 +9,88 @@ def filter_agents_by_fold_state(
     agents: list[Agent],
     fold_manager: FoldStateManager,
 ) -> tuple[list[Agent], dict[str, tuple[int, int]]]:
-    """Filter agent list based on fold state of workflow parents.
+    """Filter agents through every immediate ancestor's in-memory fold.
 
-    Scans the flat agent list (children interleaved after parents) and
-    filters children based on the fold level of their parent workflow.
-
-    Args:
-        agents: Full agent list with children after parents.
-        fold_manager: Manager tracking fold state per workflow.
-
-    Returns:
-        Tuple of (filtered_agents, fold_counts) where fold_counts maps
-        workflow raw_suffix -> (non_hidden_child_count, hidden_child_count).
+    ``fold_counts`` maps each owning row's fold key to its immediate ordinary
+    and hidden child counts. Synthetic clan folds own only their direct
+    members; each member independently owns its workflow/family children.
     """
-    # First pass: collect ordinary children and synthetic-clan descendants.
-    fold_counts: dict[str, tuple[int, int]] = {}
-    children_by_parent: dict[str, list[Agent]] = {}
-    present_parent_keys = {
-        key
-        for agent in agents
-        if (key := agent_fold_key(agent)) is not None
-        and (agent.is_clan_container or not agent.is_child_row)
-    }
-
+    owners_by_key: dict[str, Agent] = {}
     for agent in agents:
-        if agent.tree_parent_key:
-            children_by_parent.setdefault(agent.tree_parent_key, []).append(agent)
+        key = agent_fold_key(agent)
+        if key is not None and not agent.is_child_row:
+            owners_by_key[key] = agent
+    children_by_parent: dict[str, list[Agent]] = {}
+    for agent in agents:
+        parent_key = agent_parent_fold_key(agent)
+        if parent_key is None or parent_key not in owners_by_key:
             continue
-        if agent.is_child_row and agent.parent_timestamp:
-            parent_key = agent.parent_timestamp
-            if parent_key not in present_parent_keys:
-                continue
-            if parent_key not in children_by_parent:
-                children_by_parent[parent_key] = []
-            children_by_parent[parent_key].append(agent)
+        children_by_parent.setdefault(parent_key, []).append(agent)
 
-    # Compute counts for each parent. Clan counts classify ordinary workflow
-    # steps as visible at EXPANDED, while hidden steps and sequential-family
-    # members remain gated on FULLY_EXPANDED at the third indentation level.
+    fold_counts: dict[str, tuple[int, int]] = {}
     for parent_key, children in children_by_parent.items():
         if parent_key.startswith("clan:"):
-            hidden = sum(
-                1
-                for child in children
-                if child.tree_depth > 1
-                and (child.is_family_member_child or child.is_hidden_step)
-            )
-            non_hidden = len(children) - hidden
-        else:
-            non_hidden = sum(1 for c in children if not c.is_hidden_step)
-            hidden = sum(1 for c in children if c.is_hidden_step)
-        fold_counts[parent_key] = (non_hidden, hidden)
-
-    # Identify parents whose children are ALL hidden (no visible work occurred)
-    hidden_only_parents: set[str] = set()
-    for parent_key, (non_hidden, hidden) in fold_counts.items():
-        if non_hidden == 0 and hidden > 0:
-            hidden_only_parents.add(parent_key)
-
-    # Second pass: build filtered list
-    result: list[Agent] = []
-    for agent in agents:
-        if agent.tree_parent_key:
-            level = fold_manager.get(agent.tree_parent_key)
-            if level == FoldLevel.COLLAPSED:
-                continue
-            if agent.tree_depth > 1:
-                if agent.is_family_member_child:
-                    if level != FoldLevel.FULLY_EXPANDED:
-                        continue
-                elif agent.is_hidden_step and level != FoldLevel.FULLY_EXPANDED:
-                    continue
-            result.append(agent)
+            # The outer clan fold is binary: every direct member is ordinary.
+            fold_counts[parent_key] = (len(children), 0)
             continue
-        if agent.is_child_row and agent.parent_timestamp:
-            parent_key = agent.parent_timestamp
-            if parent_key not in present_parent_keys:
-                continue
-            if parent_key in hidden_only_parents:
-                continue
-            level = fold_manager.get(parent_key)
-            if level == FoldLevel.COLLAPSED:
-                continue
-            if level == FoldLevel.EXPANDED and agent.is_hidden_step:
-                continue
-            # FULLY_EXPANDED: include all children
-            result.append(agent)
-        else:
-            # Skip parents whose only children are hidden
-            fold_key = agent_fold_key(agent)
-            if fold_key in hidden_only_parents:
-                continue
-            result.append(agent)
+        hidden = sum(1 for child in children if child.is_hidden_step)
+        fold_counts[parent_key] = (len(children) - hidden, hidden)
 
-    return result, fold_counts
+    # Historical non-clan workflows containing only internal steps stay out of
+    # the Agents tab. Clan members remain visible as direct clan members even
+    # when all of their own workflow children are hidden.
+    hidden_only_parents = {
+        parent_key
+        for parent_key, (ordinary, hidden) in fold_counts.items()
+        if ordinary == 0
+        and hidden > 0
+        and owners_by_key[parent_key].tree_parent_key is None
+    }
+
+    visibility: dict[int, bool] = {}
+
+    def is_visible(agent: Agent, visiting: set[int]) -> bool:
+        agent_id = id(agent)
+        if agent_id in visibility:
+            return visibility[agent_id]
+        if agent_id in visiting:
+            visibility[agent_id] = False
+            return False
+
+        own_key = agent_fold_key(agent)
+        if own_key in hidden_only_parents:
+            visibility[agent_id] = False
+            return False
+
+        parent_key = agent_parent_fold_key(agent)
+        if parent_key is None:
+            visibility[agent_id] = True
+            return True
+        parent = owners_by_key.get(parent_key)
+        if parent is None:
+            visibility[agent_id] = False
+            return False
+
+        visiting.add(agent_id)
+        parent_visible = is_visible(parent, visiting)
+        visiting.discard(agent_id)
+        if not parent_visible:
+            visibility[agent_id] = False
+            return False
+
+        level = fold_manager.get(parent_key)
+        if level == FoldLevel.COLLAPSED:
+            visibility[agent_id] = False
+            return False
+        if (
+            not parent_key.startswith("clan:")
+            and agent.is_hidden_step
+            and level != FoldLevel.FULLY_EXPANDED
+        ):
+            visibility[agent_id] = False
+            return False
+
+        visibility[agent_id] = True
+        return True
+
+    return [agent for agent in agents if is_visible(agent, set())], fold_counts

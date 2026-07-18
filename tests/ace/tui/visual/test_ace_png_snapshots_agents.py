@@ -614,25 +614,46 @@ async def test_clan_tree_fold_levels_png_snapshots(
         )
 
         await page.press("l")
-        await page.expect_state("agent_count", 5)
+        await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "research.family")
         assert_page_svg_contains(page, "research.audit")
+        assert all(
+            agent.agent_name != "research.family--code" for agent in page.app._agents
+        )
         ace_png_visual.assert_page_png(
             page,
             "agents_clan_tree_expanded_120x40",
             title="ACE clan tree expanded",
         )
 
+        await page.press("j", "j", "j")
+        assert page.app._agents[page.app.current_idx].agent_name == "research.audit"
         await page.press("l")
-        await page.expect_state("agent_count", 7)
+        await page.expect_state("agent_count", 5)
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "research.family--code")
+        assert_page_svg_contains(page, "audit-prompt")
+        assert all(not agent.is_hidden_step for agent in page.app._agents)
+        assert all(
+            agent.agent_name != "research.family--code" for agent in page.app._agents
+        )
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_tree_member_expanded_120x40",
+            title="ACE clan member expanded",
+        )
+
+        await page.press("l")
+        await page.expect_state("agent_count", 6)
+        await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "setup")
+        assert all(
+            agent.agent_name != "research.family--code" for agent in page.app._agents
+        )
         ace_png_visual.assert_page_png(
             page,
             "agents_clan_tree_fully_expanded_120x40",
-            title="ACE clan tree fully expanded",
+            title="ACE clan member fully expanded",
         )
 
 

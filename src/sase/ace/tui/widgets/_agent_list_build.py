@@ -20,8 +20,11 @@ from ..agent_completion import (
     wait_dependencies_satisfied,
 )
 from ..models.agent import Agent, AgentType
-from ..models._agent_tree import agent_fold_key
-from ..models._agent_tree import agent_is_tree_child
+from ..models._agent_tree import (
+    agent_fold_key,
+    agent_is_tree_child,
+    agent_parent_fold_key,
+)
 from ..models.agent_groups import (
     GroupingMode,
     GroupRow,
@@ -53,23 +56,18 @@ BannerMarkState = Literal["none", "partial", "all"]
 # strongly typed in ``agent_list.py``.
 
 
-def _compute_visible_parents(
+def compute_visible_parents(
     agents: list[Agent],
 ) -> tuple[set[str], set[str]]:
     """Return ``(parents_with_visible_children, fully_expanded_parents)``."""
     parents_with_visible_children: set[str] = set()
     fully_expanded_parents: set[str] = set()
     for agent in agents:
-        if agent.tree_parent_key:
-            parents_with_visible_children.add(agent.tree_parent_key)
-            if agent.tree_depth > 1 and (
-                agent.is_hidden_step or agent.is_family_member_child
-            ):
-                fully_expanded_parents.add(agent.tree_parent_key)
-        elif agent.is_child_row and agent.parent_timestamp:
-            parents_with_visible_children.add(agent.parent_timestamp)
+        parent_key = agent_parent_fold_key(agent)
+        if parent_key is not None:
+            parents_with_visible_children.add(parent_key)
             if agent.is_hidden_step:
-                fully_expanded_parents.add(agent.parent_timestamp)
+                fully_expanded_parents.add(parent_key)
     return parents_with_visible_children, fully_expanded_parents
 
 
@@ -216,6 +214,8 @@ def build_list(
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
     tag_labels: list[str | None] | None = None,
     panel_tag: str | None = None,
+    parents_with_visible_children: set[str] | None = None,
+    fully_expanded_parents: set[str] | None = None,
     now: datetime | None = None,
 ) -> None:
     """Rebuild *widget*'s OptionList from scratch for ``agents``.
@@ -238,9 +238,12 @@ def build_list(
 
     marked = marked_agents or set()
     unread = unread_agents or set()
-    parents_with_visible_children, fully_expanded_parents = _compute_visible_parents(
-        agents
-    )
+    if parents_with_visible_children is None or fully_expanded_parents is None:
+        local_visible_parents, local_fully_expanded = compute_visible_parents(agents)
+        if parents_with_visible_children is None:
+            parents_with_visible_children = local_visible_parents
+        if fully_expanded_parents is None:
+            fully_expanded_parents = local_fully_expanded
 
     widget._grouping_mode = grouping_mode
     tree: list[TreeEntry] = build_agent_tree(
@@ -263,9 +266,7 @@ def build_list(
     for i, agent in enumerate(agents):
         fold_key = agent_fold_key(agent)
         is_expanded = bool(
-            fold_key is not None
-            and fold_key in parents_with_visible_children
-            and not agent.tree_parent_key
+            fold_key is not None and fold_key in parents_with_visible_children
         )
         is_marked = agent.identity in marked
         is_unread = agent.identity in unread

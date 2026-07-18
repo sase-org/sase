@@ -55,18 +55,15 @@ def ordered_row_providers(agent: Agent) -> tuple[str, ...]:
 
 
 def _is_foldable_parent(agent: Agent) -> bool:
-    """Check if an agent is a foldable parent (workflow)."""
-    if agent.tree_parent_key:
+    """Return whether structural fold counts belong on this row."""
+    if agent.is_child_row:
         return False
-    if agent.is_workflow_child and not agent.is_clan_container:
-        return False
-    if (
+    return bool(
         agent.is_clan_container
+        or agent.tree_depth == 1
         or agent.agent_type == AgentType.WORKFLOW
         or clan_members(agent)
-    ):
-        return True
-    return False
+    )
 
 
 def _attempt_count_suffix(attempts_count: int) -> str:
