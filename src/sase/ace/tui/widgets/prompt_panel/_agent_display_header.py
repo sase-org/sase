@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from datetime import datetime as DateTime
 from pathlib import Path
 from typing import Self
@@ -19,7 +19,7 @@ from sase.agent.status_buckets import (
 from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.project_display_names import humanize_cl_name
 
-from ...models.agent import Agent
+from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._agent_bead_section import ResponsiveBeadSection
@@ -213,6 +213,7 @@ def build_header_text(
     summary: DetailHeaderSummary | None = None,
     agent_status_buckets: Mapping[str, str] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -240,7 +241,7 @@ def build_header_text(
     if agent.is_clan_container:
         from ._agent_display_clan import build_clan_detail_text
 
-        return build_clan_detail_text(agent), None
+        return build_clan_detail_text(agent, unread_ids=unread_agent_ids), None
 
     header_text = Text()
 

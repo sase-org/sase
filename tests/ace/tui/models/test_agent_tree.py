@@ -272,3 +272,29 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
     assert family_text.plain.startswith("  └─ research.family")
     assert family_member.tree_depth == 2
     assert member_text.plain.startswith("  │  └─ research.family--code")
+
+
+def test_clan_row_renders_unread_count_in_both_fold_states() -> None:
+    done = _agent("research.done", "done", status="DONE")
+    failed = _agent("research.failed", "failed", status="FAILED")
+    container, done, failed = project_clan_tree([done, failed])
+    unread_ids = {done.identity, failed.identity}
+
+    collapsed, _, _ = format_agent_option(
+        container,
+        0,
+        is_selected=False,
+        fold_annotation=" ×2",
+        unread_agent_ids=unread_ids,
+    )
+    expanded, _, _ = format_agent_option(
+        container,
+        0,
+        is_selected=False,
+        is_expanded=True,
+        unread_agent_ids=unread_ids,
+    )
+
+    assert "[F1 U2]" in collapsed.plain
+    assert "[F1 U2]" in expanded.plain
+    assert "D" not in collapsed.plain.split("[", 1)[1]

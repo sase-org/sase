@@ -100,6 +100,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     # completed count across every refresh path.
     _agent_panel_index_cache: tuple[Any, bool, AgentPanelIndex] | None
     _agent_neighbor_index_cache: tuple[Any, ...] | None
+    _unread_jump_candidates_cache: tuple[Any, Any] | None
 
     def _invalidate_agent_panel_cache(self) -> None:
         """Clear panel-derived caches after in-place agent mutations."""
@@ -113,6 +114,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             self._panel_keys_cache = None
         if hasattr(self, "_nav_stops_cache"):
             self._nav_stops_cache = None
+        if hasattr(self, "_unread_jump_candidates_cache"):
+            self._unread_jump_candidates_cache = None
 
     def _snap_focus_after_agents_fold_restore(self) -> None:
         """Re-anchor once after restored folds hide the selected agent row."""

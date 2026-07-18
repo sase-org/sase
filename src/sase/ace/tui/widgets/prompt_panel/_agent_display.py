@@ -106,10 +106,15 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 if agent.waiting_for
                 else None
             )
+            try:
+                app = self.app  # type: ignore[attr-defined]
+            except Exception:
+                app = None
             header_text, error_tb_syntax = build_header_text(
                 agent,
                 cheap=True,
                 agent_status_buckets=agent_status_buckets,
+                unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
                     self
                 ),

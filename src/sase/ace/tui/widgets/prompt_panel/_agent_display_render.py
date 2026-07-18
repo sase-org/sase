@@ -149,7 +149,14 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         # is derived from already-loaded members and must never probe agent
         # artifacts or append ordinary prompt/reply sections.
         if agent.is_clan_container:
-            header_text, _error_tb_syntax = build_header_text(agent)
+            try:
+                app = self.app  # type: ignore[attr-defined]
+            except Exception:
+                app = None
+            header_text, _error_tb_syntax = build_header_text(
+                agent,
+                unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
+            )
             self.update(header_text)  # type: ignore[attr-defined]
             return
 

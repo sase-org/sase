@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
@@ -25,6 +26,17 @@ def _stopped_agent_jump_time(agent: Agent) -> datetime | None:
     return agent.stop_time or agent.start_time
 
 
+@dataclass(frozen=True, slots=True)
+class _TimedAgentJumpCandidate:
+    """Stable jump target, optionally hidden by one collapsed clan fold."""
+
+    identity: tuple[AgentType, str, str | None]
+    panel_key: str | None
+    jump_time: datetime | None
+    visible_idx: int | None
+    clan_fold_key: str | None = None
+
+
 class AgentUnreadMixin:
     """Mixin providing unread completed-agent state and navigation."""
 
@@ -35,18 +47,40 @@ class AgentUnreadMixin:
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_info_metrics_cache: tuple[Any, ...] | None
+    _unread_jump_candidates_cache: tuple[Any, Any] | None
+
+    def _repaint_changed_unread_rows(
+        self,
+        before: set[tuple[AgentType, str, str | None]],
+    ) -> bool:
+        """Use ancestor-aware repainting with a narrow compatibility fallback."""
+        patch_changes = getattr(self, "_patch_unread_completed_agent_changes", None)
+        if callable(patch_changes):
+            return bool(patch_changes(before))
+
+        after: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        changed = before ^ after
+        for agent in self._agents:
+            if agent.identity not in changed:
+                continue
+            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
+                self._refresh_agents_display(  # type: ignore[attr-defined]
+                    list_changed=True,
+                    defer_detail=True,
+                )
+                return False
+        return True
 
     def _has_unread_completed_agent(self) -> bool:
-        """Return True when a visible terminal row is still unread."""
+        """Return True when an unread terminal row is currently jumpable."""
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
         if not unread_ids:
             return False
-        return any(
-            is_unread_completed_status(agent.status) and agent.identity in unread_ids
-            for agent in self._agents
-        )
+        return bool(self._unread_timed_jump_candidates())
 
     def _has_stopped_agent(self) -> bool:
         """Return True when a stopped agent row is currently loaded."""
@@ -58,10 +92,14 @@ class AgentUnreadMixin:
         if not unread_ids:
             return 0
 
+        before_unread = set(unread_ids)
+        roster = getattr(self, "_agents_with_children", None) or self._agents
         target_agents = [
             agent
-            for agent in self._agents
-            if agent.identity in unread_ids and is_unread_completed_status(agent.status)
+            for agent in roster
+            if not agent.is_clan_container
+            and agent.identity in unread_ids
+            and is_unread_completed_status(agent.status)
         ]
         if not target_agents:
             return 0
@@ -90,19 +128,11 @@ class AgentUnreadMixin:
             if callable(refresh_count):
                 refresh_count()
 
-        patched_all = True
-        for agent in target_agents:
-            if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-                patched_all = False
-                break
-        if not patched_all:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True,
-            )
+        self._repaint_changed_unread_rows(before_unread)
         return len(target_agents)
 
     def _jump_to_next_unread_done_agent(self) -> bool:
-        """Move focus to the next visible unread completed agent and acknowledge it."""
+        """Reveal and select the next unread completed agent, then acknowledge it."""
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
@@ -120,11 +150,9 @@ class AgentUnreadMixin:
                     list_changed=True, defer_detail=True
                 )
             elif needs_full_refresh:
+                before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
                 changed = self._clear_agent_unread_and_dismiss_notification(agent)
-                if changed and not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-                    self._refresh_agents_display(  # type: ignore[attr-defined]
-                        list_changed=True, defer_detail=True
-                    )
+                if changed and not self._repaint_changed_unread_rows(before_unread):
                     return
                 self._refresh_agents_display(  # type: ignore[attr-defined]
                     list_changed=False, defer_detail=True
@@ -132,12 +160,16 @@ class AgentUnreadMixin:
             else:
                 self._acknowledge_agent_unread(agent)
 
+        def predicate(agent: Agent) -> bool:
+            return agent.identity in unread_ids and is_unread_completed_status(
+                agent.status
+            )
+
         return self._jump_to_next_matching_agent_by_time(
-            predicate=lambda agent: (
-                agent.identity in unread_ids
-                and is_unread_completed_status(agent.status)
-            ),
+            predicate=predicate,
             after_select=acknowledge_target,
+            include_collapsed_clan_members=True,
+            candidates=self._unread_timed_jump_candidates(),
         )
 
     def _jump_to_next_stopped_agent(self) -> bool:
@@ -154,45 +186,24 @@ class AgentUnreadMixin:
         predicate: Callable[[Agent], bool],
         after_select: Callable[[Agent, bool, bool], None] | None,
         time_for_agent: Callable[[Agent], datetime | None] | None = None,
+        include_collapsed_clan_members: bool = False,
+        candidates: list[_TimedAgentJumpCandidate] | None = None,
     ) -> bool:
         """Move focus to the next jumpable agent matching *predicate* by recency."""
-        if not self._agents:
-            return False
-
-        visible_panel_indices = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
-            include_collapsed_panels=True
-        )
-        if not visible_panel_indices:
-            return False
-
-        panel_group = getattr(self, "_panel_group", None)
-        candidates: list[tuple[int, str | None, datetime | None]] = []
-        for idx, panel_idx in visible_panel_indices.items():
-            agent = self._agents[idx]
-            if predicate(agent):
-                if panel_group is None:
-                    panel_key = None
-                elif panel_idx is not None and 0 <= panel_idx < len(
-                    panel_group.panel_keys
-                ):
-                    panel_key = panel_group.panel_keys[panel_idx]
-                else:
-                    continue
-                jump_time = (
-                    time_for_agent(agent)
-                    if time_for_agent is not None
-                    else agent.stop_time or agent.start_time
-                )
-                candidates.append((idx, panel_key, jump_time))
-
+        if candidates is None:
+            candidates = self._timed_agent_jump_candidates(
+                predicate=predicate,
+                time_for_agent=time_for_agent,
+                include_collapsed_clan_members=include_collapsed_clan_members,
+            )
         if not candidates:
             return False
 
-        candidates.sort(
-            key=lambda candidate: candidate[2] or datetime.min, reverse=True
-        )
-
         target_pos = 0
+        panel_group = getattr(self, "_panel_group", None)
+        visible_panel_indices = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
+            include_collapsed_panels=True
+        )
         focused_panel_is_collapsed = (
             panel_group is not None
             and panel_group.focused_key in getattr(self, "_collapsed_panel_keys", set())
@@ -208,12 +219,24 @@ class AgentUnreadMixin:
             )
         )
         if current_is_visible_agent:
-            for candidate_pos, (idx, _panel_key, _jump_time) in enumerate(candidates):
-                if idx == self.current_idx:
+            current_identity = self._agents[self.current_idx].identity
+            for candidate_pos, candidate in enumerate(candidates):
+                if candidate.identity == current_identity:
                     target_pos = (candidate_pos + 1) % len(candidates)
                     break
 
-        target_idx, target_panel_key, _jump_time = candidates[target_pos]
+        target = candidates[target_pos]
+        if target.clan_fold_key is not None:
+            return self._reveal_and_select_timed_jump_candidate(
+                target,
+                predicate=predicate,
+                after_select=after_select,
+            )
+
+        target_idx = target.visible_idx
+        if target_idx is None or not (0 <= target_idx < len(self._agents)):
+            return False
+        target_panel_key = target.panel_key
         old_idx = self.current_idx
         old_panel_key = panel_group.focused_key if panel_group is not None else None
         old_group_key = self._current_group_key
@@ -262,6 +285,352 @@ class AgentUnreadMixin:
         elif needs_full_refresh:
             self._refresh_agents_display(  # type: ignore[attr-defined]
                 list_changed=False, defer_detail=True
+            )
+        return True
+
+    def _unread_timed_jump_candidates(self) -> list[_TimedAgentJumpCandidate]:
+        """Return a cached unread candidate projection for footer/jump reuse."""
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        complete = getattr(self, "_agents_with_children", None) or self._agents
+        fold_manager = getattr(self, "_fold_manager", None)
+        fold_signature = (
+            tuple(
+                sorted(
+                    (key, level.value) for key, level in fold_manager.snapshot().items()
+                )
+            )
+            if fold_manager is not None
+            else ()
+        )
+        group_registry = getattr(self, "_group_fold_registry", None)
+        status_signature = tuple(
+            (
+                agent.identity,
+                agent.status,
+                agent.start_time,
+                agent.stop_time,
+                agent.tree_parent_key,
+            )
+            for agent in complete
+            if not agent.is_clan_container
+        )
+        cache_key = (
+            id(self._agents),
+            id(complete),
+            frozenset(unread_ids),
+            fold_signature,
+            id(group_registry),
+            getattr(group_registry, "version", 0),
+            getattr(self, "_grouping_mode", None),
+            bool(getattr(self, "_agent_panels_grouped", False)),
+            getattr(self, "_agent_search_query", "") or "",
+            id(getattr(self, "_agent_content_search_index", None)),
+            status_signature,
+        )
+        cached = getattr(self, "_unread_jump_candidates_cache", None)
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+
+        candidates = self._timed_agent_jump_candidates(
+            predicate=lambda agent: (
+                agent.identity in unread_ids
+                and is_unread_completed_status(agent.status)
+            ),
+            time_for_agent=None,
+            include_collapsed_clan_members=True,
+        )
+        self._unread_jump_candidates_cache = (cache_key, candidates)
+        return candidates
+
+    def _timed_agent_jump_candidates(
+        self,
+        *,
+        predicate: Callable[[Agent], bool],
+        time_for_agent: Callable[[Agent], datetime | None] | None,
+        include_collapsed_clan_members: bool,
+    ) -> list[_TimedAgentJumpCandidate]:
+        """Discover rendered targets plus revealable direct clan members."""
+        if not self._agents and not getattr(self, "_agents_with_children", None):
+            return []
+
+        visible_panel_indices = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
+            include_collapsed_panels=True
+        )
+        panel_group = getattr(self, "_panel_group", None)
+        candidates: list[_TimedAgentJumpCandidate] = []
+        seen: set[tuple[AgentType, str, str | None]] = set()
+        for idx, panel_idx in visible_panel_indices.items():
+            agent = self._agents[idx]
+            if agent.is_clan_container or not predicate(agent):
+                continue
+            if panel_group is None:
+                panel_key = None
+            elif panel_idx is not None and 0 <= panel_idx < len(panel_group.panel_keys):
+                panel_key = panel_group.panel_keys[panel_idx]
+            else:
+                continue
+            candidates.append(
+                _TimedAgentJumpCandidate(
+                    identity=agent.identity,
+                    panel_key=panel_key,
+                    jump_time=(
+                        time_for_agent(agent)
+                        if time_for_agent is not None
+                        else agent.stop_time or agent.start_time
+                    ),
+                    visible_idx=idx,
+                )
+            )
+            seen.add(agent.identity)
+
+        if include_collapsed_clan_members:
+            candidates.extend(
+                self._collapsed_clan_jump_candidates(
+                    predicate=predicate,
+                    time_for_agent=time_for_agent,
+                    seen=seen,
+                )
+            )
+
+        candidates.sort(
+            key=lambda candidate: candidate.jump_time or datetime.min,
+            reverse=True,
+        )
+        return candidates
+
+    def _collapsed_clan_jump_candidates(
+        self,
+        *,
+        predicate: Callable[[Agent], bool],
+        time_for_agent: Callable[[Agent], datetime | None] | None,
+        seen: set[tuple[AgentType, str, str | None]],
+    ) -> list[_TimedAgentJumpCandidate]:
+        """Return direct members hidden only by a collapsed outer clan fold."""
+        complete = list(getattr(self, "_agents_with_children", ()) or ())
+        fold_manager = getattr(self, "_fold_manager", None)
+        if not complete or fold_manager is None:
+            return []
+
+        from ...models._agent_tree import agent_fold_key
+        from ...models.fold_state import FoldLevel
+
+        members_by_fold: dict[str, list[Agent]] = {}
+        for container in complete:
+            if not container.is_clan_container:
+                continue
+            fold_key = agent_fold_key(container)
+            if fold_key is None or fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+                continue
+            direct_members = [
+                member
+                for member in container.runtime_children
+                if not member.is_clan_container
+                and member.tree_parent_key == fold_key
+                and member.identity not in seen
+            ]
+            if direct_members:
+                members_by_fold[fold_key] = direct_members
+
+        candidates: list[_TimedAgentJumpCandidate] = []
+        for fold_key, direct_members in members_by_fold.items():
+            visible_by_identity = self._prospective_clan_member_panels(
+                complete,
+                fold_key,
+            )
+            for member in direct_members:
+                panel_key = visible_by_identity.get(member.identity)
+                if member.identity not in visible_by_identity or not predicate(member):
+                    continue
+                candidates.append(
+                    _TimedAgentJumpCandidate(
+                        identity=member.identity,
+                        panel_key=panel_key,
+                        jump_time=(
+                            time_for_agent(member)
+                            if time_for_agent is not None
+                            else member.stop_time or member.start_time
+                        ),
+                        visible_idx=None,
+                        clan_fold_key=fold_key,
+                    )
+                )
+                seen.add(member.identity)
+        return candidates
+
+    def _prospective_clan_member_panels(
+        self,
+        complete: list[Agent],
+        fold_key: str,
+    ) -> dict[tuple[AgentType, str, str | None], str | None]:
+        """Project rows that would render after expanding exactly one clan."""
+        from sase.core.time import local_now
+
+        from ...models import filter_agents_by_fold_state
+        from ...models.agent_groups import GroupingMode, build_agent_tree
+        from ...models.agent_panels import AgentPanelGroup, agents_for_panel
+        from ...models.fold_state import FoldLevel, FoldStateManager
+        from ._fold_scope import panel_fold_registry
+
+        source_manager = self._fold_manager  # type: ignore[attr-defined]
+        projected_manager = FoldStateManager()
+        for key, level in source_manager.snapshot().items():
+            if level in {FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED}:
+                projected_manager.expand(key)
+            if level == FoldLevel.FULLY_EXPANDED:
+                projected_manager.expand(key)
+        projected_manager.expand(fold_key)
+        projected, _counts = filter_agents_by_fold_state(
+            complete,
+            projected_manager,
+        )
+
+        raw_query = getattr(self, "_agent_search_query", "") or ""
+        if raw_query:
+            parse_query = getattr(self, "_get_or_parse_agent_query", None)
+            parsed = parse_query() if callable(parse_query) else None
+            if parsed is None:
+                from ....agent_query import parse_agent_query
+
+                try:
+                    parsed = parse_agent_query(raw_query)
+                except Exception:
+                    return {}
+            from ....agent_query import evaluate_agent_query
+            from ...models._agent_tree import filter_tree_rows
+
+            content_index = getattr(self, "_agent_content_search_index", None)
+            now = local_now()
+            projected = filter_tree_rows(
+                projected,
+                lambda agent: evaluate_agent_query(
+                    parsed,
+                    agent,
+                    now=now,
+                    content_cache=content_index,
+                ),
+            )
+
+        mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        merge_tag_panels = bool(getattr(self, "_agent_panels_grouped", False))
+        panel_group = AgentPanelGroup.from_agents(
+            projected,
+            merge_tag_panels=merge_tag_panels,
+        )
+        rendered: dict[tuple[AgentType, str, str | None], str | None] = {}
+        for panel_key in panel_group.panel_keys:
+            panel_agents = agents_for_panel(
+                projected,
+                panel_key,
+                merge_tag_panels=merge_tag_panels,
+            )
+            tree = build_agent_tree(
+                panel_agents,
+                fold_registry=panel_fold_registry(self, panel_key),
+                mode=mode,
+            )
+            for entry in tree:
+                if entry.kind != "agent" or entry.agent_idx is None:
+                    continue
+                if 0 <= entry.agent_idx < len(panel_agents):
+                    rendered[panel_agents[entry.agent_idx].identity] = panel_key
+        return rendered
+
+    def _reveal_and_select_timed_jump_candidate(
+        self,
+        target: _TimedAgentJumpCandidate,
+        *,
+        predicate: Callable[[Agent], bool],
+        after_select: Callable[[Agent, bool, bool], None] | None,
+    ) -> bool:
+        """Expand one target clan, refilter, resolve by identity, and select."""
+        save_jump_anchor = getattr(self, "_save_agents_jump_anchor", None)
+        if callable(save_jump_anchor):
+            save_jump_anchor()
+
+        fold_manager = getattr(self, "_fold_manager", None)
+        if fold_manager is None or target.clan_fold_key is None:
+            return False
+        if not fold_manager.expand(target.clan_fold_key):
+            return False
+
+        # Expand an already-known collapsed tag panel before the structural
+        # refilter so both fold changes land in one rebuilt projection.
+        expand_panel = getattr(self, "_expand_agent_panel", None)
+        if callable(expand_panel):
+            expand_panel(target.panel_key)
+
+        invalidate = getattr(self, "_invalidate_agent_panel_cache", None)
+        if callable(invalidate):
+            invalidate()
+        refilter = getattr(self, "_refilter_agents", None)
+        if not callable(refilter):
+            return False
+        try:
+            refilter(refresh_content_index=False)
+        except TypeError:
+            refilter()
+
+        target_idx = next(
+            (
+                idx
+                for idx, agent in enumerate(self._agents)
+                if agent.identity == target.identity
+            ),
+            None,
+        )
+        if target_idx is None:
+            return False
+        target_agent = self._agents[target_idx]
+        unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
+            self, "_unread_completed_agent_ids", set()
+        )
+        if target_agent.identity not in unread_ids or not predicate(target_agent):
+            return False
+
+        visible = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
+            include_collapsed_panels=True
+        )
+        if target_idx not in visible:
+            return False
+
+        panel_group = getattr(self, "_panel_group", None)
+        target_panel_idx = visible[target_idx]
+        target_panel_key = None
+        if panel_group is not None:
+            if target_panel_idx is None or not (
+                0 <= target_panel_idx < len(panel_group.panel_keys)
+            ):
+                return False
+            target_panel_key = panel_group.panel_keys[target_panel_idx]
+
+        panel_expanded_after_refilter = False
+        if (
+            panel_group is not None
+            and target_panel_key in getattr(self, "_collapsed_panel_keys", set())
+            and callable(expand_panel)
+        ):
+            panel_expanded_after_refilter = bool(expand_panel(target_panel_key))
+
+        if panel_group is not None and target_panel_idx != panel_group.focused_idx:
+            panel_group.focused_idx = target_panel_idx
+        self._current_group_key = None
+        self.current_idx = target_idx
+        if hasattr(self, "current_attempt_number"):
+            self.current_attempt_number = None  # type: ignore[attr-defined]
+
+        if after_select is not None:
+            after_select(target_agent, True, panel_expanded_after_refilter)
+        elif panel_expanded_after_refilter:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=True,
+                defer_detail=True,
+            )
+        else:
+            self._refresh_agents_display(  # type: ignore[attr-defined]
+                list_changed=False,
+                defer_detail=True,
             )
         return True
 
@@ -353,6 +722,7 @@ class AgentUnreadMixin:
             return 0
 
         identities = {agent.identity for agent in dismissed_agents}
+        before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
         changed_unread_state = False
 
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
@@ -387,6 +757,8 @@ class AgentUnreadMixin:
             refresh_count = getattr(self, "_refresh_notification_count", None)
             if callable(refresh_count):
                 refresh_count()
+        if changed_unread_state:
+            self._repaint_changed_unread_rows(before_unread)
         return dismissed_count
 
     def _clear_agent_unread_and_dismiss_notification(self, agent: Agent) -> bool:
@@ -398,7 +770,7 @@ class AgentUnreadMixin:
         notification indicator is refreshed so the one-to-one row/notification
         contract holds.
         """
-        if agent.identity in self._manual_unread_ids():
+        if agent.is_clan_container or agent.identity in self._manual_unread_ids():
             return False
 
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
@@ -431,13 +803,13 @@ class AgentUnreadMixin:
 
         Returns True when the visible row was patched or refreshed.
         """
+        if agent.is_clan_container:
+            return False
+        before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
         if not self._clear_agent_unread_and_dismiss_notification(agent):
             return False
 
-        if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+        self._repaint_changed_unread_rows(before_unread)
         return True
 
     def _toggle_agent_unread(self) -> None:
@@ -446,9 +818,10 @@ class AgentUnreadMixin:
             return
 
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None:
+        if agent is None or agent.is_clan_container:
             return
 
+        before_unread = set(getattr(self, "_unread_completed_agent_ids", set()))
         identity = agent.identity
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         if unread_ids is None:
@@ -465,7 +838,4 @@ class AgentUnreadMixin:
             if hasattr(self, "_agent_info_metrics_cache"):
                 self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
-        if not self._try_patch_agent_row(agent):  # type: ignore[attr-defined]
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+        self._repaint_changed_unread_rows(before_unread)

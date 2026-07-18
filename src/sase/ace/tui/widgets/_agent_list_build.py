@@ -238,6 +238,7 @@ def build_list(
 
     marked = marked_agents or set()
     unread = unread_agents or set()
+    widget._unread_agents = set(unread)
     if parents_with_visible_children is None or fully_expanded_parents is None:
         local_visible_parents, local_fully_expanded = compute_visible_parents(agents)
         if parents_with_visible_children is None:
@@ -298,6 +299,7 @@ def build_list(
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
+            unread_agent_ids=unread,
         )
         agent_parts[i] = (left, suffix, option_id)
         widget._row_render_ctx[i] = {
@@ -571,9 +573,14 @@ def patch_row(
     is_marked = (
         ctx["is_marked"] if marked_agents is None else agent.identity in marked_agents
     )
-    is_unread = (
-        ctx["is_unread"] if unread_agents is None else agent.identity in unread_agents
+    effective_unread = (
+        getattr(widget, "_unread_agents", set())
+        if unread_agents is None
+        else unread_agents
     )
+    if unread_agents is not None:
+        widget._unread_agents = set(unread_agents)
+    is_unread = agent.identity in effective_unread
     sel = ctx["is_selected"] if is_selected is None else is_selected
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of
@@ -595,6 +602,7 @@ def patch_row(
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
+        unread_agent_ids=effective_unread,
     )
 
     gap = 2 if suffix.cell_len else 0

@@ -11,6 +11,7 @@ from sase.ace.tui.actions.agents._loading_finalize import (
     _sync_unread_completed_agents,
 )
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 
 from ._agent_unread_helpers import make_agent
@@ -245,3 +246,21 @@ def test_finalizer_prunes_stale_manual_unread_identities(
 
     assert app._unread_completed_agent_ids == set()
     assert app._manual_unread_agent_ids == set()
+
+
+def test_finalizer_retains_member_hidden_by_collapsed_clan(
+    snapshot_notifications: list[object],
+) -> None:
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    complete = project_clan_tree([member])
+    container = complete[0]
+    app = _UnreadFinalizeApp([container])
+    app._agents_with_children = complete
+    snapshot_notifications.append(_completion_notification(member))
+
+    _sync_unread_completed_agents(app, on_agents_tab=True)  # type: ignore[arg-type]
+
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert container.identity not in app._unread_completed_agent_ids

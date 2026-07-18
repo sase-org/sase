@@ -8,6 +8,7 @@ import pytest
 
 from ._agent_unread_helpers import make_agent
 from ._agent_unread_navigation_helpers import UnreadJumpApp
+from sase.ace.tui.models._agent_tree import project_clan_tree
 
 
 @pytest.fixture(autouse=True)
@@ -103,6 +104,24 @@ def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
     assert app.current_idx == 0
     assert first.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [first]
+
+
+def test_keyboard_navigation_onto_clan_never_acknowledges_member() -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    container = project_clan_tree([member])[0]
+    app = UnreadJumpApp([origin, container])
+    app._unread_completed_agent_ids.add(member.identity)
+    app._manual_unread_agent_ids.add(member.identity)
+
+    app._navigate_agents_panel(1)
+
+    assert app._agents[app.current_idx] is container
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert app._manual_unread_agent_ids == {member.identity}
+    assert app.patch_calls == []
 
 
 def test_has_unread_completed_agent_includes_plan_done() -> None:

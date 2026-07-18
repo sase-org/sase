@@ -127,6 +127,44 @@ def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
     assert "@review" in after_tag[0].plain
 
 
+def test_cached_clan_row_invalidates_across_done_unread_done_transition() -> None:
+    cache = AgentRenderCache()
+    clan = _agent(cl_name="research", status="DONE", raw_suffix=None)
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.agent_clan_generation = "generation"
+    member = _agent(cl_name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    clan.runtime_children = [member]
+
+    read_before = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+    )
+    unread = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        unread_agent_ids={member.identity},
+    )
+    read_after = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+    )
+
+    assert "[D1]" in read_before[0].plain
+    assert "[U1]" in unread[0].plain
+    assert "D1" not in unread[0].plain
+    assert "[D1]" in read_after[0].plain
+    assert unread[0] is not read_after[0]
+
+
 def test_clan_row_omits_only_the_matching_split_panel_tag() -> None:
     clan = _agent(cl_name="research", status="RUNNING")
     clan.is_clan_container = True

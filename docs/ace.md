@@ -737,28 +737,29 @@ cached by raw query string so re-renders skip the parse.
 
 Leader mode is available on every tab. In the Agents tab it also exposes layout and notification shortcuts for the
 currently loaded agent list; global entries such as `,m` and `,U` behave the same from other tabs. Unread-completed
-actions operate on terminal rows that are loaded in the Agents tab; `,j` only targets visible rows.
+actions operate on terminal rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden by a
+collapsed clan.
 
-| Key        | Action                                                                                       |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                               |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                      |
-| `,g`       | Toggle between tag-split panels and one merged agent panel                                   |
-| `,j`       | Jump to the next visible unread completed agent, newest first, and mark it read              |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state |
-| `,y`       | Refresh the Agents tab from full artifact history                                            |
-| `,u`       | Mark all loaded unread completed agents as read                                              |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                        |
-| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))         |
-| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                           |
-| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication     |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation            |
-| `,r`       | Revert focused or marked agent commits, including recorded linked repos                      |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                     |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                          |
-| `,.`       | Open prompt history modal                                                                    |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                     |
-| `,?`       | Open the current tab's guide modal                                                           |
+| Key        | Action                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                                    |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
+| `,g`       | Toggle between tag-split panels and one merged agent panel                                        |
+| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
+| `,y`       | Refresh the Agents tab from full artifact history                                                 |
+| `,u`       | Mark all loaded unread completed agents as read                                                   |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
+| `,m`       | Open the Models panel (view/manage model aliases; see [Models Panel](#models-panel))              |
+| `,U`       | Update sase, core, and plugins (opens Updates confirmation prompt)                                |
+| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
+| `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                               |
+| `,.`       | Open prompt history modal                                                                         |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                          |
+| `,?`       | Open the current tab's guide modal                                                                |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`, `TALE DONE`, `PLAN REJECTED`,
 `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from the Agents header's "stopped" attention bucket for rows paused

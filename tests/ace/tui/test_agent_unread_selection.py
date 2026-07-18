@@ -10,7 +10,11 @@ import pytest
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.actions.navigation._entry_jump_dispatch import (
+    EntryJumpDispatchMixin,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_panels import AgentPanelGroup, panel_key_per_agent
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -82,6 +86,26 @@ class _SelectionApp(EventHandlersMixin, AgentsMixinCore):
         self.notification_count_refresh_calls += 1
 
 
+class _JumpHintSelectionApp(EntryJumpDispatchMixin, _SelectionApp):
+    def __init__(self, agents: list[Agent]) -> None:
+        super().__init__(agents)
+        self._entry_jump_mode_active = True
+        self._entry_jump_hint_to_index = {"x": 1}
+        self._entry_jump_hint_to_banner = {}
+        self._entry_jump_hint_to_panel = {}
+        self._collapsed_panel_keys = set()
+
+    def _panel_idx_for_agent_jump_target(self, _target: int) -> int:
+        return 0
+
+    def _remember_agents_jump_origin_if_changed(self, **_kwargs: Any) -> None:
+        pass
+
+    def _exit_entry_jump_mode(self, *, refresh: bool = True) -> None:
+        del refresh
+        self._entry_jump_mode_active = False
+
+
 def test_agent_row_selection_clears_unread_and_patches_row() -> None:
     agent = make_agent(status="DONE")
     app = _SelectionApp([agent])
@@ -138,6 +162,51 @@ def test_banner_selection_does_not_clear_agent_unread() -> None:
     )
 
     assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_clan_selection_and_manual_toggle_never_acknowledge_member(
+    notification_dismiss: Mock,
+) -> None:
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    container = project_clan_tree([member])[0]
+    app = _SelectionApp([container])
+    app._unread_completed_agent_ids.add(member.identity)
+    app._manual_unread_agent_ids.add(member.identity)
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
+    )
+    app._toggle_agent_unread()
+
+    assert not app._acknowledge_agent_unread(container)
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert app._manual_unread_agent_ids == {member.identity}
+    assert app.patch_calls == []
+    assert app.refresh_calls == []
+    notification_dismiss.assert_not_called()
+
+
+def test_jump_hint_selection_of_clan_never_acknowledges_member(
+    notification_dismiss: Mock,
+) -> None:
+    origin = make_agent(name="origin", status="RUNNING", raw_suffix="origin")
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    container = project_clan_tree([member])[0]
+    app = _JumpHintSelectionApp([origin, container])
+    app._unread_completed_agent_ids.add(member.identity)
+    app._manual_unread_agent_ids.add(member.identity)
+
+    assert app._handle_entry_jump_key("x")
+
+    assert app._agents[app.current_idx] is container
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert app._manual_unread_agent_ids == {member.identity}
+    assert app.patch_calls == []
+    notification_dismiss.assert_not_called()
 
 
 def test_manual_unread_mouse_selection_preserves_selected_row() -> None:

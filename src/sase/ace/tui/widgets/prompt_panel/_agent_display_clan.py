@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from copy import copy
 from datetime import datetime
 
@@ -261,6 +262,7 @@ def build_clan_detail_text(
     agent: Agent,
     *,
     now: datetime | None = None,
+    unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> Text:
     """Build the complete in-memory detail document for a clan container."""
     members = _ordered_members(agent)
@@ -290,7 +292,7 @@ def build_clan_detail_text(
         text.append("—", style="dim")
     text.append("\n")
 
-    counts = clan_member_counts(agent)
+    counts = clan_member_counts(agent, unread_ids)
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
     status_bucket = status_bucket_for_values(agent.status)
     text.append(agent.display_status, style=_MEMBER_STATUS_STYLES[status_bucket])
@@ -299,6 +301,7 @@ def build_clan_detail_text(
         running=counts.running,
         waiting=counts.waiting,
         failed=counts.failed,
+        unread=counts.unread,
         done=counts.done,
     )
     if chip.cell_len:

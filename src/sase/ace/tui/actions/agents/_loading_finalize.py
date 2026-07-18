@@ -41,7 +41,7 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
     matching completion notification is still active (not dismissed) and
     manual ``U`` marks survive on rows that lack a notification.
 
-    Stale identities (agents no longer visible) are pruned. Newly-terminal
+    Stale identities (agents no longer loaded) are pruned. Newly-terminal
     rows are picked up by the notification-projection reconcile step rather
     than a status transition; a focused row remains unread until the user
     intentionally enters it again through a selection/navigation event.
@@ -55,9 +55,12 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
         manual_ids = set()
         app._manual_unread_agent_ids = manual_ids  # type: ignore[attr-defined]
 
-    visible_ids = {agent.identity for agent in app._agents}
-    unread_ids.intersection_update(visible_ids)
-    manual_ids.intersection_update(visible_ids)
+    from ._notification_unread_projection import loaded_real_agent_roster
+
+    loaded_agents = loaded_real_agent_roster(app)
+    loaded_ids = {agent.identity for agent in loaded_agents}
+    unread_ids.intersection_update(loaded_ids)
+    manual_ids.intersection_update(loaded_ids)
 
     snapshot = getattr(app, "_notification_snapshot_cache", None)
     if snapshot is None:
@@ -72,7 +75,7 @@ def _sync_unread_completed_agents(app: AgentLoadingMixin, on_agents_tab: bool) -
             reconcile(snapshot.notifications)
 
     app._agent_display_status_by_identity = {  # type: ignore[attr-defined]
-        agent.identity: agent.status for agent in app._agents
+        agent.identity: agent.status for agent in loaded_agents
     }
 
 

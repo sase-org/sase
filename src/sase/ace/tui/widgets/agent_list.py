@@ -95,6 +95,7 @@ class AgentList(OptionList, inherit_bindings=False):
         """Initialize the agent list."""
         super().__init__(**kwargs)
         self._agents: list[Agent] = []
+        self._unread_agents: set[tuple[AgentType, str, str | None]] = set()
         self._programmatic_update: bool = False
         # Each rendered Option maps back to (agent_idx, attempt_number).
         # Attempt child rows are no longer emitted, so attempt_number is
@@ -248,6 +249,7 @@ class AgentList(OptionList, inherit_bindings=False):
         try:
             self.clear_options()
             self._agents = []
+            self._unread_agents = set()
             self._row_entries = []
             self._banner_at_row = {}
             self._row_render_ctx = {}

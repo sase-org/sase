@@ -25,6 +25,7 @@ class ClanStatusCounts:
     failed: int = 0
     running: int = 0
     waiting: int = 0
+    unread: int = 0
     done: int = 0
 
 
@@ -63,13 +64,22 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
 def clan_members(agent: Agent) -> tuple[Agent, ...]:
     """Return already-loaded members belonging to ``agent``'s clan container."""
     if agent.is_clan_container:
-        return tuple(agent.runtime_children)
+        return tuple(
+            child
+            for child in agent.runtime_children
+            if not child.is_clan_container
+            and child.agent_clan == agent.agent_clan
+            and child.agent_clan_generation == agent.agent_clan_generation
+        )
     clan = agent.agent_clan
     if clan:
         return tuple(
             child
             for child in agent.runtime_children
-            if child is not agent and child.agent_clan == clan
+            if child is not agent
+            and not child.is_clan_container
+            and child.agent_clan == clan
+            and child.agent_clan_generation == agent.agent_clan_generation
         )
     # Legacy archives project parallel-family metadata into a clan at the wire
     # boundary, but directly constructed compatibility fixtures may still carry
@@ -81,11 +91,21 @@ def clan_members(agent: Agent) -> tuple[Agent, ...]:
     )
 
 
-def clan_member_counts(agent: Agent) -> ClanStatusCounts:
+def clan_member_counts(
+    agent: Agent,
+    unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
+) -> ClanStatusCounts:
     """Count a clan container's loaded members by display bucket."""
-    awaiting = failed = running = waiting = done = 0
+    awaiting = failed = running = waiting = unread = done = 0
+    seen: set[tuple[AgentType, str, str | None]] = set()
     for member in clan_members(agent):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
         bucket = status_bucket_for_values(member.status)
+        is_unread = member.identity in unread_ids
+        if is_unread:
+            unread += 1
         if bucket == "Stopped":
             awaiting += 1
         elif bucket == "Failed":
@@ -94,13 +114,14 @@ def clan_member_counts(agent: Agent) -> ClanStatusCounts:
             running += 1
         elif bucket == "Waiting":
             waiting += 1
-        elif bucket == "Done":
+        elif bucket == "Done" and not is_unread:
             done += 1
     return ClanStatusCounts(
         awaiting=awaiting,
         failed=failed,
         running=running,
         waiting=waiting,
+        unread=unread,
         done=done,
     )
 

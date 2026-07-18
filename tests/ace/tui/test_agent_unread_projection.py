@@ -8,6 +8,7 @@ from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._notifications import (
     _active_completion_agent_keys,
 )
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.notifications import Notification
 
@@ -210,3 +211,61 @@ def test_reconcile_unrelated_notification_does_not_affect_rows() -> None:
     )
 
     assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_cached_reconcile_patches_collapsed_clan_ancestor_only() -> None:
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    complete = project_clan_tree([member])
+    container = complete[0]
+    app = _ProjectionApp([container])
+    app._agents_with_children = complete
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            _make_notification(cl_name=member.cl_name, raw_suffix=member.raw_suffix)
+        ]
+    )
+
+    app._reconcile_unread_from_cached_notifications()
+
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert app.patch_calls == [container]
+    assert app.refresh_calls == []
+
+
+def test_cached_reconcile_patches_expanded_member_and_clan_ancestor() -> None:
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    complete = project_clan_tree([member])
+    container = complete[0]
+    app = _ProjectionApp(complete)
+    app._agents_with_children = complete
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            _make_notification(cl_name=member.cl_name, raw_suffix=member.raw_suffix)
+        ]
+    )
+
+    app._reconcile_unread_from_cached_notifications()
+
+    assert app.patch_calls == [container, member]
+    assert app.refresh_calls == []
+
+
+def test_poll_reconcile_prunes_absent_identity_but_not_fold_hidden_member() -> None:
+    member = make_agent(name="research.done", status="DONE", raw_suffix="done")
+    member.agent_clan = "research"
+    member.agent_clan_generation = "generation"
+    stale = make_agent(name="stale", status="DONE", raw_suffix="stale")
+    complete = project_clan_tree([member])
+    app = _ProjectionApp([complete[0]])
+    app._agents_with_children = complete
+    app._unread_completed_agent_ids.update({member.identity, stale.identity})
+    app._manual_unread_agent_ids.update({member.identity, stale.identity})
+
+    app._reconcile_unread_from_completion_notifications([])
+
+    assert app._unread_completed_agent_ids == {member.identity}
+    assert app._manual_unread_agent_ids == {member.identity}

@@ -7,6 +7,7 @@ byte-identical to the prior render.
 """
 
 from collections import OrderedDict
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, Literal
 
@@ -17,7 +18,7 @@ from ..models._agent_clan import (
     ClanStatusCounts as ParallelFamilyStatusCounts,
     clan_member_counts as parallel_family_member_counts,
 )
-from ..models.agent import Agent
+from ..models.agent import Agent, AgentType
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
@@ -146,6 +147,7 @@ def agent_render_key(
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
     parallel_family_counts: ParallelFamilyStatusCounts | None = None,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -156,7 +158,11 @@ def agent_render_key(
     """
     wait_agent = wait_display_agent(agent)
     family_counts = (
-        parallel_family_member_counts(agent)
+        (
+            parallel_family_member_counts(agent, unread_agent_ids)
+            if unread_agent_ids
+            else parallel_family_member_counts(agent)
+        )
         if parallel_family_counts is None
         else parallel_family_counts
     )

@@ -85,6 +85,29 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
     )
 
 
+def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
+    read = _agent(
+        "research.read",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    unread = _agent(
+        "research.unread",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+        stop=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    container = project_clan_tree([read, unread])[0]
+
+    detail = build_clan_detail_text(
+        container,
+        unread_ids={unread.identity},
+    )
+
+    assert "Status: DONE [U1 D1]\n" in detail.plain
+
+
 def test_clan_members_render_family_aggregate_and_every_member() -> None:
     family_name = "research.writer"
     planner = _agent(

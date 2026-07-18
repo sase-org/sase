@@ -43,6 +43,36 @@ def test_clan_aggregation_keys_members_on_agent_clan() -> None:
     ) == ("RUNNING")
 
 
+def test_clan_unread_counts_deduplicate_and_replace_successful_done() -> None:
+    container = _agent("research", "FAILED", suffix=None)
+    container.is_clan_container = True
+    read_done = _agent("research.read", "DONE", suffix="read")
+    unread_done = _agent("research.unread", "DONE", suffix="unread")
+    unread_failed = _agent("research.failed", "FAILED", suffix="failed")
+    wrong_generation = _agent("research.old", "DONE", suffix="old")
+    wrong_generation.agent_clan_generation = "old-generation"
+    container.runtime_children = [
+        read_done,
+        unread_done,
+        unread_failed,
+        unread_done,
+        wrong_generation,
+    ]
+
+    counts = clan_member_counts(
+        container,
+        {unread_done.identity, unread_failed.identity, wrong_generation.identity},
+    )
+
+    assert clan_members(container) == (
+        read_done,
+        unread_done,
+        unread_failed,
+        unread_done,
+    )
+    assert counts == ClanStatusCounts(failed=1, unread=2, done=1)
+
+
 def test_cleanup_cascades_from_container_but_not_from_member() -> None:
     container = _agent("research", "RUNNING", suffix=None)
     container.is_clan_container = True

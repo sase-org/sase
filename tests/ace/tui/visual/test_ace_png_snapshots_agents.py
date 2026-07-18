@@ -657,6 +657,49 @@ async def test_clan_tree_fold_levels_png_snapshots(
         )
 
 
+async def test_clan_unread_count_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
+    patch_startup_loaders(monkeypatch, agents=_clan_tree_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+
+        unread_member = next(
+            agent
+            for agent in page.app._agents_with_children
+            if not agent.is_clan_container
+            and agent.tree_depth == 1
+            and agent.status == "DONE"
+        )
+        page.app._unread_completed_agent_ids.add(unread_member.identity)
+        page.app._manual_unread_agent_ids.add(unread_member.identity)
+        page.app._refresh_agents_display(list_changed=True)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_styled_text_contains(page, "[R1 W1 U1]")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_unread_collapsed_120x40",
+            title="ACE unread clan collapsed",
+        )
+
+        await page.press("l")
+        await page.expect_state("agent_count", 4)
+        await wait_for_visual_idle(page)
+        assert_page_svg_styled_text_contains(page, "[R1 W1 U1]")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_unread_expanded_120x40",
+            title="ACE unread clan expanded",
+        )
+
+
 async def test_epic_clan_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

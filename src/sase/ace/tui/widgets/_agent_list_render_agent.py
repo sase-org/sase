@@ -3,6 +3,7 @@ for one agent in the list, plus a memoized wrapper backed by
 :class:`AgentRenderCache`.
 """
 
+from collections.abc import Collection
 from datetime import datetime
 
 from rich.text import Text
@@ -107,6 +108,7 @@ def format_agent_option(
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
     parallel_family_counts: ParallelFamilyStatusCounts | None = None,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = render_tier_gutter(tier_styles)
@@ -342,7 +344,11 @@ def format_agent_option(
             text.append(fold_annotation, style="dim #00D7D7")
 
     family_counts = (
-        parallel_family_member_counts(agent)
+        (
+            parallel_family_member_counts(agent, unread_agent_ids)
+            if unread_agent_ids
+            else parallel_family_member_counts(agent)
+        )
         if parallel_family_counts is None
         else parallel_family_counts
     )
@@ -351,6 +357,7 @@ def format_agent_option(
         running=family_counts.running,
         waiting=family_counts.waiting,
         failed=family_counts.failed,
+        unread=family_counts.unread,
         done=family_counts.done,
     )
     if family_chip:
@@ -414,6 +421,7 @@ def cached_format_agent_option(
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
+    unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -422,7 +430,11 @@ def cached_format_agent_option(
     our purposes (we don't mutate them after assemble); returning the
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
-    family_counts = parallel_family_member_counts(agent)
+    family_counts = (
+        parallel_family_member_counts(agent, unread_agent_ids)
+        if unread_agent_ids
+        else parallel_family_member_counts(agent)
+    )
     key = agent_render_key(
         agent,
         index,
@@ -438,6 +450,7 @@ def cached_format_agent_option(
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
         parallel_family_counts=family_counts,
+        unread_agent_ids=unread_agent_ids,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -457,6 +470,7 @@ def cached_format_agent_option(
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
         parallel_family_counts=family_counts,
+        unread_agent_ids=unread_agent_ids,
     )
     cache.put_agent(key, parts)
     return parts
