@@ -17,9 +17,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     lm = km.leader_mode
     bm = km.bang_mode
     cm = km.copy_mode
+    fm = km.fold_mode
 
     ag_copy = cm.keys["agents"]
     assert isinstance(ag_copy, dict)
+    ag_fold = fm.keys["agents"]
+    assert isinstance(ag_fold, dict)
 
     sections: Sections = [
         (
@@ -106,6 +109,27 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(a.expand_all_folds)} / {d(a.hooks_or_collapse_all)}",
                     "Panel expand/collapse; Tools",
+                ),
+            ],
+        ),
+        (
+            f"Metadata Fold Mode ({d(fm.prefix)})",
+            [
+                (
+                    key_sequence_display(fm.prefix, ag_fold["cycle_level"]),
+                    "Cycle panel fold level forward",
+                ),
+                (
+                    key_sequence_display(fm.prefix, ag_fold["cycle_level_back"]),
+                    "Cycle panel fold level backward",
+                ),
+                (
+                    key_sequence_display(fm.prefix, ag_fold["cycle_section"]),
+                    "Cycle current section forward",
+                ),
+                (
+                    key_sequence_display(fm.prefix, ag_fold["toggle_section"]),
+                    "Toggle current section full/collapsed",
                 ),
             ],
         ),

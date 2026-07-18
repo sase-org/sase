@@ -20,7 +20,7 @@ from textual.worker import Worker
 
 from ...query import parse_query
 from ..exit_action import AceExitAction
-from ..models.fold_state import FoldStateManager
+from ..models.fold_state import FoldStateManager, SectionFoldStateManager
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
 from ._state_init_late import init_late_startup_state
@@ -417,6 +417,9 @@ class StateInitMixin:
         # Fold state for nested workflow steps
         self._fold_manager = FoldStateManager()
         self._fold_counts: dict[str, tuple[int, int]] = {}
+        # Session-only metadata-panel fold state.  Individual sections inherit
+        # ``panel_fold_level`` unless an action records an override here.
+        self._panel_fold_overrides = SectionFoldStateManager()
 
         # Group fold: tracks per-group collapse state for the agents-tab
         # two-level grouping tree (project → name-root).  Layers *above*

@@ -300,7 +300,7 @@ async def test_agents_file_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
@@ -329,7 +329,7 @@ async def test_agents_multi_file_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
@@ -361,7 +361,7 @@ async def test_agents_file_zoom_search_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
@@ -405,7 +405,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
         await page.press("p")
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
@@ -467,7 +467,7 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
         await page.press("p")
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,
@@ -498,7 +498,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
         await page.expect_state("agent_count", 4)
         await wait_for_visual_idle(page)
         await page.press("p")
-        await page.press("z")
+        await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await _wait_for_zoom_content(
             page,

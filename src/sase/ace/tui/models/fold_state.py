@@ -20,9 +20,70 @@ def cycle_forward(level: FoldLevel) -> FoldLevel:
     return FoldLevel.COLLAPSED
 
 
+def cycle_backward(level: FoldLevel) -> FoldLevel:
+    """Cycle fold level backward: COLLAPSED -> FULLY_EXPANDED -> EXPANDED."""
+    if level == FoldLevel.COLLAPSED:
+        return FoldLevel.FULLY_EXPANDED
+    if level == FoldLevel.FULLY_EXPANDED:
+        return FoldLevel.EXPANDED
+    return FoldLevel.COLLAPSED
+
+
 def cycle_deltas_fold_level(level: FoldLevel) -> FoldLevel:
     """Cycle DELTAS forward through summary, files, and line details."""
     return cycle_forward(level)
+
+
+class SectionFoldStateManager:
+    """Store per-section overrides for a shared panel fold level.
+
+    Missing entries inherit the caller-provided panel level.  This keeps the
+    registry independent of any one panel renderer while preserving the
+    distinction between an explicit override and inherited state.
+    """
+
+    def __init__(self) -> None:
+        self._overrides: dict[str, FoldLevel] = {}
+
+    def get_override(self, section_id: str) -> FoldLevel | None:
+        """Return the explicit override for ``section_id``, if one exists."""
+        return self._overrides.get(section_id)
+
+    def effective_level(
+        self,
+        section_id: str,
+        panel_level: FoldLevel,
+    ) -> FoldLevel:
+        """Return the override for ``section_id`` or the shared panel level."""
+        return self._overrides.get(section_id, panel_level)
+
+    def set(self, section_id: str, level: FoldLevel) -> None:
+        """Store an explicit fold level for ``section_id``."""
+        self._overrides[section_id] = level
+
+    def cycle(self, section_id: str, panel_level: FoldLevel) -> FoldLevel:
+        """Cycle one section forward from its current effective level."""
+        level = cycle_forward(self.effective_level(section_id, panel_level))
+        self.set(section_id, level)
+        return level
+
+    def toggle(self, section_id: str, panel_level: FoldLevel) -> FoldLevel:
+        """Toggle one section between collapsed and fully expanded."""
+        level = (
+            FoldLevel.FULLY_EXPANDED
+            if self.effective_level(section_id, panel_level) == FoldLevel.COLLAPSED
+            else FoldLevel.COLLAPSED
+        )
+        self.set(section_id, level)
+        return level
+
+    def clear(self) -> None:
+        """Clear all overrides so every section inherits the panel level."""
+        self._overrides.clear()
+
+    def snapshot(self) -> dict[str, FoldLevel]:
+        """Return a plain copy of the stored overrides."""
+        return dict(self._overrides)
 
 
 class FoldStateManager:

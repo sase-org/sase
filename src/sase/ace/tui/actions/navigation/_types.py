@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from ...models.agent_group_fold import AgentGroupFoldRegistry
     from ...models.agent_panels import AgentPanelGroup
     from ...models.fold_state import FoldLevel
+    from ...models.fold_state import SectionFoldStateManager
     from ...widgets.bgcmd_list import AxeItem
     from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
     from ..axe_display._loaders import AxeItemKey
@@ -47,10 +48,12 @@ class NavigationMixinBase:
     mentors_collapsed: FoldLevel
     timestamps_collapsed: FoldLevel
     deltas_collapsed: FoldLevel
+    panel_fold_level: FoldLevel
     _agents: list[Agent]
     _group_fold_registry: AgentGroupFoldRegistry
     _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
+    _panel_fold_overrides: SectionFoldStateManager
     _changespecs_last_idx: int
     _changespecs_last_name: str | None
     _agents_last_idx: int

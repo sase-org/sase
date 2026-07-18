@@ -110,6 +110,17 @@ def test_metadata_section_and_forward_jump_commands_have_inverse_tab_scope() -> 
     assert is_command_available(jump_forward, CommandContext(tab="axe"))
 
 
+def test_fold_palette_commands_are_scoped_by_fold_surface() -> None:
+    catalog = _catalog_by_id()
+    changespec_fold = catalog["fold.cycle_commits"]
+    agent_fold = catalog["fold.agents.cycle_level"]
+
+    assert is_command_available(changespec_fold, CommandContext(tab="changespecs"))
+    assert not is_command_available(changespec_fold, CommandContext(tab="agents"))
+    assert is_command_available(agent_fold, CommandContext(tab="agents"))
+    assert not is_command_available(agent_fold, CommandContext(tab="changespecs"))
+
+
 # ---------------------------------------------------------------------------
 # ChangeSpecs tab
 # ---------------------------------------------------------------------------

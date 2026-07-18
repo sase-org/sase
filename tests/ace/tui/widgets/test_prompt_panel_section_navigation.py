@@ -220,6 +220,32 @@ def test_section_target_distinguishes_not_ready_and_empty_documents() -> None:
     assert panel.active_section_identity is None
 
 
+def test_resolve_section_at_row_uses_current_render_anchor_cache() -> None:
+    panel = _render_panel(
+        Group(
+            Text("header\n"),
+            _section("ONE", "one\n" * 3),
+            _section("TWO", "two\n"),
+        ),
+        width=40,
+    )
+    first, second = panel._section_anchors  # noqa: SLF001
+
+    assert panel.resolve_section_at_row(first.row - 1, width=40) is None
+    assert panel.resolve_section_at_row(first.row, width=40) == "one"
+    assert panel.resolve_section_at_row(second.row - 1, width=40) == "one"
+    assert panel.resolve_section_at_row(second.row, width=40) == "two"
+
+
+def test_resolve_section_at_row_noops_during_layout_invalidation() -> None:
+    panel = _render_panel(Group(_section("ONE", "body\n")), width=40)
+    assert panel.resolve_section_at_row(0, width=40) == "one"
+
+    panel.update(Group(_section("ONE", "new body\n")))
+
+    assert panel.resolve_section_at_row(0, width=40) is None
+
+
 def test_active_section_reconciles_across_same_document_rerender() -> None:
     panel = _render_panel(
         Group(_section("ONE", "1\n"), _section("TWO", "2\n")),

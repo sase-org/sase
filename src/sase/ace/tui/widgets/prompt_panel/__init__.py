@@ -195,6 +195,29 @@ class AgentPromptPanel(
             target,
         )
 
+    def resolve_section_at_row(self, row: int, *, width: int) -> str | None:
+        """Resolve the section occupying ``row`` from the current anchor cache.
+
+        ``None`` means either that the current render has not published its
+        anchors yet or that the row is above the first marked section.  Fold
+        actions use this distinction to no-op during layout invalidation rather
+        than applying an override to a stale section.
+        """
+        generation = getattr(self, "_section_generation", 0)
+        ready = (
+            getattr(self, "_section_anchor_generation", -1) == generation
+            and getattr(self, "_section_anchor_width", -1) == width
+        )
+        if not ready:
+            return None
+
+        current: str | None = None
+        for anchor in getattr(self, "_section_anchors", ()):
+            if anchor.row > row:
+                break
+            current = anchor.identity
+        return current
+
     def queue_section_retry(self, direction: int) -> None:
         """Retain one direction while refreshed anchors await first paint."""
         self._pending_section_direction = direction

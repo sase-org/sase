@@ -499,6 +499,12 @@ class FoldModeKeymaps(ModeKeymaps):
             "toggle_deltas": "D",
             "cycle_all": "z",
             "toggle_all": "Z",
+            "agents": {
+                "cycle_level": "z",
+                "cycle_level_back": "Z",
+                "cycle_section": "a",
+                "toggle_section": "A",
+            },
         }
     )
 

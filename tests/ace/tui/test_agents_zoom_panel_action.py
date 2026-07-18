@@ -94,15 +94,17 @@ def test_action_zoom_panel_seed_carries_tools_detail_level() -> None:
     assert modal._seed.tools_detail_level == ToolDetailLevel.FULL
 
 
-def test_default_z_bindings_route_fold_then_zoom() -> None:
+def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None:
     registry = load_keymap_registry({})
     bindings = build_app_bindings(registry.app)
 
     assert registry.app.start_fold_mode == "z"
-    assert registry.app.zoom_panel == "z"
+    assert registry.app.zoom_panel == "Z"
     assert [binding.action for binding in bindings if binding.key == "z"] == [
-        "start_fold_mode",
-        "zoom_panel",
+        "start_fold_mode"
+    ]
+    assert [binding.action for binding in bindings if binding.key == "Z"] == [
+        "zoom_panel"
     ]
 
 
@@ -110,7 +112,7 @@ def test_zoom_and_fold_actions_are_tab_gated() -> None:
     agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
     changespecs_app = AceApp(auto_start_axe=False, initial_tab="changespecs")
 
-    assert agents_app.check_action("start_fold_mode", ()) is False
+    assert agents_app.check_action("start_fold_mode", ()) is not False
     assert agents_app.check_action("zoom_panel", ()) is not False
     assert changespecs_app.check_action("zoom_panel", ()) is False
     assert changespecs_app.check_action("start_fold_mode", ()) is not False

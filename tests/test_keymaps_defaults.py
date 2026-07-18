@@ -33,6 +33,32 @@ def test_registry_default_modes_always_present() -> None:
     assert "bang_mode" in reg.modes
 
 
+def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
+    reg = load_keymap_registry({})
+    agent_fold = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_fold, dict)
+
+    assert reg.app.start_fold_mode == "z"
+    assert reg.app.zoom_panel == "Z"
+    assert agent_fold == {
+        "cycle_level": "z",
+        "cycle_level_back": "Z",
+        "cycle_section": "a",
+        "toggle_section": "A",
+    }
+
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert ("Z", "Zoom largest panel popup") in agent_pairs
+    assert ("zz", "Cycle panel fold level forward") in agent_pairs
+    assert ("zZ", "Cycle panel fold level backward") in agent_pairs
+    assert ("za", "Cycle current section forward") in agent_pairs
+    assert ("zA", "Toggle current section full/collapsed") in agent_pairs
+
+
 def test_idle_keymap_defaults_are_removed() -> None:
     """Removed idle actions do not appear in app or leader defaults."""
     reg = load_keymap_registry({})

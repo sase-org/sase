@@ -147,6 +147,9 @@ class AceApp(
     deltas_collapsed: reactive[FoldLevel] = reactive(
         FoldLevel.COLLAPSED, recompose=False
     )
+    panel_fold_level: reactive[FoldLevel] = reactive(
+        FoldLevel.COLLAPSED, recompose=False
+    )
     current_tab: reactive[TabName] = reactive("changespecs", recompose=False)
     current_artifacts_subtab: reactive[ArtifactsSubTab] = reactive(
         "prs", recompose=False
@@ -372,8 +375,6 @@ class AceApp(
         if action == "save_marked_agents":
             if self.current_tab != "agents":
                 return False
-        if action == "start_fold_mode" and self.current_tab == "agents":
-            return False
         if action == "zoom_panel" and self.current_tab != "agents":
             return False
         return super().check_action(action, parameters)

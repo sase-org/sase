@@ -97,8 +97,13 @@ def test_every_builtin_mode_subkey_has_a_command_spec() -> None:
     ids = {c.id for c in catalog}
 
     # Fold
-    for cid in reg.fold_mode.keys:
-        assert f"fold.{cid}" in ids, f"missing fold.{cid}"
+    for cid, sub in reg.fold_mode.keys.items():
+        if isinstance(sub, dict):
+            for nested_cid in sub:
+                command_id = f"fold.{cid}.{nested_cid}"
+                assert command_id in ids, f"missing {command_id}"
+        else:
+            assert f"fold.{cid}" in ids, f"missing fold.{cid}"
 
     # Copy (nested per-tab)
     for tab_name, sub in reg.copy_mode.keys.items():

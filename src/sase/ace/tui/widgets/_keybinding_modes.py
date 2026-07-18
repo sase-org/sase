@@ -137,10 +137,22 @@ class KeybindingModesMixin:
         )
         self._update_display(bindings)
 
-    def update_fold_bindings(self) -> None:
-        """Update bindings to show fold mode options."""
+    def update_fold_bindings(self, *, current_tab: str = "changespecs") -> None:
+        """Update bindings to show the active tab's fold mode options."""
         d = footer_key_display
         keys = self._kr().fold_mode.keys
+
+        if current_tab == "agents":
+            agent_keys = keys["agents"]
+            assert isinstance(agent_keys, dict)
+            bindings = [
+                (d(agent_keys["cycle_level"]), "level forward"),
+                (d(agent_keys["cycle_level_back"]), "level back"),
+                (d(agent_keys["cycle_section"]), "section forward"),
+                (d(agent_keys["toggle_section"]), "toggle section"),
+            ]
+            self._update_display(bindings, mode_label="FOLD")
+            return
 
         def k(name: str) -> str:
             v = keys[name]

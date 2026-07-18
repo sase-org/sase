@@ -220,6 +220,30 @@ def test_partial_mode_override() -> None:
     assert reg.fold_mode.prefix == "z"  # unchanged
 
 
+def test_fold_mode_agent_defaults_and_nested_override() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "keys": {"agents": {"cycle_section": "s"}},
+                    },
+                },
+            },
+        }
+    )
+
+    agent_keys = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_keys, dict)
+    assert agent_keys == {
+        "cycle_level": "z",
+        "cycle_level_back": "Z",
+        "cycle_section": "s",
+        "toggle_section": "A",
+    }
+    assert reg.fold_mode.keys["cycle_commits"] == "c"
+
+
 def test_stale_kill_marked_and_edit_override_is_dropped() -> None:
     """A lingering ``kill_marked_and_edit`` override cannot revive the key.
 

@@ -32,6 +32,13 @@ _FOLD_LABELS: dict[str, str] = {
     "toggle_all": "Toggle all folds",
 }
 
+_AGENT_FOLD_LABELS: dict[str, str] = {
+    "cycle_level": "Cycle metadata panel fold level",
+    "cycle_level_back": "Cycle metadata panel fold level backward",
+    "cycle_section": "Cycle current metadata section fold",
+    "toggle_section": "Toggle current metadata section fold",
+}
+
 _COPY_LABELS: dict[str, dict[str, str]] = {
     "changespecs": {
         "raw": "Copy raw line",
@@ -120,7 +127,7 @@ def _iter_fold_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     prefix = fold.prefix
     for command_id, subkey in fold.keys.items():
         if not isinstance(subkey, str):
-            continue  # nested dicts not allowed in fold mode
+            continue
         label = _FOLD_LABELS.get(command_id, command_id.replace("_", " ").title())
         seq = (prefix, subkey)
         yield CommandSpec(
@@ -129,9 +136,29 @@ def _iter_fold_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
             key_sequence=seq,
             key_display=format_key_sequence(seq),
             category="Fold",
-            tabs=ALL_TABS,
+            tabs=CL_ONLY,
             executor=CommandExecutor(kind="fold_mode_key", subkey=subkey),
             aliases=("fold", command_id),
+        )
+
+    agent_keys = fold.keys.get("agents")
+    if not isinstance(agent_keys, dict):
+        return
+    for command_id, subkey in agent_keys.items():
+        label = _AGENT_FOLD_LABELS.get(
+            command_id,
+            command_id.replace("_", " ").title(),
+        )
+        seq = (prefix, subkey)
+        yield CommandSpec(
+            id=f"fold.agents.{command_id}",
+            label=label,
+            key_sequence=seq,
+            key_display=format_key_sequence(seq),
+            category="Fold",
+            tabs=AGENTS_ONLY,
+            executor=CommandExecutor(kind="fold_mode_key", subkey=subkey),
+            aliases=("fold", "metadata", command_id),
         )
 
 

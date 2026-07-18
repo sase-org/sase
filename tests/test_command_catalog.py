@@ -190,8 +190,8 @@ def test_zoom_panel_command_is_agents_only_display_command() -> None:
     assert spec.label == "Zoom largest panel"
     assert spec.category == "Display"
     assert spec.tabs == ("agents",)
-    assert spec.key_sequence == ("z",)
-    assert spec.key_display == "z"
+    assert spec.key_sequence == ("Z",)
+    assert spec.key_display == "Z"
     assert "zoom" in spec.aliases
 
 
@@ -236,12 +236,23 @@ def test_fold_mode_commands_cover_every_subkey() -> None:
         for c in iter_mode_commands(reg)
         if c.id.startswith("fold.") and c.executor.kind == "fold_mode_key"
     ]
-    expected = {f"fold.{cid}" for cid in reg.fold_mode.keys}
+    expected = {
+        f"fold.{cid}"
+        for cid, subkey in reg.fold_mode.keys.items()
+        if isinstance(subkey, str)
+    }
+    agent_keys = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_keys, dict)
+    expected.update(f"fold.agents.{cid}" for cid in agent_keys)
     assert {c.id for c in fold_specs} == expected
     # Every fold key sequence is (z, subkey)
     for spec in fold_specs:
         assert spec.key_sequence[0] == reg.fold_mode.prefix
         assert len(spec.key_sequence) == 2
+
+    by_id = {spec.id: spec for spec in fold_specs}
+    assert by_id["fold.cycle_commits"].tabs == ("changespecs",)
+    assert by_id["fold.agents.cycle_level"].tabs == ("agents",)
 
 
 def test_copy_mode_commands_per_tab_scope() -> None:
@@ -324,6 +335,7 @@ def test_build_command_catalog_includes_all_buckets() -> None:
         assert f"saved_query.{d}" in ids
     # Mode (sample one of each)
     assert "fold.cycle_commits" in ids
+    assert "fold.agents.cycle_level" in ids
     assert "copy.agents.name" in ids
     assert "leader.models_panel" in ids
     assert "bang.toggle_axe" in ids
