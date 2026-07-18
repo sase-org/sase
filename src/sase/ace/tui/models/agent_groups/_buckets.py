@@ -41,8 +41,8 @@ class GroupingMode(Enum):
       level is added per-panel when at least one agent has a ``cl_name``.
     - ``BY_DATE``: L0 is a date bucket (``Today`` / ``Yesterday`` /
       ``This Week`` / ``Earlier``) derived from each agent's ``start_time``.
-    - ``BY_STATUS``: L0 is a status bucket (``Running`` / ``Done`` /
-      ``Waiting`` / ``Stopped`` / ``Failed`` / ``Starting``) derived from
+    - ``BY_STATUS``: L0 is a status bucket (``Stopped`` / ``Failed`` /
+      ``Running`` / ``Waiting`` / ``Done`` / ``Starting``) derived from
       each agent's ``status``.
 
     In ``BY_DATE`` and ``BY_STATUS`` modes the project and ChangeSpec
@@ -59,12 +59,14 @@ class GroupingMode(Enum):
 
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")
+# User-attention priority: actionable stopped/failed work first, active work
+# next, then waiting and completed work. Keep transient startup rows last.
 _STATUS_BUCKETS: tuple[str, ...] = (
-    "Running",
-    "Done",
-    "Waiting",
     "Stopped",
     "Failed",
+    "Running",
+    "Waiting",
+    "Done",
     "Starting",
 )
 

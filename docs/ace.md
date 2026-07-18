@@ -605,11 +605,11 @@ selection always lands somewhere meaningful in the rendered tree.
 Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes. The Agents tab shows a brief toast
 (`Grouping: by project` / `by date` / `by status`) on each cycle:
 
-| Mode        | L0 buckets                                                         | Notes                                                                                                                                   |
-| ----------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                   |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                               |
-| `BY_STATUS` | `Running` / `Done` / `Waiting` / `Stopped` / `Failed` / `Starting` | Bucketed by shared status semantics; display units sort by launch recency. Name-root and name-prefix subgroups appear only when useful. |
+| Mode        | L0 buckets                                                         | Notes                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STANDARD`  | Project (with optional ChangeSpec sub-level)                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                             |
+| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                    | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                         |
+| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position, while launch recency sorts display units only within a bucket. Name subgroups remain. |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour windows (`09:00`) for `Today` and
 `Yesterday`, calendar-day labels for `This Week`, and Monday-start week ranges for `Earlier`. The time anchor is
@@ -618,14 +618,15 @@ children inherit the parent's anchor so they stay adjacent regardless of their o
 timestamp fall into a `(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the same singleton-suppression rule
-as `STANDARD`. The bucket order is fixed: Running, Done, Waiting, Stopped, Failed, Starting. Within each bucket,
-top-level display units sort by `start_time`, newest first; units with no launch timestamp sort after timestamped units,
-with structural names and input order providing deterministic tie-breakers. A family, clan, or workflow subtree uses its
-outer/root agent's launch time and remains contiguous in its established internal preorder, including any name-prefix
-banners. The `Starting` bucket remains last and its transient rows remain hidden, so startup-only work does not displace
-active rows during daemon or launch refreshes. Each mode keeps its own per-group fold registry, so collapsing buckets in
-`BY_STATUS` doesn't affect the project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic
-glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`, `◐`) so the bucket title still leads visually.
+as `STANDARD`. Status priority fixes the bucket order: Stopped, Failed, Running, Waiting, Done, Starting. Launch time
+never moves a display unit across those buckets; within a bucket, top-level display units sort by `start_time`, newest
+first. Units with no launch timestamp sort after timestamped units, with structural names and input order providing
+deterministic tie-breakers. A family, clan, or workflow subtree uses its outer/root agent's launch time and remains
+contiguous in its established internal preorder, including any name-prefix banners. The `Starting` bucket remains last
+and its transient rows remain hidden, so startup-only work does not displace active rows during daemon or launch
+refreshes. Each mode keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the
+project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`,
+`◐`) so the bucket title still leads visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric

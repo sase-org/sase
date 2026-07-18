@@ -65,20 +65,47 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
 
 def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     """BY_STATUS bucket order is fixed at
-    Running → Done → Waiting → Stopped → Failed → Starting.
+    Stopped → Failed → Running → Waiting → Done → Starting.
     """
-    needs = _agent(cl_name="a", agent_name="x.a", status="QUESTION")
-    running = _agent(cl_name="b", agent_name="y.a", status="RUNNING")
+    needs = _agent(
+        cl_name="a",
+        agent_name="x.a",
+        status="QUESTION",
+        start_time=None,
+    )
+    running = _agent(
+        cl_name="b",
+        agent_name="y.a",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
     waiting = _agent(
         cl_name="e",
         agent_name="v.a",
         status="WAITING",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
         wait_until="2026-04-26T15:00:00",
     )
-    failed = _agent(cl_name="c", agent_name="z.a", status="FAILED")
-    done = _agent(cl_name="d", agent_name="w.a", status="DONE")
-    starting = _agent(cl_name="f", agent_name="u.a", status="STARTING")
-    # Feed them in scrambled order to verify the sort is intrinsic.
+    failed = _agent(
+        cl_name="c",
+        agent_name="z.a",
+        status="FAILED",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    done = _agent(
+        cl_name="d",
+        agent_name="w.a",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    starting = _agent(
+        cl_name="f",
+        agent_name="u.a",
+        status="STARTING",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    # Feed them in scrambled order with timestamps increasingly opposed to
+    # priority, proving neither input order nor launch recency moves a bucket.
     entries = build_agent_tree(
         [starting, done, failed, needs, waiting, running],
         mode=GroupingMode.BY_STATUS,
@@ -90,11 +117,11 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
     assert l0_banners == [
-        ("Running",),
-        ("Done",),
-        ("Waiting",),
         ("Stopped",),
         ("Failed",),
+        ("Running",),
+        ("Waiting",),
+        ("Done",),
         ("Starting",),
     ]
 

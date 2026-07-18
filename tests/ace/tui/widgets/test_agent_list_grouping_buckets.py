@@ -97,14 +97,14 @@ def test_by_status_mode_emits_status_bucket_banners() -> None:
     )
     # Absent buckets are omitted.
     assert widget._row_entries == [
+        BR,  # Stopped
+        (1, None),
+        BR,  # spacer
         BR,  # Running
         (0, None),
         BR,  # spacer
         BR,  # Done
         (2, None),
-        BR,  # spacer
-        BR,  # Stopped
-        (1, None),
     ]
 
 
@@ -112,23 +112,43 @@ def test_by_status_mode_hides_starting_bucket() -> None:
     widget = AgentList()
     widget.update_list(
         [
-            make_agent(cl_name="done", status="DONE"),
-            make_agent(cl_name="waiting", status="WAITING"),
-            make_agent(cl_name="starting", status="STARTING"),
-            make_agent(cl_name="running", status="RUNNING"),
-            make_agent(cl_name="failed", status="FAILED"),
-            make_agent(cl_name="question", status="QUESTION"),
+            make_agent(
+                cl_name="done",
+                status="DONE",
+                start_time=datetime(2026, 4, 26, 11, 0, 0),
+            ),
+            make_agent(
+                cl_name="waiting",
+                status="WAITING",
+                start_time=datetime(2026, 4, 26, 10, 0, 0),
+            ),
+            make_agent(
+                cl_name="starting",
+                status="STARTING",
+                start_time=datetime(2026, 4, 26, 12, 0, 0),
+            ),
+            make_agent(
+                cl_name="running",
+                status="RUNNING",
+                start_time=datetime(2026, 4, 26, 9, 0, 0),
+            ),
+            make_agent(
+                cl_name="failed",
+                status="FAILED",
+                start_time=datetime(2026, 4, 26, 8, 0, 0),
+            ),
+            make_agent(cl_name="question", status="QUESTION", start_time=None),
         ],
         current_idx=0,
         grouping_mode=GroupingMode.BY_STATUS,
     )
 
     assert _status_bucket_banner_labels(widget) == [
-        "Running",
-        "Done",
-        "Waiting",
         "Stopped",
         "Failed",
+        "Running",
+        "Waiting",
+        "Done",
     ]
     assert all("starting" not in option.prompt.plain for option in widget._options)  # type: ignore[union-attr]
 
