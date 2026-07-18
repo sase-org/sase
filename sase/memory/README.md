@@ -51,16 +51,16 @@ reference notes that agents read only when relevant.
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 74
-- Approx. tokens: 1156
+- Lines: 79
+- Approx. tokens: 1247
 
 ### `sase/memory/gotchas.md`
 
 - Type: `short`
 - Description: No description set.
 - Parent: `AGENTS.md`
-- Lines: 21
-- Approx. tokens: 266
+- Lines: 23
+- Approx. tokens: 327
 
 ### `sase/memory/rust_core_backend_boundary.md`
 
@@ -126,14 +126,15 @@ reference notes that agents read only when relevant.
 - Total notes: 10
 - Short notes: 5
 - Long notes: 5
-- Total lines: 494
-- Total approx. tokens: 7482
+- Total lines: 501
+- Total approx. tokens: 7634
 
 ## Commands
 
 - `sase memory list` shows loaded, referenced, available, and missing memory files.
 - `sase memory init` creates or refreshes generated memory files, renders `AGENTS.md` and provider shims from
-  `AGENTS.template.md`, and refreshes this asset-backed README.
+  `AGENTS.template.md`, and refreshes this asset-backed README. After a user-requested memory note edit, running it is
+  mandatory follow-through and requires no additional permission.
 - Set `amd_agents_template` (or `amd_agents_minimal_template`) to a root-relative project template in `sase/sase.yml`;
   home roots can instead use `AGENTS.template.md` (or `AGENTS.minimal.template.md`) in the SASE user config directory.
 - Set `memory_sase_template` or `memory_readme_template` to root-relative project templates in `sase/sase.yml`; home
