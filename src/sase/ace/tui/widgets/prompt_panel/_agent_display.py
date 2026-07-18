@@ -25,6 +25,7 @@ from ._agent_display_clan import (
 )
 from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
+from ._member_roster import member_jump_map_publisher_for
 
 _find_attempt = find_attempt
 _render_attempt_banner = render_attempt_banner
@@ -144,6 +145,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=clan_fold_level,
                 clan_section_fold_overrides=clan_fold_overrides,
+                member_jump_map_publisher=member_jump_map_publisher_for(app),
             )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

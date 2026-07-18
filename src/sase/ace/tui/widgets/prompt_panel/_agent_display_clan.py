@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping
 from copy import copy
 from datetime import datetime
 
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sase.agent.status_buckets import (
-    AGENT_STATUS_BUCKET_GLYPHS,
-    status_bucket_for_values,
-)
+from sase.agent.status_buckets import status_bucket_for_values
 
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import (
@@ -46,12 +43,15 @@ from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
+from ._member_roster import (
+    MemberJumpMap,
+    MemberRosterChild,
+    MemberRosterEntry,
+    append_member_roster,
+)
 
 _CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
 _FIELD_LABEL_STYLE = "bold #87D7FF"
-_MEMBER_KIND_STYLE = "italic #AF87FF"
-_MEMBER_MODEL_STYLE = "#5FD7FF"
-_MEMBER_DURATION_STYLE = "dim #D7D7FF"
 _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
@@ -143,39 +143,6 @@ def _append_fold_heading(
     if count is not None:
         heading.append(f" · {count}", style="dim")
     append_section_heading(text, heading, section_id=section_id)
-
-
-def _member_annotations(
-    digest: ClanMemberDigest | None,
-    level: FoldLevel,
-) -> tuple[str, ...]:
-    if digest is None or level == FoldLevel.COLLAPSED:
-        return ()
-    annotations: list[str] = []
-    activity = first_meaningful_line(digest.activity or "", max_chars=64)
-    if activity:
-        annotations.append(activity)
-    if digest.waiting:
-        annotations.append("wait " + "; ".join(digest.waiting))
-    if digest.retry:
-        annotations.append("retry " + "; ".join(digest.retry))
-    if level == FoldLevel.FULLY_EXPANDED:
-        if digest.workspace_num is not None:
-            annotations.append(f"ws {digest.workspace_num}")
-        if digest.start_time is not None:
-            annotations.append("start " + _format_timestamp(digest.start_time))
-        if digest.run_start_time is not None:
-            annotations.append("run " + _format_timestamp(digest.run_start_time))
-        if digest.stop_time is not None:
-            annotations.append("stop " + _format_timestamp(digest.stop_time))
-        annotations.append(
-            f"{digest.attempt_count} attempt{'s' if digest.attempt_count != 1 else ''}"
-        )
-    return tuple(annotations)
-
-
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _ordered_members(agent: Agent) -> tuple[Agent, ...]:
@@ -311,81 +278,31 @@ def _family_duration_label(
     return _duration_label(aggregate, now=now)
 
 
-def _append_member_line(
-    text: Text,
-    *,
-    label: str,
-    kind: str,
-    status: str,
-    model: str,
-    duration: str,
-    indent: str = "",
-    annotations: Sequence[str] = (),
-) -> None:
-    bucket = status_bucket_for_values(status)
-    glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
-    status_style = _MEMBER_STATUS_STYLES[bucket]
-
-    if indent:
-        text.append(indent, style="dim #808080")
-    text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
-    text.append(" · ", style="dim")
-    text.append(kind, style=_MEMBER_KIND_STYLE)
-    text.append(" · ", style="dim")
-    text.append(f"{glyph} {status}", style=status_style)
-    text.append(" · ", style="dim")
-    text.append(model, style=_MEMBER_MODEL_STYLE)
-    text.append(" · ", style="dim")
-    text.append(duration, style=_MEMBER_DURATION_STYLE)
-    if annotations:
-        text.append(" · ", style="dim")
-        text.append(" · ".join(annotations), style="dim #BCAFD7")
-    text.append("\n")
-
-
-def _append_members_section(
-    text: Text,
+def _clan_roster_entries(
     agent: Agent,
     members: tuple[Agent, ...],
     *,
     now: datetime | None,
-    level: FoldLevel,
     digests: tuple[ClanMemberDigest, ...],
-    count: int,
-) -> None:
-    """Render MEMBERS at all three fold levels.
-
-    COLLAPSED keeps the complete member table. EXPANDED adds activity, wait,
-    and retry annotations. FULLY_EXPANDED additionally includes workspace,
-    timestamps, and attempt-history counts.
-    """
-    if not members:
-        return
-
-    _append_fold_heading(
-        text,
-        title="MEMBERS",
-        section_id="members",
-        level=level,
-        count=count,
-    )
-
+) -> tuple[MemberRosterEntry, ...]:
+    """Adapt deterministic clan rows into shared roster entries."""
     clan_name = agent.agent_clan or agent.display_name
     digest_by_identity = {digest.identity: digest for digest in digests}
+    entries: list[MemberRosterEntry] = []
     for member in members:
         children = _family_children(member)
         if not children:
-            _append_member_line(
-                text,
-                label=_hood_suffix(member, clan_name),
-                kind=_member_kind(member),
-                status=member.display_status,
-                model=_member_model_label(member),
-                duration=_duration_label(member, now=now),
-                annotations=_member_annotations(
-                    digest_by_identity.get(member.identity),
-                    level,
-                ),
+            entries.append(
+                MemberRosterEntry(
+                    identity=member.identity,
+                    presented_name=member.presented_agent_name or _row_name(member),
+                    label=_hood_suffix(member, clan_name),
+                    kind=_member_kind(member),
+                    status=member.display_status,
+                    model=_member_model_label(member),
+                    duration=_duration_label(member, now=now),
+                    digest=digest_by_identity.get(member.identity),
+                )
             )
             continue
 
@@ -393,18 +310,8 @@ def _append_members_section(
         family_status = (
             aggregate_clan_status(row.status for row in rows) or member.display_status
         )
-        _append_member_line(
-            text,
-            label=_family_suffix(member, clan_name),
-            kind="family",
-            status=family_status,
-            model=_model_label(rows or (member,)),
-            duration=_family_duration_label(member, rows, now=now),
-        )
-        for index, family_member in enumerate(rows):
-            branch = "  └─ " if index == len(rows) - 1 else "  ├─ "
-            _append_member_line(
-                text,
+        roster_children = tuple(
+            MemberRosterChild(
                 label=_nested_family_suffix(family_member, member, clan_name),
                 kind=_member_kind(family_member),
                 status=family_member.display_status,
@@ -413,12 +320,28 @@ def _append_members_section(
                     _leaf_for_runtime(family_member),
                     now=now,
                 ),
-                indent=branch,
-                annotations=_member_annotations(
-                    digest_by_identity.get(family_member.identity),
-                    level,
-                ),
+                digest=digest_by_identity.get(family_member.identity),
             )
+            for family_member in rows
+        )
+        entries.append(
+            MemberRosterEntry(
+                identity=member.identity,
+                presented_name=(
+                    member.presented_agent_name
+                    or member.agent_family
+                    or _row_name(member)
+                ),
+                label=_family_suffix(member, clan_name),
+                kind="family",
+                status=family_status,
+                model=_model_label(rows or (member,)),
+                duration=_family_duration_label(member, rows, now=now),
+                digest=digest_by_identity.get(member.identity),
+                children=roster_children,
+            )
+        )
+    return tuple(entries)
 
 
 def _append_errors_section(
@@ -770,6 +693,7 @@ def build_clan_detail_text(
     snapshot: ClanSectionSnapshot | None = None,
     fold_level: FoldLevel = FoldLevel.COLLAPSED,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> Text:
     """Build a fold-aware clan detail document without filesystem access."""
     snapshot = snapshot or ClanSectionSnapshot(
@@ -834,15 +758,23 @@ def build_clan_detail_text(
     text.append("Fold: ", style=_FIELD_LABEL_STYLE)
     text.append(f"{_FOLD_NUMBERS[fold_level]}/3\n", style="dim #D75FFF")
 
-    _append_members_section(
-        text,
+    roster_entries = _clan_roster_entries(
         agent,
         members,
         now=now,
-        level=_effective_fold_level("members", fold_level, overrides),
         digests=snapshot.in_memory.members,
-        count=agent_count,
     )
+    jump_map = append_member_roster(
+        text,
+        container_identity=agent.identity,
+        entries=roster_entries,
+        title="CLAN MEMBERS",
+        accent=_CLAN_IDENTITY_COLOR,
+        panel_level=fold_level,
+        section_fold_overrides=overrides,
+    )
+    if member_jump_map_publisher is not None:
+        member_jump_map_publisher(jump_map)
 
     errors = snapshot.in_memory.errors
     if errors:

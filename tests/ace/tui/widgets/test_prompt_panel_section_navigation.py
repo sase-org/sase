@@ -191,6 +191,7 @@ def test_clan_members_section_is_a_navigation_target() -> None:
 
     assert _rendered_section_ids(header, width=80) == [
         "members",
+        "member:research.member",
         "errors",
         "output-variables",
         "workflow-variables",

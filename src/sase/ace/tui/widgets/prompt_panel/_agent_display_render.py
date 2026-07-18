@@ -43,6 +43,7 @@ from ._agent_display_header_summary import (
 )
 from ._agent_xprompt_highlighting import known_xprompt_skill_names
 from ._helpers import append_section_heading, format_output
+from ._member_roster import member_jump_map_publisher_for
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
 _HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...]]
@@ -177,6 +178,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=fold_level,
                 clan_section_fold_overrides=fold_overrides,
+                member_jump_map_publisher=member_jump_map_publisher_for(app),
             )
             self.update(header_text)  # type: ignore[attr-defined]
             return

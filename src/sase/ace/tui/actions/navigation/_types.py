@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from ...models.fold_state import SectionFoldStateManager
     from ...widgets.bgcmd_list import AxeItem
     from ...widgets.artifacts import ArtifactEntryTarget, ArtifactsSubTab
+    from ...widgets.prompt_panel._member_roster import MemberJumpMap
     from ..axe_display._loaders import AxeItemKey
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
@@ -54,6 +55,7 @@ class NavigationMixinBase:
     _current_group_key: tuple[str, ...] | None
     _fold_mode_active: bool
     _panel_fold_overrides: SectionFoldStateManager
+    _member_jump_maps: dict[tuple[Any, ...], MemberJumpMap]
     _changespecs_last_idx: int
     _changespecs_last_name: str | None
     _agents_last_idx: int

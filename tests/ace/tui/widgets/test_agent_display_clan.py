@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
 
 from rich.text import Text
 
@@ -187,7 +188,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         now=datetime(2026, 7, 17, 12, 4, 0),
     )
 
-    header, members = detail.plain.split("\n" + "─" * 50 + "\n", 1)
+    header, members = detail.plain.split("\n" + "━" * 50 + "\n", 1)
     assert header.strip() == (
         "CLAN\n"
         "Name: research\n"
@@ -199,9 +200,9 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
     )
     members_section = members.split("\n" + "─" * 50 + "\n", 1)[0]
     assert members_section.strip() == (
-        "▸ MEMBERS · 2\n"
-        ".first · agent · ✓ DONE · gpt-5 · 2m\n"
-        ".second · agent · ✗ FAILED · default · 45s"
+        "▸ ❖ CLAN MEMBERS · 2\n"
+        " 0  .first · agent · ✓ DONE · gpt-5 · 2m\n"
+        " 1  .second · agent · ✗ FAILED · default · 45s"
     )
     assert "▸ ERRORS · 1\n" in detail.plain
     assert _style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
@@ -306,7 +307,7 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
 
     assert "Fold: 1/3\n" in collapsed
     for heading in (
-        "▸ MEMBERS · 1",
+        "▸ ❖ CLAN MEMBERS · 1",
         "▸ ERRORS · 1",
         "▸ OUTPUT VARIABLES · 1",
         "▸ WORKFLOW VARIABLES · 1",
@@ -321,7 +322,7 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "Reply summary" not in collapsed
 
     assert "Fold: 2/3\n" in expanded
-    assert "▾ MEMBERS · 1" in expanded
+    assert "▾ ❖ CLAN MEMBERS · 1" in expanded
     assert "reviewing patch" in expanded
     assert "wait for research.peer" in expanded
     assert "• .one · Build failed" in expanded
@@ -334,7 +335,7 @@ def test_clan_sections_honor_all_three_fold_contracts() -> None:
     assert "Reply full detail" not in expanded
 
     assert "Fold: 3/3\n" in full
-    assert "▼ MEMBERS · 1" in full
+    assert "▼ ❖ CLAN MEMBERS · 1" in full
     assert "start 2026-07-17 12:00:00" in full
     assert "0 attempts" in full
     assert "Second error detail" in full
@@ -360,7 +361,7 @@ def test_clan_section_override_and_loading_placeholders() -> None:
     ).plain
 
     assert "Fold: 1/3\n" in detail
-    assert "▸ MEMBERS · 1" in detail
+    assert "▸ ❖ CLAN MEMBERS · 1" in detail
     assert "▼ ERRORS · 1" in detail
     assert "Second error detail" in detail
     assert "▾ REPLIES · 1" in detail
@@ -491,21 +492,63 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     planner.runtime_children = [coder]
     container = project_clan_tree([planner, coder])[0]
 
+    jump_maps = []
     detail = build_clan_detail_text(
         container,
         now=datetime(2026, 7, 17, 12, 4, 0),
+        member_jump_map_publisher=jump_maps.append,
     )
 
     assert "Members: 2 agents · 1 family\n" in detail.plain
-    members_section = detail.plain.split("▸ MEMBERS · 2\n", 1)[1].split(
+    members_section = detail.plain.split("▸ ❖ CLAN MEMBERS · 1\n", 1)[1].split(
         "\n" + "─" * 50 + "\n",
         1,
     )[0]
     assert members_section == (
-        ".writer · family · ✓ DONE · mixed · 2m\n"
-        "  ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
-        "  └─ --code · agent · ✓ DONE · sonnet · 1m\n"
+        " 0  .writer · family · ✓ DONE · mixed · 2m\n"
+        "    ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
+        "    └─ --code · agent · ✓ DONE · sonnet · 1m\n"
     )
+    assert len(jump_maps) == 1
+    assert tuple(
+        (target.number, target.member_identity, target.kind)
+        for target in jump_maps[0].targets
+    ) == (("0", planner.identity, "family"),)
+
+
+def test_clan_roster_launch_order_is_stable_while_statuses_churn() -> None:
+    first = _agent(
+        "research.first",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    second = _agent(
+        "research.second",
+        status="WAITING",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+    )
+    container = project_clan_tree([second, first])[0]
+
+    before_maps = []
+    before = build_clan_detail_text(
+        container,
+        member_jump_map_publisher=before_maps.append,
+    ).plain
+    first.status = "DONE"
+    second.status = "FAILED"
+    after_maps = []
+    after = build_clan_detail_text(
+        container,
+        member_jump_map_publisher=after_maps.append,
+    ).plain
+
+    assert before.index(" 0  .first") < before.index(" 1  .second")
+    assert after.index(" 0  .first") < after.index(" 1  .second")
+    assert tuple(target.member_identity for target in before_maps[0].targets) == (
+        first.identity,
+        second.identity,
+    )
+    assert before_maps[0].targets == after_maps[0].targets
 
 
 def test_clan_build_header_path_is_aggregate_only() -> None:
@@ -579,6 +622,11 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
 
         def __init__(self) -> None:
             self.content = None
+            self._app = SimpleNamespace(_member_jump_maps={})
+
+        @property
+        def app(self) -> object:
+            return self._app
 
         def update(self, content: object) -> None:
             self.content = content
@@ -591,3 +639,4 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
 
     assert isinstance(harness.content, Text)
     assert harness.content.plain.startswith("CLAN\nName: research\n")
+    assert harness._app._member_jump_maps[container.identity].targets[0].number == "0"

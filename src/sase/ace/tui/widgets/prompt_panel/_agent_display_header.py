@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping
+from collections.abc import Callable, Collection, Mapping
 from datetime import datetime as DateTime
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
@@ -42,6 +42,7 @@ from ._helpers import (
 
 if TYPE_CHECKING:
     from ...models._agent_clan_sections import ClanSectionSnapshot
+    from ._member_roster import MemberJumpMap
 from ._agent_output_variables import append_agent_output_variables_section
 
 
@@ -224,6 +225,7 @@ def build_header_text(
     clan_snapshot: ClanSectionSnapshot | None = None,
     clan_fold_level: FoldLevel = FoldLevel.COLLAPSED,
     clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -258,6 +260,7 @@ def build_header_text(
                 snapshot=clan_snapshot,
                 fold_level=clan_fold_level,
                 section_fold_overrides=clan_section_fold_overrides,
+                member_jump_map_publisher=member_jump_map_publisher,
             ),
             None,
         )

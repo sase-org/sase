@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from ..models.agent_fold_persistence import AgentsFoldStateSnapshot
     from ..tools.report import SlowToolCallReportSpec
     from ..widgets.prompt_panel._agent_display_state import CommitViewSpec
+    from ..widgets.prompt_panel._member_roster import MemberJumpMap
     from .agents._fold_persistence import AgentFoldIntent
     from .navigation._types import JumpAllResult
     from sase.core.agent_group_archive_wire import SavedAgentGroupWire
@@ -420,6 +421,12 @@ class StateInitMixin:
         # Session-only metadata-panel fold state.  Individual sections inherit
         # ``panel_fold_level`` unless an action records an override here.
         self._panel_fold_overrides = SectionFoldStateManager()
+        # Exact number-to-member maps emitted by rendered container rosters.
+        # Digit navigation validates the selected container identity against
+        # this in-memory registry before using a target.
+        self._member_jump_maps: dict[
+            tuple[AgentType, str, str | None], MemberJumpMap
+        ] = {}
 
         # Group fold: tracks per-group collapse state for the agents-tab
         # two-level grouping tree (project → name-root).  Layers *above*
