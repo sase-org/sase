@@ -18,6 +18,7 @@ from sase.ace.tui.widgets import ArtifactsBugsPane
 from sase.ace.tui.widgets.artifacts import CommitsPane
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 import sase.ace.tui.widgets.artifacts.commits as commits_module
+from sase.vcs_log.filter_query import DEFAULT_COMMIT_LOG_LIMIT
 from tests.ace.tui.test_artifacts_bugs import _issue as _bug_issue
 from tests.ace.tui.test_artifacts_bugs import _snapshot as _bug_snapshot
 from tests.ace.tui.test_artifacts_plans import _choices as _plan_choices
@@ -108,7 +109,12 @@ async def test_artifacts_subtabs_jk_p95(
         await page.press("]")
         await page.expect_state("artifacts_subtab", "commits")
         commits_pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
-        await page.wait_for(lambda _state: commits_pane.result is commits)
+        await page.wait_for(
+            lambda _state: (
+                commits_pane.result is not None
+                and len(commits_pane.result.commits) == DEFAULT_COMMIT_LOG_LIMIT
+            )
+        )
         await _press_burst(page, "j")
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)
