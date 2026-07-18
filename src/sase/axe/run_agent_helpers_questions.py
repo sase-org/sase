@@ -154,7 +154,21 @@ def _question_result(
     session_id: str,
 ) -> dict[str, Any]:
     """Translate a neutral gate response into legacy continuation data."""
-    result = response.get("result")
+    from sase.user_question_actions import QUESTION_OPTION_ID
+
+    option_results = response.get("option_results")
+    result = (
+        next(
+            (
+                entry.get("result")
+                for entry in option_results
+                if isinstance(entry, dict) and entry.get("id") == QUESTION_OPTION_ID
+            ),
+            None,
+        )
+        if isinstance(option_results, list)
+        else None
+    )
     if not isinstance(result, dict):
         raise ValueError("question gate response is missing its result")
     translated = dict(result)

@@ -205,6 +205,13 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-6k(DashboardData)' \
         --epic-symbol 'sase-6k(load_dashboard_data)' \
         --epic-symbol 'sase-6n(set_prompt_clan)' \
+        --epic-symbol 'sase-6p(LaunchApprovalActionContext)' \
+        --epic-symbol 'sase-6p(hitl_gate_command_script)' \
+        --epic-symbol 'sase-6p(hitl_gate_option_ids)' \
+        --epic-symbol 'sase-6p(plan_approval_consequence_for_selection)' \
+        --epic-symbol 'sase-6p(plan_approval_status_for_selection)' \
+        --epic-symbol 'sase-6p(translate_workflow_hitl_response)' \
+        --epic-symbol 'sase-6p(validate_option_identifier)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
