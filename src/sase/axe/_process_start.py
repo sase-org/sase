@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from .config import AxeConfig, load_axe_config
+from .config import AxeConfig, AxeConfigError, load_axe_config
 from .lock import AXE_LOCK_FD_ENV, AxeLifecycleLock
 from .state import AXE_STATE_DIR
 from ._process_probe import get_axe_pid, get_pid_from_pid_files, probe_orchestrator
@@ -80,7 +80,10 @@ def start_axe_daemon_result(config: AxeConfig | None = None) -> AxeStartResult:
             )
 
         if config is None:
-            config = load_axe_config()
+            try:
+                config = load_axe_config()
+            except AxeConfigError as exc:
+                return AxeStartResult(status="failed", message=str(exc))
 
         cmd = _build_axe_start_command(config)
         if cmd is None:

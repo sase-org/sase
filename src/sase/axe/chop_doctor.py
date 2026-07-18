@@ -22,6 +22,7 @@ from sase.axe.chop_inventory import (
     chop_inventory_to_dict,
     collect_chop_inventory,
 )
+from sase.axe.config import AxeConfig, AxeConfigError
 from sase.diagnostics import CheckStatus
 
 _TELEGRAM_ENV_VARS = ("SASE_TELEGRAM_BOT_CHAT_ID", "SASE_TELEGRAM_BOT_USERNAME")
@@ -66,16 +67,36 @@ def build_chop_doctor_report(
     which_fn: Callable[[str], str | None] = shutil.which,
 ) -> ChopDoctorReport:
     """Build a full doctor report for the configured and available chops."""
-    chops = inventory or collect_chop_inventory()
-    checks = build_chop_checks(chops, which_fn=which_fn)
+    config_checks: tuple[ChopCheck, ...] = ()
+    if inventory is None:
+        try:
+            chops = collect_chop_inventory()
+        except AxeConfigError as exc:
+            # Doctor must remain usable when config loading itself fails.
+            chops = collect_chop_inventory(AxeConfig())
+            config_checks = tuple(
+                ChopCheck(
+                    id=f"axe_config:{diagnostic.code}:{index}",
+                    status="ERROR",
+                    summary="Invalid axe configuration.",
+                    details=(diagnostic.format(),),
+                    next_steps=(
+                        "Fix the reported axe config field in its source layer and rerun `sase axe chop doctor`.",
+                    ),
+                )
+                for index, diagnostic in enumerate(exc.diagnostics)
+            )
+    else:
+        chops = inventory
+    checks = (*config_checks, *_build_chop_checks(chops, which_fn=which_fn))
     return ChopDoctorReport(
-        status=aggregate_chop_status(checks),
+        status=_aggregate_chop_status(checks),
         inventory=chops,
         checks=checks,
     )
 
 
-def build_chop_checks(
+def _build_chop_checks(
     inventory: ChopInventory,
     *,
     which_fn: Callable[[str], str | None] = shutil.which,
@@ -88,7 +109,7 @@ def build_chop_checks(
     return tuple(checks)
 
 
-def aggregate_chop_status(checks: tuple[ChopCheck, ...]) -> CheckStatus:
+def _aggregate_chop_status(checks: tuple[ChopCheck, ...]) -> CheckStatus:
     """Aggregate individual chop check statuses into an overall status."""
     statuses = {check.status for check in checks}
     if "ERROR" in statuses:
@@ -131,15 +152,19 @@ def _configured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
             ChopCheck(
                 id="configured_chop_scripts",
                 status="OK",
-                summary="All configured script chops resolve or are agent-backed.",
+                summary="All configured chop scripts resolve.",
             ),
         )
     return tuple(
         ChopCheck(
             id=f"configured_chop:{chop.lumberjack}:{chop.name}",
             status="ERROR",
-            summary=f"Configured script chop {chop.name} cannot be resolved.",
-            details=(f"lumberjack={chop.lumberjack}",),
+            summary=f"Configured chop script {chop.script} cannot be resolved.",
+            details=(
+                f"lumberjack={chop.lumberjack}",
+                f"chop={chop.name}",
+                f"script={chop.script}",
+            ),
             next_steps=(
                 "Install the package or script that provides this chop in the same environment, or update axe.lumberjacks.",
             ),
@@ -252,12 +277,15 @@ def _configured_telegram_chops(
     inventory: ChopInventory,
 ) -> tuple[ConfiguredChopRecord, ...]:
     return tuple(
-        chop for chop in inventory.configured_chops if _is_telegram_chop_name(chop.name)
+        chop
+        for chop in inventory.configured_chops
+        if _is_telegram_chop_name(chop.name) or _is_telegram_chop_name(chop.script)
     )
 
 
 def _is_telegram_chop_name(name: str) -> bool:
-    return name in _TELEGRAM_CHOP_NAMES or "telegram" in name
+    normalized = name.removeprefix("sase_chop_")
+    return normalized in _TELEGRAM_CHOP_NAMES or "telegram" in normalized
 
 
 def _telegram_env_is_set(inventory: ChopInventory, name: str) -> bool:

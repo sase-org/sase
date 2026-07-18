@@ -17,18 +17,12 @@ from datetime import datetime
 import schedule
 from rich.console import Console
 
-from sase.ace.hooks.processes import is_process_running
 from sase.ace.query import parse_query
 from sase.core.time import get_timezone
 from sase.telemetry import init_telemetry
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
 from .check_cycles import CheckCycleRunner
-from .chop_agents import (
-    build_chop_launch_env,
-    get_live_chop_agent_records,
-    prompt_hash,
-)
 from .chop_runner import (
     TRACEBACK_UNAVAILABLE as _TRACEBACK_UNAVAILABLE,
     ChopRunOutcome,
@@ -78,7 +72,6 @@ class _ChopResult:
     # traceback (e.g. a subprocess exited nonzero), set this to a constant
     # placeholder rather than leaving it ``None``.
     traceback: str | None = None
-    agent_pid: int | None = None  # Set for successful agent chop launches
 
 
 class Lumberjack:
@@ -114,8 +107,6 @@ class Lumberjack:
         self._metrics = LumberjackMetrics()
         self._axe_metrics = AxeMetrics()
         self._check_runner = CheckCycleRunner(axe_config.query or None, self._log)
-        # Track running agent processes per chop (singleton per chop)
-        self._agent_pids: dict[str, set[int]] = {}
         # Load persisted chop last-run timestamps for time-based run_every
         self._chop_timestamps: dict[str, datetime] = {}
         for chop_name, ts_str in read_chop_timestamps(name).items():
@@ -196,9 +187,8 @@ class Lumberjack:
 
         now = datetime.now(get_timezone())
 
-        # Filter eligible chops (run_every + agent dedup checks in main thread)
-        eligible_script_chops: list[ChopConfig] = []
-        eligible_agent_chops: list[ChopConfig] = []
+        # Filter eligible chops by their optional cadence.
+        eligible_chops: list[ChopConfig] = []
         for chop in self.config.chops:
             if chop.run_every is not None:
                 last_run = self._chop_timestamps.get(chop.name)
@@ -206,24 +196,15 @@ class Lumberjack:
                     elapsed = (now - last_run).total_seconds()
                     if elapsed < chop.run_every:
                         continue
-            if chop.agent is not None:
-                if not self._is_agent_eligible(chop):
-                    continue
-                eligible_agent_chops.append(chop)
-            else:
-                eligible_script_chops.append(chop)
+            eligible_chops.append(chop)
 
-        # Run script chops concurrently. Agent launches are sequentialized below
-        # because launch preparation allocates workspaces before the eventual
-        # RUNNING-field claim, so same-tick launches can race on one workspace.
+        # Script chops within one lumberjack tick run concurrently.
         results: list[_ChopResult] = []
         with ThreadPoolExecutor() as executor:
             futures = {
                 executor.submit(self._run_single_chop, chop, context_file): chop
-                for chop in eligible_script_chops
+                for chop in eligible_chops
             }
-            for chop in eligible_agent_chops:
-                results.append(self._run_single_chop(chop, context_file))
             for future in as_completed(futures):
                 results.append(future.result())
 
@@ -239,11 +220,6 @@ class Lumberjack:
             if result.update_timestamp:
                 self._chop_timestamps[result.chop_name] = now
                 timestamps_dirty = True
-            if result.agent_pid is not None:
-                self._agent_pids.setdefault(result.chop_name, set()).add(
-                    result.agent_pid
-                )
-
         if timestamps_dirty:
             write_chop_timestamps(
                 self.name,
@@ -342,31 +318,6 @@ class Lumberjack:
                 traceback=outcome.traceback,
             )
 
-        if outcome.status == "agent_launched":
-            launch_line = f"Launched agent chop '{chop.name}' (PID {outcome.agent_pid})"
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=True,
-                update_timestamp=chop.run_every is not None,
-                log_lines=[launch_line],
-                agent_pid=outcome.agent_pid,
-            )
-
-        if outcome.status == "agent_failed":
-            # Throttle persistent launch failures by the chop's normal
-            # cadence so a misconfigured agent chop doesn't retry every
-            # tick and flood error digests.
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=False,
-                update_timestamp=chop.run_every is not None,
-                log_lines=log_lines,
-                error=outcome.error,
-                traceback=outcome.traceback,
-            )
-
         if outcome.status == "already_running":
             # Scheduled tick should not double-launch; treat as a quiet skip
             # so we don't increment chops_executed or error counters.
@@ -405,86 +356,6 @@ class Lumberjack:
             for line in tail.splitlines():
                 if line:
                     log_lines.append(line)
-
-    def _is_agent_eligible(self, chop: ChopConfig) -> bool:
-        """Check if an agent chop should run (no live instances).
-
-        Must be called from the main thread only.
-        """
-        assert chop.agent is not None
-        prompt_hash_value = prompt_hash(chop.agent)
-        live_records = get_live_chop_agent_records(
-            self.name,
-            chop_name=chop.name,
-            prompt_hash_value=prompt_hash_value,
-        )
-        if live_records:
-            live_pids = {record.pid for record in live_records}
-            self._agent_pids[chop.name] = live_pids
-            self._log(
-                f"Skipping agent chop '{chop.name}': already running (PIDs {live_pids})"
-            )
-            return False
-
-        self._reap_agent_pids(chop.name)
-        live_pids = self._agent_pids.get(chop.name, set())
-        still_alive: set[int] = set()
-        for pid in live_pids:
-            if is_process_running(pid):
-                still_alive.add(pid)
-        if still_alive:
-            self._agent_pids[chop.name] = still_alive
-            self._log(
-                f"Skipping agent chop '{chop.name}': already running (PIDs {still_alive})"
-            )
-            return False
-        self._agent_pids.pop(chop.name, None)
-        return True
-
-    def _reap_agent_pids(self, chop_name: str) -> None:
-        """Reap exited direct child agent PIDs tracked by this lumberjack."""
-        pids = self._agent_pids.get(chop_name)
-        if not pids:
-            return
-
-        remaining: set[int] = set()
-        for pid in pids:
-            try:
-                reaped_pid, _status = os.waitpid(pid, os.WNOHANG)
-            except (ChildProcessError, OSError):
-                remaining.add(pid)
-                continue
-            if reaped_pid == 0:
-                remaining.add(pid)
-
-        if remaining:
-            self._agent_pids[chop_name] = remaining
-        else:
-            self._agent_pids.pop(chop_name, None)
-
-    def _chop_launch_env(self, chop: ChopConfig) -> dict[str, str]:
-        """Build env vars that identify a chop-launched workflow."""
-        return build_chop_launch_env(
-            lumberjack_name=self.name,
-            chop_name=chop.name,
-            prompt=chop.agent,
-        )
-
-    def _launch_agent_chop(self, chop: ChopConfig) -> _ChopResult:
-        """Launch an agent chop via the shared runner.
-
-        Kept as a method so the existing test suite can call it directly;
-        delegates to :func:`run_configured_chop_once` for the actual launch
-        and history-writing work.
-        """
-        outcome = run_configured_chop_once(
-            lumberjack_name=self.name,
-            chop=chop,
-            axe_config=self.axe_config,
-            chop_timeout_default=self.config.chop_timeout,
-            source="scheduled",
-        )
-        return self._outcome_to_result(chop, outcome)
 
     def _handle_error(
         self, job_name: str, error: Exception, tb: str | None = None

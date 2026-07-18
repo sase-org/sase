@@ -218,15 +218,6 @@ class AxeChopRunMixin:
                 with_log_panel_hint(f"Chop '{chop}': script not found"),
                 severity="error",
             )
-        elif outcome.status == "agent_launched":
-            pid = outcome.agent_pid
-            suffix = f" (PID {pid})" if pid is not None else ""
-            self.notify(f"Agent chop '{chop}' launched{suffix}")  # type: ignore[attr-defined]
-        elif outcome.status == "agent_failed":
-            self.notify(  # type: ignore[attr-defined]
-                with_log_panel_hint(f"Agent chop '{chop}' failed to launch"),
-                severity="error",
-            )
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Chop '{chop}': unexpected outcome '{outcome.status}'",
@@ -235,7 +226,7 @@ class AxeChopRunMixin:
 
 
 def _is_failure_chop_outcome(outcome: ChopRunOutcome) -> bool:
-    return outcome.status in {"failure", "timeout", "missing_script", "agent_failed"}
+    return outcome.status in {"failure", "timeout", "missing_script"}
 
 
 def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> None:

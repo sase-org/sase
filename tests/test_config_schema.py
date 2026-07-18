@@ -126,6 +126,57 @@ def test_config_schema_rejects_max_running_agents_below_minimum() -> None:
         Draft7Validator(_schema()).validate({"max_running_agents": 0})
 
 
+def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "axe": {
+                "lumberjacks": {
+                    "checks": {
+                        "interval": 1,
+                        "chop_timeout": "1d2h30m",
+                        "chops": [
+                            {
+                                "name": "custom_check",
+                                "script": "custom-check",
+                                "run_every": "1h30m",
+                                "timeout": "45s",
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("agent", "do work"),
+        ("xprompt", "#!workflow"),
+        ("run_every", "0s"),
+        ("timeout", "1.5m"),
+    ],
+)
+def test_config_schema_rejects_removed_or_invalid_chop_fields(
+    field: str,
+    value: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "checks": {
+                            "interval": 1,
+                            "chops": [{"name": "custom_check", field: value}],
+                        }
+                    }
+                }
+            }
+        )
+
+
 def test_config_schema_accepts_telegram_commands() -> None:
     Draft7Validator(_schema()).validate(
         {

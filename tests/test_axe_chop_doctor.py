@@ -13,12 +13,18 @@ from rich.console import Console
 
 from sase.axe import cli
 from sase.axe.chop_doctor import (
-    aggregate_chop_status,
-    build_chop_checks,
+    _aggregate_chop_status,
+    _build_chop_checks,
     build_chop_doctor_report,
 )
 from sase.axe.chop_inventory import collect_chop_inventory
-from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
+from sase.axe.config import (
+    AxeConfig,
+    _AxeConfigDiagnostic,
+    AxeConfigError,
+    ChopConfig,
+    LumberjackConfig,
+)
 
 
 def _make_executable(path: Path) -> None:
@@ -65,9 +71,9 @@ def _config_with_missing_chop() -> AxeConfig:
 def test_build_chop_checks_errors_on_missing_configured_chop() -> None:
     inventory = collect_chop_inventory(_config_with_missing_chop())
 
-    checks = build_chop_checks(inventory, which_fn=lambda _: None)
+    checks = _build_chop_checks(inventory, which_fn=lambda _: None)
 
-    assert aggregate_chop_status(checks) == "ERROR"
+    assert _aggregate_chop_status(checks) == "ERROR"
     assert any(
         check.status == "ERROR" and "cannot be resolved" in check.summary
         for check in checks
@@ -88,13 +94,13 @@ def test_build_chop_checks_warns_on_unconfigured_telegram(
     monkeypatch.delenv("SASE_TELEGRAM_BOT_TOKEN", raising=False)
 
     inventory = collect_chop_inventory(AxeConfig())
-    checks = build_chop_checks(inventory, which_fn=lambda _: None)
+    checks = _build_chop_checks(inventory, which_fn=lambda _: None)
 
     statuses = {check.id: check.status for check in checks}
     assert statuses["available_unconfigured_chops"] == "WARN"
     assert statuses["telegram_env"] == "WARN"
     assert statuses["telegram_bot_token"] == "WARN"
-    assert aggregate_chop_status(checks) == "WARN"
+    assert _aggregate_chop_status(checks) == "WARN"
 
 
 def test_build_chop_checks_accepts_telegram_chop_env(
@@ -128,7 +134,7 @@ def test_build_chop_checks_accepts_telegram_chop_env(
         }
     )
 
-    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+    checks = _build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
 
     statuses = {check.id: check.status for check in checks}
     assert statuses["telegram_env"] == "OK"
@@ -161,7 +167,7 @@ def test_build_chop_checks_accepts_telegram_token_from_chop_env(
         }
     )
 
-    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+    checks = _build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
 
     token_check = next(check for check in checks if check.id == "telegram_bot_token")
     assert token_check.status == "OK"
@@ -182,7 +188,7 @@ def test_build_chop_checks_accepts_telegram_token_file(
     token_file.write_text("token\n", encoding="utf-8")
     token_file.chmod(0o600)
 
-    checks = build_chop_checks(
+    checks = _build_chop_checks(
         collect_chop_inventory(AxeConfig()), which_fn=lambda _: None
     )
 
@@ -221,12 +227,12 @@ def test_build_chop_checks_errors_when_enabled_configured_and_token_missing(
         }
     )
 
-    checks = build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+    checks = _build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
 
     token_check = next(check for check in checks if check.id == "telegram_bot_token")
     assert token_check.status == "ERROR"
     assert "SASE_TELEGRAM_BOT_TOKEN" in token_check.next_steps[0]
-    assert aggregate_chop_status(checks) == "ERROR"
+    assert _aggregate_chop_status(checks) == "ERROR"
 
 
 def test_build_chop_doctor_report_no_error_when_all_resolve() -> None:
@@ -241,6 +247,35 @@ def test_build_chop_doctor_report_no_error_when_all_resolve() -> None:
     assert all(check.status != "ERROR" for check in report.checks)
 
 
+def test_build_chop_doctor_report_surfaces_config_validation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = AxeConfigError(
+        [
+            _AxeConfigDiagnostic(
+                code="agent_chop_removed",
+                message="agent chops are no longer supported",
+                path="axe.lumberjacks.audits.chops[0].agent",
+                layer="overlay:test.yml:/tmp/test.yml",
+            )
+        ]
+    )
+
+    def _raise_config_error() -> AxeConfig:
+        raise error
+
+    monkeypatch.setattr("sase.axe.chop_inventory.load_axe_config", _raise_config_error)
+
+    report = build_chop_doctor_report(which_fn=lambda _: None)
+
+    assert report.status == "ERROR"
+    config_check = next(
+        check for check in report.checks if check.id.startswith("axe_config:")
+    )
+    assert "axe.lumberjacks.audits.chops[0].agent" in config_check.details[0]
+    assert "overlay:test.yml:/tmp/test.yml" in config_check.details[0]
+
+
 # --- sase axe chop list handler ---
 
 
@@ -253,7 +288,13 @@ def test_handle_axe_chop_list_json_has_schema_version(
             "hooks": LumberjackConfig(
                 name="hooks",
                 interval=10,
-                chops=[ChopConfig(name="agented", description="d", agent="do")],
+                chops=[
+                    ChopConfig(
+                        name="friendly",
+                        description="d",
+                        script="full_executable",
+                    )
+                ],
             )
         }
     )
@@ -268,7 +309,7 @@ def test_handle_axe_chop_list_json_has_schema_version(
     assert payload["schema_version"] == 1
     assert payload["command"] == "list"
     assert "chops" in payload
-    assert any(c["name"] == "agented" for c in payload["chops"]["configured"])
+    assert any(c["name"] == "friendly" for c in payload["chops"]["configured"])
 
 
 def test_handle_axe_chop_list_json_keeps_per_lumberjack_rows(
@@ -281,12 +322,12 @@ def test_handle_axe_chop_list_json_keeps_per_lumberjack_rows(
             "jack1": LumberjackConfig(
                 name="jack1",
                 interval=10,
-                chops=[ChopConfig(name="shared", description="", agent="a")],
+                chops=[ChopConfig(name="shared", description="")],
             ),
             "jack2": LumberjackConfig(
                 name="jack2",
                 interval=10,
-                chops=[ChopConfig(name="shared", description="", agent="a")],
+                chops=[ChopConfig(name="shared", description="")],
             ),
         }
     )

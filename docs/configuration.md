@@ -823,42 +823,55 @@ axe:
       chop_timeout: "90s"
       chops:
         - name: hook_checks
+          script: sase_chop_hook_checks
           description: Complete finished hooks and start stale ones, with zombie detection
         - name: mentor_checks
+          script: sase_chop_mentor_checks
           description: Start mentor workflows once all hook prerequisites are met
         - name: workflow_checks
+          script: sase_chop_workflow_checks
           description: Complete finished CRS/fix-hook workflows and start stale ones
         - name: pending_checks_poll
+          script: sase_chop_pending_checks_poll
           description: Poll background is_cl_submitted and critique_comments checks for results
         - name: comment_zombie_checks
+          script: sase_chop_comment_zombie_checks
           description: Mark comment threads older than zombie_timeout as ZOMBIE
         - name: suffix_transforms
+          script: sase_chop_suffix_transforms
           description: Strip stale suffixes from older proposals and update mail-readiness markers
         - name: orphan_cleanup
+          script: sase_chop_orphan_cleanup
           description: Release workspace claims orphaned by reverted PRs with dead PIDs
         - name: stale_running_cleanup
+          script: sase_chop_stale_running_cleanup
           description: Release workspace claims held by dead processes
     waits:
       interval: 10
       chops:
         - name: wait_checks
+          script: sase_chop_wait_checks
           description: Resolve successful agent wait dependencies and write ready.json
     checks:
       interval: 300
       chops:
-        - name: cl_submitted_checks
+        - name: pr_submitted_checks
+          script: sase_chop_pr_submitted_checks
           description: Check if PRs have been submitted
         - name: stale_running_cleanup
+          script: sase_chop_stale_running_cleanup
           description: Backstop cleanup of stale RUNNING entries
     comments:
       interval: 60
       chops:
         - name: comment_checks
+          script: sase_chop_comment_checks
           description: Check for new comments on PRs
     housekeeping:
       interval: 3600
       chops:
         - name: error_digest
+          script: sase_chop_error_digest
           description: Summarize recent errors into a notification
 ```
 
@@ -877,26 +890,26 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                 | Default | Description                                                              |
-| -------------- | -------------------- | ------- | ------------------------------------------------------------------------ |
-| `interval`     | int                  | `1`     | Seconds between chop polling cycles.                                     |
-| `chop_timeout` | string               | -       | Default duration limit for each chop in this lumberjack, such as `"90s"` |
-| `chops`        | list[string\|object] | `[]`    | List of chops to run on each cycle (see below).                          |
+| Field          | Type                 | Default | Description                                                             |
+| -------------- | -------------------- | ------- | ----------------------------------------------------------------------- |
+| `interval`     | int                  | `1`     | Seconds between chop polling cycles.                                    |
+| `chop_timeout` | string               | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
+| `chops`        | list[string\|object] | `[]`    | List of chops to run on each cycle (see below).                         |
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type         | Required | Default | Description                                                                                  |
-| ------------- | ------------ | -------- | ------- | -------------------------------------------------------------------------------------------- |
-| `name`        | string       | yes      | -       | Chop name identifying the chop script to run.                                                |
-| `description` | string       | yes      | -       | Human-readable description of what the chop does.                                            |
-| `agent`       | string       | no       | `null`  | XPrompt reference to launch as a background agent (accepts legacy `xprompt` key).            |
-| `run_every`   | string       | no       | -       | Time-based duration string (e.g., `"60m"`, `"30s"`, `"2h"`). Limits how often the chop runs. |
-| `timeout`     | string       | no       | -       | Per-chop duration limit. Overrides the lumberjack-level `chop_timeout` when set.             |
-| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.                                  |
+| Field         | Type         | Required | Default | Description                                                      |
+| ------------- | ------------ | -------- | ------- | ---------------------------------------------------------------- |
+| `name`        | string       | yes      | -       | Stable chop identity.                                            |
+| `script`      | string       | no       | `name`  | Exact executable name; no prefix is added automatically.         |
+| `description` | string       | no       | `""`    | Human-readable description of what the chop does.                |
+| `run_every`   | string       | no       | -       | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`. |
+| `timeout`     | string       | no       | -       | Per-chop duration limit. Overrides lumberjack `chop_timeout`.    |
+| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.      |
 
-On a scheduled lumberjack tick, script chops remain concurrent, but configured agent chops launch sequentially in config
-order. This prevents same-tick `run_every` agent chops from racing while they allocate workspaces. A manual
-`sase axe chop run <agent-chop>` still launches only that one agent chop.
+All chops are scripts. Exact-name resolution checks `chop_script_dirs`, then the running interpreter's bin directory,
+then `$PATH`. Invalid fields, duplicate identities, non-positive intervals, and invalid durations fail config loading
+with a dotted config path and source-layer diagnostic. `agent:` and `xprompt:` are rejected with a migration message.
 
 The built-in `wait_checks` chop writes `ready.json` only after named `%wait` dependencies complete successfully. Failed,
 killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the dependency.
@@ -907,11 +920,12 @@ Each chop entry can also be a plain string (chop name only, legacy format):
 chops:
   # Object format (required for new chops)
   - name: hook_checks
+    script: sase_chop_hook_checks
     description: Check for completed or failed hooks
   - name: custom_chop
+    script: my_full_executable_name
     description: Run custom analysis
-    agent: "#analyze"
-    run_every: "5m"
+    run_every: "1h30m"
     env:
       MY_API_KEY: "secret"
   # String format (legacy, description defaults to empty)

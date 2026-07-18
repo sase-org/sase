@@ -27,7 +27,6 @@ ChopRunStatus = Literal[
     "failure",
     "timeout",
     "missing_script",
-    "agent_launched",
 ]
 
 #: Allowed values for ``ChopRunEntry.source`` — how the run was kicked off.

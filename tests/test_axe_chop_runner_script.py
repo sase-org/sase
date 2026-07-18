@@ -58,6 +58,31 @@ def test_run_configured_chop_once_records_manual_source(
     assert "hello" in tail
 
 
+def test_run_configured_chop_once_resolves_explicit_full_script_name(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "actual_executable", "echo exact\n")
+    cfg = AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
+    chop = ChopConfig(
+        name="friendly_name",
+        description="",
+        script="actual_executable",
+    )
+
+    with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
+        outcome = run_configured_chop_once(
+            lumberjack_name="hooks",
+            chop=chop,
+            axe_config=cfg,
+            source="manual",
+        )
+
+    assert outcome.status == "success"
+    assert outcome.run_id is not None
+    assert "exact" in read_chop_run_log_tail("hooks", "friendly_name", outcome.run_id)
+
+
 def test_run_configured_chop_once_uses_per_chop_timeout(
     temp_state_dir: Path,
     tmp_path: Path,

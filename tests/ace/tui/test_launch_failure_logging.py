@@ -371,7 +371,7 @@ def test_payloadless_launch_task_failure_persists_record() -> None:
     assert record["output"] == "captured output"
 
 
-def test_chop_agent_failed_outcome_persists_record() -> None:
+def test_chop_missing_script_outcome_persists_record() -> None:
     from sase.ace.tui.actions.axe_chop_run import AxeChopRunMixin
     from sase.axe.chop_runner_types import ChopRunOutcome
 
@@ -392,10 +392,10 @@ def test_chop_agent_failed_outcome_persists_record() -> None:
     outcome = ChopRunOutcome(
         lumberjack_name="lumber",
         chop_name="my-chop",
-        status="agent_failed",
+        status="missing_script",
         run_id="run-1",
-        error=RuntimeError("agent launch failed"),
-        traceback="agent traceback",
+        error=RuntimeError("script not found"),
+        traceback="script traceback",
     )
     app = _ChopApp()
     with (
@@ -415,11 +415,11 @@ def test_chop_agent_failed_outcome_persists_record() -> None:
         asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
 
     assert app.notifications[-1] == (
-        "Agent chop 'my-chop' failed to launch - see Logs in SASE Admin Center (#)",
+        "Chop 'my-chop': script not found - see Logs in SASE Admin Center (#)",
         "error",
     )
     record = _assert_persisted("chop")
     assert record["chop"] == "my-chop"
     assert record["lumberjack"] == "lumber"
-    assert record["status"] == "agent_failed"
+    assert record["status"] == "missing_script"
     assert record["run_id"] == "run-1"

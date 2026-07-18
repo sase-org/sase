@@ -13,11 +13,6 @@ def _render_lumberjack(output: str) -> Text:
     return axe_log_renderer.render_axe_output("lumberjack:test", output, "lumberjack")
 
 
-def _render_controlled_chop(output: str) -> Text:
-    axe_log_renderer._render_cache.clear()
-    return axe_log_renderer.render_axe_output("chop:lj:cp:1", output, "chop_controlled")
-
-
 def _styles_at(text: Text, substring: str) -> set[str]:
     """Return the styles applied over ``substring`` in ``text``.
 
@@ -78,14 +73,10 @@ def test_semantic_paths_strip_embedded_chop_ansi_codes() -> None:
     body = "\x1b[33munsent=0 sent=0\x1b[0m failures=0"
 
     lumberjack_text = _render_lumberjack(f"[2026-05-11 12:34:56] [telegram] {body}\n")
-    chop_text = _render_controlled_chop(f"{body}\n")
-
     assert lumberjack_text.plain == (
         "[2026-05-11 12:34:56] [telegram] unsent=0 sent=0 failures=0\n"
     )
-    assert chop_text.plain == "unsent=0 sent=0 failures=0\n"
     assert "\x1b" not in lumberjack_text.plain
-    assert "\x1b" not in chop_text.plain
 
 
 def test_lumberjack_crlf_input_strips_carriage_returns() -> None:
@@ -163,15 +154,6 @@ def test_lumberjack_line_without_header_still_highlights_tokens() -> None:
     text = _render_lumberjack("Lumberjack tick raised: timeout after 30s\n")
     styles = _styles_at(text, "timeout")
     assert any("yellow" in s for s in styles)
-
-
-def test_controlled_chop_launch_line_styled() -> None:
-    """Agent launch line gets its agent-launched accent and PID styling."""
-    text = _render_controlled_chop("Launched agent chop 'send' (PID 9201)\n")
-    chop_styles = _styles_at(text, "'send'")
-    pid_styles = _styles_at(text, "9201")
-    assert any("#D7AF87" in s for s in chop_styles)
-    assert any("#FF87D7" in s for s in pid_styles)
 
 
 def test_classify_source_lumberjack_prefix() -> None:

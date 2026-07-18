@@ -159,7 +159,6 @@ def test_chop_status_label_mapping() -> None:
         "failure",
         "timeout",
         "missing_script",
-        "agent_launched",
         "running",
     ):
         label, style = axe_dashboard._chop_status_label(status)
@@ -179,46 +178,6 @@ def test_chop_status_running_label_style() -> None:
     label, style = axe_dashboard._chop_status_label("running")
     assert "running" in label.lower()
     assert "green" in style
-
-
-def test_update_chop_run_display_agent_launched_uses_controlled_source_type() -> None:
-    """Agent-launched chop runs render through the controlled-chop highlighter
-    so the synthetic launch line gets the agent-launched accent and PID color."""
-    launch_run = ChopRunSnapshot(
-        entry=_entry("run-agent", status="agent_launched"),
-        output_tail="Launched agent chop 'fast' (PID 9201)\n",
-    )
-    snap = _snapshot_with_runs(launch_run)
-
-    captured: dict[str, object] = {}
-
-    class _OutputSection:
-        def update_display(
-            self,
-            output: str,
-            source_id: str = "axe-output",
-            source_type: str = "ansi",
-        ) -> None:
-            captured["source_type"] = source_type
-
-        def update(self, *_: object, **__: object) -> None:
-            pass
-
-    class _StatusSection:
-        def update_chop_display(self, *_a: object, **_kw: object) -> None:
-            pass
-
-    dashboard = AxeDashboard.__new__(AxeDashboard)
-
-    def _query_one(selector: str, _cls: type) -> object:
-        if "status" in selector:
-            return _StatusSection()
-        return _OutputSection()
-
-    dashboard.query_one = _query_one  # type: ignore[assignment]
-    dashboard.update_chop_run_display(snapshot=snap, run_idx=0, countdown=0)
-
-    assert captured["source_type"] == "chop_controlled"
 
 
 def test_update_chop_run_display_script_run_stays_on_ansi() -> None:

@@ -13,8 +13,6 @@ ChopRunOutcomeStatus = Literal[
     "failure",
     "timeout",
     "missing_script",
-    "agent_launched",
-    "agent_failed",
     "already_running",
 ]
 

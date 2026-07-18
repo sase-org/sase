@@ -94,13 +94,16 @@ def _configured_chops_table(
         table.add_column("Description", overflow="fold")
 
     for chop in inventory.configured_chops:
-        kind = "agent" if chop.agent else "script"
-        resolution = chop.agent or chop.resolved_path or "not found"
+        resolution = (
+            f"{chop.script} → {chop.resolved_path}"
+            if chop.resolved_path
+            else f"{chop.script} → not found"
+        )
         row: list[RenderableType] = [
             _status_text(_configured_chop_status(chop)),
             Text(chop.lumberjack),
             Text(chop.name),
-            Text(kind),
+            Text("script"),
             Text(resolution, overflow="fold"),
         ]
         if verbose:
@@ -183,7 +186,7 @@ def _configured_chop_status(chop: ConfiguredChopRecord) -> CheckStatus:
         return "OK"
     if chop.status == "missing":
         return "ERROR"
-    return "SKIP"
+    return "ERROR"
 
 
 def _status_text(status: CheckStatus) -> Text:

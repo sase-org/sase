@@ -134,7 +134,7 @@ Lower-frequency status checks:
 
 | Chop                    | Description                         |
 | ----------------------- | ----------------------------------- |
-| `cl_submitted_checks`   | Start PR submission status checks   |
+| `pr_submitted_checks`   | Start PR submission status checks   |
 | `stale_running_cleanup` | Backstop dead-process claim cleanup |
 
 ### comments (1-minute interval)
@@ -187,9 +187,9 @@ axe:
       chop_timeout: "60s" # Default timeout for all chops in this lumberjack
       chops:
         - name: my_chop
+          script: my_chop_executable # Optional; defaults to name
           description: "What this chop does"
-          agent: my_agent # Optional — runs as background agent process
-          run_every: "5m" # Time-based duration: run at most once per 5 minutes
+          run_every: "1h30m" # Run at most once per compound duration
           timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:
             MY_VAR: "value" # Custom environment variables
@@ -197,23 +197,27 @@ axe:
 
 #### Chop Fields
 
-| Field         | Type             | Description                                                            |
-| ------------- | ---------------- | ---------------------------------------------------------------------- |
-| `name`        | `str`            | Chop identifier (required)                                             |
-| `description` | `str`            | Human-readable description (required)                                  |
-| `agent`       | `str \| null`    | XPrompt/agent name — runs as a background agent process                |
-| `run_every`   | `str \| null`    | Duration string (e.g., `"5m"`, `"2h"`) — run at most once per interval |
-| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)  |
-| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                        |
+| Field         | Type             | Description                                                           |
+| ------------- | ---------------- | --------------------------------------------------------------------- |
+| `name`        | `str`            | Chop identity (required)                                              |
+| `script`      | `str \| null`    | Exact executable name; defaults to `name`                             |
+| `description` | `str`            | Human-readable description                                            |
+| `run_every`   | `str \| null`    | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)          |
+| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`) |
+| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                       |
 
 ### Script Chops
 
-When a chop does not have an `agent` field, axe treats it as an external executable. The executable is resolved in this
-order:
+Every chop is an external executable. Axe resolves the exact configured `script` value (or `name` when `script` is
+omitted) in this order:
 
-1. An executable named exactly like the chop in one of `axe.chop_script_dirs`.
-2. An executable named `sase_chop_<name>` beside the running Python interpreter.
-3. An executable named `sase_chop_<name>` on `$PATH`.
+1. An exact-name executable in one of `axe.chop_script_dirs`.
+2. An exact-name executable beside the running Python interpreter.
+3. An exact-name executable on `$PATH`.
+
+No prefix is added automatically. Builtin chops therefore declare names such as `script: sase_chop_hook_checks`
+explicitly. The available-script inventory still scans `$PATH` for `sase_chop_*` executables as a discovery convenience,
+but resolution always uses the configured full name.
 
 Axe runs script chops as:
 
@@ -232,9 +236,8 @@ becomes visible immediately rather than only after process exit.
 
 Chop output is part of the operator contract. Every actual chop run should write a compact, human-readable summary for
 both no-op and action paths. At minimum, include the chop identity or run scope, counts of inspected/skipped/updated or
-launched items, an explicit no-op reason, and bounded identifiers for any affected items. Agent chops should record the
-launched PID, prompt hash, prompt or workflow label, and enough workspace metadata to find the visible agent run. Avoid
-tokens, full notification bodies, full prompts, and unbounded command output in ordinary AXE logs.
+launched items, an explicit no-op reason, and bounded identifiers for any affected items. Avoid tokens, full
+notification bodies, full prompts, and unbounded command output in ordinary AXE logs.
 
 ### Manual Chop Runs
 
@@ -257,35 +260,16 @@ listing the candidate lumberjacks. Pass `-L/--lumberjack` to pick one. The manua
 **From the ACE TUI:**
 
 On the Axe tab, press `r` while a chop row is selected to launch that exact `(lumberjack, chop)` manually. The run uses
-the chop's configured environment, timeout, and (for agent chops) prompt — but bypasses any `run_every` cadence because
-the user explicitly asked for it. The TUI does not block while the launch happens; once the subprocess (or agent) has
-started, the new run becomes the newest entry in the chop's run history and the detail panel switches to it.
+the chop's configured script, environment, and timeout, but bypasses any `run_every` cadence because the user explicitly
+asked for it. The TUI does not block while the script runs; once the subprocess starts, the new run becomes the newest
+entry in the chop's run history and the detail panel switches to it.
 
 If the selected chop already has a live script run in flight for the same `(lumberjack, chop)`, `r` notifies and skips
-the launch rather than starting an overlapping duplicate. Agent chops keep the existing live-agent dedupe semantics
-(prompt-hash based). On non-chop rows — lumberjack rows and running bgcmd rows — `r` is a no-op; on a completed bgcmd
-row, `r` continues to re-run the bgcmd.
+the launch rather than starting an overlapping duplicate. On non-chop rows — lumberjack rows and running bgcmd rows —
+`r` is a no-op; on a completed bgcmd row, `r` continues to re-run the bgcmd.
 
 Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled runs. The chop-detail header marks
 them with a `Source: manual` chip so it is easy to tell at a glance why a run started.
-
-### Agent Chops and Visibility
-
-When a chop has an `agent` field, axe launches a real background agent (via the same launcher as `sase run`) instead of
-shelling out to a chop script. Configured agent chops are **visible by default** in the Agents tab — recurring infra
-agents (e.g. orchestration housekeepers) show up alongside user-launched agents so their state, retries, and last output
-are discoverable. Use the prompt-side `%hide` directive if a particular chop should remain hidden.
-
-Specialized review agents launched by axe runners (mentor, CRS, fix-hook, and summarize-hook review agents) write
-Agents-tab metadata as well. They join the same `review` tribe that a `%tribe:review` prompt would produce, so ACE
-groups them in the `@review` side panel instead of hiding them among automation rows without a tribe.
-
-During a scheduled lumberjack tick, script chops are still dispatched concurrently, but eligible agent chops are
-launched sequentially in their configured order. That keeps multiple same-tick `run_every` agent chops from racing each
-other for workspace allocation while preserving parallel script execution.
-
-`sase axe chop run <agent-chop>` follows the same path as the scheduled lumberjack tick, so a one-shot run records the
-same chop registry metadata as the periodic invocation.
 
 ### Chop Run History
 
@@ -303,12 +287,11 @@ lists the chop's run IDs newest-first:
 ```
 
 Each `<run_id>.json` is a serialized `ChopRunEntry` (see `src/sase/axe/state.py`). The most relevant fields are
-`status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid` (script chops) / `agent_pid` (agent chops),
-`source` (`scheduled`, `manual`, or `oneshot`), `started_by`, and `output_bytes`.
+`status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid`, `source` (`scheduled`, `manual`, or
+`oneshot`), `started_by`, and `output_bytes`.
 
 A run is created in `running` state before the subprocess is launched. On exit it is updated in place with a terminal
-status — `success`, `failure`, `timeout`, `missing_script`, or `agent_launched` (the last is used when a chop only
-launches a background agent rather than running a script). `finished_at` is `null` while the run is still active.
+status — `success`, `failure`, `timeout`, or `missing_script`. `finished_at` is `null` while the run is still active.
 
 History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Runs
 still in `running` state are always kept regardless of position, so a slow chop is never deleted out from under its own
@@ -318,9 +301,8 @@ process.
 
 The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops as indented children, followed
 by any background commands (`!!`). Each chop row shows a status marker derived from its newest cached run: `[●]` while a
-run is active, `[✓]` for the most recent `success`, `[!]` for `failure` or `timeout`, `[?]` for `missing_script`, `[*]`
-for `agent_launched` (agent chops that only spawn a background agent), and `[·]` for chops that have never run.
-Selection drives three distinct dashboard views:
+run is active, `[✓]` for the most recent `success`, `[!]` for `failure` or `timeout`, `[?]` for `missing_script`, and
+`[·]` for chops that have never run. Selection drives three distinct dashboard views:
 
 - **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count, error count, and a
   per-chop table with each chop's last-run status, relative timestamp, and duration. For a chop whose newest run is
@@ -338,13 +320,11 @@ if the pinned run is pruned or itself becomes the newest run.
 
 ### Chop-Agent Registry
 
-Each lumberjack maintains a durable JSON registry of the agents it has launched at
-`~/.sase/axe/lumberjacks/<name>/agent_chops.json`. Records carry the lumberjack/chop names, a normalized `prompt_hash`,
-the launched PID, the agent's artifacts timestamp, and a per-launch UUID. The registry is what lets a recurring chop
-dedup against an in-flight run with the same prompt body, survive lumberjack restarts (sase-12 perf overhaul), and be
-reattributed correctly in the Agents tab. The metadata is also propagated into the agent's `agent_meta.json` via the env
-vars `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, `SASE_CHOP_RUN_ID`, and `SASE_CHOP_PROMPT_HASH` (see
-`build_chop_launch_env()` in `src/sase/axe/chop_agents.py`).
+The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata remain available for agents launched from chop
+execution. They no longer select a chop input variant: configuration is always script-based. The structured-result
+runner can reuse this linkage to associate script proposals with agent lifecycle state. The script environment currently
+includes `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, and `SASE_CHOP_RUN_ID` (see `build_chop_launch_env()` in
+`src/sase/axe/chop_agents.py`).
 
 ## Concurrency Management
 

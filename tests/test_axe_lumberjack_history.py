@@ -130,36 +130,6 @@ def test_missing_script_records_missing_script_history(
     assert "not found" in entry.error
 
 
-@patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])
-def test_agent_chop_launch_records_agent_launched_history(
-    mock_find: MagicMock,
-    temp_state_dir: Path,
-    axe_config: AxeConfig,
-) -> None:
-    """A successful agent chop launch produces status=agent_launched with the pid."""
-    config = LumberjackConfig(
-        name="agentj",
-        interval=10,
-        chops=[ChopConfig(name="my_agent", description="", agent="some_agent")],
-    )
-    lumberjack = Lumberjack("agentj", config, axe_config)
-
-    mock_proc = MagicMock()
-    mock_proc.pid = 4242
-
-    with (
-        patch("sase.axe.lumberjack.is_process_running", return_value=False),
-        patch("sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc),
-    ):
-        lumberjack._run_tick()
-
-    run_id = single_chop_run_id("agentj", "my_agent")
-    entry = read_chop_run("agentj", "my_agent", run_id)
-    assert entry is not None
-    assert entry.status == "agent_launched"
-    assert entry.agent_pid == 4242
-
-
 @patch("sase.axe.chop_runner.stream_chop_script")
 @patch("sase.axe.chop_runner.discover_chop_script")
 @patch("sase.axe.check_cycles.find_all_changespecs", return_value=[])

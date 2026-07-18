@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING
 
 from sase.axe.chop_doctor import (
     ChopCheck,
-    aggregate_chop_status,
-    build_chop_checks,
+    build_chop_doctor_report,
     chop_check_to_dict,
 )
-from sase.axe.chop_inventory import collect_chop_inventory
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 
 if TYPE_CHECKING:
@@ -34,9 +32,10 @@ def axe_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 def _check_axe_chops(context: DoctorContext) -> DiagnosticCheck:
     """Adapt ``sase axe chop doctor`` into one shared diagnostic check."""
-    inventory = collect_chop_inventory()
-    checks = build_chop_checks(inventory)
-    status = aggregate_chop_status(checks)
+    report = build_chop_doctor_report()
+    inventory = report.inventory
+    checks = report.checks
+    status = report.status
     counts = Counter(check.status for check in checks)
     problem_checks = tuple(check for check in checks if check.status != "OK")
     detail_checks = checks if context.verbose else problem_checks

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.axe.chop_doctor import build_chop_doctor_report
 from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.doctor.checks_axe import _check_axe_chops
@@ -31,9 +32,10 @@ def test_axe_chops_check_errors_on_missing_configured_chop(
             )
         }
     )
+    inventory = collect_chop_inventory(config)
     monkeypatch.setattr(
-        "sase.doctor.checks_axe.collect_chop_inventory",
-        lambda: collect_chop_inventory(config),
+        "sase.doctor.checks_axe.build_chop_doctor_report",
+        lambda: build_chop_doctor_report(inventory=inventory),
     )
 
     check = _check_axe_chops(_context(tmp_path))
@@ -46,9 +48,10 @@ def test_axe_chops_check_errors_on_missing_configured_chop(
 
 
 def test_axe_chops_check_ok_when_clean(monkeypatch, tmp_path) -> None:
+    inventory = collect_chop_inventory(AxeConfig())
     monkeypatch.setattr(
-        "sase.doctor.checks_axe.collect_chop_inventory",
-        lambda: collect_chop_inventory(AxeConfig()),
+        "sase.doctor.checks_axe.build_chop_doctor_report",
+        lambda: build_chop_doctor_report(inventory=inventory),
     )
 
     check = _check_axe_chops(_context(tmp_path))

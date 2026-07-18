@@ -19,18 +19,27 @@ from .chop_runner import (
     run_configured_chop_once,
 )
 from .chop_script_runner import discover_chop_script
-from .config import AxeConfig, ChopConfig, load_axe_config
+from .config import AxeConfig, AxeConfigError, ChopConfig, load_axe_config
 from .state import (
     read_chop_run_log_tail,
     read_lumberjack_status,
 )
 
 
+def _load_axe_config_or_exit() -> AxeConfig:
+    """Load axe config and surface fail-closed diagnostics without a traceback."""
+    try:
+        return load_axe_config()
+    except AxeConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
+
+
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
     """List configured chops with status, plus available scripts on request."""
     from sase.axe.chop_inventory import chop_inventory_to_dict, collect_chop_inventory
 
-    inventory = collect_chop_inventory(load_axe_config())
+    inventory = collect_chop_inventory(_load_axe_config_or_exit())
 
     if getattr(args, "json", False):
         payload = {
@@ -83,7 +92,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     """
     chop_name: str = args.chop_name
     lumberjack_override: str | None = getattr(args, "lumberjack", None)
-    config = load_axe_config()
+    config = _load_axe_config_or_exit()
 
     try:
         match = find_configured_chop(config, chop_name, lumberjack_override)
@@ -139,12 +148,6 @@ def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
     if outcome.status == "missing_script":
         print(f"Error: {outcome.error}", file=sys.stderr)
         sys.exit(1)
-    if outcome.status == "agent_launched":
-        print(f"Agent started for chop '{outcome.chop_name}' (PID {outcome.agent_pid})")
-        sys.exit(0)
-    if outcome.status == "agent_failed":
-        print(f"Error: {outcome.error}", file=sys.stderr)
-        sys.exit(1)
     if outcome.status == "already_running":
         suffix = f" (PID {outcome.agent_pid})" if outcome.agent_pid is not None else ""
         print(
@@ -178,7 +181,7 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
     from rich.console import Console
 
     console = Console()
-    config = load_axe_config()
+    config = _load_axe_config_or_exit()
     for i, (name, lumberjack) in enumerate(sorted(config.lumberjacks.items())):
         if i > 0:
             console.print()
@@ -198,7 +201,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
     from .lumberjack import Lumberjack
 
     lumberjack_name: str = args.lumberjack_name
-    config = load_axe_config()
+    config = _load_axe_config_or_exit()
 
     # Apply CLI overrides to AxeConfig
     query = getattr(args, "query", "") or config.query
@@ -242,7 +245,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
 
 def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
     """Show status of all lumberjacks."""
-    config = load_axe_config()
+    config = _load_axe_config_or_exit()
     any_status = False
 
     for name in sorted(config.lumberjacks):

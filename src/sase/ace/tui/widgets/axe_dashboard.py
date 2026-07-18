@@ -261,13 +261,8 @@ class AxeDashboard(Static):
                 f"chop:{snapshot.lumberjack_name}:{snapshot.chop_name}"
                 f":{run.entry.run_id}"
             )
-            # Agent chop runs emit a single controlled launch line; route
-            # those through the semantic highlighter. External script output
-            # stays on the ANSI fallback — its content is arbitrary.
-            if run.entry.status == "agent_launched":
-                chop_source_type: SourceType = "chop_controlled"
-            else:
-                chop_source_type = "ansi"
+            # Chop script output is arbitrary, so retain ANSI rendering.
+            chop_source_type: SourceType = "ansi"
             if run.output_tail:
                 output_section.update_display(
                     run.output_tail,
@@ -276,13 +271,7 @@ class AxeDashboard(Static):
                 )
             else:
                 empty = Text()
-                if run.entry.status == "agent_launched":
-                    empty.append(
-                        "Agent was launched for this chop run; output is "
-                        "captured in the agent's own logs.",
-                        style="dim italic",
-                    )
-                elif run.entry.status == "running":
+                if run.entry.status == "running":
                     empty.append("Waiting for output…", style="dim italic")
                 elif run.entry.error:
                     empty.append(run.entry.error, style="bold red")

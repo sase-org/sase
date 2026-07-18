@@ -1,8 +1,7 @@
 """Discovery and execution of external chop scripts.
 
-Chop scripts are standalone executables that implement chop logic
-outside the Python process.  They are discovered by name in configured
-directories or on ``$PATH`` (with a ``sase_chop_`` prefix).
+Chop scripts are standalone executables named exactly by configuration.
+Resolution never adds or strips a ``sase_chop_`` prefix.
 """
 
 import os
@@ -18,9 +17,9 @@ from pathlib import Path
 def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
     """Find an executable chop script by name.
 
-    Searches *search_dirs* for an executable file matching *name*,
-    then checks the bin directory of the running Python interpreter,
-    then falls back to ``shutil.which("sase_chop_<name>")``.
+    Searches *search_dirs* for an executable file matching *name*, then checks
+    the bin directory of the running Python interpreter, then performs an
+    exact-name ``PATH`` lookup.
 
     Args:
         name: Chop name to look up.
@@ -29,8 +28,6 @@ def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
     Returns:
         Path to the executable, or ``None`` if not found.
     """
-    prefixed = f"sase_chop_{name}"
-
     for d in search_dirs:
         candidate = Path(d) / name
         if candidate.is_file() and os.access(candidate, os.X_OK):
@@ -41,12 +38,12 @@ def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
     # virtualenv are found even when PATH symlinks are broken (e.g.
     # during a reinstall).
     bin_dir = Path(sys.executable).parent
-    candidate = bin_dir / prefixed
+    candidate = bin_dir / name
     if candidate.is_file() and os.access(candidate, os.X_OK):
         return candidate
 
-    # Fallback: look for sase_chop_<name> on PATH
-    on_path = shutil.which(prefixed)
+    # Fallback: look for the exact configured executable on PATH.
+    on_path = shutil.which(name)
     if on_path is not None:
         return Path(on_path)
 
@@ -230,9 +227,9 @@ def stream_chop_script(
 def list_chop_scripts(search_dirs: list[str]) -> list[str]:
     """List all available chop scripts.
 
-    Scans *search_dirs* for executables and ``$PATH`` for executables
-    prefixed with ``sase_chop_``.  Deduplicates and returns sorted
-    names.
+    Scans *search_dirs* for executables by their bare filename and ``$PATH``
+    for legacy ``sase_chop_*`` executables as a discovery convenience.
+    Returned names are always full executable names.
 
     Args:
         search_dirs: Directories to scan.
@@ -267,7 +264,6 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
                 and entry.name.startswith("sase_chop_")
                 and os.access(entry, os.X_OK)
             ):
-                # Strip the sase_chop_ prefix
-                names.add(entry.name[len("sase_chop_") :])
+                names.add(entry.name)
 
     return sorted(names)

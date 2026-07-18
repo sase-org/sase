@@ -207,9 +207,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-6v(derive_chop_agent_name)' \
         --epic-symbol 'sase-6v(evaluate_chop_decision)' \
         --epic-symbol 'sase-6v(expand_chop_targets)' \
-        --epic-symbol 'sase-6v(parse_chop_duration)' \
+        --epic-symbol 'sase-6v(get_live_chop_agent_records)' \
         --epic-symbol 'sase-6v(parse_chop_result)' \
-        --epic-symbol 'sase-6v(validate_axe_config)' \
         --epic-symbol 'sase-6v(validate_chop_proposal)' \
         --epic-symbol 'sase-6v(validate_chop_result)' \
         {{ args }}

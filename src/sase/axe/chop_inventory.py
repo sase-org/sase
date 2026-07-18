@@ -16,10 +16,8 @@ from typing import Any, Literal
 from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.config import AxeConfig, load_axe_config
 
-ConfiguredChopStatus = Literal["configured", "missing", "agent-backed"]
-AvailableChopSource = Literal[
-    "configured_dir", "configured_dir_prefixed", "python_bin", "path"
-]
+ConfiguredChopStatus = Literal["configured", "missing"]
+AvailableChopSource = Literal["configured_dir", "python_bin", "path"]
 
 
 @dataclass(frozen=True)
@@ -29,14 +27,10 @@ class ConfiguredChopRecord:
     lumberjack: str
     name: str
     description: str
-    agent: str | None
+    script: str
     env: dict[str, str]
     status: ConfiguredChopStatus
     resolved_path: str | None
-
-    @property
-    def is_script(self) -> bool:
-        return self.agent is None
 
 
 @dataclass(frozen=True)
@@ -74,14 +68,14 @@ def collect_chop_inventory(config: AxeConfig | None = None) -> ChopInventory:
     """
     axe_config = config or load_axe_config()
     configured_chops = _configured_chops(axe_config)
-    configured_names = {chop.name for chop in configured_chops}
+    configured_scripts = {chop.script for chop in configured_chops}
     python_bin_dir = Path(sys.executable).parent
     path_dirs = tuple(_path_dirs())
     available_scripts = _available_chop_scripts(
         search_dirs=axe_config.chop_script_dirs,
         python_bin_dir=python_bin_dir,
         path_dirs=path_dirs,
-        configured_names=configured_names,
+        configured_scripts=configured_scripts,
     )
 
     return ChopInventory(
@@ -104,8 +98,7 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
                 "lumberjack": chop.lumberjack,
                 "name": chop.name,
                 "description": chop.description,
-                "agent": chop.agent,
-                "script": chop.is_script,
+                "script": chop.script,
                 "status": chop.status,
                 "resolved_path": chop.resolved_path,
             }
@@ -135,27 +128,14 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
     records: list[ConfiguredChopRecord] = []
     for lumberjack_name, lumberjack in axe_config.lumberjacks.items():
         for chop in lumberjack.chops:
-            if chop.agent is not None:
-                records.append(
-                    ConfiguredChopRecord(
-                        lumberjack=lumberjack_name,
-                        name=chop.name,
-                        description=chop.description,
-                        agent=chop.agent,
-                        env=dict(chop.env),
-                        status="agent-backed",
-                        resolved_path=None,
-                    )
-                )
-                continue
-
-            script = discover_chop_script(chop.name, axe_config.chop_script_dirs)
+            script_name = chop.script_name
+            script = discover_chop_script(script_name, axe_config.chop_script_dirs)
             records.append(
                 ConfiguredChopRecord(
                     lumberjack=lumberjack_name,
                     name=chop.name,
                     description=chop.description,
-                    agent=None,
+                    script=script_name,
                     env=dict(chop.env),
                     status="configured" if script is not None else "missing",
                     resolved_path=str(script) if script is not None else None,
@@ -171,7 +151,7 @@ def _available_chop_scripts(
     search_dirs: list[str],
     python_bin_dir: Path,
     path_dirs: tuple[str, ...],
-    configured_names: set[str],
+    configured_scripts: set[str],
 ) -> tuple[_AvailableChopScriptRecord, ...]:
     by_name: dict[str, _AvailableChopScriptRecord] = {}
 
@@ -182,32 +162,23 @@ def _available_chop_scripts(
         for entry in _iter_dir(dir_path):
             if not _is_executable_file(entry):
                 continue
-            if entry.name.startswith("sase_chop_"):
-                _add_available(
-                    by_name,
-                    name=entry.name[len("sase_chop_") :],
-                    executable=entry,
-                    source="configured_dir_prefixed",
-                    configured_names=configured_names,
-                )
-            else:
-                _add_available(
-                    by_name,
-                    name=entry.name,
-                    executable=entry,
-                    source="configured_dir",
-                    configured_names=configured_names,
-                )
+            _add_available(
+                by_name,
+                name=entry.name,
+                executable=entry,
+                source="configured_dir",
+                configured_scripts=configured_scripts,
+            )
 
     if python_bin_dir.is_dir():
         for entry in _iter_dir(python_bin_dir):
             if entry.name.startswith("sase_chop_") and _is_executable_file(entry):
                 _add_available(
                     by_name,
-                    name=entry.name[len("sase_chop_") :],
+                    name=entry.name,
                     executable=entry,
                     source="python_bin",
-                    configured_names=configured_names,
+                    configured_scripts=configured_scripts,
                 )
 
     seen_path_dirs: set[str] = set()
@@ -222,10 +193,10 @@ def _available_chop_scripts(
             if entry.name.startswith("sase_chop_") and _is_executable_file(entry):
                 _add_available(
                     by_name,
-                    name=entry.name[len("sase_chop_") :],
+                    name=entry.name,
                     executable=entry,
                     source="path",
-                    configured_names=configured_names,
+                    configured_scripts=configured_scripts,
                 )
 
     return tuple(sorted(by_name.values(), key=lambda script: script.name))
@@ -237,7 +208,7 @@ def _add_available(
     name: str,
     executable: Path,
     source: AvailableChopSource,
-    configured_names: set[str],
+    configured_scripts: set[str],
 ) -> None:
     if not name or name in by_name:
         return
@@ -245,7 +216,7 @@ def _add_available(
         name=name,
         executable=str(executable),
         source=source,
-        configured=name in configured_names,
+        configured=name in configured_scripts,
     )
 
 

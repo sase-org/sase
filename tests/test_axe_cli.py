@@ -14,6 +14,7 @@ from sase.axe.cli import (
     handle_axe_lumberjack_status,
 )
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
+from sase.axe.chop_runner import ChopRunOutcome
 
 ALL_12_CHOP_NAMES = sorted(
     [
@@ -25,7 +26,7 @@ ALL_12_CHOP_NAMES = sorted(
         "suffix_transforms",
         "orphan_cleanup",
         "stale_running_cleanup",
-        "cl_submitted_checks",
+        "pr_submitted_checks",
         "comment_checks",
         "error_digest",
         "wait_checks",
@@ -65,7 +66,7 @@ def default_axe_config() -> AxeConfig:
                     "interval": 300,
                     "chops": [
                         {
-                            "name": "cl_submitted_checks",
+                            "name": "pr_submitted_checks",
                             "description": "Check ChangeSpecs",
                         },
                     ],
@@ -127,43 +128,6 @@ def test_handle_axe_chop_list_renders_configured_chops(
     assert "Configured Chops" in output
 
 
-# --- handle_axe_chop_run agent oneshot ---
-
-
-def test_oneshot_agent_chop_passes_chop_env_metadata(
-    temp_state_dir: Path,
-) -> None:
-    """One-shot ``sase axe chop run`` records chop metadata like the scheduled path."""
-    chop = ChopConfig(name="my_agent", description="", agent="some_agent")
-    config = AxeConfig(
-        lumberjacks={
-            "agentj": LumberjackConfig(name="agentj", interval=10, chops=[chop])
-        }
-    )
-
-    mock_proc = MagicMock()
-    mock_proc.pid = 4242
-
-    args = argparse.Namespace(chop_name="my_agent", lumberjack=None)
-    with (
-        patch("sase.axe.cli.load_axe_config", return_value=config),
-        patch(
-            "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
-        ) as mock_launch,
-        patch("sase.axe.chop_runner.record_chop_agent_launch_result"),
-        pytest.raises(SystemExit) as exc_info,
-    ):
-        handle_axe_chop_run(args)
-
-    assert exc_info.value.code == 0
-    extra_env = mock_launch.call_args.kwargs["extra_env"]
-    assert extra_env["SASE_CHOP_LUMBERJACK"] == "agentj"
-    assert extra_env["SASE_CHOP_NAME"] == "my_agent"
-    assert extra_env["SASE_CHOP_RUN_ID"]
-    assert extra_env["SASE_CHOP_PROMPT_HASH"]
-    assert "SASE_AGENT_AUTO_DISMISS" not in extra_env
-
-
 # --- handle_axe_chop_run --lumberjack Tests ---
 
 
@@ -202,29 +166,34 @@ def test_handle_axe_chop_run_with_lumberjack_disambiguates(
     temp_state_dir: Path,
 ) -> None:
     """Passing --lumberjack selects the configured chop under that lumberjack."""
-    chop = ChopConfig(name="dup", description="agent under comments", agent="x")
+    chop = ChopConfig(
+        name="dup",
+        description="script under comments",
+        script="comments_dup",
+    )
     config = _config_with(
         hooks=[ChopConfig(name="dup", description="")],
         comments=[chop],
     )
     args = argparse.Namespace(chop_name="dup", lumberjack="comments")
 
-    mock_proc = MagicMock()
-    mock_proc.pid = 99
     with (
         patch("sase.axe.cli.load_axe_config", return_value=config),
         patch(
-            "sase.agent.launcher.launch_agent_from_cwd", return_value=mock_proc
-        ) as mock_launch,
-        patch("sase.axe.chop_runner.record_chop_agent_launch_result"),
+            "sase.axe.cli.run_configured_chop_once",
+            return_value=ChopRunOutcome(
+                lumberjack_name="comments",
+                chop_name="dup",
+                status="success",
+            ),
+        ) as mock_run,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_axe_chop_run(args)
 
     assert exc_info.value.code == 0
-    extra_env = mock_launch.call_args.kwargs["extra_env"]
-    assert extra_env["SASE_CHOP_LUMBERJACK"] == "comments"
-    assert extra_env["SASE_CHOP_NAME"] == "dup"
+    assert mock_run.call_args.kwargs["lumberjack_name"] == "comments"
+    assert mock_run.call_args.kwargs["chop"] is chop
 
 
 def test_handle_axe_chop_run_with_lumberjack_not_configured(

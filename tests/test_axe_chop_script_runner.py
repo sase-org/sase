@@ -40,7 +40,7 @@ class TestDiscoverChopScript:
         monkeypatch.setenv(
             "PATH", str(bin_dir) + os.pathsep + os.environ.get("PATH", "")
         )
-        result = discover_chop_script("my_chop", [])
+        result = discover_chop_script("sase_chop_my_chop", [])
         assert result is not None
         assert result.name == "sase_chop_my_chop"
 
@@ -56,8 +56,16 @@ class TestDiscoverChopScript:
             "sase.axe.chop_script_runner.sys.executable", str(fake_python)
         )
         monkeypatch.setenv("PATH", "")
-        result = discover_chop_script("my_chop", [])
+        result = discover_chop_script("sase_chop_my_chop", [])
         assert result == script
+
+    def test_does_not_add_legacy_prefix(self, tmp_path, monkeypatch):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        _make_executable(bin_dir / "sase_chop_my_chop")
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        assert discover_chop_script("my_chop", []) is None
 
     def test_returns_none_when_not_found(self, tmp_path):
         result = discover_chop_script("nonexistent", [str(tmp_path)])
@@ -236,13 +244,13 @@ class TestListChopScripts:
     def test_deduplication(self, tmp_path, monkeypatch):
         d = tmp_path / "scripts"
         d.mkdir()
-        _make_executable(d / "delta")
+        _make_executable(d / "sase_chop_delta")
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         _make_executable(bin_dir / "sase_chop_delta")
         monkeypatch.setenv("PATH", str(bin_dir))
         result = list_chop_scripts([str(d)])
-        assert result.count("delta") == 1
+        assert result.count("sase_chop_delta") == 1
 
     def test_empty(self, tmp_path, monkeypatch):
         monkeypatch.setenv("PATH", "")

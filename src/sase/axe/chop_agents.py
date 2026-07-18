@@ -14,7 +14,6 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
 from sase.artifacts import convert_timestamp_to_artifacts_format
@@ -51,7 +50,7 @@ class _ChopAgentRecord:
     run_id: str = ""
 
 
-def prompt_hash(prompt: str) -> str:
+def _prompt_hash(prompt: str) -> str:
     """Return a stable hash for a prompt after whitespace normalization."""
     normalized = "\n".join(line.rstrip() for line in prompt.strip().splitlines())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
@@ -62,9 +61,8 @@ def build_chop_launch_env(
 ) -> dict[str, str]:
     """Build env vars that identify a chop-launched agent.
 
-    Used by both the scheduled lumberjack path and one-shot
-    ``sase axe chop run`` so chop registry/dedup metadata is recorded
-    consistently regardless of how a configured agent chop was launched.
+    The script runner supplies these values so later runner-owned proposal
+    launches can reuse the durable chop-agent linkage.
     """
     env = {
         ENV_CHOP_LUMBERJACK: lumberjack_name,
@@ -72,7 +70,7 @@ def build_chop_launch_env(
         ENV_CHOP_RUN_ID: uuid.uuid4().hex,
     }
     if prompt is not None:
-        env[ENV_CHOP_PROMPT_HASH] = prompt_hash(prompt)
+        env[ENV_CHOP_PROMPT_HASH] = _prompt_hash(prompt)
     return env
 
 
@@ -225,7 +223,11 @@ def get_live_chop_agent_records(
     chop_name: str | None = None,
     prompt_hash_value: str | None = None,
 ) -> list[_ChopAgentRecord]:
-    """Return live registry records, optionally filtered by chop/prompt."""
+    """Return live registry records, optionally filtered by chop/prompt.
+
+    The structured-result phase consumes this durable linkage to finalize
+    runner-owned launch lifecycles after proposal agents reach terminal state.
+    """
     with _registry_lock(lumberjack_name):
         records = _prune_chop_agent_records_unlocked(lumberjack_name)
     if chop_name is not None:
@@ -258,7 +260,7 @@ def _record_chop_agent_launch(
     record = _ChopAgentRecord(
         lumberjack_name=lumberjack_name,
         chop_name=chop_name,
-        prompt_hash=prompt_hash_value or prompt_hash(prompt),
+        prompt_hash=prompt_hash_value or _prompt_hash(prompt),
         pid=pid,
         project_file=project_file,
         project_name=project_name,
@@ -315,35 +317,6 @@ def record_chop_agent_launch_from_env(
         workspace_num=workspace_num,
         workflow_name=workflow_name,
         cl_name=cl_name,
-        timestamp=timestamp,
-        prompt=prompt,
-    )
-
-
-def record_chop_agent_launch_result(
-    *,
-    result: Any,
-    prompt: str,
-    env: dict[str, str],
-) -> _ChopAgentRecord | None:
-    """Record an ``AgentLaunchResult`` from chop env metadata if possible."""
-    metadata = _chop_agent_env_from_process_env(env)
-    if metadata is None:
-        return None
-    timestamp = getattr(result, "timestamp", "")
-    if not isinstance(timestamp, str) or not timestamp:
-        return None
-    return _record_chop_agent_launch(
-        lumberjack_name=metadata["lumberjack_name"],
-        chop_name=metadata["chop_name"],
-        run_id=metadata["run_id"],
-        prompt_hash_value=metadata.get("prompt_hash", ""),
-        pid=int(result.pid),
-        project_file=str(getattr(result, "project_file", "")),
-        project_name=str(getattr(result, "project_name", "")),
-        workspace_num=int(getattr(result, "workspace_num", 0)),
-        workflow_name=str(getattr(result, "workflow_name", "")),
-        cl_name=str(getattr(result, "cl_name", "")),
         timestamp=timestamp,
         prompt=prompt,
     )

@@ -2,9 +2,9 @@
 
 The scheduled lumberjack tick, ``sase axe chop run``, and the AXE TUI manual
 run all execute one configured chop end-to-end the same way (context build,
-env propagation, timeout, streaming run history, agent dedupe). This module
-owns the public entry point and compatibility surface; focused implementation
-modules own the type/lookup, context, agent, and script responsibilities.
+env propagation, timeout, streaming run history, and live-run dedupe). This
+module owns the public entry point and compatibility surface; focused
+implementation modules own the type/lookup, context, and script responsibilities.
 
 :func:`run_configured_chop_once` is the public entry point. It dispatches by
 chop type, performs live-run dedupe, and returns a typed
@@ -14,17 +14,10 @@ code, TUI notification, scheduler bookkeeping).
 
 from __future__ import annotations
 
-from typing import Any
-
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import is_process_running
 from sase.core.query_facade import evaluate_query_many
 
-from .chop_agents import record_chop_agent_launch_result
-from .chop_runner_agent import (
-    agent_launch_output,
-    run_agent_chop_once,
-)
 from .chop_runner_context import (
     ONESHOT_LUMBERJACK_NAME,
     build_oneshot_context,
@@ -62,10 +55,6 @@ def _compact_preview(value: str, *, limit: int = PROMPT_PREVIEW_CHARS) -> str:
     return compact_preview(value, limit=limit)
 
 
-def _agent_launch_output(*args: Any, **kwargs: Any) -> str:
-    return agent_launch_output(*args, **kwargs)
-
-
 def _build_oneshot_context(lumberjack_name: str, axe_config: AxeConfig) -> str:
     return build_oneshot_context(
         lumberjack_name,
@@ -92,22 +81,6 @@ def _active_script_chop_run(
         chop_name,
         pidless_stale_after_seconds=pidless_stale_after_seconds,
         is_process_running_fn=is_process_running,
-    )
-
-
-def _run_agent_chop_once(
-    *,
-    lumberjack_name: str,
-    chop: ChopConfig,
-    source: ChopRunSource,
-    started_by: str | None,
-) -> ChopRunOutcome:
-    return run_agent_chop_once(
-        lumberjack_name=lumberjack_name,
-        chop=chop,
-        source=source,
-        started_by=started_by,
-        record_chop_agent_launch_result_fn=record_chop_agent_launch_result,
     )
 
 
@@ -148,29 +121,16 @@ def run_configured_chop_once(
 ) -> ChopRunOutcome:
     """Execute one configured chop once, sharing logic across all callers.
 
-    Dispatches by chop type:
-
-    - Agent chop: dedupes against the live registry, then routes through
-      :func:`launch_agent_from_cwd`. A successful launch is recorded as
-      ``agent_launched``; a launch exception is recorded as ``agent_failed``.
-    - Script chop: dedupes against any live ``running`` run-history entry,
-      then runs in the foreground via :func:`stream_chop_script`, opening a
-      streaming run-history entry before the subprocess starts and finalizing
-      the same entry on success/failure/timeout.
+    Dedupes against any live ``running`` run-history entry, then runs the
+    configured script in the foreground via :func:`stream_chop_script`, opening
+    a streaming run-history entry before the subprocess starts and finalizing
+    the same entry on success/failure/timeout.
 
     ``source`` is persisted on the run entry so consumers (TUI, CLI) can
     distinguish scheduled, manual, and CLI one-shot runs without parsing logs.
     ``context_file`` lets the scheduler reuse its per-tick context; when
     ``None`` a fresh context.json is built under the lumberjack's tick dir.
     """
-    if chop.agent is not None:
-        return _run_agent_chop_once(
-            lumberjack_name=lumberjack_name,
-            chop=chop,
-            source=source,
-            started_by=started_by,
-        )
-
     return _run_script_chop_once(
         lumberjack_name=lumberjack_name,
         chop=chop,
@@ -196,17 +156,14 @@ __all__ = [
     "TRACEBACK_UNAVAILABLE",
     "_ChopMatch",
     "_active_script_chop_run",
-    "_agent_launch_output",
     "_build_oneshot_context",
     "_capture_traceback",
     "_compact_preview",
-    "_run_agent_chop_once",
     "_run_script_chop_once",
     "discover_chop_script",
     "find_all_changespecs",
     "find_configured_chop",
     "is_process_running",
-    "record_chop_agent_launch_result",
     "run_configured_chop_once",
     "stream_chop_script",
 ]

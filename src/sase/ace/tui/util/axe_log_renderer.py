@@ -1,10 +1,9 @@
 """Semantic highlighter for AXE-controlled output.
 
-Lumberjack aggregate logs and the synthetic chop launch line are emitted in
-a structured shape (see ``sase.axe.lumberjack.Lumberjack._log`` and
-``sase.axe.chop_runner._run_agent_chop_once``), so we can recognize their
-tokens and colorize them coherently with the sidebar taxonomy instead of
-relying on whatever ANSI escapes the underlying tool happened to inject.
+Lumberjack aggregate logs are emitted in a structured shape (see
+``sase.axe.lumberjack.Lumberjack._log``), so we can recognize their tokens and
+colorize them coherently with the sidebar taxonomy instead of relying on
+whatever ANSI escapes the underlying tool happened to inject.
 
 External script output and user background command output stay on the ANSI
 fallback path — see :func:`render_axe_output` with ``source_type="ansi"``.
@@ -19,7 +18,7 @@ from rich.text import Text
 
 from .lazy_syntax import cap_ansi_output
 
-SourceType = Literal["lumberjack", "chop_controlled", "ansi"]
+SourceType = Literal["lumberjack", "ansi"]
 
 # Sidebar taxonomy palette — keep in sync with bgcmd_list.py.
 _LUMBERJACK_NAME_STYLE = "bold #FFD700"
@@ -50,10 +49,6 @@ _STATUS_WORD_STYLES: dict[str, str] = {
 _LJ_LINE_RE = re.compile(
     r"^\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] "
     r"\[(?P<name>[^\]]+)\] (?P<message>.*)$"
-)
-
-_LAUNCH_LINE_RE = re.compile(
-    r"^Launched agent chop '(?P<chop>[^']+)' \(PID (?P<pid>\d+)\)$"
 )
 
 _QUOTED_RE = re.compile(r"'([^']+)'")
@@ -101,9 +96,9 @@ def _strip_control_sequences(s: str) -> str:
 def classify_source(source_id: str) -> SourceType:
     """Heuristically map a cache slot id to its semantic source type.
 
-    Callers that already know the source type (e.g. an agent-launched chop
-    run) should pass it explicitly to :func:`render_axe_output`; this helper
-    exists for callers that only have the slot id.
+    Callers that already know the source type should pass it explicitly to
+    :func:`render_axe_output`; this helper exists for callers that only have
+    the slot id.
     """
     if source_id.startswith("lumberjack:"):
         return "lumberjack"
@@ -132,8 +127,6 @@ def render_axe_output(
 
     if source_type == "lumberjack":
         text = _render_lumberjack_log(_strip_control_sequences(capped))
-    elif source_type == "chop_controlled":
-        text = _render_controlled_chop(_strip_control_sequences(capped))
     else:
         text = Text.from_ansi(capped)
 
@@ -146,27 +139,6 @@ def _render_lumberjack_log(output: str) -> Text:
     result = Text()
     for line, newline in _split_lines(output):
         result.append_text(_highlight_lumberjack_line(line))
-        if newline:
-            result.append(newline)
-    return result
-
-
-def _render_controlled_chop(output: str) -> Text:
-    """Render controlled chop output (agent launch line, error messages)."""
-    result = Text()
-    for line, newline in _split_lines(output):
-        m = _LAUNCH_LINE_RE.match(line)
-        if m:
-            seg = Text()
-            seg.append("Launched agent chop ", style=_AGENT_LAUNCH_STYLE)
-            seg.append("'", style=_BRACKET_STYLE)
-            seg.append(m.group("chop"), style=_CHOP_NAME_STYLE)
-            seg.append("' (PID ", style=_BRACKET_STYLE)
-            seg.append(m.group("pid"), style=_PID_STYLE)
-            seg.append(")", style=_BRACKET_STYLE)
-            result.append_text(seg)
-        else:
-            result.append_text(_highlight_message_body(line))
         if newline:
             result.append(newline)
     return result

@@ -174,9 +174,12 @@ def run_script_chop_once(
     started_at = datetime.now(get_timezone())
     run_id = generate_chop_run_id(started_at)
 
-    script = discover_chop_script_fn(chop.name, axe_config.chop_script_dirs)
+    script_name = chop.script_name
+    script = discover_chop_script_fn(script_name, axe_config.chop_script_dirs)
     if script is None:
-        error = RuntimeError(f"Chop script not found: {chop.name}")
+        error = RuntimeError(
+            f"Chop script not found: {script_name} (chop: {chop.name})"
+        )
         finished_at = datetime.now(get_timezone())
         duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
         try:
@@ -211,7 +214,7 @@ def run_script_chop_once(
         build_chop_launch_env(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
-            prompt=chop.agent,
+            prompt=None,
         )
     )
 

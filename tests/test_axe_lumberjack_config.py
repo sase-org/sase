@@ -3,15 +3,18 @@
 from unittest.mock import patch
 
 import yaml
+import pytest
 
 from sase.axe.config import (
     AxeConfig,
+    AxeConfigError,
     ChopConfig,
     LumberjackConfig,
     _parse_lumberjacks,
     load_axe_config,
     _parse_duration,
 )
+from sase.config.core import ConfigLayer
 
 
 def test_chop_config_basic() -> None:
@@ -89,6 +92,10 @@ def test_parse_duration_minutes() -> None:
 def test_parse_duration_hours() -> None:
     """Test parsing duration with hours unit."""
     assert _parse_duration("2h") == 7200
+
+
+def test_parse_duration_days_and_compound_values() -> None:
+    assert _parse_duration("1d2h30m") == 95_400
 
 
 def test_parse_duration_invalid() -> None:
@@ -211,12 +218,59 @@ axe:
     assert config.verbose_lumberjack_diagnostics is True
 
 
-def test_load_axe_config_invalid_lumberjack_log_cap_uses_default() -> None:
+def test_load_axe_config_invalid_lumberjack_log_cap_fails_closed() -> None:
     data = yaml.safe_load("""
 axe:
   lumberjack_log_max_bytes: -1
 """)
     with patch("sase.axe.config.load_merged_config", return_value=data):
+        with pytest.raises(AxeConfigError) as exc_info:
+            load_axe_config()
+
+    assert "axe.lumberjack_log_max_bytes" in str(exc_info.value)
+
+
+def test_load_axe_config_rejects_agent_chops_with_source_provenance() -> None:
+    data = yaml.safe_load("""
+axe:
+  lumberjacks:
+    audits:
+      interval: 60
+      chops:
+        - name: recent
+          agent: "#!audit"
+""")
+    layer = ConfigLayer(
+        name="overlay:test.yml",
+        path="/tmp/test.yml",
+        exists=True,
+        list_strategy="concatenate",
+        data=data,
+    )
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=data),
+        patch("sase.axe.config.load_config_layers", return_value=[layer]),
+        pytest.raises(AxeConfigError) as exc_info,
+    ):
+        load_axe_config()
+
+    message = str(exc_info.value)
+    assert "agent_chop_removed" in message
+    assert "axe.lumberjacks.audits.chops[0].agent" in message
+    assert "overlay:test.yml:/tmp/test.yml" in message
+
+
+def test_default_builtin_chops_use_explicit_full_script_names() -> None:
+    from sase.config.core import _load_default_config
+
+    data = _load_default_config()
+    with patch("sase.axe.config.load_merged_config", return_value=data):
         config = load_axe_config()
 
-    assert config.lumberjack_log_max_bytes == 50 * 1024 * 1024
+    checks = config.lumberjacks["checks"]
+    assert "pr_submitted_checks" in checks.chop_names
+    assert "cl_submitted_checks" not in checks.chop_names
+    for lumberjack in config.lumberjacks.values():
+        for chop in lumberjack.chops:
+            assert chop.script is not None
+            assert chop.script.startswith("sase_chop_")

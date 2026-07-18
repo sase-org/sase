@@ -112,7 +112,7 @@ def _handle_maintenance(args: argparse.Namespace) -> None:
 
 def _handle_start(args: argparse.Namespace) -> None:
     """Handle 'sase axe start' — orchestrator mode."""
-    from sase.axe.config import AxeConfig, load_axe_config
+    from sase.axe.config import AxeConfig, AxeConfigError, load_axe_config
     from sase.axe.orchestrator import Orchestrator
     from sase.axe.process import (
         canonical_axe_start_command,
@@ -131,7 +131,11 @@ def _handle_start(args: argparse.Namespace) -> None:
 
     os.chdir(os.path.expanduser("~"))
 
-    config = load_axe_config()
+    try:
+        config = load_axe_config()
+    except AxeConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
 
     # Apply CLI overrides
     max_hook_runners = (

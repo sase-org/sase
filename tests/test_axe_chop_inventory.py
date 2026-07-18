@@ -17,7 +17,7 @@ def _make_executable(path: Path) -> None:
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
+def test_chop_inventory_resolves_scripts_and_available_unconfigured(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -30,6 +30,7 @@ def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
     python_executable = python_bin / "python"
     python_executable.write_text("", encoding="utf-8")
     _make_executable(python_bin / "sase_chop_available")
+    _make_executable(python_bin / "sase_chop_unconfigured")
 
     monkeypatch.setattr(
         "sase.axe.chop_inventory.sys.executable", str(python_executable)
@@ -46,9 +47,9 @@ def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
                     ChopConfig(name="resolved", description=""),
                     ChopConfig(name="missing", description=""),
                     ChopConfig(
-                        name="agented",
+                        name="friendly_name",
                         description="",
-                        agent="do-work",
+                        script="sase_chop_available",
                         env={"SECRET_ENV": "hidden"},
                     ),
                 ],
@@ -62,22 +63,24 @@ def test_chop_inventory_resolves_missing_agent_and_available_unconfigured(
     assert configured == {
         ("resolved", "configured"),
         ("missing", "missing"),
-        ("agented", "agent-backed"),
+        ("friendly_name", "configured"),
     }
     resolved = next(
         chop for chop in inventory.configured_chops if chop.name == "resolved"
     )
     assert resolved.resolved_path == str(scripts_dir / "resolved")
-    agented = next(
-        chop for chop in inventory.configured_chops if chop.name == "agented"
+    aliased = next(
+        chop for chop in inventory.configured_chops if chop.name == "friendly_name"
     )
-    assert agented.env == {"SECRET_ENV": "hidden"}
+    assert aliased.env == {"SECRET_ENV": "hidden"}
+    assert aliased.script == "sase_chop_available"
+    assert aliased.resolved_path == str(python_bin / "sase_chop_available")
 
     available = inventory.available_unconfigured
     assert len(available) == 1
-    assert available[0].name == "available"
+    assert available[0].name == "sase_chop_unconfigured"
     assert available[0].source == "python_bin"
-    assert available[0].executable == str(python_bin / "sase_chop_available")
+    assert available[0].executable == str(python_bin / "sase_chop_unconfigured")
 
 
 def test_chop_inventory_to_dict_is_json_safe() -> None:
@@ -86,7 +89,13 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
             "hooks": LumberjackConfig(
                 name="hooks",
                 interval=10,
-                chops=[ChopConfig(name="agented", description="d", agent="do")],
+                chops=[
+                    ChopConfig(
+                        name="friendly",
+                        description="d",
+                        script="full_executable",
+                    )
+                ],
             )
         }
     )
@@ -101,8 +110,8 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
         "python_bin_dir",
         "path_dirs",
     }
-    agented = next(c for c in payload["configured"] if c["name"] == "agented")
-    assert agented["status"] == "agent-backed"
-    assert agented["script"] is False
-    assert agented["agent"] == "do"
-    assert "env" not in agented
+    configured = next(c for c in payload["configured"] if c["name"] == "friendly")
+    assert configured["status"] == "missing"
+    assert configured["script"] == "full_executable"
+    assert "agent" not in configured
+    assert "env" not in configured

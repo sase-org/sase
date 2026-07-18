@@ -30,8 +30,6 @@ def chop_status_label(status: str) -> tuple[str, str]:
         return ("⏱ timeout", "bold yellow")
     if status == "missing_script":
         return ("? missing", "bold yellow")
-    if status == "agent_launched":
-        return ("→ agent", "bold #00D7AF")
     if status == "running":
         return ("● running", "bold green")
     return (status, "dim")

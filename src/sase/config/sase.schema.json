@@ -478,35 +478,23 @@
       "description": "Configuration for the axe scheduler daemon",
       "additionalProperties": false,
       "properties": {
-        "full_check_interval": {
-          "type": "integer",
-          "description": "Full check interval in seconds",
-          "default": 300
-        },
-        "comment_check_interval": {
-          "type": "integer",
-          "description": "Comment check interval in seconds",
-          "default": 60
-        },
-        "hook_interval": {
-          "type": "integer",
-          "description": "Hook check interval in seconds",
-          "default": 1
-        },
         "zombie_timeout_seconds": {
           "type": "integer",
           "description": "Zombie detection timeout in seconds. Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
-          "default": 7200
+          "default": 7200,
+          "minimum": 1
         },
         "max_hook_runners": {
           "type": "integer",
           "description": "Maximum concurrent hook runners (non-$ hooks)",
-          "default": 3
+          "default": 3,
+          "minimum": 1
         },
         "max_agent_runners": {
           "type": "integer",
           "description": "Maximum concurrent agent runners (agents and mentors)",
-          "default": 3
+          "default": 3,
+          "minimum": 1
         },
         "query": {
           "type": "string",
@@ -542,12 +530,14 @@
               "interval": {
                 "type": "integer",
                 "description": "Tick interval in seconds for this lumberjack",
-                "default": 1
+                "default": 1,
+                "minimum": 1
               },
               "chop_timeout": {
                 "type": "string",
-                "description": "Default duration string (e.g., '30s', '5m', '1h') controlling the maximum runtime for chops in this lumberjack",
-                "pattern": "^\\d+(s|m|h)$"
+                "description": "Default positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for chops in this lumberjack",
+                "minLength": 2,
+                "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
               },
               "chops": {
                 "type": "array",
@@ -568,18 +558,16 @@
                           "type": "string",
                           "description": "Description of what this chop does"
                         },
-                        "agent": {
+                        "script": {
                           "type": "string",
-                          "description": "Agent reference to run instead of a chop script"
-                        },
-                        "xprompt": {
-                          "type": "string",
-                          "description": "XPrompt reference to run instead of a chop script"
+                          "minLength": 1,
+                          "description": "Exact executable name; defaults to the chop name"
                         },
                         "run_every": {
                           "type": "string",
-                          "description": "Duration string (e.g., '60m', '30s', '2h') controlling how often this chop runs",
-                          "pattern": "^\\d+(s|m|h)$"
+                          "description": "Positive compound duration (e.g., '60m', '1h30m', '1d') controlling how often this chop runs",
+                          "minLength": 2,
+                          "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                         },
                         "env": {
                           "type": "object",
@@ -590,8 +578,9 @@
                         },
                         "timeout": {
                           "type": "string",
-                          "description": "Duration string (e.g., '30s', '5m', '1h') controlling the maximum runtime for this chop",
-                          "pattern": "^\\d+(s|m|h)$"
+                          "description": "Positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for this chop",
+                          "minLength": 2,
+                          "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                         }
                       }
                     }

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -19,8 +19,8 @@ from sase.axe.chop_agents import (
     agent_meta_from_chop_env,
     build_chop_launch_env,
     get_live_chop_agent_records,
-    prompt_hash,
 )
+from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.linked_repos import LinkedRepoResolution
 from sase.running_field import ClaimResult
 
@@ -78,7 +78,7 @@ def test_build_chop_launch_env() -> None:
     assert env[ENV_CHOP_LUMBERJACK] == "recurring"
     assert env[ENV_CHOP_NAME] == "my_agent"
     assert env[ENV_CHOP_RUN_ID]
-    assert env[ENV_CHOP_PROMPT_HASH] == prompt_hash("#!refresh_docs")
+    assert env[ENV_CHOP_PROMPT_HASH] == hashlib.sha256(b"#!refresh_docs").hexdigest()
     assert "SASE_AGENT_AUTO_DISMISS" not in env
 
 
@@ -220,6 +220,9 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     tmp_dir.mkdir()
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setenv(ENV_CHOP_LUMBERJACK, "hooks")
     monkeypatch.setenv(ENV_CHOP_NAME, "split")
@@ -325,11 +328,16 @@ def test_live_records_prune_when_done_marker_exists(
     """A done.json marker makes a registry record no longer live."""
     from sase.axe.chop_agents import _record_chop_agent_launch
 
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     monkeypatch.setattr("sase.axe.chop_agents.is_process_running", lambda _pid: True)
     _record_chop_agent_launch(
         lumberjack_name="hooks",
         chop_name="split",
-        pid=os.getpid(),
+        pid=111,
         project_file="/tmp/projects/proj/proj.sase",
         project_name="proj",
         workspace_num=1,
@@ -339,12 +347,8 @@ def test_live_records_prune_when_done_marker_exists(
         prompt="do work",
     )
 
-    done_dir = (
-        Path("~/.sase/projects").expanduser()
-        / "proj"
-        / "artifacts"
-        / "ace-run"
-        / "20260101120000"
+    done_dir = resolve_agent_artifact_timestamp_path(
+        "proj", "ace-run", "20260101120000"
     )
     done_dir.mkdir(parents=True)
     (done_dir / "done.json").write_text(json.dumps({"outcome": "ok"}))
@@ -418,6 +422,11 @@ def test_spawn_agent_subprocess_does_not_record_without_chop_env(
     workspace_dir.mkdir()
     tmp_dir = tmp_path / "tmp"
     tmp_dir.mkdir()
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.setattr(
+        "sase.axe.state.JACK_STATE_DIR", sase_home / "axe" / "lumberjacks"
+    )
     mock_spawn.side_effect = _fake_spawn_success
     monkeypatch.setattr("sase.core.paths.get_sase_tmpdir", lambda: str(tmp_dir))
     monkeypatch.setattr("sase.core.paths.sharded_path", lambda *_args: str(output_path))
