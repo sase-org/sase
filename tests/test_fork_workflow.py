@@ -28,13 +28,17 @@ def _write_completed_agent(
     name: str,
     *,
     response_path: Path,
+    meta: dict[str, object] | None = None,
 ) -> None:
     artifacts_dir = (
         home / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
     )
     artifacts_dir.mkdir(parents=True)
+    meta_data: dict[str, object] = {"name": name}
+    if meta:
+        meta_data.update(meta)
     (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps({"name": name}),
+        json.dumps(meta_data),
         encoding="utf-8",
     )
     (artifacts_dir / "done.json").write_text(
@@ -205,3 +209,57 @@ def test_embedded_single_parent_fork_keeps_legacy_envelope(
         "# New Query\n"
         "Continue"
     )
+
+
+def test_embedded_clan_fork_injects_prompts_without_member_replies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    member_specs = (
+        ("20260718010101", "review.alpha", "Alpha prompt", "ALPHA_SECRET"),
+        ("20260718010202", "review.beta", "Beta prompt", "BETA_SECRET"),
+    )
+    for suffix, name, prompt, reply in member_specs:
+        chat_path = tmp_path / f"{name}.md"
+        chat_path.write_text(
+            f"## Prompt\n\n{prompt}\n\n## Response\n\n{reply}\n",
+            encoding="utf-8",
+        )
+        _write_completed_agent(
+            tmp_path,
+            suffix,
+            name,
+            response_path=chat_path,
+            meta={
+                "agent_clan": "review",
+                "agent_clan_generation": "20260718010000",
+                "model": "gpt-5",
+                "llm_provider": "openai",
+            },
+        )
+
+    fork_workflow = _load_fork_workflow()
+    parent_workflow = Workflow(
+        name="parent",
+        steps=[WorkflowStep(name="review", agent="#fork:review\nContinue")],
+    )
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    executor = WorkflowExecutor(parent_workflow, {}, str(artifacts_dir))
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"fork": fork_workflow},
+    ):
+        expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
+            "#fork:review\nContinue"
+        )
+
+    assert "agent clan `review`" in expanded_prompt
+    assert "Alpha prompt" in expanded_prompt
+    assert "Beta prompt" in expanded_prompt
+    assert "ALPHA_SECRET" not in expanded_prompt
+    assert "BETA_SECRET" not in expanded_prompt
+    assert expanded_prompt.count("**Reply summary:**") == 2
+    assert expanded_prompt.endswith("# New Query\nContinue")

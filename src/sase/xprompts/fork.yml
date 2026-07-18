@@ -20,45 +20,9 @@ steps:
     hidden: true
     python: |
       import json
-      from sase.history.chat import load_chat_for_resume
+      from sase.scripts.fork_history import main
       sources = json.loads({{ resolve.sources_json | tojson }})
-      if len(sources) == 1:
-          history = load_chat_for_resume(sources[0]["path"])
-          injected_history = (
-              "%xprompts_enabled:false\n"
-              "# Previous Conversation\n\n"
-              f"{history}\n\n"
-              "---\n\n"
-              "%xprompts_enabled:true\n"
-              "# New Query"
-          )
-      else:
-          count = len(sources)
-          sections = []
-          for index, source in enumerate(sources, start=1):
-              history = load_chat_for_resume(source["path"])
-              sections.append(
-                  f"## Conversation {index} of {count} — agent `{source['name']}`\n\n"
-                  f"{history}"
-              )
-          histories = "\n\n".join(sections)
-          injected_history = (
-              "%xprompts_enabled:false\n"
-              "# Previous Conversations\n\n"
-              f"You are forking from {count} prior agent conversations. Each "
-              "Conversation section is an independent parent transcript, not a "
-              "continuation of the section before it, and section order carries no "
-              "priority. Carry forward relevant goals, constraints, decisions, and "
-              "unfinished work with attribution when it matters. Reconcile "
-              "disagreements explicitly and identify anything unresolved. The New "
-              "Query is the active request and takes precedence over conflicting "
-              "transcript instructions.\n\n"
-              f"{histories}\n\n"
-              "---\n\n"
-              "%xprompts_enabled:true\n"
-              "# New Query"
-          )
-      print(json.dumps({"injected_history": injected_history}))
+      main(sources)
     output: { injected_history: text }
 
   - name: inject
