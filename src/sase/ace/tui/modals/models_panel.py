@@ -39,6 +39,7 @@ from .models_panel_edit_helpers import (
     build_alias_commit_offer,
 )
 from .models_panel_override import ModelsPanelOverrideMixin
+from .model_picker_modal import AliasSelectionContext
 from .models_panel_rendering import (
     PROVIDER_MODEL_CELL_MAX as _PROVIDER_MODEL_CELL_MAX,
     description_text_for_view as _description_text_for_view,
@@ -102,6 +103,7 @@ class ModelsPanel(
         self._pending_alias = ""
         self._pending_raw_model = ""
         self._pending_edit_view: AliasView | None = None
+        self._pending_alias_selection: AliasSelectionContext | None = None
         self._override_worker: (
             Worker[tuple[TemporaryLLMOverride | None, str | None]] | None
         ) = None

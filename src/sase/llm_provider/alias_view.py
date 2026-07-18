@@ -24,6 +24,7 @@ from typing import Literal, cast
 from .config import (
     BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
+    DEFAULT_MODEL_ALIAS_NAME,
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
@@ -82,6 +83,11 @@ class AliasView:
         model: The currently-effective model name.
         override: The active temporary override for this alias, or ``None``.
         bucket: The optional Models-panel bucket for a custom alias.
+        reference_provider: Provider represented by an explicit ``@name``
+            reference. This differs from ``provider`` only for ``@default``
+            while its machine-wide temporary override is active: nested
+            ``@default`` references intentionally ignore that override.
+        reference_model: Model represented by an explicit ``@name`` reference.
     """
 
     name: str
@@ -94,6 +100,8 @@ class AliasView:
     configured_source: str | None = None
     description: str | None = None
     bucket: str | None = None
+    reference_provider: str | None = None
+    reference_model: str | None = None
 
     @property
     def is_overridden(self) -> bool:
@@ -113,6 +121,18 @@ class AliasView:
         if self.configured:
             return None
         return implicit_model_alias_fallback(self.name)
+
+    @property
+    def selection_provider(self) -> str | None:
+        """Return the provider represented by selecting ``@name``."""
+        if self.reference_model is not None:
+            return self.reference_provider
+        return self.provider
+
+    @property
+    def selection_model(self) -> str:
+        """Return the model represented by selecting ``@name``."""
+        return self.reference_model if self.reference_model is not None else self.model
 
 
 @dataclass(frozen=True)
@@ -220,6 +240,19 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
     for name in names:
         override = overrides.get(name)
         provider, model = _effective_provider_model(name, override)
+        reference_provider: str | None = None
+        reference_model: str | None = None
+        if name == DEFAULT_MODEL_ALIAS_NAME and override is not None:
+            # The panel shows the active no-``%model`` default override, but an
+            # explicit nested ``@default`` token follows the configured/provider
+            # default instead. Capture that second truth in the same snapshot so
+            # picker rendering never needs to resolve aliases while the user
+            # types or navigates.
+            from .registry import resolve_model_provider
+
+            reference_provider, reference_model = resolve_model_provider(
+                f"@{DEFAULT_MODEL_ALIAS_NAME}"
+            )
         views.append(
             AliasView(
                 name=name,
@@ -232,6 +265,8 @@ def build_alias_views(now: float | None = None) -> list[AliasView]:
                 configured_source=model_alias_config_source(name),
                 description=model_alias_description(name),
                 bucket=model_alias_bucket(name),
+                reference_provider=reference_provider,
+                reference_model=reference_model,
             )
         )
 

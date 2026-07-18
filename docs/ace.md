@@ -1113,11 +1113,17 @@ Navigate with `j`/`k` (or arrows / `Ctrl+N` / `Ctrl+P`) and act on the highlight
 
 ### Temporary overrides
 
-`Override` reuses the shared, provider-grouped model picker and the duration picker (`15m`, `30m`, `1h`, `2h`, `4h`,
-`Until cleared`, or a custom duration like `45m`, `1h30m`, `90m`). Press `t` in the duration picker to choose **Until a
-specific time**. The focused time popup accepts local forms such as `5pm`, `5:30 PM`, `17:30`, `1730`, `today 5pm`,
-`tomorrow 9am`, and `2026-07-12 09:00`. An undated clock means its next occurrence (later today or tomorrow); an
-explicit day/date must still be in the future.
+`Edit` and `Override` open the shared model picker with an `ALIASES` group before the provider-grouped concrete models.
+Alias rows show the exact `@name` token and its current effective provider/model; filter by either `@coder` or `coder`,
+an alias kind or description, or the displayed target. For persistent edits, the current alias and any alias that would
+introduce a direct or transitive cycle remain visible but unavailable with a concise reason. `Custom...` remains
+available for concrete model strings and applies the same safety check to free-form `@alias` values.
+
+`Override` continues from the picker to the duration picker (`15m`, `30m`, `1h`, `2h`, `4h`, `Until cleared`, or a
+custom duration like `45m`, `1h30m`, `90m`). Press `t` in the duration picker to choose **Until a specific time**. The
+focused time popup accepts local forms such as `5pm`, `5:30 PM`, `17:30`, `1730`, `today 5pm`, `tomorrow 9am`, and
+`2026-07-12 09:00`. An undated clock means its next occurrence (later today or tomorrow); an explicit day/date must
+still be in the future.
 
 The popup previews the resolved weekday/date, local time and abbreviation, configured IANA timezone, and remaining
 duration before Enter writes anything. Daylight-saving gaps are rejected; repeated fall-back times require an
@@ -1154,6 +1160,11 @@ target file is not in a git repo the commit offer is skipped and the file is sim
 override visually "wins" the effective-target column even after a persistent edit; the state tag distinguishes the
 _configured_ value from the _currently effective (overridden)_ one.
 
+Selecting an alias during `Edit` stores the raw reference (for example, `@big_epic_lander` → `@coder`), so it remains a
+dynamic link and follows future changes to `@coder`. Selecting an alias during `Override` instead resolves it when the
+override is written and stores that concrete provider/model snapshot together with the raw token; later changes to the
+referenced alias do not change the active override.
+
 Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User aliases under
 `llm_provider.model_aliases.custom.<name>` edit their `model` field and reset by deleting the whole custom alias entry.
 
@@ -1167,6 +1178,10 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
   you clear it; the violet non-default pill appears in the top bar.
 - Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
   target; leaving it implicit preserves the `@epic_lander` target.
+- Highlight `big_epic_lander`, `e`, filter for `@coder`, select it, and confirm — the persistent value is the dynamic
+  `@coder` reference, not a copied concrete model.
+- Highlight `phase_worker`, `o`, select `@coder`, then choose `1h` — the override records the concrete provider/model to
+  which `@coder` resolves at write time while retaining `@coder` as its raw input.
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
   `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when
   `use_chezmoi` is set).

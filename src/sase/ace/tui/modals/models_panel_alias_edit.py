@@ -8,7 +8,12 @@ from sase.config import ConfigEditOp
 from sase.llm_provider import AliasView
 
 from .custom_model_input_modal import CustomModelInputModal
-from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
+from .model_picker_modal import (
+    CUSTOM_SENTINEL,
+    AliasSelectionContext,
+    ModelPickerModal,
+    alias_reference_rejection,
+)
 from .models_panel_edit import AliasEditPreviewModal
 from .models_panel_edit_helpers import (
     AliasCommitOffer,
@@ -28,6 +33,8 @@ class ModelsPanelAliasEditMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _pending_edit_view: AliasView | None
+        _pending_alias_selection: AliasSelectionContext | None
+        _views: list[AliasView]
 
         def _selected_alias(self) -> AliasView | None: ...
 
@@ -42,10 +49,16 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         if view is None:
             return
         self._pending_edit_view = view
+        self._pending_alias_selection = AliasSelectionContext(
+            views=tuple(self._views),
+            target_alias=view.name,
+            operation="persistent",
+        )
         self.app.push_screen(
             ModelPickerModal(
                 title=f"Edit Model — @{view.name}",
                 include_default_option=False,
+                alias_context=self._pending_alias_selection,
             ),
             callback=self._on_edit_model_picked,
         )
@@ -79,6 +92,13 @@ class ModelsPanelAliasEditMixin(_MixinBase):
         view = self._pending_edit_view
         if view is None:
             return
+        rejection = alias_reference_rejection(self._pending_alias_selection, result)
+        if rejection is not None:
+            self.notify(
+                f"Cannot set @{view.name} to {result.strip()}: {rejection}.",
+                severity="warning",
+            )
+            return
         if result == CUSTOM_SENTINEL:
             self.app.push_screen(
                 CustomModelInputModal(
@@ -96,6 +116,13 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             return
         view = self._pending_edit_view
         if view is None:
+            return
+        rejection = alias_reference_rejection(self._pending_alias_selection, result)
+        if rejection is not None:
+            self.notify(
+                f"Cannot set @{view.name} to {result.strip()}: {rejection}.",
+                severity="warning",
+            )
             return
         self._open_model_edit_preview(view, result)
 

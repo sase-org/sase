@@ -1482,6 +1482,11 @@ ModelPickerModal {
     padding: 1 2;
 }
 
+#model-picker-container.alias-enabled {
+    width: 84;
+    max-width: 95%;
+}
+
 #model-picker-title {
     text-align: center;
     text-style: bold;
@@ -1497,6 +1502,19 @@ ModelPickerModal {
 #model-picker-list {
     height: auto;
     max-height: 18;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#model-picker-container.alias-enabled #model-picker-list {
+    /* Reserve a stable footer lane even in a 30-row terminal. The list stays
+       scrollable, so the alias section does not expand the modal off-screen. */
+    max-height: 14;
+}
+
+#model-picker-container.alias-enabled #model-picker-footer {
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
 }
 
 #model-picker-footer {

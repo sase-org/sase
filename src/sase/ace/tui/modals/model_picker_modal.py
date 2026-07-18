@@ -1,6 +1,6 @@
 """Model picker modal for selecting a coder LLM model."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 from rich.text import Text
@@ -15,7 +15,12 @@ from sase.ace.tui.actions.navigation.jump_hints import (
     build_jump_hint_maps,
     normalize_jump_key,
 )
-from sase.ace.tui.provider_styles import model_option_text, provider_header_text
+from sase.ace.tui.provider_styles import (
+    model_option_text,
+    provider_header_text,
+    provider_model_badge_markup,
+)
+from sase.llm_provider import AliasView
 
 from .base import FilterInput, OptionListNavigationMixin
 
@@ -28,7 +33,29 @@ CUSTOM_SENTINEL = "__custom__"
 DEFAULT_SENTINEL = "__default__"
 _EMPTY_SENTINEL = "__empty__"
 
-_RowKind = Literal["default", "provider", "model", "custom", "empty"]
+AliasSelectionOperation = Literal["persistent", "temporary"]
+_RowKind = Literal[
+    "alias_header",
+    "alias",
+    "default",
+    "provider",
+    "model",
+    "custom",
+    "empty",
+]
+
+_ALIAS_HEADER_SENTINEL = "__header_aliases__"
+_ALIAS_NAME_CELL = 22
+_ALIAS_TARGET_CELL = 27
+
+
+@dataclass(frozen=True)
+class AliasSelectionContext:
+    """Opt-in alias catalog and safety semantics for a Models-panel picker."""
+
+    views: tuple[AliasView, ...]
+    target_alias: str
+    operation: AliasSelectionOperation
 
 
 @dataclass(frozen=True)
@@ -40,14 +67,25 @@ class _ModelPickerRow:
     model_id: str | None = None
     alias: str | None = None
     model_count: int | None = None
+    alias_name: str | None = None
+    alias_kind: str | None = None
+    description: str | None = None
+    disabled_reason: str | None = None
+    rendered_label: Text | None = None
 
     @property
     def disabled(self) -> bool:
-        return self.kind in {"provider", "empty"}
+        return self.kind in {"alias_header", "provider", "empty"} or (
+            self.disabled_reason is not None
+        )
 
     @property
     def is_model(self) -> bool:
         return self.kind == "model"
+
+    @property
+    def is_target(self) -> bool:
+        return self.kind in {"alias", "model"}
 
     @property
     def search_terms(self) -> tuple[str, ...]:
@@ -59,12 +97,141 @@ class _ModelPickerRow:
                 self.model_id,
                 self.label,
                 self.alias,
+                self.alias_name,
+                f"@{self.alias_name}" if self.alias_name else None,
+                self.alias_kind,
+                self.description,
+                self.rendered_label.plain if self.rendered_label else None,
+                self.disabled_reason,
             )
             if part
         )
 
 
-def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPickerRow]:
+def _alias_dependencies(views: tuple[AliasView, ...]) -> dict[str, str]:
+    """Return the immediate known dependency edge for each alias snapshot row."""
+    known = {view.name for view in views}
+    dependencies: dict[str, str] = {}
+    for view in views:
+        dependency = view.references or view.implicit_fallback
+        if dependency in known:
+            dependencies[view.name] = dependency
+    return dependencies
+
+
+def _alias_disabled_reason(
+    context: AliasSelectionContext,
+    candidate: str,
+) -> str | None:
+    """Classify whether selecting *candidate* is unsafe for this operation."""
+    target = context.target_alias.strip()
+    if candidate == target:
+        return "current alias"
+    if context.operation == "temporary":
+        return None
+
+    dependencies = _alias_dependencies(context.views)
+    current = candidate
+    visited: set[str] = set()
+    # There can be at most one useful visit per known alias. The explicit
+    # bound makes malformed snapshots safe even if this helper changes later.
+    for _ in range(len(context.views) + 1):
+        if current == target:
+            return "would create a cycle"
+        if current in visited:
+            return "would create a cycle"
+        visited.add(current)
+        dependency = dependencies.get(current)
+        if dependency is None:
+            return None
+        current = dependency
+    return "would create a cycle"
+
+
+def alias_reference_rejection(
+    context: AliasSelectionContext | None,
+    value: str,
+) -> str | None:
+    """Return a concise rejection reason for a free-form ``@alias`` value."""
+    cleaned = value.strip()
+    if context is None or not cleaned.startswith("@"):
+        return None
+    alias = cleaned[1:].strip()
+    known = {view.name for view in context.views}
+    if not alias or alias not in known:
+        return "unknown alias"
+    return _alias_disabled_reason(context, alias)
+
+
+def _alias_row_text(
+    view: AliasView,
+    *,
+    operation: AliasSelectionOperation,
+    disabled_reason: str | None,
+) -> Text:
+    """Build the immutable styled body for one alias option row."""
+    text = Text(no_wrap=True, overflow="ellipsis")
+    alias_token = f"@{view.name}"
+    if len(alias_token) > _ALIAS_NAME_CELL:
+        alias_token = alias_token[: _ALIAS_NAME_CELL - 1] + "…"
+    text.append(alias_token.ljust(_ALIAS_NAME_CELL), style="bold #87D7FF")
+    text.append("  →  ", style="dim #5F8787")
+    badge = Text.from_markup(
+        provider_model_badge_markup(view.selection_provider, view.selection_model)
+    )
+    badge.truncate(_ALIAS_TARGET_CELL, overflow="ellipsis", pad=True)
+    text.append_text(badge)
+    text.append("  ")
+    if disabled_reason is not None:
+        text.append(disabled_reason, style="bold #FF875F")
+    else:
+        semantic = "dynamic ref" if operation == "persistent" else "snapshot"
+        if view.override is not None and view.name != "default":
+            semantic = f"override now · {semantic}"
+        text.append(semantic, style="dim #A8A8A8")
+    return text
+
+
+def _build_alias_rows(context: AliasSelectionContext) -> list[_ModelPickerRow]:
+    """Build alias rows once from the Models panel's in-memory snapshot."""
+    if not context.views:
+        return []
+    rows = [
+        _ModelPickerRow(
+            kind="alias_header",
+            label=f"  ALIASES  {len(context.views)} aliases",
+            option_id=_ALIAS_HEADER_SENTINEL,
+            model_count=len(context.views),
+        )
+    ]
+    for view in context.views:
+        disabled_reason = _alias_disabled_reason(context, view.name)
+        rows.append(
+            _ModelPickerRow(
+                kind="alias",
+                label=f"@{view.name}",
+                option_id=f"@{view.name}",
+                provider=view.selection_provider,
+                model_id=view.selection_model,
+                alias_name=view.name,
+                alias_kind=view.kind,
+                description=view.description,
+                disabled_reason=disabled_reason,
+                rendered_label=_alias_row_text(
+                    view,
+                    operation=context.operation,
+                    disabled_reason=disabled_reason,
+                ),
+            )
+        )
+    return rows
+
+
+def _build_model_rows(
+    *,
+    include_default_option: bool = True,
+    alias_context: AliasSelectionContext | None = None,
+) -> list[_ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
     from sase.llm_provider.registry import model_short_alias_map, model_to_provider_map
 
@@ -74,6 +241,8 @@ def _build_model_rows(*, include_default_option: bool = True) -> list[_ModelPick
         provider_models.setdefault(provider, []).append(model)
 
     rows: list[_ModelPickerRow] = []
+    if alias_context is not None:
+        rows.extend(_build_alias_rows(alias_context))
     if include_default_option:
         rows.append(
             _ModelPickerRow(
@@ -135,13 +304,35 @@ def _filter_model_rows(
         return rows
 
     special_rows = [row for row in rows if row.kind in {"default", "custom"}]
-    filtered: list[_ModelPickerRow] = [
-        row for row in special_rows if row.kind == "default"
-    ]
-    matched_models = 0
+    filtered: list[_ModelPickerRow] = []
+    matched_targets = 0
     index = 0
     while index < len(rows):
         row = rows[index]
+        if row.kind == "alias_header":
+            alias_header = row
+            aliases: list[_ModelPickerRow] = []
+            index += 1
+            while index < len(rows) and rows[index].kind == "alias":
+                aliases.append(rows[index])
+                index += 1
+            header_matches = _row_matches(alias_header, query)
+            matching_aliases = (
+                aliases
+                if header_matches
+                else [alias for alias in aliases if _row_matches(alias, query)]
+            )
+            if matching_aliases:
+                filtered.append(
+                    replace(alias_header, model_count=len(matching_aliases))
+                )
+                filtered.extend(matching_aliases)
+                matched_targets += len(matching_aliases)
+            continue
+        if row.kind == "default":
+            filtered.append(row)
+            index += 1
+            continue
         if row.kind != "provider":
             index += 1
             continue
@@ -162,13 +353,18 @@ def _filter_model_rows(
         if matching_models:
             filtered.append(provider_row)
             filtered.extend(matching_models)
-            matched_models += len(matching_models)
+            matched_targets += len(matching_models)
 
-    if matched_models == 0:
+    if matched_targets == 0:
+        has_aliases = any(row.kind == "alias" for row in rows)
         filtered.append(
             _ModelPickerRow(
                 kind="empty",
-                label="  No matching models",
+                label=(
+                    "  No matching aliases or models"
+                    if has_aliases
+                    else "  No matching models"
+                ),
                 option_id=_EMPTY_SENTINEL,
             )
         )
@@ -186,11 +382,30 @@ def _rows_to_options(
     previous_kind: _RowKind | None = None
     for row in rows:
         if items and (
-            row.kind == "provider" or row.kind == "custom" or previous_kind == "default"
+            row.kind == "provider"
+            or row.kind == "custom"
+            or previous_kind == "default"
+            or (row.kind == "default" and previous_kind == "alias")
         ):
             items.append(None)
         label: str | Text
-        if row.kind == "provider" and row.provider is not None:
+        if row.kind == "alias_header":
+            count = row.model_count or 0
+            noun = "alias" if count == 1 else "aliases"
+            label = Text("  ")
+            label.append("━ ALIASES", style="bold #5FD7D7")
+            label.append(f"  {count} {noun}", style="dim #87D7D7")
+        elif row.kind == "alias" and row.rendered_label is not None:
+            label = Text()
+            hint = jump_hints.get(row.option_id) if jump_hints else None
+            if hint is not None:
+                label.append(f"{hint:>2} ", style="bold #87D7FF")
+            else:
+                label.append("   ")
+            label.append_text(row.rendered_label.copy())
+            label.no_wrap = True
+            label.overflow = "ellipsis"
+        elif row.kind == "provider" and row.provider is not None:
             label = provider_header_text(row.provider, row.model_count or 0)
         elif row.kind == "model" and row.model_id is not None:
             label = model_option_text(
@@ -301,6 +516,8 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
             dismisses with :data:`DEFAULT_SENTINEL` instead of ``None`` so the
             caller can tell it apart from a cancel (which always dismisses with
             ``None``). Only meaningful when ``include_default_option`` is True.
+        alias_context: Optional Models-panel alias catalog and safety semantics.
+            Callers that omit it retain the concrete-model-only picker.
     """
 
     _option_list_id = "model-picker-list"
@@ -317,13 +534,16 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         title: str = "Select Coder Model",
         include_default_option: bool = True,
         distinct_default: bool = False,
+        alias_context: AliasSelectionContext | None = None,
     ) -> None:
         super().__init__()
         self._title = title
         self._include_default_option = include_default_option
         self._distinct_default = distinct_default
+        self._alias_context = alias_context
         self._all_rows = _build_model_rows(
-            include_default_option=include_default_option
+            include_default_option=include_default_option,
+            alias_context=alias_context,
         )
         self._visible_rows = self._all_rows
         self._model_jump_mode_active = False
@@ -332,18 +552,29 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         self._model_jump_last_id: str | None = None
 
     def compose(self) -> ComposeResult:
-        with Container(id="model-picker-container"):
+        with Container(
+            id="model-picker-container",
+            classes="alias-enabled" if self._alias_context is not None else None,
+        ):
             yield Static(
                 f"[bold cyan]{self._title}[/bold cyan]",
                 id="model-picker-title",
             )
             yield _ModelPickerFilterInput(
-                placeholder="Filter providers or models...",
+                placeholder=(
+                    "Filter aliases, providers, or models..."
+                    if self._alias_context is not None
+                    else "Filter providers or models..."
+                ),
                 id="model-picker-filter",
             )
             yield OptionList(
-                *_build_model_options(
-                    include_default_option=self._include_default_option,
+                *(
+                    _rows_to_options(self._all_rows)
+                    if self._alias_context is not None
+                    else _build_model_options(
+                        include_default_option=self._include_default_option
+                    )
                 ),
                 id="model-picker-list",
             )
@@ -506,7 +737,7 @@ class ModelPickerModal(OptionListNavigationMixin, ModalScreen[str | None]):
         target = None
         if prefer_model:
             for row in self._visible_rows:
-                if row.is_model:
+                if row.is_target and not row.disabled:
                     target = row.option_id
                     break
 

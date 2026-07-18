@@ -456,12 +456,16 @@ def test_default_override_is_surfaced_on_default_row(
     )
     _patch_providers(monkeypatch)
 
-    set_alias_override("default", "opus", None, source="test")
+    set_alias_override("default", "codex/o3", None, source="test")
     try:
         default = {v.name: v for v in build_alias_views()}["default"]
     finally:
         clear_alias_override("default")
 
     assert default.is_overridden is True
-    assert default.provider == "claude"
-    assert default.model == "opus"
+    assert default.provider == "codex"
+    assert default.model == "o3"
+    # An explicit nested @default reference ignores the machine-wide default
+    # override and keeps representing the configured/provider default.
+    assert default.selection_provider == "claude"
+    assert default.selection_model == "opus"

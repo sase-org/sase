@@ -1,7 +1,10 @@
 """Tests for the model picker modal."""
 
+from pathlib import Path
+
 from textual.app import App, ComposeResult
-from textual.widgets import Input, OptionList
+from textual.containers import Container
+from textual.widgets import Input, OptionList, Static
 
 from rich.text import Text
 
@@ -9,12 +12,18 @@ from sase.ace.tui.provider_styles import _provider_style_for
 from sase.ace.tui.modals.model_picker_modal import (
     CUSTOM_SENTINEL,
     DEFAULT_SENTINEL,
+    AliasSelectionContext,
     ModelPickerModal,
     _ModelPickerRow,
+    _alias_disabled_reason,
     _build_model_options,
     _build_model_rows,
     _rows_to_options,
+    alias_reference_rejection,
 )
+from tests._models_panel_helpers import make_alias_view, make_override
+
+_ROOT = Path(__file__).resolve().parents[1]
 
 
 class _TestApp(App[str | None]):
@@ -24,6 +33,43 @@ class _TestApp(App[str | None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+class _StyledTestApp(_TestApp):
+    CSS_PATH = _ROOT / "src/sase/ace/tui/styles.tcss"
+
+
+def _alias_context(
+    *,
+    target: str = "big_epic_lander",
+    operation: str = "persistent",
+    views=None,
+) -> AliasSelectionContext:
+    if views is None:
+        views = [
+            make_alias_view(
+                "default",
+                "default",
+                provider="claude",
+                model="opus",
+                description="Default launch model.",
+            ),
+            make_alias_view(
+                "coder",
+                "role",
+                provider="codex",
+                model="gpt-5.6-sol",
+                description="Implementation follow-up agents.",
+            ),
+            make_alias_view("epic_lander", "role", provider="claude", model="opus"),
+            make_alias_view("big_epic_lander", "role", provider="claude", model="opus"),
+            make_alias_view("phase_worker", "role", provider="claude", model="sonnet"),
+        ]
+    return AliasSelectionContext(
+        views=tuple(views),
+        target_alias=target,
+        operation=operation,  # type: ignore[arg-type]
+    )
 
 
 def _highlighted_id(option_list: OptionList) -> str | None:
@@ -128,6 +174,222 @@ def test_model_picker_claude_fable_row_includes_alias() -> None:
     assert "claude-fable-5" in option.prompt.plain
     assert "fable" in option.prompt.plain
     assert any(span.style == "dim #D7AF87" for span in option.prompt.spans)
+
+
+def test_alias_context_builds_ordered_styled_rows_before_models() -> None:
+    context = _alias_context(target="phase_worker")
+    rows = _build_model_rows(
+        include_default_option=False,
+        alias_context=context,
+    )
+
+    assert [row.option_id for row in rows[:6]] == [
+        "__header_aliases__",
+        "@default",
+        "@coder",
+        "@epic_lander",
+        "@big_epic_lander",
+        "@phase_worker",
+    ]
+    assert next(row for row in rows if row.kind == "provider").option_id.startswith(
+        "__header_"
+    )
+    alias_options = [
+        option
+        for option in _rows_to_options(rows[:6])
+        if option is not None and str(option.id).startswith("@")
+    ]
+    assert all(isinstance(option.prompt, Text) for option in alias_options)
+    assert {option.prompt.plain.index("→") for option in alias_options} == {27}
+    coder = next(option for option in alias_options if option.id == "@coder")
+    assert "CODEX(gpt-5.6-sol)" in coder.prompt.plain
+    assert any(span.style == "bold #87D7FF" for span in coder.prompt.spans)
+
+
+def test_alias_dependency_guard_covers_implicit_and_configured_chains() -> None:
+    views = [
+        make_alias_view("default", "default"),
+        make_alias_view("coder", "role"),
+        make_alias_view("codex_coder", "provider_coder"),
+        make_alias_view("epic_lander", "role"),
+        make_alias_view("big_epic_lander", "role"),
+        make_alias_view("hop_a", "user", configured=True, configured_value="@hop_b"),
+        make_alias_view("hop_b", "user", configured=True, configured_value="@coder"),
+        make_alias_view(
+            "cycle_a", "user", configured=True, configured_value="@cycle_b"
+        ),
+        make_alias_view(
+            "cycle_b", "user", configured=True, configured_value="@cycle_a"
+        ),
+        make_alias_view(
+            "safe", "user", configured=True, configured_value="claude/haiku"
+        ),
+    ]
+    coder_context = _alias_context(target="coder", views=views)
+    default_context = _alias_context(target="default", views=views)
+
+    assert _alias_disabled_reason(coder_context, "coder") == "current alias"
+    assert _alias_disabled_reason(coder_context, "hop_a") == "would create a cycle"
+    assert _alias_disabled_reason(coder_context, "cycle_a") == ("would create a cycle")
+    assert _alias_disabled_reason(coder_context, "safe") is None
+    # provider_coder -> coder -> default and
+    # big_epic_lander -> epic_lander -> default are implicit chains.
+    assert _alias_disabled_reason(default_context, "codex_coder") == (
+        "would create a cycle"
+    )
+    assert _alias_disabled_reason(default_context, "big_epic_lander") == (
+        "would create a cycle"
+    )
+
+
+def test_alias_dependency_guard_handles_long_chains() -> None:
+    views = [make_alias_view("target", "user")]
+    for index in range(40):
+        dependency = "target" if index == 39 else f"hop_{index + 1}"
+        views.append(
+            make_alias_view(
+                f"hop_{index}",
+                "user",
+                configured=True,
+                configured_value=f"@{dependency}",
+            )
+        )
+    context = _alias_context(target="target", views=views)
+
+    assert _alias_disabled_reason(context, "hop_0") == "would create a cycle"
+
+
+def test_temporary_alias_guard_disables_only_self() -> None:
+    views = [
+        make_alias_view("target", "user"),
+        make_alias_view(
+            "cycle_a", "user", configured=True, configured_value="@cycle_b"
+        ),
+        make_alias_view(
+            "cycle_b", "user", configured=True, configured_value="@cycle_a"
+        ),
+    ]
+    context = _alias_context(target="target", operation="temporary", views=views)
+
+    assert _alias_disabled_reason(context, "target") == "current alias"
+    assert _alias_disabled_reason(context, "cycle_a") is None
+
+
+def test_free_form_alias_guard_rejects_unknown_and_unsafe_references() -> None:
+    context = _alias_context(target="coder")
+
+    assert alias_reference_rejection(context, "@missing") == "unknown alias"
+    assert alias_reference_rejection(context, "@coder") == "current alias"
+    assert alias_reference_rejection(context, "@default") is None
+    assert alias_reference_rejection(context, "claude/opus") is None
+
+
+async def test_alias_picker_filters_all_alias_fields_and_returns_raw_token() -> None:
+    captured: list[str | None] = []
+    context = _alias_context(target="phase_worker")
+
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal(
+            include_default_option=False,
+            alias_context=context,
+        )
+        pilot.app.push_screen(modal, captured.append)
+        await pilot.pause()
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        assert filter_input.placeholder == "Filter aliases, providers, or models..."
+
+        for query in ("@coder", "coder", "implementation follow-up", "gpt-5.6"):
+            filter_input.value = query
+            await pilot.pause()
+            ids = {
+                option.id
+                for option in modal.query_one("#model-picker-list", OptionList).options
+            }
+            assert "@coder" in ids
+            assert "__empty__" not in ids
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        option_list.highlighted = option_list.get_option_index("@coder")
+        modal.action_select_model()
+        await pilot.pause()
+
+    assert captured == ["@coder"]
+
+
+async def test_alias_only_no_match_uses_contextual_empty_state() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal(
+            include_default_option=False,
+            alias_context=_alias_context(),
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        modal.query_one("#model-picker-filter", Input).value = "not-a-target"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        empty = option_list.get_option("__empty__")
+        assert str(empty.prompt) == "  No matching aliases or models"
+        assert option_list.get_option(CUSTOM_SENTINEL) is not None
+
+
+async def test_alias_disabled_rows_are_searchable_and_skipped_by_navigation() -> None:
+    context = _alias_context(target="coder")
+    async with _TestApp().run_test() as pilot:
+        modal = ModelPickerModal(
+            include_default_option=False,
+            alias_context=context,
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        filter_input = modal.query_one("#model-picker-filter", Input)
+        filter_input.value = "@coder"
+        await pilot.pause()
+
+        option_list = modal.query_one("#model-picker-list", OptionList)
+        coder = option_list.get_option("@coder")
+        assert coder.disabled is True
+        assert "current alias" in str(coder.prompt)
+        assert "@coder" not in modal._visible_selectable_option_ids()
+        modal.action_jump_to_entry()
+        assert "@coder" not in modal._model_jump_id_to_hint
+
+
+async def test_alias_picker_narrow_geometry_keeps_single_line_rows_and_footer() -> None:
+    long_name = "very_long_custom_alias_name_that_must_truncate"
+    context = _alias_context(
+        target="phase_worker",
+        views=[
+            make_alias_view(
+                long_name,
+                "user",
+                configured=True,
+                configured_value="opencode/anthropic/claude-sonnet-4-5",
+                provider="opencode",
+                model="anthropic/claude-sonnet-4-5",
+            ),
+            make_alias_view("phase_worker", "role"),
+        ],
+    )
+    async with _StyledTestApp().run_test(size=(60, 30)) as pilot:
+        modal = ModelPickerModal(
+            include_default_option=False,
+            alias_context=context,
+        )
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        container = modal.query_one("#model-picker-container", Container)
+        footer = modal.query_one("#model-picker-footer", Static)
+        option = modal.query_one("#model-picker-list", OptionList).get_option(
+            f"@{long_name}"
+        )
+        assert container.region.x >= 0
+        assert container.region.right <= modal.size.width
+        assert footer.region.bottom <= modal.size.height
+        assert isinstance(option.prompt, Text)
+        assert "\n" not in option.prompt.plain
+        assert option.prompt.no_wrap is True
 
 
 async def test_model_picker_returns_none_for_default() -> None:

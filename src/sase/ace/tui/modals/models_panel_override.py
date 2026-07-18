@@ -11,7 +11,12 @@ from sase.llm_provider.registry import format_provider_model_label
 
 from .custom_model_input_modal import CustomModelInputModal
 from .duration_choice_modal import DurationChoiceCancelled
-from .model_picker_modal import CUSTOM_SENTINEL, ModelPickerModal
+from .model_picker_modal import (
+    CUSTOM_SENTINEL,
+    AliasSelectionContext,
+    ModelPickerModal,
+    alias_reference_rejection,
+)
 from .models_panel_duration import (
     DurationPickerModal,
     OpenOverrideUntil,
@@ -48,7 +53,9 @@ class ModelsPanelOverrideMixin(_MixinBase):
             | None
         )
         _pending_alias: str
+        _pending_alias_selection: AliasSelectionContext | None
         _pending_raw_model: str
+        _views: list[AliasView]
 
         def _selected_alias(self) -> AliasView | None: ...
 
@@ -71,10 +78,16 @@ class ModelsPanelOverrideMixin(_MixinBase):
         if view is None:
             return
         self._pending_alias = view.name
+        self._pending_alias_selection = AliasSelectionContext(
+            views=tuple(self._views),
+            target_alias=view.name,
+            operation="temporary",
+        )
         self.app.push_screen(
             ModelPickerModal(
                 title=f"Override Model — @{view.name}",
                 include_default_option=False,
+                alias_context=self._pending_alias_selection,
             ),
             callback=self._on_model_picked,
         )
@@ -102,6 +115,14 @@ class ModelsPanelOverrideMixin(_MixinBase):
     def _on_model_picked(self, result: str | None) -> None:
         if result is None:
             return
+        rejection = alias_reference_rejection(self._pending_alias_selection, result)
+        if rejection is not None:
+            self.notify(
+                f"Cannot snapshot {result.strip()} onto @{self._pending_alias}: "
+                f"{rejection}.",
+                severity="warning",
+            )
+            return
         if result == CUSTOM_SENTINEL:
             self.app.push_screen(
                 CustomModelInputModal(
@@ -117,6 +138,14 @@ class ModelsPanelOverrideMixin(_MixinBase):
 
     def _on_custom_picked(self, result: str | None) -> None:
         if result is None:
+            return
+        rejection = alias_reference_rejection(self._pending_alias_selection, result)
+        if rejection is not None:
+            self.notify(
+                f"Cannot snapshot {result.strip()} onto @{self._pending_alias}: "
+                f"{rejection}.",
+                severity="warning",
+            )
             return
         self._pending_raw_model = result
         self._open_duration_picker()

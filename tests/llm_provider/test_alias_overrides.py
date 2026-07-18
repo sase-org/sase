@@ -60,6 +60,27 @@ def test_set_then_get_alias_override() -> None:
     assert fetched.model == "o3"
 
 
+def test_alias_token_is_resolved_eagerly_and_retained_raw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def resolve(raw_model: str) -> tuple[str | None, str]:
+        calls.append(raw_model)
+        return "codex", "gpt-5.6-sol"
+
+    monkeypatch.setattr("sase.llm_provider.registry.resolve_model_provider", resolve)
+
+    override = set_alias_override("phase_worker", "@coder", 3600.0, source="panel")
+
+    assert calls == ["@coder"]
+    assert override.raw_model == "@coder"
+    assert (override.provider, override.model) == ("codex", "gpt-5.6-sol")
+    stored = _read_state()["overrides"]["phase_worker"]
+    assert stored["raw_model"] == "@coder"
+    assert (stored["provider"], stored["model"]) == ("codex", "gpt-5.6-sol")
+
+
 def test_set_until_cleared_has_no_expiry() -> None:
     override = set_alias_override("coder", "opus", None, source="panel")
     assert override.expires_at is None
