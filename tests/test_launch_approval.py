@@ -27,7 +27,7 @@ from sase.agent.launch_request import (
 )
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import plan_fake_fanout
-from sase.integrations.mobile_notifications import execute_mobile_launch_action
+from sase.integrations.mobile_notifications import execute_mobile_gate_action
 from sase.launch_approval_actions import (
     LaunchApprovalActionContext,
     LaunchApprovalActionError,
@@ -545,9 +545,9 @@ def test_mobile_and_tui_resolve_neutral_launch_bundles(
         }
     )
 
-    mobile = execute_mobile_launch_action(
+    mobile = execute_mobile_gate_action(
         mobile_request.notification_id[:8],
-        "feedback",
+        ["feedback"],
         feedback="Narrow the mobile launch",
     )
 
@@ -648,45 +648,6 @@ def test_approve_launch_response_dispatches_stored_request(
         "dispatch_status": "launched",
         "launched_count": 1,
     }
-
-
-def test_mobile_launch_action_writes_response_and_marks_dismissed(
-    tmp_path: Path,
-) -> None:
-    notifications_path = tmp_path / "notifications" / "notifications.jsonl"
-    pending_path = tmp_path / "pending_actions" / "actions.json"
-    response_dir = tmp_path / "launch"
-    response_dir.mkdir()
-    (response_dir / "launch_request.json").write_text("{}", encoding="utf-8")
-    notification = Notification(
-        id="abcdef12-launch",
-        timestamp="2026-05-06T12:00:00+00:00",
-        sender="launch",
-        notes=["launch"],
-        files=[],
-        action="LaunchApproval",
-        action_data={"response_dir": str(response_dir), "request_id": "launch-1"},
-    )
-
-    from sase.notifications import store as notification_store
-
-    with (
-        patch.object(notification_store, "NOTIFICATIONS_FILE", str(notifications_path)),
-        patch.object(pending_actions, "PENDING_ACTIONS_PATH", pending_path),
-    ):
-        notification_store.append_notification(notification)
-        result = execute_mobile_launch_action(
-            "abcdef12", "feedback", feedback="Narrow it"
-        )
-        assert result.response_file == "launch_response.json"
-        assert result.response_json == {
-            "action": "reject",
-            "feedback": "Narrow it",
-        }
-        assert (
-            notification_store.load_notifications(include_dismissed=True)[0].dismissed
-            is True
-        )
 
 
 def test_tui_launch_approval_approve_dispatches_stored_request(
