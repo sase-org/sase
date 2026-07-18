@@ -325,8 +325,3 @@ def custom_modal_choice_for_key(key: str) -> PlanApprovalModalChoice | None:
     """Return the custom-approval modal choice for a keyboard key."""
     choice = {"a": "approve", "t": "tale", "e": "epic"}.get(key)
     return None if choice is None else cast(PlanApprovalModalChoice, choice)
-
-
-def review_modal_choice_bindings() -> list[tuple[str, str, str]]:
-    """Return Textual bindings for top-level plan-review approval choices."""
-    return [("a", "approve", "Approve"), ("t", "tale", "Tale"), ("E", "epic", "Epic")]

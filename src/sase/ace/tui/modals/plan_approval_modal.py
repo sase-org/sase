@@ -357,7 +357,7 @@ class PlanApprovalModal(
         """Backward-compatible programmatic plain-approval action."""
         if not self._choice_allowed("approve"):
             return
-        self.dismiss(self._result_for_selection((PLAN_APPROVE_OPTION_ID,)))
+        self.dismiss(_plan_approval_result_for_choice("approve"))
 
     def action_approve_default(self) -> None:
         """Backward-compatible alias for submitting the active branch."""
@@ -367,9 +367,7 @@ class PlanApprovalModal(
         """Backward-compatible programmatic tale selection."""
         if not self._choice_allowed("tale"):
             return
-        self.dismiss(
-            self._result_for_selection((PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID))
-        )
+        self.dismiss(_plan_approval_result_for_choice("tale"))
 
     def _push_approve_options(
         self,
@@ -470,7 +468,7 @@ class PlanApprovalModal(
         """Create an epic from the plan."""
         if not self._choice_allowed("epic"):
             return
-        self.dismiss(self._result_for_selection((PLAN_APPROVE_OPTION_ID,)))
+        self.dismiss(_plan_approval_result_for_choice("epic"))
 
     def _choice_allowed(self, choice: PlanApprovalChoice) -> bool:
         option_ids = {option.id for option in self._gate.options}
