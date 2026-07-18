@@ -292,6 +292,33 @@ def test_kill_agent_visible_on_group_banner_even_without_agent() -> None:
     assert is_command_available(spec, ctx)
 
 
+def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
+    catalog = _catalog_by_id()
+    ctx = CommandContext(
+        tab="agents",
+        agent=None,
+        collapsed_panel_focused=True,
+    )
+
+    assert is_command_available(catalog["app.kill_agent"], ctx)
+    for command_id in {
+        "app.run_workflow",
+        "app.edit_spec",
+        "app.edit_hooks",
+        "app.rename_cl",
+        "app.add_agent_tag",
+        "app.open_tmux",
+        "app.start_tmux_mode",
+        "app.edit_panel",
+        "app.open_artifact_files",
+        "app.toggle_mark",
+        "app.start_sibling_mode",
+        "leader.agent_from_cl",
+        "copy.agents.name",
+    }:
+        assert not is_command_available(catalog[command_id], ctx), command_id
+
+
 def test_kill_agent_hidden_when_no_agent_no_group_no_marks() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.kill_agent"]

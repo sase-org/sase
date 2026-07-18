@@ -71,7 +71,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.add_tag), "Wait for agent (or marked set)"),
                 (d(a.reword), "Edit wait deps/time / run now"),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
-                (d(a.kill_agent), "Kill/dismiss agent/group/marked"),
+                (d(a.kill_agent), "Clean row/panel/group/clan/marks"),
                 (d(a.toggle_mark), "Mark/unmark current agent or focused group"),
                 (d(a.toggle_agent_unread), "Toggle unread marker"),
                 (d(a.clear_marks), "Clear all agent marks"),

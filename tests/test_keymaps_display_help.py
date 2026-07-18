@@ -164,6 +164,7 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     }
 
     assert ("s", "Save/dismiss marked agents") in agent_pairs
+    assert ("x", "Clean row/panel/group/clan/marks") in agent_pairs
     assert ("S", "Bulk status change (marked PRs)") in cls_pairs
 
 

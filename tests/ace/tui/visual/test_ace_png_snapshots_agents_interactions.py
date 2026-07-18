@@ -9,12 +9,14 @@ from rich.text import Text
 from textual.widgets import Input
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals import ConfirmDismissAllModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentPanelSummary,
     HintInputBar,
+    KeybindingFooter,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -197,12 +199,28 @@ async def test_agents_collapsed_panel_png_snapshot(
         )
         _assert_collapsed_panel_summary(page)
         assert_page_svg_contains(page, "▸ ")
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        assert footer._last_layout_inputs is not None
+        footer_bindings, _mode_label = footer._last_layout_inputs
+        assert ("x", "kill/dismiss panel") in footer_bindings
 
         ace_png_visual.assert_page_png(
             page,
             "agents_collapsed_panel_120x40",
             title="ACE agents collapsed panel",
         )
+
+        await page.press("x")
+        await page.expect_modal("ConfirmDismissAllModal")
+        modal = page.app.screen
+        assert isinstance(modal, ConfirmDismissAllModal)
+        assert "Panel: @chop (2 agents)" in modal.agent_description
+        assert "visual-collapse-primary" in modal.agent_description
+        assert "visual-collapse-secondary" in modal.agent_description
+        assert "visual-home" not in modal.agent_description
+        assert "visual-keep" not in modal.agent_description
+        await page.press("escape")
+        await page.expect_no_modal()
 
         normal_width = collapsed_widget._requested_width
         await page.press("apostrophe")

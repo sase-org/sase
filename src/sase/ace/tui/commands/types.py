@@ -208,6 +208,7 @@ class CommandContext:
     runner_count: int = 0
     can_jump_to_changespec: bool = False
     attempt_pinned: bool = False
+    collapsed_panel_focused: bool = False
     group_focused: bool = False
     file_panel_visible: bool = False
     has_artifact_files: bool = False

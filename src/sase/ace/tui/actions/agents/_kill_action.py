@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_groups import GroupRow
+    from ...models.agent_panel_summary import CollapsedAgentPanelFocus
     from ...modals import AgentCleanupAction, AgentCleanupPanelState
     from ...modals.agent_cleanup_modal import AgentCleanupAgentIdentity
     from sase.core.agent_cleanup_wire import AgentCleanupPlanWire
@@ -140,10 +141,23 @@ class AgentKillMixin:
 
     def _agent_cleanup_current_scope_targets(self) -> list[Agent]:
         """Return cleanup targets scoped to the current Agents-tab list."""
+        return self._agent_cleanup_targets_from_candidates(list(self._agents))
+
+    def _agent_cleanup_targets_from_candidates(
+        self, candidates: list[Agent]
+    ) -> list[Agent]:
+        """Expand loaded cleanup candidates without leaving their panel scope.
+
+        Synthetic clan rows expand to their real generation members, and loaded
+        workflow children are included when their parent is a candidate. Identity
+        de-duplication preserves the cached Agents-tab order and keeps this helper
+        safe for both the cleanup panel and collapsed-panel ``x`` action.
+        """
         from ...models.agent import AgentType
 
         targets: list[Agent] = []
         seen: set[tuple[AgentType, str, str | None]] = set()
+        parent_timestamps: set[str] = set()
 
         def add(agent: Agent) -> None:
             if agent.is_clan_container:
@@ -158,23 +172,17 @@ class AgentKillMixin:
                 return
             seen.add(agent.identity)
             targets.append(agent)
-
-        current_parent_timestamps = {
-            agent.raw_suffix
-            for agent in self._agents
             if (
                 agent.agent_type == AgentType.WORKFLOW
                 and not agent.is_workflow_child
                 and agent.raw_suffix is not None
-            )
-        }
-        for agent in self._agents:
+            ):
+                parent_timestamps.add(agent.raw_suffix)
+
+        for agent in candidates:
             add(agent)
         for agent in self._agents_with_children:
-            if (
-                agent.is_workflow_child
-                and agent.parent_timestamp in current_parent_timestamps
-            ):
+            if agent.is_workflow_child and agent.parent_timestamp in parent_timestamps:
                 add(agent)
         return targets
 
@@ -448,6 +456,19 @@ class AgentKillMixin:
             self._bulk_kill_marked_agents()  # type: ignore[attr-defined]
             return
 
+        # A collapsed whole panel is an explicit bulk-cleanup selection. The
+        # backing ``current_idx`` remains only an expansion anchor and must
+        # never fall through to the single-agent path.
+        collapsed_panel_resolver = getattr(
+            self, "_resolve_focused_collapsed_panel", None
+        )
+        collapsed_panel = (
+            collapsed_panel_resolver() if callable(collapsed_panel_resolver) else None
+        )
+        if collapsed_panel is not None:
+            self._bulk_kill_collapsed_panel_agents(collapsed_panel)
+            return
+
         # Phase 5: focused group banner → bulk kill/dismiss every agent
         # in the group.  Marks take priority above; without marks the
         # banner focus drives a single-confirm bulk action.
@@ -507,6 +528,53 @@ class AgentKillMixin:
                 self._do_kill_agent(agent, cleanup_plan)  # type: ignore[attr-defined]
 
         self.push_screen(ConfirmKillModal(agent_description), on_dismiss)  # type: ignore[attr-defined]
+
+    def _bulk_kill_collapsed_panel_agents(
+        self, focus: CollapsedAgentPanelFocus
+    ) -> None:
+        """Confirm cleanup of the complete cached collapsed-panel membership."""
+        live_focus = self._resolve_focused_collapsed_panel()  # type: ignore[attr-defined]
+        if live_focus != focus:
+            self.notify(  # type: ignore[attr-defined]
+                "Collapsed panel focus changed; nothing cleaned up",
+                severity="warning",
+            )
+            return
+
+        panel_agents = list(
+            self._agent_panel_index().slice_for(focus.panel_key).agents  # type: ignore[attr-defined]
+        )
+        if not panel_agents:
+            self.notify(  # type: ignore[attr-defined]
+                "No agents remain in collapsed panel", severity="warning"
+            )
+            return
+
+        live_identities = {agent.identity for agent in self._agents_with_children}
+        if any(agent.identity not in live_identities for agent in panel_agents):
+            self.notify(  # type: ignore[attr-defined]
+                "Collapsed panel membership changed; nothing cleaned up",
+                severity="warning",
+            )
+            return
+
+        targets = self._agent_cleanup_targets_from_candidates(panel_agents)
+        if (
+            not targets or self._resolve_focused_collapsed_panel() != focus  # type: ignore[attr-defined]
+        ):
+            self.notify(  # type: ignore[attr-defined]
+                "Collapsed panel membership changed; nothing cleaned up",
+                severity="warning",
+            )
+            return
+
+        label = "(untagged)" if focus.panel_key is None else f"@{focus.panel_key}"
+        count = len(targets)
+        plural = "s" if count != 1 else ""
+        self._present_bulk_kill_modal(  # type: ignore[attr-defined]
+            targets,
+            header=f"Panel: {label} ({count} agent{plural})",
+        )
 
     def _get_focused_group(self) -> GroupRow | None:
         """Return the ``GroupRow`` matching ``_current_group_key``, if any.

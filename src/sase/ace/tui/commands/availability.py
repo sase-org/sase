@@ -162,6 +162,22 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
     }
 )
 
+_COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS: frozenset[str] = frozenset(
+    {
+        "app.edit_panel",
+        "app.next_agent_file",
+        "app.prev_agent_file",
+        "app.next_agent_metadata_section",
+        "app.prev_agent_metadata_section",
+        "app.open_artifact_files",
+        "app.open_tmux",
+        "app.start_tmux_mode",
+        "app.start_sibling_mode",
+        "app.toggle_mark",
+        "leader.agent_from_cl",
+    }
+)
+
 # Agent statuses considered "done" (no active process, no edits).
 _DONE_AGENT_STATUSES: frozenset[str] = frozenset({"DONE", "FAILED"})
 
@@ -284,12 +300,19 @@ def _agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.save_marked_agents":
         return ctx.mark_count > 0
 
-    # kill_agent: if marks exist or group banner focused, it acts on the
-    # group. Otherwise it needs a focused agent.
+    # kill_agent: marks, a collapsed whole panel, and an in-panel group banner
+    # are explicit scopes. Otherwise it needs a focused agent.
     if spec.id == "app.kill_agent":
-        if ctx.mark_count > 0 or ctx.group_focused:
+        if ctx.mark_count > 0 or ctx.collapsed_panel_focused or ctx.group_focused:
             return True
         return agent is not None
+
+    if (
+        ctx.collapsed_panel_focused
+        and agent is None
+        and spec.id in _COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS
+    ):
+        return False
 
     # toggle_attempt_view needs an agent with prior attempts and not
     # already pinned to one.

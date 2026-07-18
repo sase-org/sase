@@ -132,7 +132,36 @@ class PanelPatchMixin:
             target_widget = widget
 
         if target_widget is None:
+            collapsed_keys: set[str | None] = getattr(
+                self, "_collapsed_panel_keys", set()
+            )
+            panel_index_fn = getattr(self, "_agent_panel_index", None)
+            if collapsed_keys and callable(panel_index_fn):
+                panel_index = panel_index_fn()
+                collapsed_identities = {
+                    agent.identity
+                    for key in collapsed_keys
+                    for agent in panel_index.slice_for(key).agents
+                }
+                if collapsed_identities & removed_identities:
+                    self._record_display_patch_trace(
+                        display_cost="row_remove",
+                        fallback_reason="panel_membership_change",
+                        count=len(removed_identities),
+                    )
+                    return False
             return True
+
+        target_identities = {agent.identity for agent in target_widget._agents}
+        if target_widget.has_class("-collapsed-panel") or (
+            target_identities and target_identities <= removed_identities
+        ):
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="panel_membership_change",
+                count=len(removed_identities),
+            )
+            return False
 
         if not target_widget.try_remove_rows(removed_identities):
             self._record_display_patch_trace(

@@ -93,6 +93,7 @@ class KeybindingBindingsMixin:
         can_jump_to_changespec: bool = False,
         marked_count: int = 0,
         attempt_pinned: bool = False,
+        collapsed_panel_focused: bool = False,
         group_focused: bool = False,
         has_artifact_files: bool = False,
         artifact_file_viewer_active: bool = False,
@@ -123,6 +124,10 @@ class KeybindingBindingsMixin:
             bindings.append(
                 (self._kd("edit_spec"), f"edit chats ({marked_count} marked)")
             )
+        elif collapsed_panel_focused:
+            # Whole collapsed panels are first-class selections even though
+            # their hidden anchor row is intentionally not an agent selection.
+            bindings.append((x, "kill/dismiss panel"))
         elif group_focused:
             # Phase 5: a focused group banner re-routes ``x`` to bulk-kill
             # every agent in the group.  Surfaces the affordance so users
@@ -164,7 +169,7 @@ class KeybindingBindingsMixin:
             return bindings
 
         if agent.is_clan_container:
-            if marked_count == 0 and not group_focused:
+            if marked_count == 0 and not collapsed_panel_focused and not group_focused:
                 bindings.append((x, "kill/dismiss clan"))
             if completed_count > 0:
                 bindings.append(

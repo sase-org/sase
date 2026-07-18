@@ -142,6 +142,27 @@ def test_extract_context_agents_tab_group_banner_focused() -> None:
     assert ctx.attempt_pinned is True
 
 
+def test_extract_context_collapsed_panel_clears_hidden_backing_agent() -> None:
+    backing = SimpleNamespace(
+        status="RUNNING",
+        attempt_history=[],
+        response_path=None,
+    )
+    app = _make_app_stub(
+        tab="agents",
+        agents=[backing],
+        current_idx=0,
+    )
+    app._get_selected_agent = lambda: None
+    app._resolve_focused_collapsed_panel = lambda: object()
+
+    ctx = extract_command_context(app)  # type: ignore[arg-type]
+
+    assert ctx.agent is None
+    assert ctx.collapsed_panel_focused is True
+    assert ctx.group_focused is False
+
+
 def test_extract_context_axe_tab_lumberjack_row_is_not_done() -> None:
     items = [LumberjackItem(name="hooks")]
     app = _make_app_stub(

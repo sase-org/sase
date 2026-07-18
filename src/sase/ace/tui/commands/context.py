@@ -41,8 +41,24 @@ def _selected_changespec(app: AceApp):  # type: ignore[no-untyped-def]
 
 
 def _selected_agent(app: AceApp):  # type: ignore[no-untyped-def]
+    resolver = getattr(app, "_get_selected_agent", None)
+    if callable(resolver):
+        try:
+            return resolver()
+        except Exception:
+            return None
     agents = getattr(app, "_agents", [])
     return _safe_index(agents, app.current_idx)
+
+
+def _collapsed_panel_focused(app: AceApp) -> bool:
+    resolver = getattr(app, "_resolve_focused_collapsed_panel", None)
+    if not callable(resolver):
+        return False
+    try:
+        return resolver() is not None
+    except Exception:
+        return False
 
 
 def _selected_axe_item(app: AceApp):  # type: ignore[no-untyped-def]
@@ -179,6 +195,9 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     attempt_pinned = (
         app.current_attempt_number is not None if tab == "agents" else False
     )
+    collapsed_panel_focused = (
+        _collapsed_panel_focused(app) if tab == "agents" else False
+    )
     group_focused = (
         getattr(app, "_current_group_key", None) is not None
         if tab == "agents"
@@ -207,6 +226,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         runner_count=_runner_count(app),
         can_jump_to_changespec=can_jump,
         attempt_pinned=attempt_pinned,
+        collapsed_panel_focused=collapsed_panel_focused,
         group_focused=group_focused,
         file_panel_visible=file_panel,
         has_artifact_files=has_artifact_files,

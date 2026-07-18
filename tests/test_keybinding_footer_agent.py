@@ -136,6 +136,38 @@ def test_keybinding_footer_group_focused_overrides_x_label() -> None:
     assert ("x", "kill/dismiss group") in bindings
 
 
+def test_keybinding_footer_collapsed_panel_focus_advertises_panel_cleanup() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(None, collapsed_panel_focused=True)
+
+    assert ("x", "kill/dismiss panel") in bindings
+    assert not any(label == "kill/dismiss group" for _, label in bindings)
+
+
+def test_keybinding_footer_marks_take_priority_over_collapsed_panel_label() -> None:
+    footer = KeybindingFooter()
+
+    bindings = footer._compute_agent_bindings(
+        None,
+        marked_count=2,
+        collapsed_panel_focused=True,
+    )
+
+    assert ("x", "kill/dismiss panel") not in bindings
+    assert ("x", "kill/dismiss (2 marked)") in bindings
+
+
+def test_keybinding_footer_panel_label_absent_for_other_focus_types() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent()
+
+    assert ("x", "kill/dismiss panel") not in footer._compute_agent_bindings(agent)
+    assert ("x", "kill/dismiss panel") not in footer._compute_agent_bindings(
+        None, group_focused=True
+    )
+
+
 def test_keybinding_footer_marks_take_priority_over_group_label() -> None:
     """Marks override the group-focused x label."""
     footer = KeybindingFooter()
