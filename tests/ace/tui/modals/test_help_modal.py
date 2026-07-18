@@ -44,7 +44,12 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert modal._current_tab == "agents"
     assert modal._active_query is None
     assert "Agents Tab" in modal._build_title().plain
-    assert "Agent Actions" in modal._build_left_column().plain
+    agents_left = modal._build_left_column().plain
+    agents_right = modal._build_right_column().plain
+    assert "Agent Actions" in agents_left
+    assert "Jump to numbered member" in agents_left
+    assert "Cycle section/member forward" in agents_right
+    assert "Inherit MEMBERS then panel" in agents_right
 
 
 async def test_help_digits_do_not_load_saved_queries(monkeypatch) -> None:

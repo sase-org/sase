@@ -56,6 +56,8 @@ class NavigationMixinBase:
     _fold_mode_active: bool
     _panel_fold_overrides: SectionFoldStateManager
     _member_jump_maps: dict[tuple[Any, ...], MemberJumpMap]
+    _member_jump_pending_digit: str | None
+    _member_jump_pending_container_identity: tuple[Any, ...] | None
     _changespecs_last_idx: int
     _changespecs_last_name: str | None
     _agents_last_idx: int

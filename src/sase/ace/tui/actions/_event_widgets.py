@@ -48,6 +48,9 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         guard = getattr(self, "_guard_agent_navigation_for_artifact_file_viewer", None)
         if callable(guard) and guard():
             return
+        cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+        if callable(cancel_member_jump):
+            cancel_member_jump(refresh_footer=False)
 
         old_focused_idx = panel_group.focused_idx
         old_idx = self.current_idx
@@ -139,7 +142,11 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             panel_idx != self._panel_group.focused_idx  # type: ignore[attr-defined]
             or target_global != self.current_idx
             or event.group_key != getattr(self, "_current_group_key", None)
+            or event.attempt_number != self.current_attempt_number
         ):
+            cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+            if callable(cancel_member_jump):
+                cancel_member_jump(refresh_footer=False)
             guard = getattr(
                 self, "_guard_agent_navigation_for_artifact_file_viewer", None
             )

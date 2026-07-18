@@ -39,6 +39,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.jump_to_entry), "Jump entry/head (' first/back stack)"),
                 (d(a.jump_to_entry_fast), "Jump stack back / first hint"),
                 (d(a.jump_to_all_entries), "Jump to entry (all tabs, ` back)"),
+                ("0-9", "Jump to numbered member"),
+                ("Esc", "Cancel pending member jump"),
                 (d(a.start_sibling_mode), "Jump ancestor/neighbor/desc"),
                 (
                     f"{d(a.next_agent_metadata_section)} / "
@@ -125,12 +127,13 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(fm.prefix, ag_fold["cycle_section"]),
-                    "Cycle current section forward",
+                    "Cycle section/member forward",
                 ),
                 (
                     key_sequence_display(fm.prefix, ag_fold["toggle_section"]),
-                    "Toggle current section full/collapsed",
+                    "Toggle section/member full",
                 ),
+                ("Roster entry", "Inherit MEMBERS then panel"),
             ],
         ),
         (

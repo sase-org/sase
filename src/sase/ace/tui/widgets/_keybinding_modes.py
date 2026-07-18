@@ -181,6 +181,14 @@ class KeybindingModesMixin:
         bindings.append(("<esc>", "cancel"))
         self._update_display(bindings, mode_label="JUMP")
 
+    def update_member_jump_bindings(self, first_digit: str) -> None:
+        """Show a buffered member digit and its completion/cancel hints."""
+        bindings = [
+            ("0-9", "second digit"),
+            ("<esc>", "cancel"),
+        ]
+        self._update_display(bindings, mode_label=f"member {first_digit}▁")
+
     def update_leader_bindings(
         self,
         *,

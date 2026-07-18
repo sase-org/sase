@@ -452,7 +452,9 @@ class DetailMixin:
         current_agent: Agent | None,
     ) -> None:
         """Refresh Agents-tab footer bindings for the current selection."""
-        if getattr(self, "_fold_mode_active", False):
+        if pending_digit := getattr(self, "_member_jump_pending_digit", None):
+            footer_widget.update_member_jump_bindings(pending_digit)
+        elif getattr(self, "_fold_mode_active", False):
             footer_widget.update_fold_bindings()
         elif getattr(self, "_leader_mode_active", False):
             footer_widget.update_leader_bindings(

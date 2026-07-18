@@ -175,6 +175,9 @@ class AceApp(
         old = self._current_idx
         self._current_idx = value
         if old != value:
+            cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+            if callable(cancel_member_jump):
+                cancel_member_jump(refresh_footer=False)
             # Moving to a different agent clears any selected-attempt view.
             self._current_attempt_number = None
             if self._jk_perf is not None:
@@ -441,6 +444,10 @@ class AceApp(
         """React to tab changes by showing/hiding views."""
         if old_tab == new_tab:
             return
+
+        cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+        if callable(cancel_member_jump):
+            cancel_member_jump(refresh_footer=False)
 
         from .util.trace import set_trace_context
 

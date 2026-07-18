@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from textual.app import App, ComposeResult
 
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
@@ -75,3 +77,55 @@ async def test_repeat_bindings_update_skips_static_update() -> None:
         # Same bindings + same status → both signatures hit, zero updates.
         footer._update_display([("k", "kill")])
         assert calls == 0
+
+
+async def test_member_jump_footer_shows_pending_digit_and_completion_hints() -> None:
+    app = _Host()
+    async with app.run_test():
+        footer = app.query_one(KeybindingFooter)
+        footer._startup_stopwatch_active = False
+
+        footer.update_member_jump_bindings("1")
+
+        content = footer._content_widget
+        assert content is not None
+        assert footer._last_bindings_signature is not None
+        assert footer._last_bindings_signature[0] == (
+            " member 1▁  <esc> cancel · 0-9 second digit"
+        )
+
+
+async def test_numbered_member_binding_is_conditional_on_container_rows() -> None:
+    app = _Host()
+    async with app.run_test():
+        footer = app.query_one(KeybindingFooter)
+        common = {
+            "status": "RUNNING",
+            "pid": None,
+            "agent_name": None,
+            "workspace_num": None,
+            "attempt_history": [],
+        }
+        clan = SimpleNamespace(
+            **common,
+            is_clan_container=True,
+            is_family_container_row=False,
+        )
+        family = SimpleNamespace(
+            **common,
+            is_clan_container=False,
+            is_family_container_row=True,
+        )
+        regular = SimpleNamespace(
+            **common,
+            is_clan_container=False,
+            is_family_container_row=False,
+        )
+
+        assert ("0-9", "member") in footer._compute_agent_bindings(clan)
+        assert ("0-9", "member") in footer._compute_agent_bindings(family)
+        assert ("0-9", "member") not in footer._compute_agent_bindings(regular)
+        assert ("0-9", "member") not in footer._compute_agent_bindings(
+            clan,
+            group_focused=True,
+        )

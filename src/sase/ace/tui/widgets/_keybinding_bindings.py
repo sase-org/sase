@@ -168,6 +168,13 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
+        if (
+            not collapsed_panel_focused
+            and not group_focused
+            and (agent.is_clan_container or agent.is_family_container_row)
+        ):
+            bindings.append(("0-9", "member"))
+
         if agent.is_clan_container:
             if marked_count == 0 and not collapsed_panel_focused and not group_focused:
                 bindings.append((x, "kill/dismiss clan"))

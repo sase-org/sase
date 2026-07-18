@@ -53,6 +53,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         callers that need the post-load list synchronously must await the
         scheduled refresh via ``_schedule_agents_async_refresh(on_complete=…)``.
         """
+        cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+        if callable(cancel_member_jump):
+            cancel_member_jump(refresh_footer=False)
         # Guard: first load hasn't happened yet — kick off an async load and
         # leave ``_agents`` as-is (empty). Callers that draw the list rely on
         # the existing loading-row mechanism while the async refresh runs.
@@ -205,6 +208,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         method directly; production callers reach it via
         :meth:`_apply_loaded_agents_prepared` and :meth:`_refilter_agents`.
         """
+        cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
+        if callable(cancel_member_jump):
+            cancel_member_jump(refresh_footer=False)
         finalize_agent_list(
             cast(Any, self),
             on_agents_tab,

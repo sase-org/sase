@@ -427,6 +427,10 @@ class StateInitMixin:
         self._member_jump_maps: dict[
             tuple[AgentType, str, str | None], MemberJumpMap
         ] = {}
+        self._member_jump_pending_digit: str | None = None
+        self._member_jump_pending_container_identity: (
+            tuple[AgentType, str, str | None] | None
+        ) = None
 
         # Group fold: tracks per-group collapse state for the agents-tab
         # two-level grouping tree (project → name-root).  Layers *above*
