@@ -8,7 +8,7 @@ The implementation is split across repos:
 
 - `sase` owns user configuration, CLI startup, and lifecycle glue through `sase mobile gateway start`.
 - `sase.integrations.mobile_notifications` is the stable Python facade used by the gateway host bridge to project local
-  notifications, build attachment manifests, and execute plan/HITL/question actions. The sibling
+  notifications, build attachment manifests, and execute generic gate or specialized question actions. The sibling
   `_mobile_notification_*` modules are internal implementation details.
 - `sase.integrations.mobile_agents` and `sase.integrations.mobile_helpers` are the fixed-operation bridge facades used
   by the Rust gateway to list/launch/kill/retry agents and to expose ChangeSpec, xprompt, bead, and update helpers. The
@@ -108,6 +108,16 @@ Helper bridge operations:
 | `sase mobile helper-bridge beads-show`      | Inspect one bead by ID                                 |
 | `sase mobile helper-bridge update-start`    | Start the configured SASE update worker                |
 | `sase mobile helper-bridge update-status`   | Poll structured update worker status                   |
+
+Notification bridge operations:
+
+| Command                                           | Purpose                                       |
+| ------------------------------------------------- | --------------------------------------------- |
+| `sase mobile notification-bridge gate-action`     | Execute selected option IDs for any gate kind |
+| `sase mobile notification-bridge question-action` | Execute a complete specialized question form  |
+
+Both commands read a schema-versioned request from stdin and write one action result to stdout. Gate action requests
+contain only a pending-action prefix, `selected_option_ids`, and optional feedback.
 
 ## Push Hints
 
@@ -333,13 +343,13 @@ curl -sS "$BASE_URL/api/v1/notifications/$NOTIFICATION_ID" \
   -H "$AUTH_HEADER"
 ```
 
-Detail responses include full notes, action state, and attachment manifests. A `CustomGate` row projects
-`action.kind: "custom_gate"` plus its verified terminal choices. Each choice includes `id`, `label`, optional `icon`,
-`feedback` (`disabled`, `optional`, or `required`), and ordered `extras`; each extra includes `id`, `label`, optional
-`icon`, and `default_selected`. Mobile clients keep selection state locally and submit only the chosen id, selected
-extra ids, and feedback through the host bridge — never a command, path, cwd, or environment value. Download tokens are
-minted only in detail responses, are bound to the authenticated device, expire after a short TTL, and must still pass
-path and size checks at download time.
+Detail responses include full notes, action state, and attachment manifests. Every actionable gate kind projects the
+same verified `branches` model. A branch contains `options`; each option includes `id`, `label`, optional `icon`,
+`default_selected`, and `feedback` (`disabled`, `optional`, or `required`). Group branches also include `submit`
+metadata with the button label and optional icon. Mobile clients keep selection state locally and submit only option IDs
+from one branch plus feedback through the host bridge — never a command, path, cwd, or environment value. Download
+tokens are minted only in detail responses, are bound to the authenticated device, expire after a short TTL, and must
+still pass path and size checks at download time.
 
 Mark a notification read or dismiss it without taking its pending action:
 
@@ -355,60 +365,25 @@ Both routes mutate only notification state and return `notification_id`, `read`,
 route is idempotent: `changed` is `false` when the requested state was already set. Successful state mutations audit the
 device and publish `notifications_changed` so clients can refresh list/detail state.
 
-Plan approval actions use the notification ID or any unique pending-action prefix:
+All gate actions, including plan, epic, HITL, launch, and custom gates, use the notification ID or any unique
+pending-action prefix. Submit the selected option IDs exactly as presented by one branch:
 
 ```bash
 PREFIX="abcdef12"
 
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/approve" \
+curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"commit_plan":true,"run_coder":false}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/run" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"coder_prompt":"Focus on tests"}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/reject" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"feedback":"Please narrow the scope"}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/feedback" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"feedback":"Revise the rollout section"}'
+  -d '{"schema_version":4,"selected_option_ids":["approve","commit"],"feedback":null}'
 ```
 
-Epic approvals use the same route shape:
+For a feedback branch, send its option ID and the supplied text:
 
 ```bash
-curl -sS -X POST "$BASE_URL/api/v1/actions/plan/$PREFIX/epic" \
+curl -sS -X POST "$BASE_URL/api/v1/actions/gate/$PREFIX" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1}'
-```
-
-HITL prompts can be accepted, rejected, or returned with feedback:
-
-```bash
-HITL_PREFIX="hitl0001"
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/accept" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/reject" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1}'
-
-curl -sS -X POST "$BASE_URL/api/v1/actions/hitl/$HITL_PREFIX/feedback" \
-  -H "$AUTH_HEADER" \
-  -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"feedback":"Use a smaller change"}'
+  -d '{"schema_version":4,"selected_option_ids":["feedback"],"feedback":"Revise the rollout section"}'
 ```
 
 Question prompts support stable option IDs, option indices, labels, and custom free text:
@@ -419,17 +394,17 @@ QUESTION_PREFIX="quest001"
 curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/answer" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"selected_option_id":"safe","global_note":"Use the durable path"}'
+  -d '{"schema_version":4,"selected_option_id":"safe","global_note":"Use the durable path"}'
 
 curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/answer" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"selected_option_index":1}'
+  -d '{"schema_version":4,"selected_option_index":1}'
 
 curl -sS -X POST "$BASE_URL/api/v1/actions/question/$QUESTION_PREFIX/custom" \
   -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"schema_version":1,"custom_answer":"Use SQLite","global_note":"Small local DB"}'
+  -d '{"schema_version":4,"custom_answer":"Use SQLite","global_note":"Small local DB"}'
 ```
 
 Download an attachment by using a token from a notification detail response:

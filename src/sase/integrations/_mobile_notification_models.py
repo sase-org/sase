@@ -60,16 +60,17 @@ class MobileNotificationBridgeSnapshot:
 
 
 @dataclass(frozen=True)
-class MobilePlanActionResult:
+class MobileGateActionResult:
     prefix: str
     notification_id: str
+    action_kind: str
     response_file: str
     response_json: dict[str, Any]
     message: str
 
 
-class MobilePlanActionError(RuntimeError):
-    """Deterministic host-side plan action failure."""
+class MobileGateActionError(RuntimeError):
+    """Deterministic host-side gate action failure."""
 
     def __init__(self, code: str, target: str, message: str) -> None:
         super().__init__(message)

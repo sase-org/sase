@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from sase.integrations._mobile_notification_models import (
+    MobileGateActionError,
+    MobileGateActionResult,
     MobileNotificationBridgeRow,
-    MobilePlanActionError,
-    MobilePlanActionResult,
 )
 from sase.integrations._mobile_notification_snapshot import (
     resolve_mobile_notification_detail,
@@ -18,43 +17,42 @@ from sase.integrations._mobile_notification_snapshot import (
 from sase.integrations._mobile_notification_side_effects import (
     dismiss_notification_best_effort,
 )
-from sase.launch_approval_actions import (
-    LaunchApprovalActionContext,
-    LaunchApprovalActionError,
-    execute_launch_approval_response,
-)
-from sase.plan_approval_actions import (
-    PLAN_APPROVAL_ACTIONS,
-    PlanApprovalActionContext,
-    PlanApprovalActionError,
-    execute_plan_approval_response,
-)
 
 
-def execute_mobile_custom_gate_action(
+_MOBILE_GATE_ACTION_KINDS = {
+    "PlanApproval": "plan_approval",
+    "EpicApproval": "epic_approval",
+    "HITL": "hitl",
+    "LaunchApproval": "launch_approval",
+    "CustomGate": "custom_gate",
+}
+
+
+def execute_mobile_gate_action(
     prefix: str,
-    choice: str,
+    selected_option_ids: Sequence[str],
     *,
-    extra_ids: Sequence[str] = (),
     feedback: str | None = None,
-) -> MobilePlanActionResult:
-    """Resolve a mobile custom-gate submission through the shared executor."""
-    notification = _resolve_action_notification(prefix, "CustomGate")
-    from sase.notification_gates.executor import execute_gate_choice
+) -> MobileGateActionResult:
+    """Resolve any non-question mobile gate through the verified executor."""
+    notification = _resolve_gate_notification(prefix)
+    from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME, resolve_action_bundle
 
-    bundle = resolve_action_bundle("CustomGate", notification.host_action_data)
+    bundle = resolve_action_bundle(
+        notification.action or "",
+        notification.host_action_data,
+    )
     if bundle is None or bundle.legacy or not bundle.request.is_file():
-        raise MobilePlanActionError(
-            "invalid_request", "bundle_path", "custom gate bundle is missing"
+        raise MobileGateActionError(
+            "invalid_request", "bundle_path", "v2 gate bundle is missing"
         )
     try:
-        execution = execute_gate_choice(
+        execution = execute_gate_selection(
             bundle.root,
-            choice,
+            selected_option_ids,
             {},
-            selected_extra_ids=extra_ids,
             feedback=feedback,
             source="mobile",
         )
@@ -64,146 +62,22 @@ def execute_mobile_custom_gate_action(
             if exc.code in {"already_answered", "gate_cancelled"}
             else exc.code
         )
-        raise MobilePlanActionError(code, exc.target, str(exc)) from exc
+        raise MobileGateActionError(code, exc.target, str(exc)) from exc
     if execution.already_completed:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "conflict_already_handled",
             notification.id,
             "response already exists",
         )
     dismiss_notification_best_effort(notification.id)
-    return MobilePlanActionResult(
+    action = notification.action or ""
+    return MobileGateActionResult(
         prefix=prefix,
         notification_id=notification.id,
+        action_kind=_MOBILE_GATE_ACTION_KINDS[action],
         response_file=RESPONSE_FILENAME,
         response_json=execution.response,
-        message=f"Custom gate resolved with {choice}",
-    )
-
-
-def execute_mobile_plan_action(
-    prefix: str,
-    choice: str,
-    *,
-    feedback: str | None = None,
-    commit_plan: bool | None = None,
-    run_coder: bool | None = None,
-    coder_prompt: str | None = None,
-    coder_model: str | None = None,
-) -> MobilePlanActionResult:
-    """Write a plan approval response and run best-effort host side effects."""
-    from sase.notifications.pending_actions import resolve_prefix
-
-    identity = resolve_prefix(prefix)
-    if identity.resolution == "missing":
-        raise MobilePlanActionError("not_found", prefix, "action prefix not found")
-    if identity.resolution in {"ambiguous_prefix", "duplicate_full_id"}:
-        raise MobilePlanActionError(
-            "ambiguous_prefix", prefix, "action prefix is ambiguous"
-        )
-
-    notification = resolve_mobile_notification_detail(identity.notification_id)
-    if notification is None:
-        raise MobilePlanActionError(
-            "not_found", identity.notification_id, "notification not found"
-        )
-    if notification.action not in PLAN_APPROVAL_ACTIONS:
-        raise MobilePlanActionError(
-            "unsupported_action",
-            notification.action or "non_action",
-            "notification is not a plan approval",
-        )
-    if notification.action_state == "already_handled":
-        raise MobilePlanActionError(
-            "conflict_already_handled",
-            notification.id,
-            "action already handled",
-        )
-    if notification.action_state == "stale":
-        raise MobilePlanActionError("gone_stale", notification.id, "action is stale")
-    if notification.action_state in {"missing_request", "missing_target"}:
-        raise MobilePlanActionError(
-            "invalid_request", notification.id, f"action is {notification.action_state}"
-        )
-
-    from sase.notification_gates.paths import resolve_action_bundle
-
-    bundle = resolve_action_bundle(
-        notification.action,
-        notification.host_action_data,
-    )
-    if bundle is None or not bundle.root.is_dir():
-        raise MobilePlanActionError(
-            "invalid_request", "response_dir", "response_dir is missing"
-        )
-    if not bundle.request.is_file():
-        raise MobilePlanActionError(
-            "conflict_already_handled",
-            notification.id,
-            "plan request was already consumed",
-        )
-    if not notification.host_files:
-        raise MobilePlanActionError(
-            "invalid_request", "plan_file", "plan file is missing"
-        )
-
-    try:
-        action_result = execute_plan_approval_response(
-            PlanApprovalActionContext(
-                id=notification.id,
-                host_files=tuple(notification.host_files),
-                host_action_data=dict(notification.host_action_data),
-            ),
-            choice,
-            feedback=feedback,
-            commit_plan=commit_plan,
-            run_coder=run_coder,
-            coder_prompt=coder_prompt,
-            coder_model=coder_model,
-        )
-    except PlanApprovalActionError as exc:
-        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
-    return MobilePlanActionResult(
-        prefix=prefix,
-        notification_id=notification.id,
-        response_file=action_result.response_file,
-        response_json=action_result.response_json,
-        message=action_result.message,
-    )
-
-
-def execute_mobile_hitl_action(
-    prefix: str,
-    choice: str,
-    *,
-    feedback: str | None = None,
-) -> MobilePlanActionResult:
-    """Write a workflow HITL response and dismiss the notification."""
-    notification = _resolve_action_notification(prefix, "HITL")
-    artifacts_dir = Path(
-        notification.host_action_data.get("artifacts_dir", "")
-    ).expanduser()
-    if not artifacts_dir.is_dir():
-        raise MobilePlanActionError(
-            "invalid_request", "artifacts_dir", "artifacts_dir is missing"
-        )
-    if not (artifacts_dir / "hitl_request.json").is_file():
-        raise MobilePlanActionError(
-            "conflict_already_handled",
-            notification.id,
-            "HITL request was already consumed",
-        )
-
-    response_json, message = _hitl_response_json(choice, feedback=feedback)
-    response_path = artifacts_dir / "hitl_response.json"
-    _write_json_once(response_path, response_json, notification.id)
-    dismiss_notification_best_effort(notification.id)
-    return MobilePlanActionResult(
-        prefix=prefix,
-        notification_id=notification.id,
-        response_file="hitl_response.json",
-        response_json=response_json,
-        message=message,
+        message=f"Gate resolved with {', '.join(execution.response['selected_option_ids'])}",
     )
 
 
@@ -217,7 +91,7 @@ def execute_mobile_question_action(
     selected_option_index: int | None = None,
     custom_answer: str | None = None,
     global_note: str | None = None,
-) -> MobilePlanActionResult:
+) -> MobileGateActionResult:
     """Execute a complete user-question form through the shared gate path."""
     notification = _resolve_action_notification(prefix, "UserQuestion")
     from sase.user_question_actions import (
@@ -235,13 +109,13 @@ def execute_mobile_question_action(
         notification.host_action_data.get("response_dir", "")
     ).expanduser()
     if not response_dir.is_dir():
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", "response_dir", "response_dir is missing"
         )
     try:
         request_data = read_user_question_request(response_dir)
     except UserQuestionActionError as exc:
-        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
+        raise MobileGateActionError(exc.code, exc.target, str(exc)) from exc
 
     response_json = _question_response_json(
         request_data,
@@ -260,42 +134,14 @@ def execute_mobile_question_action(
             source="mobile",
         )
     except UserQuestionActionError as exc:
-        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
-    return MobilePlanActionResult(
+        raise MobileGateActionError(exc.code, exc.target, str(exc)) from exc
+    return MobileGateActionResult(
         prefix=prefix,
         notification_id=notification.id,
+        action_kind="user_question",
         response_file=result.response_file,
         response_json=result.response_json,
         message=result.message,
-    )
-
-
-def execute_mobile_launch_action(
-    prefix: str,
-    choice: str,
-    *,
-    feedback: str | None = None,
-) -> MobilePlanActionResult:
-    """Write a launch approval response and dismiss the notification."""
-    notification = _resolve_action_notification(prefix, "LaunchApproval")
-    try:
-        action_result = execute_launch_approval_response(
-            LaunchApprovalActionContext(
-                id=notification.id,
-                host_files=tuple(notification.host_files),
-                host_action_data=dict(notification.host_action_data),
-            ),
-            choice,
-            feedback=feedback,
-        )
-    except LaunchApprovalActionError as exc:
-        raise MobilePlanActionError(exc.code, exc.target, str(exc)) from exc
-    return MobilePlanActionResult(
-        prefix=prefix,
-        notification_id=notification.id,
-        response_file=action_result.response_file,
-        response_json=action_result.response_json,
-        message=action_result.message,
     )
 
 
@@ -307,59 +153,77 @@ def _resolve_action_notification(
 
     identity = resolve_prefix(prefix)
     if identity.resolution == "missing":
-        raise MobilePlanActionError("not_found", prefix, "action prefix not found")
+        raise MobileGateActionError("not_found", prefix, "action prefix not found")
     if identity.resolution in {"ambiguous_prefix", "duplicate_full_id"}:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "ambiguous_prefix", prefix, "action prefix is ambiguous"
         )
 
     notification = resolve_mobile_notification_detail(identity.notification_id)
     if notification is None:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "not_found", identity.notification_id, "notification not found"
         )
     if notification.action != expected_action:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "unsupported_action",
             notification.action or "non_action",
             f"notification is not {expected_action}",
         )
     if notification.action_state == "already_handled":
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "conflict_already_handled",
             notification.id,
             "action already handled",
         )
     if notification.action_state == "stale":
-        raise MobilePlanActionError("gone_stale", notification.id, "action is stale")
+        raise MobileGateActionError("gone_stale", notification.id, "action is stale")
     if notification.action_state in {"missing_request", "missing_target"}:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", notification.id, f"action is {notification.action_state}"
         )
     return notification
 
 
-def _hitl_response_json(
-    choice: str,
-    *,
-    feedback: str | None,
-) -> tuple[dict[str, Any], str]:
-    if choice == "accept":
-        return {"action": "accept", "approved": True}, "HITL accepted"
-    if choice == "reject":
-        return {"action": "reject", "approved": False}, "HITL rejected"
-    if choice == "feedback":
-        if not feedback:
-            raise MobilePlanActionError(
-                "invalid_request", "feedback", "feedback text is required"
-            )
-        return (
-            {"action": "feedback", "approved": False, "feedback": feedback},
-            "HITL feedback received",
+def _resolve_gate_notification(prefix: str) -> MobileNotificationBridgeRow:
+    notification = _resolve_action_notification_for_any_kind(prefix)
+    if notification.action not in _MOBILE_GATE_ACTION_KINDS:
+        raise MobileGateActionError(
+            "unsupported_action",
+            notification.action or "non_action",
+            "notification is not a selectable gate",
         )
-    raise MobilePlanActionError(
-        "unsupported_action", choice, "unsupported HITL action choice"
-    )
+    return notification
+
+
+def _resolve_action_notification_for_any_kind(
+    prefix: str,
+) -> MobileNotificationBridgeRow:
+    from sase.notifications.pending_actions import resolve_prefix
+
+    identity = resolve_prefix(prefix)
+    if identity.resolution == "missing":
+        raise MobileGateActionError("not_found", prefix, "action prefix not found")
+    if identity.resolution in {"ambiguous_prefix", "duplicate_full_id"}:
+        raise MobileGateActionError(
+            "ambiguous_prefix", prefix, "action prefix is ambiguous"
+        )
+    notification = resolve_mobile_notification_detail(identity.notification_id)
+    if notification is None:
+        raise MobileGateActionError(
+            "not_found", identity.notification_id, "notification not found"
+        )
+    if notification.action_state == "already_handled":
+        raise MobileGateActionError(
+            "conflict_already_handled", notification.id, "action already handled"
+        )
+    if notification.action_state == "stale":
+        raise MobileGateActionError("gone_stale", notification.id, "action is stale")
+    if notification.action_state in {"missing_request", "missing_target"}:
+        raise MobileGateActionError(
+            "invalid_request", notification.id, f"action is {notification.action_state}"
+        )
+    return notification
 
 
 def _question_response_json(
@@ -375,18 +239,18 @@ def _question_response_json(
 ) -> dict[str, Any]:
     questions = request_data.get("questions")
     if not isinstance(questions, list):
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", "questions", "question_request.json missing questions"
         )
     index = question_index or 0
     try:
         question = questions[index]
     except IndexError as exc:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", "question_index", "question index is not available"
         ) from exc
     if not isinstance(question, dict):
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", "question", "question entry is malformed"
         )
 
@@ -402,13 +266,13 @@ def _question_response_json(
         custom_feedback = None
     elif choice == "custom":
         if custom_answer is None:
-            raise MobilePlanActionError(
+            raise MobileGateActionError(
                 "invalid_request", "custom_answer", "custom answer is required"
             )
         selected = []
         custom_feedback = custom_answer
     else:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "unsupported_action", choice, "unsupported question action choice"
         )
 
@@ -435,7 +299,7 @@ def _resolve_question_option_label(
         return selected_option_label
     options = question.get("options")
     if not isinstance(options, list):
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request", "options", "question is missing options"
         )
     option: Any
@@ -445,13 +309,13 @@ def _resolve_question_option_label(
                 label = option.get("label")
                 if isinstance(label, str):
                     return label
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request",
             "selected_option_id",
             "question option id is not available",
         )
     if selected_option_index is None:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request",
             "selected_option",
             "question answer requires a selected option",
@@ -459,28 +323,13 @@ def _resolve_question_option_label(
     try:
         option = options[selected_option_index]
     except IndexError as exc:
-        raise MobilePlanActionError(
+        raise MobileGateActionError(
             "invalid_request",
             "selected_option_index",
             "question option index is not available",
         ) from exc
     if isinstance(option, dict) and isinstance(option.get("label"), str):
         return option["label"]
-    raise MobilePlanActionError(
+    raise MobileGateActionError(
         "invalid_request", "label", "question option is missing a label"
     )
-
-
-def _write_json_once(
-    response_path: Path,
-    response_json: dict[str, Any],
-    notification_id: str,
-) -> None:
-    try:
-        with response_path.open("x", encoding="utf-8") as f:
-            json.dump(response_json, f, indent=2)
-            f.write("\n")
-    except FileExistsError as exc:
-        raise MobilePlanActionError(
-            "conflict_already_handled", notification_id, "response already exists"
-        ) from exc

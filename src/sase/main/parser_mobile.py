@@ -79,6 +79,22 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
 
+    notification_bridge_parser = mobile_subparsers.add_parser(
+        "notification-bridge",
+        help=argparse.SUPPRESS,
+    )
+    notification_bridge_subparsers = notification_bridge_parser.add_subparsers(
+        dest="mobile_notification_bridge_subcommand",
+    )
+    notification_bridge_subparsers.add_parser(
+        "gate-action",
+        help=argparse.SUPPRESS,
+    )
+    notification_bridge_subparsers.add_parser(
+        "question-action",
+        help=argparse.SUPPRESS,
+    )
+
     gateway_parser = mobile_subparsers.add_parser(
         "gateway",
         help="Manage the workstation-hosted mobile gateway",

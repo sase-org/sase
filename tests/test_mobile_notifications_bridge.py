@@ -4,20 +4,18 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import pytest
-
 from sase.integrations.mobile_notifications import (
+    MobileGateActionResult,
     MobileNotificationBridgeRow,
-    MobilePlanActionError,
     build_mobile_attachment_manifests,
-    execute_mobile_custom_gate_action,
-    execute_mobile_hitl_action,
-    execute_mobile_plan_action,
+    execute_mobile_gate_action,
     execute_mobile_question_action,
+    handle_mobile_notification_bridge,
     read_mobile_notification_snapshot,
     resolve_mobile_notification_detail,
 )
@@ -25,8 +23,6 @@ from sase.notification_gates.service import create_gate
 from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.user_question_actions import create_user_question_gate
-from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
-from tests.sdd_policy_helpers import patched_sdd_policy
 
 _FRESH_FIXTURE_BASE = datetime.now(UTC).replace(microsecond=0)
 
@@ -252,433 +248,6 @@ def test_mobile_bridge_includes_hitl_path_typed_outputs(tmp_path: Path) -> None:
     ]
 
 
-def test_execute_mobile_plan_action_writes_response_and_side_effects(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed") as mark_dismissed,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        result = execute_mobile_plan_action(
-            "abcdef12",
-            "run",
-            coder_prompt="Focus tests",
-        )
-
-    assert result.notification_id == "abcdef12-plan"
-    assert result.response_json == {
-        "action": "approve",
-        "commit_plan": False,
-        "run_coder": True,
-        "coder_prompt": "Focus tests",
-    }
-    assert (response_dir / "plan_response.json").read_text(encoding="utf-8") == (
-        "{\n"
-        '  "action": "approve",\n'
-        '  "commit_plan": false,\n'
-        '  "run_coder": true,\n'
-        '  "coder_prompt": "Focus tests"\n'
-        "}\n"
-    )
-    mark_dismissed.assert_called_once_with("abcdef12-plan")
-
-
-def test_execute_mobile_run_plan_action_archives_plan(tmp_path: Path) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={"response_dir": str(response_dir)},
-    )
-    saved_plan_path = str(tmp_path / "sdd" / "plans" / "202605" / "plan.md")
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed"),
-        patch(
-            "sase.plan_approval_actions._archive_plan_for_approval",
-            return_value=saved_plan_path,
-        ) as archive_plan,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        result = execute_mobile_plan_action("abcdef12", "run")
-
-    assert result.response_json == {
-        "action": "approve",
-        "commit_plan": False,
-        "run_coder": True,
-        "saved_plan_path": saved_plan_path,
-    }
-    assert json.loads((response_dir / "plan_response.json").read_text()) == (
-        result.response_json
-    )
-    archive_plan.assert_called_once()
-    assert archive_plan.call_args.args[1] == "approve"
-
-
-def test_execute_mobile_plan_action_approval_refreshes_artifact_index(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    (response_dir.parent / "agent_meta.json").write_text(
-        json.dumps({"name": "planner"}),
-        encoding="utf-8",
-    )
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed"),
-        patch(
-            "sase.plan_approval_actions.update_agent_artifact_index_for_marker_mutation"
-        ) as update_index,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        execute_mobile_plan_action("abcdef12", "approve")
-
-    meta = json.loads((response_dir.parent / "agent_meta.json").read_text())
-    assert meta["plan_approved"] is True
-    assert meta["plan_action"] == "approve"
-    update_index.assert_called_once_with(response_dir.parent)
-
-
-def test_execute_mobile_epic_action_spawns_detached_host_launch(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text(VALID_EPIC_PLAN, encoding="utf-8")
-    agent_project_file = tmp_path / "projects" / "canonical" / "canonical.sase"
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={
-            "response_dir": str(response_dir),
-            "project_dir": str(workspace),
-            "agent_project_file": str(agent_project_file),
-        },
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed"),
-        patch(
-            "sase.bead.epic_launch.resolve_epic_launch_cwd",
-            return_value=workspace,
-        ) as resolve_cwd,
-        patch("sase.bead.epic_launch.spawn_detached_epic_launch") as spawn_launch,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        result = execute_mobile_plan_action("abcdef12", "epic")
-
-    assert result.response_json["epic_launch_owner"] == "host"
-    assert "saved_plan_path" not in result.response_json
-    resolve_cwd.assert_called_once_with(
-        str(workspace),
-        agent_project_file=str(agent_project_file),
-    )
-    spawn_launch.assert_called_once()
-    assert spawn_launch.call_args.kwargs["cwd"] == workspace
-    assert not (workspace / "sdd" / "plans" / "202605" / "plan.md").exists()
-
-
-def test_execute_mobile_epic_gate_keeps_action_pending_on_failure(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed") as mark_dismissed,
-        pytest.raises(MobilePlanActionError) as exc_info,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        execute_mobile_plan_action("abcdef12", "epic")
-
-    assert exc_info.value.code == "plan_validation_failed"
-    assert not (response_dir / "plan_response.json").exists()
-    assert (response_dir / "plan_request.json").is_file()
-    mark_dismissed.assert_not_called()
-
-
-def test_execute_mobile_plan_action_rejects_duplicate_response(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "plan_approval"
-    response_dir.mkdir(parents=True)
-    (response_dir / "plan_request.json").write_text("{}", encoding="utf-8")
-    (response_dir / "plan_response.json").write_text(
-        '{"action":"approve"}', encoding="utf-8"
-    )
-    plan_file = tmp_path / "plan.md"
-    plan_file.write_text("# Plan\n", encoding="utf-8")
-    row = _notification(
-        "abcdef12-plan",
-        "2026-05-06T13:00:00+00:00",
-        action="PlanApproval",
-        files=[str(plan_file)],
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="abcdef12-plan",
-            prefix="abcdef12",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        try:
-            execute_mobile_plan_action("abcdef12", "approve")
-        except MobilePlanActionError as exc:
-            assert exc.code == "conflict_already_handled"
-        else:
-            raise AssertionError("expected duplicate response conflict")
-
-
-def test_execute_mobile_hitl_action_writes_response_and_dismisses(
-    tmp_path: Path,
-) -> None:
-    artifacts_dir = tmp_path / "agent" / "artifacts"
-    artifacts_dir.mkdir(parents=True)
-    (artifacts_dir / "hitl_request.json").write_text("{}", encoding="utf-8")
-    row = _notification(
-        "hitl0001-row",
-        "2026-05-06T13:00:00+00:00",
-        action="HITL",
-        action_data={"artifacts_dir": str(artifacts_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed") as mark_dismissed,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="hitl0001-row",
-            prefix="hitl0001",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        result = execute_mobile_hitl_action(
-            "hitl0001", "feedback", feedback="Try again"
-        )
-
-    assert result.response_file == "hitl_response.json"
-    assert result.response_json == {
-        "action": "feedback",
-        "approved": False,
-        "feedback": "Try again",
-    }
-    assert (artifacts_dir / "hitl_response.json").read_text(encoding="utf-8") == (
-        "{\n"
-        '  "action": "feedback",\n'
-        '  "approved": false,\n'
-        '  "feedback": "Try again"\n'
-        "}\n"
-    )
-    mark_dismissed.assert_called_once_with("hitl0001-row")
-
-
-def test_execute_mobile_question_action_writes_option_response(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "question"
-    response_dir.mkdir(parents=True)
-    (response_dir / "question_request.json").write_text(
-        (
-            "{\n"
-            '  "questions": [{\n'
-            '    "question": "Which path?",\n'
-            '    "options": [{"id": "fast", "label": "Fast"}, {"id": "safe", "label": "Safe"}]\n'
-            "  }]\n"
-            "}\n"
-        ),
-        encoding="utf-8",
-    )
-    row = _notification(
-        "quest001-row",
-        "2026-05-06T13:00:00+00:00",
-        action="UserQuestion",
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-        patch("sase.notifications.mark_dismissed") as mark_dismissed,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="quest001-row",
-            prefix="quest001",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        result = execute_mobile_question_action(
-            "quest001",
-            "answer",
-            selected_option_id="safe",
-            global_note="Use durable path",
-        )
-
-    assert result.response_file == "question_response.json"
-    assert result.response_json == {
-        "answers": [
-            {
-                "question": "Which path?",
-                "selected": ["Safe"],
-                "custom_feedback": None,
-            }
-        ],
-        "global_note": "Use durable path",
-    }
-    mark_dismissed.assert_called_once_with("quest001-row")
-
-
-def test_execute_mobile_question_action_rejects_invalid_option_without_write(
-    tmp_path: Path,
-) -> None:
-    response_dir = tmp_path / "agent" / "question"
-    response_dir.mkdir(parents=True)
-    (response_dir / "question_request.json").write_text(
-        '{"questions":[{"question":"Q?","options":[]}]}',
-        encoding="utf-8",
-    )
-    row = _notification(
-        "quest002-row",
-        "2026-05-06T13:00:00+00:00",
-        action="UserQuestion",
-        action_data={"response_dir": str(response_dir)},
-    )
-
-    with (
-        patch(
-            "sase.integrations._mobile_notification_snapshot.read_notification_snapshot",
-            return_value=_snapshot([row]),
-        ),
-        patch("sase.notifications.pending_actions.resolve_prefix") as resolve,
-    ):
-        resolve.return_value = SimpleNamespace(
-            notification_id="quest002-row",
-            prefix="quest002",
-            prefix_len=8,
-            resolution="unique_prefix",
-        )
-        try:
-            execute_mobile_question_action(
-                "quest002", "answer", selected_option_index=0
-            )
-        except MobilePlanActionError as exc:
-            assert exc.code == "invalid_request"
-        else:
-            raise AssertionError("expected invalid option error")
-
-    assert not (response_dir / "question_response.json").exists()
-
-
 def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
     gate = create_user_question_gate(
         [
@@ -709,13 +278,16 @@ def test_execute_mobile_question_action_uses_neutral_gate_executor() -> None:
         )
 
     assert result.response_file == "response.json"
-    assert result.response_json["choice_id"] == "submit"
-    assert result.response_json["result"]["answers"][0]["selected"] == ["Fast"]
+    assert result.action_kind == "user_question"
+    assert result.response_json["selected_option_ids"] == ["submit"]
+    assert result.response_json["option_results"][0]["result"]["answers"][0][
+        "selected"
+    ] == ["Fast"]
     assert result.response_json["feedback"] is None
     assert gate.response_path.is_file()
 
 
-def test_execute_mobile_custom_gate_action_uses_shared_executor() -> None:
+def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
     command = (
         "#!/usr/bin/env python3\n"
         "import json, sys\n"
@@ -724,23 +296,30 @@ def test_execute_mobile_custom_gate_action_uses_shared_executor() -> None:
     )
     gate = create_gate(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": "custom",
             "request_id": "mobile-custom",
+            "producer": {"agent": "test"},
+            "payload": {},
             "presentation": {"icon": "📱", "notes": ["Confirm mobile action"]},
-            "choices": [
+            "query": "(approve AND audit)",
+            "options": [
                 {
                     "id": "approve",
                     "label": "Approve",
                     "feedback": "required",
                     "command": {"argv": ["commands/approve"]},
-                    "extras": [
-                        {
-                            "id": "audit",
-                            "label": "Audit",
-                            "command": {"argv": ["commands/audit"]},
-                        }
-                    ],
+                },
+                {
+                    "id": "audit",
+                    "label": "Audit",
+                    "command": {"argv": ["commands/audit"]},
+                },
+            ],
+            "groups": [
+                {
+                    "options": ["approve", "audit"],
+                    "label": "Approve and audit",
                 }
             ],
             "resources": [
@@ -772,19 +351,60 @@ def test_execute_mobile_custom_gate_action_uses_shared_executor() -> None:
             prefix_len=8,
             resolution="unique_prefix",
         )
-        result = execute_mobile_custom_gate_action(
+        result = execute_mobile_gate_action(
             "mobile-c",
-            "approve",
-            extra_ids=["audit"],
+            ["approve", "audit"],
             feedback="Approved from mobile",
         )
 
     assert result.response_file == "response.json"
-    assert result.response_json["choice_id"] == "approve"
-    assert result.response_json["selected_extra_ids"] == ["audit"]
+    assert result.action_kind == "custom_gate"
+    assert result.response_json["selected_option_ids"] == ["approve", "audit"]
     assert result.response_json["feedback"] == "Approved from mobile"
-    assert result.response_json["extra_results"] == [
-        {"id": "audit", "status": "succeeded", "result": {"value": {}}}
+    assert result.response_json["option_results"] == [
+        {"id": "approve", "result": {"value": {}}},
+        {"id": "audit", "result": {"value": {}}},
     ]
     assert gate.response_path.is_file()
     assert load_notifications(include_dismissed=True)[0].dismissed is True
+
+
+def test_mobile_notification_bridge_forwards_gate_selection_unchanged() -> None:
+    stdin = StringIO(
+        '{"schema_version":4,"prefix":"mobile-c",'
+        '"selected_option_ids":["approve","audit"],'
+        '"feedback":"Approved from mobile"}'
+    )
+    stdout = StringIO()
+    stderr = StringIO()
+    args = SimpleNamespace(mobile_notification_bridge_subcommand="gate-action")
+    expected = MobileGateActionResult(
+        prefix="mobile-c",
+        notification_id="mobile-custom-row",
+        action_kind="custom_gate",
+        response_file="response.json",
+        response_json={"selected_option_ids": ["approve", "audit"]},
+        message="Gate resolved",
+    )
+
+    with patch(
+        "sase.integrations.mobile_notifications.execute_mobile_gate_action",
+        return_value=expected,
+    ) as execute:
+        exit_code = handle_mobile_notification_bridge(
+            args,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    assert exit_code == 0
+    execute.assert_called_once_with(
+        "mobile-c",
+        ["approve", "audit"],
+        feedback="Approved from mobile",
+    )
+    assert json.loads(stdout.getvalue())["response_json"] == {
+        "selected_option_ids": ["approve", "audit"]
+    }
+    assert stderr.getvalue() == ""

@@ -313,6 +313,15 @@ def test_parser_accepts_mobile_agent_bridge_retry_agent() -> None:
     assert args.mobile_agent_bridge_subcommand == "retry-agent"
 
 
+@pytest.mark.parametrize("operation", ["gate-action", "question-action"])
+def test_parser_accepts_mobile_notification_bridge(operation: str) -> None:
+    args = create_parser().parse_args(["mobile", "notification-bridge", operation])
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "notification-bridge"
+    assert args.mobile_notification_bridge_subcommand == operation
+
+
 class _FakeResponse:
     def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload

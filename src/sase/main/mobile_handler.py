@@ -19,6 +19,12 @@ def handle_mobile_command(args: argparse.Namespace) -> None:
         from sase.integrations.mobile_helpers import handle_mobile_helper_bridge
 
         sys.exit(handle_mobile_helper_bridge(args))
+    if sub == "notification-bridge":
+        from sase.integrations.mobile_notifications import (
+            handle_mobile_notification_bridge,
+        )
+
+        sys.exit(handle_mobile_notification_bridge(args))
 
     if sub == "gateway" and gateway_sub == "start":
         from sase.integrations.mobile_gateway import handle_mobile_gateway_start
@@ -26,5 +32,8 @@ def handle_mobile_command(args: argparse.Namespace) -> None:
         handle_mobile_gateway_start(args)
         return
 
-    print("Usage: sase mobile {gateway,agent-bridge,helper-bridge}", file=sys.stderr)
+    print(
+        "Usage: sase mobile {gateway,agent-bridge,helper-bridge,notification-bridge}",
+        file=sys.stderr,
+    )
     sys.exit(1)
