@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
@@ -252,6 +253,27 @@ def test_debounced_refresh_runs_immediate_phase_only() -> None:
     assert app.detail_widget.immediate_calls == [("agent_0", None)]
     assert app.detail_widget.full_calls == []
     assert app._agent_detail_debouncer.is_pending
+
+
+def test_debounced_clan_refresh_defers_multisection_summary() -> None:
+    member = _make_agent("clan-phase")
+    member.agent_name = "benchmark.phase"
+    member.agent_clan = "benchmark"
+    member.agent_clan_generation = "20260718120000"
+    clan = next(
+        agent for agent in project_clan_tree([member]) if agent.is_clan_container
+    )
+    app = _FakeApp(agents=[clan])
+
+    app._refresh_agents_display_debounced()
+
+    assert app.detail_widget.immediate_calls == []
+    assert app.detail_widget.full_calls == []
+    assert app._agent_detail_debouncer.is_pending
+
+    app._fire_debounced_detail_update()
+
+    assert app.detail_widget.full_calls == [(clan.cl_name, None)]
 
 
 def test_jk_burst_only_full_updates_final_selection() -> None:

@@ -2,11 +2,11 @@
 
 SASE uses three different kinds of agent grouping:
 
-| Concept          | Directive or naming form      | Purpose                                                              |
-| ---------------- | ----------------------------- | -------------------------------------------------------------------- |
-| **Agent clan**   | `%clan:<name>` / `%c:<name>`  | A named, rootless container for agents that run in parallel          |
-| **Agent family** | `%n(parent, suffix)`          | A strictly sequential chain named `<family>--<suffix>`               |
-| **Agent tribe**  | `%tribe:<name>` / `%t:<name>` | A user-managed label displayed with an `@` prefix, such as `@review` |
+| Concept          | Directive or naming form                        | Purpose                                                              |
+| ---------------- | ----------------------------------------------- | -------------------------------------------------------------------- |
+| **Agent clan**   | `%clan:<name>` / `%clan(<name>, tribe=<tribe>)` | A named, rootless container for agents that run in parallel          |
+| **Agent family** | `%n(parent, suffix)`                            | A strictly sequential chain named `<family>--<suffix>`               |
+| **Agent tribe**  | `%tribe:<name>` / `%t:<name>`                   | A user-managed label displayed with an `@` prefix, such as `@review` |
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. Clans use that
 namespace rule deliberately, while dotted names alone do not create clan or family membership.
@@ -31,9 +31,10 @@ Test the release.
 Publish the release after both members finish.
 ```
 
-The short form is `%c:release`. Clan declarations are colon-only: parenthesized forms and member roles are not
-supported. Static names and templates such as `%clan:research.@` work; segments with the same raw template in one batch
-resolve to one clan generation. A later launch can join the newest existing clan generation by using its resolved name.
+The short form is `%c:release`. Use `%clan(<name>, tribe=<tribe>)` (or the `%c(...)` alias) to assign one tribe to the
+entire clan generation; a separate `%tribe` directive cannot be combined with `%clan`. Static names and templates such
+as `%clan:research.@` work; segments with the same raw template in one batch resolve to one clan generation. A later
+launch can join the newest existing clan generation by using its resolved name.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
 rewrite a member's name. Use `%wait` explicitly wherever ordering is required. `%clan` and the family-attachment form
@@ -87,13 +88,11 @@ an epic named `sase-6g`, the generated prompt has this shape:
 
 ```text
 %name:!sase-6g.1
-%clan:sase-6g
-%tribe:epic
+%clan(sase-6g, tribe=epic)
 #bd/work_phase_bead:sase-6g.1
 ---
 %name:!sase-6g.land
-%clan:sase-6g
-%tribe:epic
+%clan(sase-6g, tribe=epic)
 %wait:sase-6g.1
 #bd/land_epic:sase-6g
 ```

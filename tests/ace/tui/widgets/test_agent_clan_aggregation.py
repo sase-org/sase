@@ -7,11 +7,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.models._agent_clan_sections import (
+    CLAN_DISK_SECTIONS,
     ClanDiskMemberSnapshot,
     ClanDiskSnapshot,
     ClanTextEntry,
@@ -19,6 +21,7 @@ from sase.ace.tui.models._agent_clan_sections import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
@@ -30,6 +33,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display import AgentDisplayMixin
+from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
+    clan_disk_sections_for_fold_state,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from sase.ace.tui.widgets.prompt_panel._artifact_files import ArtifactFilePath
 from sase.ace.tui.widgets.prompt_panel._messages import ClanSectionSnapshotLoaded
@@ -335,6 +341,7 @@ class _ClanPanel(AgentDisplayMixin):
         self.messages: list[object] = []
         self.worker = _FakeWorker()
         self.worker_fn: Callable[[], object] | None = None
+        self.worker_runs = 0
 
     def update(self, renderable: object) -> None:
         self.captured.append(renderable)
@@ -344,6 +351,7 @@ class _ClanPanel(AgentDisplayMixin):
 
     def run_worker(self, fn: Callable[[], object], *, thread: bool) -> _FakeWorker:
         assert thread
+        self.worker_runs += 1
         self.worker_fn = fn
         self.worker = _FakeWorker()
         return self.worker
@@ -375,6 +383,69 @@ def _disk_for(snapshot: Any) -> ClanDiskSnapshot:
         context_lanes=(),
         slow_tool_calls=(),
     )
+
+
+def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "raw_xprompt.md").write_text(
+        "#review representative segment\n",
+        encoding="utf-8",
+    )
+    (artifacts / "01_prompt.md").write_text(
+        "Inspect the clan summary contract.\n",
+        encoding="utf-8",
+    )
+    response = artifacts / "response.md"
+    response.write_text("Representative reply.\n", encoding="utf-8")
+    member = _agent(
+        "research.one",
+        artifacts_dir=str(artifacts),
+        response_path=str(response),
+    )
+    container = project_clan_tree([member])[0]
+    panel = _ClanPanel()
+    panel.set_agent_detail_render_context(
+        generation=3,
+        attempt_view_mode="merged",
+        attempt_pinned_number=None,
+        is_current=lambda identity, *_args: identity == container.identity,
+    )
+    panel.set_clan_disk_sections_required(
+        clan_disk_sections_for_fold_state(FoldLevel.COLLAPSED)
+    )
+
+    panel.update_display(container)
+
+    cold = cast(Text, panel.captured[-1]).plain
+    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
+        assert f"▸ {heading}" in cold
+    assert "▸ REPLIES ·" not in cold
+    assert panel.worker_runs == 1
+    assert panel.worker_fn is not None
+
+    panel.worker.result = panel.worker_fn()
+    panel._apply_clan_section_enrichment_result(
+        cast(Worker[Any], panel.worker),
+        WorkerState.SUCCESS,
+    )
+    panel.update_display(container)
+
+    cached = get_cached_clan_section_snapshot(panel, container)
+    assert cached is not None and cached.disk is not None
+    assert cached.disk.loaded_sections == CLAN_DISK_SECTIONS
+    assert [entry.preview for entry in cached.disk.replies] == ["Representative reply."]
+    assert [entry.preview for entry in cached.disk.prompts] == [
+        "#review representative segment",
+        "Inspect the clan summary contract.",
+    ]
+    enriched = cast(Text, panel.captured[-1]).plain
+    assert "▸ REPLIES · 1" in enriched
+    assert "▸ PROMPTS · 2" in enriched
+    assert "SLOW TOOL CALLS" not in enriched
+    assert panel.worker_runs == 1
 
 
 def test_clan_worker_coalesces_and_discards_stale_selection(

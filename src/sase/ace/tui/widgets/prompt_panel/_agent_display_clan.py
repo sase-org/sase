@@ -100,18 +100,15 @@ def clan_disk_sections_for_fold_state(
     panel_level: FoldLevel,
     overrides: Mapping[str, FoldLevel] | None = None,
 ) -> frozenset[ClanDiskSection]:
-    """Return disk-backed sections whose effective level needs content."""
-    effective_overrides = overrides or {}
-    return frozenset(
-        disk_section
-        for section_id, disk_section in _DISK_SECTION_IDS.items()
-        if _effective_fold_level(
-            section_id,
-            panel_level,
-            effective_overrides,
-        )
-        != FoldLevel.COLLAPSED
-    )
+    """Return sections needed to discover presence or render open bodies.
+
+    Even a collapsed clan summary needs one off-thread enrichment pass to
+    distinguish represented disk-backed sections from known-empty ones.  The
+    first paint remains pure: it renders these still-unknown headings without
+    counts while the existing worker populates the mtime-keyed cache.
+    """
+    del panel_level, overrides
+    return frozenset(_DISK_SECTION_IDS.values())
 
 
 def clan_fold_state_from_widget(

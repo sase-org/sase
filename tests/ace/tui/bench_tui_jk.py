@@ -25,6 +25,7 @@ import os
 import statistics
 import sys
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,6 +36,8 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.fold_state import FoldLevel
 
 pytestmark = pytest.mark.slow
 
@@ -99,6 +102,40 @@ def _install_agents_fixture(app: AceApp, count: int = 240) -> None:
     app._invalidate_agent_panel_cache()
 
 
+def _make_clan_member(i: int) -> Agent:
+    clan = f"bench-clan-{i:03d}"
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=f"{clan}-phase",
+        project_file="/tmp/bench/clans/project.sase",
+        status="FAILED" if i % 7 == 0 else "RUNNING",
+        start_time=datetime(2026, 7, 18, 12, i % 60, 0),
+        raw_suffix=f"2026071812{i:04d}-phase",
+        agent_name=f"{clan}.phase",
+        agent_clan=clan,
+        agent_clan_generation=f"20260718{i:06d}",
+        clan_tribe="perf",
+        error_message="representative failure" if i % 7 == 0 else None,
+        output_variables={"summary": f"clan {i} ready"},
+        model="gpt-5",
+    )
+
+
+def _install_clan_agents_fixture(app: AceApp, count: int = 48) -> None:
+    projected = project_clan_tree([_make_clan_member(i) for i in range(count)])
+    visible = [agent for agent in projected if agent.is_clan_container]
+    registry = AgentGroupFoldRegistry()
+    app._agents = visible
+    app._agents_with_children = list(projected)
+    app._fold_counts = {}
+    app._group_fold_registry = registry
+    app._panel_group = AgentPanelGroup.from_agents(visible)
+    app._agent_panels_grouped = False
+    app._current_group_key = None
+    app.current_idx = 0
+    app._invalidate_agent_panel_cache()
+
+
 @pytest.fixture
 def _perf_jsonl(
     tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
@@ -106,6 +143,10 @@ def _perf_jsonl(
     log_path = Path(str(tmp_path)) / "tui_jk.jsonl"  # type: ignore[arg-type]
     monkeypatch.setenv("SASE_TUI_PERF", "1")
     monkeypatch.setenv("SASE_TUI_PERF_PATH", str(log_path))
+    monkeypatch.setenv(
+        "SASE_TUI_STALL_PATH",
+        str(log_path.with_name("tui_stalls.jsonl")),
+    )
     yield log_path
 
 
@@ -238,6 +279,48 @@ async def test_bench_agents_jk_and_panel_navigation(_perf_jsonl: Path) -> None:
     summary = _summarize(samples)
     _print_table("Agents tab j/k/J/K synthetic large-list baseline:", summary)
     assert any(s.get("tab") == "agents" for s in samples)
+
+
+async def test_bench_clan_jk_at_each_panel_fold_level(_perf_jsonl: Path) -> None:
+    """Keep clan key-to-paint p95 below budget at levels 1, 2, and 3."""
+    app = AceApp(query="!!!", auto_start_axe=False)
+    level_summaries: dict[FoldLevel, dict[str, dict[str, float]]] = {}
+    async with app.run_test() as pilot:
+        await _wait_for_startup(app, pilot)
+        await pilot.press("ctrl+l")
+        await pilot.pause()
+        _install_clan_agents_fixture(app)
+        app._refresh_agents_display(list_changed=True, defer_detail=True)
+        # Let the initial clan aggregation and the Textual layout pass settle;
+        # the samples below measure steady-state navigation, not fixture mount.
+        await pilot.pause(0.2)
+        assert app._agents
+        assert all(agent.is_clan_container for agent in app._agents)
+
+        for index, level in enumerate(FoldLevel):
+            assert app.panel_fold_level is level
+            before = len(_read_samples(_perf_jsonl))
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("j")
+                await pilot.pause(0.01)
+            for _ in range(_KEYS_PER_SCENARIO):
+                await pilot.press("k")
+                await pilot.pause(0.01)
+            samples = _read_samples(_perf_jsonl)[before:]
+            summary = _summarize(samples)
+            level_summaries[level] = summary
+            _print_table(f"Agents clan fold level {index + 1}:", summary)
+            assert samples
+            assert all(stats["p95"] < 16.0 for stats in summary.values()), (
+                f"clan fold level {index + 1} exceeded 16 ms p95: {summary}"
+            )
+            if level is not FoldLevel.FULLY_EXPANDED:
+                await pilot.press("z", "z")
+                await pilot.pause(0.2)
+
+    assert set(level_summaries) == set(FoldLevel)
+    stall_path = _perf_jsonl.with_name("tui_stalls.jsonl")
+    assert not stall_path.exists() or not stall_path.read_text().strip()
 
 
 def main() -> int:

@@ -208,6 +208,83 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
     assert _style_at(detail, detail.plain.index("research")) == "#D75FFF"
 
 
+def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
+    member = _agent(
+        "sase-6u.land",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    member.agent_clan = "sase-6u"
+    member.clan_tribe = "epic"
+
+    container = project_clan_tree([member])[0]
+    detail = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+
+    assert container.clan_tags == ("epic",)
+    assert "Tribes: @epic\n" in detail
+    assert "Fold: 1/3\n" in detail
+
+
+def test_cold_collapsed_summary_lists_unknown_disk_sections_without_counts() -> None:
+    member = _agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+
+    detail = build_clan_detail_text(
+        container,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+
+    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
+        assert f"▸ {heading}\n" in detail
+        assert f"▸ {heading} ·" not in detail
+    assert "loading…" not in detail
+    assert clan_disk_sections_for_fold_state(FoldLevel.COLLAPSED) == (
+        CLAN_DISK_SECTIONS
+    )
+
+
+def test_known_empty_disk_sections_disappear_from_collapsed_summary() -> None:
+    member = _agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    in_memory = aggregate_clan_in_memory(container)
+    disk_member = ClanDiskMemberSnapshot(
+        member_identity=member.identity,
+        member_label=".one",
+        loaded_sections=CLAN_DISK_SECTIONS,
+    )
+    snapshot = ClanSectionSnapshot(
+        in_memory=in_memory,
+        disk=ClanDiskSnapshot(
+            loaded_sections=CLAN_DISK_SECTIONS,
+            members=(disk_member,),
+            replies=(),
+            prompts=(),
+            context_lanes=(),
+            slow_tool_calls=(),
+        ),
+    )
+
+    detail = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+
+    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
+        assert heading not in detail
+
+
 def test_clan_sections_honor_all_three_fold_contracts() -> None:
     container, snapshot = _rich_clan_snapshot()
 
@@ -287,10 +364,13 @@ def test_clan_section_override_and_loading_placeholders() -> None:
     assert "▼ ERRORS · 1" in detail
     assert "Second error detail" in detail
     assert "▾ REPLIES · 1" in detail
-    assert clan_disk_sections_for_fold_state(
-        FoldLevel.COLLAPSED,
-        overrides,
-    ) == frozenset({"replies"})
+    assert (
+        clan_disk_sections_for_fold_state(
+            FoldLevel.COLLAPSED,
+            overrides,
+        )
+        == CLAN_DISK_SECTIONS
+    )
 
     loading_snapshot = ClanSectionSnapshot(in_memory=snapshot.in_memory)
     loading = build_clan_detail_text(
@@ -417,7 +497,11 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     )
 
     assert "Members: 2 agents · 1 family\n" in detail.plain
-    assert detail.plain.split("▸ MEMBERS · 2\n", 1)[1] == (
+    members_section = detail.plain.split("▸ MEMBERS · 2\n", 1)[1].split(
+        "\n" + "─" * 50 + "\n",
+        1,
+    )[0]
+    assert members_section == (
         ".writer · family · ✓ DONE · mixed · 2m\n"
         "  ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
         "  └─ --code · agent · ✓ DONE · sonnet · 1m\n"

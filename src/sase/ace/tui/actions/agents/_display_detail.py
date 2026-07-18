@@ -86,7 +86,9 @@ class DetailMixin:
         """Update the detail surface without spawning agent-detail workers.
 
         Returns True when a collapsed-panel summary handled the update and no
-        debounced agent-detail phase should be scheduled.
+        debounced agent-detail phase should be scheduled. Clan summaries stay
+        on the debounced path because rebuilding their multi-section detail on
+        every j/k tick can delay the selection highlight's next paint.
         """
         from textual.css.query import NoMatches
 
@@ -112,10 +114,9 @@ class DetailMixin:
         if current_agent is None:
             agent_detail.show_empty()
             return False
-        if (
-            not current_agent.is_clan_container
-            and self._should_render_agent_detail_with_hints()
-        ):
+        if current_agent.is_clan_container:
+            return False
+        if self._should_render_agent_detail_with_hints():
             self._render_agent_detail_with_hints(agent_detail, current_agent)
             return False
         agent_detail.update_display_immediate(

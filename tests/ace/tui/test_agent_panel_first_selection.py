@@ -141,6 +141,7 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
         self.info_updates = 0
         self.detail_updates = 0
         self.debounced_detail_updates = 0
+        self.query_calls = 0
 
     def _guard_agent_navigation_for_artifact_file_viewer(self) -> bool:
         return self.artifact_file_viewer_guard_active
@@ -149,6 +150,7 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
         return self._widgets[selector.lstrip("#")]
 
     def query(self, _selector: str) -> _QueryResults:
+        self.query_calls += 1
         return _QueryResults(list(self._widgets.values()))
 
     def _update_agents_info_panel(self) -> None:
@@ -615,3 +617,17 @@ def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
     assert stale_beta.clear_highlight_calls == 1
     assert "-focused-panel" not in stale_main._classes
     assert "-focused-panel" not in stale_beta._classes
+
+
+def test_refresh_panel_highlights_skips_descendant_scan_for_single_panel() -> None:
+    agents = [
+        _agent(tag="alpha", project="alpha", cl="a", name="alpha-agent"),
+    ]
+    app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
+
+    app._refresh_panel_highlights_impl()
+
+    focused_widget = app._widgets["agent-list-panel"]
+    assert focused_widget.update_highlight_calls == [(0, 42, None)]
+    assert "-focused-panel" in focused_widget._classes
+    assert app.query_calls == 0

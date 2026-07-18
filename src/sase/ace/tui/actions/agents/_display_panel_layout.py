@@ -213,6 +213,14 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             group_key=self._current_group_key,
         )
 
+        # The common single-panel case has no stale sibling highlight to
+        # clear. Avoid a descendant query on every j/k tick; the panel class
+        # is established during the full render and this idempotent add also
+        # covers callers that invoke the helper directly.
+        if len(self._panel_group.panel_keys) == 1:
+            widget.add_class("-focused-panel")
+            return
+
         try:
             for w in self.query(  # type: ignore[attr-defined]
                 "#agent-list-container AgentList"
