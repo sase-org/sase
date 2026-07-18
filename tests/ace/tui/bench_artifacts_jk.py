@@ -16,8 +16,10 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import ArtifactsBugsPane
 from sase.ace.tui.widgets.artifacts import CommitsPane
+from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 import sase.ace.tui.widgets.artifacts.commits as commits_module
+from sase.plan_search.filter_query import parse_plan_filter_query
 from sase.vcs_log.filter_query import DEFAULT_COMMIT_LOG_LIMIT
 from tests.ace.tui.test_artifacts_bugs import _issue as _bug_issue
 from tests.ace.tui.test_artifacts_bugs import _snapshot as _bug_snapshot
@@ -131,8 +133,11 @@ async def test_artifacts_subtabs_jk_p95(
         await page.expect_state("artifacts_subtab", "plans")
         plans_pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
         await page.wait_for(lambda _state: plans_pane.snapshot is plans)
-        plans_pane._expanded_epics.add(("alpha", "alpha-1"))
+        plans_pane.filters = parse_plan_filter_query("phase")
         plans_pane._refresh_options()
+        plans_pane.show_filters()
+        plans_pane.focus_list()
+        assert plans_pane.query_one(PlanFilterBar).display
         await _press_burst(page, "j")
         await _press_burst(page, "k")
         await _press_fast_navigation_bursts(page)

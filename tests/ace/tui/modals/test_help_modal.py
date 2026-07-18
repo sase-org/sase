@@ -24,6 +24,9 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "Commits Pane" in left
     assert "Bugs Pane" in right
     assert "Plans Pane" in right
+    assert "Filter kind, status, or tier" in right
+    assert "Filter project or creation date" in right
+    assert "Title/body/id/metadata (AND)" in right
     assert "PR Actions" in right
     assert "[*1]" in left
     assert "*1-9 / *0" in right
