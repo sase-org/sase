@@ -234,7 +234,7 @@ Press `r` to open a profile picker showing all configured mentor profiles. Selec
 mentors in that profile for the current ChangeSpec. This is useful for re-running a specific review after making
 changes.
 
-Running and completed mentor agents are visible in the Agents tab under the `@review` tag. The same tag is used for CRS,
+Running and completed mentor agents are visible in the Agents tab under tribe `@review`. The same tribe is used for CRS,
 fix-hook, and summarize-hook review agents, so review automation can be inspected, killed, dismissed, or resumed from
 one side panel.
 

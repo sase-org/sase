@@ -5,11 +5,14 @@ parent: AGENTS.md
 
 # Glossary of Terms Specific to SASE
 
+**Agent Clan**  
+An agent clan is a named, rootless container for agents that run in parallel. Every member is named inside the clan's
+hood (`<clan>.<suffix>`) and declares `%clan:<clan>`; the clan name is reserved and is never itself an agent.
+
 **Agent Family**  
-A `<name>` agent family refers to a group of agents that are all named with the same `<name>` prefix separated from the
-rest of its name by `--`. For example, agents named `foo--plan-0`, `foo--plan-1`, and `foo--code` are all apart of the
-same `foo` agent family. Agent families are all grouped under the same root agent/workflow entry in the "Agents" tab of
-the `sase ace` TUI.
+An agent family is a strictly sequential chain whose members use `<family>--<suffix>` names. The first
+`%n(parent, suffix)` attachment renames the original agent with its own suffix and reserves the bare family name as a
+pure container, so a family always has at least two members.
 
 **Agent Hoods**  
 An agent hood is a group of agents that are all named with the same `<name>.` prefix. For example, agents named
@@ -28,16 +31,19 @@ files in the same directory contain the same contents.
 An agent neighbor is any agent that is in the same agent hood as another agent. For example, agents named `foo`,
 `foo.baz`, and `foo.bar.1` are all neighbors of each other because they are all in the same `foo` agent hood.
 
+**Agent Tribe**  
+An agent tribe is a user-facing label for related agents across clans and families. Tribes are assigned with
+`%tribe:<name>` (alias `%t`), managed with `sase agent tribe`, and displayed with an `@` prefix.
+
+**Agents-Tab Nesting**  
+Rows in the `sase ace` Agents tab nest as clan → direct members (agents, families, or workflow python/bash steps) →
+family members. Press `l` once to expand one level and twice to reveal hidden steps and family members; `h` collapses
+one level at a time.
+
 **ChangeSpec**  
 Represents a single CL/PR. Active specs live in ProjectSpec `<key>.sase` (directory key `<key>`; see Projects, Repos,
 and Workspaces); terminal ones (Submitted, Archived, Reverted) in `<key>-archive.sase`. Sections: NAME, DESCRIPTION,
 PARENT, CL/PR, STATUS, COMMITS, HOOKS, COMMENTS, MENTORS. Status lifecycle: WIP → Draft → Ready → Mailed → Submitted.
-
-**Child Agent/Workflow Step Entry**  
-Any agent row entry on the "Agents" tab of the `sase ace` TUI that is a child of some root agent/workflow entry.
-Workflow entries can have python/bash children as well as agent children. Agents root entries can only have (one or
-more) agent child entries. Child entries are not visible by default; the `h` and `l` keymaps are used to hide and reveal
-them, respectively.
 
 **Projects, Repos, and Workspaces**  
 A **project** is a named unit of work registered with SASE. A project is created only when a new VCS xprompt argument
@@ -51,9 +57,6 @@ project remains hidden. A **repo** is any repository SASE knows: a project's pri
 repos. A **workspace** is a numbered clone of a project's primary repo, managed by the workspace store and tracked in
 that project's `registry.json`. Each SASE agent claims exactly one workspace until completion. Linked-repo clones
 materialized for a workspace are repo checkouts, not additional workspaces.
-
-**Root Agent/Workflow Entry**  
-Any agent row entry on the "Agents" tab of the `sase ace` TUI that has child entries.
 
 **xprompt**  
 Triggered with `#foo` in agent prompts. Defined in a sase/xprompts/ directory (.md or .yml file) or in

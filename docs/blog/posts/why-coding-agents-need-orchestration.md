@@ -247,20 +247,20 @@ full reference is in [XPrompts: Directives](../../xprompt.md#directives); this i
 | `%model`  | `%m`  | Select a provider/model. Model branches can fan out into one agent per model.                                                        | `%m:claude/opus audit this API`                                    |
 | `%effort` | `%e`  | Set the provider reasoning-effort level for this prompt.                                                                             | `%e:xhigh investigate the race`                                    |
 | `%name`   | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                        |
-| `%family` | `%f`  | Join an explicitly named parallel family without changing execution order.                                                           | `%family(release, role=tester)`                                    |
+| `%clan`   | `%c`  | Join a named, rootless parallel clan; the member name must be inside the clan's hood.                                                | `%n:release.test %clan:release`                                    |
 | `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
 | `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                   | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                       | `%h %n:background-log-checker inspect logs`                        |
 | `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                           | `%a #!sase/fix_just` or `%auto:epic %n:checkout plan the rewrite`  |
 | `%repeat` | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.             | `%r:5 %n:flaky-repro try to reproduce the flaky test once`         |
-| `%group`  | `%g`  | Assign the agent's user-managed tag for ACE grouping and filtering.                                                                  | `%g:review review the latest ChangeSpec`                           |
+| `%tribe`  | `%t`  | Assign the agent's user-managed tribe for ACE grouping and filtering.                                                                | `%t:review review the latest ChangeSpec`                           |
 | `%alt`    | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product.     | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
 
-Directives compose. This launches two named model variants, groups them under `review`, and keeps them hidden unless you
+Directives compose. This launches two named model variants, assigns tribe `@review`, and keeps them hidden unless you
 toggle hidden agents:
 
 ```bash
-sase run '%n:api-review %g:review %h %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} review the API boundary'
+sase run '%n:api-review %t:review %h %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} review the API boundary'
 ```
 
 And this chains a planner, coder, and reviewer without inventing a YAML workflow:
@@ -359,7 +359,7 @@ Asset suggestion: docs/images/blog/00-ace-agents-tab.png
 View: ACE Agents tab in a real terminal, 16:10 or 16:9 crop.
 Show several grouped agents: at least one running, one waiting via %wait, one completed, and one hidden/toggled row.
 Include the prompt preview panel on the right and a bottom prompt bar with completion hints visible.
-Make sure provider/model badges are legible, and include one group/tag side panel so the screenshot says "control
+Make sure provider/model badges are legible, and include one tribe side panel so the screenshot says "control
 surface" rather than "log list".
 Alt text: "ACE Agents tab showing grouped coding-agent runs, provider badges, wait state, prompt preview, and prompt
 input completion."

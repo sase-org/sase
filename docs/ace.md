@@ -309,7 +309,7 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | Key                 | Action                                                                                                |
 | ------------------- | ----------------------------------------------------------------------------------------------------- |
 | `j` / `k`           | Move to next / previous visible row (banner at fold `< L3`, agent at `L3`)                            |
-| `J` / `K`           | Cycle focus across tag side panels (forward / reverse)                                                |
+| `J` / `K`           | Cycle focus across tribe side panels (forward / reverse)                                              |
 | `'`                 | Jump to entry by hint character (current tab); on the Agents tab, hints land on collapsed banners too |
 | `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
 | `Ctrl+J` / `Ctrl+K` | Cycle metadata sections forward / backward through the document top                                   |
@@ -333,36 +333,36 @@ descendants.
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `R`                 | Revive a previously dismissed agent                                                                           |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                |
-| `+`                 | Run custom agent                                                                                              |
-| `A`                 | Open auto-approve menu / answer HITL                                                                          |
-| `f`                 | Fork agent (by name if running, by chat file if completed)                                                    |
-| `n`                 | Name agent                                                                                                    |
-| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                        |
-| `v`                 | View files (hint mode)                                                                                        |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                             |
-| `V`                 | Open the Agent Run Log modal for the focused agent                                                            |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                               |
-| `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                                |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)       |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                         |
-| `U`                 | Toggle the focused agent's unread marker                                                                      |
-| `u`                 | Clear all agent marks                                                                                         |
-| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                                 |
-| `X`                 | Open the cleanup panel for panel, global, tag, marked, group, or custom cleanup                               |
-| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                      |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                |
-| `E`                 | Edit panel content in editor                                                                                  |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser    |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                     |
-| `N`                 | Open the agent tag/untag modal (input is pre-seeded with `pinned` for untagged agents; submit empty to clear) |
-| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                     |
-| `p`                 | Toggle file / prompt layout                                                                                   |
-| `z`                 | Open the zoom modal for the active detail panel                                                               |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                 |
+| Key                 | Action                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `R`                 | Revive a previously dismissed agent                                                                        |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane             |
+| `+`                 | Run custom agent                                                                                           |
+| `A`                 | Open auto-approve menu / answer HITL                                                                       |
+| `f`                 | Fork agent (by name if running, by chat file if completed)                                                 |
+| `n`                 | Name agent                                                                                                 |
+| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                     |
+| `v`                 | View files (hint mode)                                                                                     |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                          |
+| `V`                 | Open the Agent Run Log modal for the focused agent                                                         |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                            |
+| `W`                 | Wait for agent (populate prompt with `%w`); with marks, fans out to `%w:a,b,c`                             |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)    |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                      |
+| `U`                 | Toggle the focused agent's unread marker                                                                   |
+| `u`                 | Clear all agent marks                                                                                      |
+| `x`                 | Kill / dismiss agent, every marked agent, or every agent in the focused group                              |
+| `X`                 | Open the cleanup panel for panel, global, tribe, marked, group, or custom cleanup                          |
+| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                   |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation             |
+| `E`                 | Edit panel content in editor                                                                               |
+| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                  |
+| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it) |
+| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
+| `p`                 | Toggle file / prompt layout                                                                                |
+| `z`                 | Open the zoom modal for the active detail panel                                                            |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
 `SASE CONTEXT`. The section ranks intent and inputs before outputs: `PLAN`, the audited `MEMORY`, `SKILLS`, and
@@ -460,7 +460,7 @@ Workflows launched via `sase run` are visible in the Agents tab alongside ACE-la
 Anonymous `tmp_*` workflows are included in the normal visible-inbox index when their workflow state has
 `appears_as_agent: true` and does not set `hidden: true`; explicitly hidden workflow rows are omitted from the default
 view. Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also
-visible and are automatically grouped under the `@review` tag, matching the behavior of a `%group:review` prompt launch.
+visible and are automatically grouped into tribe `@review`, matching the behavior of a `%tribe:review` prompt launch.
 
 ### Agent Artifacts
 
@@ -517,31 +517,32 @@ During successful-agent finalization, Markdown-to-PDF rendering updates `workflo
 activity label. ACE renders that label on the agent row and in the prompt/detail header, so long conversions show
 progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking idle.
 
-### Tag Side Panels
+### Tribe Side Panels
 
-The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tag**. Untagged agents live in
-their own `(untagged)` panel; each tagged group renders as `#<tag>` with an agent count in the panel title. Each panel
-title can also show compact scoped metrics in the form `[H1 R2 W1 F1 U1 D3]`: `H` is human-in-the-loop, `R` is running,
-`W` is waiting, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are
-omitted. Panel heights are sized to their content and separated by a one-row gap. When the panels fit, the first panel
-grows to absorb leftover vertical space while later panels stay pinned to their natural height; when the panels
-overflow, space is weighted by each panel's rendered row count.
+The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tribe**. Agents without a
+tribe live in the `(untagged)` panel; each tribe renders as `@<tribe>` with an agent count in the panel title. Each
+panel title can also show compact scoped metrics in the form `[H1 R2 W1 F1 U1 D3]`: `H` is human-in-the-loop, `R` is
+running, `W` is waiting, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count
+metrics are omitted. Panel heights are sized to their content and separated by a one-row gap. When the panels fit, the
+first panel grows to absorb leftover vertical space while later panels stay pinned to their natural height; when the
+panels overflow, space is weighted by each panel's rendered row count.
 
 Use `J` / `K` to move focus across panels (forward / reverse). `J` lands on the first selectable row in the new panel;
 `K` lands on the last selectable row, including collapsed group banners when those are visible. Per-panel actions (kill,
 dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the cleanup panel: `d`
 dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels, `k` cleans the
-focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a tag,
-and `c` opens the custom selector.
+focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t` chooses a
+tribe, and `c` opens the custom selector.
 
-Tags are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an untagged agent the
-input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that default
-makes tag removal discoverable too — opening the modal on a tagged agent and submitting an empty string clears the tag.
-The `%group <name>` directive in a prompt assigns the tag at launch.
+Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
+tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that
+default makes tribe removal discoverable too — opening the modal on an assigned agent and submitting an empty string
+clears the tribe. The `%tribe:<name>` directive (alias `%t`) assigns the tribe at launch; `sase agent tribe` manages it
+from the CLI.
 
 ### Group Banners and Folding
 
-Within each tag side panel, agents are grouped into either a 2-level or 3-level banner hierarchy depending on whether
+Within each tribe side panel, agents are grouped into either a 2-level or 3-level banner hierarchy depending on whether
 any agent in the panel targets a ChangeSpec:
 
 - **3-level layout** (panel contains at least one ChangeSpec-scoped agent): **project → ChangeSpec → name-root**.
@@ -573,6 +574,13 @@ on every top-level agent in that group (single confirmation modal). Marked colla
 top-level agents are marked and `[~]` when only some are marked. Marks take priority over the group for bulk actions, so
 a non-empty mark set always drives the bulk action regardless of banner focus. When a fold change hides the previously
 focused agent, focus snaps to the nearest visible ancestor banner so navigation context is never lost.
+
+Clan and family rows add an agent-tree hierarchy inside those grouping banners. A clan is a selectable synthetic `⌂`
+container, never an agent. From a collapsed clan row, press `l` once to reveal direct members (agents, family rows, and
+visible workflow steps), then press `l` again to reveal hidden steps and family members at a third indentation level.
+`h` walks those levels in reverse. A sequential family is also a pure container: its members use `--<suffix>` names and
+run one after another. Killing or dismissing a clan row cascades to the clan's live members; acting on one member leaves
+its siblings alone.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -648,11 +656,12 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `≡`   | Workflow row (top-level)                             |
 | `❑`   | ChangeSpec / ChangeSpec row (top-level)              |
 | `⚡`  | Autonomous (`%auto`) agent                           |
+| `⌂`   | Agent clan container                                 |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
-Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tag/name. A
-phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>` land agent displays the parent epic
-bead ID. Legacy `<epic_id>.land` land agents keep the same badge. Dismissed agents keep the badge by stripping only the
+Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tribe/name. A
+phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>.land` agent displays the parent epic
+bead ID. Legacy plain `<epic_id>` land agents keep the same badge. Dismissed agents keep the badge by stripping only the
 date-prefix used for dismissal. Modern phase rows use their explicit launch metadata immediately; legacy bead-shaped
 names retain the deferred bead-store confirmation fallback.
 
@@ -1417,17 +1426,18 @@ older generated names into the permanent namespace; pass `--force` to rerun afte
 
 ### Per-Step Naming for Multi-Agent Workflows
 
-Plan-family workflows have a stable family name plus phase suffixes. The root row keeps the family name and acts as the
-workflow container; generated follow-up rows and phase metadata use canonical double-dash suffixes. For example, if the
-initial agent family is named `a`:
+Sequential plan-family workflows have a stable family container plus member suffixes. When the first follow-up attaches,
+the original agent is renamed and the bare family name becomes a pure container. Generated follow-up rows and phase
+metadata use canonical double-dash suffixes. For example, if the initial agent was named `a`:
 
-1. The root workflow row keeps `a`.
-2. The planner phase uses suffix `--plan` and is displayed as `a--plan` when ACE renders it as a phase child.
+1. The first attachment creates family container `a` and gives the original its persisted role suffix (`a--plan-0` for a
+   plan proposer or `a--0` for a generic agent).
+2. The planner phase uses a canonical `--plan` role suffix.
 3. Feedback and question-continuation rounds become `a--2`, `a--3`, etc.
 4. Terminal follow-ups use the phase suffix, such as `a--code`, `a--epic`, or `a--commit`.
 
-The base name (`a`) is reserved for the workflow as a whole, so `%wait:a` or `@a` references resolve to the family root.
-New plan-family metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
+The base name (`a`) is reserved for the family as a whole, so `%wait:a` or `@a` references resolve through the family
+container. New plan-family metadata stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
 canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy single-dash suffixes (`-plan`, `-2`,
 `-code`, etc.) when reading legacy artifacts.
 
@@ -1537,7 +1547,7 @@ restore the original tree.
 
 Dismissed agents are saved as individual bundle files under month shards in `~/.sase/dismissed_bundles/YYYYMM/` and can
 be restored later. Saved group metadata lives under `~/.sase/dismissed_agent_groups/` and stores stable references to
-those bundle files plus the optional group name, status counts, projects, PRs, model/provider metadata, and agent tags.
+those bundle files plus the optional group name, status counts, projects, PRs, model/provider metadata, and tribes.
 There is no limit on the number of dismissed agents or saved groups that can be stored.
 
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather than a monolithic store. Parent
@@ -1560,7 +1570,7 @@ the record schema and CLI flags.
 
 #### Legacy Dismissed-Name Prefix
 
-Current dismiss and revive operations preserve stored agent names, per-agent tags, and top-level/workflow-child
+Current dismiss and revive operations preserve stored agent names, per-agent tribes, and top-level/workflow-child
 identity. Older dismissed bundles may still contain `YYmmdd.<base>` names from the previous dismissal model, and ACE
 keeps compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally skips legacy
 dismissal-prefixed candidates so it anchors on a live, visible agent.
@@ -1592,9 +1602,10 @@ a pinned attempt view resets the cursor.
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **MEMBERS**: Shown on a parallel-family root when its members are loaded. Rows are sorted by launch time and show each
-  member's free-form role, agent name, current status, model, and duration. The section participates in `g}` / `g{`
-  metadata-section navigation like the other titled sections.
+- **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The header shows the clan name, `@tribes`, rolled-up
+  status counts, wall-clock runtime, and agent/family totals. Member rows are sorted by launch time and show the
+  hood-relative suffix, kind, status, model, and duration; members of a nested sequential family are indented under its
+  aggregate row. The section participates in `g}` / `g{` metadata-section navigation like the other titled sections.
 - **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
   metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
   only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the
@@ -1624,10 +1635,10 @@ a pinned attempt view resets the cursor.
   root agent the list aggregates calls across its children while attributing each call to the child that made it.
 - **Wait state**: For an agent gated by `%wait`, a duration wait, or an absolute-time wait, the detail view shows a
   `Wait:` line. It lists the dependency names recorded on the waiting agent, adds per-name status badges for currently
-  known agents or agent-family roots, and marks unknown names with `?` so typos and stale references are obvious. Timed
-  waits add compact duration, target time, and countdown text when available. The final runner-slot stage shows the live
-  running count and cap or explicit threshold, plus position among waiters currently eligible at that count. Ineligible
-  waits are labeled directly, and `runners=0` is labeled as a drain barrier.
+  known agents, clan containers, or family containers, and marks unknown names with `?` so typos and stale references
+  are obvious. Timed waits add compact duration, target time, and countdown text when available. The final runner-slot
+  stage shows the live running count and cap or explicit threshold, plus position among waiters currently eligible at
+  that count. Ineligible waits are labeled directly, and `runners=0` is labeled as a drain barrier.
 - **OUTPUT VARIABLES**: Small string values written by the selected agent family with `sase var set KEY=VALUE`. A single
   contributing agent renders as a flat sorted key/value list; multiple family members render with compact role labels so
   root, planner, coder, tester, and follow-up values stay attributable. Multi-line values are indented, and the section
@@ -1811,10 +1822,10 @@ they are not selected at the plan gate.
 Launches requested by a running agent (see
 [Agent-initiated launches](agent_families.md#agent-initiated-family-launches)) arrive as priority notifications with a
 `LaunchApproval` action. Selecting one opens the launch approval modal, which renders the request's human-readable
-preview (`launch_preview.md`). Parallel-family slots identify the root or member target and the slot's role alongside
-the model, kind, and planned name. Press `a` to approve, `r` to reject, and `q` or `Esc` to cancel. ACE resolves the
-same hash-verified command bundle used by mobile and remote callbacks, while retaining legacy launch-request fallback.
-The CLI equivalents are `sase launch approve <selector>` and `sase launch reject <selector>`.
+preview (`launch_preview.md`). Clan slots identify their rootless clan alongside the model, kind, and planned member
+name. Press `a` to approve, `r` to reject, and `q` or `Esc` to cancel. ACE resolves the same hash-verified command
+bundle used by mobile and remote callbacks, while retaining legacy launch-request fallback. The CLI equivalents are
+`sase launch approve <selector>` and `sase launch reject <selector>`.
 
 ## Linked Chats in Multi-Step Workflows
 

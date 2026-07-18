@@ -277,8 +277,8 @@ agents (e.g. orchestration housekeepers) show up alongside user-launched agents 
 are discoverable. Use the prompt-side `%hide` directive if a particular chop should remain hidden.
 
 Specialized review agents launched by axe runners (mentor, CRS, fix-hook, and summarize-hook review agents) write
-Agents-tab metadata as well. They persist the same `review` tag that a `%group:review` prompt would produce, so ACE
-groups them in the `@review` side panel instead of hiding them among untagged automation rows.
+Agents-tab metadata as well. They join the same `review` tribe that a `%tribe:review` prompt would produce, so ACE
+groups them in the `@review` side panel instead of hiding them among automation rows without a tribe.
 
 During a scheduled lumberjack tick, script chops are still dispatched concurrently, but eligible agent chops are
 launched sequentially in their configured order. That keeps multiple same-tick `run_every` agent chops from racing each

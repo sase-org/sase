@@ -26,10 +26,11 @@ description: Read before xprompts, prompt directives, or launching agents with g
 | `%model:<m>`             | `%m`   | Provider/model; aliases resolve provider; `@effort` ok; quote spaces with `%m("...")` |
 | `%effort:<lvl>`          | `%e`   | `none/minimal/low/medium/high/xhigh/max`                                              |
 | `%name:<n>`              | `%n`   | Agent name; bare auto-name; `%n(parent, suffix)` plan-family child                    |
+| `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                    |
 | `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                  |
 | `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                      |
 | `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                |
-| `%group:<tag>`           | `%g`   | User tag                                                                              |
+| `%tribe:<name>`          | `%t`   | User-managed tribe, displayed with an `@` prefix                                      |
 | `%hide`                  | `%h`   | Hidden row                                                                            |
 | `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                |
 

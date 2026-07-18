@@ -161,8 +161,8 @@ Review the code changes and provide feedback.
 
 `%model` selects a provider/model. `%name` gives the run a durable name. `%wait` waits for another named agent or a time
 floor. `%effort` sets reasoning effort where the provider supports it. `%auto` requests adapter-owned gate resolution.
-`%hide` hides noisy helper runs from the default Agents view. `%repeat` repeats a prompt, and `%group` assigns a
-user-visible tag. Those controls live in the same Markdown as the prompt, which keeps the common case out of YAML.
+`%hide` hides noisy helper runs from the default Agents view. `%repeat` repeats a prompt, and `%tribe` assigns a
+user-visible tribe. Those controls live in the same Markdown as the prompt, which keeps the common case out of YAML.
 
 Alternations are the direct answer to "one prompt equals one agent." This:
 
@@ -244,12 +244,13 @@ _The Agents tab groups runs, shows status/provider/model cues, and keeps the sel
 
 _A still frame makes the family grouping, selected model, and detail pane easier to inspect than the loop._
 
-Two naming ideas make dense views navigable. Serial plan-chain families use `--` suffixes to keep one unit of work
-together: `nova--plan`, `nova--code`, and `nova--review` render as related workflow rows under a root. Explicit
-`%family:<root>` directives group independently named parallel agents without changing their launch order or execution.
-Agent hoods use dotted names such as `foo.bar` and `foo.baz`; `~` jumps among visible ancestors, descendants, and
-same-namespace neighbors. The point is not taxonomy for its own sake. It is being able to collapse, revive, search, wait
-on, or dismiss a coherent set of agents instead of playing guess-the-window.
+Three grouping ideas make dense views navigable. Sequential plan-chain families use `--` suffixes to keep one unit of
+work together: `nova--plan`, `nova--code`, and `nova--review` render as related workflow rows under a pure family
+container. Rootless `%clan:<name>` containers group hood-scoped parallel agents without changing launch order or
+execution. Agent hoods use dotted names such as `foo.bar` and `foo.baz`; `~` jumps among visible ancestors, descendants,
+and same-namespace neighbors. Tribes such as `@review` label related work across both structures. The point is not
+taxonomy for its own sake. It is being able to collapse, revive, search, wait on, or dismiss a coherent set of agents
+instead of playing guess-the-window.
 
 ACE is also where you steer. When an agent submits a plan through `/sase_plan` or `sase plan propose`, the row enters
 PLAN status and the notification carries provider/model metadata. The plan approval modal uses single keys: `a` approve

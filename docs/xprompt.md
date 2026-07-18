@@ -856,7 +856,7 @@ defaults. Common entries include:
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
-sanitized first: sase directives (`%name`, `%wait`, `%group`, ...), `#`/`#!` xprompt and workspace references, and any
+sanitized first: sase directives (`%name`, `%wait`, `%tribe`, ...), `#`/`#!` xprompt and workspace references, and any
 unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean natural-language text.
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
@@ -876,7 +876,7 @@ SASE ships two embeddable follow-up prompt workflows for manual family rounds:
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
 Both xprompts only assemble prompt text; `%n(parent, suffix)` is the launch directive that attaches the new agent to the
-family. See [Agent Families](agent_families.md) for the full attachment and launch-approval model.
+family. See [Agent Clans, Families, and Tribes](agent_families.md) for the full attachment and launch-approval model.
 
 For feedback, pass `parent=` explicitly or combine it with `%n(parent, suffix)` and let SASE infer the parent:
 
@@ -895,9 +895,10 @@ The Q&A file should use the same structured request/response shape SASE writes f
 `response`, or a top-level `rounds` list of those objects. Literal `#xprompt` text inside answers is protected so it
 does not expand accidentally.
 
-Glossary note: this feature uses the runner's double-dash plan-chain family model — agents that share a `--` base such
-as `foo`, `foo--plan`, and `foo--code` form one family. Dot-separated names such as `foo.bar` are agent hoods/neighbors
-in the ACE TUI, a distinct grouping concept. See [Agent Families](agent_families.md) for the full family model.
+Glossary note: this feature uses the runner's double-dash plan-chain family model — agents such as `foo--0`,
+`foo--plan`, and `foo--code` share the pure family container `foo`. Dot-separated names such as `foo.bar` are agent
+hoods/neighbors in the ACE TUI, a distinct grouping concept. See [Agent Clans, Families, and Tribes](agent_families.md)
+for the full family model.
 
 ### Bundled Standalone Workflows
 
@@ -1000,12 +1001,12 @@ the prompt before further processing.
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
 | `%name`   | `%n`  | Assign an agent name or attach a member to an existing family         |
-| `%family` | `%f`  | Join a parallel family rooted at another launch segment               |
+| `%clan`   | `%c`  | Join a named, rootless parallel agent clan                            |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
 | `%auto`   | `%a`  | Request automatic gate resolution; an optional argument is gate-owned |
 | `%repeat` | `%r`  | Run the prompt multiple times (e.g., `%repeat:3`)                     |
-| `%group`  | `%g`  | Assign the agent's user-managed tag (e.g., `%group:review`)           |
+| `%tribe`  | `%t`  | Assign the agent's user-managed tribe (e.g., `%tribe:review`)         |
 | `%alt`    | `%{}` | Split prompt into variants with different text (brace shorthand)      |
 
 ### Syntax
@@ -1032,9 +1033,8 @@ Directives use the same argument syntax as xprompt references:
 %n(parent, @)                # Attach the next free feedback/Q&A suffix
 %name                        # Bare — auto-generates a unique name
 %name:!reviewer              # Force reuse by wiping the previous owner
-%family:research.@.final     # Join the family rooted at this sibling segment
-%f:research.@.final          # Same, using alias
-%family(research.@.final, role=researcher) # Join with an open-ended role token
+%clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
+%c:research.@                # Same, using alias
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
@@ -1062,19 +1062,20 @@ Directives use the same argument syntax as xprompt references:
 %auto:plan                   # Compatibility alias for normal-plan auto-approval
 %auto:tale                   # Plan first, then auto-approve & commit as a tale
 %auto:epic                   # Plan first, then auto-approve & commit as an epic
-%group:review                # Assign the tag "review" to this agent
-%g:review                    # Same, using alias
+%tribe:review                # Assign the tribe "review" to this agent
+%t:review                    # Same, using alias
 ```
 
 Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
 `%m("provider/Model Name (Variant)")`); colon syntax cannot express those values.
 
-The `%family` directive declares execution-neutral membership in a parallel agent family. Adding it does not change the
-member's planned name, model, waits, fan-out, spawn order, VCS/project context, or workspace behavior; it only adds
-family metadata and strips the directive before model execution. A member segment may fan out, in which case every
-variant joins the same root generation, while the referenced root segment must resolve to exactly one launch slot. Root
-names and `role=` values are open-ended rather than editor-enumerated. See [Agent Families](agent_families.md) for the
-full launch, status, and cleanup contract.
+The `%clan` directive declares execution-neutral membership in a rootless parallel agent clan. Adding it does not change
+the member's planned name, model, waits, fan-out, spawn order, VCS/project context, or workspace behavior; it only adds
+clan metadata and strips the directive before model execution. The clan name is a reserved container, never an agent,
+and each member name must start with `<clan>.`. Every segment uses the colon form and carries its own `%clan`
+declaration; parenthesized forms and member roles are not supported. A member segment may fan out, and identical raw
+clan templates in one batch resolve to the same generation. See [Agent Clans, Families, and Tribes](agent_families.md)
+for the full launch, wait, display, and cleanup contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
@@ -1133,21 +1134,23 @@ the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, 
 `!` form is the explicit confirmation to wipe the previous owner and its persisted system state before launching the new
 agent with that name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
 
-The two-argument `%n(parent, suffix)` form attaches a new agent to an existing plan-chain family. SASE resolves `parent`
-to the newest visible root agent in the current project, composes the child name as `<family-base>--<suffix>`, writes
-the same family metadata as runner-created follow-ups, and strips the directive before the model sees the prompt. The
-suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
+The two-argument `%n(parent, suffix)` form attaches a new agent to a sequential family. On the first attachment, SASE
+renames the original agent with its own `--<role>` suffix and reserves the bare base name as a pure family container;
+generic originals become `--0`, while plan proposers become `--plan-0`. SASE then names the new member
+`<family-base>--<suffix>`, writes the normal family metadata, and strips the directive before the model sees the prompt.
+The suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
 
 Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family roles and status labels. Numeric
 suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric suffixes such as
 `reviewer` or `tester` are allowed, preserve that open-set role in `agent_family_role` metadata, and use ordinary
-RUNNING/DONE status labels. See [Agent Families](agent_families.md) for attachment and agent-initiated launch behavior.
+RUNNING/DONE status labels. See [Agent Clans, Families, and Tribes](agent_families.md) for attachment and
+agent-initiated launch behavior.
 
-If the parent is still running, the child is launched immediately as a WAITING child row under the parent and starts
-when that exact parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued child
-is cancelled to `STOPPED` and SASE sends a completion notification explaining the failed dependency. If the parent is
-absent, ambiguous, dismissed, or the composed child name already exists, launch preparation fails before spawning the
-child; collision errors suggest `%n(parent, @)`.
+If the parent is still running, the new family member appears immediately as a WAITING row and starts when that exact
+parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued member is cancelled to
+`STOPPED` and SASE sends a completion notification explaining the failed dependency. If the parent is absent, ambiguous,
+dismissed, or the composed child name already exists, launch preparation fails before spawning the child; collision
+errors suggest `%n(parent, @)`.
 
 The family-attach form works from every normal user launch surface because the constraint check runs in shared launch
 preparation. In a multi-agent prompt, `%n(parent, suffix)` may reference a parent explicitly named in an earlier `---`
@@ -1157,15 +1160,17 @@ This same-prompt lookup is limited to earlier static names; template-named and a
 parent artifact to exist before they can be used as `%n(parent, suffix)` targets.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
-For a multi-agent workflow name, the workflow root and every child agent for that root must complete successfully.
-Failed, killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the
-dependent agent stays parked until a later successful run of the same dependency name appears.
+For a clan name, every member of its newest generation must complete successfully; for a family or multi-agent workflow
+name, every member or child must complete successfully. An exact agent name still targets only that agent. Failed,
+killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the dependent agent
+stays parked until a later successful run of the same dependency name appears.
 
 A submitted plan awaiting review is the one exception. A planner that ran `sase plan propose` blocks in the approval
 flow without writing a `done.json`, so its planner row shows the `PLAN` status. A `%wait` on that planner row — its
 canonical `<base>--plan` name (or a legacy `<base>.plan` spelling) — treats the submitted plan as done and unblocks
-while the plan is still in review. This targets the planner row only: a `%wait:<base>` on the root family name stays
-parked until the whole plan chain actually completes, so a submitted plan alone never makes the chain look finished.
+while the plan is still in review. This targets the planner row only: a `%wait:<base>` on the bare family container
+stays parked until the whole plan chain actually completes, so a submitted plan alone never makes the chain look
+finished.
 
 When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
 name before spawning the waiting agent: `<name>.w0`, `<name>.w1`, and so on, using the first free template token. After
