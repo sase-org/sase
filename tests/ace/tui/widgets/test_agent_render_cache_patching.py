@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from rich.text import Text
 
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -12,6 +13,13 @@ from ._agent_render_cache_helpers import (
     agent as _agent,
     agent_row_index as _agent_row_index,
 )
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 @pytest.mark.asyncio
@@ -103,7 +111,7 @@ async def test_patch_agent_row_reflects_unread_change() -> None:
 
 
 @pytest.mark.asyncio
-async def test_patch_family_root_adds_badge_with_first_real_member() -> None:
+async def test_patch_family_root_recolors_name_with_first_real_member() -> None:
     app = _Harness()
     async with app.run_test() as pilot:
         widget = app.query_one(AgentList)
@@ -135,8 +143,10 @@ async def test_patch_family_root_adds_badge_with_first_real_member() -> None:
         await pilot.pause()
         prompt_after = widget.get_option_at_index(row).prompt
 
-        assert "⌘" not in str(prompt_before)
-        assert "⌘" in str(prompt_after)
+        assert isinstance(prompt_before, Text)
+        assert isinstance(prompt_after, Text)
+        assert _style_at(prompt_before, prompt_before.plain.rindex("demo")) == "#FFD700"
+        assert _style_at(prompt_after, prompt_after.plain.rindex("demo")) == "#00AFFF"
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from rich.text import Text
 
 from sase.ace.tui.models._agent_parallel_family import ParallelFamilyStatusCounts
 from sase.ace.tui.models.agent import Agent
@@ -13,6 +14,13 @@ from sase.ace.tui.widgets._agent_list_rendering import (
 )
 
 from ._agent_render_cache_helpers import agent as _agent
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 def test_cached_format_agent_option_reuses_result_on_repeat_call() -> None:
@@ -76,8 +84,8 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
     after = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
 
     assert before[0] is not after[0]
-    assert "⌘" not in before[0].plain
-    assert "⌘" in after[0].plain
+    assert _style_at(before[0], before[0].plain.rindex("demo")) == "#FFD700"
+    assert _style_at(after[0], after[0].plain.rindex("demo")) == "#00AFFF"
     assert "[agent]" not in after[0].plain
 
 
@@ -229,7 +237,7 @@ def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None
         panel_tag=None,
     )
 
-    assert rendered.plain == "(RUNNING) research ◫ @epic @review"
+    assert rendered.plain == "(RUNNING) research @epic @review"
     assert rendered.plain.count("@epic") == 1
 
 

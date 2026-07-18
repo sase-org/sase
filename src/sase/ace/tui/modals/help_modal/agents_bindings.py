@@ -282,8 +282,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Agent Row Glyphs",
             [
-                ("◫", "Agent clan container"),
-                ("⌘", "Agent family container"),
                 ("×N", "N steps (collapsed)"),
                 ("×N +M / −M", "M shown / hidden steps or family members"),
                 ("◆", "Bead-linked agent"),

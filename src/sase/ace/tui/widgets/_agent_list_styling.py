@@ -111,17 +111,12 @@ _REVERTED_GLYPH_STYLE = "bold #D7875F"
 _CHILD_INDENT = "  └─ "
 _TREE_GUIDE = "│  "
 
-# Agent-grouping row identities. Glyphs stay one terminal cell so runtime
-# column alignment remains deterministic across renderers. These saturated
-# colors are reserved for each grouping kind's contiguous name/glyph pair.
-_CLAN_GLYPH = "◫"
+# Agent-grouping row identity colors. These saturated colors distinguish each
+# grouping kind without adding a trailing marker to the displayed name.
 _CLAN_IDENTITY_COLOR = "#D75FFF"
 _CLAN_NAME_STYLE = _CLAN_IDENTITY_COLOR
-_CLAN_GLYPH_STYLE = f"bold {_CLAN_IDENTITY_COLOR}"
-_FAMILY_GLYPH = "⌘"
 _FAMILY_IDENTITY_COLOR = "#00AFFF"
 _FAMILY_NAME_STYLE = _FAMILY_IDENTITY_COLOR
-_FAMILY_GLYPH_STYLE = f"bold {_FAMILY_IDENTITY_COLOR}"
 
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
 # ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color

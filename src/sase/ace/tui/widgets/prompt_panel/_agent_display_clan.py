@@ -22,7 +22,6 @@ from ...models._agent_clan import (
 from ...models.agent import Agent, AgentType, compute_row_runtime
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
-    _CLAN_GLYPH,
     _CLAN_IDENTITY_COLOR,
     _CLAN_NAME_STYLE,
 )
@@ -280,7 +279,7 @@ def build_clan_detail_text(
     )
 
     text = Text()
-    text.append(f"{_CLAN_GLYPH} CLAN\n", style=_CLAN_HEADING_STYLE)
+    text.append("CLAN\n", style=_CLAN_HEADING_STYLE)
     text.append("Name: ", style=_FIELD_LABEL_STYLE)
     text.append(
         f"{agent.agent_clan or agent.display_name}\n",

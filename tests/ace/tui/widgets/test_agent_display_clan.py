@@ -78,7 +78,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
 
     header, members = detail.plain.split("\n" + "─" * 50 + "\n", 1)
     assert header.strip() == (
-        "◫ CLAN\n"
+        "CLAN\n"
         "Name: research\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
@@ -90,7 +90,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         ".first · agent · ✓ DONE · gpt-5 · 2m\n"
         ".second · agent · ✗ FAILED · default · 45s"
     )
-    assert _style_at(detail, detail.plain.index("◫")) == ("bold #D75FFF underline")
+    assert _style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
     assert _style_at(detail, detail.plain.index("research")) == "#D75FFF"
 
 
@@ -226,7 +226,7 @@ def test_clan_build_header_path_is_aggregate_only() -> None:
     header, traceback = build_header_text(container, cheap=True)
 
     assert traceback is None
-    assert header.plain.startswith("◫ CLAN\nName: research\n")
+    assert header.plain.startswith("CLAN\nName: research\n")
     assert "AGENT PROMPT" not in header.plain
     assert "ChangeSpec:" not in header.plain
     assert "No prompt file found" not in header.plain
@@ -241,7 +241,7 @@ def test_non_clan_agent_has_no_members_section() -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
-    assert not header.plain.startswith("◫ CLAN")
+    assert not header.plain.startswith("CLAN")
     assert "MEMBERS" not in header.plain
 
 
@@ -296,4 +296,4 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
     harness._update_display_impl(container)
 
     assert isinstance(harness.content, Text)
-    assert harness.content.plain.startswith("◫ CLAN\nName: research\n")
+    assert harness.content.plain.startswith("CLAN\nName: research\n")

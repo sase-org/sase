@@ -55,11 +55,7 @@ from ._agent_list_styling import (
     _BEAD_GLYPH,
     _BEAD_GLYPH_STYLE,
     _CHILD_INDENT,
-    _CLAN_GLYPH,
-    _CLAN_GLYPH_STYLE,
     _CLAN_NAME_STYLE,
-    _FAMILY_GLYPH,
-    _FAMILY_GLYPH_STYLE,
     _FAMILY_NAME_STYLE,
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
@@ -371,34 +367,23 @@ def format_agent_option(
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
-    # Shared trailing identity block. Grouping rows render a contiguous
-    # same-colored ``name glyph`` pair; bead context stays to the left and clan
-    # tags stay to the right. Kind, name, and tag inputs already participate in
-    # ``agent_render_key``; static style/order changes need no cache-key input.
-    identity_glyph: str | None = None
-    identity_glyph_style: str | None = None
+    # Shared trailing identity block. Grouping rows distinguish their name by
+    # color; bead context stays to the left and clan tags stay to the right.
+    # Kind, name, and tag inputs already participate in ``agent_render_key``;
+    # static style changes need no cache-key input.
     identity_name_style = _AGENT_NAME_ANNOTATION_STYLE
     presented_name: str | None
     if agent.is_clan_container:
-        identity_glyph = _CLAN_GLYPH
-        identity_glyph_style = _CLAN_GLYPH_STYLE
         identity_name_style = _CLAN_NAME_STYLE
         presented_name = agent.display_name
     else:
         presented_name = agent.presented_agent_name or agent.agent_name
         if is_family_container_row:
-            identity_glyph = _FAMILY_GLYPH
-            identity_glyph_style = _FAMILY_GLYPH_STYLE
             identity_name_style = _FAMILY_NAME_STYLE
 
-    if identity_glyph or presented_name:
+    if presented_name:
         text.append(" ")
-        if presented_name:
-            text.append(presented_name, style=identity_name_style)
-            if identity_glyph:
-                text.append(" ")
-        if identity_glyph:
-            text.append(identity_glyph, style=identity_glyph_style)
+        text.append(presented_name, style=identity_name_style)
 
     if agent.is_clan_container:
         rendered_tags = tuple(

@@ -707,7 +707,7 @@ async def test_parallel_family_root_counts_png_snapshot(
         )
 
 
-async def test_family_and_lone_planner_glyph_png_snapshot(
+async def test_family_and_lone_planner_color_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -726,13 +726,12 @@ async def test_family_and_lone_planner_glyph_png_snapshot(
         await page.expect_state("agent_count", 2)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "⌘")
         assert_page_svg_contains(page, "visual-real-family")
         assert_page_svg_contains(page, "visual-lone-planner")
         ace_png_visual.assert_page_png(
             page,
-            "agents_family_and_lone_planner_glyph_120x40",
-            title="ACE family and lone planner glyph contrast",
+            "agents_family_and_lone_planner_color_120x40",
+            title="ACE family and lone planner color contrast",
         )
 
 
@@ -752,7 +751,6 @@ async def test_clan_tree_fold_levels_png_snapshots(
 
         assert page.app._agents[0].is_clan_container is True
         assert page.app._agents[0].clan_tags == ("epic", "review")
-        assert_page_svg_contains(page, "◫")
         assert_page_svg_contains(page, "research")
         assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
         assert_page_svg_contains(page, "@epic")
@@ -883,7 +881,7 @@ async def test_epic_clan_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "◫ CLAN")
+        assert_page_svg_contains(page, "CLAN")
         assert_page_svg_contains(page, "sase-6n")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, ".land")
@@ -908,7 +906,7 @@ async def test_swarm_clan_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "◫ CLAN")
+        assert_page_svg_contains(page, "CLAN")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, "1 family")
         assert_page_svg_contains(page, "--code")

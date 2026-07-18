@@ -273,7 +273,7 @@ def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
     assert filtered == projected
 
 
-def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
+def test_clan_and_member_rows_render_identity_colors_tags_and_depth_guides() -> None:
     family = _agent("research.family", "family", tag="epic")
     family.agent_family = "research.family"
     family.agent_family_role = "root"
@@ -307,16 +307,13 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
         now=datetime(2026, 7, 17, 10, 5, 0),
     )
 
-    assert container_text.plain == "(RUNNING) ×2 [R1] research ◫ @epic"
+    assert container_text.plain == "(RUNNING) ×2 [R1] research @epic"
     assert "[agent]" not in container_text.plain
-    assert _style_at(container_text, container_text.plain.index("◫")) == (
-        "bold #D75FFF"
-    )
     assert _style_at(container_text, container_text.plain.rindex("research")) == (
         "#D75FFF"
     )
     assert family_text.plain.startswith("  └─ research.family")
-    assert family_text.plain.endswith("research.family ⌘")
+    assert family_text.plain.endswith("research.family")
     assert (
         _style_at(
             family_text,
@@ -324,12 +321,11 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
         )
         == "#00AFFF"
     )
-    assert _style_at(family_text, family_text.plain.index("⌘")) == "bold #00AFFF"
     assert family_member.tree_depth == 2
     assert member_text.plain.startswith("  │  └─ research.family--code")
 
 
-def test_family_glyph_requires_a_real_member() -> None:
+def test_family_identity_color_requires_a_real_member() -> None:
     family = _agent("cx", "family", clan=None, generation=None)
     family.agent_family = "cx"
     family.agent_family_role = "root"
@@ -379,17 +375,14 @@ def test_family_glyph_requires_a_real_member() -> None:
 
     assert family.is_family_container_row is True
     assert family_text.plain.startswith("cx")
-    assert family_text.plain.endswith("cx ⌘")
+    assert family_text.plain.endswith("cx")
     assert _style_at(family_text, family_text.plain.rindex("cx")) == "#00AFFF"
     assert lone_planner.is_family_container_row is False
     assert planner_text.plain.startswith("solo")
-    assert "⌘" not in planner_text.plain
     assert _style_at(planner_text, planner_text.plain.rindex("solo")) == "#FFD700"
     assert plain_text.plain.startswith("plain")
-    assert "⌘" not in plain_text.plain
     assert _style_at(plain_text, plain_text.plain.rindex("plain")) == "#FFD700"
     assert workflow_text.plain.startswith("anonymous-workflow")
-    assert "⌘" not in workflow_text.plain
     assert (
         _style_at(
             workflow_text,
@@ -400,8 +393,8 @@ def test_family_glyph_requires_a_real_member() -> None:
 
     family.agent_name = None
     family.presented_agent_name = None
-    icon_only_text, _, _ = format_agent_option(family, 4, is_selected=False)
-    assert icon_only_text.plain.endswith(" ⌘")
+    nameless_family_text, _, _ = format_agent_option(family, 4, is_selected=False)
+    assert not nameless_family_text.plain.endswith(" ")
 
 
 def test_clan_row_renders_unread_count_in_both_fold_states() -> None:

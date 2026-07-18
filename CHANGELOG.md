@@ -8,6 +8,7 @@
 
 ### Bug Fixes
 
+- **ace:** remove clan and family identity icons while retaining their grouping colors.
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
 
 ## [0.11.1](https://github.com/sase-org/sase/compare/v0.11.0...v0.11.1) (2026-07-18)
