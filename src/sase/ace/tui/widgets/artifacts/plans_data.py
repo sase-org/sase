@@ -47,6 +47,35 @@ class ProjectArchive:
 
 
 @dataclass(frozen=True)
+class LinkedPlanDocument:
+    """Worker-loaded committed plan linked from an epic or phase bead."""
+
+    reference: str
+    path: str
+    content: str
+    frontmatter: dict[str, str]
+    body: str
+    error: str | None
+    signature: tuple[int, int, int, int] | None
+
+    @property
+    def available(self) -> bool:
+        """Return whether the linked document was read and parsed."""
+        return self.error is None
+
+
+@dataclass(frozen=True)
+class _LinkedPlanPayload:
+    """Path-keyed payload reused when multiple beads link one document."""
+
+    content: str
+    frontmatter: dict[str, str]
+    body: str
+    error: str | None
+    signature: tuple[int, int, int, int] | None
+
+
+@dataclass(frozen=True)
 class _DeepArchiveFetch:
     """One bounded, cross-project archive browse completed off-thread."""
 
@@ -72,6 +101,7 @@ class PlansSnapshot:
     ready_ids: frozenset[tuple[str, str]]
     blocked_ids: frozenset[tuple[str, str]]
     archive: tuple[ProjectArchive, ...]
+    linked_plan_documents: dict[tuple[str, str], LinkedPlanDocument]
     source_key: tuple[object, ...]
     errors: dict[str, str]
     archive_truncated: bool = False
@@ -133,7 +163,7 @@ def load_plans_snapshot(
             )
         )
 
-    source_key = (
+    base_source_key = (
         project,
         tuple(
             (item.project, item.display_name, item.workspace_dir) for item in resolved
@@ -141,6 +171,7 @@ def load_plans_snapshot(
         _proposal_key(proposals),
         tuple(store_keys),
     )
+    source_key = (*base_source_key, _current_linked_plan_key(previous))
     if not force and previous is not None and previous.source_key == source_key:
         return previous
 
@@ -151,6 +182,7 @@ def load_plans_snapshot(
     ready_ids: set[tuple[str, str]] = set()
     blocked_ids: set[tuple[str, str]] = set()
     archive: list[ProjectArchive] = []
+    linked_plan_documents: dict[tuple[str, str], LinkedPlanDocument] = {}
     archive_truncated = False
     errors: dict[str, str] = {}
 
@@ -177,11 +209,21 @@ def load_plans_snapshot(
             )
             epics.extend(ProjectIssue(project_name, issue) for issue in project_epics)
             for epic in project_epics:
-                phases_by_epic[(project_name, epic.id)] = tuple(
+                phases = tuple(
                     ProjectIssue(project_name, issue)
                     for issue in sorted(
                         (issue for issue in issues if issue.parent_id == epic.id),
                         key=lambda issue: _hierarchical_id_key(issue.id),
+                    )
+                )
+                phases_by_epic[(project_name, epic.id)] = phases
+                linked_plan_documents.update(
+                    _load_epic_linked_plan_documents(
+                        project_name,
+                        epic,
+                        phases,
+                        workspace_dir=item.workspace_dir,
+                        plans_root=plans_root,
                     )
                 )
             ready_ids.update((project_name, issue_id) for issue_id in project_ready_ids)
@@ -218,6 +260,11 @@ def load_plans_snapshot(
     if merged_archive_truncated:
         del archive[_ARCHIVE_MERGED_LIMIT:]
 
+    source_key = (
+        *base_source_key,
+        _loaded_linked_plan_key(linked_plan_documents),
+    )
+
     return PlansSnapshot(
         project=project,
         projects=project_names,
@@ -237,6 +284,7 @@ def load_plans_snapshot(
         ready_ids=frozenset(ready_ids),
         blocked_ids=frozenset(blocked_ids),
         archive=tuple(archive),
+        linked_plan_documents=linked_plan_documents,
         source_key=source_key,
         errors=errors,
         archive_truncated=archive_truncated,
@@ -477,6 +525,232 @@ def _read_text(path: Path) -> str:
         return f"# Unable to read plan\n\n{exc}"
 
 
+def _load_epic_linked_plan_documents(
+    project: str,
+    epic: Issue,
+    phases: tuple[ProjectIssue, ...],
+    *,
+    workspace_dir: str | None,
+    plans_root: Path,
+) -> dict[tuple[str, str], LinkedPlanDocument]:
+    """Resolve linked documents once per path for one epic phase tree."""
+    documents: dict[tuple[str, str], LinkedPlanDocument] = {}
+    read_cache: dict[Path, _LinkedPlanPayload] = {}
+    if reference := epic.design.strip():
+        documents[(project, epic.id)] = _load_linked_plan_document(
+            reference,
+            workspace_dir=workspace_dir,
+            plans_root=plans_root,
+            read_cache=read_cache,
+        )
+    for phase in phases:
+        reference = phase.issue.design.strip()
+        if not reference:
+            continue
+        documents[(project, phase.issue.id)] = _load_linked_plan_document(
+            reference,
+            workspace_dir=workspace_dir,
+            plans_root=plans_root,
+            read_cache=read_cache,
+        )
+    return documents
+
+
+def _load_linked_plan_document(
+    reference: str,
+    *,
+    workspace_dir: str | None,
+    plans_root: Path,
+    read_cache: dict[Path, _LinkedPlanPayload],
+) -> LinkedPlanDocument:
+    """Resolve, read, and prepare one linked plan without raising."""
+    path = _resolve_linked_plan_path(
+        reference,
+        workspace_dir=workspace_dir,
+        plans_root=plans_root,
+    )
+    if path is None:
+        return LinkedPlanDocument(
+            reference=reference,
+            path="",
+            content="",
+            frontmatter={},
+            body="",
+            error="Linked plan unavailable: invalid reference.",
+            signature=None,
+        )
+
+    payload = read_cache.get(path)
+    if payload is None:
+        payload = _read_linked_plan_payload(path)
+        read_cache[path] = payload
+    return LinkedPlanDocument(
+        reference=reference,
+        path=str(path),
+        content=payload.content,
+        frontmatter=payload.frontmatter,
+        body=payload.body,
+        error=payload.error,
+        signature=payload.signature,
+    )
+
+
+def _resolve_linked_plan_path(
+    reference: str,
+    *,
+    workspace_dir: str | None,
+    plans_root: Path,
+) -> Path | None:
+    """Resolve every stable reference form emitted by plan approval."""
+    try:
+        raw_path = Path(reference).expanduser()
+        if raw_path.is_absolute():
+            return raw_path.resolve(strict=False)
+
+        workspace = (
+            None
+            if not workspace_dir
+            else Path(workspace_dir).expanduser().resolve(strict=False)
+        )
+        sdd_root = plans_root.expanduser().resolve(strict=False)
+        nested_plans_root = sdd_root / "plans"
+        canonical_root = (
+            nested_plans_root
+            if nested_plans_root.is_dir() or sdd_root.name == "sdd"
+            else sdd_root
+        )
+        parts = raw_path.parts
+        relative = raw_path
+        for prefix in (
+            (".sase", "sdd", "plans"),
+            ("sdd", "plans"),
+            ("plans",),
+        ):
+            if parts[: len(prefix)] == prefix:
+                relative = Path(*parts[len(prefix) :])
+                break
+
+        candidates: list[Path] = []
+        if workspace is not None:
+            candidates.append(workspace / raw_path)
+        candidates.append(canonical_root / relative)
+        normalized = tuple(
+            dict.fromkeys(candidate.resolve(strict=False) for candidate in candidates)
+        )
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+    for candidate in normalized:
+        try:
+            if candidate.is_file():
+                return candidate
+        except (OSError, ValueError):
+            continue
+    return normalized[-1] if normalized else None
+
+
+def _read_linked_plan_payload(path: Path) -> _LinkedPlanPayload:
+    """Read and parse a linked plan into display-ready worker data."""
+    signature = _linked_plan_signature(path)
+    if signature is None:
+        return _unavailable_linked_plan_payload(
+            "Linked plan unavailable: file not found."
+        )
+    try:
+        content = _read_linked_plan_text(path)
+    except (OSError, UnicodeError, ValueError):
+        return _unavailable_linked_plan_payload(
+            "Linked plan unavailable: file could not be read.",
+            signature=signature,
+        )
+
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    try:
+        frontmatter, body, had_frontmatter = parse_frontmatter(content)
+        display_frontmatter = {
+            key: _yaml_value_to_string(value)
+            for key, value in frontmatter.items()
+            if isinstance(key, str)
+        }
+    except Exception:
+        return _unavailable_linked_plan_payload(
+            "Linked plan unavailable: malformed document.",
+            signature=signature,
+        )
+    if content.startswith("---\n") and not had_frontmatter:
+        return _unavailable_linked_plan_payload(
+            "Linked plan unavailable: malformed document.",
+            signature=signature,
+        )
+    return _LinkedPlanPayload(
+        content=content,
+        frontmatter=display_frontmatter,
+        body=body,
+        error=None,
+        signature=signature,
+    )
+
+
+def _read_linked_plan_text(path: Path) -> str:
+    """Read a linked plan; kept separate so deduplication is testable."""
+    return path.read_text(encoding="utf-8")
+
+
+def _unavailable_linked_plan_payload(
+    message: str,
+    *,
+    signature: tuple[int, int, int, int] | None = None,
+) -> _LinkedPlanPayload:
+    return _LinkedPlanPayload("", {}, "", message, signature)
+
+
+def _linked_plan_signature(path: Path) -> tuple[int, int, int, int] | None:
+    try:
+        stat = path.stat()
+    except (OSError, ValueError):
+        return None
+    return (stat.st_mtime_ns, stat.st_size, stat.st_mode, stat.st_ctime_ns)
+
+
+def _current_linked_plan_key(
+    previous: PlansSnapshot | None,
+) -> tuple[tuple[object, ...], ...]:
+    if previous is None:
+        return ()
+    return tuple(
+        (
+            project,
+            issue_id,
+            document.reference,
+            document.path,
+            (
+                None
+                if not document.path
+                else _linked_plan_signature(Path(document.path))
+            ),
+        )
+        for (project, issue_id), document in sorted(
+            previous.linked_plan_documents.items()
+        )
+    )
+
+
+def _loaded_linked_plan_key(
+    documents: dict[tuple[str, str], LinkedPlanDocument],
+) -> tuple[tuple[object, ...], ...]:
+    return tuple(
+        (
+            project,
+            issue_id,
+            document.reference,
+            document.path,
+            document.signature,
+        )
+        for (project, issue_id), document in sorted(documents.items())
+    )
+
+
 def _proposal_key(
     proposals: tuple[PlanProposal, ...],
 ) -> tuple[tuple[str, str, str, str], ...]:
@@ -546,6 +820,7 @@ def _timestamp_recency_key(timestamp: str) -> tuple[bool, float]:
 
 __all__ = [
     "DEEP_ARCHIVE_PER_PROJECT_LIMIT",
+    "LinkedPlanDocument",
     "PlanProposal",
     "PlansSnapshot",
     "ProjectArchive",

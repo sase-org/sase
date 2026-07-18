@@ -9,7 +9,7 @@ from rich.text import Text
 from sase.bead.model import Issue, Status
 from sase.plan_search.model import PlanSearchMatch
 
-from .plans_data import PlanProposal, PlansSnapshot
+from .plans_data import LinkedPlanDocument, PlanProposal, PlansSnapshot
 
 
 DetailProperty = tuple[str, str | Text]
@@ -132,12 +132,43 @@ def _ordered_frontmatter_items(
     )
 
 
-def bead_body_markdown(issue: Issue) -> str:
-    """Render only a bead's description and notes as Markdown."""
+def bead_body_markdown(
+    issue: Issue,
+    linked_plan: LinkedPlanDocument | None = None,
+) -> str:
+    """Render a bead's description, notes, and worker-loaded linked plan."""
     lines = ["## Description", "", issue.description or "_No description._"]
     if issue.notes:
         lines.extend(["", "## Notes", "", issue.notes])
+    if linked_plan is not None:
+        lines.extend(["", "---", "", "## Plan", ""])
+        if linked_plan.error is not None:
+            lines.append(f"_{linked_plan.error}_")
+        else:
+            for key, value in _ordered_frontmatter_items(linked_plan.frontmatter):
+                label = _property_label(key)
+                lines.append(f"**{label}:** {value.replace(chr(10), ' ')}  ")
+            if linked_plan.frontmatter:
+                lines.append("")
+            lines.append(linked_plan.body or "_The linked plan is empty._")
     return "\n".join(lines)
+
+
+def linked_plan_for_issue(
+    issue: Issue,
+    snapshot: PlansSnapshot | None,
+    *,
+    project: str,
+) -> LinkedPlanDocument | None:
+    """Return a phase override or its owning epic's linked document."""
+    if snapshot is None:
+        return None
+    direct = snapshot.linked_plan_documents.get((project, issue.id))
+    if direct is not None:
+        return direct
+    if issue.parent_id:
+        return snapshot.linked_plan_documents.get((project, issue.parent_id))
+    return None
 
 
 def archive_preview_markdown(match: PlanSearchMatch) -> str:
@@ -372,5 +403,6 @@ __all__ = [
     "bead_body_markdown",
     "bead_preview_markdown",
     "bead_properties_header",
+    "linked_plan_for_issue",
     "proposal_properties_header",
 ]

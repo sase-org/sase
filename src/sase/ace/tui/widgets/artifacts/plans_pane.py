@@ -41,6 +41,7 @@ from .plans_detail import (
     bead_body_markdown,
     bead_preview_markdown,
     bead_properties_header,
+    linked_plan_for_issue,
     proposal_properties_header,
 )
 from .plans_list import (
@@ -881,7 +882,10 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                     project_name=self._project_name(row.project),
                 )
             )
-            body.update(bead_body_markdown(row.issue))
+            linked_plan = linked_plan_for_issue(
+                row.issue, self._snapshot, project=row.project
+            )
+            body.update(bead_body_markdown(row.issue, linked_plan))
         elif row.archive is not None:
             properties.display = True
             properties.update(

@@ -6,11 +6,12 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from textual.containers import VerticalScroll
 from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
-from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot
+from sase.ace.tui.widgets.artifacts.plans_data import LinkedPlanDocument, PlansSnapshot
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from sase.plan_search.filter_query import parse_plan_filter_query
@@ -37,6 +38,25 @@ def _visual_snapshot(tmp_path: Path) -> PlansSnapshot:
                 plan_path="/workspace/alpha--plans/202607/ship_plan_browser.md",
             ),
         ),
+    )
+
+
+def _linked_visual_snapshot(tmp_path: Path) -> PlansSnapshot:
+    snapshot = _visual_snapshot(tmp_path)
+    epic = replace(snapshot.epics[0].issue, design="202607/ship_plan_browser.md")
+    document = LinkedPlanDocument(
+        reference=epic.design,
+        path="/workspace/alpha--plans/202607/ship_plan_browser.md",
+        content="# Ship the plan browser\n\nLinked plan content.\n",
+        frontmatter={},
+        body="# Ship the plan browser\n\nLinked plan content.\n",
+        error=None,
+        signature=(1, 1, 1, 1),
+    )
+    return replace(
+        snapshot,
+        epics=(replace(snapshot.epics[0], issue=epic),),
+        linked_plan_documents={("alpha", epic.id): document},
     )
 
 
@@ -79,7 +99,7 @@ async def test_artifacts_plans_populated_png_snapshot(
     tmp_path: Path,
 ) -> None:
     patch_startup_loaders(monkeypatch)
-    snapshot = _visual_snapshot(tmp_path)
+    snapshot = _linked_visual_snapshot(tmp_path)
     monkeypatch.setattr(
         "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
         _choices,
@@ -108,9 +128,16 @@ async def test_artifacts_plans_populated_png_snapshot(
             )
         )
         pane._update_detail()
+        detail_scroll = pane.query_one("#plans-detail-scroll", VerticalScroll)
+        await page.wait_for(lambda _state: detail_scroll.max_scroll_y > 0)
+        detail_scroll.scroll_to(
+            y=detail_scroll.max_scroll_y,
+            animate=False,
+            immediate=True,
+        )
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
-        await wait_for_svg_contains(page, "No description.")
+        await wait_for_svg_contains(page, "Linked plan content.")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

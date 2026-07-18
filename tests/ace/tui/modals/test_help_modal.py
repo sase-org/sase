@@ -33,8 +33,9 @@ def test_help_modal_refresh_for_tab_rebuilds_sections() -> None:
     assert "1 / 2 / 3 / 4" in left
     combined = left + right
     assert "Select first / last entry" in combined
+    assert "Scroll right detail down / up" in combined
     assert "Move down / up 10 entries" in combined
-    assert "Move down / up 5 entries" in combined
+    assert "Move down / up 5 entries" not in combined
     assert "Hint jump (' first / back)" in combined
     assert "PR Navigation" in combined
 

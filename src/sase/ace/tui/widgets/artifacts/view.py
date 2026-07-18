@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher
 
 from ...keymaps import KeymapRegistry
@@ -42,6 +42,11 @@ _ARTIFACT_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(tab, _ARTIFACT_LABELS[tab], ARTIFACTS_ACCENTS[tab])
     for tab in ARTIFACTS_SUBTAB_ORDER
 )
+_DETAIL_SCROLL_IDS: dict[ArtifactsSubTab, str] = {
+    "commits": "commits-detail-scroll",
+    "bugs": "bugs-body-scroll",
+    "plans": "plans-detail-scroll",
+}
 
 
 class ArtifactsView(Vertical):
@@ -89,6 +94,14 @@ class ArtifactsView(Vertical):
         if subtab == "prs":
             raise ValueError("PRs use the existing ChangeSpec navigation model")
         return cast(ArtifactEntryNavigator, self._pane(subtab))
+
+    def detail_scroll(self, subtab: ArtifactsSubTab) -> VerticalScroll:
+        """Return the right-hand detail viewport for a non-PR pane."""
+        try:
+            scroll_id = _DETAIL_SCROLL_IDS[subtab]
+        except KeyError as exc:
+            raise ValueError("PRs use the existing ChangeSpec detail viewport") from exc
+        return self.query_one(f"#{scroll_id}", VerticalScroll)
 
     def switch_to(self, subtab: ArtifactsSubTab) -> None:
         """Switch visible content and route active-pane lifecycle hooks."""

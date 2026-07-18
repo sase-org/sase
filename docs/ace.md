@@ -79,8 +79,8 @@ work list. Movement clamps at the first or last entry and silently does nothing 
 | Key                 | Action                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------- |
 | `g` / `G`           | Select the first / last commit, issue, proposal, bead, phase, or archived plan        |
-| `Ctrl+D` / `Ctrl+U` | Move down / up 10 selectable entries                                                  |
-| `Ctrl+F` / `Ctrl+B` | Move down / up 5 selectable entries                                                   |
+| `Ctrl+F` / `Ctrl+B` | Move down / up 10 selectable entries                                                  |
+| `Ctrl+D` / `Ctrl+U` | Scroll the active right-hand detail pane down / up (half page)                        |
 | `'`                 | Show one-key entry hints; press `'` again for the first entry or the last jump origin |
 
 Hint keys select an entry without activating it. Jump-back history is kept separately for Commits, Bugs, and Plans, and

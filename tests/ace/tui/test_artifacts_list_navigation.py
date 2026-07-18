@@ -77,16 +77,27 @@ async def _assert_distance_navigation(
     assert len(targets) == 15
     assert pane.selected_entry_target() == targets[0]
 
-    await page.press("ctrl+d")
-    assert pane.selected_entry_target() == targets[10]
-    await page.press("ctrl+d")
-    assert pane.selected_entry_target() == targets[14]
-    await page.press("ctrl+u")
-    assert pane.selected_entry_target() == targets[4]
     await page.press("ctrl+f")
-    assert pane.selected_entry_target() == targets[9]
+    assert pane.selected_entry_target() == targets[10]
+    await page.press("ctrl+f")
+    assert pane.selected_entry_target() == targets[14]
     await page.press("ctrl+b")
     assert pane.selected_entry_target() == targets[4]
+
+    selected = pane.selected_entry_target()
+    view = page.app._artifacts_view()
+    assert view is not None
+    scroll = view.detail_scroll(page.app.current_artifacts_subtab)
+    await scroll.mount(Static("\n".join(f"detail line {i}" for i in range(100))))
+    await page.wait_for(lambda _state: scroll.max_scroll_y > 0)
+    visible_height = scroll.scrollable_content_region.height
+    await page.press("ctrl+d")
+    await page.wait_for(lambda _state: scroll.scroll_y > 0)
+    assert pane.selected_entry_target() == selected
+    assert scroll.scroll_y == min(visible_height // 2, scroll.max_scroll_y)
+    await page.press("ctrl+u")
+    await page.wait_for(lambda _state: scroll.scroll_y == 0)
+    assert pane.selected_entry_target() == selected
     await page.press("g")
     assert pane.selected_entry_target() == targets[0]
     await page.press("G")
@@ -283,13 +294,22 @@ async def test_non_pr_jump_history_is_isolated_and_model_changes_cancel_hints(
         assert commits_pane.selected_entry_target() == commits_pane.entry_targets()[0]
 
 
-async def test_configured_first_action_routes_to_non_pr_list(
+async def test_configured_navigation_actions_route_to_non_pr_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result = _commits_result(3)
     monkeypatch.setattr(
         "sase.config.load_merged_config",
-        lambda: {"ace": {"keymaps": {"app": {"scroll_to_top": "f6"}}}},
+        lambda: {
+            "ace": {
+                "keymaps": {
+                    "app": {
+                        "scroll_to_top": "f6",
+                        "scroll_prompt_down": "f7",
+                    }
+                }
+            }
+        },
     )
     monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
     monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
@@ -304,3 +324,5 @@ async def test_configured_first_action_routes_to_non_pr_list(
         assert pane.selected_entry_target() == pane.entry_targets()[-1]
         await page.press("f6")
         assert pane.selected_entry_target() == pane.entry_targets()[0]
+        await page.press("f7")
+        assert pane.selected_entry_target() == pane.entry_targets()[-1]

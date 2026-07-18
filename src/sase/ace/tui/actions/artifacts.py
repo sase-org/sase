@@ -192,6 +192,21 @@ class ArtifactsMixin(ArtifactsCommitsActionsMixin, ArtifactsPlansActionsMixin):
             self._finish_artifacts_navigation()
         return True
 
+    def _scroll_non_pr_artifacts_detail(self, direction: int) -> bool:
+        """Scroll only the active non-PR pane's right-hand detail viewport."""
+        if not self._non_pr_artifacts_active():
+            return False
+        view = self._artifacts_view()
+        if view is None:
+            return True
+        try:
+            scroll = view.detail_scroll(self.current_artifacts_subtab)
+        except Exception:
+            return True
+        height = scroll.scrollable_content_region.height
+        scroll.scroll_relative(y=direction * (height // 2), animate=False)
+        return True
+
     def _begin_non_pr_artifacts_jump_mode(self) -> bool:
         """Paint shared one-key hints for the active non-PR Artifacts list."""
         if not self._non_pr_artifacts_active():

@@ -30,11 +30,11 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
         ),
         (
             f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
-            "Move down / up 10 entries",
+            "Scroll right detail down / up",
         ),
         (
             f"{d(a.scroll_prompt_down)} / {d(a.scroll_prompt_up)}",
-            "Move down / up 5 entries",
+            "Move down / up 10 entries",
         ),
         (d(a.jump_to_entry), "Hint jump (' first / back)"),
     ]

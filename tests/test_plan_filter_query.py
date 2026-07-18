@@ -141,6 +141,7 @@ def _snapshot() -> PlansSnapshot:
         ready_ids=frozenset({("sase", epic.id)}),
         blocked_ids=frozenset({("sase", phase.id)}),
         archive=(ProjectArchive("sase", archive_match),),
+        linked_plan_documents={},
         source_key=("snapshot", 1),
         errors={},
         archive_truncated=True,

@@ -216,8 +216,8 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_scroll_detail_down(self) -> None:
         """Scroll the detail panel down by half a page (vim Ctrl+D style)."""
-        route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
-        if callable(route_artifacts) and route_artifacts(action="down10", offset=10):
+        route_artifacts = getattr(self, "_scroll_non_pr_artifacts_detail", None)
+        if callable(route_artifacts) and route_artifacts(1):
             return
         if self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -233,8 +233,8 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     def action_scroll_detail_up(self) -> None:
         """Scroll the detail panel up by half a page (vim Ctrl+U style)."""
-        route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
-        if callable(route_artifacts) and route_artifacts(action="up10", offset=-10):
+        route_artifacts = getattr(self, "_scroll_non_pr_artifacts_detail", None)
+        if callable(route_artifacts) and route_artifacts(-1):
             return
         if self.current_tab == "changespecs":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -250,7 +250,7 @@ class BasicNavigationMixin(NavigationMixinBase):
     def action_scroll_prompt_down(self) -> None:
         """Scroll prompt panel (Agents) or full page (Axe)."""
         route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
-        if callable(route_artifacts) and route_artifacts(action="down5", offset=5):
+        if callable(route_artifacts) and route_artifacts(action="down10", offset=10):
             return
         if self.current_tab == "agents":
             scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -265,7 +265,7 @@ class BasicNavigationMixin(NavigationMixinBase):
     def action_scroll_prompt_up(self) -> None:
         """Scroll prompt panel (Agents) or full page (Axe)."""
         route_artifacts = getattr(self, "_navigate_non_pr_artifacts", None)
-        if callable(route_artifacts) and route_artifacts(action="up5", offset=-5):
+        if callable(route_artifacts) and route_artifacts(action="up10", offset=-10):
             return
         if self.current_tab == "agents":
             scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]

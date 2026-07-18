@@ -187,6 +187,7 @@ def _snapshot(tmp_path: Path) -> PlansSnapshot:
         ready_ids=frozenset({("alpha", epic.id), ("alpha", first.id)}),
         blocked_ids=frozenset({("alpha", second.id)}),
         archive=(ProjectArchive("alpha", archive),),
+        linked_plan_documents={},
         source_key=("fixture",),
         errors={},
     )
