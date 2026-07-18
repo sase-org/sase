@@ -52,8 +52,33 @@ orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow th
 ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
 child remain gold. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members
 of nested families; `h` collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable
-`MEMBERS` section. The runtime is the union of member run intervals, with human-wait windows excluded, so concurrent
-members are not double-counted.
+summary of every section represented across its members. The runtime is the union of member run intervals, with
+human-wait windows excluded, so concurrent members are not double-counted.
+
+### Clan summary folding
+
+Clan summaries collect member errors, output and workflow variables, replies, SASE context, slow tool calls, and prompts
+beneath the `MEMBERS` table. Empty section kinds are omitted. Use `Ctrl+J` and `Ctrl+K` to move between the visible
+section headings.
+
+The summary has three session-only fold levels:
+
+| Level | Clan summary content                                                                                           |
+| ----- | -------------------------------------------------------------------------------------------------------------- |
+| 1     | The complete member table plus a heading and count for each other represented section                          |
+| 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
+| 3     | Full section bodies grouped by member for detailed investigation                                               |
+
+Press `zz` to cycle levels 1 → 2 → 3 → 1, or `zZ` to cycle backward. `za` cycles only the section at the top of the
+metadata viewport; `zA` toggles that section between collapsed and fully expanded. A panel-level cycle clears these
+per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows the current panel level, while the
+`▸`/`▾`/`▼` heading glyph shows each section's effective level. Disk-backed content may briefly show `loading…` when a
+section first opens.
+
+The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
+lowercase `z` key now starts fold mode. Fold state is panel-wide, but currently changes only clan summaries; using a
+fold chord on a regular agent updates the session state for the next clan selection without changing that agent's
+sections.
 
 ### Epic bead-work example
 
