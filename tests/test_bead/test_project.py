@@ -62,6 +62,62 @@ def test_read_commands_do_not_open_compatibility_mirror(tmp_path: Path) -> None:
         assert db_path.exists()
 
 
+def test_cold_large_jsonl_store_reads_without_building_mirror(tmp_path: Path) -> None:
+    beads_dir = tmp_path / "beads"
+    beads_dir.mkdir()
+    (beads_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "issue_prefix": "perf",
+                "next_counter": 1501,
+                "owner": "owner@example.com",
+            }
+        ),
+        encoding="utf-8",
+    )
+    epic = {
+        "id": "perf-1",
+        "title": "Large epic",
+        "status": "open",
+        "issue_type": "plan",
+        "tier": "epic",
+        "parent_id": None,
+        "created_at": "2026-07-18T00:00:00Z",
+        "updated_at": "2026-07-18T00:00:00Z",
+        "dependencies": [],
+    }
+    children = [
+        {
+            "id": f"perf-1.{index}",
+            "title": f"Child {index}",
+            "status": "open",
+            "issue_type": "phase",
+            "parent_id": "perf-1",
+            "created_at": "2026-07-18T00:00:00Z",
+            "updated_at": "2026-07-18T00:00:00Z",
+            "dependencies": [],
+        }
+        for index in range(1, 1500)
+    ]
+    (beads_dir / "issues.jsonl").write_text(
+        "\n".join(json.dumps(issue) for issue in [epic, *children]) + "\n",
+        encoding="utf-8",
+    )
+    db_path = beads_dir / "beads.db"
+
+    with BeadProject(tmp_path, beads_dirname="beads") as project:
+        assert project.show("perf-1.1499").title == "Child 1499"
+        assert len(project.get_epic_children("perf-1")) == 1499
+        assert len(project.list_issues()) == 1500
+        assert not db_path.exists()
+
+        assert project._max_local_child_counter("perf-1") == 1499
+        assert db_path.exists()
+        row = project._conn.execute("SELECT COUNT(*) FROM issues").fetchone()
+        assert row is not None
+        assert row[0] == 1500
+
+
 def test_create_epic(project):
     issue = project.create("My Epic", IssueType.PLAN)
     assert issue.title == "My Epic"

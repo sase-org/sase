@@ -74,6 +74,68 @@ def test_pull_sdd_clone_ttl_gate(
     assert len(integrations) == expected_integrations
 
 
+def test_sidecar_clone_fetches_once_within_ttl_and_refetches_on_demand(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "plans"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+
+    refresh = {"mode": "background", "ttl_seconds": 120}
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"bead_refresh": refresh}},
+    )
+
+    from sase.sdd import _repository_transaction
+    from sase.sdd._integration_marker import git_state_path
+
+    fetches: list[str] = []
+    real_runner = _repository_transaction._default_git_runner
+
+    def recording_runner(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:1] == ["fetch"]:
+            fetches.append(op)
+        return real_runner(repo_root, args, op=op, network=network)
+
+    monkeypatch.setattr(
+        _repository_transaction, "_default_git_runner", recording_runner
+    )
+    marker = git_state_path(clone_dir, "sase-bead-sync.integration")
+    assert not marker.exists()
+
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
+
+    assert marker.exists()
+    assert fetches == ["sdd.clone.fetch"]
+
+    refresh["ttl_seconds"] = 0
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
+    assert fetches == ["sdd.clone.fetch", "sdd.clone.fetch"]
+
+    refresh["ttl_seconds"] = 120
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True, fresh=True)
+    assert fetches == ["sdd.clone.fetch"] * 3
+
+    refresh["mode"] = "blocking"
+    ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
+    assert fetches == ["sdd.clone.fetch"] * 4
+
+
 def test_retained_https_sidecar_clone_is_rewritten_without_losing_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

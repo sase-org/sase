@@ -13,6 +13,14 @@ GOLDEN = Path(__file__).parent / "golden"
 JSONL = GOLDEN / "jsonl"
 
 
+class _CountingConnection(sqlite3.Connection):
+    commit_count = 0
+
+    def commit(self) -> None:
+        self.commit_count += 1
+        super().commit()
+
+
 def _import_fixture(tmp_path: Path, fixture_name: str) -> sqlite3.Connection:
     conn = init_db(tmp_path / f"{fixture_name}.db")
     import_from_jsonl(JSONL / fixture_name, conn)
@@ -22,13 +30,22 @@ def _import_fixture(tmp_path: Path, fixture_name: str) -> sqlite3.Connection:
 def test_current_schema_fixture_imports_hierarchy_dependencies_and_metadata(
     tmp_path: Path,
 ) -> None:
-    conn = _import_fixture(tmp_path, "current_schema.jsonl")
+    db_path = tmp_path / "current_schema.jsonl.db"
+    schema_conn = init_db(db_path)
+    schema_conn.close()
+    conn = sqlite3.connect(str(db_path), factory=_CountingConnection)
+    assert isinstance(conn, _CountingConnection)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
+        imported = import_from_jsonl(JSONL / "current_schema.jsonl", conn)
         parent = get_issue(conn, "gold-1")
         child = get_issue(conn, "gold-1.1")
     finally:
         conn.close()
 
+    assert conn.commit_count == 1
+    assert [issue.id for issue in imported] == ["gold-1", "gold-1.1"]
     assert parent is not None
     assert parent.is_ready_to_work is True
     assert parent.changespec_name == "current_changespec"
