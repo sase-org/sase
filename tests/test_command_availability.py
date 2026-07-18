@@ -132,6 +132,23 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
     )
 
 
+def test_edit_query_is_available_on_prs_and_commits_only() -> None:
+    spec = _catalog_by_id()["app.edit_query"]
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="prs"),
+    )
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="commits"),
+    )
+    for subtab in ("bugs", "plans"):
+        assert not is_command_available(
+            spec,
+            CommandContext(tab="changespecs", artifacts_subtab=subtab),
+        )
+
+
 def test_saved_query_picker_and_slots_are_pr_only() -> None:
     catalog = _catalog_by_id()
     picker = catalog["app.open_saved_query_picker"]

@@ -3697,68 +3697,6 @@ CommitViewModal #commit-view-footer {
     padding-top: 1;
 }
 
-/* ===== Commit Filters Modal Styling ===== */
-
-CommitFiltersModal {
-    align: center middle;
-}
-
-CommitFiltersModal #commit-filters-container {
-    width: 78;
-    height: auto;
-    max-height: 35;
-    border: thick #FFD700;
-    background: $surface;
-    padding: 1 2;
-}
-
-CommitFiltersModal #commit-filters-title {
-    height: 1;
-    text-align: center;
-    text-style: bold;
-    color: #FFD700;
-    margin-bottom: 1;
-}
-
-CommitFiltersModal #commit-filters-fields {
-    height: auto;
-}
-
-CommitFiltersModal .commit-filter-bound-row {
-    height: auto;
-}
-
-CommitFiltersModal .commit-filter-bound-row > Vertical {
-    width: 1fr;
-    margin-right: 1;
-}
-
-CommitFiltersModal .commit-filter-limit-column {
-    width: 18;
-    margin-right: 0;
-}
-
-CommitFiltersModal SelectionList {
-    height: 7;
-    border: solid $secondary;
-}
-
-CommitFiltersModal #commit-filter-date-help,
-CommitFiltersModal .commit-filter-empty-repos {
-    height: auto;
-    color: $text-muted;
-}
-
-CommitFiltersModal #commit-filter-buttons {
-    height: 3;
-    align-horizontal: right;
-    margin-top: 1;
-}
-
-CommitFiltersModal #commit-filter-buttons Button {
-    margin-left: 1;
-}
-
 /* ===== Workspace Input Modal Styling ===== */
 
 WorkspaceInputModal {

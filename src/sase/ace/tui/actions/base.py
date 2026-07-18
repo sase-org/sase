@@ -437,7 +437,7 @@ class BaseActionsMixin:
     def action_edit_query(self) -> None:
         """Edit the search query.
 
-        On the agents tab, delegates to the agent search filter.
+        On Agents and Artifacts → Commits, delegates to their inline filters.
 
         Supports saving queries with # prefix:
         - #<N> <query> - Save query to slot N (0-9)
@@ -446,6 +446,14 @@ class BaseActionsMixin:
         """
         if self.current_tab == "agents":
             self._edit_agent_search_query()  # type: ignore[attr-defined]
+            return
+        if (
+            self.current_tab == "changespecs"
+            and getattr(self, "current_artifacts_subtab", "prs") == "commits"
+        ):
+            pane = self._commits_pane()  # type: ignore[attr-defined]
+            if pane is not None:
+                pane.show_filters()
             return
 
         current_canonical = self.canonical_query_string  # type: ignore[attr-defined]

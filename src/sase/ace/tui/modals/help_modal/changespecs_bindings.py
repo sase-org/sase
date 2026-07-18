@@ -74,9 +74,12 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.commits_copy_sha), "Copy full commit SHA"),
                 (
-                    d(a.commits_filters),
-                    "Edit author, date, repo, and limit filters",
+                    f"{d(a.edit_query)} / {d(a.commits_filters)}",
+                    "Open inline commit filter bar",
                 ),
+                ("repo: / author:", "Filter repository / author substring"),
+                ("since: / until:", "Filter dates (7d, today, YYYY-MM-DD)"),
+                ("limit: / bare text", "Cap rows / match subject words"),
                 (
                     f"{d(a.commits_toggle_sdd)} / {d(a.commits_toggle_all_projects)}",
                     "Toggle SDD history / all projects",

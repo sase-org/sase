@@ -101,7 +101,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     ("commits_view_selected", "Commits: view selected", "Display", CL_ONLY, ()),
     ("commits_copy_sha", "Commits: copy SHA", "Display", CL_ONLY, ()),
-    ("commits_filters", "Commits: edit filters", "Display", CL_ONLY, ()),
+    ("commits_filters", "Commits: filter bar", "Display", CL_ONLY, ()),
     (
         "commits_toggle_sdd",
         "Commits: toggle SDD history",

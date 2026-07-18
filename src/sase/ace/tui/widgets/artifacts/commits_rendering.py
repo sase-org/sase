@@ -88,7 +88,7 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
     )
     for key, label in (
         (actions.commits_copy_sha, "copy"),
-        (actions.commits_filters, "filters"),
+        (actions.edit_query, "filter"),
         (actions.commits_toggle_sdd, "SDD"),
         (actions.commits_toggle_all_projects, "all"),
         (actions.commits_fetch, "fetch"),

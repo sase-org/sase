@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import UTC, datetime
 from io import StringIO
+import threading
 from typing import Any
 
 import pytest
 from rich.console import Console
-from textual.widgets import Input, Static
+from textual.widgets import Static
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.modals.help_modal import HelpModal
 from sase.ace.tui.util.lazy_syntax import (
@@ -20,7 +20,9 @@ from sase.ace.tui.util.lazy_syntax import (
     LazySyntaxRenderCache,
 )
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
+from sase.ace.tui.widgets.artifacts.commit_filter_bar import CommitFilterBar
 from sase.ace.tui.widgets.artifacts.commits_rendering import build_commit_detail
+from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 import sase.ace.tui.widgets.artifacts.commits as commits_module
 from sase.core.vcs_log_wire import (
     AggregatedCommitWire,
@@ -277,15 +279,18 @@ async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(
         assert_one_line_contract()
 
 
-async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
+async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result = _result()
     calls: list[dict[str, Any]] = []
+    collector_threads: list[int] = []
     diff_calls: list[str] = []
     copied: list[str] = []
+    event_loop_thread = threading.get_ident()
 
     def collect(**kwargs: Any) -> VcsLogResult:
+        collector_threads.append(threading.get_ident())
         calls.append(kwargs)
         return result
 
@@ -309,7 +314,7 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
         detail = pane.query_one("#commits-detail", Static)
         footer = pane.query_one("#commits-footer", Static)
         assert footer.content.plain == (
-            "j/k navigate  enter view  y copy  f filters  d SDD  "
+            "j/k navigate  enter view  y copy  / filter  d SDD  "
             "a all  F fetch  R refresh  p project"
         )
         await page.wait_for(lambda _state: "Changes:" in _rendered_text(detail.content))
@@ -323,20 +328,59 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
         await page.press("y")
         assert copied == ["b" * 40]
 
-        await page.press("f")
-        await page.expect_modal("CommitFiltersModal")
-        modal = page.app.screen
-        assert isinstance(modal, CommitFiltersModal)
-        modal.query_one("#commit-filter-authors", Input).value = "Grace"
-        modal.query_one("#commit-filter-limit", Input).value = "5"
-        modal.action_apply()
-        await page.expect_no_modal()
+        bar = pane.query_one(CommitFilterBar)
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        baseline_calls = len(calls)
+        await page.press("slash")
+        await page.wait_for(lambda _state: bar.display)
+        assert editor.text == ""
+        assert page.app.focused is editor
+
+        await page.press("f", "i", "x")
         await page.wait_for(
-            lambda _state: any(
-                call["limit"] == 5 and call["filters"].authors == ("Grace",)
-                for call in calls
+            lambda _state: (
+                pane.result is not None
+                and [entry.commit.short_id for entry in pane.result.commits]
+                == ["bbbbbbb"]
             )
         )
+        assert page.app.focused is editor
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.text == ("fix",)
+                and (pane._scope_key(), pane.filters) in pane._authoritative_results
+            )
+        )
+        assert len(calls) == baseline_calls + 1
+        assert calls[baseline_calls]["limit"] == 0
+        assert all(thread_id != event_loop_thread for thread_id in collector_threads)
+
+        await page.press("enter")
+        await page.wait_for(lambda _state: not bar.display)
+        assert page.app.focused is pane.query_one("#commits-timeline", CommitsTimeline)
+        assert pane.filters.text == ("fix",)
+        assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
+        reconciled_calls = len(calls)
+        await page.pause()
+        assert len(calls) == reconciled_calls
+
+        # The legacy `f` action opens the same inline bar. Escape restores the
+        # pre-open values and cached authoritative result after a live preview.
+        await page.press("f")
+        await page.wait_for(lambda _state: bar.display)
+        assert editor.text == "fix"
+        await page.press("ctrl+u", "f", "e", "a", "t")
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and [entry.commit.short_id for entry in pane.result.commits]
+                == ["aaaaaaa"]
+            )
+        )
+        await page.press("escape")
+        await page.wait_for(lambda _state: not bar.display)
+        assert pane.filters.text == ("fix",)
+        assert [entry.commit.short_id for entry in pane.result.commits] == ["bbbbbbb"]
 
         await page.press("enter")
         await page.expect_modal("CommitViewModal")
@@ -358,6 +402,37 @@ async def test_commits_pilot_drives_filters_detail_copy_modal_and_toggles(
         await page.wait_for(
             lambda _state: any(call["force_fetch"] is True for call in calls)
         )
+
+        # Slash remains scoped to Commits; Bugs and Plans do not open either
+        # the commit bar or the historical PR query modal.
+        for key, subtab in (("3", "bugs"), ("4", "plans")):
+            await page.press(key)
+            await page.expect_state("artifacts_subtab", subtab)
+            await page.press("slash")
+            await page.pause()
+            assert bar.display is False
+            assert page.state["modal"] is None
+
+
+async def test_commits_filter_bar_rejects_invalid_submit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    monkeypatch.setattr(commits_module, "run_vcs_log", lambda **_kwargs: result)
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs", notifications=True) as page:
+        await page.press("]")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        bar = pane.query_one(CommitFilterBar)
+
+        await page.press("slash", "r", "e", "p", "o", "colon", "enter")
+        await page.pause()
+
+        assert bar.display is True
+        assert bar.query_one("#commit-filter-status", Static).has_class("error")
+        assert pane.filters.text == ()
 
 
 async def test_commits_refresh_override_drives_action_footer_and_help(

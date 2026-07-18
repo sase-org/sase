@@ -299,6 +299,9 @@ class AceApp(
             self.current_tab == ARTIFACTS_TAB
             and self.current_artifacts_subtab != "prs"
             and action not in NON_PRS_ARTIFACT_ACTIONS
+            and not (
+                self.current_artifacts_subtab == "commits" and action == "edit_query"
+            )
         ):
             return False
         if action in BUG_ARTIFACT_ACTIONS:

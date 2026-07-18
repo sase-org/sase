@@ -203,6 +203,8 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "bugs"
     if spec.id in _COMMITS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "commits"
+    if spec.id == "app.edit_query" and ctx.artifacts_subtab != "prs":
+        return ctx.artifacts_subtab == "commits"
     if ctx.artifacts_subtab != "prs":
         if spec.id in _PLANS_ARTIFACT_COMMANDS:
             return ctx.artifacts_subtab == "plans"

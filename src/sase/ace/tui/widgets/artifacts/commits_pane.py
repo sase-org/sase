@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 from typing import TYPE_CHECKING, Any, cast
 
@@ -19,8 +19,15 @@ from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.core.vcs_log_wire import AggregatedCommitWire
+from sase.vcs_log.filter_query import (
+    CommitFilterQueryError,
+    compile_commit_matcher,
+    parse_commit_filter_query,
+    to_query_string,
+)
 from sase.vcs_log.models import VcsLogResult
 
+from .commit_filter_bar import CommitFilterBar
 from .commit_filters import CommitLogFilterValues
 from .commits_rendering import (
     build_commit_detail,
@@ -38,6 +45,8 @@ if TYPE_CHECKING:
 
 CommitCollector = Callable[..., VcsLogResult]
 CommitDiffLoader = Callable[[CommitViewSpec], str | None]
+_ScopeKey = tuple[str | None, bool, bool]
+_FILTER_DEBOUNCE_S = 0.3
 
 
 @dataclass(frozen=True)
@@ -47,6 +56,18 @@ class _CollectionSpec:
     all_projects: bool
     include_sdd: bool
     filters: CommitLogFilterValues
+
+    @property
+    def scope_key(self) -> _ScopeKey:
+        return (self.project_scope, self.all_projects, self.include_sdd)
+
+
+@dataclass(frozen=True)
+class _AuthoritativeSnapshot:
+    scope_key: _ScopeKey
+    filters: CommitLogFilterValues
+    collection_limit: int
+    result: VcsLogResult
 
 
 class CommitsPane(ArtifactsPaneLifecycle, Vertical):
@@ -76,7 +97,19 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         self._generation = 0
         self._collection_worker: Worker[VcsLogResult] | None = None
         self._collection_generation: int | None = None
+        self._collection_spec_in_flight: _CollectionSpec | None = None
         self._collection_pending = False
+        self._authoritative_results: dict[
+            tuple[_ScopeKey, CommitLogFilterValues], VcsLogResult
+        ] = {}
+        self._preview_base: _AuthoritativeSnapshot | None = None
+        self._filter_debouncer: DetailPanelDebouncer | None = None
+        self._filter_session_open = False
+        self._filter_restore_values: CommitLogFilterValues | None = None
+        self._filter_restore_result: VcsLogResult | None = None
+        self._live_filter_values: CommitLogFilterValues | None = None
+        self._pending_filter_values: CommitLogFilterValues | None = None
+        self._filter_query_error: CommitFilterQueryError | None = None
         self._selected_commit_index: int | None = None
         self._detail_debouncer: DetailPanelDebouncer | None = None
         self._diff_worker: Worker[tuple[tuple[str, str], str | None]] | None = None
@@ -85,6 +118,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         self._syntax_render_cache = LazySyntaxRenderCache()
 
     def compose(self) -> ComposeResult:
+        yield CommitFilterBar(id="commit-filter-bar")
         yield Static(self._build_info(), id="commits-info")
         with Horizontal(id="commits-main"):
             with Vertical(id="commits-list-container"):
@@ -102,10 +136,16 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
 
     def on_mount(self) -> None:
         self._detail_debouncer = DetailPanelDebouncer(self.app)
+        self._filter_debouncer = DetailPanelDebouncer(
+            self.app,
+            delay_s=_FILTER_DEBOUNCE_S,
+        )
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        if self._filter_debouncer is not None:
+            self._filter_debouncer.cancel()
         self._cancel_worker(self._collection_worker)
         self._cancel_worker(self._diff_worker)
 
@@ -195,9 +235,17 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         self._schedule_collection()
 
     def _state_changed(self) -> None:
+        if (
+            self._preview_base is not None
+            and self._preview_base.scope_key != self._scope_key()
+        ):
+            self._preview_base = None
         self._generation += 1
         if self.artifacts_active:
             self._schedule_collection()
+
+    def _scope_key(self) -> _ScopeKey:
+        return (self.project_scope, self.all_projects, self.include_sdd)
 
     def _collection_spec(self) -> _CollectionSpec:
         return _CollectionSpec(
@@ -209,9 +257,13 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         )
 
     def _collect(self, spec: _CollectionSpec, *, force_fetch: bool) -> VcsLogResult:
+        # Subject terms are presentation-only, so collect the complete
+        # author/date/repo-filtered set before the UI applies the row cap.
+        # Otherwise older subject matches can be hidden behind newer misses.
+        collection_limit = _backend_collection_limit(spec.filters)
         return self._collector(
             cwd=os.getcwd(),
-            limit=spec.filters.limit,
+            limit=collection_limit,
             filters=spec.filters.backend_filters(),
             repo_filters=spec.filters.repos,
             all_projects=spec.all_projects,
@@ -231,6 +283,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             return
         spec = self._collection_spec()
         self._collection_generation = spec.generation
+        self._collection_spec_in_flight = spec
         self._collection_worker = self.run_worker(
             lambda spec=spec: self._collect(spec, force_fetch=False),
             thread=True,
@@ -254,21 +307,53 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         }:
             return
         generation = self._collection_generation
+        spec = self._collection_spec_in_flight
         self._collection_worker = None
         self._collection_generation = None
+        self._collection_spec_in_flight = None
         stale = generation != self._generation
         pending = self._collection_pending or stale
-        if event.state == WorkerState.SUCCESS and not pending:
-            self._apply_result(cast(VcsLogResult, event.worker.result))
+        if event.state == WorkerState.SUCCESS and not pending and spec is not None:
+            self._apply_result(cast(VcsLogResult, event.worker.result), spec=spec)
         elif event.state == WorkerState.ERROR and not pending:
             self._show_collection_error(event.worker.error)
 
         self._collection_pending = False
         self._refresh_info()
-        if pending and self.artifacts_active:
+        if (
+            pending
+            and self.artifacts_active
+            and not self._filter_reconciliation_blocked()
+        ):
             self._schedule_collection()
 
-    def _apply_result(self, result: VcsLogResult) -> None:
+    def _apply_result(
+        self,
+        result: VcsLogResult,
+        *,
+        spec: _CollectionSpec | None = None,
+    ) -> None:
+        spec = spec or self._collection_spec()
+        self._remember_authoritative_result(spec, result)
+        displayed = self._filtered_result(result, spec.filters)
+        self._display_result(displayed)
+        if self._filter_session_open:
+            self._set_filter_completion_sources(result)
+            if self._live_filter_values == spec.filters:
+                self.query_one(CommitFilterBar).set_status(
+                    len(displayed.commits),
+                    exact=True,
+                    error=None,
+                )
+            elif self._live_filter_values is not None:
+                self._apply_live_preview(self._live_filter_values)
+
+    def _display_result(
+        self,
+        result: VcsLogResult,
+        *,
+        live_preview: bool = False,
+    ) -> None:
         cancel_jump = getattr(
             self.app, "_cancel_artifacts_jump_mode_for_model_change", None
         )
@@ -279,7 +364,115 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         self._selected_commit_index = timeline.update_result(result)
         self._refresh_info()
         if self._selected_commit_index is not None:
-            self._render_selected_detail(self._selected_commit_index)
+            if live_preview and self._detail_debouncer is not None:
+                index = self._selected_commit_index
+
+                def _render() -> None:
+                    self._render_selected_detail(index)
+
+                self._detail_debouncer.schedule(_render)
+            else:
+                self._render_selected_detail(self._selected_commit_index)
+
+    def _remember_authoritative_result(
+        self,
+        spec: _CollectionSpec,
+        result: VcsLogResult,
+    ) -> None:
+        key = (spec.scope_key, spec.filters)
+        self._authoritative_results[key] = result
+        # A filter session can produce many queries. Bound the revert/exact
+        # cache while retaining insertion-order recency.
+        if len(self._authoritative_results) > 32:
+            oldest = next(iter(self._authoritative_results))
+            if oldest != key:
+                self._authoritative_results.pop(oldest, None)
+
+        candidate = _AuthoritativeSnapshot(
+            spec.scope_key,
+            spec.filters,
+            _backend_collection_limit(spec.filters),
+            result,
+        )
+        current = self._preview_base
+        if (
+            current is None
+            or current.scope_key != candidate.scope_key
+            or _snapshot_breadth(candidate) > _snapshot_breadth(current)
+        ):
+            self._preview_base = candidate
+
+    def _authoritative_snapshot(
+        self,
+        values: CommitLogFilterValues,
+    ) -> _AuthoritativeSnapshot | None:
+        scope_key = self._scope_key()
+        exact = self._authoritative_results.get((scope_key, values))
+        if exact is not None:
+            return _AuthoritativeSnapshot(
+                scope_key,
+                values,
+                _backend_collection_limit(values),
+                exact,
+            )
+        base = self._preview_base
+        if base is not None and base.scope_key == scope_key:
+            return base
+        return None
+
+    def _filtered_result(
+        self,
+        result: VcsLogResult,
+        values: CommitLogFilterValues,
+    ) -> VcsLogResult:
+        aliases = {repo.name: repo.aliases for repo in result.repos}
+        matcher = compile_commit_matcher(values, repo_aliases=aliases)
+        commits = tuple(entry for entry in result.commits if matcher(entry))
+        if values.limit > 0:
+            commits = commits[: values.limit]
+        if commits == result.commits:
+            return result
+        return replace(result, commits=commits)
+
+    def _apply_live_preview(self, values: CommitLogFilterValues) -> None:
+        snapshot = self._authoritative_snapshot(values)
+        bar = self.query_one(CommitFilterBar)
+        if snapshot is None:
+            bar.set_status(None, exact=False, error=None)
+            return
+        preview = self._filtered_result(snapshot.result, values)
+        self._display_result(preview, live_preview=True)
+        bar.set_status(
+            len(preview.commits),
+            exact=_snapshot_covers(snapshot, values),
+            error=None,
+        )
+
+    def _set_filter_completion_sources(self, result: VcsLogResult) -> None:
+        results: tuple[VcsLogResult, ...] = (result,)
+        base = self._preview_base
+        if base is not None and base.scope_key == self._scope_key():
+            results = (base.result, result)
+        repos = tuple(
+            source
+            for source_result in results
+            for repo in source_result.repos
+            for source in (repo.name, *repo.aliases)
+        )
+        authors = tuple(
+            entry.commit.author_name
+            for source_result in results
+            for entry in source_result.commits
+            if entry.commit.author_name
+        )
+        self.query_one(CommitFilterBar).set_completion_sources(repos, authors)
+
+    def _filter_reconciliation_blocked(self) -> bool:
+        if not self._filter_session_open:
+            return False
+        return self._filter_query_error is not None or bool(
+            self._filter_debouncer is not None and self._filter_debouncer.is_pending
+        )
 
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"
@@ -342,21 +535,162 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             self.notify("Failed to copy to clipboard", severity="error")
 
     def show_filters(self) -> None:
-        from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
+        """Open and focus the inline commit filter bar."""
+        bar = self.query_one(CommitFilterBar)
+        if self._filter_session_open:
+            bar.query_one("#commit-filter-input").focus()
+            return
+        self._filter_session_open = True
+        self._filter_restore_values = self.filters
+        self._filter_restore_result = self.result
+        self._live_filter_values = self.filters
+        self._pending_filter_values = None
+        self._filter_query_error = None
+        snapshot = self._authoritative_snapshot(self.filters)
+        if snapshot is not None:
+            self._set_filter_completion_sources(snapshot.result)
+        bar.open(to_query_string(self.filters))
+        self._apply_live_preview(self.filters)
 
-        repo_names = (
-            tuple(repo.name for repo in self.result.repos)
-            if self.result is not None
-            else ()
+    def on_commit_filter_bar_query_changed(
+        self,
+        event: CommitFilterBar.QueryChanged,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_commit_filter_query(event.text)
+        except CommitFilterQueryError as exc:
+            # Prevent an already-running collection for the last valid query
+            # from landing over the inline error state.
+            self._generation += 1
+            self._filter_query_error = exc
+            self._pending_filter_values = None
+            if self._filter_debouncer is not None:
+                self._filter_debouncer.cancel()
+            self.query_one(CommitFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            return
+
+        self._filter_query_error = None
+        if values != self._live_filter_values:
+            # Invalidate an in-flight collection immediately, without starting
+            # any work on the keystroke path. The debouncer schedules the final
+            # valid query after the user pauses.
+            self._generation += 1
+        self._live_filter_values = values
+        self._pending_filter_values = values
+        self._apply_live_preview(values)
+
+        if self._filter_debouncer is None:
+            self._reconcile_live_filter(values, self._generation)
+            return
+        generation = self._generation
+
+        def _reconcile() -> None:
+            self._reconcile_live_filter(values, generation)
+
+        self._filter_debouncer.schedule(_reconcile)
+
+    def _reconcile_live_filter(
+        self,
+        values: CommitLogFilterValues,
+        generation: int,
+    ) -> None:
+        if (
+            not self._filter_session_open
+            or self._filter_query_error is not None
+            or self._live_filter_values != values
+            or self._generation != generation
+        ):
+            return
+        self.filters = values
+        self._pending_filter_values = None
+        self._refresh_info()
+        cached = self._authoritative_results.get((self._scope_key(), values))
+        if cached is not None:
+            self._apply_live_preview(values)
+            return
+        if not self._collection_matches(values):
+            self._schedule_collection()
+
+    def _collection_matches(self, values: CommitLogFilterValues) -> bool:
+        worker = self._collection_worker
+        spec = self._collection_spec_in_flight
+        return bool(
+            worker is not None
+            and worker.is_running
+            and spec is not None
+            and spec.generation == self._generation
+            and spec.scope_key == self._scope_key()
+            and spec.filters == values
         )
 
-        def _apply(values: CommitLogFilterValues | None) -> None:
-            if values is None or values == self.filters:
-                return
-            self.filters = values
-            self._state_changed()
+    def on_commit_filter_bar_submitted(
+        self,
+        event: CommitFilterBar.Submitted,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_commit_filter_query(event.text)
+        except CommitFilterQueryError as exc:
+            self._filter_query_error = exc
+            self.query_one(CommitFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            self.notify(exc.message, severity="error")
+            return
 
-        self.app.push_screen(CommitFiltersModal(self.filters, repo_names), _apply)
+        if values != self._live_filter_values:
+            self._generation += 1
+        self._live_filter_values = values
+        self.filters = values
+        self._close_filter_session()
+        self.query_one("#commits-timeline", CommitsTimeline).focus()
+        self._refresh_info()
+
+        cached = self._authoritative_results.get((self._scope_key(), values))
+        if cached is not None:
+            self._display_result(self._filtered_result(cached, values))
+        elif not self._collection_matches(values):
+            self._schedule_collection()
+
+    def on_commit_filter_bar_dismissed(
+        self,
+        event: CommitFilterBar.Dismissed,
+    ) -> None:
+        event.stop()
+        restore_values = self._filter_restore_values or self.filters
+        restore_result = self._filter_restore_result
+        self._generation += 1
+        self.filters = restore_values
+        self._close_filter_session()
+        self.query_one("#commits-timeline", CommitsTimeline).focus()
+
+        cached = self._authoritative_results.get((self._scope_key(), restore_values))
+        if cached is not None:
+            self._display_result(self._filtered_result(cached, restore_values))
+        elif restore_result is not None:
+            self._display_result(restore_result)
+            self._schedule_collection()
+        else:
+            self._refresh_info()
+            self._schedule_collection()
+
+    def _close_filter_session(self) -> None:
+        if self._filter_debouncer is not None:
+            self._filter_debouncer.cancel()
+        self.query_one(CommitFilterBar).close()
+        self._filter_session_open = False
+        self._filter_restore_values = None
+        self._filter_restore_result = None
+        self._live_filter_values = None
+        self._pending_filter_values = None
+        self._filter_query_error = None
 
     def toggle_sdd(self) -> None:
         self.include_sdd = not self.include_sdd
@@ -397,7 +731,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             if not completion.success or completion.payload is None:
                 return
             if spec.generation == self._generation:
-                self._apply_result(completion.payload)
+                self._apply_result(completion.payload, spec=spec)
             elif self.artifacts_active:
                 self._schedule_collection()
 
@@ -517,6 +851,40 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
     def _cancel_worker(worker: Worker[Any] | None) -> None:
         if worker is not None and worker.is_running:
             worker.cancel()
+
+
+def _snapshot_breadth(snapshot: _AuthoritativeSnapshot) -> tuple[int, int, int]:
+    filters = snapshot.filters
+    constraints = (
+        len(filters.repos)
+        + len(filters.authors)
+        + int(filters.since is not None)
+        + int(filters.until is not None)
+    )
+    unlimited = int(snapshot.collection_limit == 0)
+    limit = snapshot.collection_limit if snapshot.collection_limit > 0 else 2**31
+    return (-constraints, unlimited, limit)
+
+
+def _snapshot_covers(
+    snapshot: _AuthoritativeSnapshot,
+    values: CommitLogFilterValues,
+) -> bool:
+    if snapshot.filters == values:
+        return True
+    base = snapshot.filters
+    backend_unfiltered = not (
+        base.repos or base.authors or base.since is not None or base.until is not None
+    )
+    truncated = (
+        snapshot.collection_limit > 0
+        and len(snapshot.result.commits) >= snapshot.collection_limit
+    )
+    return backend_unfiltered and not truncated
+
+
+def _backend_collection_limit(values: CommitLogFilterValues) -> int:
+    return 0 if values.text else values.limit
 
 
 __all__ = ["CommitCollector", "CommitDiffLoader", "CommitsPane"]
