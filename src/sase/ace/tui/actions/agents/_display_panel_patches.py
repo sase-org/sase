@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 
 from sase.core.time import local_now
 
-from ...models.agent_groups import GroupingMode, status_grouping_signature
+from ...models.agent_groups import (
+    GroupingMode,
+    status_bucket_for,
+    status_grouping_signature,
+)
 from ._display_helpers import TabName, panel_widget_id
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
@@ -35,6 +39,13 @@ def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
     if old_agent.identity != new_agent.identity:
         return False
     return status_grouping_signature(old_agent) == status_grouping_signature(new_agent)
+
+
+def _clan_row_patch_preserves_order(old_agent: Agent, new_agent: Agent) -> bool:
+    """Whether a clan-projected row keeps its within-clan status rank."""
+    if not (old_agent.tree_depth > 0 or new_agent.tree_depth > 0):
+        return True
+    return status_bucket_for(old_agent) == status_bucket_for(new_agent)
 
 
 class PanelPatchMixin:
@@ -260,6 +271,21 @@ class PanelPatchMixin:
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="panel_membership_change",
+                count=1,
+            )
+            return False
+
+        if not _clan_row_patch_preserves_order(
+            widget._agents[local_idx],
+            agent,
+        ):
+            # Direct clan-member units are ordered by the visible anchor's
+            # status in every grouping mode. A bucket change therefore needs
+            # re-projection even in STANDARD/BY_DATE, where status normally
+            # has no effect on row position.
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="clan_member_order_change",
                 count=1,
             )
             return False

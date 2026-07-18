@@ -15,6 +15,14 @@ if TYPE_CHECKING:
 from .agent_status import DISMISSABLE_STATUSES
 
 _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
+_CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
+    "Failed": 0,
+    "Stopped": 1,
+    "Running": 2,
+    "Starting": 2,
+    "Waiting": 3,
+    "Done": 4,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +67,24 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
     if all(bucket == "Done" for bucket in buckets):
         return "DONE"
     return "RUNNING"
+
+
+def clan_member_status_priority(
+    status: str | None,
+    retried_as_timestamp: str | None = None,
+) -> int:
+    """Return the within-clan display rank for one direct member.
+
+    The rank intentionally differs from the Agents tab's top-level
+    ``BY_STATUS`` bucket order. Starting rows share Running's rank, and a
+    future bucket unknown to this presentation helper sorts after every known
+    bucket.
+    """
+    bucket = status_bucket_for_values(status, retried_as_timestamp)
+    return _CLAN_MEMBER_STATUS_PRIORITIES.get(
+        bucket,
+        len(_CLAN_MEMBER_STATUS_PRIORITIES),
+    )
 
 
 def clan_members(agent: Agent) -> tuple[Agent, ...]:
@@ -175,6 +201,7 @@ __all__ = [
     "ClanStatusCounts",
     "agent_summary_status_counts",
     "aggregate_clan_status",
+    "clan_member_status_priority",
     "clan_member_counts",
     "clan_members",
 ]

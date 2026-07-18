@@ -12,6 +12,7 @@ from sase.ace.tui.actions.agents._display_diff import (
     diff_touches_workflow_tree,
 )
 from sase.ace.tui.actions.agents._refresh_trace import _AgentRefreshTraceRecord
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
@@ -507,6 +508,49 @@ def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
     # per-row patch context the row-patch path reads).
     app._refresh_panel_widgets(jump_hints=None)
     return app
+
+
+def _clan_projection(status: str) -> list[Agent]:
+    member = _agent("research.member", tag=None, suffix="member", status=status)
+    member.agent_clan = "research"
+    member.agent_clan_generation = "20260718120000"
+    return project_clan_tree([member])
+
+
+def test_standard_clan_status_bucket_change_rebuilds_instead_of_patching(
+    monkeypatch: Any,
+) -> None:
+    previous_agents = _clan_projection("RUNNING")
+    next_agents = _clan_projection("DONE")
+    app = _DisplayDiffApp(previous_agents, monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = next_agents
+    app._refresh_agents_display_after_finalize(
+        previous_agents=previous_agents,
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert any(
+        record.fallback_reason == "clan_member_order_change"
+        for record in app._agents_refresh_trace_records
+    )
+    assert "display_full_rebuild" in _display_costs(app)
+
+
+def test_standard_clan_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
+    projected = _clan_projection("RUNNING")
+    app = _DisplayDiffApp(projected, monkeypatch)
+    app._agents_refresh_trace_records.clear()
+    member = projected[1]
+
+    member.live_file_change_hint = True
+
+    assert app._try_patch_agent_row(member) is True
+    assert app.full_rebuilds == 0
+    assert app._agents_refresh_trace_records[-1].fallback_reason is None
+    assert "row_patch" in _display_costs(app)
 
 
 def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:

@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pytest
 
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode, TreeEntry, build_agent_tree
@@ -135,6 +136,68 @@ def test_grouping_orders_clan_subtree_as_one_atomic_cluster(
 
     agent_order = [entry.agent_idx for entry in entries if entry.kind == "agent"]
     assert agent_order == [len(clan), *range(len(clan)), len(clan) + 1]
+
+
+@pytest.mark.parametrize("mode", [GroupingMode.STANDARD, GroupingMode.BY_STATUS])
+def test_grouping_preserves_status_sorted_clan_members_in_every_mode(
+    mode: GroupingMode,
+) -> None:
+    generation = "20260718120000"
+    waiting_newer = _agent(
+        cl_name="research.waiting-newer",
+        project_file="/r/root/root.sase",
+        agent_name="research.waiting-newer",
+        raw_suffix="waiting-newer",
+        status="WAITING",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    waiting_older = _agent(
+        cl_name="research.waiting-older",
+        project_file="/r/root/root.sase",
+        agent_name="research.waiting-older",
+        raw_suffix="waiting-older",
+        status="WAITING",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    running = _agent(
+        cl_name="research.running",
+        project_file="/r/root/root.sase",
+        agent_name="research.running",
+        raw_suffix="running",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    for member in (waiting_newer, waiting_older, running):
+        member.agent_clan = "research"
+        member.agent_clan_generation = generation
+
+    clan = project_clan_tree([waiting_newer, waiting_older, running])
+    if mode is GroupingMode.STANDARD:
+        before = _agent(
+            cl_name="before",
+            project_file="/r/alpha/alpha.sase",
+            agent_name="before",
+        )
+        after = _agent(
+            cl_name="after",
+            project_file="/r/zeta/zeta.sase",
+            agent_name="after",
+        )
+    else:
+        before = _agent(cl_name="before", agent_name="before", status="QUESTION")
+        after = _agent(cl_name="after", agent_name="after", status="DONE")
+    agents = [*clan, before, after]
+
+    entries = build_agent_tree(agents, mode=mode, now=_NOW)
+    agent_order = [entry.agent_idx for entry in entries if entry.kind == "agent"]
+
+    assert agent_order == [len(clan), *range(len(clan)), len(clan) + 1]
+    assert [agents[idx].raw_suffix for idx in agent_order if idx < len(clan)] == [
+        None,
+        "running",
+        "waiting-newer",
+        "waiting-older",
+    ]
 
 
 def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:

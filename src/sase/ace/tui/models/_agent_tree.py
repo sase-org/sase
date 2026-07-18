@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
-from ._agent_clan import aggregate_clan_status
+from ._agent_clan import aggregate_clan_status, clan_member_status_priority
 from .agent import Agent, AgentType
 
 ClanKey = tuple[str, str | None]
@@ -172,9 +172,26 @@ def _clan_for_row(
     return None
 
 
-def _container_for_clan(clan_name: str, rows: list[Agent]) -> Agent:
+def _container_for_clan(
+    clan_name: str,
+    rows: list[Agent],
+    *,
+    prior_runtime_order: list[tuple[AgentType, str, str | None]] | None = None,
+) -> Agent:
     direct = [row for row in rows if row.tree_depth == 1]
     runtime_members = direct or rows
+    if direct and prior_runtime_order:
+        prior_positions = {
+            identity: index for index, identity in enumerate(prior_runtime_order)
+        }
+        current_positions = {id(row): index for index, row in enumerate(direct)}
+        runtime_members = sorted(
+            direct,
+            key=lambda row: (
+                prior_positions.get(row.identity, len(prior_positions)),
+                current_positions[id(row)],
+            ),
+        )
     anchor = runtime_members[0]
     generations = [
         row.agent_clan_generation for row in rows if row.agent_clan_generation
@@ -243,6 +260,42 @@ def _container_for_clan(clan_name: str, rows: list[Agent]) -> Agent:
     return container
 
 
+def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:
+    """Stable-sort direct clan-member subtrees by their anchor status."""
+    units: list[list[Agent]] = []
+    unit_by_parent_key: dict[str, list[Agent]] = {}
+
+    # Create every direct-member unit first so descendants remain attached
+    # even when a compatibility payload does not place them after the anchor.
+    for row in rows:
+        if row.tree_parent_key != fold_key:
+            continue
+        direct_unit = [row]
+        units.append(direct_unit)
+        if row.raw_suffix:
+            unit_by_parent_key[row.raw_suffix] = direct_unit
+
+    for row in rows:
+        if row.tree_parent_key == fold_key:
+            continue
+        parent_unit = unit_by_parent_key.get(row.tree_parent_key or "")
+        if parent_unit is None:
+            # Projection makes rows with missing parents direct members. Keep
+            # this defensive fallback atomic if a future tree shape reaches
+            # the helper without that normalization.
+            units.append([row])
+        else:
+            parent_unit.append(row)
+
+    units.sort(
+        key=lambda unit: clan_member_status_priority(
+            unit[0].status,
+            unit[0].retried_as_timestamp,
+        )
+    )
+    return [row for unit in units for row in unit]
+
+
 def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     """Return *agents* with one synthetic container per loaded clan.
 
@@ -250,6 +303,13 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     patch merges and optimistic kill/dismiss mutations. Real rows retain their
     artifact relationships; only the presentation-only tree fields mutate.
     """
+    prior_runtime_orders = {
+        (agent.agent_clan, agent.agent_clan_generation): [
+            child.identity for child in agent.runtime_children
+        ]
+        for agent in agents
+        if agent.is_clan_container and agent.agent_clan
+    }
     real_agents = [agent for agent in agents if not agent.is_clan_container]
     for agent in real_agents:
         _reset_tree_projection(agent)
@@ -286,7 +346,12 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
             else:
                 row.tree_depth = 1
                 row.tree_parent_key = fold_key
-        containers[clan_key] = _container_for_clan(clan_name, rows)
+        containers[clan_key] = _container_for_clan(
+            clan_name,
+            rows,
+            prior_runtime_order=prior_runtime_orders.get(clan_key),
+        )
+        rows_by_clan[clan_key] = _sort_clan_member_units(rows, fold_key)
 
     projected: list[Agent] = []
     emitted: set[ClanKey] = set()

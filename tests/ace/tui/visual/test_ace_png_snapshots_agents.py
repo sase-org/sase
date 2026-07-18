@@ -411,7 +411,16 @@ def _epic_clan_agents() -> list[Agent]:
 
 def _decorate_clan_panel_sections(rows: list[Agent]) -> list[Agent]:
     """Give panel-only fixtures representative in-memory aggregate sections."""
-    members = [row for row in rows if row.agent_clan is not None]
+    container = next(row for row in rows if row.is_clan_container)
+    members = [container]
+    for direct_member in container.runtime_children:
+        members.append(direct_member)
+        members.extend(
+            row
+            for row in rows
+            if row.agent_clan is not None
+            and row.tree_parent_key == direct_member.raw_suffix
+        )
     assert len(members) >= 3
     for index, member in enumerate(members, start=1):
         member.output_variables = {

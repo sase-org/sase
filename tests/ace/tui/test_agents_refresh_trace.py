@@ -81,6 +81,7 @@ def test_refresh_trace_taxonomy_covers_phase_one_terms() -> None:
         "width_growth",
         "panel_membership_change",
         "workflow_tree_change",
+        "clan_member_order_change",
         "dirty_queue_overflow",
         "unknown_watcher_path",
         "persistence_error",

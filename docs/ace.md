@@ -606,7 +606,10 @@ remain gold. Clan `@tribe` tags follow the orchid name. From a collapsed clan ro
 members (agents, family rows, and visible workflow steps), then press `l` again to reveal hidden steps and family
 members at a third indentation level. `h` walks those levels in reverse. Sequential family members use `--<suffix>`
 names and run one after another. Killing or dismissing a clan row cascades to the clan's live members; acting on one
-member leaves its siblings alone.
+member leaves its siblings alone. Direct clan members always sort by the clan-local status priority Failed, Stopped,
+Running, Waiting, Done in every grouping mode; Starting shares Running's rank. Launch recency orders only members in the
+same status bucket. A family row moves as one unit with its follow-ups and workflow steps, preserving their adjacency
+and internal order.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -645,11 +648,14 @@ as `STANDARD`. Status priority fixes the bucket order: Stopped, Failed, Running,
 never moves a display unit across those buckets; within a bucket, top-level display units sort by `start_time`, newest
 first. Units with no launch timestamp sort after timestamped units, with structural names and input order providing
 deterministic tie-breakers. A family, clan, or workflow subtree uses its outer/root agent's launch time and remains
-contiguous in its established internal preorder, including any name-prefix banners. The `Starting` bucket remains last
-and its transient rows remain hidden, so startup-only work does not displace active rows during daemon or launch
-refreshes. Each mode keeps its own per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the
-project layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`,
-`◐`) so the bucket title still leads visually.
+contiguous. Inside a clan, direct members still use the clan-local Failed, Stopped, Running/Starting, Waiting, Done
+priority described above, with launch recency breaking same-status ties; that order intentionally differs from this L0
+bucket order. Family follow-ups and workflow steps remain adjacent to their direct-member anchor in their established
+internal preorder, including any name-prefix banners. The `Starting` bucket remains last and its transient rows remain
+hidden, so startup-only work does not displace active rows during daemon or launch refreshes. Each mode keeps its own
+per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project layout you had in `STANDARD`.
+`BY_STATUS` banners are prefixed with semantic glyphs (`▲`, `✗`, `▶`, `⏳`, `✓`, `◐`) so the bucket title still leads
+visually.
 
 The active grouping strategy is also surfaced in the Agents tab header via a `[group: <label> (o)]` badge so the current
 session mode is always visible after the cycle toast fades. The same header starts with a visible top-level agent metric
