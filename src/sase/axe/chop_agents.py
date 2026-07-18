@@ -57,7 +57,11 @@ def _prompt_hash(prompt: str) -> str:
 
 
 def build_chop_launch_env(
-    *, lumberjack_name: str, chop_name: str, prompt: str | None
+    *,
+    lumberjack_name: str,
+    chop_name: str,
+    prompt: str | None,
+    run_id: str | None = None,
 ) -> dict[str, str]:
     """Build env vars that identify a chop-launched agent.
 
@@ -67,7 +71,7 @@ def build_chop_launch_env(
     env = {
         ENV_CHOP_LUMBERJACK: lumberjack_name,
         ENV_CHOP_NAME: chop_name,
-        ENV_CHOP_RUN_ID: uuid.uuid4().hex,
+        ENV_CHOP_RUN_ID: run_id or uuid.uuid4().hex,
     }
     if prompt is not None:
         env[ENV_CHOP_PROMPT_HASH] = _prompt_hash(prompt)
@@ -206,17 +210,6 @@ def _is_live_record(record: _ChopAgentRecord) -> bool:
     return is_process_running(record.pid) and not _has_done_marker(record)
 
 
-def _prune_chop_agent_records_unlocked(
-    lumberjack_name: str,
-) -> list[_ChopAgentRecord]:
-    """Drop dead or completed records and return the remaining live records."""
-    records = _read_records_unlocked(lumberjack_name)
-    live = [record for record in records if _is_live_record(record)]
-    if live != records:
-        _write_records_unlocked(lumberjack_name, live)
-    return live
-
-
 def get_live_chop_agent_records(
     lumberjack_name: str,
     *,
@@ -229,7 +222,8 @@ def get_live_chop_agent_records(
     runner-owned launch lifecycles after proposal agents reach terminal state.
     """
     with _registry_lock(lumberjack_name):
-        records = _prune_chop_agent_records_unlocked(lumberjack_name)
+        records = _read_records_unlocked(lumberjack_name)
+    records = [record for record in records if _is_live_record(record)]
     if chop_name is not None:
         records = [record for record in records if record.chop_name == chop_name]
     if prompt_hash_value is not None:
@@ -237,6 +231,45 @@ def get_live_chop_agent_records(
             record for record in records if record.prompt_hash == prompt_hash_value
         ]
     return records
+
+
+def get_chop_agent_records(
+    lumberjack_name: str,
+    *,
+    chop_name: str | None = None,
+    run_id: str | None = None,
+) -> list[_ChopAgentRecord]:
+    """Return durable records without discarding completed agents.
+
+    Lifecycle housekeeping needs completed records long enough to inspect
+    their immutable ``done.json`` markers. The live-record query above is a
+    view only; it intentionally no longer deletes terminal linkage.
+    """
+    with _registry_lock(lumberjack_name):
+        records = _read_records_unlocked(lumberjack_name)
+    if chop_name is not None:
+        records = [record for record in records if record.chop_name == chop_name]
+    if run_id is not None:
+        records = [record for record in records if record.run_id == run_id]
+    return records
+
+
+def remove_chop_agent_records(
+    lumberjack_name: str,
+    *,
+    chop_name: str,
+    run_id: str,
+) -> None:
+    """Remove linkage after a launched chop run reaches terminal state."""
+    with _registry_lock(lumberjack_name):
+        records = _read_records_unlocked(lumberjack_name)
+        kept = [
+            record
+            for record in records
+            if not (record.chop_name == chop_name and record.run_id == run_id)
+        ]
+        if kept != records:
+            _write_records_unlocked(lumberjack_name, kept)
 
 
 def _record_chop_agent_launch(
@@ -275,15 +308,8 @@ def _record_chop_agent_launch(
     with _registry_lock(lumberjack_name):
         records = [
             existing
-            for existing in _prune_chop_agent_records_unlocked(lumberjack_name)
-            if not (
-                existing.pid == pid
-                or (
-                    run_id
-                    and existing.run_id == run_id
-                    and existing.chop_name == chop_name
-                )
-            )
+            for existing in _read_records_unlocked(lumberjack_name)
+            if existing.pid != pid
         ]
         records.append(record)
         _write_records_unlocked(lumberjack_name, records)

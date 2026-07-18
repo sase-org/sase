@@ -41,6 +41,12 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
+    "src/sase/axe/chop_lifecycle.py:_agent_completion": PathPassingReview(
+        exemption=(
+            "Read-only chop action finalization: done.json is inspected only "
+            "to classify the terminal outcome of a registry-linked agent."
+        ),
+    ),
 }
 
 

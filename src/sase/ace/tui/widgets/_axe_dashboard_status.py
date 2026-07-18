@@ -293,6 +293,7 @@ class AxeStatusSection(Static):
         if run is not None:
             entry = run.entry
             is_running = entry.status == "running"
+            is_active = entry.status in {"running", "launched"}
             text.append("  │  ", style="dim")
             status_text, status_style = _chop_status_label(entry.status)
             text.append(status_text, style=status_style)
@@ -304,7 +305,7 @@ class AxeStatusSection(Static):
 
             # Duration — label changes for active runs to convey "still running".
             text.append("  │  ", style="dim")
-            if is_running:
+            if is_active:
                 text.append("Elapsed: ", style="bold #87D7FF")
                 text.append(_format_runtime(entry.started_at), style="#00D7AF")
             else:
@@ -312,7 +313,7 @@ class AxeStatusSection(Static):
                 text.append(_format_duration_ms(entry.duration_ms), style="#00D7AF")
 
             # Exit code when present (non-agent, non-running runs)
-            if entry.exit_code is not None and not is_running:
+            if entry.exit_code is not None and not is_active:
                 text.append("  │  ", style="dim")
                 text.append("Exit: ", style="bold #87D7FF")
                 code_style = "bold red" if entry.exit_code != 0 else "#00D7AF"

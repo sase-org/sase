@@ -411,7 +411,7 @@ class AxeDisplayLoadersMixin:
         snap = self._axe_chop_snapshots.get(chop_key)
         if snap is None or not snap.runs:
             return False
-        return snap.runs[0].entry.status == "running"
+        return snap.runs[0].entry.status in {"running", "launched"}
 
     def _axe_live_tick(self) -> None:
         """Per-second hook that pulls fresh data for an active chop run.

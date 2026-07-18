@@ -144,6 +144,18 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     axe_chop_run_parser.add_argument("chop_name", help="Name of the chop to run")
     axe_chop_run_parser.add_argument(
+        "-V",
+        "--chop-verbose",
+        action="store_true",
+        help="Enable verbose script diagnostics and show the full structured result",
+    )
+    axe_chop_run_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Run the script and preview validated agent proposals without launching",
+    )
+    axe_chop_run_parser.add_argument(
         "-L",
         "--lumberjack",
         default=None,

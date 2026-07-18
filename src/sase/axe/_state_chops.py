@@ -9,10 +9,10 @@ propagate to every reader.
 """
 
 import sase.axe.state as _state  # noqa: I001
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from sase.axe._state_lumberjack import lumberjack_state_dir
 from sase.core.time import get_timezone
@@ -27,7 +27,14 @@ ChopRunStatus = Literal[
     "failure",
     "timeout",
     "missing_script",
+    "no_op",
+    "check_error",
+    "launched",
+    "action_succeeded",
+    "action_failed",
 ]
+
+ACTIVE_CHOP_RUN_STATUSES: frozenset[ChopRunStatus] = frozenset({"running", "launched"})
 
 #: Allowed values for ``ChopRunEntry.source`` — how the run was kicked off.
 ChopRunSource = Literal["scheduled", "manual", "oneshot"]
@@ -37,9 +44,9 @@ ChopRunSource = Literal["scheduled", "manual", "oneshot"]
 class ChopRunEntry:
     """Metadata for a single recorded chop run attempt.
 
-    ``finished_at`` is ``None`` while ``status == "running"``; once the run
-    terminates the same entry is updated with terminal status, ``finished_at``,
-    and computed ``duration_ms``.
+    ``finished_at`` is ``None`` while the script or launched action is active;
+    once the run terminates the same entry is updated with terminal status,
+    ``finished_at``, and computed ``duration_ms``.
     """
 
     run_id: str
@@ -58,6 +65,11 @@ class ChopRunEntry:
     output_log: str = ""
     source: ChopRunSource = "scheduled"
     started_by: str | None = None
+    result_file: str = ""
+    result: dict[str, Any] | None = None
+    proposals: list[dict[str, Any]] = field(default_factory=list)
+    launches: list[dict[str, Any]] = field(default_factory=list)
+    dry_run: bool = False
 
 
 def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
@@ -83,6 +95,16 @@ def chop_run_meta_path(lumberjack_name: str, chop_name: str, run_id: str) -> Pat
 def chop_run_log_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
     """Return the output log path for a recorded chop run."""
     return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.log"
+
+
+def chop_run_result_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
+    """Return the structured result path offered to one chop invocation."""
+    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.result.json"
+
+
+def chop_run_context_path(lumberjack_name: str, chop_name: str, run_id: str) -> Path:
+    """Return the run-local context path containing ``result_file``."""
+    return chop_runs_dir(lumberjack_name, chop_name) / f"{run_id}.context.json"
 
 
 def ensure_chop_dirs(lumberjack_name: str, chop_name: str) -> Path:
@@ -132,7 +154,7 @@ def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
         entry = read_chop_run(lumberjack_name, chop_name, rid)
         if entry is None:
             continue
-        if entry.status == "running":
+        if entry.status in ACTIVE_CHOP_RUN_STATUSES:
             kept.append(rid)
         elif terminal_kept < MAX_CHOP_RUN_HISTORY:
             kept.append(rid)
@@ -144,6 +166,8 @@ def _prune_chop_run_history(lumberjack_name: str, chop_name: str) -> None:
     for old_id in to_prune:
         _safe_unlink(chop_run_meta_path(lumberjack_name, chop_name, old_id))
         _safe_unlink(chop_run_log_path(lumberjack_name, chop_name, old_id))
+        _safe_unlink(chop_run_result_path(lumberjack_name, chop_name, old_id))
+        _safe_unlink(chop_run_context_path(lumberjack_name, chop_name, old_id))
 
 
 def write_chop_run(entry: ChopRunEntry, output: str = "") -> None:
@@ -256,18 +280,25 @@ def finish_chop_run(
     run_id: str,
     *,
     status: ChopRunStatus,
-    finished_at: str,
+    finished_at: str | None,
     duration_ms: int,
     exit_code: int | None = None,
+    agent_pid: int | None = None,
     error: str | None = None,
     traceback: str | None = None,
     output_bytes: int | None = None,
+    result_file: str | None = None,
+    result: dict[str, Any] | None = None,
+    proposals: list[dict[str, Any]] | None = None,
+    launches: list[dict[str, Any]] | None = None,
+    dry_run: bool | None = None,
 ) -> None:
-    """Finalize a running chop entry with terminal status and prune history.
+    """Transition a running chop entry and prune terminal history.
 
     Reads the existing metadata so fields written at start (e.g. ``pid``,
-    ``source``, ``started_by``) survive finalization. Pruning runs after the
-    update and skips any entries that are still in ``running`` state.
+    ``source``, ``started_by``) survive the transition. ``launched`` is an
+    active state and therefore keeps ``finished_at=None`` until lifecycle
+    housekeeping observes all linked agent completions.
     """
     meta_path = chop_run_meta_path(lumberjack_name, chop_name, run_id)
     data = _state.read_json(meta_path)
@@ -278,10 +309,19 @@ def finish_chop_run(
     data["finished_at"] = finished_at
     data["duration_ms"] = duration_ms
     data["exit_code"] = exit_code
-    if error is not None:
-        data["error"] = error
-    if traceback is not None:
-        data["traceback"] = traceback
+    data["agent_pid"] = agent_pid
+    data["error"] = error
+    data["traceback"] = traceback
+    if result_file is not None:
+        data["result_file"] = result_file
+    if result is not None:
+        data["result"] = result
+    if proposals is not None:
+        data["proposals"] = proposals
+    if launches is not None:
+        data["launches"] = launches
+    if dry_run is not None:
+        data["dry_run"] = dry_run
 
     if output_bytes is None:
         log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)
@@ -299,8 +339,9 @@ def read_chop_run_index(lumberjack_name: str, chop_name: str) -> list[str]:
     """Read the newest-first list of run ids for a chop.
 
     Pruning bounds the index to ``MAX_CHOP_RUN_HISTORY`` terminal entries
-    plus any currently-``running`` entries, so callers do not need to slice
-    defensively. Returns an empty list if the index is missing or invalid.
+    plus any entries whose script or launched action is still active, so
+    callers do not need to slice defensively. Returns an empty list if the
+    index is missing or invalid.
     """
     data = _state.read_json(chop_index_path(lumberjack_name, chop_name))
     if not isinstance(data, list):

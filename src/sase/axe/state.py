@@ -118,14 +118,17 @@ def get_timestamp() -> str:
 # imports go at the bottom: section modules are only loaded once the names
 # above are bound on this module.
 from sase.axe._state_chops import (  # noqa: E402
+    ACTIVE_CHOP_RUN_STATUSES,
     MAX_CHOP_RUN_HISTORY,
     ChopRunEntry,
     ChopRunSource,
     ChopRunStatus,
     append_chop_run_output,
     chop_index_path,
+    chop_run_context_path,
     chop_run_log_path,
     chop_run_meta_path,
+    chop_run_result_path,
     chop_runs_dir,
     ensure_chop_dirs,
     finish_chop_run,
@@ -178,6 +181,7 @@ from sase.axe._state_scheduler import (  # noqa: E402
 )
 
 __all__ = [
+    "ACTIVE_CHOP_RUN_STATUSES",
     "AXE_OUTPUT_LOG",
     "AXE_STATE_DIR",
     "AxeMetrics",
@@ -198,8 +202,10 @@ __all__ = [
     "append_lumberjack_log",
     "atomic_write_json",
     "chop_index_path",
+    "chop_run_context_path",
     "chop_run_log_path",
     "chop_run_meta_path",
+    "chop_run_result_path",
     "chop_runs_dir",
     "clear_lumberjack_output_log",
     "ensure_chop_dirs",

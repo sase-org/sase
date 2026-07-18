@@ -15,6 +15,7 @@ from typing import Any, Literal
 
 from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.config import AxeConfig, load_axe_config
+from sase.axe.state import ChopRunStatus, read_chop_run, read_chop_run_index
 
 ConfiguredChopStatus = Literal["configured", "missing"]
 AvailableChopSource = Literal["configured_dir", "python_bin", "path"]
@@ -31,6 +32,8 @@ class ConfiguredChopRecord:
     env: dict[str, str]
     status: ConfiguredChopStatus
     resolved_path: str | None
+    latest_run_status: ChopRunStatus | None = None
+    latest_run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,8 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
                 "script": chop.script,
                 "status": chop.status,
                 "resolved_path": chop.resolved_path,
+                "latest_run_status": chop.latest_run_status,
+                "latest_run_id": chop.latest_run_id,
             }
             for chop in inventory.configured_chops
         ],
@@ -130,6 +135,12 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
         for chop in lumberjack.chops:
             script_name = chop.script_name
             script = discover_chop_script(script_name, axe_config.chop_script_dirs)
+            run_index = read_chop_run_index(lumberjack_name, chop.name)
+            latest_run = (
+                read_chop_run(lumberjack_name, chop.name, run_index[0])
+                if run_index
+                else None
+            )
             records.append(
                 ConfiguredChopRecord(
                     lumberjack=lumberjack_name,
@@ -139,6 +150,10 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                     env=dict(chop.env),
                     status="configured" if script is not None else "missing",
                     resolved_path=str(script) if script is not None else None,
+                    latest_run_status=latest_run.status
+                    if latest_run is not None
+                    else None,
+                    latest_run_id=latest_run.run_id if latest_run is not None else None,
                 )
             )
 

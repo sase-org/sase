@@ -8,15 +8,26 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
+from sase.core.axe_chop_facade import parse_chop_result
 from sase.core.time import get_timezone
 
 from .chop_agents import build_chop_launch_env
+from .chop_lifecycle import finalize_launched_chop_runs
+from .chop_proposals import (
+    launch_chop_proposals,
+    prepare_chop_proposals,
+    proposal_previews,
+)
 from .chop_script_runner import discover_chop_script, stream_chop_script
 from .config import AxeConfig, ChopConfig
 from .state import (
     ChopRunEntry,
     ChopRunSource,
+    ChopRunStatus,
+    append_chop_run_output,
+    chop_run_context_path,
     chop_run_log_path,
+    chop_run_result_path,
     ensure_lumberjack_dirs,
     finish_chop_run,
     generate_chop_run_id,
@@ -27,6 +38,7 @@ from .state import (
     write_chop_run,
 )
 from .chop_runner_context import build_oneshot_context
+from .chop_script_context import prepare_chop_run_context
 from .chop_runner_trace import NO_PYTHON_TRACEBACK, capture_traceback
 from .chop_runner_types import ChopRunOutcome
 
@@ -64,7 +76,7 @@ def active_script_chop_run(
     pidless_stale_after_seconds: int | None = None,
     is_process_running_fn: Callable[[int], bool] = is_process_running,
 ) -> ChopRunEntry | None:
-    """Return the newest chop run entry if it is still in ``running`` state.
+    """Return the newest chop run entry if its script or action is active.
 
     Only the head of the index is inspected: pruning keeps active runs at the
     front, and a finalized newest entry means there is no live run to dedupe
@@ -80,6 +92,8 @@ def active_script_chop_run(
     head = read_chop_run(lumberjack_name, chop_name, head_id)
     if head is None:
         return None
+    if head.status == "launched":
+        return head
     if head.status != "running":
         return None
 
@@ -149,14 +163,18 @@ def run_script_chop_once(
     context_file: str | None,
     source: ChopRunSource,
     started_by: str | None,
+    dry_run: bool = False,
+    chop_verbose: bool = False,
     discover_chop_script_fn: Callable[
         [str, list[str]], Path | None
     ] = discover_chop_script,
     stream_chop_script_fn: Callable[..., Any] = stream_chop_script,
     build_context_fn: Callable[[str, AxeConfig], str] = build_oneshot_context,
     is_process_running_fn: Callable[[int], bool] = is_process_running,
+    launch_agent_from_cwd_fn: Callable[..., Any] | None = None,
 ) -> ChopRunOutcome:
     resolved_timeout = chop.timeout or chop_timeout_default
+    finalize_launched_chop_runs(lumberjack_name, [chop.name])
     live = active_script_chop_run(
         lumberjack_name,
         chop.name,
@@ -215,8 +233,11 @@ def run_script_chop_once(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
             prompt=None,
+            run_id=run_id,
         )
     )
+    if chop_verbose or axe_config.verbose_lumberjack_diagnostics:
+        env["SASE_CHOP_VERBOSE"] = "1"
 
     state_dir = ensure_lumberjack_dirs(lumberjack_name)
     if context_file is None:
@@ -239,6 +260,36 @@ def run_script_chop_once(
         pass
 
     log_path = chop_run_log_path(lumberjack_name, chop.name, run_id)
+    result_path = chop_run_result_path(lumberjack_name, chop.name, run_id)
+    run_context_path = chop_run_context_path(lumberjack_name, chop.name, run_id)
+    env["SASE_CHOP_RESULT_FILE"] = str(result_path)
+    try:
+        context_file = prepare_chop_run_context(
+            context_file,
+            result_file=str(result_path),
+            destination=str(run_context_path),
+        )
+    except Exception as e:
+        tb = capture_traceback()
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="check_error",
+            error=e,
+            tb=tb,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="check_error",
+            run_id=run_id,
+            error=e,
+            traceback=tb,
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
 
     def _record_pid(pid: int) -> None:
         try:
@@ -298,9 +349,83 @@ def run_script_chop_once(
             output_bytes=result.output_bytes,
             error=error,
             traceback=NO_PYTHON_TRACEBACK,
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
         )
 
-    if result.returncode == 0:
+    structured_result: dict[str, Any] | None = None
+    proposals: list[dict[str, Any]] = []
+    prepared_proposals = []
+    if result_path.is_file():
+        try:
+            structured_result = parse_chop_result(
+                result_path.read_text(encoding="utf-8")
+            )
+            prepared_proposals = prepare_chop_proposals(
+                chop.name,
+                structured_result,
+            )
+            proposals = proposal_previews(prepared_proposals)
+        except Exception as e:
+            tb = capture_traceback()
+            _finalize(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                run_id=run_id,
+                started_at=started_at,
+                status="check_error",
+                exit_code=result.returncode,
+                error=e,
+                tb=tb,
+                result_file=result_path.name,
+                dry_run=dry_run,
+            )
+            return ChopRunOutcome(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                status="check_error",
+                run_id=run_id,
+                exit_code=result.returncode,
+                output_bytes=result.output_bytes,
+                error=e,
+                traceback=tb,
+                dry_run=dry_run,
+                chop_verbose=chop_verbose,
+            )
+
+    if result.returncode != 0:
+        error = RuntimeError(f"exit code {result.returncode}")
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="failure",
+            exit_code=result.returncode,
+            error=error,
+            tb=NO_PYTHON_TRACEBACK,
+            output_bytes=result.output_bytes,
+            result_file=result_path.name if structured_result is not None else None,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="failure",
+            run_id=run_id,
+            exit_code=result.returncode,
+            output_bytes=result.output_bytes,
+            error=error,
+            traceback=NO_PYTHON_TRACEBACK,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
+
+    if structured_result is None:
         _finalize(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -309,6 +434,7 @@ def run_script_chop_once(
             status="success",
             exit_code=0,
             output_bytes=result.output_bytes,
+            dry_run=dry_run,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -317,29 +443,204 @@ def run_script_chop_once(
             run_id=run_id,
             exit_code=0,
             output_bytes=result.output_bytes,
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
         )
 
-    error = RuntimeError(f"exit code {result.returncode}")
+    _append_structured_result_summary(
+        lumberjack_name,
+        chop.name,
+        run_id,
+        structured_result,
+    )
+    result_status = str(structured_result["status"])
+    if result_status == "check_error":
+        error = RuntimeError(
+            str(
+                structured_result.get("reason")
+                or structured_result.get("summary")
+                or "chop reported a degraded check"
+            )
+        )
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="check_error",
+            exit_code=0,
+            error=error,
+            tb=NO_PYTHON_TRACEBACK,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="check_error",
+            run_id=run_id,
+            exit_code=0,
+            error=error,
+            traceback=NO_PYTHON_TRACEBACK,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
+
+    if result_status == "no_op":
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="no_op",
+            exit_code=0,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="no_op",
+            run_id=run_id,
+            exit_code=0,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
+
+    if not prepared_proposals or dry_run:
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="success",
+            exit_code=0,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="success",
+            run_id=run_id,
+            exit_code=0,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
+
+    if launch_agent_from_cwd_fn is None:
+        from sase.agent.launcher import launch_agent_from_cwd
+
+        launch_agent_from_cwd_fn = launch_agent_from_cwd
+    try:
+        launches = launch_chop_proposals(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            proposals=prepared_proposals,
+            launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
+        )
+    except Exception as e:
+        tb = capture_traceback()
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="action_failed",
+            exit_code=0,
+            error=e,
+            tb=tb,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=False,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="action_failed",
+            run_id=run_id,
+            exit_code=0,
+            error=e,
+            traceback=tb,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=False,
+            chop_verbose=chop_verbose,
+        )
+
+    for launch in launches:
+        append_chop_run_output(
+            lumberjack_name,
+            chop.name,
+            run_id,
+            (
+                f"Launched proposal {int(launch['index']) + 1} as "
+                f"{launch['agent_name']} (PID {launch['pid']})\n"
+            ),
+        )
+    first_pid = int(launches[0]["pid"])
     _finalize(
         lumberjack_name=lumberjack_name,
         chop_name=chop.name,
         run_id=run_id,
         started_at=started_at,
-        status="failure",
-        exit_code=result.returncode,
-        error=error,
-        tb=NO_PYTHON_TRACEBACK,
-        output_bytes=result.output_bytes,
+        status="launched",
+        exit_code=0,
+        agent_pid=first_pid,
+        result_file=result_path.name,
+        structured_result=structured_result,
+        proposals=proposals,
+        launches=launches,
+        dry_run=False,
+        active=True,
     )
     return ChopRunOutcome(
         lumberjack_name=lumberjack_name,
         chop_name=chop.name,
-        status="failure",
+        status="launched",
         run_id=run_id,
-        exit_code=result.returncode,
-        output_bytes=result.output_bytes,
-        error=error,
-        traceback=NO_PYTHON_TRACEBACK,
+        exit_code=0,
+        agent_pid=first_pid,
+        result=structured_result,
+        proposals=tuple(proposals),
+        launches=tuple(launches),
+        dry_run=False,
+        chop_verbose=chop_verbose,
+    )
+
+
+def _append_structured_result_summary(
+    lumberjack_name: str,
+    chop_name: str,
+    run_id: str,
+    result: dict[str, Any],
+) -> None:
+    parts = [f"Structured chop result: {result['status']}"]
+    if result.get("summary"):
+        parts.append(str(result["summary"]))
+    if result.get("reason"):
+        parts.append(f"reason={result['reason']}")
+    proposed = result.get("proposed_launches", [])
+    parts.append(f"proposals={len(proposed) if isinstance(proposed, list) else 0}")
+    append_chop_run_output(
+        lumberjack_name,
+        chop_name,
+        run_id,
+        "\n" + " · ".join(parts) + "\n",
     )
 
 
@@ -349,13 +650,20 @@ def _finalize(
     chop_name: str,
     run_id: str,
     started_at: datetime,
-    status: str,
+    status: ChopRunStatus,
     exit_code: int | None = None,
+    agent_pid: int | None = None,
     error: Exception | None = None,
     tb: str | None = None,
     output_bytes: int | None = None,
+    result_file: str | None = None,
+    structured_result: dict[str, Any] | None = None,
+    proposals: list[dict[str, Any]] | None = None,
+    launches: list[dict[str, Any]] | None = None,
+    dry_run: bool | None = None,
+    active: bool = False,
 ) -> None:
-    """Stamp terminal state onto a previously-opened streaming run entry."""
+    """Stamp a lifecycle transition onto a streaming run entry."""
     finished_at = datetime.now(get_timezone())
     duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
     try:
@@ -363,13 +671,19 @@ def _finalize(
             lumberjack_name,
             chop_name,
             run_id,
-            status=status,  # type: ignore[arg-type]
-            finished_at=finished_at.isoformat(),
+            status=status,
+            finished_at=None if active else finished_at.isoformat(),
             duration_ms=duration_ms,
             exit_code=exit_code,
+            agent_pid=agent_pid,
             error=str(error) if error is not None else None,
             traceback=tb,
             output_bytes=output_bytes,
+            result_file=result_file,
+            result=structured_result,
+            proposals=proposals,
+            launches=launches,
+            dry_run=dry_run,
         )
     except OSError:
         pass

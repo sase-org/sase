@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 from dataclasses import asdict, dataclass
+from pathlib import Path
 
 from sase.ace.changespec import (
     ChangeSpec,
@@ -34,6 +35,7 @@ class ChopScriptContext:
     all_changespecs_file: str
     filtered_changespecs_file: str
     verbose_lumberjack_diagnostics: bool = False
+    result_file: str = ""
 
 
 def _atomic_json_write(data: object, path: str) -> None:
@@ -79,6 +81,30 @@ def read_chop_context(path: str) -> ChopScriptContext:
     """
     with open(path) as f:
         return ChopScriptContext(**json.load(f))
+
+
+def prepare_chop_run_context(
+    context_file: str,
+    *,
+    result_file: str,
+    destination: str,
+) -> str:
+    """Copy a shared tick context and add this run's result-file path.
+
+    Scheduled chops share one read-only tick context. Each invocation gets a
+    private copy so concurrent scripts cannot race while the runner mirrors
+    ``SASE_CHOP_RESULT_FILE`` into the context document.
+    """
+    source = Path(context_file)
+    if not source.is_file():
+        return context_file
+    with source.open(encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"chop context must be a JSON object: {context_file}")
+    data["result_file"] = result_file
+    _atomic_json_write(data, destination)
+    return destination
 
 
 def serialize_changespecs(changespecs: list[ChangeSpec], path: str) -> None:

@@ -160,6 +160,11 @@ def test_chop_status_label_mapping() -> None:
         "timeout",
         "missing_script",
         "running",
+        "no_op",
+        "check_error",
+        "launched",
+        "action_succeeded",
+        "action_failed",
     ):
         label, style = axe_dashboard._chop_status_label(status)
         assert label

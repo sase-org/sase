@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
@@ -58,6 +61,93 @@ def render_chop_doctor(
     )
 
 
+def render_chop_run_result(
+    result: Mapping[str, Any],
+    proposals: Sequence[Mapping[str, Any]],
+    *,
+    dry_run: bool,
+    verbose: bool,
+    console: Console | None = None,
+) -> None:
+    """Render one normalized structured result and its proposal previews."""
+    target = console or Console()
+    summary = Table.grid(padding=(0, 2))
+    summary.add_column(style="bold cyan")
+    summary.add_column(overflow="fold")
+    summary.add_row("Status", str(result.get("status", "-")))
+    summary.add_row("Summary", str(result.get("summary") or "-"))
+    summary.add_row("Reason", str(result.get("reason") or "-"))
+    counters = result.get("counters")
+    summary.add_row(
+        "Counters",
+        json.dumps(counters, sort_keys=True) if isinstance(counters, dict) else "-",
+    )
+    renderables: list[RenderableType] = [
+        Panel(
+            summary,
+            title="Chop Result" + (" (dry run)" if dry_run else ""),
+            border_style="cyan",
+        )
+    ]
+
+    if proposals:
+        table = Table(
+            title="Validated Agent Proposals",
+            show_header=True,
+            header_style="bold",
+        )
+        table.add_column("#", justify="right", no_wrap=True)
+        table.add_column("ID", no_wrap=True)
+        table.add_column("Validation", no_wrap=True)
+        table.add_column("Agent", overflow="fold")
+        table.add_column("Workspace", overflow="fold")
+        table.add_column("Wait On", overflow="fold")
+        table.add_column("Model", overflow="fold")
+        table.add_column("Env", overflow="fold")
+        for proposal in proposals:
+            table.add_row(
+                str(int(proposal.get("index", 0)) + 1),
+                str(proposal.get("id") or "-"),
+                Text(str(proposal.get("validation") or "valid"), style="green"),
+                str(proposal.get("agent_name") or "-"),
+                str(proposal.get("workspace") or "-"),
+                str(proposal.get("wait_name") or "-"),
+                str(proposal.get("model") or "-"),
+                ", ".join(str(v) for v in proposal.get("env_names", [])) or "-",
+            )
+        renderables.append(table)
+    else:
+        renderables.append(
+            Panel(
+                Text("No agent launches proposed.", style="dim"),
+                title="Validated Agent Proposals",
+                border_style="dim",
+            )
+        )
+
+    if verbose:
+        renderables.append(
+            Panel(
+                Syntax(
+                    json.dumps(dict(result), indent=2, sort_keys=True),
+                    "json",
+                    word_wrap=True,
+                ),
+                title="Full Result Document",
+                border_style="magenta",
+            )
+        )
+        for proposal in proposals:
+            renderables.append(
+                Panel(
+                    Text(str(proposal.get("prompt") or ""), overflow="fold"),
+                    title=f"Proposal {int(proposal.get('index', 0)) + 1} Scaffold",
+                    border_style="dim",
+                )
+            )
+    target.print(Group(*renderables))
+
+
 def _doctor_summary_panel(report: ChopDoctorReport) -> Panel:
     table = Table.grid(padding=(0, 2))
     table.add_column(style="bold")
@@ -89,6 +179,7 @@ def _configured_chops_table(
     table.add_column("Lumberjack", no_wrap=True)
     table.add_column("Chop", no_wrap=True)
     table.add_column("Kind", no_wrap=True)
+    table.add_column("Last Run", no_wrap=True)
     table.add_column("Resolution", overflow="fold")
     if verbose:
         table.add_column("Description", overflow="fold")
@@ -104,6 +195,7 @@ def _configured_chops_table(
             Text(chop.lumberjack),
             Text(chop.name),
             Text("script"),
+            _run_status_text(chop.latest_run_status),
             Text(resolution, overflow="fold"),
         ]
         if verbose:
@@ -191,6 +283,25 @@ def _configured_chop_status(chop: ConfiguredChopRecord) -> CheckStatus:
 
 def _status_text(status: CheckStatus) -> Text:
     return Text(status, style=_STATUS_STYLES[status])
+
+
+def _run_status_text(status: str | None) -> Text:
+    labels: dict[str, tuple[str, str]] = {
+        "running": ("running", "green"),
+        "success": ("success", "green"),
+        "failure": ("failure", "red"),
+        "timeout": ("timeout", "yellow"),
+        "missing_script": ("missing", "yellow"),
+        "no_op": ("no-op", "cyan"),
+        "check_error": ("check error", "yellow"),
+        "launched": ("launched", "cyan"),
+        "action_succeeded": ("action succeeded", "green"),
+        "action_failed": ("action failed", "red"),
+    }
+    if status is None:
+        return Text("never", style="dim")
+    label, style = labels.get(status, (status, "dim"))
+    return Text(label, style=style)
 
 
 def _border_style(status: CheckStatus) -> str:

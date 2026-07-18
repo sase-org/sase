@@ -23,6 +23,7 @@ from sase.telemetry import init_telemetry
 from sase.telemetry.metrics import AXE_CYCLE_DURATION, AXE_CYCLES, AXE_ERRORS
 
 from .check_cycles import CheckCycleRunner
+from .chop_lifecycle import finalize_launched_chop_runs
 from .chop_runner import (
     TRACEBACK_UNAVAILABLE as _TRACEBACK_UNAVAILABLE,
     ChopRunOutcome,
@@ -134,6 +135,12 @@ class Lumberjack:
     def _run_tick(self) -> None:
         """Execute one tick: refresh changespecs, serialize context, invoke chop scripts."""
         _tick_start = time.monotonic()
+        finalized_actions = finalize_launched_chop_runs(
+            self.name,
+            [chop.name for chop in self.config.chops],
+        )
+        if finalized_actions:
+            self._log(f"Finalized {finalized_actions} chop action lifecycle(s)")
         stale_marker = clear_stale_maintenance()
         if stale_marker is not None:
             self._log(
@@ -260,7 +267,7 @@ class Lumberjack:
     ) -> _ChopResult:
         log_lines: list[str] = []
 
-        if outcome.status == "success":
+        if outcome.status in {"success", "no_op", "launched", "action_succeeded"}:
             self._append_log_tail(chop.name, outcome.run_id, log_lines)
             return _ChopResult(
                 chop_name=chop.name,
@@ -270,22 +277,10 @@ class Lumberjack:
                 log_lines=log_lines,
             )
 
-        if outcome.status == "failure" and outcome.exit_code is not None:
+        if outcome.status in {"failure", "check_error", "action_failed"}:
             # Process completed with nonzero exit; echo its tail into the
             # aggregate log to match the legacy ``capture_output=True`` shape.
             self._append_log_tail(chop.name, outcome.run_id, log_lines)
-            return _ChopResult(
-                chop_name=chop.name,
-                executed=True,
-                success=False,
-                update_timestamp=False,
-                log_lines=log_lines,
-                error=outcome.error,
-                traceback=outcome.traceback,
-            )
-
-        if outcome.status == "failure":
-            # Exception raised before/during streaming — no tail to echo.
             return _ChopResult(
                 chop_name=chop.name,
                 executed=True,

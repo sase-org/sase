@@ -200,6 +200,15 @@ class AxeChopRunMixin:
             )
         elif outcome.status == "success":
             self.notify(f"Chop '{chop}' finished successfully")  # type: ignore[attr-defined]
+        elif outcome.status == "no_op":
+            self.notify(f"Chop '{chop}' completed with no work to do")  # type: ignore[attr-defined]
+        elif outcome.status == "launched":
+            count = len(outcome.launches)
+            self.notify(  # type: ignore[attr-defined]
+                f"Chop '{chop}' launched {count} agent action(s)"
+            )
+        elif outcome.status == "action_succeeded":
+            self.notify(f"Chop '{chop}' action succeeded")  # type: ignore[attr-defined]
         elif outcome.status == "failure":
             exit_str = (
                 f" (exit {outcome.exit_code})" if outcome.exit_code is not None else ""
@@ -218,6 +227,16 @@ class AxeChopRunMixin:
                 with_log_panel_hint(f"Chop '{chop}': script not found"),
                 severity="error",
             )
+        elif outcome.status == "check_error":
+            self.notify(  # type: ignore[attr-defined]
+                with_log_panel_hint(f"Chop '{chop}' check is degraded"),
+                severity="warning",
+            )
+        elif outcome.status == "action_failed":
+            self.notify(  # type: ignore[attr-defined]
+                with_log_panel_hint(f"Chop '{chop}' action failed"),
+                severity="error",
+            )
         else:
             self.notify(  # type: ignore[attr-defined]
                 f"Chop '{chop}': unexpected outcome '{outcome.status}'",
@@ -226,7 +245,13 @@ class AxeChopRunMixin:
 
 
 def _is_failure_chop_outcome(outcome: ChopRunOutcome) -> bool:
-    return outcome.status in {"failure", "timeout", "missing_script"}
+    return outcome.status in {
+        "failure",
+        "timeout",
+        "missing_script",
+        "check_error",
+        "action_failed",
+    }
 
 
 def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> None:

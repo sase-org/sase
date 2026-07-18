@@ -196,6 +196,38 @@ def test_handle_axe_chop_run_with_lumberjack_disambiguates(
     assert mock_run.call_args.kwargs["chop"] is chop
 
 
+def test_handle_axe_chop_run_passes_debug_flags(
+    temp_state_dir: Path,
+) -> None:
+    chop = ChopConfig(name="probe", description="")
+    config = _config_with(checks=[chop])
+    args = argparse.Namespace(
+        chop_name="probe",
+        lumberjack="checks",
+        dry_run=True,
+        chop_verbose=True,
+    )
+
+    with (
+        patch("sase.axe.cli.load_axe_config", return_value=config),
+        patch(
+            "sase.axe.cli.run_configured_chop_once",
+            return_value=ChopRunOutcome(
+                lumberjack_name="checks",
+                chop_name="probe",
+                status="success",
+                dry_run=True,
+            ),
+        ) as mock_run,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        handle_axe_chop_run(args)
+
+    assert exc_info.value.code == 0
+    assert mock_run.call_args.kwargs["dry_run"] is True
+    assert mock_run.call_args.kwargs["chop_verbose"] is True
+
+
 def test_handle_axe_chop_run_with_lumberjack_not_configured(
     temp_state_dir: Path,
     capsys: pytest.CaptureFixture[str],

@@ -271,7 +271,7 @@ class AxeDashboard(Static):
                 )
             else:
                 empty = Text()
-                if run.entry.status == "running":
+                if run.entry.status in {"running", "launched"}:
                     empty.append("Waiting for output…", style="dim italic")
                 elif run.entry.error:
                     empty.append(run.entry.error, style="bold red")

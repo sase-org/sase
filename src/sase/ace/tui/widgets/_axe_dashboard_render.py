@@ -32,6 +32,16 @@ def chop_status_label(status: str) -> tuple[str, str]:
         return ("? missing", "bold yellow")
     if status == "running":
         return ("● running", "bold green")
+    if status == "no_op":
+        return ("○ no-op", "bold cyan")
+    if status == "check_error":
+        return ("! check error", "bold yellow")
+    if status == "launched":
+        return ("↗ launched", "bold cyan")
+    if status == "action_succeeded":
+        return ("✓ action succeeded", "bold green")
+    if status == "action_failed":
+        return ("✗ action failed", "bold red")
     return (status, "dim")
 
 
@@ -205,7 +215,7 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
                 f"{format_relative_time(latest.started_at):<14}",
                 style="#87D7FF",
             )
-            if latest.status == "running":
+            if latest.status in {"running", "launched"}:
                 # Show elapsed runtime so the row reflects an
                 # active subprocess instead of a stale 0ms.
                 text.append(
@@ -249,7 +259,7 @@ def render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
                 style="#87D7FF",
             )
             text.append(" · ", style="dim")
-            if latest.status == "running":
+            if latest.status in {"running", "launched"}:
                 text.append(format_runtime(latest.started_at), style="#00D7AF")
             else:
                 text.append(format_duration_ms(latest.duration_ms), style="#00D7AF")

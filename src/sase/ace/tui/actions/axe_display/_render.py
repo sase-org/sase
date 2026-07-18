@@ -212,9 +212,10 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     if chop_snap is not None:
                         chop_run_total = len(chop_snap.runs)
                         if chop_snap.runs:
-                            chop_selected_running = (
-                                chop_snap.runs[0].entry.status == "running"
-                            )
+                            chop_selected_running = chop_snap.runs[0].entry.status in {
+                                "running",
+                                "launched",
+                            }
                 footer.update_axe_bindings(
                     axe_current_view=self._axe_current_view,
                     selected_slot_done=selected_slot_done,

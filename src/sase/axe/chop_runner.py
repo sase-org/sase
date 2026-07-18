@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from sase.ace.changespec import ChangeSpec, find_all_changespecs
 from sase.ace.hooks.processes import is_process_running
+from sase.agent.launcher import launch_agent_from_cwd
 from sase.core.query_facade import evaluate_query_many
 
 from .chop_runner_context import (
@@ -93,6 +94,8 @@ def _run_script_chop_once(
     context_file: str | None,
     source: ChopRunSource,
     started_by: str | None,
+    dry_run: bool,
+    chop_verbose: bool,
 ) -> ChopRunOutcome:
     return run_script_chop_once(
         lumberjack_name=lumberjack_name,
@@ -102,10 +105,13 @@ def _run_script_chop_once(
         context_file=context_file,
         source=source,
         started_by=started_by,
+        dry_run=dry_run,
+        chop_verbose=chop_verbose,
         discover_chop_script_fn=discover_chop_script,
         stream_chop_script_fn=stream_chop_script,
         build_context_fn=_build_oneshot_context,
         is_process_running_fn=is_process_running,
+        launch_agent_from_cwd_fn=launch_agent_from_cwd,
     )
 
 
@@ -118,6 +124,8 @@ def run_configured_chop_once(
     context_file: str | None = None,
     source: ChopRunSource = "manual",
     started_by: str | None = None,
+    dry_run: bool = False,
+    chop_verbose: bool = False,
 ) -> ChopRunOutcome:
     """Execute one configured chop once, sharing logic across all callers.
 
@@ -139,6 +147,8 @@ def run_configured_chop_once(
         context_file=context_file,
         source=source,
         started_by=started_by,
+        dry_run=dry_run,
+        chop_verbose=chop_verbose,
     )
 
 
@@ -164,6 +174,7 @@ __all__ = [
     "find_all_changespecs",
     "find_configured_chop",
     "is_process_running",
+    "launch_agent_from_cwd",
     "run_configured_chop_once",
     "stream_chop_script",
 ]

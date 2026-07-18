@@ -127,20 +127,37 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         chop_timeout_default=chop_timeout_default,
         source="oneshot",
         started_by="cli",
+        dry_run=bool(getattr(args, "dry_run", False)),
+        chop_verbose=bool(getattr(args, "chop_verbose", False)),
     )
     _print_outcome_and_exit(outcome)
 
 
 def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
     """Render a chop run outcome to stdout/stderr and exit with the right code."""
-    if outcome.status == "success":
+    if outcome.status in {
+        "success",
+        "no_op",
+        "launched",
+        "action_succeeded",
+    }:
         _print_chop_log_tail(outcome)
+        _print_structured_result(outcome)
+        if outcome.dry_run:
+            print("Dry run complete; no agents were launched.")
         sys.exit(0)
     if outcome.status == "failure":
         _print_chop_log_tail(outcome)
+        _print_structured_result(outcome)
         if outcome.error is not None:
             print(f"Error: {outcome.error}", file=sys.stderr)
         sys.exit(outcome.exit_code or 1)
+    if outcome.status in {"check_error", "action_failed"}:
+        _print_chop_log_tail(outcome)
+        _print_structured_result(outcome)
+        if outcome.error is not None:
+            print(f"Error: {outcome.error}", file=sys.stderr)
+        sys.exit(1)
     if outcome.status == "timeout":
         _print_chop_log_tail(outcome)
         print(f"Error: {outcome.error}", file=sys.stderr)
@@ -159,6 +176,21 @@ def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
     # Defensive default: unknown status surfaces with a nonzero exit code.
     print(f"Error: unexpected chop run outcome: {outcome.status}", file=sys.stderr)
     sys.exit(1)
+
+
+def _print_structured_result(outcome: ChopRunOutcome) -> None:
+    if outcome.result is None:
+        return
+    if not (outcome.dry_run or outcome.chop_verbose):
+        return
+    from sase.axe.chop_render import render_chop_run_result
+
+    render_chop_run_result(
+        outcome.result,
+        outcome.proposals,
+        dry_run=outcome.dry_run,
+        verbose=outcome.chop_verbose,
+    )
 
 
 def _print_chop_log_tail(outcome: ChopRunOutcome) -> None:

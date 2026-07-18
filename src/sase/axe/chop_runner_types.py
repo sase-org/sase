@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from .config import AxeConfig, ChopConfig, LumberjackConfig
 
@@ -14,6 +14,11 @@ ChopRunOutcomeStatus = Literal[
     "timeout",
     "missing_script",
     "already_running",
+    "no_op",
+    "check_error",
+    "launched",
+    "action_succeeded",
+    "action_failed",
 ]
 
 
@@ -36,6 +41,11 @@ class ChopRunOutcome:
     output_bytes: int = 0
     error: Exception | None = None
     traceback: str | None = None
+    result: dict[str, Any] | None = None
+    proposals: tuple[dict[str, Any], ...] = ()
+    launches: tuple[dict[str, Any], ...] = ()
+    dry_run: bool = False
+    chop_verbose: bool = False
 
 
 class ChopNotFoundError(LookupError):

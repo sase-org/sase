@@ -17,6 +17,18 @@ def test_axe_stop_force_parser_aliases() -> None:
     assert short_args.force is True
 
 
+def test_axe_chop_run_debug_option_aliases() -> None:
+    long_args = create_parser().parse_args(
+        ["axe", "chop", "run", "probe", "--chop-verbose", "--dry-run"]
+    )
+    short_args = create_parser().parse_args(["axe", "chop", "run", "probe", "-V", "-n"])
+
+    assert long_args.chop_verbose is True
+    assert long_args.dry_run is True
+    assert short_args.chop_verbose is True
+    assert short_args.dry_run is True
+
+
 def test_init_namespace_parses_migrated_leaf_commands() -> None:
     """The init namespace parses its migrated leaf commands."""
     parser = create_parser()
