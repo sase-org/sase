@@ -22,7 +22,12 @@ from textual.style import Style
 from textual.visual import RenderOptions, Visual
 
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
+from sase.ace.tui.models._agent_clan_sections import (
+    ClanSectionSnapshot,
+    aggregate_clan_in_memory,
+)
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
@@ -168,11 +173,32 @@ def test_clan_members_section_is_a_navigation_target() -> None:
             agent_clan_generation="20260716120000",
         )
     ]
-    header, _ = build_header_text(container, cheap=True)
+    member = container.runtime_children[0]
+    member.error_message = "failed"
+    member.output_variables = {"report": "done"}
+    member.step_output = {"meta_summary": "ready"}
+    member.epic_bead_id = "sase-demo"
+    snapshot = ClanSectionSnapshot(in_memory=aggregate_clan_in_memory(container))
+    header, _ = build_header_text(
+        container,
+        cheap=True,
+        clan_snapshot=snapshot,
+        clan_fold_level=FoldLevel.EXPANDED,
+    )
     panel = _render_panel(Group(header), width=80)
 
     target = panel.resolve_section_target(1, width=80)
 
+    assert _rendered_section_ids(header, width=80) == [
+        "members",
+        "errors",
+        "output-variables",
+        "workflow-variables",
+        "replies",
+        "context",
+        "slow-tool-calls",
+        "prompts",
+    ]
     assert target.kind is PromptPanelSectionTargetKind.ANCHOR
     assert target.anchor is not None
     assert target.anchor.identity == "members"

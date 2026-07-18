@@ -6,10 +6,25 @@ from datetime import datetime
 
 from rich.text import Text
 
+from sase.ace.tui.models._agent_clan_sections import (
+    CLAN_DISK_SECTIONS,
+    ClanContextEntry,
+    ClanContextLane,
+    ClanDiskMemberSnapshot,
+    ClanDiskSnapshot,
+    ClanSectionSnapshot,
+    ClanSlowToolEntry,
+    ClanTextEntry,
+    aggregate_clan_in_memory,
+)
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.tools._entry import ToolCallEntry
+from sase.ace.tui.tools.slow import SlowToolCall
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
+    clan_disk_sections_for_fold_state,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.ace.tui.widgets.prompt_panel._agent_display_render import (
@@ -17,6 +32,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_render import (
 )
 
 _GENERATION = "20260717120000"
+_SASE_BEADS_SKILL = "sase" + "_beads"
 
 
 def _style_at(text: Text, position: int) -> str | None:
@@ -54,6 +70,101 @@ def _agent(
     )
 
 
+def _rich_clan_snapshot() -> tuple[Agent, ClanSectionSnapshot]:
+    member = _agent(
+        "research.one",
+        status="FAILED",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 3, 0),
+    )
+    member.activity = "reviewing patch"
+    member.waiting_for = ["research.peer"]
+    member.workspace_num = 7
+    member.epic_bead_id = "sase-demo"
+    member.plan_path = "/tmp/demo-plan.md"
+    member.error_message = "Build failed\nSecond error detail"
+    member.error_traceback = "Traceback line one\nValueError: broken"
+    member.output_variables = {"report": "summary line\nfull report detail"}
+    member.step_output = {
+        "meta_release_notes": "release summary\nrelease detail",
+    }
+    container = project_clan_tree([member])[0]
+    in_memory = aggregate_clan_in_memory(container)
+    identity = member.identity
+    reply = ClanTextEntry(
+        member_identity=identity,
+        member_label=".one",
+        kind="AGENT REPLY",
+        preview="Reply summary",
+        body="Reply summary\nReply full detail",
+    )
+    prompt = ClanTextEntry(
+        member_identity=identity,
+        member_label=".one",
+        kind="AGENT XPROMPT",
+        preview="#review segment",
+        body="#review segment\nPrompt full detail",
+    )
+    context_lanes = (
+        ClanContextLane(
+            label="BEAD",
+            entries=(
+                ClanContextEntry(
+                    key="sase-demo",
+                    label="sase-demo · render clan summary",
+                    member_labels=(".one",),
+                ),
+            ),
+        ),
+        ClanContextLane(
+            label="SKILLS",
+            entries=(
+                ClanContextEntry(
+                    key=_SASE_BEADS_SKILL,
+                    label=_SASE_BEADS_SKILL,
+                    member_labels=(".one",),
+                    count=2,
+                ),
+            ),
+        ),
+    )
+    tool_entry = ToolCallEntry(
+        recorded_at="2026-07-17T12:00:00Z",
+        runtime="codex",
+        event="ToolCall",
+        status="completed",
+        tool_name="Bash",
+        duration_ms=125_000,
+        tool_input_summary={"command": "just check"},
+    )
+    slow_tool = ClanSlowToolEntry(
+        member_identity=identity,
+        member_label=".one",
+        source_label="attempt 1",
+        call=SlowToolCall(
+            entry=tool_entry,
+            started_at=datetime.fromisoformat("2026-07-17T12:00:00+00:00"),
+            effective_duration_ms=125_000,
+        ),
+    )
+    disk_member = ClanDiskMemberSnapshot(
+        member_identity=identity,
+        member_label=".one",
+        loaded_sections=CLAN_DISK_SECTIONS,
+        replies=(reply,),
+        prompts=(prompt,),
+    )
+    disk = ClanDiskSnapshot(
+        loaded_sections=CLAN_DISK_SECTIONS,
+        members=(disk_member,),
+        replies=(reply,),
+        prompts=(prompt,),
+        context_lanes=context_lanes,
+        slow_tool_calls=(slow_tool,),
+    )
+    return container, ClanSectionSnapshot(in_memory=in_memory, disk=disk)
+
+
 def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None:
     first = _agent(
         "research.first",
@@ -83,15 +194,114 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
         "Runtime: 2m\n"
-        "Members: 2 agents · 0 families"
+        "Members: 2 agents · 0 families\n"
+        "Fold: 1/3"
     )
-    assert members.strip() == (
-        "MEMBERS · 2\n"
+    members_section = members.split("\n" + "─" * 50 + "\n", 1)[0]
+    assert members_section.strip() == (
+        "▸ MEMBERS · 2\n"
         ".first · agent · ✓ DONE · gpt-5 · 2m\n"
         ".second · agent · ✗ FAILED · default · 45s"
     )
+    assert "▸ ERRORS · 1\n" in detail.plain
     assert _style_at(detail, detail.plain.index("CLAN")) == ("bold #D75FFF underline")
     assert _style_at(detail, detail.plain.index("research")) == "#D75FFF"
+
+
+def test_clan_sections_honor_all_three_fold_contracts() -> None:
+    container, snapshot = _rich_clan_snapshot()
+
+    collapsed = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+    expanded = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.EXPANDED,
+    ).plain
+    full = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    ).plain
+
+    assert "Fold: 1/3\n" in collapsed
+    for heading in (
+        "▸ MEMBERS · 1",
+        "▸ ERRORS · 1",
+        "▸ OUTPUT VARIABLES · 1",
+        "▸ WORKFLOW VARIABLES · 1",
+        "▸ REPLIES · 1",
+        "▸ SASE CONTEXT · 2",
+        "▸ SLOW TOOL CALLS · 1",
+        "▸ PROMPTS · 1",
+    ):
+        assert heading in collapsed
+    assert ".one · agent · ✗ FAILED" in collapsed
+    assert "Build failed" not in collapsed
+    assert "Reply summary" not in collapsed
+
+    assert "Fold: 2/3\n" in expanded
+    assert "▾ MEMBERS · 1" in expanded
+    assert "reviewing patch" in expanded
+    assert "wait for research.peer" in expanded
+    assert "• .one · Build failed" in expanded
+    assert "• .one.report = summary line" in expanded
+    assert "• .one · AGENT REPLY · Reply summary" in expanded
+    assert "BEAD · sase-demo · render clan summary" in expanded
+    assert "• .one · Bash · 2m 5s · just check" in expanded
+    assert ".one [XPROMPT] · AGENT XPROMPT · #review segment" in expanded
+    assert "Second error detail" not in expanded
+    assert "Reply full detail" not in expanded
+
+    assert "Fold: 3/3\n" in full
+    assert "▼ MEMBERS · 1" in full
+    assert "start 2026-07-17 12:00:00" in full
+    assert "0 attempts" in full
+    assert "Second error detail" in full
+    assert "ValueError: broken" in full
+    assert "full report detail" in full
+    assert "release detail" in full
+    assert "Reply full detail" in full
+    assert "Prompt full detail" in full
+
+
+def test_clan_section_override_and_loading_placeholders() -> None:
+    container, snapshot = _rich_clan_snapshot()
+    overrides = {
+        "errors": FoldLevel.FULLY_EXPANDED,
+        "replies": FoldLevel.EXPANDED,
+    }
+
+    detail = build_clan_detail_text(
+        container,
+        snapshot=snapshot,
+        fold_level=FoldLevel.COLLAPSED,
+        section_fold_overrides=overrides,
+    ).plain
+
+    assert "Fold: 1/3\n" in detail
+    assert "▸ MEMBERS · 1" in detail
+    assert "▼ ERRORS · 1" in detail
+    assert "Second error detail" in detail
+    assert "▾ REPLIES · 1" in detail
+    assert clan_disk_sections_for_fold_state(
+        FoldLevel.COLLAPSED,
+        overrides,
+    ) == frozenset({"replies"})
+
+    loading_snapshot = ClanSectionSnapshot(in_memory=snapshot.in_memory)
+    loading = build_clan_detail_text(
+        container,
+        snapshot=loading_snapshot,
+        fold_level=FoldLevel.EXPANDED,
+    ).plain
+
+    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
+        assert f"▾ {heading}" in loading
+    assert loading.count("loading…") == 4
 
 
 def test_family_header_recolors_only_real_container_name() -> None:
@@ -207,7 +417,7 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     )
 
     assert "Members: 2 agents · 1 family\n" in detail.plain
-    assert detail.plain.split("MEMBERS · 1\n", 1)[1] == (
+    assert detail.plain.split("▸ MEMBERS · 2\n", 1)[1] == (
         ".writer · family · ✓ DONE · mixed · 2m\n"
         "  ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"
         "  └─ --code · agent · ✓ DONE · sonnet · 1m\n"

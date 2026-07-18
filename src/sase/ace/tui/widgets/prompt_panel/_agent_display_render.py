@@ -31,6 +31,10 @@ from ._agent_display_content import (
     render_timestamp_divider,
 )
 from ._agent_clan_aggregation import get_cached_clan_section_snapshot
+from ._agent_display_clan import (
+    clan_disk_sections_for_fold_state,
+    clan_fold_state_from_widget,
+)
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     clear_detail_header_summary_cache,
@@ -154,10 +158,25 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 app = None
+            fold_level, fold_overrides = clan_fold_state_from_widget(self)
+            set_required = getattr(
+                self,
+                "set_clan_disk_sections_required",
+                None,
+            )
+            if app is not None and callable(set_required):
+                set_required(
+                    clan_disk_sections_for_fold_state(
+                        fold_level,
+                        fold_overrides,
+                    )
+                )
             header_text, _error_tb_syntax = build_header_text(
                 agent,
                 unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
+                clan_fold_level=fold_level,
+                clan_section_fold_overrides=fold_overrides,
             )
             self.update(header_text)  # type: ignore[attr-defined]
             return

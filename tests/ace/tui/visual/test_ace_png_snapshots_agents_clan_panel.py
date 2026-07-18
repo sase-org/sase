@@ -1,0 +1,119 @@
+"""ACE PNG snapshots for fold-aware epic and swarm clan detail panels."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+import pytest
+
+from sase.ace.testing import AcePage
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    assert_page_svg_contains,
+)
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    changespecs,
+    patch_startup_loaders,
+    wait_for_startup,
+    wait_for_visual_idle,
+)
+from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
+from tests.ace.tui.visual.test_ace_png_snapshots_agents import (
+    _clan_tree_agents,
+    _decorate_clan_panel_sections,
+    _epic_clan_agents,
+    _pin_agents_visual_now,
+)
+
+pytestmark = pytest.mark.visual
+
+
+async def test_epic_clan_panel_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_decorate_clan_panel_sections(_epic_clan_agents()),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "sase-6n")
+        assert_page_svg_contains(page, "3 agents")
+        assert_page_svg_contains(page, ".land")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_120x40",
+            title="ACE epic clan panel fold level 1",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "expanded"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_level_2_120x40",
+            title="ACE epic clan panel fold level 2",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "fully_expanded"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_level_3_120x40",
+            title="ACE epic clan panel fold level 3",
+        )
+
+
+async def test_swarm_clan_panel_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
+    patch_startup_loaders(
+        monkeypatch,
+        agents=_decorate_clan_panel_sections(_clan_tree_agents()),
+    )
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "3 agents")
+        assert_page_svg_contains(page, "1 family")
+        assert_page_svg_contains(page, "--code")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_swarm_120x40",
+            title="ACE swarm clan panel fold level 1",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "expanded"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_swarm_level_2_120x40",
+            title="ACE swarm clan panel fold level 2",
+        )
+
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "fully_expanded"
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_swarm_level_3_120x40",
+            title="ACE swarm clan panel fold level 3",
+        )

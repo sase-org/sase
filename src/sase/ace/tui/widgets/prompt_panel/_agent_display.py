@@ -19,6 +19,10 @@ from ._agent_clan_aggregation import (
     get_cached_clan_section_snapshot,
     prepare_clan_section_snapshot,
 )
+from ._agent_display_clan import (
+    clan_disk_sections_for_fold_state,
+    clan_fold_state_from_widget,
+)
 from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
 
@@ -121,6 +125,14 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 app = None
+            clan_fold_level, clan_fold_overrides = clan_fold_state_from_widget(self)
+            if agent.is_clan_container and app is not None:
+                self.set_clan_disk_sections_required(
+                    clan_disk_sections_for_fold_state(
+                        clan_fold_level,
+                        clan_fold_overrides,
+                    )
+                )
             header_text, error_tb_syntax = build_header_text(
                 agent,
                 cheap=True,
@@ -130,6 +142,8 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                     self
                 ),
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
+                clan_fold_level=clan_fold_level,
+                clan_section_fold_overrides=clan_fold_overrides,
             )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

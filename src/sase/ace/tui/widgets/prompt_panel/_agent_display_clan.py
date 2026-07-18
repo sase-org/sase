@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections import defaultdict
+from collections.abc import Collection, Mapping, Sequence
 from copy import copy
 from datetime import datetime
-from typing import TYPE_CHECKING
 
+from rich.syntax import Syntax
 from rich.text import Text
 
 from sase.agent.status_buckets import (
@@ -20,7 +21,22 @@ from ...models._agent_clan import (
     clan_member_counts,
     clan_members,
 )
+from ...models._agent_clan_sections import (
+    ClanContextEntry,
+    ClanContextLane,
+    ClanDiskSection,
+    ClanErrorEntry,
+    ClanMemberDigest,
+    ClanSectionSnapshot,
+    ClanSlowToolEntry,
+    ClanTextEntry,
+    ClanVariableEntry,
+    aggregate_clan_in_memory,
+    first_meaningful_line,
+)
 from ...models.agent import Agent, AgentType, compute_row_runtime
+from ...models.fold_state import FoldLevel
+from ...tools.slow import format_long_duration
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _CLAN_IDENTITY_COLOR,
@@ -30,9 +46,6 @@ from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
-
-if TYPE_CHECKING:
-    from ...models._agent_clan_sections import ClanSectionSnapshot
 
 _CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
 _FIELD_LABEL_STYLE = "bold #87D7FF"
@@ -47,6 +60,125 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
 }
+_FOLD_CHARS: dict[FoldLevel, str] = {
+    FoldLevel.COLLAPSED: "▸",
+    FoldLevel.EXPANDED: "▾",
+    FoldLevel.FULLY_EXPANDED: "▼",
+}
+_FOLD_STYLES: dict[FoldLevel, str] = {
+    FoldLevel.COLLAPSED: "#5F5F5F",
+    FoldLevel.EXPANDED: "#00D7AF",
+    FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
+}
+_FOLD_NUMBERS: dict[FoldLevel, int] = {
+    FoldLevel.COLLAPSED: 1,
+    FoldLevel.EXPANDED: 2,
+    FoldLevel.FULLY_EXPANDED: 3,
+}
+_DISK_SECTION_IDS: dict[str, ClanDiskSection] = {
+    "replies": "replies",
+    "context": "context",
+    "slow-tool-calls": "slow-tool-calls",
+    "prompts": "prompts",
+}
+_TRIAGE_ENTRY_LIMIT = 8
+_TRIAGE_SLOW_TOOL_LIMIT = 5
+_CLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
+_CLAN_MEMBER_SUBHEADING_STYLE = "bold #D75FFF"
+_CLAN_BODY_STYLE = "#D7D7FF"
+
+
+def _effective_fold_level(
+    section_id: str,
+    panel_level: FoldLevel,
+    overrides: Mapping[str, FoldLevel],
+) -> FoldLevel:
+    return overrides.get(section_id, panel_level)
+
+
+def clan_disk_sections_for_fold_state(
+    panel_level: FoldLevel,
+    overrides: Mapping[str, FoldLevel] | None = None,
+) -> frozenset[ClanDiskSection]:
+    """Return disk-backed sections whose effective level needs content."""
+    effective_overrides = overrides or {}
+    return frozenset(
+        disk_section
+        for section_id, disk_section in _DISK_SECTION_IDS.items()
+        if _effective_fold_level(
+            section_id,
+            panel_level,
+            effective_overrides,
+        )
+        != FoldLevel.COLLAPSED
+    )
+
+
+def clan_fold_state_from_widget(
+    widget: object,
+) -> tuple[FoldLevel, Mapping[str, FoldLevel]]:
+    """Read the generic panel fold state without coupling the renderer to App."""
+    try:
+        app = widget.app  # type: ignore[attr-defined]
+    except Exception:
+        return FoldLevel.COLLAPSED, {}
+    panel_level = getattr(app, "panel_fold_level", FoldLevel.COLLAPSED)
+    if not isinstance(panel_level, FoldLevel):
+        panel_level = FoldLevel.COLLAPSED
+    manager = getattr(app, "_panel_fold_overrides", None)
+    snapshot = getattr(manager, "snapshot", None)
+    overrides = snapshot() if callable(snapshot) else {}
+    return panel_level, overrides
+
+
+def _append_fold_heading(
+    text: Text,
+    *,
+    title: str,
+    section_id: str,
+    level: FoldLevel,
+    count: int | None,
+) -> None:
+    append_major_section_divider(text)
+    heading = Text()
+    heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
+    heading.append(title, style=_CLAN_SECTION_HEADING_STYLE)
+    if count is not None:
+        heading.append(f" · {count}", style="dim")
+    append_section_heading(text, heading, section_id=section_id)
+
+
+def _member_annotations(
+    digest: ClanMemberDigest | None,
+    level: FoldLevel,
+) -> tuple[str, ...]:
+    if digest is None or level == FoldLevel.COLLAPSED:
+        return ()
+    annotations: list[str] = []
+    activity = first_meaningful_line(digest.activity or "", max_chars=64)
+    if activity:
+        annotations.append(activity)
+    if digest.waiting:
+        annotations.append("wait " + "; ".join(digest.waiting))
+    if digest.retry:
+        annotations.append("retry " + "; ".join(digest.retry))
+    if level == FoldLevel.FULLY_EXPANDED:
+        if digest.workspace_num is not None:
+            annotations.append(f"ws {digest.workspace_num}")
+        if digest.start_time is not None:
+            annotations.append("start " + _format_timestamp(digest.start_time))
+        if digest.run_start_time is not None:
+            annotations.append("run " + _format_timestamp(digest.run_start_time))
+        if digest.stop_time is not None:
+            annotations.append("stop " + _format_timestamp(digest.stop_time))
+        annotations.append(
+            f"{digest.attempt_count} attempt{'s' if digest.attempt_count != 1 else ''}"
+        )
+    return tuple(annotations)
+
+
+def _format_timestamp(value: datetime) -> str:
+    return value.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _ordered_members(agent: Agent) -> tuple[Agent, ...]:
@@ -191,6 +323,7 @@ def _append_member_line(
     model: str,
     duration: str,
     indent: str = "",
+    annotations: Sequence[str] = (),
 ) -> None:
     bucket = status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
@@ -206,7 +339,11 @@ def _append_member_line(
     text.append(" · ", style="dim")
     text.append(model, style=_MEMBER_MODEL_STYLE)
     text.append(" · ", style="dim")
-    text.append(f"{duration}\n", style=_MEMBER_DURATION_STYLE)
+    text.append(duration, style=_MEMBER_DURATION_STYLE)
+    if annotations:
+        text.append(" · ", style="dim")
+        text.append(" · ".join(annotations), style="dim #BCAFD7")
+    text.append("\n")
 
 
 def _append_members_section(
@@ -215,16 +352,29 @@ def _append_members_section(
     members: tuple[Agent, ...],
     *,
     now: datetime | None,
+    level: FoldLevel,
+    digests: tuple[ClanMemberDigest, ...],
+    count: int,
 ) -> None:
+    """Render MEMBERS at all three fold levels.
+
+    COLLAPSED keeps the complete member table. EXPANDED adds activity, wait,
+    and retry annotations. FULLY_EXPANDED additionally includes workspace,
+    timestamps, and attempt-history counts.
+    """
     if not members:
         return
 
-    append_major_section_divider(text)
-    heading = Text("MEMBERS", style="bold #D7AF5F underline")
-    heading.append(f" · {len(members)}", style="dim")
-    append_section_heading(text, heading, section_id="members")
+    _append_fold_heading(
+        text,
+        title="MEMBERS",
+        section_id="members",
+        level=level,
+        count=count,
+    )
 
     clan_name = agent.agent_clan or agent.display_name
+    digest_by_identity = {digest.identity: digest for digest in digests}
     for member in members:
         children = _family_children(member)
         if not children:
@@ -235,6 +385,10 @@ def _append_members_section(
                 status=member.display_status,
                 model=_member_model_label(member),
                 duration=_duration_label(member, now=now),
+                annotations=_member_annotations(
+                    digest_by_identity.get(member.identity),
+                    level,
+                ),
             )
             continue
 
@@ -263,7 +417,352 @@ def _append_members_section(
                     now=now,
                 ),
                 indent=branch,
+                annotations=_member_annotations(
+                    digest_by_identity.get(family_member.identity),
+                    level,
+                ),
             )
+
+
+def _append_errors_section(
+    text: Text,
+    entries: tuple[ClanErrorEntry, ...],
+    *,
+    level: FoldLevel,
+) -> None:
+    """Render ERRORS as count-only, triage previews, or full diagnostics."""
+    _append_fold_heading(
+        text,
+        title="ERRORS",
+        section_id="errors",
+        level=level,
+        count=len(entries),
+    )
+    if level == FoldLevel.COLLAPSED:
+        return
+    if level == FoldLevel.EXPANDED:
+        for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
+            _append_triage_line(text, entry.member_label, entry.preview)
+        _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
+        return
+    for entry in entries:
+        _append_member_subheading(text, entry.member_label)
+        _append_full_body(text, entry.message, style="#FF8787")
+        if entry.traceback:
+            text.append("  traceback\n", style="bold #FF5F5F")
+            _append_traceback(text, entry.traceback)
+
+
+def _append_variables_section(
+    text: Text,
+    entries: tuple[ClanVariableEntry, ...],
+    *,
+    title: str,
+    section_id: str,
+    level: FoldLevel,
+) -> None:
+    """Render variables as count-only, one-line assignments, or full values."""
+    _append_fold_heading(
+        text,
+        title=title,
+        section_id=section_id,
+        level=level,
+        count=len(entries),
+    )
+    if level == FoldLevel.COLLAPSED:
+        return
+    if level == FoldLevel.EXPANDED:
+        for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
+            value = first_meaningful_line(entry.value, max_chars=96) or "—"
+            _append_triage_line(
+                text,
+                f"{entry.member_label}.{entry.name}",
+                value,
+                separator=" = ",
+            )
+        _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
+        return
+    grouped: dict[str, list[ClanVariableEntry]] = defaultdict(list)
+    for entry in entries:
+        grouped[entry.member_label].append(entry)
+    for member_label, member_entries in grouped.items():
+        _append_member_subheading(text, member_label)
+        for entry in member_entries:
+            text.append(f"  {entry.name}\n", style="bold #87D7FF")
+            _append_full_body(text, entry.value, style=_CLAN_BODY_STYLE, indent="    ")
+
+
+def _append_text_section(
+    text: Text,
+    entries: tuple[ClanTextEntry, ...],
+    *,
+    title: str,
+    section_id: str,
+    level: FoldLevel,
+    loading: bool,
+) -> None:
+    """Render reply/prompt bodies as headings, previews, or full member bodies."""
+    count = len(entries) if entries or not loading else None
+    _append_fold_heading(
+        text,
+        title=title,
+        section_id=section_id,
+        level=level,
+        count=count,
+    )
+    if level == FoldLevel.COLLAPSED:
+        return
+    if not entries:
+        _append_loading(text)
+        return
+    if level == FoldLevel.EXPANDED:
+        for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
+            label = entry.member_label
+            if entry.kind == "AGENT XPROMPT":
+                label += " [XPROMPT]"
+            _append_triage_line(
+                text,
+                label,
+                entry.preview or "—",
+                kind=entry.kind,
+            )
+        _append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
+        return
+    grouped: dict[str, list[ClanTextEntry]] = defaultdict(list)
+    for entry in entries:
+        grouped[entry.member_label].append(entry)
+    for member_label, member_entries in grouped.items():
+        _append_member_subheading(text, member_label)
+        for entry in member_entries:
+            kind_style = (
+                "bold #AF87FF" if entry.kind == "AGENT XPROMPT" else "bold #87D7FF"
+            )
+            text.append(f"  {entry.kind}\n", style=kind_style)
+            _append_full_body(text, entry.body, indent="    ")
+
+
+def _append_context_section(
+    text: Text,
+    lanes: tuple[ClanContextLane, ...],
+    *,
+    level: FoldLevel,
+    loading: bool,
+    count_known: bool,
+) -> None:
+    """Render SASE CONTEXT as headings, per-lane digests, or full lane items."""
+    count = sum(len(lane.entries) for lane in lanes) if count_known else None
+    _append_fold_heading(
+        text,
+        title="SASE CONTEXT",
+        section_id="context",
+        level=level,
+        count=count,
+    )
+    if level == FoldLevel.COLLAPSED:
+        return
+    if not lanes:
+        _append_loading(text)
+        return
+    if level == FoldLevel.EXPANDED:
+        for lane in lanes:
+            labels = [entry.label for entry in lane.entries[:4]]
+            hidden = len(lane.entries) - len(labels)
+            digest = ", ".join(labels)
+            if hidden:
+                digest += f", +{hidden} more"
+            _append_triage_line(text, lane.label, digest or "—")
+        if loading:
+            _append_loading(text, prefix="more context ")
+        return
+    for lane in lanes:
+        text.append(f"{lane.label}\n", style="bold #87D7FF")
+        for entry in lane.entries:
+            text.append("  • ", style="dim #D75FFF")
+            text.append(entry.label, style=_CLAN_BODY_STYLE)
+            if entry.count > 1:
+                text.append(f" ×{entry.count}", style="dim")
+            if entry.member_labels:
+                text.append(
+                    " · " + ", ".join(entry.member_labels),
+                    style="dim #AF87FF",
+                )
+            text.append("\n")
+    if loading:
+        _append_loading(text, prefix="more context ")
+
+
+def _append_slow_tool_calls_section(
+    text: Text,
+    entries: tuple[ClanSlowToolEntry, ...],
+    *,
+    level: FoldLevel,
+    loading: bool,
+) -> None:
+    """Render slow tools as headings, top-five triage rows, or all grouped calls."""
+    count = len(entries) if entries or not loading else None
+    _append_fold_heading(
+        text,
+        title="SLOW TOOL CALLS",
+        section_id="slow-tool-calls",
+        level=level,
+        count=count,
+    )
+    if level == FoldLevel.COLLAPSED:
+        return
+    if not entries:
+        _append_loading(text)
+        return
+    if level == FoldLevel.EXPANDED:
+        for entry in entries[:_TRIAGE_SLOW_TOOL_LIMIT]:
+            _append_slow_tool_line(text, entry)
+        _append_more_tail(text, len(entries), _TRIAGE_SLOW_TOOL_LIMIT)
+        return
+    grouped: dict[str, list[ClanSlowToolEntry]] = defaultdict(list)
+    for entry in entries:
+        grouped[entry.member_label].append(entry)
+    for member_label, member_entries in grouped.items():
+        _append_member_subheading(text, member_label)
+        for entry in member_entries:
+            _append_slow_tool_line(text, entry, indent="  ")
+
+
+def _append_slow_tool_line(
+    text: Text,
+    entry: ClanSlowToolEntry,
+    *,
+    indent: str = "",
+) -> None:
+    call = entry.call
+    raw = call.entry
+    state = (
+        "running" if call.is_running else "incomplete" if call.did_not_complete else ""
+    )
+    target = raw.compact_target or raw.detail
+    text.append(f"{indent}• ", style="dim #D75FFF")
+    if not indent:
+        text.append(entry.member_label, style=_AGENT_NAME_ANNOTATION_STYLE)
+        text.append(" · ", style="dim")
+    text.append(raw.display_tool_name, style="bold #87D7FF")
+    text.append(
+        " · " + format_long_duration(call.effective_duration_ms),
+        style="bold #FFAF5F",
+    )
+    if state:
+        text.append(f" · {state}", style="dim #FFAF87")
+    if target:
+        text.append(" · " + first_meaningful_line(target, max_chars=96), style="dim")
+    text.append("\n")
+
+
+def _append_triage_line(
+    text: Text,
+    label: str,
+    body: str,
+    *,
+    separator: str = " · ",
+    kind: str | None = None,
+) -> None:
+    text.append("• ", style="dim #D75FFF")
+    text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
+    if kind:
+        text.append(f" · {kind}", style="italic #AF87FF")
+    text.append(separator, style="dim")
+    text.append(
+        first_meaningful_line(body, max_chars=120) or "—",
+        style=_CLAN_BODY_STYLE,
+    )
+    text.append("\n")
+
+
+def _append_member_subheading(text: Text, label: str) -> None:
+    text.append(f"{label}\n", style=_CLAN_MEMBER_SUBHEADING_STYLE)
+
+
+def _append_full_body(
+    text: Text,
+    body: str,
+    *,
+    style: str = _CLAN_BODY_STYLE,
+    indent: str = "  ",
+) -> None:
+    lines = body.splitlines() or ["—"]
+    for line in lines:
+        text.append(indent, style="dim")
+        text.append(line or " ", style=style)
+        text.append("\n")
+
+
+def _append_traceback(text: Text, traceback: str) -> None:
+    """Append traceback text with the regular agent panel's pytb highlighting."""
+    highlighted = Syntax(
+        traceback,
+        "pytb",
+        theme="monokai",
+        word_wrap=True,
+    ).highlight(traceback)
+    for line in highlighted.split("\n", allow_blank=True):
+        text.append("  ", style="dim")
+        text.append_text(line)
+        text.append("\n")
+
+
+def _append_more_tail(text: Text, total: int, shown: int) -> None:
+    hidden = total - min(total, shown)
+    if hidden > 0:
+        text.append(f"  +{hidden} more\n", style="dim italic")
+
+
+def _append_loading(text: Text, *, prefix: str = "") -> None:
+    text.append(f"  {prefix}loading…\n", style="dim italic")
+
+
+def _disk_section_loaded(
+    snapshot: ClanSectionSnapshot,
+    section: ClanDiskSection,
+) -> bool:
+    return snapshot.disk is not None and section in snapshot.disk.loaded_sections
+
+
+def _minimal_context_lanes(
+    snapshot: ClanSectionSnapshot,
+) -> tuple[ClanContextLane, ...]:
+    in_memory = snapshot.in_memory
+    lanes: list[ClanContextLane] = []
+    if in_memory.bead_ids:
+        lanes.append(
+            ClanContextLane(
+                label="BEAD",
+                entries=tuple(
+                    ClanContextEntry(key=value, label=value, member_labels=())
+                    for value in in_memory.bead_ids
+                ),
+            )
+        )
+    if in_memory.plan_paths:
+        lanes.append(
+            ClanContextLane(
+                label="PLAN",
+                entries=tuple(
+                    ClanContextEntry(key=value, label=value, member_labels=())
+                    for value in in_memory.plan_paths
+                ),
+            )
+        )
+    if in_memory.workspace_numbers:
+        lanes.append(
+            ClanContextLane(
+                label="WORKSPACES",
+                entries=tuple(
+                    ClanContextEntry(
+                        key=f"workspace:{value}",
+                        label=f"workspace {value}",
+                        member_labels=(),
+                    )
+                    for value in in_memory.workspace_numbers
+                ),
+            )
+        )
+    return tuple(lanes)
 
 
 def build_clan_detail_text(
@@ -272,12 +771,14 @@ def build_clan_detail_text(
     now: datetime | None = None,
     unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
     snapshot: ClanSectionSnapshot | None = None,
+    fold_level: FoldLevel = FoldLevel.COLLAPSED,
+    section_fold_overrides: Mapping[str, FoldLevel] | None = None,
 ) -> Text:
-    """Build the complete in-memory detail document for a clan container."""
-    # The fold-aware rendering phase consumes this snapshot.  Accept it now so
-    # the worker/data-layer boundary is stable while preserving today's level-1
-    # visual output in this phase.
-    _ = snapshot
+    """Build a fold-aware clan detail document without filesystem access."""
+    snapshot = snapshot or ClanSectionSnapshot(
+        in_memory=aggregate_clan_in_memory(agent)
+    )
+    overrides = section_fold_overrides or {}
     members = _ordered_members(agent)
     family_rows = tuple(member for member in members if _family_children(member))
     agent_count = sum(
@@ -333,8 +834,130 @@ def build_clan_detail_text(
         style="#D7D7FF",
     )
 
-    _append_members_section(text, agent, members, now=now)
+    text.append("Fold: ", style=_FIELD_LABEL_STYLE)
+    text.append(f"{_FOLD_NUMBERS[fold_level]}/3\n", style="dim #D75FFF")
+
+    _append_members_section(
+        text,
+        agent,
+        members,
+        now=now,
+        level=_effective_fold_level("members", fold_level, overrides),
+        digests=snapshot.in_memory.members,
+        count=agent_count,
+    )
+
+    errors = snapshot.in_memory.errors
+    if errors:
+        _append_errors_section(
+            text,
+            errors,
+            level=_effective_fold_level("errors", fold_level, overrides),
+        )
+
+    output_variables = snapshot.in_memory.output_variables
+    if output_variables:
+        _append_variables_section(
+            text,
+            output_variables,
+            title="OUTPUT VARIABLES",
+            section_id="output-variables",
+            level=_effective_fold_level(
+                "output-variables",
+                fold_level,
+                overrides,
+            ),
+        )
+
+    workflow_variables = snapshot.in_memory.workflow_variables
+    if workflow_variables:
+        _append_variables_section(
+            text,
+            workflow_variables,
+            title="WORKFLOW VARIABLES",
+            section_id="workflow-variables",
+            level=_effective_fold_level(
+                "workflow-variables",
+                fold_level,
+                overrides,
+            ),
+        )
+
+    required_disk_sections = clan_disk_sections_for_fold_state(
+        fold_level,
+        overrides,
+    )
+    disk = snapshot.disk
+
+    replies = disk.replies if disk is not None else ()
+    replies_loading = "replies" in snapshot.loading_sections or (
+        "replies" in required_disk_sections
+        and not _disk_section_loaded(snapshot, "replies")
+    )
+    if replies or replies_loading:
+        _append_text_section(
+            text,
+            replies,
+            title="REPLIES",
+            section_id="replies",
+            level=_effective_fold_level("replies", fold_level, overrides),
+            loading=replies_loading,
+        )
+
+    context_loaded = _disk_section_loaded(snapshot, "context")
+    context_lanes = (
+        disk.context_lanes
+        if disk is not None and context_loaded
+        else _minimal_context_lanes(snapshot)
+    )
+    context_loading = "context" in snapshot.loading_sections or (
+        "context" in required_disk_sections and not context_loaded
+    )
+    if context_lanes or context_loading:
+        _append_context_section(
+            text,
+            context_lanes,
+            level=_effective_fold_level("context", fold_level, overrides),
+            loading=context_loading,
+            count_known=context_loaded,
+        )
+
+    slow_tool_calls = disk.slow_tool_calls if disk is not None else ()
+    slow_tools_loading = "slow-tool-calls" in snapshot.loading_sections or (
+        "slow-tool-calls" in required_disk_sections
+        and not _disk_section_loaded(snapshot, "slow-tool-calls")
+    )
+    if slow_tool_calls or slow_tools_loading:
+        _append_slow_tool_calls_section(
+            text,
+            slow_tool_calls,
+            level=_effective_fold_level(
+                "slow-tool-calls",
+                fold_level,
+                overrides,
+            ),
+            loading=slow_tools_loading,
+        )
+
+    prompts = disk.prompts if disk is not None else ()
+    prompts_loading = "prompts" in snapshot.loading_sections or (
+        "prompts" in required_disk_sections
+        and not _disk_section_loaded(snapshot, "prompts")
+    )
+    if prompts or prompts_loading:
+        _append_text_section(
+            text,
+            prompts,
+            title="PROMPTS",
+            section_id="prompts",
+            level=_effective_fold_level("prompts", fold_level, overrides),
+            loading=prompts_loading,
+        )
     return text
 
 
-__all__ = ["build_clan_detail_text"]
+__all__ = [
+    "build_clan_detail_text",
+    "clan_disk_sections_for_fold_state",
+    "clan_fold_state_from_widget",
+]

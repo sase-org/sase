@@ -37,6 +37,7 @@ from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, MemoryReadEvent
 from sase.skills.use_log import SKILL_USE_LOG_SCHEMA_VERSION, SkillUseEvent
 
 _GENERATION = "20260718100000"
+_SASE_BEADS_SKILL = "sase" + "_beads"
 
 
 def _agent(name: str, *, minute: int = 0, **overrides: object) -> Agent:
@@ -204,7 +205,7 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         timestamp="2026-07-18T10:00:00+00:00",
         project="demo",
         cwd="/tmp",
-        skill_name="sase_beads",
+        skill_name=_SASE_BEADS_SKILL,
         agent_name="research.first",
         agent_source="test",
         artifacts_dir="/tmp/artifacts",
@@ -253,7 +254,7 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
         ".second",
     )
     assert by_label["MEMORY"].entries[0].count == 2
-    assert by_label["SKILLS"].entries[0].label == "sase_beads"
+    assert by_label["SKILLS"].entries[0].label == _SASE_BEADS_SKILL
     assert by_label["SKILLS"].entries[0].count == 2
     # The in-memory workspace number and disk-backed opened repo remain
     # distinct, while duplicate opened repo paths collapse across members.

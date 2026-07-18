@@ -21,6 +21,7 @@ from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
+from ...models.fold_state import FoldLevel
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
     _FAMILY_NAME_STYLE,
@@ -221,6 +222,8 @@ def build_header_text(
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     clan_snapshot: ClanSectionSnapshot | None = None,
+    clan_fold_level: FoldLevel = FoldLevel.COLLAPSED,
+    clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -253,6 +256,8 @@ def build_header_text(
                 agent,
                 unread_ids=unread_agent_ids,
                 snapshot=clan_snapshot,
+                fold_level=clan_fold_level,
+                section_fold_overrides=clan_section_fold_overrides,
             ),
             None,
         )

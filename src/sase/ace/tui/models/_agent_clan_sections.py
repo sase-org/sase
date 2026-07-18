@@ -53,7 +53,7 @@ _COMMIT_META_KEYS = frozenset(
 
 
 @dataclass(frozen=True, slots=True)
-class _ClanMemberDigest:
+class ClanMemberDigest:
     """Immutable in-memory facts used by the MEMBERS aggregate."""
 
     identity: ClanAgentIdentity
@@ -73,7 +73,7 @@ class _ClanMemberDigest:
 
 
 @dataclass(frozen=True, slots=True)
-class _ClanErrorEntry:
+class ClanErrorEntry:
     """One failed clan member's in-memory error details."""
 
     member_identity: ClanAgentIdentity
@@ -84,7 +84,7 @@ class _ClanErrorEntry:
 
 
 @dataclass(frozen=True, slots=True)
-class _ClanVariableEntry:
+class ClanVariableEntry:
     """One output or workflow variable attributed to its producing member."""
 
     member_identity: ClanAgentIdentity
@@ -117,10 +117,10 @@ class ClanInMemorySnapshot:
     """Complete pure aggregate derived from a clan container's loaded rows."""
 
     clan_identity: ClanAgentIdentity
-    members: tuple[_ClanMemberDigest, ...]
-    errors: tuple[_ClanErrorEntry, ...]
-    output_variables: tuple[_ClanVariableEntry, ...]
-    workflow_variables: tuple[_ClanVariableEntry, ...]
+    members: tuple[ClanMemberDigest, ...]
+    errors: tuple[ClanErrorEntry, ...]
+    output_variables: tuple[ClanVariableEntry, ...]
+    workflow_variables: tuple[ClanVariableEntry, ...]
     bead_ids: tuple[str, ...]
     plan_paths: tuple[str, ...]
     workspace_numbers: tuple[int, ...]
@@ -297,16 +297,16 @@ def _aggregate_clan_errors(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
-) -> tuple[_ClanErrorEntry, ...]:
+) -> tuple[ClanErrorEntry, ...]:
     """Return deterministic error entries for failed or error-bearing rows."""
-    entries: list[_ClanErrorEntry] = []
+    entries: list[ClanErrorEntry] = []
     for row in rows:
         failed = status_bucket_for_values(row.status) == "Failed"
         if not row.error_message and not failed:
             continue
         message = row.error_message or "Runner failed without error details."
         entries.append(
-            _ClanErrorEntry(
+            ClanErrorEntry(
                 member_identity=row.identity,
                 member_label=(labels or {}).get(row.identity, _row_name(row)),
                 preview=first_meaningful_line(message),
@@ -321,14 +321,14 @@ def _aggregate_clan_output_variables(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
-) -> tuple[_ClanVariableEntry, ...]:
+) -> tuple[ClanVariableEntry, ...]:
     """Return every output variable in row order and sorted key order."""
-    entries: list[_ClanVariableEntry] = []
+    entries: list[ClanVariableEntry] = []
     for row in rows:
         label = (labels or {}).get(row.identity, _row_name(row))
         for name in sorted(row.output_variables):
             entries.append(
-                _ClanVariableEntry(
+                ClanVariableEntry(
                     member_identity=row.identity,
                     member_label=label,
                     name=name,
@@ -342,9 +342,9 @@ def _aggregate_clan_workflow_variables(
     rows: tuple[Agent, ...],
     *,
     labels: dict[ClanAgentIdentity, str] | None = None,
-) -> tuple[_ClanVariableEntry, ...]:
+) -> tuple[ClanVariableEntry, ...]:
     """Return non-structural ``meta_*`` workflow outputs from member rows."""
-    entries: list[_ClanVariableEntry] = []
+    entries: list[ClanVariableEntry] = []
     for row in rows:
         if not isinstance(row.step_output, dict):
             continue
@@ -357,7 +357,7 @@ def _aggregate_clan_workflow_variables(
             ):
                 continue
             entries.append(
-                _ClanVariableEntry(
+                ClanVariableEntry(
                     member_identity=row.identity,
                     member_label=label,
                     name=_format_meta_key(key),
@@ -388,8 +388,8 @@ def _member_digest(
     *,
     clan_name: str,
     family_depth: int,
-) -> _ClanMemberDigest:
-    return _ClanMemberDigest(
+) -> ClanMemberDigest:
+    return ClanMemberDigest(
         identity=row.identity,
         label=_clan_relative_label(row, clan_name),
         status=row.display_status,
@@ -483,10 +483,13 @@ __all__ = [
     "ClanDiskMemberSnapshot",
     "ClanDiskSection",
     "ClanDiskSnapshot",
+    "ClanErrorEntry",
     "ClanInMemorySnapshot",
+    "ClanMemberDigest",
     "ClanSectionSnapshot",
     "ClanSlowToolEntry",
     "ClanTextEntry",
+    "ClanVariableEntry",
     "aggregate_clan_in_memory",
     "clan_section_member_rows",
     "first_meaningful_line",

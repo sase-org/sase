@@ -409,6 +409,24 @@ def _epic_clan_agents() -> list[Agent]:
     )
 
 
+def _decorate_clan_panel_sections(rows: list[Agent]) -> list[Agent]:
+    """Give panel-only fixtures representative in-memory aggregate sections."""
+    members = [row for row in rows if row.agent_clan is not None]
+    assert len(members) >= 3
+    for index, member in enumerate(members, start=1):
+        member.output_variables = {
+            "summary": f"member {index} complete\nfull visual detail",
+        }
+        member.workspace_num = index
+    members[1].error_message = "Snapshot review found a rendering mismatch"
+    members[1].error_traceback = "VisualDiffError: expected clan section glyph"
+    members[1].step_output = {
+        "meta_review": "check fold indicators\ninspect every level",
+    }
+    members[-1].activity = "integrating clan summary"
+    return rows
+
+
 def _runner_slot_wait_agents() -> list[Agent]:
     return [
         Agent(
@@ -864,56 +882,6 @@ async def test_clan_unread_count_png_snapshots(
             page,
             "agents_clan_unread_expanded_120x40",
             title="ACE unread clan expanded",
-        )
-
-
-async def test_epic_clan_panel_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
-    patch_startup_loaders(monkeypatch, agents=_epic_clan_agents())
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 1)
-        await wait_for_visual_idle(page)
-
-        assert_page_svg_contains(page, "CLAN")
-        assert_page_svg_contains(page, "sase-6n")
-        assert_page_svg_contains(page, "3 agents")
-        assert_page_svg_contains(page, ".land")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_clan_panel_epic_120x40",
-            title="ACE epic clan panel",
-        )
-
-
-async def test_swarm_clan_panel_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
-    patch_startup_loaders(monkeypatch, agents=_clan_tree_agents())
-
-    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 1)
-        await wait_for_visual_idle(page)
-
-        assert_page_svg_contains(page, "CLAN")
-        assert_page_svg_contains(page, "3 agents")
-        assert_page_svg_contains(page, "1 family")
-        assert_page_svg_contains(page, "--code")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_clan_panel_swarm_120x40",
-            title="ACE swarm clan panel",
         )
 
 
