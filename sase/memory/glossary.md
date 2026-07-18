@@ -19,6 +19,11 @@ An agent hood is a group of agents that are all named with the same `<name>.` pr
 `foo.bar`, `foo.baz`, and `foo.bar.1` are all apart of the same `foo` agent hood. The agent `foo`, if it exists, is also
 considered part of the `foo` agent hood.
 
+**Agent House**  
+An agent house is a generic term for either a standalone agent or an agent family. Because creating an agent family
+hijacks the original agent's name by reserving the bare name as the family container, a bare name can denote either a
+standalone agent or a family. "Agent house" covers both without spelling out "agent or agent family" each time.
+
 **Agent Instruction Files (aka agents.md files)**  
 An agent instruction file is a `.md` file that an agent CLI reads automatically when working in a directory that
 contains it. For example, the `AGENTS.md` file is the name of the agent instruction file that is supported by codex.
