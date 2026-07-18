@@ -7,9 +7,9 @@ to the user through the ACE TUI. Notifications are stored as JSONL and persisted
 `~/.sase/notifications/notifications.jsonl`.
 
 Plan, epic-plan, question, and agent-launch approvals use the notification row as a typed transport projection of a
-durable interaction gate. The reviewed content, terminal choices, validation schemas, and hash-verified commands live in
-`~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed CLI actions all resolve that same
-bundle.
+durable interaction gate. The reviewed content, option-query branches, validation schemas, and hash-verified commands
+live in `~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed CLI actions all resolve
+that same bundle.
 
 ## Viewing Notifications
 
@@ -249,17 +249,17 @@ Raw creation validates and preserves the optional single-glyph JSON `icon` and t
 registered privileged actions (`PlanApproval`, `EpicApproval`, `UserQuestion`, `LaunchApproval`, `CustomGate`, and
 `HITL`) because a raw row has no trusted command bundle.
 
-The low-level gate API reads a versioned gate specification from stdin:
+The first-class gate API reads a versioned gate specification from stdin:
 
 ```bash
-sase notify create --gate < gate-request.json
+sase gate create < gate-request.json
 ```
 
-For example, this custom gate offers one terminal decision plus two independently selectable add-on commands:
+For example, this custom gate offers a restart-and-verify group plus a separate rejection branch:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "kind": "custom",
   "request_id": "restart-api",
   "producer": { "agent": "maintenance" },
@@ -271,36 +271,37 @@ For example, this custom gate offers one terminal decision plus two independentl
     "notes": ["Restart the API after reviewing the health report?"],
     "preview": "preview.md"
   },
-  "choices": [
+  "query": "(restart AND verify) OR reject",
+  "options": [
     {
-      "id": "proceed",
+      "id": "restart",
       "label": "Restart service",
-      "icon": "✅",
+      "icon": "🚀",
+      "default_selected": true,
       "feedback": "required",
-      "command": { "argv": ["commands/restart"] },
-      "extras": [
-        {
-          "id": "audit",
-          "label": "Write audit record",
-          "icon": "📝",
-          "default_selected": true,
-          "command": { "argv": ["commands/audit"] }
-        },
-        {
-          "id": "verify",
-          "label": "Verify service health",
-          "icon": "🩺",
-          "default_selected": false,
-          "command": { "argv": ["commands/verify"] }
-        }
-      ]
+      "command": { "argv": ["commands/restart"] }
     },
     {
-      "id": "cancel",
-      "label": "Cancel",
+      "id": "verify",
+      "label": "Verify service health",
+      "icon": "🩺",
+      "default_selected": true,
+      "feedback": "disabled",
+      "command": { "argv": ["commands/verify"] }
+    },
+    {
+      "id": "reject",
+      "label": "Do not restart",
       "icon": "❌",
       "feedback": "optional",
-      "command": { "argv": ["commands/cancel"] }
+      "command": { "argv": ["commands/reject"] }
+    }
+  ],
+  "groups": [
+    {
+      "options": ["restart", "verify"],
+      "label": "Restart service",
+      "icon": "🚀"
     }
   ],
   "resources": [
@@ -310,19 +311,14 @@ For example, this custom gate offers one terminal decision plus two independentl
       "content": "#!/bin/sh\nprintf '{\"status\":\"restarted\"}\\n'\n"
     },
     {
-      "path": "commands/audit",
-      "role": "command",
-      "content": "#!/bin/sh\nprintf '{\"status\":\"recorded\"}\\n'\n"
-    },
-    {
       "path": "commands/verify",
       "role": "command",
       "content": "#!/bin/sh\nprintf '{\"status\":\"healthy\"}\\n'\n"
     },
     {
-      "path": "commands/cancel",
+      "path": "commands/reject",
       "role": "command",
-      "content": "#!/bin/sh\nprintf '{\"status\":\"cancelled\"}\\n'\n"
+      "content": "#!/bin/sh\nprintf '{\"status\":\"rejected\"}\\n'\n"
     },
     {
       "path": "preview.md",
@@ -334,35 +330,35 @@ For example, this custom gate offers one terminal decision plus two independentl
 }
 ```
 
-`presentation.icon`, `choice.icon`, and `extra.icon` each accept one emoji or display glyph. Every choice has exactly
-one terminal command. Its ordered `extras` are ORed add-ons: the user may select none, some, or all of them before
-submitting. `feedback` is `disabled`, `optional`, or `required`; custom choices default to `optional` when the field is
-omitted. Automatic resolution is forbidden for custom gates.
+`presentation.icon`, `option.icon`, and `group.icon` each accept one emoji or display glyph. Each `OR` branch is a
+mutually exclusive resolution path. A singleton branch renders as one button; an `AND` branch renders selectable option
+toggles plus a submit button. The selected ids must be a non-empty subset of exactly one branch. `default_selected`
+defaults to true, and a matching `groups` entry configures an AND branch's submit label and icon. `feedback` is
+`disabled`, `optional`, or `required`; custom options default to `optional`, and a group selection uses the strongest
+mode among its selected members. Automatic resolution is forbidden for custom gates.
 
-Every command references a bundle-owned `command` resource and is executed as an argv array without a shell after its
-hash is reverified. The terminal command must succeed before selected extras run. An extra failure is recorded in
-`extra_results` and the bundle error log but does not make the answered gate unresolved. A terminal-command failure
-leaves the gate answerable. The write-once response records `choice_id`, `selected_extra_ids`, `extra_results`, and
-normalized top-level `feedback` consistently for every transport.
+Every option references a bundle-owned `command` resource and is executed in query order as an argv array without a
+shell after its hash is reverified. A selected-command failure is recorded in the bundle error log and leaves the gate
+answerable. The write-once response records `selected_option_ids`, `option_results`, and normalized top-level `feedback`
+consistently for every transport.
 
 On success, creation prints a stable JSON descriptor containing `schema_version`, `notification_id`, `request_id`,
 `kind`, bundle/request/response/preview paths, `continuation_mode`, `auto_resolution`, and hashes. The descriptor's
-`request_id` and `kind` are the exact values accepted by `sase notify wait`. Typed front doors such as
+`request_id` and `kind` are the exact values accepted by `sase gate wait`. Typed front doors such as
 `sase plan propose`, `sase questions`, and agent-initiated launch requests call the same in-process gate service
 directly; they do not spawn this CLI. Agents should normally use the generated `/sase_gate` skill to author this JSON.
 
 Wait mechanically for a gate without reading or polling bundle files directly:
 
 ```bash
-sase notify wait --id <request_id> --kind <kind>
-sase notify wait --id <request_id> --kind <kind> --json
-sase notify wait --id <request_id> --kind <kind> --timeout 60
+sase gate wait --id <request_id> --kind <kind>
+sase gate wait --id <request_id> --kind <kind> --json
+sase gate wait --id <request_id> --kind <kind> --timeout 60
 ```
 
-Human output is colored and summarizes the terminal choice, selected extras, feedback, and response path. `-j/--json`
-emits the stable shape `status`, `choice_id`, `selected_extra_ids`, `feedback`, and `response_path`. Status is
-`answered`, `cancelled`, or `timeout`, with exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never
-extend the request's own gate timeout.
+Human output is colored and summarizes the selected options, feedback, and response path. `-j/--json` emits the stable
+shape `status`, `selected_option_ids`, `feedback`, and `response_path`. Status is `answered`, `cancelled`, or `timeout`,
+with exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never extend the request's own gate timeout.
 
 For read-only inspection, list recent notifications as either a compact table or stable JSON:
 
@@ -407,28 +403,26 @@ See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI ref
 
 Each new gate is written once under `~/.sase/interaction_requests/<kind>/<request-id>/`. The bundle contains canonical
 `request.json`, eventual write-once `response.json`, reviewed previews or attachments, and adapter-owned commands. The
-request records the continuation mode, optional gate timeout, typed payload, presentation metadata and icon, terminal
-choices with optional icons and feedback modes, independently selectable command extras, input/result schemas, and
-hashes for the request and owned resources. Commands are argv arrays executed without a shell. Plan editing is the one
-non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes the reviewed hashes
-before approval can continue.
+request records the continuation mode, optional gate timeout, typed payload, presentation metadata and icon,
+option-query branches, options with configurable icons and feedback modes, AND-group submit metadata, input/result
+schemas, and hashes for the request and owned resources. Commands are argv arrays executed without a shell. Plan editing
+is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes the reviewed
+hashes before approval can continue.
 
 Manual creation succeeds only after the bundle, notification row, and pending-action registration are durable. A partial
-failure is compensated, and retries are idempotent by request ID. Manual and automatic choices use the same hash, input,
-result, and write-once response validation. The pending-action 24-hour stale threshold is transport-only; it may hide
-remote controls but does not terminate a waiting producer. Only cancellation or an explicit per-request gate timeout is
-terminal.
+failure is compensated, and retries are idempotent by request ID. Manual and automatic selections use the same hash,
+input, result, and write-once response validation. The pending-action 24-hour stale threshold is transport-only; it may
+hide remote controls but does not terminate a waiting producer. Only cancellation or an explicit per-request gate
+timeout is terminal.
 
-ACE renders notification, choice, and add-on icons in its inbox and custom-gate modal. The modal selects one terminal
-choice, exposes add-ons as checkboxes, and enables or requires its feedback input according to the chosen mode. ACE
-submits the terminal command and selected add-ons as tracked background work, streams their output to the Tasks view,
-and keeps Textual's event loop free. Telegram keeps add-on selection server-side, uses compact callback tokens, and
-routes optional or required feedback through its two-step text flow. Mobile detail projections expose the same choice,
-icon, feedback-mode, and add-on fields; mobile submissions send only the choice id, selected extra ids, and feedback.
+ACE, Telegram, and mobile render branches in query order from the same normalized envelope structure. Singleton branches
+are buttons. AND branches expose one toggle per option and a configurable submit control; when there is exactly one AND
+branch it starts expanded. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the
+selected commands in query order.
 
-Plan approval uses the same ORed model. Its **Approve** choice exposes **Commit plan file to the plans sidecar** and
-**Run coder follow-up** as add-ons, both selected by default for the recommended tale flow. Legacy `approve`, `run`,
-`tale`, and `commit` presets and `%auto` aliases remain compatible and resolve to fixed selections of those add-ons.
+Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and commit options start selected, the
+group submit is labeled **Approve**, and the two singleton branches remain **Reject** and **Send Feedback**. Epic plans
+use `approve OR reject OR feedback`.
 
 The typed projections remain deliberately distinct:
 
@@ -438,7 +432,7 @@ The typed projections remain deliberately distinct:
 | `epic_plan` | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
 | `question`  | `UserQuestion`      | `sase questions`                                  |
 | `launch`    | `LaunchApproval`    | Agent-initiated `sase launch request`             |
-| `custom`    | `CustomGate`        | `sase notify create --gate`                       |
+| `custom`    | `CustomGate`        | `sase gate create`                                |
 
 Workflow `HITL` remains a legacy producer, but a HITL notification that references a neutral bundle is resolved through
 the same hash-verified executor in ACE and Telegram. Only legacy HITL bundles use the direct response-file writer.
@@ -446,8 +440,8 @@ the same hash-verified executor in ACE and Telegram. Only legacy HITL bundles us
 ### Debugging a gate
 
 Press `d` on any notification row or from an open plan, epic, question, launch, custom-gate, or workflow HITL panel to
-open **Gate Debug**. The overlay keeps the underlying form mounted, so closing it returns to the same selected choice,
-checked add-ons, and typed feedback. Non-gate inbox rows use the same view and show an explicit no-bundle state
+open **Gate Debug**. The overlay keeps the underlying form mounted, so closing it returns to the same selected branch,
+checked group options, and typed feedback. Non-gate inbox rows use the same view and show an explicit no-bundle state
 alongside their raw notification JSON.
 
 Gate Debug loads bundle I/O and hash verification away from the TUI event loop. Its tabs show the lifecycle overview,

@@ -45,10 +45,13 @@ from tests.main.init_skills_handler_helpers import make_args
             (
                 "beautiful, robust, and powerful custom notification gates",
                 "dangerous or irreversible command",
+                '"query": "(restart AND verify) OR reject"',
                 '"default_selected": true',
                 '"feedback": "required"',
-                "sase notify create --gate",
-                "sase notify wait",
+                '"groups": [',
+                "sase gate create",
+                "sase gate wait",
+                "selected_option_ids",
                 "Never poll bundle files directly",
                 "Never run bundle commands by hand",
                 "Automatic resolution is forbidden for custom gates",
@@ -76,7 +79,8 @@ from tests.main.init_skills_handler_helpers import make_args
                 "sase notify list -j",
                 "sase notify show --id",
                 "interaction_requests/<kind>/<request-id>/request.json",
-                "sase notify create --gate",
+                "sase gate create",
+                "sase gate wait",
                 "CustomGate",
                 "/sase_gate",
                 '"silent": true',
@@ -140,6 +144,7 @@ from tests.main.init_skills_handler_helpers import make_args
             (
                 "sase launch request",
                 '"status": "approved"',
+                '"selected_option_ids": ["approve"]',
                 "do not poll request files yourself",
                 "%n(parent, reviewer)",
                 "Do not run `sase run`",
@@ -200,6 +205,21 @@ def test_shipped_skill_source_is_discoverable_for_all_skill_providers(
         rendered = target.read_text(encoding="utf-8")
         for phrase in expected_phrases:
             assert phrase in rendered
+
+
+def test_gate_skill_sources_do_not_reference_v1_contract() -> None:
+    """Generated gate guidance must use the query-driven v2 interface."""
+    skills_dir = get_sase_package_xprompts_dir() / "skills"
+
+    for skill_name in ("sase_gate", "sase_notify", "sase_run"):
+        body = (skills_dir / f"{skill_name}.md").read_text(encoding="utf-8")
+        for stale_phrase in (
+            "sase notify create --gate",
+            "sase notify wait",
+            "choice_id",
+            "selected_extra_ids",
+        ):
+            assert stale_phrase not in body
 
 
 def test_sase_repo_skill_description_covers_web_fetches() -> None:
