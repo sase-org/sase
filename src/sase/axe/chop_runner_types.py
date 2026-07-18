@@ -100,7 +100,7 @@ def find_configured_chop(
         if lumberjack_name is not None and jack_name != lumberjack_name:
             continue
         for chop in jack.chops:
-            if chop.name == chop_name:
+            if chop.enabled and chop.name == chop_name:
                 matches.append(ChopMatch(jack_name, jack, chop))
 
     if not matches:

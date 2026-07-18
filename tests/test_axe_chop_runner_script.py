@@ -189,6 +189,73 @@ def test_run_configured_chop_once_propagates_chop_env(
     assert env["SASE_CHOP_NAME"] == "env_chop"
 
 
+def test_run_configured_chop_once_resolves_secrets_and_exports_target_env(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "env_chop", "true\n")
+    chop = ChopConfig(
+        name="env_chop[sase]",
+        base_name="env_chop",
+        description="",
+        script="env_chop",
+        env={"TOKEN": {"env": "SOURCE_TOKEN"}},
+        target_key="sase",
+        target={"name": "sase", "priority": 2},
+    )
+
+    with (
+        patch.dict("os.environ", {"SOURCE_TOKEN": "resolved"}),
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+        patch("sase.axe.chop_runner.stream_chop_script") as mock_stream,
+    ):
+        from sase.axe.chop_script_runner import _StreamedScriptResult
+
+        mock_stream.return_value = _StreamedScriptResult(
+            returncode=0,
+            pid=1234,
+            output_bytes=0,
+            timed_out=False,
+        )
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=chop,
+            axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
+        )
+
+    assert outcome.status == "success"
+    env = mock_stream.call_args.kwargs["env"]
+    assert env["TOKEN"] == "resolved"
+    assert env["SASE_CHOP_TARGET_KEY"] == "sase"
+    assert env["SASE_CHOP_TARGET_NAME"] == "sase"
+    assert env["SASE_CHOP_TARGET_PRIORITY"] == "2"
+
+
+def test_run_configured_chop_once_records_unresolved_secret_as_check_error(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    make_script(tmp_path, "secret_chop", "true\n")
+
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]),
+    ):
+        outcome = run_configured_chop_once(
+            lumberjack_name="checks",
+            chop=ChopConfig(
+                name="secret_chop",
+                description="",
+                env={"TOKEN": {"env": "MISSING_TOKEN"}},
+            ),
+            axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
+        )
+
+    assert outcome.status == "check_error"
+    assert outcome.reason is not None
+    assert "MISSING_TOKEN" in outcome.reason
+
+
 def test_run_configured_chop_once_missing_script(
     temp_state_dir: Path,
     axe_config: AxeConfig,

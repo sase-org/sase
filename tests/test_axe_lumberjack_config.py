@@ -11,6 +11,7 @@ from sase.axe.config import (
     ChopConfig,
     LumberjackConfig,
     _parse_lumberjacks,
+    _compose_keyed_axe_layers,
     load_axe_config,
     _parse_duration,
 )
@@ -155,6 +156,227 @@ def test_parse_lumberjacks_normalizes_declarative_chop_policy() -> None:
         "checkpoint_policy": "on_action_success",
     }
     assert chop.once_per == {"key": "audit:{proposal.id}", "capacity": 50}
+
+
+def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> None:
+    raw = {
+        "docs": {
+            "interval": 60,
+            "env": {
+                "SHARED": "lumberjack",
+                "TOKEN": {"env": "DOCS_TOKEN"},
+            },
+            "chops": {
+                "refresh_docs": {
+                    "script": "refresh-docs",
+                    "env": {"SHARED": "chop"},
+                    "vars": {"prompt": "Update docs"},
+                    "for_each": [
+                        {
+                            "name": "sase-core",
+                            "workspace": "gh:sase-org/sase-core",
+                            "overrides": {"run_every": "1h30m"},
+                        },
+                        {"name": "sase"},
+                    ],
+                },
+                "retired": {"enabled": False},
+            },
+        }
+    }
+
+    docs = _parse_lumberjacks(raw)["docs"]
+
+    assert [chop.name for chop in docs.chops] == [
+        "refresh_docs[sase-core]",
+        "refresh_docs[sase]",
+        "retired",
+    ]
+    core = docs.chops[0]
+    assert core.parent_name == "refresh_docs"
+    assert core.target_key == "sase-core"
+    assert core.target["workspace"] == "gh:sase-org/sase-core"
+    assert core.run_every == 5400
+    assert core.env == {"SHARED": "chop", "TOKEN": {"env": "DOCS_TOKEN"}}
+    assert core.vars == {"prompt": "Update docs"}
+    assert docs.chops[-1].enabled is False
+    assert docs.chop_names == ["refresh_docs[sase-core]", "refresh_docs[sase]"]
+
+
+def test_parse_lumberjacks_project_source_uses_target_templates() -> None:
+    raw = {
+        "docs": {
+            "interval": 60,
+            "chops": {
+                "refresh_docs": {
+                    "trigger": {
+                        "git.commits_since": {
+                            "project": "{target.name}",
+                            "threshold": 5,
+                        }
+                    },
+                    "for_each": {"source": "projects", "names": ["sase"]},
+                }
+            },
+        }
+    }
+    rows = [
+        {
+            "name": "sase",
+            "project": "gh_sase-org__sase",
+            "vcs": "gh",
+            "workspace": "gh:sase-org/sase",
+            "enabled": True,
+        },
+        {"name": "other", "vcs": "git", "enabled": True},
+    ]
+
+    with patch("sase.axe.config._project_target_rows", return_value=rows):
+        chop = _parse_lumberjacks(raw)["docs"].chops[0]
+
+    assert chop.name == "refresh_docs[sase]"
+    assert chop.trigger["project"] == "sase"
+    assert chop.target["workspace"] == "gh:sase-org/sase"
+
+
+def test_parse_lumberjacks_revalidates_rendered_target_templates() -> None:
+    raw = {
+        "docs": {
+            "interval": 60,
+            "chops": {
+                "refresh_docs": {
+                    "trigger": {
+                        "git.commits_since": {
+                            "project": "{target.project}",
+                            "threshold": 5,
+                        }
+                    },
+                    "for_each": [{"name": "missing-project", "project": ""}],
+                }
+            },
+        }
+    }
+
+    with pytest.raises(AxeConfigError, match="must be a non-blank string"):
+        _parse_lumberjacks(raw)
+
+
+def test_parse_lumberjacks_wraps_target_expansion_errors() -> None:
+    raw = {
+        "docs": {
+            "interval": 60,
+            "chops": {
+                "refresh_docs": {
+                    "for_each": [{"name": "sase"}, {"name": "sase"}],
+                }
+            },
+        }
+    }
+
+    with pytest.raises(AxeConfigError, match="target_expansion_failed"):
+        _parse_lumberjacks(raw)
+
+
+def test_keyed_layer_composition_patches_fields_and_tracks_provenance() -> None:
+    default = ConfigLayer(
+        name="default",
+        path=None,
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "axe": {
+                "lumberjacks": {
+                    "checks": {
+                        "interval": 60,
+                        "chops": [
+                            {
+                                "name": "audit",
+                                "script": "audit-script",
+                                "description": "packaged",
+                            }
+                        ],
+                    }
+                }
+            }
+        },
+    )
+    overlay = ConfigLayer(
+        name="overlay:athena.yml",
+        path="/tmp/athena.yml",
+        exists=True,
+        list_strategy="concatenate",
+        data={
+            "axe": {
+                "lumberjacks": {
+                    "checks": {
+                        "chops": {
+                            "audit": {"run_every": "1d"},
+                            "unused": {"enabled": False},
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    composed, provenance, diagnostics = _compose_keyed_axe_layers([default, overlay])
+
+    assert diagnostics == []
+    audit = composed["axe"]["lumberjacks"]["checks"]["chops"]["audit"]
+    assert audit == {
+        "name": "audit",
+        "script": "audit-script",
+        "description": "packaged",
+        "run_every": "1d",
+    }
+    assert provenance["axe.lumberjacks.checks.chops.audit.script"] == "default"
+    assert (
+        provenance["axe.lumberjacks.checks.chops.audit.run_every"]
+        == "overlay:athena.yml:/tmp/athena.yml"
+    )
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value=overlay.data),
+        patch("sase.axe.config.load_config_layers", return_value=[default, overlay]),
+    ):
+        loaded = load_axe_config()
+
+    loaded_audit = loaded.lumberjacks["checks"].chops[0]
+    assert loaded_audit.name == "audit"
+    assert loaded_audit.script == "audit-script"
+    assert loaded_audit.description == "packaged"
+    assert loaded_audit.run_every == 86400
+    assert loaded_audit.provenance["run_every"] == (
+        "overlay:athena.yml:/tmp/athena.yml"
+    )
+    assert loaded.lumberjacks["checks"].chops[1].enabled is False
+
+
+def test_keyed_composition_keeps_legacy_list_duplicates_fail_closed() -> None:
+    def _layer(name: str) -> ConfigLayer:
+        return ConfigLayer(
+            name=name,
+            path=None,
+            exists=True,
+            list_strategy="concatenate",
+            data={
+                "axe": {
+                    "lumberjacks": {
+                        "checks": {
+                            "interval": 60,
+                            "chops": [{"name": "audit"}],
+                        }
+                    }
+                }
+            },
+        )
+
+    _, _, diagnostics = _compose_keyed_axe_layers(
+        [_layer("default"), _layer("plugin:audit")]
+    )
+
+    assert [item.code for item in diagnostics] == ["duplicate_chop_identity"]
+    assert diagnostics[0].layer == "plugin:audit"
 
 
 def test_parse_lumberjacks_run_every_invalid_becomes_none() -> None:

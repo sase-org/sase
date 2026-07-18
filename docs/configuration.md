@@ -890,22 +890,26 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                 | Default | Description                                                             |
-| -------------- | -------------------- | ------- | ----------------------------------------------------------------------- |
-| `interval`     | int                  | `1`     | Seconds between chop polling cycles.                                    |
-| `chop_timeout` | string               | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
-| `chops`        | list[string\|object] | `[]`    | List of chops to run on each cycle (see below).                         |
+| Field          | Type                        | Default | Description                                                             |
+| -------------- | --------------------------- | ------- | ----------------------------------------------------------------------- |
+| `interval`     | int                         | `1`     | Seconds between chop polling cycles.                                    |
+| `chop_timeout` | string                      | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"` |
+| `env`          | dict[string, env-value]     | `{}`    | Environment inherited by every chop in this lumberjack.                 |
+| `chops`        | list[string\|object] or map | `[]`    | Legacy list or composable map of chops (see below).                     |
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type         | Required | Default | Description                                                      |
-| ------------- | ------------ | -------- | ------- | ---------------------------------------------------------------- |
-| `name`        | string       | yes      | -       | Stable chop identity.                                            |
-| `script`      | string       | no       | `name`  | Exact executable name; no prefix is added automatically.         |
-| `description` | string       | no       | `""`    | Human-readable description of what the chop does.                |
-| `run_every`   | string       | no       | -       | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`. |
-| `timeout`     | string       | no       | -       | Per-chop duration limit. Overrides lumberjack `chop_timeout`.    |
-| `env`         | dict[string] | no       | `{}`    | Environment variables passed to the chop script subprocess.      |
+| Field         | Type                    | Required  | Default | Description                                                      |
+| ------------- | ----------------------- | --------- | ------- | ---------------------------------------------------------------- |
+| `name`        | string                  | list only | -       | Stable identity; map form uses the entry key.                    |
+| `script`      | string                  | no        | `name`  | Exact executable name; no prefix is added automatically.         |
+| `enabled`     | boolean                 | no        | `true`  | Soft-disable a keyed entry while retaining inherited fields.     |
+| `description` | string                  | no        | `""`    | Human-readable description of what the chop does.                |
+| `run_every`   | string                  | no        | -       | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`. |
+| `timeout`     | string                  | no        | -       | Per-chop duration limit. Overrides lumberjack `chop_timeout`.    |
+| `env`         | dict[string, env-value] | no        | `{}`    | Literal values or `{env:}`, `{file:}`, `{pass:}` references.     |
+| `for_each`    | list or source          | no        | -       | Literal targets or the filtered `projects` source.               |
+| `vars`        | object                  | no        | `{}`    | Non-secret values copied to the chop context.                    |
 
 All chops are scripts. Exact-name resolution checks `chop_script_dirs`, then the running interpreter's bin directory,
 then `$PATH`. Invalid fields, duplicate identities, non-positive intervals, and invalid durations fail config loading
@@ -913,6 +917,35 @@ with a dotted config path and source-layer diagnostic. `agent:` and `xprompt:` a
 
 The built-in `wait_checks` chop writes `ready.json` only after named `%wait` dependencies complete successfully. Failed,
 killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the dependency.
+
+Map form is the composable form. Higher-priority config layers patch matching fields by key, and per-field source
+provenance is shown by the verbose chop inventory:
+
+```yaml
+axe:
+  lumberjacks:
+    docs:
+      interval: 60
+      env:
+        API_TOKEN: { env: DOCS_API_TOKEN }
+      chops:
+        refresh_docs:
+          script: refresh-docs
+          trigger:
+            git.commits_since:
+              project: "{target.name}"
+              threshold: 10
+          for_each:
+            source: projects
+            vcs: [git, gh]
+        packaged_but_disabled:
+          enabled: false
+```
+
+`for_each` produces stable identities such as `refresh_docs[sase-core]`. Each instance has independent scheduling,
+history, checkpoints, and once-per state. Target data is available in the context JSON under `target` and through
+`SASE_CHOP_TARGET_KEY` / `SASE_CHOP_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target chop
+fields such as `run_every`.
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 

@@ -203,7 +203,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-6v(chop_schema_versions)' \
-        --epic-symbol 'sase-6v(expand_chop_targets)' \
         --epic-symbol 'sase-6v(get_live_chop_agent_records)' \
         {{ args }}
 

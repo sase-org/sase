@@ -186,6 +186,64 @@ def test_config_schema_accepts_declarative_chop_policies() -> None:
     )
 
 
+def test_config_schema_accepts_keyed_chops_secret_refs_and_targets() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "axe": {
+                "lumberjacks": {
+                    "docs": {
+                        "interval": 60,
+                        "env": {
+                            "TOKEN": {"env": "DOCS_TOKEN"},
+                            "CHAT_ID": {"file": "~/.secrets/chat-id"},
+                            "PASSWORD": {"pass": "services/docs"},
+                        },
+                        "chops": {
+                            "refresh_docs": {
+                                "script": "refresh-docs",
+                                "enabled": True,
+                                "vars": {"prompt": "Update docs"},
+                                "for_each": {
+                                    "source": "projects",
+                                    "filters": {
+                                        "names": ["sase"],
+                                        "vcs": "gh",
+                                    },
+                                },
+                            },
+                            "old": {"enabled": False},
+                        },
+                    }
+                }
+            }
+        }
+    )
+
+
+def test_config_schema_rejects_invalid_chop_secret_reference() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {
+                "axe": {
+                    "lumberjacks": {
+                        "checks": {
+                            "chops": {
+                                "audit": {
+                                    "env": {
+                                        "TOKEN": {
+                                            "env": "TOKEN",
+                                            "file": "/tmp/token",
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

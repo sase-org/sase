@@ -52,6 +52,8 @@ def _scaffolded_prompt(proposal: _PreparedChopProposal, wait_name: str | None) -
 def prepare_chop_proposals(
     chop_name: str,
     result: Mapping[str, Any],
+    *,
+    target_key: str | None = None,
 ) -> list[_PreparedChopProposal]:
     """Normalize, validate, and scaffold all proposals in result order."""
     prepared: list[_PreparedChopProposal] = []
@@ -75,7 +77,11 @@ def prepare_chop_proposals(
         agent_name = (
             str(configured_name)
             if configured_name
-            else derive_chop_agent_name(chop_name, proposal_index=index)
+            else derive_chop_agent_name(
+                chop_name,
+                target_key=target_key,
+                proposal_index=index,
+            )
         )
         prepared.append(
             _PreparedChopProposal(

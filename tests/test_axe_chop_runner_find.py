@@ -23,6 +23,14 @@ def test_find_configured_chop_missing_raises() -> None:
         find_configured_chop(config, "missing")
 
 
+def test_find_configured_chop_ignores_disabled_entries() -> None:
+    config = config_with(
+        hooks=[ChopConfig(name="retired", description="", enabled=False)]
+    )
+    with pytest.raises(ChopNotFoundError):
+        find_configured_chop(config, "retired")
+
+
 def test_find_configured_chop_ambiguous_without_lumberjack_raises() -> None:
     config = config_with(
         hooks=[ChopConfig(name="dup", description="")],

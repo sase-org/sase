@@ -70,6 +70,185 @@
         }
       }
     },
+    "axeEnv": {
+      "type": "object",
+      "description": "Environment values as literals or late-bound secret references.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["env"],
+            "additionalProperties": false,
+            "properties": { "env": { "type": "string", "minLength": 1 } }
+          },
+          {
+            "type": "object",
+            "required": ["file"],
+            "additionalProperties": false,
+            "properties": { "file": { "type": "string", "minLength": 1 } }
+          },
+          {
+            "type": "object",
+            "required": ["pass"],
+            "additionalProperties": false,
+            "properties": { "pass": { "type": "string", "minLength": 1 } }
+          }
+        ]
+      }
+    },
+    "axeChop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "script": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact executable name; defaults to the chop identity"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Soft-disable this chop without deleting its keyed configuration"
+        },
+        "run_every": {
+          "type": "string",
+          "minLength": 2,
+          "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+        },
+        "timeout": {
+          "type": "string",
+          "minLength": 2,
+          "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+        },
+        "env": { "$ref": "#/definitions/axeEnv" },
+        "inhibit_if": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["provider"],
+                "additionalProperties": false,
+                "properties": {
+                  "provider": { "enum": ["changespec", "agent_hood"] },
+                  "name_prefix": { "type": "string" },
+                  "statuses": { "type": "array", "items": { "type": "string" } },
+                  "hood": { "type": "string", "minLength": 1 },
+                  "name": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "propertyNames": { "enum": ["changespec", "agent_hood"] },
+              "additionalProperties": {
+                "oneOf": [
+                  { "type": "object" },
+                  { "type": "array", "items": { "type": "object" } }
+                ]
+              }
+            }
+          ]
+        },
+        "trigger": {
+          "oneOf": [
+            { "type": "string", "enum": ["always"] },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": { "enum": ["always", "git.commits_since"] },
+                "project": { "type": "string", "minLength": 1 },
+                "threshold": { "type": "integer", "minimum": 1 },
+                "checkpoint_policy": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
+                "checkpoint": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
+                "always": { "oneOf": [{ "type": "object" }, { "type": "null" }] },
+                "git.commits_since": {
+                  "type": "object",
+                  "required": ["project", "threshold"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "project": { "type": "string", "minLength": 1 },
+                    "threshold": { "type": "integer", "minimum": 1 },
+                    "checkpoint_policy": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] },
+                    "checkpoint": { "enum": ["on_observation", "on_action_accepted", "on_action_success"] }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "once_per": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "required": ["key"],
+              "additionalProperties": false,
+              "properties": {
+                "key": { "type": "string", "minLength": 1 },
+                "capacity": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
+        },
+        "for_each": {
+          "description": "Literal targets or a named target source expanded into stable chop instances",
+          "oneOf": [
+            { "type": "array", "items": { "type": "object", "minProperties": 1 } },
+            {
+              "type": "object",
+              "required": ["targets"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "literal" },
+                "targets": { "type": "array", "items": { "type": "object", "minProperties": 1 } }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["source"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "source" },
+                "source": { "enum": ["projects"] },
+                "name": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] },
+                "names": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] },
+                "vcs": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] },
+                "filters": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] },
+                    "names": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] },
+                    "vcs": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "array", "items": { "type": "string", "minLength": 1 } }] }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "vars": {
+          "type": "object",
+          "description": "Arbitrary non-secret values copied into the chop context",
+          "additionalProperties": true
+        }
+      }
+    },
+    "axeChopListItem": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "allOf": [
+            { "$ref": "#/definitions/axeChop" },
+            { "required": ["name"] }
+          ]
+        }
+      ]
+    },
     "xpromptInputDefinitions": {
       "description": "Input argument definitions (array or object shorthand)",
       "oneOf": [
@@ -539,9 +718,14 @@
                 "minLength": 2,
                 "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
               },
+              "env": {
+                "$ref": "#/definitions/axeEnv",
+                "description": "Environment values inherited by every chop in this lumberjack"
+              },
               "chops": {
-                "type": "array",
-                "description": "List of chop scripts to run on each tick",
+                "type": ["array", "object"],
+                "description": "Legacy list or composable map of chop scripts to run on each tick",
+                "additionalProperties": { "$ref": "#/definitions/axeChop" },
                 "items": {
                   "oneOf": [
                     { "type": "string" },
@@ -563,6 +747,11 @@
                           "minLength": 1,
                           "description": "Exact executable name; defaults to the chop name"
                         },
+                        "enabled": {
+                          "type": "boolean",
+                          "default": true,
+                          "description": "Soft-disable this chop without deleting its configuration"
+                        },
                         "run_every": {
                           "type": "string",
                           "description": "Positive compound duration (e.g., '60m', '1h30m', '1d') controlling how often this chop runs",
@@ -570,11 +759,8 @@
                           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                         },
                         "env": {
-                          "type": "object",
-                          "description": "Environment variables to set when running the chop",
-                          "additionalProperties": {
-                            "type": "string"
-                          }
+                          "$ref": "#/definitions/axeEnv",
+                          "description": "Environment values merged over lumberjack env"
                         },
                         "inhibit_if": {
                           "description": "Runner-evaluated guards that inhibit dispatch when any provider matches",
@@ -691,6 +877,12 @@
                           "description": "Positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for this chop",
                           "minLength": 2,
                           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+                        },
+                        "for_each": {
+                          "$ref": "#/definitions/axeChop/properties/for_each"
+                        },
+                        "vars": {
+                          "$ref": "#/definitions/axeChop/properties/vars"
                         }
                       }
                     }

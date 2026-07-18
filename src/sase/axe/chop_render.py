@@ -193,14 +193,19 @@ def _configured_chops_table(
 
     for chop in inventory.configured_chops:
         resolution = (
-            f"{chop.script} → {chop.resolved_path}"
-            if chop.resolved_path
-            else f"{chop.script} → not found"
+            "disabled"
+            if chop.status == "disabled"
+            else (
+                f"{chop.script} → {chop.resolved_path}"
+                if chop.resolved_path
+                else f"{chop.script} → not found"
+            )
         )
+        display_name = f"↳ {chop.name}" if chop.parent_name else chop.name
         row: list[RenderableType] = [
             _status_text(_configured_chop_status(chop)),
             Text(chop.lumberjack),
-            Text(chop.name),
+            Text(display_name),
             Text("script"),
             _run_status_text(chop.latest_run_status),
             Text(resolution, overflow="fold"),
@@ -284,6 +289,8 @@ def _checks_table(checks: tuple[ChopCheck, ...], *, verbose: bool) -> Table:
 def _configured_chop_status(chop: ConfiguredChopRecord) -> CheckStatus:
     if chop.status == "configured":
         return "OK"
+    if chop.status == "disabled":
+        return "SKIP"
     if chop.status == "missing":
         return "ERROR"
     return "ERROR"
@@ -291,6 +298,10 @@ def _configured_chop_status(chop: ConfiguredChopRecord) -> CheckStatus:
 
 def _chop_policy_summary(chop: ConfiguredChopRecord) -> str:
     parts: list[str] = []
+    if chop.parent_name:
+        parts.append(f"parent={chop.parent_name}")
+    if chop.target:
+        parts.append(f"target={json.dumps(chop.target, sort_keys=True)}")
     provider = str(chop.trigger.get("provider") or "always")
     parts.append(f"trigger={provider}")
     if chop.inhibit_if:
@@ -300,6 +311,10 @@ def _chop_policy_summary(chop: ConfiguredChopRecord) -> str:
         parts.append(f"once_per={chop.once_per.get('key')}")
     if chop.latest_run_reason:
         parts.append(f"last={chop.latest_run_reason}")
+    parts.extend(
+        f"source[{field_name}]={source}"
+        for field_name, source in sorted(chop.provenance.items())
+    )
     return "\n".join(parts)
 
 

@@ -24,6 +24,7 @@ from sase.axe.chop_inventory import (
 )
 from sase.axe.config import AxeConfig, AxeConfigError
 from sase.axe.config import ChopConfig
+from sase.axe.chop_env import ChopEnvValue, secret_reference_description
 from sase.axe.chop_policy import check_chop_trigger_runtime
 from sase.diagnostics import CheckStatus
 
@@ -37,8 +38,9 @@ _TELEGRAM_CHOP_NAMES = {
     "telegram_outbound",
 }
 _TELEGRAM_TOKEN_NEXT_STEP = (
-    "Set SASE_TELEGRAM_BOT_TOKEN in process or per-chop env, create "
-    "~/.sase/telegram_bot_token with mode 600, or install pass and ensure "
+    "Configure SASE_TELEGRAM_BOT_TOKEN with an env/file/pass secret reference "
+    "under lumberjack or chop env, set it in process env, create "
+    "~/.sase/telegram_bot_token with mode 600, or ensure "
     "`pass show telegram_sase_bot_token` works."
 )
 
@@ -198,6 +200,7 @@ def _declarative_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
     configured = [
         chop
         for chop in inventory.configured_chops
+        if chop.status != "disabled"
         if chop.inhibit_if
         or chop.once_per is not None
         or chop.trigger.get("provider") != "always"
@@ -253,7 +256,9 @@ def _telegram_checks(
 
     checks: list[ChopCheck] = []
     missing_env = tuple(
-        name for name in _TELEGRAM_ENV_VARS if not _telegram_env_is_set(inventory, name)
+        name
+        for name in _TELEGRAM_ENV_VARS
+        if not _telegram_env_is_set(inventory, name, which_fn=which_fn)
     )
     if missing_env:
         checks.append(
@@ -263,7 +268,7 @@ def _telegram_checks(
                 summary="Telegram chop scripts are installed or configured, but required environment variables are missing.",
                 details=missing_env,
                 next_steps=(
-                    "Set the missing SASE_TELEGRAM_* variables in process env or per-chop env before enabling Telegram chops.",
+                    "Set the missing SASE_TELEGRAM_* variables in process env, or configure env/file/pass references at lumberjack or chop level.",
                 ),
             )
         )
@@ -331,6 +336,7 @@ def _configured_telegram_chops(
     return tuple(
         chop
         for chop in inventory.configured_chops
+        if chop.status != "disabled"
         if _is_telegram_chop_name(chop.name) or _is_telegram_chop_name(chop.script)
     )
 
@@ -340,12 +346,44 @@ def _is_telegram_chop_name(name: str) -> bool:
     return normalized in _TELEGRAM_CHOP_NAMES or "telegram" in normalized
 
 
-def _telegram_env_is_set(inventory: ChopInventory, name: str) -> bool:
+def _telegram_env_is_set(
+    inventory: ChopInventory,
+    name: str,
+    *,
+    which_fn: Callable[[str], str | None] = shutil.which,
+) -> bool:
     if os.environ.get(name, "").strip():
         return True
     return any(
-        chop.env.get(name, "").strip() for chop in _configured_telegram_chops(inventory)
+        _configured_env_value_available(chop.env.get(name), which_fn=which_fn)
+        for chop in _configured_telegram_chops(inventory)
     )
+
+
+def _configured_env_value_available(
+    value: ChopEnvValue | None,
+    *,
+    which_fn: Callable[[str], str | None],
+) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if not isinstance(value, dict) or len(value) != 1:
+        return False
+    provider, reference = next(iter(value.items()))
+    if not reference:
+        return False
+    if provider == "env":
+        return bool(os.environ.get(reference, "").strip())
+    if provider == "file":
+        try:
+            return bool(
+                Path(reference).expanduser().read_text(encoding="utf-8").strip()
+            )
+        except OSError:
+            return False
+    if provider == "pass":
+        return which_fn("pass") is not None
+    return False
 
 
 def _telegram_token_source(
@@ -353,8 +391,16 @@ def _telegram_token_source(
     *,
     which_fn: Callable[[str], str | None],
 ) -> tuple[str | None, tuple[str, ...]]:
-    if _telegram_env_is_set(inventory, _TELEGRAM_BOT_TOKEN_ENV_VAR):
+    if os.environ.get(_TELEGRAM_BOT_TOKEN_ENV_VAR, "").strip():
         return (_TELEGRAM_BOT_TOKEN_ENV_VAR, ())
+
+    for chop in _configured_telegram_chops(inventory):
+        value = chop.env.get(_TELEGRAM_BOT_TOKEN_ENV_VAR)
+        if not _configured_env_value_available(value, which_fn=which_fn):
+            continue
+        reference = secret_reference_description(value) if value is not None else None
+        source = reference or f"{_TELEGRAM_BOT_TOKEN_ENV_VAR} per-chop env"
+        return (source, (f"configured by {chop.lumberjack}.{chop.name}",))
 
     file_available, file_detail = _telegram_token_file_status()
     if file_available:

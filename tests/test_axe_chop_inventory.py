@@ -115,3 +115,41 @@ def test_chop_inventory_to_dict_is_json_safe() -> None:
     assert configured["script"] == "full_executable"
     assert "agent" not in configured
     assert "env" not in configured
+
+
+def test_chop_inventory_surfaces_disabled_and_target_instances() -> None:
+    config = AxeConfig(
+        lumberjacks={
+            "docs": LumberjackConfig(
+                name="docs",
+                interval=60,
+                chops=[
+                    ChopConfig(
+                        name="refresh_docs[sase]",
+                        base_name="refresh_docs",
+                        description="docs",
+                        script="refresh-docs",
+                        target_key="sase",
+                        target={"name": "sase"},
+                        provenance={"script": "default", "run_every": "overlay"},
+                    ),
+                    ChopConfig(
+                        name="old",
+                        description="",
+                        enabled=False,
+                    ),
+                ],
+            )
+        }
+    )
+
+    payload = chop_inventory_to_dict(collect_chop_inventory(config))
+    configured = {row["name"]: row for row in payload["configured"]}
+
+    assert configured["refresh_docs[sase]"]["parent_name"] == "refresh_docs"
+    assert configured["refresh_docs[sase]"]["target"] == {"name": "sase"}
+    assert configured["refresh_docs[sase]"]["provenance"] == {
+        "script": "default",
+        "run_every": "overlay",
+    }
+    assert configured["old"]["status"] == "disabled"

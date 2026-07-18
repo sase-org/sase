@@ -185,26 +185,40 @@ axe:
     my_lumberjack:
       interval: 60 # Seconds between cycles
       chop_timeout: "60s" # Default timeout for all chops in this lumberjack
+      env: # Inherited by every chop; individual chop env wins
+        API_TOKEN: { env: MY_API_TOKEN }
       chops:
-        - name: my_chop
+        my_chop:
           script: my_chop_executable # Optional; defaults to name
           description: "What this chop does"
           run_every: "1h30m" # Run at most once per compound duration
           timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:
             MY_VAR: "value" # Custom environment variables
+          for_each:
+            source: projects # One stable my_chop[project] instance per enabled project
+            vcs: [git, gh]
 ```
 
 #### Chop Fields
 
-| Field         | Type             | Description                                                           |
-| ------------- | ---------------- | --------------------------------------------------------------------- |
-| `name`        | `str`            | Chop identity (required)                                              |
-| `script`      | `str \| null`    | Exact executable name; defaults to `name`                             |
-| `description` | `str`            | Human-readable description                                            |
-| `run_every`   | `str \| null`    | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)          |
-| `timeout`     | `str \| null`    | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`) |
-| `env`         | `dict[str, str]` | Custom environment variables passed to the chop                       |
+| Field         | Type                   | Description                                                                           |
+| ------------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| `name`        | `str`                  | Chop identity in legacy list form; map form uses the mapping key                      |
+| `script`      | `str \| null`          | Exact executable name; defaults to the chop identity                                  |
+| `enabled`     | `bool`                 | Soft-disable a keyed entry without deleting the packaged/base configuration           |
+| `description` | `str`                  | Human-readable description                                                            |
+| `run_every`   | `str \| null`          | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
+| `timeout`     | `str \| null`          | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
+| `env`         | `dict[str, env-value]` | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
+| `for_each`    | list or source         | Literal target objects or `source: projects`, expanded to stable per-target instances |
+| `vars`        | `dict`                 | Non-secret configuration copied into the script context                               |
+
+Map-form chops compose by identity across config layers. A higher-priority layer can patch a single field or set
+`enabled: false` while retaining the rest of a packaged entry. Legacy list form remains accepted. Target instances use
+names such as `my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe state. Literal
+targets may include an `overrides:` object for per-target fields such as `run_every`; the `projects` source accepts
+`name`/`names` and `vcs` filters.
 
 ### Script Chops
 
@@ -226,9 +240,10 @@ Axe runs script chops as:
 ```
 
 The context file contains the effective runner limits, zombie timeout, query, lumberjack name, lumberjack state
-directory, and paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files. Scheduled script chops
-within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow script from blocking later
-ticks indefinitely.
+directory, paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files, plus the current `target`
+and configured `vars`. Target fields are also exported as `SASE_CHOP_TARGET_<FIELD>` along with `SASE_CHOP_TARGET_KEY`.
+Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow
+script from blocking later ticks indefinitely.
 
 Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
 [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output

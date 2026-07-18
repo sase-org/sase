@@ -462,6 +462,7 @@ def _proposal_once_per_key(chop: ChopConfig, proposal: _Proposal) -> str | None:
             {
                 "chop": _NamedTemplateValue(chop.name),
                 "proposal": proposal_value,
+                "target": _TargetTemplateValue(chop.target),
             }
         )
     except (AttributeError, KeyError, ValueError) as exc:
@@ -477,6 +478,14 @@ class _NamedTemplateValue(str):
     @property
     def name(self) -> str:
         return str(self)
+
+
+class _TargetTemplateValue(dict[str, Any]):
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
 
 def _run_git(repo: Path, *args: str) -> str:

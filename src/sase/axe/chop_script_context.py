@@ -10,6 +10,7 @@ import os
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.ace.changespec import (
     ChangeSpec,
@@ -36,6 +37,8 @@ class ChopScriptContext:
     filtered_changespecs_file: str
     verbose_lumberjack_diagnostics: bool = False
     result_file: str = ""
+    target: dict[str, Any] | None = None
+    vars: dict[str, Any] | None = None
 
 
 def _atomic_json_write(data: object, path: str) -> None:
@@ -88,6 +91,8 @@ def prepare_chop_run_context(
     *,
     result_file: str,
     destination: str,
+    target: dict[str, Any] | None = None,
+    vars: dict[str, Any] | None = None,
 ) -> str:
     """Copy a shared tick context and add this run's result-file path.
 
@@ -103,6 +108,8 @@ def prepare_chop_run_context(
     if not isinstance(data, dict):
         raise ValueError(f"chop context must be a JSON object: {context_file}")
     data["result_file"] = result_file
+    data["target"] = dict(target or {})
+    data["vars"] = dict(vars or {})
     _atomic_json_write(data, destination)
     return destination
 

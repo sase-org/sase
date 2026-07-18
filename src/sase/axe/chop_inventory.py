@@ -15,9 +15,10 @@ from typing import Any, Literal
 
 from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.config import AxeConfig, load_axe_config
+from sase.axe.chop_env import ChopEnvValue
 from sase.axe.state import ChopRunStatus, read_chop_run, read_chop_run_index
 
-ConfiguredChopStatus = Literal["configured", "missing"]
+ConfiguredChopStatus = Literal["configured", "disabled", "missing"]
 AvailableChopSource = Literal["configured_dir", "python_bin", "path"]
 
 
@@ -27,12 +28,15 @@ class ConfiguredChopRecord:
 
     lumberjack: str
     name: str
+    parent_name: str | None
     description: str
     script: str
-    env: dict[str, str]
+    env: dict[str, ChopEnvValue]
     inhibit_if: tuple[dict[str, Any], ...]
     trigger: dict[str, Any]
     once_per: dict[str, Any] | None
+    target: dict[str, Any]
+    provenance: dict[str, str]
     status: ConfiguredChopStatus
     resolved_path: str | None
     latest_run_status: ChopRunStatus | None = None
@@ -75,7 +79,9 @@ def collect_chop_inventory(config: AxeConfig | None = None) -> ChopInventory:
     """
     axe_config = config or load_axe_config()
     configured_chops = _configured_chops(axe_config)
-    configured_scripts = {chop.script for chop in configured_chops}
+    configured_scripts = {
+        chop.script for chop in configured_chops if chop.status == "configured"
+    }
     python_bin_dir = Path(sys.executable).parent
     path_dirs = tuple(_path_dirs())
     available_scripts = _available_chop_scripts(
@@ -104,6 +110,7 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
             {
                 "lumberjack": chop.lumberjack,
                 "name": chop.name,
+                "parent_name": chop.parent_name,
                 "description": chop.description,
                 "script": chop.script,
                 "status": chop.status,
@@ -114,6 +121,8 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
                 "inhibit_if": list(chop.inhibit_if),
                 "trigger": dict(chop.trigger),
                 "once_per": dict(chop.once_per) if chop.once_per is not None else None,
+                "target": dict(chop.target),
+                "provenance": dict(chop.provenance),
             }
             for chop in inventory.configured_chops
         ],
@@ -142,7 +151,11 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
     for lumberjack_name, lumberjack in axe_config.lumberjacks.items():
         for chop in lumberjack.chops:
             script_name = chop.script_name
-            script = discover_chop_script(script_name, axe_config.chop_script_dirs)
+            script = (
+                discover_chop_script(script_name, axe_config.chop_script_dirs)
+                if chop.enabled
+                else None
+            )
             run_index = read_chop_run_index(lumberjack_name, chop.name)
             latest_run = (
                 read_chop_run(lumberjack_name, chop.name, run_index[0])
@@ -153,6 +166,7 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                 ConfiguredChopRecord(
                     lumberjack=lumberjack_name,
                     name=chop.name,
+                    parent_name=chop.parent_name,
                     description=chop.description,
                     script=script_name,
                     env=dict(chop.env),
@@ -161,7 +175,15 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                     once_per=(
                         dict(chop.once_per) if chop.once_per is not None else None
                     ),
-                    status="configured" if script is not None else "missing",
+                    target=dict(chop.target),
+                    provenance=dict(chop.provenance),
+                    status=(
+                        "disabled"
+                        if not chop.enabled
+                        else "configured"
+                        if script is not None
+                        else "missing"
+                    ),
                     resolved_path=str(script) if script is not None else None,
                     latest_run_status=latest_run.status
                     if latest_run is not None

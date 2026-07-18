@@ -223,9 +223,10 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
             console.print()
         console.print(f"[bold cyan]{name}[/bold cyan]")
         console.print(f"  [dim]interval:[/dim] {lumberjack.interval}s")
-        if lumberjack.chops:
+        enabled_chops = [chop for chop in lumberjack.chops if chop.enabled]
+        if enabled_chops:
             console.print("  [dim]chops:[/dim]")
-            for chop in lumberjack.chops:
+            for chop in enabled_chops:
                 console.print(f"    [green]{chop.name}[/green]")
     sys.exit(0)
 

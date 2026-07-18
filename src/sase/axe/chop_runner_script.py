@@ -12,6 +12,7 @@ from sase.core.axe_chop_facade import parse_chop_result
 from sase.core.time import get_timezone
 
 from .chop_agents import build_chop_launch_env
+from .chop_env import chop_target_env, resolve_chop_env
 from .chop_lifecycle import finalize_launched_chop_runs
 from .chop_policy import (
     ChopCheckpointEvent,
@@ -308,7 +309,31 @@ def run_script_chop_once(
             traceback=NO_PYTHON_TRACEBACK,
         )
 
-    env = dict(chop.env)
+    try:
+        env = resolve_chop_env(chop.env)
+        env.update(chop_target_env(chop.target_key, chop.target))
+    except Exception as exc:
+        outcome = record_preflight_outcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            source=source,
+            started_by=started_by,
+            preflight=ChopPreflight(
+                outcome="check_error",
+                reason=f"could not resolve chop environment: {exc}",
+            ),
+            chop_verbose=chop_verbose,
+        )
+        record_checkpoint_best_effort(
+            lumberjack_name,
+            chop.name,
+            preflight,
+            "action_failed",
+            run_id=run_id,
+        )
+        return outcome
     env.update(
         build_chop_launch_env(
             lumberjack_name=lumberjack_name,
@@ -375,6 +400,8 @@ def run_script_chop_once(
             context_file,
             result_file=str(result_path),
             destination=str(run_context_path),
+            target=chop.target,
+            vars=chop.vars,
         )
     except Exception as e:
         tb = capture_traceback()
@@ -472,8 +499,9 @@ def run_script_chop_once(
                 result_path.read_text(encoding="utf-8")
             )
             prepared_proposals = prepare_chop_proposals(
-                chop.name,
+                chop.base_name or chop.name,
                 structured_result,
+                target_key=chop.target_key or None,
             )
             proposals = proposal_previews(prepared_proposals)
         except Exception as e:

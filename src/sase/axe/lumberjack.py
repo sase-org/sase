@@ -137,7 +137,7 @@ class Lumberjack:
         _tick_start = time.monotonic()
         finalized_actions = finalize_launched_chop_runs(
             self.name,
-            [chop.name for chop in self.config.chops],
+            self.config.chop_names,
         )
         if finalized_actions:
             self._log(f"Finalized {finalized_actions} chop action lifecycle(s)")
@@ -197,6 +197,8 @@ class Lumberjack:
         # Filter eligible chops by their optional cadence.
         eligible_chops: list[ChopConfig] = []
         for chop in self.config.chops:
+            if not chop.enabled:
+                continue
             if chop.run_every is not None:
                 last_run = self._chop_timestamps.get(chop.name)
                 if last_run is not None:

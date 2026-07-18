@@ -59,7 +59,15 @@ def test_structured_no_op_is_persisted_with_run_local_context(
     with patch("sase.axe.chop_runner.find_all_changespecs", return_value=[]):
         outcome = run_configured_chop_once(
             lumberjack_name="checks",
-            chop=ChopConfig(name="probe", description=""),
+            chop=ChopConfig(
+                name="probe[sase]",
+                base_name="probe",
+                description="",
+                script="probe",
+                target_key="sase",
+                target={"name": "sase", "workspace": "gh:sase-org/sase"},
+                vars={"prompt": "Update docs"},
+            ),
             axe_config=_config(tmp_path),
         )
 
@@ -67,16 +75,21 @@ def test_structured_no_op_is_persisted_with_run_local_context(
     assert outcome.result is not None
     assert outcome.result["counters"] == {"findings": 0}
     assert outcome.run_id is not None
-    entry = read_chop_run("checks", "probe", outcome.run_id)
+    entry = read_chop_run("checks", "probe[sase]", outcome.run_id)
     assert entry is not None
     assert entry.status == "no_op"
     assert entry.result == outcome.result
     assert entry.result_file.endswith(".result.json")
-    result_path = chop_run_result_path("checks", "probe", outcome.run_id)
-    context_path = chop_run_context_path("checks", "probe", outcome.run_id)
+    result_path = chop_run_result_path("checks", "probe[sase]", outcome.run_id)
+    context_path = chop_run_context_path("checks", "probe[sase]", outcome.run_id)
     assert result_path.is_file()
     context = json.loads(context_path.read_text(encoding="utf-8"))
     assert context["result_file"] == str(result_path)
+    assert context["target"] == {
+        "name": "sase",
+        "workspace": "gh:sase-org/sase",
+    }
+    assert context["vars"] == {"prompt": "Update docs"}
 
 
 def test_invalid_result_fails_closed_as_check_error(

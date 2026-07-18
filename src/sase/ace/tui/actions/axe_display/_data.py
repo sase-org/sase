@@ -206,7 +206,7 @@ def collect_axe_status_data() -> AxeCollectedData:
         # Iterate the configured chops (not the run-directory listing) so
         # newly-added chops with no recorded runs still appear in the UI
         # tree as empty entries rather than missing entries.
-        chops_cfg = config.lumberjacks[name].chops
+        chops_cfg = [chop for chop in config.lumberjacks[name].chops if chop.enabled]
         chop_names: list[str] = []
         chops_for_jack: list[ChopSnapshot] = []
         for chop_cfg in chops_cfg:
