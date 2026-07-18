@@ -48,7 +48,7 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
     return [name for row in ta._highlights.values() for *_range, name in row]
 
 
-async def test_forward_search_previews_confirms_and_records_last_search() -> None:
+async def test_forward_search_previews_confirms_and_records_search_register() -> None:
     app = _PromptSearchApp("alpha beta alpha")
 
     async with app.run_test(size=(80, 24)) as pilot:
@@ -73,7 +73,7 @@ async def test_forward_search_previews_confirms_and_records_last_search() -> Non
         await pilot.pause()
 
         assert text_area.cursor_location == (0, 11)
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert text_area._is_prompt_search_active() is False
         assert panel.has_class("hidden")
 
@@ -146,7 +146,7 @@ async def test_search_cancel_restores_origin_and_clears_highlights(
 
         assert text_area.cursor_location == (0, 6)
         assert text_area._search_match_spans == ()
-        assert text_area._last_search is None
+        assert bar.prompt_search_register() is None
         assert _search_panel(bar).has_class("hidden")
 
 
@@ -205,14 +205,14 @@ async def test_normal_mode_escape_clears_highlights_but_keeps_repeat_search() ->
         await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
         await pilot.pause()
         assert text_area.cursor_location == (0, 11)
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert text_area._search_match_spans == ((0, 5), (11, 16), (22, 27))
         assert any(name.startswith("search.") for name in _highlight_names(text_area))
 
         await pilot.press("escape")
         await pilot.pause()
         assert text_area.cursor_location == (0, 11)
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert text_area._search_match_spans == ()
         assert not any(
             name.startswith("search.") for name in _highlight_names(text_area)
@@ -221,7 +221,7 @@ async def test_normal_mode_escape_clears_highlights_but_keeps_repeat_search() ->
         await pilot.press("n")
         await pilot.pause()
         assert text_area.cursor_location == (0, 22)
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert text_area._search_match_spans == ((0, 5), (11, 16), (22, 27))
         assert text_area._search_current_match_index == 2
         assert any(name.startswith("search.") for name in _highlight_names(text_area))
@@ -280,13 +280,13 @@ async def test_repeat_search_reports_not_found_after_buffer_changes() -> None:
         await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
         await pilot.pause()
 
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         text_area.load_text("beta only")
         text_area.cursor_location = (0, 0)
         await pilot.press("n")
         await pilot.pause()
 
-        assert text_area._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert text_area._search_match_spans == ()
         assert app.notifications[-1] == "pattern not found"
 
@@ -310,7 +310,7 @@ async def test_search_highlights_clear_on_insert_mode_entry() -> None:
         assert text_area._search_match_spans == ()
 
 
-async def test_search_state_is_scoped_to_active_prompt_pane() -> None:
+async def test_forward_search_register_is_shared_across_prompt_panes() -> None:
     app = _PromptSearchApp("top alpha alpha\n---\nbottom alpha alpha")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -322,7 +322,7 @@ async def test_search_state_is_scoped_to_active_prompt_pane() -> None:
         await pilot.pause()
 
         assert bar._stack.selected_index == 1
-        assert bottom._last_search == ("alpha", "forward")
+        assert bar.prompt_search_register() == ("alpha", "forward")
         assert bottom._search_match_spans
 
         await pilot.press("g", "k")
@@ -332,8 +332,105 @@ async def test_search_state_is_scoped_to_active_prompt_pane() -> None:
         assert bar._stack.selected_index == 0
         assert top is not bottom
         assert bottom._search_match_spans == ()
-        assert top._last_search is None
         assert _search_panel(bar).has_class("hidden")
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert top.cursor_location == (0, 4)
+        assert top._search_match_spans == ((4, 9), (10, 15))
+        assert top._search_current_match_index == 0
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+
+async def test_reverse_search_register_direction_is_shared_across_panes() -> None:
+    app = _PromptSearchApp("alpha one alpha two alpha\n---\nalpha lower alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bottom = bar.active_text_area()
+        await pilot.press("escape")
+
+        await pilot.press("question_mark", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert bottom.cursor_location == (0, 12)
+        assert bar.prompt_search_register() == ("alpha", "reverse")
+
+        await pilot.press("g", "k", "n")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        assert top.cursor_location == (0, 20)
+        assert top._search_current_match_index == 2
+
+        await pilot.press("N")
+        await pilot.pause()
+
+        assert top.cursor_location == (0, 0)
+        assert top._search_current_match_index == 0
+        assert bar.prompt_search_register() == ("alpha", "reverse")
+
+
+async def test_search_register_survives_prompt_stack_rebuild() -> None:
+    app = _PromptSearchApp("top alpha\n---\nbottom alpha alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        original = bar.active_text_area()
+        await pilot.press("escape")
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+        await pilot.press("g", "K")
+        await pilot.pause()
+
+        rebuilt = bar.active_text_area()
+        assert rebuilt is not original
+        assert rebuilt.text == "bottom alpha alpha"
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert rebuilt.cursor_location == (0, 7)
+        assert rebuilt._search_current_match_index == 0
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+
+async def test_cancel_failed_search_and_missing_pane_keep_search_register() -> None:
+    app = _PromptSearchApp("target has no match\n---\nalpha beta alpha")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        bottom = bar.active_text_area()
+        await pilot.press("escape")
+        bottom.cursor_location = (0, 1)
+        await pilot.press("slash", "a", "l", "p", "h", "a", "enter")
+        await pilot.pause()
+
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+        await pilot.press("slash", "b", "e", "t", "a", "escape")
+        await pilot.pause()
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+        await pilot.press("slash", "m", "i", "s", "s", "i", "n", "g", "enter")
+        await pilot.pause()
+        assert bar.prompt_search_register() == ("alpha", "forward")
+
+        await pilot.press("g", "k", "n")
+        await pilot.pause()
+
+        top = bar.active_text_area()
+        assert top._search_match_spans == ()
+        assert app.notifications[-1] == "pattern not found"
+        assert bar.prompt_search_register() == ("alpha", "forward")
 
 
 async def test_large_buffer_search_jumps_even_when_overlay_is_skipped() -> None:

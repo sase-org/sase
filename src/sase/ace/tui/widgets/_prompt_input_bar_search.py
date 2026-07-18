@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
 from textual.widgets import Static
@@ -31,6 +31,22 @@ class PromptInputBarSearchMixin(_MixinBase):
         def _schedule_height_update(self) -> None: ...
         def hide_soft_completion(self) -> None: ...
         def hide_g_prefix_hints(self) -> None: ...
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._prompt_search_register: tuple[str, SearchDirection] | None = None
+        super().__init__(*args, **kwargs)
+
+    def record_prompt_search(
+        self,
+        query: str,
+        direction: SearchDirection,
+    ) -> None:
+        """Record the last successful search shared by this bar's panes."""
+        self._prompt_search_register = (query, direction)
+
+    def prompt_search_register(self) -> tuple[str, SearchDirection] | None:
+        """Return the last successful search shared by this bar's panes."""
+        return self._prompt_search_register
 
     def prepare_search_command_line(self) -> None:
         """Hide other transient prompt panels before search opens."""

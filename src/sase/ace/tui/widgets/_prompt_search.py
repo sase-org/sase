@@ -73,7 +73,6 @@ class PromptSearchMixin(_MixinBase):
         self._search_origin_cursor: tuple[int, int] = (0, 0)
         self._search_origin_offset = 0
         self._search_current_selection: SearchSelection | None = None
-        self._last_search: tuple[str, SearchDirection] | None = None
         super().__init__(*args, **kwargs)
 
     def _is_prompt_search_active(self) -> bool:
@@ -167,7 +166,12 @@ class PromptSearchMixin(_MixinBase):
     def _confirm_prompt_search(self) -> None:
         """Close search, keeping the preview cursor and recording the query."""
         if self._search_query and self._search_current_selection is not None:
-            self._last_search = (self._search_query, self._search_direction)
+            bar = self._find_prompt_bar()
+            record = (
+                getattr(bar, "record_prompt_search", None) if bar is not None else None
+            )
+            if callable(record):
+                record(self._search_query, self._search_direction)
         self._search_active = False
         self._hide_prompt_search_command_line()
         self._update_count_display()
@@ -250,11 +254,16 @@ class PromptSearchMixin(_MixinBase):
         count: int = 1,
     ) -> bool:
         """Repeat the last confirmed search, optionally inverting direction."""
-        if self._last_search is None:
+        bar = self._find_prompt_bar()
+        get_register = (
+            getattr(bar, "prompt_search_register", None) if bar is not None else None
+        )
+        search_register = get_register() if callable(get_register) else None
+        if search_register is None:
             self._show_prompt_search_feedback("no previous search")
             return True
 
-        query, recorded_direction = self._last_search
+        query, recorded_direction = search_register
         direction = (
             self._invert_search_direction(recorded_direction)
             if reverse
