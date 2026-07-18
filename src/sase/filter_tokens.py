@@ -30,6 +30,17 @@ class FilterToken:
     end: int
     quoted: tuple[bool, ...]
     wholly_quoted: bool
+    negated: bool
+
+    @property
+    def body(self) -> str:
+        """Return the decoded token after its optional negation marker."""
+        return self.value[1:] if self.negated else self.value
+
+    @property
+    def body_quoted(self) -> tuple[bool, ...]:
+        """Return quote metadata aligned with :attr:`body`."""
+        return self.quoted[1:] if self.negated else self.quoted
 
 
 def tokenize(
@@ -82,14 +93,20 @@ def tokenize(
                 start=start,
                 end=end,
             )
+        decoded = "".join(value)
+        wholly_quoted = saw_quote and not saw_unquoted
         tokens.append(
             FilterToken(
-                value="".join(value),
+                value=decoded,
                 raw=raw,
                 start=start,
                 end=end,
                 quoted=tuple(quoted),
-                wholly_quoted=saw_quote and not saw_unquoted,
+                wholly_quoted=wholly_quoted,
+                negated=bool(decoded)
+                and decoded[0] == "-"
+                and not quoted[0]
+                and not wholly_quoted,
             )
         )
     return tuple(tokens)
@@ -101,31 +118,37 @@ def completion_context(
     *,
     keys: Collection[str],
     repeatable_keys: Collection[str],
-) -> tuple[str, str]:
-    """Classify and decode the token prefix immediately before *cursor*."""
+    negatable_keys: Collection[str],
+) -> tuple[str, str, bool]:
+    """Classify a completion prefix and retain its unary polarity."""
     cursor = min(max(cursor, 0), len(text))
     prefix_text = text[:cursor]
     if not prefix_text or prefix_text[-1].isspace():
-        return ("key", "")
+        return ("key", "", False)
     tokens = tokenize(prefix_text, strict=False)
     if not tokens:
-        return ("key", "")
+        return ("key", "", False)
     token = tokens[-1]
     if token.wholly_quoted:
-        return ("text", token.value)
-    colon = unquoted_index(token, ":")
+        return ("text", token.value, False)
+    value = token.body
+    quoted = token.body_quoted
+    if token.negated and quoted and all(quoted):
+        return ("text", value, True)
+    colon = _unquoted_index(value, quoted, ":")
     if colon < 0:
-        return ("key", token.value)
-    key = token.value[:colon].casefold()
-    if key not in keys:
-        return ("key", token.value)
-    value = token.value[colon + 1 :]
-    quoted = token.quoted[colon + 1 :]
+        return ("key", value, token.negated)
+    active_keys = negatable_keys if token.negated else keys
+    key = value[:colon].casefold()
+    if key not in active_keys:
+        return ("key", value, token.negated)
+    value = value[colon + 1 :]
+    quoted = quoted[colon + 1 :]
     if key in repeatable_keys:
         comma = _last_unquoted_index(value, quoted, ",")
         if comma >= 0:
             value = value[comma + 1 :]
-    return (key, value)
+    return (key, value, token.negated)
 
 
 def error_for_token(
@@ -161,11 +184,20 @@ def unknown_key_error(
 
 def unquoted_index(token: FilterToken, character: str) -> int:
     """Return the first unquoted *character* offset, or ``-1``."""
+    return _unquoted_index(token.value, token.quoted, character)
+
+
+def _unquoted_index(
+    value: str,
+    quoted: tuple[bool, ...],
+    character: str,
+) -> int:
+    """Return the first unquoted *character* offset in decoded text."""
     return next(
         (
             index
-            for index, value in enumerate(token.value)
-            if value == character and not token.quoted[index]
+            for index, candidate in enumerate(value)
+            if candidate == character and not quoted[index]
         ),
         -1,
     )
@@ -209,7 +241,7 @@ def quote_value(value: str, *, keyed: bool) -> str:
         not value
         or any(char.isspace() or char == '"' for char in value)
         or (keyed and "," in value)
-        or (not keyed and ":" in value)
+        or (not keyed and (":" in value or value.startswith("-")))
     )
     if not needs_quotes:
         return value

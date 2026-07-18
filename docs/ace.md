@@ -88,6 +88,29 @@ stale origins disappear automatically after filtering, changing project scope, r
 expanded plan tree. Escape or an invalid hint exits jump mode. These actions use the configured keymap values; the keys
 above are the defaults.
 
+### Filtering Commits and Plans
+
+Press `/` in Commits or Plans to open its live filter bar. Tokens from different facets combine with AND semantics;
+comma-separated and repeated values within one facet combine with OR semantics. Free-text terms must all match. Press
+`Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or `Escape` to restore the last
+committed query.
+
+Commits accepts `repo:`, `author:`, `since:`, `until:`, and `limit:` plus free text matched against the commit subject.
+For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain `fix`, while
+`limit:all` removes the final row cap.
+
+Plans accepts `kind:`, `status:`, `tier:`, `project:`, `since:`, and `until:` plus free text matched across plan and
+bead metadata. Kinds are `proposal`, `epic`, `phase`, and `archive`. For example,
+`kind:epic,phase status:open project:sase filter` shows open SASE epics or phases containing `filter`.
+
+A leading unquoted `-` excludes a match. Commits can exclude repositories, authors, and subject text; Plans can exclude
+kinds, statuses, tiers, projects, and text. Exclusion wins when positive and negative constraints overlap:
+`repo:sase,plans -repo:plans`, `author:Ada -author:bot`, and `status:open -status:blocked` are all valid. A comma list
+negates the whole token, so `-repo:plans,research` excludes either repository. Date bounds and `limit:` cannot be
+negated. Quote the whole token to search for a literal leading minus (`"-repo:plans"`); quote only the excluded value to
+keep negation active (`-"generated rollout"`). Matching remains case-insensitive, and repository/project aliases work
+for both inclusion and exclusion.
+
 ## Keybindings: Artifacts / PRs
 
 ### Navigation

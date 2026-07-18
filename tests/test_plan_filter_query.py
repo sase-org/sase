@@ -185,6 +185,25 @@ def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
     assert values.projects == ("sase", "core", "docs,site")
 
 
+def test_parse_mixed_positive_and_negative_terms() -> None:
+    values = parse_plan_filter_query(
+        "kind:epic -kind:archive status:open -status:blocked,closed "
+        'tier:epic -tier:tale project:sase -project:"SASE Core" '
+        'filter -generated -"rollout bot" "-status:literal"'
+    )
+
+    assert values.kinds == ("epic",)
+    assert values.excluded_kinds == ("archive",)
+    assert values.statuses == ("open",)
+    assert values.excluded_statuses == ("blocked", "closed")
+    assert values.tiers == ("epic",)
+    assert values.excluded_tiers == ("tale",)
+    assert values.projects == ("sase",)
+    assert values.excluded_projects == ("SASE Core",)
+    assert values.text == ("filter", "-status:literal")
+    assert values.excluded_text == ("generated", "rollout bot")
+
+
 @pytest.mark.parametrize(
     ("query", "message", "token", "span"),
     (
@@ -195,6 +214,9 @@ def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
         ("since:2026-07-18 since:7d", "only appear once", "since:7d", (17, 25)),
         ('project:"SASE Core', "Unterminated", 'project:"SASE Core', (0, 18)),
         ('""', "must not be empty", '""', (0, 2)),
+        ("-", "must not be empty", "-", (0, 1)),
+        ("-since:7d", "may not be negated", "-since:7d", (0, 9)),
+        ("x -until:today", "may not be negated", "-until:today", (2, 14)),
     ),
 )
 def test_parse_errors_carry_bad_token_and_exact_span(
@@ -255,6 +277,23 @@ def test_canonical_query_has_stable_order() -> None:
     assert to_query_string(PlanFilterValues()) == ""
 
 
+def test_canonical_query_serializes_exclusions_in_facet_order() -> None:
+    values = parse_plan_filter_query(
+        "project:sase -status:blocked kind:phase -kind:archive "
+        '-project:"SASE Core" "-literal" -generated'
+    )
+
+    assert to_query_tokens(values) == (
+        "kind:phase",
+        "-kind:archive",
+        "-status:blocked",
+        "project:sase",
+        '-project:"SASE Core"',
+        '"-literal"',
+        "-generated",
+    )
+
+
 _VALUE_TEXT = st.text(
     alphabet='abcXYZ 09,:\\"-@.',
     min_size=1,
@@ -268,9 +307,17 @@ _VALUE_TEXT = st.text(
         max_size=4,
     ).map(tuple),
     statuses=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_kinds=st.lists(
+        st.sampled_from(("proposal", "epic", "phase", "archive")),
+        max_size=4,
+    ).map(tuple),
+    excluded_statuses=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     tiers=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_tiers=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     projects=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_projects=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     bounds=st.sampled_from(
         (
             ("", ""),
@@ -283,22 +330,32 @@ _VALUE_TEXT = st.text(
 def test_canonical_query_round_trip_property(
     kinds: tuple[str, ...],
     statuses: tuple[str, ...],
+    excluded_kinds: tuple[str, ...],
+    excluded_statuses: tuple[str, ...],
     tiers: tuple[str, ...],
+    excluded_tiers: tuple[str, ...],
     projects: tuple[str, ...],
+    excluded_projects: tuple[str, ...],
     text_terms: tuple[str, ...],
+    excluded_text: tuple[str, ...],
     bounds: tuple[str, str],
 ) -> None:
     since_text, until_text = bounds
     values = PlanFilterValues(
         kinds=kinds,
+        excluded_kinds=excluded_kinds,
         statuses=statuses,
+        excluded_statuses=excluded_statuses,
         tiers=tiers,
+        excluded_tiers=excluded_tiers,
         projects=projects,
+        excluded_projects=excluded_projects,
         since_text=since_text,
         until_text=until_text,
         since=parse_time_bound(since_text) if since_text else None,
         until=parse_time_bound(until_text) if until_text else None,
         text=text_terms,
+        excluded_text=excluded_text,
     )
 
     assert parse_plan_filter_query(to_query_string(values)) == values
@@ -317,6 +374,10 @@ def test_canonical_query_round_trip_property(
         ('status:"needs,re', 16, ("status", "needs,re")),
         ("since:7", 7, ("since", "7")),
         ("until:today", 10, ("until", "toda")),
+        ("-kind:archive", 13, ("kind", "archive")),
+        ("-status:bl", 10, ("status", "bl")),
+        ("-since:7", 8, ("key", "since:7")),
+        ('-"generated ro', 14, ("text", "generated ro")),
         ('"filter li', 10, ("text", "filter li")),
         ("unknown:value", 13, ("key", "unknown:value")),
     ),
@@ -326,7 +387,12 @@ def test_completion_context_classifies_cursor_prefix(
     cursor: int,
     expected: tuple[str, str],
 ) -> None:
-    assert plan_completion_context(text, cursor) == expected
+    kind, prefix, _negated = plan_completion_context(text, cursor)
+    assert (kind, prefix) == expected
+
+
+def test_plan_completion_context_reports_negative_polarity() -> None:
+    assert plan_completion_context("-status:bl", 10) == ("status", "bl", True)
 
 
 @pytest.mark.parametrize(
@@ -361,6 +427,40 @@ def test_plan_matcher_ors_within_keys_and_ands_across_keys_and_text(
     )
 
     assert matcher(_record(**changes)) is expected
+
+
+def test_plan_matcher_negative_facets_and_text_veto_multi_label_records() -> None:
+    base = _record()
+    assert (
+        compile_plan_matcher(
+            PlanFilterValues(statuses=("open",), excluded_statuses=("ready",))
+        )(base)
+        is False
+    )
+    assert (
+        compile_plan_matcher(
+            PlanFilterValues(tiers=("epic",), excluded_tiers=("plan",))
+        )(base)
+        is True
+    )
+    assert (
+        compile_plan_matcher(
+            PlanFilterValues(projects=("SASE",), excluded_projects=("other",))
+        )(base)
+        is True
+    )
+    assert (
+        compile_plan_matcher(
+            PlanFilterValues(kinds=("epic",), excluded_kinds=("EPIC",))
+        )(base)
+        is False
+    )
+    assert (
+        compile_plan_matcher(
+            PlanFilterValues(text=("filter",), excluded_text=("INDEX",))
+        )(base)
+        is False
+    )
 
 
 def test_timestamp_bounds_include_endpoints_and_ignore_missing_without_bounds() -> None:

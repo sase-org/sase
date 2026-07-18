@@ -76,6 +76,7 @@ class FilterBar(Static):
     STATIC_VALUE_COMPLETIONS: ClassVar[Mapping[str, tuple[str, ...]]] = {}
     VALUE_HINTS: ClassVar[Mapping[str, str]] = {}
     REPEATABLE_VALUE_KINDS: ClassVar[frozenset[str]] = frozenset()
+    NEGATABLE_KEYS: ClassVar[frozenset[str]] = frozenset()
     FREE_TEXT_HINT: ClassVar[str] = ""
 
     class QueryChanged(Message):
@@ -224,11 +225,11 @@ class FilterBar(Static):
         if signature == self._completion_signature:
             return
         self._completion_signature = signature
-        kind, prefix = self._completion_context(
+        kind, prefix, negated = self._completion_context(
             editor.text,
             editor.cursor_position,
         )
-        candidates = self._candidates_for(kind, prefix)
+        candidates = self._candidates_for(kind, prefix, negated=negated)
         if not candidates:
             self._collapse_completion()
             return
@@ -264,22 +265,30 @@ class FilterBar(Static):
         self._completion_candidates = []
         self._completion_visible = False
 
-    def _candidates_for(self, kind: str, prefix: str) -> list[CompletionCandidate]:
+    def _candidates_for(
+        self,
+        kind: str,
+        prefix: str,
+        *,
+        negated: bool,
+    ) -> list[CompletionCandidate]:
         folded_prefix = prefix.casefold()
         if kind == "key":
+            marker = "-" if negated else ""
             candidates = [
                 _candidate(
-                    display=f"{key}:",
-                    insertion=f"{key}:",
+                    display=f"{marker}{key}:",
+                    insertion=f"{marker}{key}:",
                     name=key,
                     metadata=_FilterCompletionMetadata(
                         kind="key",
-                        value=f"{key}:",
+                        value=f"{marker}{key}:",
                         hint=hint,
                         append_space=False,
                     ),
                 )
                 for key, hint in self.KEY_COMPLETIONS
+                if not negated or key in self.NEGATABLE_KEYS
                 if key.casefold().startswith(folded_prefix)
             ]
             if not prefix and self.FREE_TEXT_HINT:
@@ -322,7 +331,11 @@ class FilterBar(Static):
             if value.casefold().startswith(folded_prefix)
         ]
 
-    def _completion_context(self, text: str, cursor: int) -> tuple[str, str]:
+    def _completion_context(
+        self,
+        text: str,
+        cursor: int,
+    ) -> tuple[str, str, bool]:
         """Classify the completion context for a concrete query language."""
         raise NotImplementedError
 

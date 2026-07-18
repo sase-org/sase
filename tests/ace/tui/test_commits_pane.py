@@ -434,6 +434,59 @@ async def test_commits_filter_bar_rejects_invalid_submit(
         assert pane.filters.text == ()
 
 
+async def test_commits_negative_repo_reconciles_before_collection_and_persists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _result()
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        commits_module,
+        "run_vcs_log",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+    monkeypatch.setattr(commits_module, "load_commit_diff_text", lambda _spec: "")
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("]")
+        pane = page.query_one_widget("#artifacts-commits-pane", CommitsPane)
+        await page.wait_for(lambda _state: pane.result is result)
+        bar = pane.query_one(CommitFilterBar)
+        await page.press("slash")
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        query = "-repo:sase-core-foundation"
+        editor.load_text(query)
+        editor.cursor_position = len(query)
+
+        await page.wait_for(
+            lambda _state: (
+                pane.result is not None
+                and [repo.name for repo in pane.result.repos]
+                == ["alpha-platform-repository"]
+                and calls[-1].get("exclude_repo_filters") == ("sase-core-foundation",)
+            )
+        )
+        assert calls[-1]["limit"] == 40
+        assert [entry.commit.short_id for entry in pane.result.commits] == ["aaaaaaa"]
+        assert "exact" in bar.query_one("#commit-filter-status", Static).content.plain
+
+        await page.press("enter")
+        await page.wait_for(lambda _state: not bar.display)
+        assert pane.filters.excluded_repos == ("sase-core-foundation",)
+        assert query in pane.query_one("#commits-info", Static).content.plain
+
+        await page.press("slash")
+        editor.load_text("-author:Grace")
+        editor.cursor_position = len(editor.text)
+        await page.wait_for(
+            lambda _state: (
+                pane.filters.excluded_authors == ("Grace",) and calls[-1]["limit"] == 0
+            )
+        )
+        await page.press("escape")
+        await page.wait_for(lambda _state: not bar.display)
+        assert pane.filters.excluded_repos == ("sase-core-foundation",)
+
+
 async def test_commits_refresh_override_drives_action_footer_and_help(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

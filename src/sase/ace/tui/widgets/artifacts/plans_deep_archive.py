@@ -48,9 +48,13 @@ class DeepArchiveResult:
 
 def _query_can_reach_archive(values: PlanFilterValues) -> bool:
     """Return whether *values* permits archive rows."""
-    return not values.kinds or any(
+    includes_archive = not values.kinds or any(
         kind.casefold() == "archive" for kind in values.kinds
     )
+    excludes_archive = any(
+        kind.casefold() == "archive" for kind in values.excluded_kinds
+    )
+    return includes_archive and not excludes_archive
 
 
 def make_deep_archive_request(

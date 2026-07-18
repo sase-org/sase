@@ -101,6 +101,7 @@ def run_vcs_log(
     limit: int,
     filters: CommitFilters | None = None,
     repo_filters: Sequence[str] = (),
+    exclude_repo_filters: Sequence[str] = (),
     all_projects: bool = False,
     project_scope: str | None = None,
     current_only: bool = False,
@@ -119,7 +120,17 @@ def run_vcs_log(
     are surfaced ahead of collection warnings so the user sees config
     problems first.
     """
-    if project_scope is None:
+    if exclude_repo_filters:
+        resolved = resolve_log_repos(
+            cwd=cwd,
+            repo_filters=repo_filters,
+            exclude_repo_filters=exclude_repo_filters,
+            all_projects=all_projects,
+            project_scope=project_scope,
+            current_only=current_only,
+            include_sdd=include_sdd,
+        )
+    elif project_scope is None:
         resolved = resolve_log_repos(
             cwd=cwd,
             repo_filters=repo_filters,

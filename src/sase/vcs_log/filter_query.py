@@ -37,6 +37,7 @@ RepoAliases = Mapping[str, Iterable[str]]
 
 _FILTER_KEYS = ("repo", "author", "since", "until", "limit")
 _REPEATABLE_KEYS = frozenset(("repo", "author"))
+_NEGATABLE_KEYS = frozenset(("repo", "author"))
 _NON_NEGATIVE_INTEGER_RE = re.compile(r"^\d+$")
 
 
@@ -49,13 +50,16 @@ class CommitLogFilterValues:
     """Validated values shared by the commits pane and query editor."""
 
     authors: tuple[str, ...] = ()
+    excluded_authors: tuple[str, ...] = ()
     since_text: str = ""
     until_text: str = ""
     since: int | None = None
     until: int | None = None
     repos: tuple[str, ...] = ()
+    excluded_repos: tuple[str, ...] = ()
     limit: int = DEFAULT_COMMIT_LOG_LIMIT
     text: tuple[str, ...] = ()
+    excluded_text: tuple[str, ...] = ()
 
     def backend_filters(self) -> CommitFilters:
         """Return the provider-neutral filters pushed into ``run_vcs_log``."""
@@ -69,19 +73,24 @@ class CommitLogFilterValues:
 def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
     """Parse a commit-filter query into validated filter values."""
     repos: list[str] = []
+    excluded_repos: list[str] = []
     authors: list[str] = []
+    excluded_authors: list[str] = []
     text_terms: list[str] = []
+    excluded_text_terms: list[str] = []
     singles: dict[str, tuple[str, FilterToken]] = {}
 
     for token in tokenize(text, error_type=CommitFilterQueryError):
         colon = unquoted_index(token, ":")
         if token.wholly_quoted or colon < 0:
-            if not token.value:
+            value = token.body
+            if not value:
                 raise _error("Free-text terms must not be empty", token)
-            text_terms.append(token.value)
+            (excluded_text_terms if token.negated else text_terms).append(value)
             continue
 
-        key = token.value[:colon].casefold()
+        key_start = 1 if token.negated else 0
+        key = token.value[key_start:colon].casefold()
         if key not in _FILTER_KEYS:
             raise unknown_key_error(
                 key,
@@ -89,6 +98,8 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
                 keys=_FILTER_KEYS,
                 error_type=CommitFilterQueryError,
             )
+        if token.negated and key not in _NEGATABLE_KEYS:
+            raise _error(f"{key}: may not be negated", token)
 
         value = token.value[colon + 1 :]
         value_quoted = token.quoted[colon + 1 :]
@@ -99,7 +110,10 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
             parts = split_unquoted(value, value_quoted, ",")
             if any(not part for part in parts):
                 raise _error(f"{key}: contains an empty value", token)
-            (repos if key == "repo" else authors).extend(parts)
+            if key == "repo":
+                (excluded_repos if token.negated else repos).extend(parts)
+            else:
+                (excluded_authors if token.negated else authors).extend(parts)
             continue
 
         if key in singles:
@@ -124,13 +138,16 @@ def parse_commit_filter_query(text: str) -> CommitLogFilterValues:
 
     return CommitLogFilterValues(
         authors=tuple(authors),
+        excluded_authors=tuple(excluded_authors),
         since_text=since_text,
         until_text=until_text,
         since=since,
         until=until,
         repos=tuple(repos),
+        excluded_repos=tuple(excluded_repos),
         limit=limit,
         text=tuple(text_terms),
+        excluded_text=tuple(excluded_text_terms),
     )
 
 
@@ -138,7 +155,13 @@ def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
     """Render *values* as canonical tokens in stable filter order."""
     tokens = [f"repo:{quote_value(value, keyed=True)}" for value in values.repos]
     tokens.extend(
+        f"-repo:{quote_value(value, keyed=True)}" for value in values.excluded_repos
+    )
+    tokens.extend(
         f"author:{quote_value(value, keyed=True)}" for value in values.authors
+    )
+    tokens.extend(
+        f"-author:{quote_value(value, keyed=True)}" for value in values.excluded_authors
     )
     if values.since_text:
         tokens.append(f"since:{quote_value(values.since_text, keyed=True)}")
@@ -147,6 +170,7 @@ def to_query_tokens(values: CommitLogFilterValues) -> tuple[str, ...]:
     if values.limit != DEFAULT_COMMIT_LOG_LIMIT:
         tokens.append(f"limit:{values.limit or 'all'}")
     tokens.extend(quote_value(term, keyed=False) for term in values.text)
+    tokens.extend(f"-{quote_value(term, keyed=False)}" for term in values.excluded_text)
     return tuple(tokens)
 
 
@@ -162,8 +186,11 @@ def compile_commit_matcher(
 ) -> Callable[[AggregatedCommitWire], bool]:
     """Compile *values* into a cheap, reusable in-memory predicate."""
     wanted_repos = frozenset(value.casefold() for value in values.repos)
+    excluded_repos = frozenset(value.casefold() for value in values.excluded_repos)
     wanted_authors = tuple(value.casefold() for value in values.authors)
+    excluded_authors = tuple(value.casefold() for value in values.excluded_authors)
     wanted_text = tuple(value.casefold() for value in values.text)
+    excluded_text = tuple(value.casefold() for value in values.excluded_text)
     aliases_by_repo = {
         name.casefold(): frozenset(alias.casefold() for alias in aliases)
         for name, aliases in (repo_aliases or {}).items()
@@ -174,9 +201,10 @@ def compile_commit_matcher(
     def matches(entry: AggregatedCommitWire) -> bool:
         commit = entry.commit
         repo_name = entry.repo.casefold()
-        if wanted_repos and not wanted_repos.intersection(
-            (repo_name, *aliases_by_repo.get(repo_name, ()))
-        ):
+        repo_labels = frozenset((repo_name, *aliases_by_repo.get(repo_name, ())))
+        if wanted_repos and wanted_repos.isdisjoint(repo_labels):
+            return False
+        if excluded_repos and not excluded_repos.isdisjoint(repo_labels):
             return False
         if wanted_authors:
             author_name = commit.author_name.casefold()
@@ -186,25 +214,51 @@ def compile_commit_matcher(
                 for needle in wanted_authors
             ):
                 return False
+        if excluded_authors:
+            author_name = commit.author_name.casefold()
+            author_email = commit.author_email.casefold()
+            if any(
+                needle in author_name or needle in author_email
+                for needle in excluded_authors
+            ):
+                return False
         if since is not None and commit.timestamp < since:
             return False
         if until is not None and commit.timestamp > until:
             return False
         subject = commit.subject.casefold()
-        return all(term in subject for term in wanted_text)
+        return all(term in subject for term in wanted_text) and not any(
+            term in subject for term in excluded_text
+        )
 
     return matches
 
 
-def completion_context(text: str, cursor: int) -> tuple[CompletionKind, str]:
-    """Classify the token prefix immediately before *cursor*."""
-    kind, prefix = token_completion_context(
+def commit_repo_matches(
+    values: CommitLogFilterValues,
+    repo: str,
+    aliases: Iterable[str] = (),
+) -> bool:
+    """Return whether one canonical repository survives repo constraints."""
+    labels = frozenset(value.casefold() for value in (repo, *aliases))
+    wanted = frozenset(value.casefold() for value in values.repos)
+    excluded = frozenset(value.casefold() for value in values.excluded_repos)
+    return (not wanted or not wanted.isdisjoint(labels)) and excluded.isdisjoint(labels)
+
+
+def completion_context(
+    text: str,
+    cursor: int,
+) -> tuple[CompletionKind, str, bool]:
+    """Classify a completion prefix and preserve unary exclusion state."""
+    kind, prefix, negated = token_completion_context(
         text,
         cursor,
         keys=_FILTER_KEYS,
         repeatable_keys=_REPEATABLE_KEYS,
+        negatable_keys=_NEGATABLE_KEYS,
     )
-    return kind, prefix  # type: ignore[return-value]
+    return kind, prefix, negated  # type: ignore[return-value]
 
 
 def _parse_date_value(
@@ -235,6 +289,7 @@ __all__ = [
     "CommitLogFilterValues",
     "CompletionKind",
     "compile_commit_matcher",
+    "commit_repo_matches",
     "completion_context",
     "parse_commit_filter_query",
     "to_query_string",

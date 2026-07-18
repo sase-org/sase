@@ -256,7 +256,10 @@ async def test_commits_narrowed_filter_chips_png_snapshot(
         initial_tab="changespecs",
     ) as page:
         pane, bar = await _open_commits(page, result)
-        query = "repo:sase-core-foundation author:Grace limit:all fix"
+        query = (
+            "repo:sase-core-foundation -repo:alpha-platform-repository "
+            "author:Grace limit:all fix"
+        )
         await _commit_filter_query(page, pane, bar, query)
         await page.wait_for(
             lambda _state: (

@@ -103,6 +103,51 @@ async def test_tab_quotes_project_display_name() -> None:
         assert editor.cursor_position == len(editor.text)
 
 
+async def test_negative_key_and_comma_value_completion_preserve_minus() -> None:
+    app = _PlanFilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PlanFilterBar)
+        bar.set_completion_sources(statuses=("blocked",), projects=("SASE Core",))
+        bar.open("-st")
+        await pilot.pause()
+
+        completion = app.query_one("#plan-filter-completion", OptionList)
+        assert len(_option_labels(completion)) == 1
+        assert _option_labels(completion)[0].startswith("-status:")
+        await pilot.press("tab")
+        await pilot.pause()
+        editor = app.query_one("#plan-filter-input", SingleLineVimTextArea)
+        assert editor.text == "-status:"
+
+        editor.load_text("-status:open,bl")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        assert editor.text == "-status:open,blocked "
+
+        editor.load_text("-project:SA")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        assert editor.text == '-project:"SASE Core" '
+
+
+async def test_negative_plan_completion_omits_date_bounds() -> None:
+    app = _PlanFilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PlanFilterBar)
+        bar.open("-")
+        await pilot.pause()
+
+        labels = _option_labels(app.query_one("#plan-filter-completion", OptionList))
+        assert any(label.startswith("-kind:") for label in labels)
+        assert any(label.startswith("-status:") for label in labels)
+        assert not any(label.startswith("-since:") for label in labels)
+        assert not any(label.startswith("-until:") for label in labels)
+
+
 async def test_completion_sources_are_trimmed_sorted_and_deduplicated() -> None:
     app = _PlanFilterBarApp()
     async with app.run_test() as pilot:

@@ -72,6 +72,20 @@ def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
     assert values.authors == ("Ada", "Grace", "Lovelace, Ada")
 
 
+def test_parse_mixed_positive_and_negative_terms() -> None:
+    values = parse_commit_filter_query(
+        "repo:sase -repo:plans,research author:Ada -author:bot "
+        'fix -generated -"rollout bot" "-repo:literal"'
+    )
+
+    assert values.repos == ("sase",)
+    assert values.excluded_repos == ("plans", "research")
+    assert values.authors == ("Ada",)
+    assert values.excluded_authors == ("bot",)
+    assert values.text == ("fix", "-repo:literal")
+    assert values.excluded_text == ("generated", "rollout bot")
+
+
 @pytest.mark.parametrize(
     ("query", "message", "token", "span"),
     (
@@ -82,6 +96,10 @@ def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
         ("since:2026-07-18 since:7d", "only appear once", "since:7d", (17, 25)),
         ('author:"Ada Lovelace', "Unterminated", 'author:"Ada Lovelace', (0, 20)),
         ('""', "must not be empty", '""', (0, 2)),
+        ("-", "must not be empty", "-", (0, 1)),
+        ("-since:7d", "may not be negated", "-since:7d", (0, 9)),
+        ("fix -until:today", "may not be negated", "-until:today", (4, 16)),
+        ("-limit:10", "may not be negated", "-limit:10", (0, 9)),
     ),
 )
 def test_parse_errors_carry_bad_token_and_exact_span(
@@ -134,6 +152,18 @@ def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
     assert to_query_string(CommitLogFilterValues(limit=0)) == "limit:all"
 
 
+def test_canonical_query_serializes_exclusions_and_literal_hyphens() -> None:
+    values = parse_commit_filter_query(
+        "repo:sase -repo:plans author:Ada -author:bot "
+        '"-literal" -generated -"generated rollout"'
+    )
+
+    assert to_query_string(values) == (
+        "repo:sase -repo:plans author:Ada -author:bot "
+        '"-literal" -generated -"generated rollout"'
+    )
+
+
 _VALUE_TEXT = st.text(
     alphabet='abcXYZ 09,:\\"-@.',
     min_size=1,
@@ -144,7 +174,10 @@ _VALUE_TEXT = st.text(
 @given(
     repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    excluded_text=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
     limit=st.sampled_from((0, 1, 40, 100, 999)),
     bounds=st.sampled_from(
         (
@@ -158,20 +191,26 @@ _VALUE_TEXT = st.text(
 def test_canonical_query_round_trip_property(
     repos: tuple[str, ...],
     authors: tuple[str, ...],
+    excluded_repos: tuple[str, ...],
+    excluded_authors: tuple[str, ...],
     text_terms: tuple[str, ...],
+    excluded_text: tuple[str, ...],
     limit: int,
     bounds: tuple[str, str],
 ) -> None:
     since_text, until_text = bounds
     values = CommitLogFilterValues(
         authors=authors,
+        excluded_authors=excluded_authors,
         since_text=since_text,
         until_text=until_text,
         since=parse_time_bound(since_text) if since_text else None,
         until=parse_time_bound(until_text) if until_text else None,
         repos=repos,
+        excluded_repos=excluded_repos,
         limit=limit,
         text=text_terms,
+        excluded_text=excluded_text,
     )
 
     assert parse_commit_filter_query(to_query_string(values)) == values
@@ -180,11 +219,14 @@ def test_canonical_query_round_trip_property(
 def test_backend_filters_exclude_repo_text_and_limit() -> None:
     values = CommitLogFilterValues(
         authors=("Ada",),
+        excluded_authors=("bot",),
         since=10,
         until=20,
         repos=("sase",),
+        excluded_repos=("plans",),
         limit=5,
         text=("fix",),
+        excluded_text=("generated",),
     )
 
     assert values.backend_filters() == CommitFilters(
@@ -241,6 +283,38 @@ def test_compiled_matcher_accepts_repo_aliases_case_insensitively() -> None:
     assert matcher(_entry(repo="sase-core")) is False
 
 
+def test_commit_matcher_applies_negative_vetoes_after_positive_matches() -> None:
+    matcher = compile_commit_matcher(
+        CommitLogFilterValues(
+            repos=("sase",),
+            excluded_repos=("docs",),
+            authors=("ada",),
+            excluded_authors=("bot",),
+            text=("fix",),
+            excluded_text=("generated",),
+        ),
+        repo_aliases={"sase": ("docs",)},
+    )
+
+    assert matcher(_entry()) is False
+    assert (
+        compile_commit_matcher(
+            CommitLogFilterValues(excluded_authors=("ADA@EXAMPLE",))
+        )(_entry())
+        is False
+    )
+    assert (
+        compile_commit_matcher(CommitLogFilterValues(excluded_text=("LIVE",)))(_entry())
+        is False
+    )
+    assert (
+        compile_commit_matcher(
+            CommitLogFilterValues(text=("fix",), excluded_text=("other",))
+        )(_entry())
+        is True
+    )
+
+
 def test_matcher_ignores_limit_for_caller_to_apply() -> None:
     matcher = compile_commit_matcher(CommitLogFilterValues(limit=1))
 
@@ -261,6 +335,10 @@ def test_matcher_ignores_limit_for_caller_to_apply() -> None:
         ("since:7", 7, ("since", "7")),
         ("until:today", 10, ("until", "toda")),
         ("limit:al", 7, ("limit", "a")),
+        ("-repo:plans", 11, ("repo", "plans")),
+        ("-author:bo", 10, ("author", "bo")),
+        ("-since:7", 8, ("key", "since:7")),
+        ('-"generated ro', 14, ("text", "generated ro")),
         ('"fix live', 9, ("text", "fix live")),
         ("unknown:value", 13, ("key", "unknown:value")),
     ),
@@ -270,7 +348,12 @@ def test_completion_context_classifies_cursor_prefix(
     cursor: int,
     expected: tuple[str, str],
 ) -> None:
-    assert completion_context(text, cursor) == expected
+    kind, prefix, _negated = completion_context(text, cursor)
+    assert (kind, prefix) == expected
+
+
+def test_completion_context_reports_negative_polarity() -> None:
+    assert completion_context("-repo:pl", 8) == ("repo", "pl", True)
 
 
 def test_filter_chips_use_canonical_query_tokens() -> None:

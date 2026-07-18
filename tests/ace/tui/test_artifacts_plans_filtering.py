@@ -250,6 +250,63 @@ async def test_plans_filter_rejects_invalid_submit(
         assert pane.filters.is_empty
 
 
+async def test_plans_negative_filters_preserve_tree_counts_and_submit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("[")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        await page.press("slash")
+        bar = pane.query_one(PlanFilterBar)
+        editor = bar.query_one("#plan-filter-input", SingleLineVimTextArea)
+        query = "-kind:archive -status:blocked -project:beta -rollout"
+        editor.load_text(query)
+        editor.cursor_position = len(query)
+
+        def option_ids() -> set[str]:
+            options = pane.query_one("#plans-list", OptionList)
+            return {
+                options.get_option_at_index(index).id or ""
+                for index in range(options.option_count)
+            }
+
+        await page.wait_for(
+            lambda _state: (
+                "proposal:proposal-1" in option_ids()
+                and "epic:alpha-1" in option_ids()
+                and "phase:alpha-1.1" in option_ids()
+                and "phase:alpha-1.2" not in option_ids()
+                and not any(value.startswith("archive:") for value in option_ids())
+            )
+        )
+        assert "3 matches" in bar.query_one("#plan-filter-status", Static).content.plain
+        list_status = pane.query_one("#plans-status", Static).content.plain
+        assert "1/1 proposals" in list_status
+        assert "1/1 epics" in list_status
+        assert "1/2 phases" in list_status
+        assert "0/1 archived" in list_status
+
+        await page.press("enter")
+        await page.wait_for(lambda _state: not bar.display)
+        assert pane.filters.excluded_kinds == ("archive",)
+        assert pane.filters.excluded_statuses == ("blocked",)
+        assert pane.filters.excluded_projects == ("beta",)
+        assert pane.filters.excluded_text == ("rollout",)
+        assert "-kind:archive" in pane.query_one("#plans-info", Static).content.plain
+
+
 def test_deep_archive_trigger_and_capped_coverage_are_honest(
     tmp_path: Path,
 ) -> None:
@@ -265,6 +322,13 @@ def test_deep_archive_trigger_and_capped_coverage_are_honest(
     assert (
         pane._deep_archive_request_for(parse_plan_filter_query("kind:proposal needle"))
         is None
+    )
+    assert (
+        pane._deep_archive_request_for(parse_plan_filter_query("-kind:archive")) is None
+    )
+    assert (
+        pane._deep_archive_request_for(parse_plan_filter_query("-kind:proposal"))
+        is not None
     )
 
     pane._deep_archive_cache[request] = DeepArchiveResult(

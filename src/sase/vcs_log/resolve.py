@@ -61,6 +61,7 @@ def resolve_log_repos(
     *,
     cwd: str,
     repo_filters: Sequence[str] = (),
+    exclude_repo_filters: Sequence[str] = (),
     all_projects: bool = False,
     project_scope: str | None = None,
     current_only: bool = False,
@@ -92,8 +93,11 @@ def resolve_log_repos(
         )
         repos.sort(key=lambda repo: (_KIND_ORDER.get(repo.kind, 9), repo.name))
 
+    excluded = _resolve_exclusions(repos, exclude_repo_filters, warnings)
     if repo_filters:
         repos = _apply_filters(repos, list(repo_filters), warnings)
+    if excluded:
+        repos = [repo for repo in repos if repo not in excluded]
 
     return ResolvedRepos(repos=repos, warnings=warnings)
 
@@ -514,7 +518,10 @@ def _apply_filters(
 ) -> list[LogRepo]:
     selected: set[int] = set()
     for name in filters:
-        direct = [index for index, repo in enumerate(repos) if repo.name == name]
+        folded = name.casefold()
+        direct = [
+            index for index, repo in enumerate(repos) if repo.name.casefold() == folded
+        ]
         if direct:
             selected.update(direct)
             continue
@@ -522,7 +529,8 @@ def _apply_filters(
         aliases = [
             index
             for index, repo in enumerate(repos)
-            if name in repo.aliases or (repo.kind == "sdd" and name == "sdd")
+            if any(alias.casefold() == folded for alias in repo.aliases)
+            or (repo.kind == "sdd" and folded == "sdd")
         ]
         if len(aliases) == 1:
             selected.add(aliases[0])
@@ -538,6 +546,32 @@ def _apply_filters(
                 f"--repo {name!r} did not match any repository",
             )
     return [repo for index, repo in enumerate(repos) if index in selected]
+
+
+def _resolve_exclusions(
+    repos: list[LogRepo],
+    filters: Sequence[str],
+    warnings: list[str],
+) -> set[LogRepo]:
+    """Resolve exclusions against the full catalog, accepting shared aliases."""
+    excluded: set[LogRepo] = set()
+    for name in filters:
+        folded = name.casefold()
+        matches = [
+            repo
+            for repo in repos
+            if repo.name.casefold() == folded
+            or any(alias.casefold() == folded for alias in repo.aliases)
+            or (repo.kind == "sdd" and folded == "sdd")
+        ]
+        if matches:
+            excluded.update(matches)
+        else:
+            _warn_once(
+                warnings,
+                f"-repo {name!r} did not match any repository",
+            )
+    return excluded
 
 
 def _collapse_global_warnings(warnings: list[str], repos: list[LogRepo]) -> list[str]:

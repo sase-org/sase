@@ -601,3 +601,44 @@ def test_run_merges_resolution_warnings_ahead_of_collection(
         "sase: no such checkout",
     )
     assert result.commits == ()
+
+
+def test_run_threads_repo_exclusions_before_provider_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolve_calls: list[tuple[str, ...]] = []
+    provider_paths: list[str] = []
+
+    def fake_resolve(  # type: ignore[no-untyped-def]
+        *,
+        cwd,
+        repo_filters=(),
+        exclude_repo_filters=(),
+        all_projects=False,
+        project_scope=None,
+        current_only=False,
+        include_sdd=False,
+    ):
+        del cwd, repo_filters, all_projects, project_scope, current_only, include_sdd
+        resolve_calls.append(tuple(exclude_repo_filters))
+        return ResolvedRepos(
+            repos=[LogRepo("sase", "/p/sase", "primary")],
+            warnings=[],
+        )
+
+    monkeypatch.setattr(collect_module, "resolve_log_repos", fake_resolve)
+
+    def provider(path: str) -> _FakeProvider:
+        provider_paths.append(path)
+        return _FakeProvider([_commit("a", 2), _commit("b", 1)])
+
+    result = run_vcs_log(
+        cwd="/workspace",
+        limit=1,
+        exclude_repo_filters=("plans",),
+        provider_factory=provider,
+    )
+
+    assert resolve_calls == [("plans",)]
+    assert provider_paths == ["/p/sase"]
+    assert [entry.commit.full_id for entry in result.commits] == ["a"]

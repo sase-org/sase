@@ -94,21 +94,40 @@ def compile_plan_matcher(
 ) -> Callable[[_PlanFilterRecord], bool]:
     """Compile *values* into a cheap, reusable record predicate."""
     wanted_kinds = frozenset(value.casefold() for value in values.kinds)
+    excluded_kinds = frozenset(value.casefold() for value in values.excluded_kinds)
     wanted_statuses = frozenset(value.casefold() for value in values.statuses)
+    excluded_statuses = frozenset(
+        value.casefold() for value in values.excluded_statuses
+    )
     wanted_tiers = frozenset(value.casefold() for value in values.tiers)
+    excluded_tiers = frozenset(value.casefold() for value in values.excluded_tiers)
     wanted_projects = frozenset(value.casefold() for value in values.projects)
+    excluded_projects = frozenset(
+        value.casefold() for value in values.excluded_projects
+    )
     wanted_text = tuple(value.casefold() for value in values.text)
+    excluded_text = tuple(value.casefold() for value in values.excluded_text)
     since = values.since
     until = values.until
 
     def matches(record: _PlanFilterRecord) -> bool:
         if wanted_kinds and record.kind not in wanted_kinds:
             return False
+        if record.kind in excluded_kinds:
+            return False
         if wanted_statuses and record.status_labels.isdisjoint(wanted_statuses):
+            return False
+        if excluded_statuses and not record.status_labels.isdisjoint(excluded_statuses):
             return False
         if wanted_tiers and record.tier_labels.isdisjoint(wanted_tiers):
             return False
+        if excluded_tiers and not record.tier_labels.isdisjoint(excluded_tiers):
+            return False
         if wanted_projects and record.project_labels.isdisjoint(wanted_projects):
+            return False
+        if excluded_projects and not record.project_labels.isdisjoint(
+            excluded_projects
+        ):
             return False
         if since is not None:
             if record.timestamp is None or record.timestamp < since:
@@ -118,6 +137,8 @@ def compile_plan_matcher(
                 return False
         return all(
             any(term in value for value in record.haystack) for term in wanted_text
+        ) and not any(
+            any(term in value for value in record.haystack) for term in excluded_text
         )
 
     return matches

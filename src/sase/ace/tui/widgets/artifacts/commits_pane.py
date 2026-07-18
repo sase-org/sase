@@ -21,6 +21,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpe
 from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
+    commit_repo_matches,
     compile_commit_matcher,
     parse_commit_filter_query,
     to_query_string,
@@ -266,6 +267,7 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
             limit=collection_limit,
             filters=spec.filters.backend_filters(),
             repo_filters=spec.filters.repos,
+            exclude_repo_filters=spec.filters.excluded_repos,
             all_projects=spec.all_projects,
             project_scope=None if spec.all_projects else spec.project_scope,
             include_sdd=spec.include_sdd,
@@ -430,9 +432,28 @@ class CommitsPane(ArtifactsPaneLifecycle, Vertical):
         commits = tuple(entry for entry in result.commits if matcher(entry))
         if values.limit > 0:
             commits = commits[: values.limit]
-        if commits == result.commits:
+        metadata_values = replace(values, repos=())
+        repos = tuple(
+            repo
+            for repo in result.repos
+            if commit_repo_matches(metadata_values, repo.name, repo.aliases)
+        )
+        repo_names = frozenset(repo.name for repo in repos)
+        remote_states = tuple(
+            state for state in result.remote_states if state.name in repo_names
+        )
+        if (
+            commits == result.commits
+            and repos == result.repos
+            and remote_states == result.remote_states
+        ):
             return result
-        return replace(result, commits=commits)
+        return replace(
+            result,
+            repos=repos,
+            commits=commits,
+            remote_states=remote_states,
+        )
 
     def _apply_live_preview(self, values: CommitLogFilterValues) -> None:
         snapshot = self._authoritative_snapshot(values)
@@ -857,6 +878,7 @@ def _snapshot_breadth(snapshot: _AuthoritativeSnapshot) -> tuple[int, int, int]:
     filters = snapshot.filters
     constraints = (
         len(filters.repos)
+        + len(filters.excluded_repos)
         + len(filters.authors)
         + int(filters.since is not None)
         + int(filters.until is not None)
@@ -874,7 +896,11 @@ def _snapshot_covers(
         return True
     base = snapshot.filters
     backend_unfiltered = not (
-        base.repos or base.authors or base.since is not None or base.until is not None
+        base.repos
+        or base.excluded_repos
+        or base.authors
+        or base.since is not None
+        or base.until is not None
     )
     truncated = (
         snapshot.collection_limit > 0
@@ -884,7 +910,8 @@ def _snapshot_covers(
 
 
 def _backend_collection_limit(values: CommitLogFilterValues) -> int:
-    return 0 if values.text else values.limit
+    presentation_exclusions = values.excluded_authors or values.excluded_text
+    return 0 if values.text or presentation_exclusions else values.limit
 
 
 __all__ = ["CommitCollector", "CommitDiffLoader", "CommitsPane"]

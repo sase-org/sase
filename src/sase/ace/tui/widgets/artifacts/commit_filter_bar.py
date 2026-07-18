@@ -55,6 +55,7 @@ class CommitFilterBar(FilterBar):
         "limit": "row limit",
     }
     REPEATABLE_VALUE_KINDS = frozenset(("repo", "author"))
+    NEGATABLE_KEYS = frozenset(("repo", "author"))
     FREE_TEXT_HINT = "subject terms (AND)"
 
     class QueryChanged(Message):
@@ -82,5 +83,9 @@ class CommitFilterBar(FilterBar):
         """Replace the in-memory repository and author completion sources."""
         self._set_completion_sources({"repo": repos, "author": authors})
 
-    def _completion_context(self, text: str, cursor: int) -> tuple[str, str]:
+    def _completion_context(
+        self,
+        text: str,
+        cursor: int,
+    ) -> tuple[str, str, bool]:
         return completion_context(text, cursor)

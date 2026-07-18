@@ -120,6 +120,45 @@ async def test_tab_preserves_repeatable_comma_values() -> None:
         assert editor.text == "repo:sase,sase-nvim "
 
 
+async def test_negative_key_and_value_completion_preserve_minus_and_quotes() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+        bar.set_completion_sources(repos=("plans",), authors=("Build Bot",))
+        bar.open("-re")
+        await pilot.pause()
+
+        completion = app.query_one("#commit-filter-completion", OptionList)
+        assert len(_option_labels(completion)) == 1
+        assert _option_labels(completion)[0].startswith("-repo:")
+        await pilot.press("tab")
+        await pilot.pause()
+        editor = app.query_one("#commit-filter-input", SingleLineVimTextArea)
+        assert editor.text == "-repo:"
+
+        editor.load_text("-author:Build")
+        editor.cursor_position = len(editor.text)
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        assert editor.text == '-author:"Build Bot" '
+
+
+async def test_negative_completion_omits_non_negatable_keys() -> None:
+    app = _FilterBarApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(CommitFilterBar)
+        bar.open("-")
+        await pilot.pause()
+
+        labels = _option_labels(app.query_one("#commit-filter-completion", OptionList))
+        assert any(label.startswith("-repo:") for label in labels)
+        assert any(label.startswith("-author:") for label in labels)
+        assert not any(label.startswith("-since:") for label in labels)
+        assert not any(label.startswith("-until:") for label in labels)
+        assert not any(label.startswith("-limit:") for label in labels)
+
+
 async def test_typing_emits_changed_before_submitted() -> None:
     app = _FilterBarApp()
     async with app.run_test() as pilot:

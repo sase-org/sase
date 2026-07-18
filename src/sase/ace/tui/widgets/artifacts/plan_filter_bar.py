@@ -67,6 +67,7 @@ class PlanFilterBar(FilterBar):
         "until": "date bound",
     }
     REPEATABLE_VALUE_KINDS = frozenset(("kind", "status", "tier", "project"))
+    NEGATABLE_KEYS = REPEATABLE_VALUE_KINDS
     FREE_TEXT_HINT = "title, body, id (AND)"
 
     class QueryChanged(Message):
@@ -94,5 +95,9 @@ class PlanFilterBar(FilterBar):
         """Replace observed archive-status and project completion sources."""
         self._set_completion_sources({"status": statuses, "project": projects})
 
-    def _completion_context(self, text: str, cursor: int) -> tuple[str, str]:
+    def _completion_context(
+        self,
+        text: str,
+        cursor: int,
+    ) -> tuple[str, str, bool]:
         return plan_completion_context(text, cursor)

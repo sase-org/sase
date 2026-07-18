@@ -234,6 +234,40 @@ def test_repo_filter_unknown_name_warns(
     assert any("nope" in w for w in resolved.warnings)
 
 
+def test_repo_exclusions_are_case_insensitive_and_win_over_inclusions(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    _set_linked(
+        monkeypatch,
+        _FakeLinkedResolution(repos=(_FakeLinked("sase-core", "/ws/core"),)),
+    )
+    _set_sdd(monkeypatch, None)
+
+    resolved = resolve_log_repos(
+        cwd="/ws/sase",
+        repo_filters=["SASE-CORE"],
+        exclude_repo_filters=["sase-core"],
+    )
+
+    assert resolved.repos == []
+    assert resolved.warnings == []
+
+
+def test_unmatched_repo_exclusion_warns_without_hiding_other_repos(
+    monkeypatch: pytest.MonkeyPatch, project: None
+) -> None:
+    _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
+    _set_sdd(monkeypatch, None)
+
+    resolved = resolve_log_repos(
+        cwd="/ws/sase",
+        exclude_repo_filters=["missing"],
+    )
+
+    assert [repo.name for repo in resolved.repos] == ["sase"]
+    assert resolved.warnings == ["-repo 'missing' did not match any repository"]
+
+
 def test_sdd_filter_requires_sdd_scope(
     monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
 ) -> None:
@@ -252,6 +286,27 @@ def test_sdd_filter_requires_sdd_scope(
     assert default.repos == []
     assert default.warnings == ["--repo 'sdd' did not match any repository"]
     assert [r.kind for r in resolved.repos] == ["sdd"]
+
+
+def test_sdd_exclusion_applies_only_to_the_enabled_sdd_scope(
+    monkeypatch: pytest.MonkeyPatch, project: None, tmp_path: Path
+) -> None:
+    sdd_dir = tmp_path / "sdd"
+    sdd_dir.mkdir()
+    _set_linked(monkeypatch, _FakeLinkedResolution(repos=()))
+    _set_sdd(monkeypatch, sdd_dir, record=_FakeRecord(repo="sase-sdd"))
+
+    without_scope = resolve_log_repos(cwd="/ws/sase", exclude_repo_filters=["sdd"])
+    with_scope = resolve_log_repos(
+        cwd="/ws/sase",
+        include_sdd=True,
+        exclude_repo_filters=["sdd"],
+    )
+
+    assert [repo.kind for repo in without_scope.repos] == ["primary"]
+    assert without_scope.warnings == ["-repo 'sdd' did not match any repository"]
+    assert [repo.kind for repo in with_scope.repos] == ["primary"]
+    assert with_scope.warnings == []
 
 
 def test_excluded_sdd_store_is_not_probed_or_warned(
@@ -633,6 +688,39 @@ def test_all_projects_qualifies_colliding_labels_and_rejects_ambiguous_alias(
         "--repo 'shared' is ambiguous; use one of: alpha/shared, beta/shared"
     ]
     assert [repo.name for repo in selected.repos] == ["beta/shared"]
+
+
+def test_all_projects_exclusion_removes_every_shared_alias_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    alpha = _global_record(tmp_path, "alpha")
+    beta = _global_record(tmp_path, "beta")
+    alpha_shared = tmp_path / "repos" / "alpha-shared"
+    beta_shared = tmp_path / "repos" / "beta-shared"
+    alpha_shared.mkdir(parents=True)
+    beta_shared.mkdir(parents=True)
+    _configure_global_resolution(
+        monkeypatch,
+        tmp_path,
+        [alpha, beta],
+        linked={
+            "alpha": _FakeLinkedResolution(
+                repos=(_FakeLinked("shared", str(alpha_shared)),)
+            ),
+            "beta": _FakeLinkedResolution(
+                repos=(_FakeLinked("shared", str(beta_shared)),)
+            ),
+        },
+    )
+
+    resolved = resolve_log_repos(
+        cwd="/anywhere",
+        all_projects=True,
+        exclude_repo_filters=["SHARED"],
+    )
+
+    assert [repo.name for repo in resolved.repos] == ["alpha", "beta"]
+    assert resolved.warnings == []
 
 
 def test_all_projects_qualifies_colliding_sdd_labels_when_enabled(
