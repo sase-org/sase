@@ -4,8 +4,8 @@ Building a Rich ``Syntax`` for very large content is expensive — the lexer
 walks every byte and the highlighted output is held in memory. For TUI hot
 paths (prompt panel, file panel, axe dashboard) we cap the size at which
 syntax highlighting is applied and fall back to a plain ``Text`` block with
-a small notice when content exceeds the cap. File panels additionally apply a
-large line-count safety valve so pathological outputs cannot monopolize the UI
+a small notice when content exceeds the cap. The plain fallback is always
+bounded by bytes and lines so pathological outputs cannot monopolize the UI
 thread during plain-text layout.
 """
 
@@ -26,9 +26,14 @@ SYNTAX_HIGHLIGHT_MAX_BYTES = 64_000
 SYNTAX_HIGHLIGHT_MAX_LINES = 1_500
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES = 24_000
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES = 600
-# Rich plain-text wrapping measured ~77 ms median at this size on the target
-# host; 10,000 lines measured ~164 ms. Keep the pathological path sub-100 ms.
-FILE_PANEL_MAX_RENDER_LINES = 5_000
+# Keep the pathological plain-text path within the module's sub-100 ms budget.
+# The byte cap protects byte-heavy content with relatively few very long lines;
+# the line cap protects content made up of many short lines.
+PLAIN_RENDER_MAX_BYTES = 128_000
+PLAIN_RENDER_MAX_LINES = 5_000
+# Compatibility alias for file-panel line counts and tests.
+FILE_PANEL_MAX_RENDER_LINES = PLAIN_RENDER_MAX_LINES
+DEFAULT_TRUNCATION_HINT = "truncated for display"
 
 
 @dataclass(frozen=True)
@@ -42,6 +47,7 @@ class _SyntaxRenderableKey:
     line_numbers: bool
     render_kind: str = "syntax"
     max_render_lines: int | None = None
+    truncation_hint: str | None = None
 
 
 def _content_digest(content: str) -> str:
@@ -179,7 +185,8 @@ class LazySyntaxRenderCache:
         word_wrap: bool,
         line_range: tuple[int, int] | None,
         line_numbers: bool,
-        max_render_lines: int | None,
+        max_render_lines: int,
+        truncation_hint: str,
         renderable_factory: Callable[[], RenderableType],
     ) -> _CachedRenderable:
         """Return a cached over-highlight-cap plain-text renderable."""
@@ -193,6 +200,7 @@ class LazySyntaxRenderCache:
             line_numbers=line_numbers,
             render_kind="plain",
             max_render_lines=max_render_lines,
+            truncation_hint=truncation_hint,
         )
         cached = self._entries.get(key)
         if cached is not None:
@@ -247,6 +255,87 @@ def _exceeds_lexer_cap(
     return _exceeds_cap(content, line_range)
 
 
+def _line_count(content: str) -> int:
+    """Return the logical line count used by capped plain rendering."""
+    return content.count("\n") + (1 if not content.endswith("\n") else 0)
+
+
+def _utf8_prefix(content: str, max_bytes: int) -> str:
+    """Return the longest safe UTF-8 prefix within ``max_bytes``."""
+    encoded = content.encode("utf-8", errors="replace")
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
+def _truncate_plain_content(
+    content: str,
+    *,
+    max_lines: int,
+) -> tuple[str, int, int, bool, bool]:
+    """Return a bounded head prefix and details about what was elided."""
+    total_lines = _line_count(content)
+    total_bytes = len(content.encode("utf-8", errors="replace"))
+    line_truncated = total_lines > max_lines
+
+    rendered_lines: list[str] = []
+    rendered_bytes = 0
+    byte_truncated = False
+    line_start = 0
+    for _ in range(max_lines):
+        if line_start >= len(content):
+            break
+        newline = content.find("\n", line_start)
+        line_end = len(content) if newline == -1 else newline + 1
+        line = content[line_start:line_end]
+        line_bytes = len(line.encode("utf-8", errors="replace"))
+        if rendered_bytes + line_bytes <= PLAIN_RENDER_MAX_BYTES:
+            rendered_lines.append(line)
+            rendered_bytes += line_bytes
+            line_start = line_end
+            continue
+
+        byte_truncated = True
+        if not rendered_lines:
+            rendered_lines.append(_utf8_prefix(line, PLAIN_RENDER_MAX_BYTES))
+        break
+
+    rendered_content = "".join(rendered_lines)
+    truncated = line_truncated or byte_truncated
+    if truncated:
+        rendered_content = rendered_content.removesuffix("\n").removesuffix("\r")
+
+    remaining_lines = max(0, total_lines - _line_count(rendered_content))
+    remaining_bytes = max(
+        0,
+        total_bytes - len(rendered_content.encode("utf-8", errors="replace")),
+    )
+    return (
+        rendered_content,
+        remaining_lines,
+        remaining_bytes,
+        line_truncated,
+        byte_truncated,
+    )
+
+
+def _format_approx_bytes(byte_count: int) -> str:
+    """Return a compact approximate size for a truncation notice."""
+    if byte_count < 1_024:
+        return f"{byte_count} B"
+    if byte_count < 1_024 * 1_024:
+        return f"{byte_count / 1_024:.1f} KiB"
+    return f"{byte_count / (1_024 * 1_024):.1f} MiB"
+
+
+def _segmented_plain_text(content: str) -> Text:
+    """Build plain text whose rendered segments never span multiple lines."""
+    text = Text(no_wrap=False)
+    for line in content.splitlines(keepends=True):
+        # An explicit neutral span keeps Rich from merging the whole body into
+        # one segment while preserving the same visible style.
+        text.append(line, style="none")
+    return text
+
+
 def lazy_renderable(
     content: str,
     lexer: str,
@@ -257,12 +346,14 @@ def lazy_renderable(
     theme: str = "monokai",
     render_cache: LazySyntaxRenderCache | None = None,
     max_render_lines: int | None = None,
+    truncation_hint: str = DEFAULT_TRUNCATION_HINT,
 ) -> RenderableType:
     """Return a Rich ``Syntax`` when small enough, else a capped plain block.
 
     When ``content`` exceeds either highlight cap, render a ``Text`` of the
-    visible portion preceded by a one-line dim-italic notice. Callers may set
-    ``max_render_lines`` to add a separate plain-text layout safety valve.
+    visible portion preceded by a one-line dim-italic notice. The plain path is
+    always byte- and line-capped; callers may lower the default line cap and
+    customize the trailing truncation hint for their surface.
     """
     if not _exceeds_lexer_cap(content, lexer, line_range):
         if render_cache is not None:
@@ -298,29 +389,37 @@ def lazy_renderable(
     else:
         visible = content
 
+    effective_max_render_lines = (
+        PLAIN_RENDER_MAX_LINES if max_render_lines is None else max(1, max_render_lines)
+    )
+
     def build_plain() -> RenderableType:
-        rendered_content = visible
-        total_lines = rendered_content.count("\n") + (
-            1 if not rendered_content.endswith("\n") else 0
+        (
+            rendered_content,
+            remaining_lines,
+            remaining_bytes,
+            line_truncated,
+            byte_truncated,
+        ) = _truncate_plain_content(
+            visible,
+            max_lines=effective_max_render_lines,
         )
-        remaining = 0
-        if max_render_lines is not None and total_lines > max_render_lines:
-            visible_lines = rendered_content.splitlines(keepends=True)
-            rendered_content = (
-                "".join(visible_lines[:max_render_lines])
-                .removesuffix("\n")
-                .removesuffix("\r")
-            )
-            remaining = total_lines - max_render_lines
 
         renderables: list[RenderableType] = [
             notice,
-            Text(rendered_content, no_wrap=False),
+            _segmented_plain_text(rendered_content),
         ]
-        if remaining:
+        if line_truncated or byte_truncated:
+            omitted: list[str] = []
+            if line_truncated and remaining_lines:
+                omitted.append(f"{remaining_lines} more lines")
+            if byte_truncated and remaining_bytes:
+                omitted.append(
+                    f"approximately {_format_approx_bytes(remaining_bytes)} omitted"
+                )
             renderables.append(
                 Text(
-                    f"\n… {remaining} more lines — press E to open in editor",
+                    f"\n… {' and '.join(omitted)} — {truncation_hint}",
                     style="dim italic #87D7FF",
                 )
             )
@@ -334,7 +433,8 @@ def lazy_renderable(
             word_wrap=word_wrap,
             line_range=line_range,
             line_numbers=line_numbers,
-            max_render_lines=max_render_lines,
+            max_render_lines=effective_max_render_lines,
+            truncation_hint=truncation_hint,
             renderable_factory=build_plain,
         )
     return build_plain()

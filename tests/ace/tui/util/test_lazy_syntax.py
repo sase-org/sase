@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from rich.console import Console
-from rich.console import Group
+from rich.console import Console, Group
 from rich.syntax import Syntax
+from rich.text import Text
 
 from sase.ace.tui.util.lazy_syntax import (
+    FILE_PANEL_MAX_RENDER_LINES,
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES,
-    FILE_PANEL_MAX_RENDER_LINES,
+    PLAIN_RENDER_MAX_BYTES,
+    PLAIN_RENDER_MAX_LINES,
     LazySyntaxRenderCache,
     SYNTAX_HIGHLIGHT_MAX_BYTES,
     SYNTAX_HIGHLIGHT_MAX_LINES,
@@ -170,12 +172,64 @@ def test_file_panel_plain_render_cap_adds_editor_notice() -> None:
         content,
         "diff",
         max_render_lines=FILE_PANEL_MAX_RENDER_LINES,
+        truncation_hint="press E to open in editor",
     )
 
     assert isinstance(out, Group)
     body = out.renderables[1]
     assert str(body).count("\n") + 1 == FILE_PANEL_MAX_RENDER_LINES
     assert str(out.renderables[2]) == ("\n… 3 more lines — press E to open in editor")
+
+
+def test_plain_fallback_caps_byte_heavy_content_below_line_cap() -> None:
+    content = ("+" + "x" * 7_000 + "\n") * 500
+
+    out = lazy_renderable(content, "diff")
+
+    assert isinstance(out, Group)
+    body = out.renderables[1]
+    assert isinstance(body, Text)
+    assert len(body.plain.encode("utf-8")) <= PLAIN_RENDER_MAX_BYTES
+    assert body.plain.count("\n") + 1 < PLAIN_RENDER_MAX_LINES
+    assert "approximately" in str(out.renderables[2])
+    assert "truncated for display" in str(out.renderables[2])
+
+
+def test_plain_fallback_uses_default_line_cap_when_none() -> None:
+    content = "\n".join(["x"] * (PLAIN_RENDER_MAX_LINES + 3))
+
+    out = lazy_renderable(content, "diff", max_render_lines=None)
+
+    assert isinstance(out, Group)
+    body = out.renderables[1]
+    assert isinstance(body, Text)
+    assert body.plain.count("\n") + 1 == PLAIN_RENDER_MAX_LINES
+    assert str(out.renderables[2]) == ("\n… 3 more lines — truncated for display")
+
+
+def test_plain_fallback_respects_custom_truncation_hint() -> None:
+    content = "\n".join(["x"] * (PLAIN_RENDER_MAX_LINES + 1))
+
+    out = lazy_renderable(
+        content,
+        "diff",
+        truncation_hint="run git show abc123 to see the full diff",
+    )
+
+    assert isinstance(out, Group)
+    assert str(out.renderables[2]).endswith(
+        "— run git show abc123 to see the full diff"
+    )
+
+
+def test_plain_fallback_never_emits_a_multiline_segment() -> None:
+    content = "\n".join(["line"] * (PLAIN_RENDER_MAX_LINES + 1))
+    out = lazy_renderable(content, "diff")
+
+    segments = tuple(Console(width=110, color_system=None).render(out))
+
+    assert segments
+    assert all(segment.text.count("\n") <= 1 for segment in segments)
 
 
 def test_cached_plain_renderable_reuses_same_body() -> None:
@@ -190,6 +244,46 @@ def test_cached_plain_renderable_reuses_same_body() -> None:
     assert cache.hits == 1
 
 
+def test_cached_plain_renderable_keys_include_cap_and_hint() -> None:
+    cache = LazySyntaxRenderCache(max_entries=4)
+    content = "\n".join(["line"] * (SYNTAX_HIGHLIGHT_MAX_LINES + 1))
+
+    first = lazy_renderable(
+        content,
+        "diff",
+        render_cache=cache,
+        max_render_lines=100,
+        truncation_hint="first hint",
+    )
+    same = lazy_renderable(
+        content,
+        "diff",
+        render_cache=cache,
+        max_render_lines=100,
+        truncation_hint="first hint",
+    )
+    different_cap = lazy_renderable(
+        content,
+        "diff",
+        render_cache=cache,
+        max_render_lines=101,
+        truncation_hint="first hint",
+    )
+    different_hint = lazy_renderable(
+        content,
+        "diff",
+        render_cache=cache,
+        max_render_lines=100,
+        truncation_hint="second hint",
+    )
+
+    assert first is same
+    assert different_cap is not first
+    assert different_hint is not first
+    assert cache.misses == 3
+    assert cache.hits == 1
+
+
 def test_5mb_response_renders_as_plain_group() -> None:
     """A 5 MB response paints immediately as plain text and skips Syntax."""
     huge = "a" * (5 * 1024 * 1024)
@@ -198,3 +292,7 @@ def test_5mb_response_renders_as_plain_group() -> None:
     # The Group has the notice + a Text payload — never a Syntax.
     for child in out.renderables:
         assert not isinstance(child, Syntax)
+    body = out.renderables[1]
+    assert isinstance(body, Text)
+    assert len(body.plain.encode("utf-8")) <= PLAIN_RENDER_MAX_BYTES
+    assert "truncated for display" in str(out.renderables[2])

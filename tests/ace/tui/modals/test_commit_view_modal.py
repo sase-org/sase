@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 from threading import Event
 
+from rich.console import Console
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
+from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_BYTES
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 
 
@@ -64,6 +67,12 @@ def _write_diff(path: Path, *, old: str, new: str) -> None:
     )
 
 
+def _rendered_text(renderable: object) -> str:
+    stream = StringIO()
+    Console(file=stream, color_system=None, width=120).print(renderable)
+    return stream.getvalue()
+
+
 def test_commit_view_title_labels_external_repo() -> None:
     spec = CommitViewSpec(
         short_sha="abcdef123456",
@@ -80,6 +89,18 @@ def test_commit_view_title_labels_external_repo() -> None:
     title = CommitViewModal([spec])._build_title().plain
 
     assert "gh:pallets/click (external)" in title
+
+
+def test_commit_view_content_bounds_byte_heavy_diff_and_explains_truncation() -> None:
+    modal = CommitViewModal([_spec("/missing/commit.diff")])
+    modal._diff_loaded = True
+    modal._diff_text = ("+" + "x" * 7_000 + "\n") * 500
+
+    text = _rendered_text(modal._build_content())
+
+    assert len(text.encode("utf-8")) <= PLAIN_RENDER_MAX_BYTES + 20_000
+    assert "approximately" in text
+    assert "run git show abcdef123456 in sase" in text
 
 
 async def _wait_for_diff(

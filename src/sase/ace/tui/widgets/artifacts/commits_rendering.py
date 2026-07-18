@@ -6,7 +6,11 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from sase.ace.tui.keymaps import KeymapRegistry, key_display_name
-from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
+from sase.ace.tui.util.lazy_syntax import (
+    PLAIN_RENDER_MAX_LINES,
+    LazySyntaxRenderCache,
+    lazy_renderable,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_deltas
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.core.vcs_log_wire import AggregatedCommitWire
@@ -198,6 +202,11 @@ def build_commit_detail(
                 line_numbers=True,
                 theme="monokai",
                 render_cache=render_cache,
+                max_render_lines=PLAIN_RENDER_MAX_LINES,
+                truncation_hint=(
+                    f"run git show {commit.short_id} in {entry.repo} "
+                    "to see the full diff"
+                ),
             )
         )
     else:

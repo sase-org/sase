@@ -15,7 +15,10 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.modals.commit_filters_modal import CommitFiltersModal
 from sase.ace.tui.modals.commit_view_modal import CommitViewModal
 from sase.ace.tui.modals.help_modal import HelpModal
-from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache
+from sase.ace.tui.util.lazy_syntax import (
+    PLAIN_RENDER_MAX_BYTES,
+    LazySyntaxRenderCache,
+)
 from sase.ace.tui.widgets.artifacts import CommitsPane, CommitsTimeline
 from sase.ace.tui.widgets.artifacts.commits_rendering import build_commit_detail
 import sase.ace.tui.widgets.artifacts.commits as commits_module
@@ -42,6 +45,15 @@ def _rendered_text(renderable: Any) -> str:
     stream = StringIO()
     Console(file=stream, color_system=None, width=120).print(renderable)
     return stream.getvalue()
+
+
+def _byte_heavy_diff() -> str:
+    header = """diff --git a/events.jsonl b/events.jsonl
+--- a/events.jsonl
++++ b/events.jsonl
+@@ -1 +1 @@
+"""
+    return header + ("+" + "x" * 7_000 + "\n") * 500
 
 
 def _result(timestamp: int | None = None) -> VcsLogResult:
@@ -190,6 +202,24 @@ def test_commit_detail_omits_empty_author() -> None:
     )
 
     assert "Author" not in _rendered_text(detail)
+
+
+def test_commit_detail_bounds_byte_heavy_diff_and_explains_truncation() -> None:
+    result = _result()
+    entry = result.commits[0]
+
+    detail = build_commit_detail(
+        entry,
+        _byte_heavy_diff(),
+        loading=False,
+        result=result,
+        render_cache=LazySyntaxRenderCache(),
+    )
+    text = _rendered_text(detail)
+
+    assert len(text.encode("utf-8")) <= PLAIN_RENDER_MAX_BYTES + 20_000
+    assert "approximately" in text
+    assert "run git show aaaaaaa in alpha-platform-repository" in text
 
 
 async def test_commits_timeline_mounted_rows_stay_one_line_with_jump_hints(

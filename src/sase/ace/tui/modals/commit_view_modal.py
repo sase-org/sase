@@ -14,7 +14,11 @@ from textual.worker import Worker, WorkerState
 
 from sase.ace.changespec.models import DeltaEntry
 from sase.ace.tui.actions.clipboard import copy_to_system_clipboard
-from sase.ace.tui.util.lazy_syntax import LazySyntaxRenderCache, lazy_renderable
+from sase.ace.tui.util.lazy_syntax import (
+    PLAIN_RENDER_MAX_LINES,
+    LazySyntaxRenderCache,
+    lazy_renderable,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_commits import load_commit_diff_text
 from sase.ace.tui.widgets.prompt_panel._agent_deltas import parse_unified_diff_deltas
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
@@ -160,6 +164,11 @@ class CommitViewModal(CopyModeForwardingMixin, ModalScreen[None]):
                     line_numbers=True,
                     theme="monokai",
                     render_cache=self._syntax_render_cache,
+                    max_render_lines=PLAIN_RENDER_MAX_LINES,
+                    truncation_hint=(
+                        f"run git show {self._current_spec.short_sha or self._current_spec.sha} "
+                        f"in {self._current_spec.repo_name} to see the full diff"
+                    ),
                 )
             )
         else:

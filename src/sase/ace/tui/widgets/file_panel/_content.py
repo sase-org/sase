@@ -83,6 +83,7 @@ class FilePanelContentMixin:
             line_numbers=True,
             render_cache=self._content_render_cache,
             max_render_lines=FILE_PANEL_MAX_RENDER_LINES,
+            truncation_hint="press E to open in editor",
         )
 
         if self._content_mode == "diff":
