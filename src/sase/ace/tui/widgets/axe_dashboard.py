@@ -278,6 +278,8 @@ class AxeDashboard(Static):
                     if run.entry.traceback:
                         empty.append("\n\n")
                         empty.append(run.entry.traceback, style="dim red")
+                elif run.entry.reason:
+                    empty.append(run.entry.reason, style="yellow")
                 else:
                     empty.append("Run captured no output.", style="dim italic")
                 output_section.update(empty)

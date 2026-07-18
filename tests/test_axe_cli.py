@@ -206,6 +206,7 @@ def test_handle_axe_chop_run_passes_debug_flags(
         lumberjack="checks",
         dry_run=True,
         chop_verbose=True,
+        force=True,
     )
 
     with (
@@ -226,6 +227,7 @@ def test_handle_axe_chop_run_passes_debug_flags(
     assert exc_info.value.code == 0
     assert mock_run.call_args.kwargs["dry_run"] is True
     assert mock_run.call_args.kwargs["chop_verbose"] is True
+    assert mock_run.call_args.kwargs["force"] is True
 
 
 def test_handle_axe_chop_run_with_lumberjack_not_configured(

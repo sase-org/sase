@@ -277,6 +277,16 @@ class Lumberjack:
                 log_lines=log_lines,
             )
 
+        if outcome.status == "skipped":
+            self._append_log_tail(chop.name, outcome.run_id, log_lines)
+            return _ChopResult(
+                chop_name=chop.name,
+                executed=False,
+                success=True,
+                update_timestamp=chop.run_every is not None,
+                log_lines=log_lines,
+            )
+
         if outcome.status in {"failure", "check_error", "action_failed"}:
             # Process completed with nonzero exit; echo its tail into the
             # aggregate log to match the legacy ``capture_output=True`` shape.

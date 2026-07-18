@@ -129,6 +129,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         started_by="cli",
         dry_run=bool(getattr(args, "dry_run", False)),
         chop_verbose=bool(getattr(args, "chop_verbose", False)),
+        force=bool(getattr(args, "force", False)),
     )
     _print_outcome_and_exit(outcome)
 
@@ -137,12 +138,15 @@ def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
     """Render a chop run outcome to stdout/stderr and exit with the right code."""
     if outcome.status in {
         "success",
+        "skipped",
         "no_op",
         "launched",
         "action_succeeded",
     }:
         _print_chop_log_tail(outcome)
         _print_structured_result(outcome)
+        if outcome.status == "skipped" and outcome.reason:
+            print(f"Skipped: {outcome.reason}")
         if outcome.dry_run:
             print("Dry run complete; no agents were launched.")
         sys.exit(0)

@@ -160,6 +160,7 @@ def test_chop_status_label_mapping() -> None:
         "timeout",
         "missing_script",
         "running",
+        "skipped",
         "no_op",
         "check_error",
         "launched",

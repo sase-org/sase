@@ -576,6 +576,116 @@
                             "type": "string"
                           }
                         },
+                        "inhibit_if": {
+                          "description": "Runner-evaluated guards that inhibit dispatch when any provider matches",
+                          "oneOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "required": ["provider"],
+                                "additionalProperties": false,
+                                "properties": {
+                                  "provider": { "enum": ["changespec", "agent_hood"] },
+                                  "name_prefix": { "type": "string" },
+                                  "statuses": {
+                                    "type": "array",
+                                    "items": { "type": "string" }
+                                  },
+                                  "hood": { "type": "string", "minLength": 1 },
+                                  "name": { "type": "string", "minLength": 1 }
+                                }
+                              }
+                            },
+                            {
+                              "type": "object",
+                              "propertyNames": {
+                                "enum": ["changespec", "agent_hood"]
+                              },
+                              "additionalProperties": {
+                                "oneOf": [
+                                  { "type": "object" },
+                                  {
+                                    "type": "array",
+                                    "items": { "type": "object" }
+                                  }
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        "trigger": {
+                          "description": "Runner-evaluated trigger provider (always by default)",
+                          "oneOf": [
+                            { "type": "string", "enum": ["always"] },
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "provider": {
+                                  "enum": ["always", "git.commits_since"]
+                                },
+                                "project": { "type": "string", "minLength": 1 },
+                                "threshold": { "type": "integer", "minimum": 1 },
+                                "checkpoint_policy": {
+                                  "enum": [
+                                    "on_observation",
+                                    "on_action_accepted",
+                                    "on_action_success"
+                                  ]
+                                },
+                                "checkpoint": {
+                                  "enum": [
+                                    "on_observation",
+                                    "on_action_accepted",
+                                    "on_action_success"
+                                  ]
+                                },
+                                "always": {
+                                  "oneOf": [{ "type": "object" }, { "type": "null" }]
+                                },
+                                "git.commits_since": {
+                                  "type": "object",
+                                  "required": ["project", "threshold"],
+                                  "properties": {
+                                    "project": { "type": "string", "minLength": 1 },
+                                    "threshold": { "type": "integer", "minimum": 1 },
+                                    "checkpoint_policy": {
+                                      "enum": [
+                                        "on_observation",
+                                        "on_action_accepted",
+                                        "on_action_success"
+                                      ]
+                                    },
+                                    "checkpoint": {
+                                      "enum": [
+                                        "on_observation",
+                                        "on_action_accepted",
+                                        "on_action_success"
+                                      ]
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        "once_per": {
+                          "description": "Bounded per-proposal event-dedupe key template",
+                          "oneOf": [
+                            { "type": "string", "minLength": 1 },
+                            {
+                              "type": "object",
+                              "required": ["key"],
+                              "additionalProperties": false,
+                              "properties": {
+                                "key": { "type": "string", "minLength": 1 },
+                                "capacity": { "type": "integer", "minimum": 1 }
+                              }
+                            }
+                          ]
+                        },
                         "timeout": {
                           "type": "string",
                           "description": "Positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for this chop",

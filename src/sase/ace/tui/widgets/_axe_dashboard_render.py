@@ -32,6 +32,8 @@ def chop_status_label(status: str) -> tuple[str, str]:
         return ("? missing", "bold yellow")
     if status == "running":
         return ("● running", "bold green")
+    if status == "skipped":
+        return ("↷ skipped", "bold yellow")
     if status == "no_op":
         return ("○ no-op", "bold cyan")
     if status == "check_error":

@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from sase.ace.hooks.processes import is_process_running
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
@@ -15,6 +16,7 @@ from .chop_agents import (
     get_chop_agent_records,
     remove_chop_agent_records,
 )
+from .chop_policy import finalize_pending_chop_checkpoints
 from .state import (
     ChopRunEntry,
     ChopRunStatus,
@@ -152,6 +154,17 @@ def finalize_launched_chop_runs(
                 for completion in completions
                 if not completion.succeeded
             ]
+            checkpoint_event: Literal["action_succeeded", "action_failed"] = (
+                "action_failed" if failures else "action_succeeded"
+            )
+            try:
+                finalize_pending_chop_checkpoints(
+                    lumberjack_name,
+                    chop_name,
+                    checkpoint_event,
+                )
+            except Exception as exc:
+                failures.append(f"checkpoint finalization failed: {exc}")
             status: ChopRunStatus = "action_failed" if failures else "action_succeeded"
             detail = (
                 "; ".join(failures)

@@ -156,6 +156,12 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Run the script and preview validated agent proposals without launching",
     )
     axe_chop_run_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Bypass declarative guards for this manual run (triggers are already bypassed)",
+    )
+    axe_chop_run_parser.add_argument(
         "-L",
         "--lumberjack",
         default=None,

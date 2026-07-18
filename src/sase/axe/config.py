@@ -75,6 +75,9 @@ class ChopConfig:
     run_every: int | None = None
     timeout: int | None = None
     env: dict[str, str] = field(default_factory=dict)
+    inhibit_if: list[dict[str, Any]] = field(default_factory=list)
+    trigger: dict[str, Any] = field(default_factory=lambda: {"provider": "always"})
+    once_per: dict[str, Any] | None = None
 
     @property
     def script_name(self) -> str:
@@ -111,6 +114,56 @@ class AxeConfig:
     lumberjacks: dict[str, LumberjackConfig] = field(default_factory=dict)
 
 
+def _normalize_guards(value: object) -> list[dict[str, Any]]:
+    """Normalize validated keyed/tagged guard config for the Rust facade."""
+    if isinstance(value, list):
+        return [deepcopy(item) for item in value if isinstance(item, dict)]
+    if not isinstance(value, dict):
+        return []
+
+    guards: list[dict[str, Any]] = []
+    for provider, raw_settings in value.items():
+        settings_rows = (
+            raw_settings if isinstance(raw_settings, list) else [raw_settings]
+        )
+        for raw_setting in settings_rows:
+            if not isinstance(raw_setting, dict):
+                continue
+            guards.append({"provider": str(provider), **deepcopy(raw_setting)})
+    return guards
+
+
+def _normalize_trigger(value: object) -> dict[str, Any]:
+    """Normalize validated string/keyed/tagged trigger config."""
+    if value is None:
+        return {"provider": "always"}
+    if isinstance(value, str):
+        return {"provider": value}
+    if not isinstance(value, dict):
+        return {"provider": "always"}
+    if "provider" in value:
+        return deepcopy(value)
+    if len(value) != 1:
+        return {"provider": "always"}
+    provider, raw_settings = next(iter(value.items()))
+    settings = raw_settings if isinstance(raw_settings, dict) else {}
+    normalized = {"provider": str(provider), **deepcopy(settings)}
+    if "checkpoint" in normalized and "checkpoint_policy" not in normalized:
+        normalized["checkpoint_policy"] = normalized.pop("checkpoint")
+    return normalized
+
+
+def _normalize_once_per(value: object) -> dict[str, Any] | None:
+    """Normalize validated once-per shorthand into its wire-shaped object."""
+    if isinstance(value, str):
+        return {"key": value, "capacity": 1024}
+    if isinstance(value, dict):
+        normalized = deepcopy(value)
+        normalized.setdefault("capacity", 1024)
+        return normalized
+    return None
+
+
 def _parse_lumberjacks(raw: dict[str, Any]) -> dict[str, LumberjackConfig]:
     """Turn a core-validated ``lumberjacks:`` mapping into dataclasses."""
     result: dict[str, LumberjackConfig] = {}
@@ -137,6 +190,9 @@ def _parse_lumberjacks(raw: dict[str, Any]) -> dict[str, LumberjackConfig]:
                             run_every=_parse_duration(entry.get("run_every")),
                             timeout=_parse_duration(entry.get("timeout")),
                             env=env,
+                            inhibit_if=_normalize_guards(entry.get("inhibit_if")),
+                            trigger=_normalize_trigger(entry.get("trigger")),
+                            once_per=_normalize_once_per(entry.get("once_per")),
                         )
                     )
                 elif isinstance(entry, str):

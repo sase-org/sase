@@ -14,6 +14,7 @@ ChopRunOutcomeStatus = Literal[
     "timeout",
     "missing_script",
     "already_running",
+    "skipped",
     "no_op",
     "check_error",
     "launched",
@@ -46,6 +47,7 @@ class ChopRunOutcome:
     launches: tuple[dict[str, Any], ...] = ()
     dry_run: bool = False
     chop_verbose: bool = False
+    reason: str | None = None
 
 
 class ChopNotFoundError(LookupError):

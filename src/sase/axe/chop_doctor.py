@@ -23,6 +23,8 @@ from sase.axe.chop_inventory import (
     collect_chop_inventory,
 )
 from sase.axe.config import AxeConfig, AxeConfigError
+from sase.axe.config import ChopConfig
+from sase.axe.chop_policy import check_chop_trigger_runtime
 from sase.diagnostics import CheckStatus
 
 _TELEGRAM_ENV_VARS = ("SASE_TELEGRAM_BOT_CHAT_ID", "SASE_TELEGRAM_BOT_USERNAME")
@@ -104,6 +106,7 @@ def _build_chop_checks(
     """Build all chop diagnostic checks for the given inventory."""
     checks: list[ChopCheck] = []
     checks.extend(_configured_chop_checks(inventory))
+    checks.extend(_declarative_chop_checks(inventory))
     checks.extend(_unconfigured_chop_checks(inventory))
     checks.extend(_telegram_checks(inventory, which_fn=which_fn))
     return tuple(checks)
@@ -187,6 +190,55 @@ def _unconfigured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]
             next_steps=(
                 "Add desired scripts under axe.lumberjacks in sase.yml; future chop enablement commands will manage this directly.",
             ),
+        ),
+    )
+
+
+def _declarative_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
+    configured = [
+        chop
+        for chop in inventory.configured_chops
+        if chop.inhibit_if
+        or chop.once_per is not None
+        or chop.trigger.get("provider") != "always"
+    ]
+    if not configured:
+        return ()
+
+    errors: list[ChopCheck] = []
+    for chop in configured:
+        error = check_chop_trigger_runtime(
+            ChopConfig(
+                name=chop.name,
+                description=chop.description,
+                trigger=dict(chop.trigger),
+            )
+        )
+        if error is None:
+            continue
+        errors.append(
+            ChopCheck(
+                id=f"declarative_chop:{chop.lumberjack}:{chop.name}",
+                status="ERROR",
+                summary=f"Declarative trigger for {chop.name} cannot be evaluated.",
+                details=(
+                    f"lumberjack={chop.lumberjack}",
+                    f"provider={chop.trigger.get('provider')}",
+                    error,
+                ),
+                next_steps=(
+                    "Fix the trigger project ref or primary workspace, then rerun `sase axe chop doctor`.",
+                ),
+            )
+        )
+    if errors:
+        return tuple(errors)
+    return (
+        ChopCheck(
+            id="declarative_chop_policies",
+            status="OK",
+            summary="Declarative trigger, guard, checkpoint, and once-per policies validate.",
+            details=(f"configured_policies={len(configured)}",),
         ),
     )
 

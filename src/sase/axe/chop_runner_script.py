@@ -13,6 +13,18 @@ from sase.core.time import get_timezone
 
 from .chop_agents import build_chop_launch_env
 from .chop_lifecycle import finalize_launched_chop_runs
+from .chop_policy import (
+    ChopCheckpointEvent,
+    ChopPreflight,
+    apply_chop_once_per,
+    evaluate_chop_preflight,
+    record_chop_checkpoint_event,
+)
+from .chop_runner_policy import (
+    append_once_per_summary,
+    record_checkpoint_best_effort,
+    record_preflight_outcome,
+)
 from .chop_proposals import (
     launch_chop_proposals,
     prepare_chop_proposals,
@@ -165,6 +177,7 @@ def run_script_chop_once(
     started_by: str | None,
     dry_run: bool = False,
     chop_verbose: bool = False,
+    force: bool = False,
     discover_chop_script_fn: Callable[
         [str, list[str]], Path | None
     ] = discover_chop_script,
@@ -192,6 +205,68 @@ def run_script_chop_once(
     started_at = datetime.now(get_timezone())
     run_id = generate_chop_run_id(started_at)
 
+    state_dir = ensure_lumberjack_dirs(lumberjack_name)
+    if context_file is None:
+        try:
+            context_file = build_context_fn(lumberjack_name, axe_config)
+        except Exception as exc:
+            preflight = ChopPreflight(
+                outcome="check_error",
+                reason=f"could not build chop policy context: {exc}",
+            )
+            return record_preflight_outcome(
+                lumberjack_name=lumberjack_name,
+                chop_name=chop.name,
+                run_id=run_id,
+                started_at=started_at,
+                source=source,
+                started_by=started_by,
+                preflight=preflight,
+                chop_verbose=chop_verbose,
+            )
+
+    preflight = evaluate_chop_preflight(
+        lumberjack_name=lumberjack_name,
+        chop=chop,
+        context_file=context_file,
+        scheduled=source == "scheduled",
+        force=force,
+        now=started_at,
+    )
+    if preflight.outcome != "fire":
+        return record_preflight_outcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            source=source,
+            started_by=started_by,
+            preflight=preflight,
+            chop_verbose=chop_verbose,
+        )
+    try:
+        record_chop_checkpoint_event(
+            lumberjack_name,
+            chop.name,
+            preflight,
+            "observed",
+            now=started_at,
+        )
+    except Exception as exc:
+        return record_preflight_outcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            source=source,
+            started_by=started_by,
+            preflight=ChopPreflight(
+                outcome="check_error",
+                reason=f"could not persist chop checkpoint observation: {exc}",
+            ),
+            chop_verbose=chop_verbose,
+        )
+
     script_name = chop.script_name
     script = discover_chop_script_fn(script_name, axe_config.chop_script_dirs)
     if script is None:
@@ -218,6 +293,12 @@ def run_script_chop_once(
             )
         except OSError:
             pass
+        record_checkpoint_best_effort(
+            lumberjack_name,
+            chop.name,
+            preflight,
+            "action_failed",
+        )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -239,10 +320,6 @@ def run_script_chop_once(
     if chop_verbose or axe_config.verbose_lumberjack_diagnostics:
         env["SASE_CHOP_VERBOSE"] = "1"
 
-    state_dir = ensure_lumberjack_dirs(lumberjack_name)
-    if context_file is None:
-        context_file = build_context_fn(lumberjack_name, axe_config)
-
     start_entry = ChopRunEntry(
         run_id=run_id,
         lumberjack_name=lumberjack_name,
@@ -258,6 +335,36 @@ def run_script_chop_once(
         start_chop_run(start_entry)
     except OSError:
         pass
+    try:
+        record_chop_checkpoint_event(
+            lumberjack_name,
+            chop.name,
+            preflight,
+            "action_accepted",
+        )
+    except Exception as exc:
+        tb = capture_traceback()
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="check_error",
+            error=exc,
+            tb=tb,
+            preflight=preflight,
+            checkpoint_event="action_failed",
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="check_error",
+            run_id=run_id,
+            error=exc,
+            traceback=tb,
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
 
     log_path = chop_run_log_path(lumberjack_name, chop.name, run_id)
     result_path = chop_run_result_path(lumberjack_name, chop.name, run_id)
@@ -279,6 +386,7 @@ def run_script_chop_once(
             status="check_error",
             error=e,
             tb=tb,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -318,6 +426,7 @@ def run_script_chop_once(
             exit_code=None,
             error=e,
             tb=tb,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -340,6 +449,7 @@ def run_script_chop_once(
             error=error,
             tb=NO_PYTHON_TRACEBACK,
             output_bytes=result.output_bytes,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -379,6 +489,7 @@ def run_script_chop_once(
                 tb=tb,
                 result_file=result_path.name,
                 dry_run=dry_run,
+                preflight=preflight,
             )
             return ChopRunOutcome(
                 lumberjack_name=lumberjack_name,
@@ -409,6 +520,7 @@ def run_script_chop_once(
             structured_result=structured_result,
             proposals=proposals,
             dry_run=dry_run,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -435,6 +547,7 @@ def run_script_chop_once(
             exit_code=0,
             output_bytes=result.output_bytes,
             dry_run=dry_run,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -475,6 +588,7 @@ def run_script_chop_once(
             structured_result=structured_result,
             proposals=proposals,
             dry_run=dry_run,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -502,6 +616,7 @@ def run_script_chop_once(
             structured_result=structured_result,
             proposals=proposals,
             dry_run=dry_run,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -515,6 +630,62 @@ def run_script_chop_once(
             chop_verbose=chop_verbose,
         )
 
+    try:
+        once_per = apply_chop_once_per(
+            lumberjack_name=lumberjack_name,
+            chop=chop,
+            proposals=prepared_proposals,
+            persist=not dry_run,
+        )
+    except Exception as e:
+        tb = capture_traceback()
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="check_error",
+            exit_code=0,
+            error=e,
+            tb=tb,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=dry_run,
+            preflight=preflight,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="check_error",
+            run_id=run_id,
+            exit_code=0,
+            error=e,
+            traceback=tb,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=dry_run,
+            chop_verbose=chop_verbose,
+        )
+
+    if once_per.decisions:
+        proposals = proposal_previews(
+            prepared_proposals,
+            once_per_decisions=once_per.decisions,
+        )
+        append_once_per_summary(
+            lumberjack_name,
+            chop.name,
+            run_id,
+            once_per.decisions,
+        )
+    accepted_indices = set(once_per.accepted_indices)
+    accepted_proposals = [
+        proposal
+        for proposal in prepared_proposals
+        if proposal.index in accepted_indices
+    ]
+
     if not prepared_proposals or dry_run:
         _finalize(
             lumberjack_name=lumberjack_name,
@@ -527,6 +698,7 @@ def run_script_chop_once(
             structured_result=structured_result,
             proposals=proposals,
             dry_run=dry_run,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -540,6 +712,35 @@ def run_script_chop_once(
             chop_verbose=chop_verbose,
         )
 
+    if not accepted_proposals:
+        reason = f"all {len(prepared_proposals)} proposal(s) skipped by once-per dedupe"
+        _finalize(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            started_at=started_at,
+            status="skipped",
+            exit_code=0,
+            result_file=result_path.name,
+            structured_result=structured_result,
+            proposals=proposals,
+            dry_run=False,
+            reason=reason,
+            preflight=preflight,
+        )
+        return ChopRunOutcome(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            status="skipped",
+            run_id=run_id,
+            exit_code=0,
+            result=structured_result,
+            proposals=tuple(proposals),
+            dry_run=False,
+            chop_verbose=chop_verbose,
+            reason=reason,
+        )
+
     if launch_agent_from_cwd_fn is None:
         from sase.agent.launcher import launch_agent_from_cwd
 
@@ -549,7 +750,7 @@ def run_script_chop_once(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
             run_id=run_id,
-            proposals=prepared_proposals,
+            proposals=accepted_proposals,
             launch_agent_from_cwd_fn=launch_agent_from_cwd_fn,
         )
     except Exception as e:
@@ -567,6 +768,7 @@ def run_script_chop_once(
             structured_result=structured_result,
             proposals=proposals,
             dry_run=False,
+            preflight=preflight,
         )
         return ChopRunOutcome(
             lumberjack_name=lumberjack_name,
@@ -607,6 +809,7 @@ def run_script_chop_once(
         launches=launches,
         dry_run=False,
         active=True,
+        preflight=preflight,
     )
     return ChopRunOutcome(
         lumberjack_name=lumberjack_name,
@@ -662,6 +865,9 @@ def _finalize(
     launches: list[dict[str, Any]] | None = None,
     dry_run: bool | None = None,
     active: bool = False,
+    reason: str | None = None,
+    preflight: ChopPreflight | None = None,
+    checkpoint_event: ChopCheckpointEvent | None = None,
 ) -> None:
     """Stamp a lifecycle transition onto a streaming run entry."""
     finished_at = datetime.now(get_timezone())
@@ -684,9 +890,31 @@ def _finalize(
             proposals=proposals,
             launches=launches,
             dry_run=dry_run,
+            reason=reason,
         )
     except OSError:
         pass
+    if preflight is None:
+        return
+    if checkpoint_event is None:
+        if status in {"success", "no_op", "skipped"}:
+            checkpoint_event = "action_succeeded"
+        elif status in {
+            "failure",
+            "timeout",
+            "missing_script",
+            "check_error",
+            "action_failed",
+        }:
+            checkpoint_event = "action_failed"
+    if checkpoint_event is not None:
+        record_checkpoint_best_effort(
+            lumberjack_name,
+            chop_name,
+            preflight,
+            checkpoint_event,
+            run_id=run_id,
+        )
 
 
 _active_script_chop_run = active_script_chop_run

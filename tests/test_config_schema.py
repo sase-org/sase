@@ -149,6 +149,43 @@ def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
     )
 
 
+def test_config_schema_accepts_declarative_chop_policies() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "axe": {
+                "lumberjacks": {
+                    "checks": {
+                        "interval": 60,
+                        "chops": [
+                            {
+                                "name": "audit",
+                                "inhibit_if": {
+                                    "changespec": {
+                                        "name_prefix": "audit_",
+                                        "statuses": ["WIP", "Ready"],
+                                    },
+                                    "agent_hood": {"hood": "audit"},
+                                },
+                                "trigger": {
+                                    "git.commits_since": {
+                                        "project": "sase",
+                                        "threshold": 20,
+                                        "checkpoint_policy": "on_action_success",
+                                    }
+                                },
+                                "once_per": {
+                                    "key": "audit:{proposal.id}",
+                                    "capacity": 100,
+                                },
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

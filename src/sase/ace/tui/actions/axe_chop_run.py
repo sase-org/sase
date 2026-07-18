@@ -200,6 +200,11 @@ class AxeChopRunMixin:
             )
         elif outcome.status == "success":
             self.notify(f"Chop '{chop}' finished successfully")  # type: ignore[attr-defined]
+        elif outcome.status == "skipped":
+            reason = outcome.reason or "a declarative policy did not fire"
+            self.notify(  # type: ignore[attr-defined]
+                f"Chop '{chop}' skipped: {reason}", severity="warning"
+            )
         elif outcome.status == "no_op":
             self.notify(f"Chop '{chop}' completed with no work to do")  # type: ignore[attr-defined]
         elif outcome.status == "launched":

@@ -103,16 +103,22 @@ def render_chop_run_result(
         table.add_column("Workspace", overflow="fold")
         table.add_column("Wait On", overflow="fold")
         table.add_column("Model", overflow="fold")
+        table.add_column("Dedupe", overflow="fold")
         table.add_column("Env", overflow="fold")
         for proposal in proposals:
+            validation = str(proposal.get("validation") or "valid")
             table.add_row(
                 str(int(proposal.get("index", 0)) + 1),
                 str(proposal.get("id") or "-"),
-                Text(str(proposal.get("validation") or "valid"), style="green"),
+                Text(
+                    validation,
+                    style="yellow" if validation == "duplicate" else "green",
+                ),
                 str(proposal.get("agent_name") or "-"),
                 str(proposal.get("workspace") or "-"),
                 str(proposal.get("wait_name") or "-"),
                 str(proposal.get("model") or "-"),
+                str(proposal.get("dedupe_key") or "-"),
                 ", ".join(str(v) for v in proposal.get("env_names", [])) or "-",
             )
         renderables.append(table)
@@ -183,6 +189,7 @@ def _configured_chops_table(
     table.add_column("Resolution", overflow="fold")
     if verbose:
         table.add_column("Description", overflow="fold")
+        table.add_column("Policy / Last Decision", overflow="fold")
 
     for chop in inventory.configured_chops:
         resolution = (
@@ -200,6 +207,7 @@ def _configured_chops_table(
         ]
         if verbose:
             row.append(Text(chop.description or "-", overflow="fold"))
+            row.append(Text(_chop_policy_summary(chop), overflow="fold"))
         table.add_row(*row)
     return table
 
@@ -281,6 +289,20 @@ def _configured_chop_status(chop: ConfiguredChopRecord) -> CheckStatus:
     return "ERROR"
 
 
+def _chop_policy_summary(chop: ConfiguredChopRecord) -> str:
+    parts: list[str] = []
+    provider = str(chop.trigger.get("provider") or "always")
+    parts.append(f"trigger={provider}")
+    if chop.inhibit_if:
+        guards = ",".join(str(guard.get("provider")) for guard in chop.inhibit_if)
+        parts.append(f"guards={guards}")
+    if chop.once_per is not None:
+        parts.append(f"once_per={chop.once_per.get('key')}")
+    if chop.latest_run_reason:
+        parts.append(f"last={chop.latest_run_reason}")
+    return "\n".join(parts)
+
+
 def _status_text(status: CheckStatus) -> Text:
     return Text(status, style=_STATUS_STYLES[status])
 
@@ -292,6 +314,7 @@ def _run_status_text(status: str | None) -> Text:
         "failure": ("failure", "red"),
         "timeout": ("timeout", "yellow"),
         "missing_script": ("missing", "yellow"),
+        "skipped": ("skipped", "yellow"),
         "no_op": ("no-op", "cyan"),
         "check_error": ("check error", "yellow"),
         "launched": ("launched", "cyan"),

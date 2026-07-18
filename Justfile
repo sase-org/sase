@@ -202,10 +202,7 @@ _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-6v(apply_chop_checkpoint_update)' \
-        --epic-symbol 'sase-6v(check_and_record_chop_once_per)' \
         --epic-symbol 'sase-6v(chop_schema_versions)' \
-        --epic-symbol 'sase-6v(evaluate_chop_decision)' \
         --epic-symbol 'sase-6v(expand_chop_targets)' \
         --epic-symbol 'sase-6v(get_live_chop_agent_records)' \
         {{ args }}

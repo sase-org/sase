@@ -30,10 +30,14 @@ class ConfiguredChopRecord:
     description: str
     script: str
     env: dict[str, str]
+    inhibit_if: tuple[dict[str, Any], ...]
+    trigger: dict[str, Any]
+    once_per: dict[str, Any] | None
     status: ConfiguredChopStatus
     resolved_path: str | None
     latest_run_status: ChopRunStatus | None = None
     latest_run_id: str | None = None
+    latest_run_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -106,6 +110,10 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
                 "resolved_path": chop.resolved_path,
                 "latest_run_status": chop.latest_run_status,
                 "latest_run_id": chop.latest_run_id,
+                "latest_run_reason": chop.latest_run_reason,
+                "inhibit_if": list(chop.inhibit_if),
+                "trigger": dict(chop.trigger),
+                "once_per": dict(chop.once_per) if chop.once_per is not None else None,
             }
             for chop in inventory.configured_chops
         ],
@@ -148,12 +156,20 @@ def _configured_chops(axe_config: AxeConfig) -> tuple[ConfiguredChopRecord, ...]
                     description=chop.description,
                     script=script_name,
                     env=dict(chop.env),
+                    inhibit_if=tuple(dict(guard) for guard in chop.inhibit_if),
+                    trigger=dict(chop.trigger),
+                    once_per=(
+                        dict(chop.once_per) if chop.once_per is not None else None
+                    ),
                     status="configured" if script is not None else "missing",
                     resolved_path=str(script) if script is not None else None,
                     latest_run_status=latest_run.status
                     if latest_run is not None
                     else None,
                     latest_run_id=latest_run.run_id if latest_run is not None else None,
+                    latest_run_reason=(
+                        latest_run.reason if latest_run is not None else None
+                    ),
                 )
             )
 

@@ -25,6 +25,7 @@ class _PreparedChopProposal:
     model: str | None
     effort: str | None
     env: dict[str, str]
+    dedupe_key: str | None
     wait_on: int | str | None
 
 
@@ -87,6 +88,11 @@ def prepare_chop_proposals(
                 model=str(normalized["model"]) if normalized.get("model") else None,
                 effort=str(normalized["effort"]) if normalized.get("effort") else None,
                 env={str(k): str(v) for k, v in dict(normalized["env"]).items()},
+                dedupe_key=(
+                    str(normalized["dedupe_key"])
+                    if normalized.get("dedupe_key")
+                    else None
+                ),
                 wait_on=normalized.get("wait_on"),
             )
         )
@@ -95,6 +101,8 @@ def prepare_chop_proposals(
 
 def proposal_previews(
     proposals: list[_PreparedChopProposal],
+    *,
+    once_per_decisions: Mapping[int, Mapping[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Return JSON-safe launch previews with planned wait dependencies."""
     names_by_index: dict[int, str] = {}
@@ -102,6 +110,8 @@ def proposal_previews(
     previews: list[dict[str, Any]] = []
     for proposal in proposals:
         wait_name = _resolve_wait_name(proposal.wait_on, names_by_index, names_by_id)
+        once_per = (once_per_decisions or {}).get(proposal.index, {})
+        validation = "duplicate" if once_per.get("outcome") == "duplicate" else "valid"
         previews.append(
             {
                 "index": proposal.index,
@@ -114,8 +124,10 @@ def proposal_previews(
                 "wait_on": proposal.wait_on,
                 "wait_name": wait_name,
                 "env_names": sorted(proposal.env),
+                "dedupe_key": once_per.get("key") or proposal.dedupe_key,
+                "dedupe_reason": once_per.get("reason"),
                 "prompt": _scaffolded_prompt(proposal, wait_name),
-                "validation": "valid",
+                "validation": validation,
             }
         )
         names_by_index[proposal.index] = proposal.agent_name

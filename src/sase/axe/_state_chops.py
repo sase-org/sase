@@ -27,6 +27,7 @@ ChopRunStatus = Literal[
     "failure",
     "timeout",
     "missing_script",
+    "skipped",
     "no_op",
     "check_error",
     "launched",
@@ -70,6 +71,7 @@ class ChopRunEntry:
     proposals: list[dict[str, Any]] = field(default_factory=list)
     launches: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
+    reason: str | None = None
 
 
 def _chop_dir(lumberjack_name: str, chop_name: str) -> Path:
@@ -292,6 +294,7 @@ def finish_chop_run(
     proposals: list[dict[str, Any]] | None = None,
     launches: list[dict[str, Any]] | None = None,
     dry_run: bool | None = None,
+    reason: str | None = None,
 ) -> None:
     """Transition a running chop entry and prune terminal history.
 
@@ -322,6 +325,8 @@ def finish_chop_run(
         data["launches"] = launches
     if dry_run is not None:
         data["dry_run"] = dry_run
+    if reason is not None:
+        data["reason"] = reason
 
     if output_bytes is None:
         log_path = chop_run_log_path(lumberjack_name, chop_name, run_id)

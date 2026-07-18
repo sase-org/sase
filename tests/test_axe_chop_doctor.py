@@ -80,6 +80,45 @@ def test_build_chop_checks_errors_on_missing_configured_chop() -> None:
     )
 
 
+def test_build_chop_checks_errors_on_unknown_trigger_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir()
+    _make_executable(scripts_dir / "audit")
+    config = AxeConfig(
+        chop_script_dirs=[str(scripts_dir)],
+        lumberjacks={
+            "checks": LumberjackConfig(
+                name="checks",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="audit",
+                        description="",
+                        trigger={
+                            "provider": "git.commits_since",
+                            "project": "missing",
+                            "threshold": 10,
+                        },
+                    )
+                ],
+            )
+        },
+    )
+    monkeypatch.setattr(
+        "sase.axe.chop_doctor.check_chop_trigger_runtime",
+        lambda _: "project ref 'missing' does not match a registered SASE project",
+    )
+
+    checks = _build_chop_checks(collect_chop_inventory(config), which_fn=lambda _: None)
+
+    check = next(item for item in checks if item.id.startswith("declarative_chop:"))
+    assert check.status == "ERROR"
+    assert "missing" in " ".join(check.details)
+
+
 def test_build_chop_checks_warns_on_unconfigured_telegram(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
