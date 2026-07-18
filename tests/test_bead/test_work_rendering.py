@@ -77,6 +77,7 @@ class TestRenderEdgeCases:
         plan = EpicWorkPlan(
             epic_id="sase-42.3",
             launch_tag_id="sase-42.3",
+            total_phase_count=1,
             waves=(
                 (
                     PhaseAssignment(

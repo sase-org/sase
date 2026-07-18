@@ -12,6 +12,7 @@ from sase.bead.work import (
     _CycleError,
     EpicPlanError,
     _build_epic_work_plan,
+    _plan_from_payload,
     render_multi_prompt,
 )
 from sase.xprompt.workflow_models import Workflow
@@ -236,6 +237,7 @@ class TestClosedBlockers:
 
         assert len(plan.waves) == 1
         assert wave_bead_ids(plan, 0) == ["p2"]
+        assert plan.total_phase_count == 2
         assert plan.waves[0][0].waits_on == ()
         assert plan.land_waits_on == ("p2",)
 
@@ -376,6 +378,44 @@ class TestModelPropagationFromPayload:
         assert plan.land_model == "codex/gpt-5.6-sol"
         assignments = [a for wave in plan.waves for a in wave]
         assert all(a.model == "" for a in assignments)
+
+
+class TestOlderBindingPayload:
+    def test_total_phase_count_falls_back_to_launched_assignments(self) -> None:
+        plan = _plan_from_payload(
+            {
+                "epic_id": "e1",
+                "launch_tag_id": "e1",
+                "waves": [
+                    [
+                        {
+                            "bead_id": "p1",
+                            "agent_name": "p1",
+                            "waits_on": [],
+                            "wave": 0,
+                        },
+                        {
+                            "bead_id": "p2",
+                            "agent_name": "p2",
+                            "waits_on": [],
+                            "wave": 0,
+                        },
+                    ],
+                    [
+                        {
+                            "bead_id": "p3",
+                            "agent_name": "p3",
+                            "waits_on": ["p1"],
+                            "wave": 1,
+                        }
+                    ],
+                ],
+                "land_agent_name": "e1.land",
+                "land_waits_on": ["p1", "p2", "p3"],
+            }
+        )
+
+        assert plan.total_phase_count == 3
 
 
 class TestEpicValidation:

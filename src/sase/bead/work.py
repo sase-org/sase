@@ -48,6 +48,7 @@ class EpicWorkPlan:
 
     epic_id: str
     launch_tag_id: str
+    total_phase_count: int
     waves: tuple[tuple[_PhaseAssignment, ...], ...]
     land_agent_name: str
     land_waits_on: tuple[str, ...]
@@ -139,6 +140,12 @@ def _plan_from_payload(payload: dict[str, Any]) -> EpicWorkPlan:
     return EpicWorkPlan(
         epic_id=epic_id,
         launch_tag_id=str(payload.get("launch_tag_id", epic_id)),
+        total_phase_count=int(
+            payload.get(
+                "total_phase_count",
+                sum(len(wave) for wave in payload["waves"]),
+            )
+        ),
         waves=tuple(
             tuple(
                 _PhaseAssignment(
