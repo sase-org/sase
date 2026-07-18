@@ -8,6 +8,8 @@ import textwrap
 _MARKDOWN_WRAP_WIDTH = 120
 _FENCE_MARKERS = ("```", "~~~")
 _STANDALONE_STRONG_LABEL_RE = re.compile(r"^\*\*[^*].*?\*\*[ \t]*$")
+_INLINE_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
+_CODE_SPAN_SPACE_SENTINEL = "\x00"
 
 
 def _is_fence_line(line: str) -> bool:
@@ -34,6 +36,12 @@ def _wrap_text(
     normalized = " ".join(text.split())
     if not normalized:
         return []
+    # Prettier never breaks inside an inline code span, so wrap each span as a
+    # single token to keep generated output a prettier fixpoint.
+    protected = _INLINE_CODE_SPAN_RE.sub(
+        lambda match: match.group(0).replace(" ", _CODE_SPAN_SPACE_SENTINEL),
+        normalized,
+    )
     wrapper = textwrap.TextWrapper(
         width=_MARKDOWN_WRAP_WIDTH,
         initial_indent=initial_indent,
@@ -41,7 +49,9 @@ def _wrap_text(
         break_long_words=False,
         break_on_hyphens=False,
     )
-    return wrapper.wrap(normalized)
+    return [
+        line.replace(_CODE_SPAN_SPACE_SENTINEL, " ") for line in wrapper.wrap(protected)
+    ]
 
 
 def _starts_block(line: str) -> bool:

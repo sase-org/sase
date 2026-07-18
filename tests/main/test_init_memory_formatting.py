@@ -126,3 +126,16 @@ def test_format_preserves_bold_label_followed_by_blank_line() -> None:
         format_generated_memory_markdown("**Xprompt swarm**\n\nAn xprompt body.\n")
         == "**Xprompt swarm**\n\nAn xprompt body.\n"
     )
+
+
+def test_format_keeps_inline_code_spans_atomic_at_wrap_points() -> None:
+    paragraph = (
+        "An agent family is a strictly sequential chain whose members use "
+        "`<family>--<suffix>` names. The first `%n(parent, suffix)` attachment "
+        "renames the original agent with its own suffix and reserves the bare "
+        "family name as a pure container, so a family always has at least two "
+        "members.\n"
+    )
+    formatted = format_generated_memory_markdown(paragraph)
+    assert "`%n(parent,\n" not in formatted
+    assert "names. The first\n`%n(parent, suffix)` attachment" in formatted
