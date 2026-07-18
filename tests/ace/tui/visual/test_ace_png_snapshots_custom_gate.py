@@ -184,3 +184,27 @@ async def test_tale_plan_gate_five_controls_png_snapshot(
             "plan_gate_tale_five_controls_120x40",
             title="ACE tale plan gate five controls",
         )
+
+
+async def test_epic_plan_gate_action_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "epic-plan.md"
+    plan.write_text("# Epic plan\n\nCoordinate the approved tales.\n", encoding="utf-8")
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        changespecs=changespecs(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(PlanApprovalModal(str(plan), default_choice="epic"))
+        await page.expect_modal("PlanApprovalModal")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "plan_gate_epic_action_120x40",
+            title="ACE epic plan gate action",
+        )

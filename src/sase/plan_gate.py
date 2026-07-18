@@ -604,10 +604,9 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
 
 def plan_gate_option_label(option_id: str, *, tier: PlanGateTier) -> str:
     """Return the tier-aware presentation label for a plan-gate option."""
-    if tier == "tale" and option_id == PLAN_APPROVE_OPTION_ID:
-        return "Launch coder agent"
+    if option_id == PLAN_APPROVE_OPTION_ID:
+        return "Epic" if tier == "epic" else "Launch coder agent"
     return {
-        PLAN_APPROVE_OPTION_ID: "Approve",
         PLAN_COMMIT_OPTION_ID: "Commit plan file to the plans sidecar",
         PLAN_REJECT_OPTION_ID: "Reject",
         PLAN_FEEDBACK_OPTION_ID: "Send Feedback",

@@ -104,10 +104,38 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert tale_approve["icon"] == "✅"
     epic_approve = epic_request["options"][0]
     assert epic_approve["id"] == "approve"
-    assert epic_approve["label"] == "Approve"
+    assert epic_approve["label"] == "Epic"
     assert epic_approve["icon"] == "✅"
+    assert epic_approve["default_selected"] is True
+    assert epic_approve["input_schema"] == {
+        "type": "object",
+        "properties": {
+            "epic_launch_mode": {"enum": ["detached", "foreground", "skip"]}
+        },
+        "additionalProperties": False,
+    }
+    assert epic_approve["result_schema"] == {
+        "type": "object",
+        "required": ["action", "commit_plan", "run_coder"],
+        "properties": {
+            "action": {"const": "epic"},
+            "commit_plan": {"type": "boolean"},
+            "run_coder": {"type": "boolean"},
+            "coder_prompt": {"type": "string"},
+            "coder_model": {"type": "string"},
+            "epic_launch_owner": {"const": "host"},
+        },
+        "additionalProperties": False,
+    }
     assert tale_request["options"][1]["id"] == "commit"
+    assert tale_request["options"][1]["label"] == (
+        "Commit plan file to the plans sidecar"
+    )
     assert tale_request["options"][1]["icon"] == "💾"
+    assert [option["label"] for option in tale_request["options"][2:]] == [
+        "Reject",
+        "Send Feedback",
+    ]
     assert all(option["default_selected"] for option in tale_request["options"])
     assert tale_request["groups"] == [
         {"options": ["approve", "commit"], "label": "Approve", "icon": "✅"}

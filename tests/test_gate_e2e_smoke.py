@@ -237,7 +237,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
 
 
 def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
-    """Verify the epic singleton remains Approve and keeps epic protocol behavior."""
+    """Verify the Epic singleton keeps its stable approve protocol behavior."""
     epic_path = _write_plan(gate_home, "epic.md", VALID_EPIC_PLAN)
     result = create_plan_approval_gate(epic_path, "e2e-epic-request")
 
@@ -246,9 +246,15 @@ def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
 
     assert request["query"] == "approve OR reject OR feedback"
     assert request["groups"] == []
-    assert options[PLAN_APPROVE_OPTION_ID]["label"] == "Approve"
+    assert options[PLAN_APPROVE_OPTION_ID]["label"] == "Epic"
 
-    execution = execute_gate_selection(result.bundle_path, [PLAN_APPROVE_OPTION_ID])
+    execution = execute_gate_selection(
+        result.bundle_path,
+        [PLAN_APPROVE_OPTION_ID],
+        {"epic_launch_mode": "foreground"},
+    )
+    assert execution.response["selected_option_ids"] == [PLAN_APPROVE_OPTION_ID]
+    assert execution.response["input"] == {"epic_launch_mode": "foreground"}
     runner_proto = translate_plan_gate_response(result.bundle_path, execution.response)
     assert runner_proto["action"] == "epic"
     assert runner_proto["run_coder"] is True

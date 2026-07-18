@@ -88,7 +88,7 @@ def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
     assert modal._model == "Gemini 3.5 Flash (High)"
     assert modal._default_choice == "epic"
     assert modal._gate.branches == (("approve",), ("reject",), ("feedback",))
-    assert modal._gate.options[0].label == "Approve"
+    assert modal._gate.options[0].label == "Epic"
 
 
 def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:

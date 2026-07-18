@@ -25,7 +25,7 @@ from sase.notification_gates import paths
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
 from sase.plan_gate import create_plan_approval_gate
-from tests.plan_validation_helpers import VALID_TALE_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture()
@@ -123,6 +123,29 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
             modal.query_one("#gate-option-0-0", Button).label
         )
         assert "Approve" in str(modal.query_one("#gate-group-submit-0", Button).label)
+
+
+async def test_epic_plan_modal_renders_canonical_singleton_label(
+    gate_home: Path,
+) -> None:
+    plan = gate_home / "epic.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-epic-label")
+    [notification] = load_notifications()
+
+    async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
+        assert handle_plan_approval(pilot.app, notification) is True
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(pilot.app.screen, PlanApprovalModal):
+                break
+
+        modal = pilot.app.screen
+        assert isinstance(modal, PlanApprovalModal)
+        assert modal._default_choice == "epic"
+        assert modal._gate.options[0].id == "approve"
+        assert modal._gate.options[0].label == "Epic"
+        assert "Epic" in str(modal.query_one("#gate-singleton-0", Button).label)
 
 
 @pytest.mark.parametrize(
