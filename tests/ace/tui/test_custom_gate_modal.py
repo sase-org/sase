@@ -6,6 +6,7 @@ from textual.app import App
 from textual.binding import Binding
 from textual.widgets import Button, Input
 
+from sase.ace.tui.keymaps import GateModalKeymaps
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
@@ -161,6 +162,28 @@ async def test_enter_submits_declared_primary_even_when_focus_is_elsewhere() -> 
         await pilot.pause()
         assert modal.query_one("#gate-singleton-0", Button).has_focus
         await pilot.press("enter")
+        await pilot.pause()
+
+    assert results == [CustomGateModalResult(("proceed",), None)]
+
+
+async def test_remapped_primary_key_matches_footer_and_dispatch() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=(_option("cancel", icon="❌"), _option("proceed", icon="✅")),
+            branches=(("cancel",), ("proceed",)),
+            primary_branch=("proceed",),
+        ),
+        gate_keymaps=GateModalKeymaps(submit_primary="a"),
+    )
+
+    assert "a=Proceed" in modal._footer_text().plain
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("a")
         await pilot.pause()
 
     assert results == [CustomGateModalResult(("proceed",), None)]

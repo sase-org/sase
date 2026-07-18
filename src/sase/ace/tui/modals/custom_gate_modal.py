@@ -23,6 +23,7 @@ from ..keymaps import (
 )
 from .base import CopyModeForwardingMixin
 from .gate_branch_controls import GateBranchControls, GateBranchData
+from .gate_primary_footer import primary_action_badge
 
 
 _CUSTOM_GATE_STATIC_BINDINGS = [
@@ -208,15 +209,18 @@ class CustomGateModal(
             text.append(f"• {attachment}\n", style="dim")
         return text
 
-    def _footer_text(self) -> str:
+    def _footer_text(self) -> Text:
         keys = self._gate_keymaps
-        return (
+        text = Text()
+        text.append(
             f"{key_display_name(keys.next_control)}/"
             f"{key_display_name(keys.previous_control)} navigate  "
-            f"{key_display_name(keys.toggle_option)} toggle  "
-            f"{key_display_name(keys.submit_primary)} submit primary  "
-            f"{key_display_name(keys.submit_branch)} submit  d debug  q cancel"
         )
+        text.append(f"{key_display_name(keys.toggle_option)} toggle  ")
+        text.append_text(primary_action_badge(self._data.gate, keys.submit_primary))
+        text.append("  ")
+        text.append(f"{key_display_name(keys.submit_branch)} submit  d debug  q cancel")
+        return text
 
 
 __all__ = [

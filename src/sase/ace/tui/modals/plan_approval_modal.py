@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 from rich.syntax import Syntax
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Container, VerticalScroll
@@ -33,6 +34,7 @@ from ..keymaps import (
 )
 from .base import CopyModeForwardingMixin
 from .gate_branch_controls import GateBranchControls, GateBranchData
+from .gate_primary_footer import primary_action_badge
 
 
 _PLAN_GATE_STATIC_BINDINGS = [
@@ -256,18 +258,6 @@ class PlanApprovalModal(
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        keys = self._gate_keymaps
-        hints = (
-            f"[green]{key_display_name(keys.next_control)}/"
-            f"{key_display_name(keys.previous_control)}[/green]=Navigate  "
-            f"[green]{key_display_name(keys.toggle_option)}[/green]=Toggle  "
-            f"[green]{key_display_name(keys.submit_primary)}[/green]=Submit primary  "
-            f"[green]{key_display_name(keys.submit_branch)}[/green]=Submit  "
-            "[green]c[/green]=Coder options  [blue]e[/blue]=Edit  "
-            "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
-            "[cyan]d[/cyan]=Debug  [dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
-        )
-
         with Container(id="plan-approval-container"):
             yield Static(
                 self._build_title_markup(),
@@ -291,7 +281,37 @@ class PlanApprovalModal(
 
             yield GateBranchControls(self._gate, id="plan-approval-branches")
 
-            yield Static(hints, id="plan-approval-footer")
+            yield Static(self._footer_text(), id="plan-approval-footer")
+
+    def _footer_text(self) -> Text:
+        """Return footer hints with the declared primary action emphasized."""
+        keys = self._gate_keymaps
+        hints = Text()
+        hints.append(
+            f"{key_display_name(keys.next_control)}/"
+            f"{key_display_name(keys.previous_control)}",
+            style="green",
+        )
+        hints.append("=Navigate  ")
+        hints.append(key_display_name(keys.toggle_option), style="green")
+        hints.append("=Toggle  ")
+        hints.append_text(primary_action_badge(self._gate, keys.submit_primary))
+        hints.append("  ")
+        hints.append(key_display_name(keys.submit_branch), style="green")
+        hints.append("=Submit  ")
+        hints.append("c", style="green")
+        hints.append("=Coder options  ")
+        hints.append("e", style="blue")
+        hints.append("=Edit  ")
+        hints.append("y", style="cyan")
+        hints.append("=Copy  ")
+        hints.append("Y", style="cyan")
+        hints.append("=Copy path  ")
+        hints.append("d", style="cyan")
+        hints.append("=Debug  ")
+        hints.append("q", style="dim")
+        hints.append("=Cancel  |  Ctrl+D/U / g / G to scroll")
+        return hints
 
     def on_mount(self) -> None:
         if self._pending_approve_state is not None:
