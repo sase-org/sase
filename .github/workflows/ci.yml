@@ -482,3 +482,5 @@ jobs:
           uv pip install --python /tmp/published-core-smoke/bin/python "sase-core-rs==${core_minimum}"
       - name: Smoke all telemetry bindings
         run: /tmp/published-core-smoke/bin/python tools/smoke_sase_core_rs_telemetry
+      - name: Check every required binding exists in the published minimum
+        run: /tmp/published-core-smoke/bin/python tools/check_sase_core_rs_bindings

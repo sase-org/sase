@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Verify the installed ``sase_core_rs`` exposes every binding sase requires.
+
+Run with a Python environment that has the ``sase-core-rs`` distribution to
+check installed (CI's published-core-minimum-smoke venv installs the exact
+minimum published version accepted by ``pyproject.toml``). The scan is
+static and imports nothing from sase, so the environment does not need the
+sase package or its dependencies.
+
+Names are collected from ``require_rust_binding`` call sites in the source
+tree: string literals passed directly, plus string literals passed to thin
+module-local forwarder helpers (functions that hand one of their parameters
+straight to ``require_rust_binding``). Any call the scan cannot resolve to
+a literal is a hard error — keep binding names statically analyzable so
+this gate stays sound.
+
+This gate exists because sase 0.11.0 shipped calling the unreleased
+``aggregate_clan_runtime`` binding while its dependency range accepted
+sase-core-rs 0.6.0, which does not expose it: every published install
+crashed with ``AttributeError`` the first time the TUI rendered a clan
+row. Local dev never notices this class of skew because ``just install``
+builds the Rust core from the sibling checkout.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import importlib
+import importlib.metadata
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_SRC_ROOT = REPO_ROOT / "src" / "sase"
+RUST_BINDING_FUNCTION = "require_rust_binding"
+
+
+@dataclass
+class _CallSite:
+    callee: str
+    argument: ast.expr | None
+    enclosing_params: frozenset[str]
+    enclosing_function: str | None
+    lineno: int
+
+
+@dataclass
+class _FileScan:
+    path: Path
+    names: set[str] = field(default_factory=set)
+    problems: list[str] = field(default_factory=list)
+
+
+def _callee_name(func: ast.expr) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+class _CallCollector(ast.NodeVisitor):
+    """Record every call along with its enclosing function's parameters."""
+
+    def __init__(self) -> None:
+        self.calls: list[_CallSite] = []
+        self._function_stack: list[tuple[str, frozenset[str]]] = []
+
+    def _visit_function(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> None:
+        arguments = node.args
+        params = frozenset(
+            arg.arg
+            for arg in (
+                *arguments.posonlyargs,
+                *arguments.args,
+                *arguments.kwonlyargs,
+            )
+        )
+        self._function_stack.append((node.name, params))
+        self.generic_visit(node)
+        self._function_stack.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        callee = _callee_name(node.func)
+        if callee is not None:
+            argument = node.args[0] if node.args else None
+            enclosing = self._function_stack[-1] if self._function_stack else None
+            self.calls.append(
+                _CallSite(
+                    callee=callee,
+                    argument=argument,
+                    enclosing_params=enclosing[1] if enclosing else frozenset(),
+                    enclosing_function=enclosing[0] if enclosing else None,
+                    lineno=node.lineno,
+                )
+            )
+        self.generic_visit(node)
+
+
+def _scan_file(path: Path) -> _FileScan:
+    scan = _FileScan(path=path)
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    collector = _CallCollector()
+    collector.visit(tree)
+
+    forwarders: set[str] = set()
+    for call in collector.calls:
+        if call.callee != RUST_BINDING_FUNCTION:
+            continue
+        if (
+            isinstance(call.argument, ast.Name)
+            and call.argument.id in call.enclosing_params
+            and call.enclosing_function is not None
+        ):
+            forwarders.add(call.enclosing_function)
+
+    for call in collector.calls:
+        is_direct = call.callee == RUST_BINDING_FUNCTION
+        is_forwarder_call = call.callee in forwarders
+        if not is_direct and not is_forwarder_call:
+            continue
+        if isinstance(call.argument, ast.Constant) and isinstance(
+            call.argument.value, str
+        ):
+            scan.names.add(call.argument.value)
+            continue
+        if (
+            is_direct
+            and isinstance(call.argument, ast.Name)
+            and call.argument.id in call.enclosing_params
+        ):
+            # The forwarder definition itself; its call sites supply the
+            # literals collected above.
+            continue
+        scan.problems.append(
+            f"{path}:{call.lineno}: cannot statically resolve the binding "
+            f"name passed to {call.callee}(); use a string literal (or a "
+            f"one-level forwarder called with string literals)"
+        )
+    return scan
+
+
+def collect_binding_names(src_root: Path) -> tuple[set[str], list[str]]:
+    """Return (binding names, unanalyzable-call-site problems) for a tree."""
+    names: set[str] = set()
+    problems: list[str] = []
+    for path in sorted(src_root.rglob("*.py")):
+        scan = _scan_file(path)
+        names.update(scan.names)
+        problems.extend(scan.problems)
+    return names, problems
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--src",
+        type=Path,
+        default=DEFAULT_SRC_ROOT,
+        help="Source tree to scan for require_rust_binding call sites.",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="Print the collected binding names without importing sase_core_rs.",
+    )
+    args = parser.parse_args(argv)
+
+    names, problems = collect_binding_names(args.src)
+    if problems:
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        return 2
+    if not names:
+        print(f"no {RUST_BINDING_FUNCTION} call sites found under {args.src}",
+              file=sys.stderr)
+        return 2
+
+    if args.list:
+        for name in sorted(names):
+            print(name)
+        return 0
+
+    module = importlib.import_module("sase_core_rs")
+    try:
+        version = importlib.metadata.version("sase-core-rs")
+    except importlib.metadata.PackageNotFoundError:
+        version = "<unknown>"
+    missing = sorted(name for name in names if not hasattr(module, name))
+    if missing:
+        print(
+            f"sase_core_rs {version} is missing {len(missing)} of "
+            f"{len(names)} required binding(s):",
+            file=sys.stderr,
+        )
+        for name in missing:
+            print(f"  {name}", file=sys.stderr)
+        return 1
+    print(
+        f"sase_core_rs {version} exposes all {len(names)} bindings required "
+        f"by {args.src}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
