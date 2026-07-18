@@ -201,6 +201,7 @@ _lint-pyscripts: _setup
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
+        --epic-symbol 'sase-6s(CommitFilterBar)' \
         --epic-symbol 'sase-6s(CommitFilterQueryError)' \
         --epic-symbol 'sase-6s(commit_matches)' \
         --epic-symbol 'sase-6s(compile_commit_matcher)' \

@@ -78,6 +78,71 @@
     height: 1fr;
 }
 
+CommitFilterBar {
+    display: none;
+    width: 100%;
+    height: 3;
+    layers: base overlay;
+    background: $background;
+}
+
+CommitFilterBar #commit-filter-row {
+    layer: base;
+    width: 100%;
+    height: 3;
+}
+
+CommitFilterBar #commit-filter-sigil {
+    width: 3;
+    height: 3;
+    color: #FFD700;
+    text-style: bold;
+    content-align: center middle;
+}
+
+CommitFilterBar #commit-filter-input {
+    width: 1fr;
+    height: 3;
+    border: solid #FFD700;
+    background: $background;
+}
+
+CommitFilterBar #commit-filter-status {
+    width: auto;
+    min-width: 14;
+    max-width: 40%;
+    height: 3;
+    padding: 0 1;
+    content-align: right middle;
+    text-align: right;
+    text-overflow: ellipsis;
+}
+
+CommitFilterBar #commit-filter-status.error {
+    min-width: 24;
+}
+
+CommitFilterBar #commit-filter-completion {
+    display: none;
+    layer: overlay;
+    position: absolute;
+    overlay: screen;
+    offset: 3 3;
+    width: 70%;
+    max-width: 80;
+    height: auto;
+    max-height: 10;
+    border: solid #FFD700;
+    background: $panel;
+    scrollbar-size-vertical: 1;
+}
+
+CommitFilterBar #commit-filter-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #FFD700;
+    text-style: bold;
+}
+
 #commits-info {
     width: 100%;
     height: 3;
