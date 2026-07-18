@@ -883,7 +883,7 @@ async def test_epic_clan_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "◫ CLAN")
         assert_page_svg_contains(page, "sase-6n")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, ".land")
@@ -908,7 +908,7 @@ async def test_swarm_clan_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "◫ CLAN")
         assert_page_svg_contains(page, "3 agents")
         assert_page_svg_contains(page, "1 family")
         assert_page_svg_contains(page, "--code")

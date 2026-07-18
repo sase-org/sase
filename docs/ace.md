@@ -575,13 +575,14 @@ top-level agents are marked and `[~]` when only some are marked. Marks take prio
 a non-empty mark set always drives the bulk action regardless of banner focus. When a fold change hides the previously
 focused agent, focus snaps to the nearest visible ancestor banner so navigation context is never lost.
 
-Clan and family rows add an agent-tree hierarchy inside those grouping banners. A clan is a selectable synthetic `◫`
-container, never an agent. A family root remains a real teal agent row; when it has at least one real member it carries
-a lavender `⌘` glyph. A lone plan proposer with only its display-only planner child remains unbadged. From a collapsed
-clan row, press `l` once to reveal direct members (agents, family rows, and visible workflow steps), then press `l`
-again to reveal hidden steps and family members at a third indentation level. `h` walks those levels in reverse.
-Sequential family members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to
-the clan's live members; acting on one member leaves its siblings alone.
+Clan and family rows add an agent-tree hierarchy inside those grouping banners. Every grouping row ends in one identity
+block: an optional kind icon followed immediately by the gold name. A clan is a selectable synthetic container, never an
+agent, and ends in an orchid `◫ <name>` after its rolled-up status and member counts. A real multi-member family root
+remains a teal agent row and ends in azure `⌘ <name>`; a lone plan proposer with only its display-only planner child
+remains unbadged. From a collapsed clan row, press `l` once to reveal direct members (agents, family rows, and visible
+workflow steps), then press `l` again to reveal hidden steps and family members at a third indentation level. `h` walks
+those levels in reverse. Sequential family members use `--<suffix>` names and run one after another. Killing or
+dismissing a clan row cascades to the clan's live members; acting on one member leaves its siblings alone.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -642,24 +643,24 @@ semantics for plan approval, questions, and workflow input.
 
 To keep rows compact, agent statuses and types are rendered as one- or two-character badges instead of verbose text:
 
-| Glyph | Meaning                                              |
-| ----- | ---------------------------------------------------- |
-| `▶`   | RUNNING                                              |
-| `✓`   | DONE                                                 |
-| `✓P`  | PLAN DONE                                            |
-| `▶P`  | PLAN APPROVED                                        |
-| `★E`  | EPIC CREATED                                         |
-| `✎`   | PLAN                                                 |
-| `✗`   | FAILED                                               |
-| `⏳`  | WAITING                                              |
-| `?`   | QUESTION                                             |
-| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)      |
-| `≡`   | Workflow row (top-level)                             |
-| `❑`   | ChangeSpec / ChangeSpec row (top-level)              |
-| `⚡`  | Autonomous (`%auto`) agent                           |
-| `◫`   | Agent clan container                                 |
-| `⌘`   | Agent family container                               |
-| `◌`   | Hidden agent (visible only when `.` toggles them in) |
+| Glyph | Meaning                                                |
+| ----- | ------------------------------------------------------ |
+| `▶`   | RUNNING                                                |
+| `✓`   | DONE                                                   |
+| `✓P`  | PLAN DONE                                              |
+| `▶P`  | PLAN APPROVED                                          |
+| `★E`  | EPIC CREATED                                           |
+| `✎`   | PLAN                                                   |
+| `✗`   | FAILED                                                 |
+| `⏳`  | WAITING                                                |
+| `?`   | QUESTION                                               |
+| `↻`   | RETRYING (followed by attempt count, e.g. `↻2`)        |
+| `≡`   | Workflow row (top-level)                               |
+| `❑`   | ChangeSpec / ChangeSpec row (top-level)                |
+| `⚡`  | Autonomous (`%auto`) agent                             |
+| `◫`   | Agent clan container (orchid; prefixes the gold name)  |
+| `⌘`   | Agent family container (azure; prefixes the gold name) |
+| `◌`   | Hidden agent (visible only when `.` toggles them in)   |
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tribe/name. A
 phase agent named `<epic_id>.<N>` displays that phase bead ID; the final `<epic_id>.land` agent displays the parent epic
@@ -1622,10 +1623,11 @@ a pinned attempt view resets the cursor.
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The header shows the clan name, `@tribes`, rolled-up
-  status counts, wall-clock runtime, and agent/family totals. Member rows are sorted by launch time and show the
-  hood-relative suffix, kind, status, model, and duration; members of a nested sequential family are indented under its
-  aggregate row. The section participates in `g}` / `g{` metadata-section navigation like the other titled sections.
+- **◫ CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid heading and gold `Name:` value match the
+  clan row's identity block; the header also shows `@tribes`, rolled-up status counts, wall-clock runtime, and
+  agent/family totals. Member rows are sorted by launch time and show the hood-relative suffix, kind, status, model, and
+  duration; members of a nested sequential family are indented under its aggregate row. The section participates in `g}`
+  / `g{` metadata-section navigation like the other titled sections.
 - **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
   metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
   only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the

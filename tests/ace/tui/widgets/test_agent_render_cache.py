@@ -76,8 +76,9 @@ def test_cached_family_root_invalidates_when_first_real_member_is_added() -> Non
     after = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
 
     assert before[0] is not after[0]
-    assert not before[0].plain.startswith("⌘ ")
-    assert after[0].plain.startswith("⌘ ")
+    assert "⌘" not in before[0].plain
+    assert "⌘" in after[0].plain
+    assert "[agent]" not in after[0].plain
 
 
 def test_cached_family_root_recolors_when_member_status_changes() -> None:
@@ -228,7 +229,7 @@ def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None
         panel_tag=None,
     )
 
-    assert "research @epic @review (RUNNING)" in rendered.plain
+    assert rendered.plain == "(RUNNING) ◫ research @epic @review"
     assert rendered.plain.count("@epic") == 1
 
 

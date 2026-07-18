@@ -112,11 +112,12 @@ _CHILD_INDENT = "  └─ "
 _TREE_GUIDE = "│  "
 
 # Agent-grouping row markers. Kept to one terminal cell so runtime column
-# alignment remains deterministic across renderers.
+# alignment remains deterministic across renderers. These saturated colors are
+# reserved for their respective grouping icons on agent-panel rows.
 _CLAN_GLYPH = "◫"
-_CLAN_GLYPH_STYLE = "bold #D7AFFF"
+_CLAN_GLYPH_STYLE = "bold #D75FFF"
 _FAMILY_GLYPH = "⌘"
-_FAMILY_GLYPH_STYLE = "bold #D7AFFF"
+_FAMILY_GLYPH_STYLE = "bold #00AFFF"
 
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
 # ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color

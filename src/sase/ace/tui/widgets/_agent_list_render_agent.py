@@ -183,11 +183,9 @@ def format_agent_option(
     # already marks tree depth).  Other top-level types render as a
     # single-glyph badge; unknown types fall back to ``[X] `` for debug
     # readability.
-    if agent.is_clan_container:
-        text.append(f"{_CLAN_GLYPH} ", style=_CLAN_GLYPH_STYLE)
-    elif agent.is_family_container_row:
-        text.append(f"{_FAMILY_GLYPH} ", style=_FAMILY_GLYPH_STYLE)
-    elif not (is_appears_as_agent or agent_is_tree_child(agent)):
+    if not (agent.is_clan_container or agent.is_family_container_row) and not (
+        is_appears_as_agent or agent_is_tree_child(agent)
+    ):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:
             text.append(f"{type_glyph} ", style=f"bold {color}")
@@ -200,31 +198,26 @@ def format_agent_option(
             if emoji_badge:
                 text.append(f"{emoji_badge} ")
 
-    is_reverted_root = _should_render_reverted_badge(agent)
-    if agent.is_clan_container:
-        name_style = "bold #D7AFFF" if is_selected else "#D7AFFF"
-    elif is_reverted_root:
-        text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
-        text.append(" ")
-        name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
-    else:
-        name_style = "bold #00D7AF" if is_selected else "#00D7AF"
+    if not agent.is_clan_container:
+        is_reverted_root = _should_render_reverted_badge(agent)
+        if is_reverted_root:
+            text.append(_REVERTED_GLYPH, style=_REVERTED_GLYPH_STYLE)
+            text.append(" ")
+            name_style = "bold strike #00D7AF" if is_selected else "strike #00D7AF"
+        else:
+            name_style = "bold #00D7AF" if is_selected else "#00D7AF"
 
-    # Agent display name (workflow name for top-level workflows, ChangeSpec name otherwise)
-    text.append(agent.display_name, style=name_style)
-    rendered_tags = (
-        tuple(dict.fromkeys(tag for tag in agent.clan_tags if tag != panel_tag))
-        if agent.is_clan_container
-        else ()
-    )
-    for clan_tag in rendered_tags:
-        text.append(f" @{clan_tag}", style="bold #FFD75F")
-    if tag_label and tag_label not in rendered_tags:
-        text.append(f" @{tag_label}", style="bold #FFD75F")
+        # Agent display name (workflow name for top-level workflows,
+        # ChangeSpec name otherwise).
+        text.append(agent.display_name, style=name_style)
+        if tag_label:
+            text.append(f" @{tag_label}", style="bold #FFD75F")
 
     # Status (wrapped in parentheses, parens are dim)
     display_status = agent.display_status
-    text.append(" (", style="dim")
+    row_prefix = text.plain
+    status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("
+    text.append(status_opener, style="dim")
     if agent.status == "STARTING":
         text.append(display_status, style="bold #87D7FF")  # Sky blue
     elif agent.status == "RUNNING":
@@ -375,10 +368,38 @@ def format_agent_option(
         text.append(" ")
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
-    # Agent name annotation
-    presented_name = agent.presented_agent_name or agent.agent_name
-    if presented_name and not agent.is_clan_container:
-        text.append(f" {presented_name}", style=_AGENT_NAME_ANNOTATION_STYLE)
+    # Shared trailing identity block. Grouping icons remain attached to the
+    # gold name they identify; bead context, when present, stays to the left.
+    identity_glyph: str | None = None
+    identity_glyph_style: str | None = None
+    presented_name: str | None
+    if agent.is_clan_container:
+        identity_glyph = _CLAN_GLYPH
+        identity_glyph_style = _CLAN_GLYPH_STYLE
+        presented_name = agent.display_name
+    else:
+        presented_name = agent.presented_agent_name or agent.agent_name
+        if agent.is_family_container_row:
+            identity_glyph = _FAMILY_GLYPH
+            identity_glyph_style = _FAMILY_GLYPH_STYLE
+
+    if identity_glyph or presented_name:
+        text.append(" ")
+        if identity_glyph:
+            text.append(identity_glyph, style=identity_glyph_style)
+            if presented_name:
+                text.append(" ")
+        if presented_name:
+            text.append(presented_name, style=_AGENT_NAME_ANNOTATION_STYLE)
+
+    if agent.is_clan_container:
+        rendered_tags = tuple(
+            dict.fromkeys(tag for tag in agent.clan_tags if tag != panel_tag)
+        )
+        for clan_tag in rendered_tags:
+            text.append(f" @{clan_tag}", style="bold #FFD75F")
+        if tag_label and tag_label not in rendered_tags:
+            text.append(f" @{tag_label}", style="bold #FFD75F")
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:

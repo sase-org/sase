@@ -20,13 +20,13 @@ from ...models._agent_clan import (
     clan_members,
 )
 from ...models.agent import Agent, AgentType, compute_row_runtime
-from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE, _CLAN_GLYPH
 from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
 
-_CLAN_HEADING_STYLE = "bold #D7AFFF underline"
+_CLAN_HEADING_STYLE = "bold #D75FFF underline"
 _FIELD_LABEL_STYLE = "bold #87D7FF"
 _MEMBER_KIND_STYLE = "italic #AF87FF"
 _MEMBER_MODEL_STYLE = "#5FD7FF"
@@ -275,11 +275,11 @@ def build_clan_detail_text(
     )
 
     text = Text()
-    text.append("CLAN\n", style=_CLAN_HEADING_STYLE)
+    text.append(f"{_CLAN_GLYPH} CLAN\n", style=_CLAN_HEADING_STYLE)
     text.append("Name: ", style=_FIELD_LABEL_STYLE)
     text.append(
         f"{agent.agent_clan or agent.display_name}\n",
-        style="bold #D7AFFF",
+        style=_AGENT_NAME_ANNOTATION_STYLE,
     )
 
     text.append("Tribes: ", style=_FIELD_LABEL_STYLE)

@@ -19,6 +19,13 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_render import (
 _GENERATION = "20260717120000"
 
 
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
+
+
 def _agent(
     name: str,
     *,
@@ -71,7 +78,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
 
     header, members = detail.plain.split("\n" + "─" * 50 + "\n", 1)
     assert header.strip() == (
-        "CLAN\n"
+        "◫ CLAN\n"
         "Name: research\n"
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
@@ -83,6 +90,8 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         ".first · agent · ✓ DONE · gpt-5 · 2m\n"
         ".second · agent · ✗ FAILED · default · 45s"
     )
+    assert _style_at(detail, detail.plain.index("◫")) == ("bold #D75FFF underline")
+    assert _style_at(detail, detail.plain.index("research")) == "#FFD700"
 
 
 def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:
@@ -154,7 +163,7 @@ def test_clan_build_header_path_is_aggregate_only() -> None:
     header, traceback = build_header_text(container, cheap=True)
 
     assert traceback is None
-    assert header.plain.startswith("CLAN\nName: research\n")
+    assert header.plain.startswith("◫ CLAN\nName: research\n")
     assert "AGENT PROMPT" not in header.plain
     assert "ChangeSpec:" not in header.plain
     assert "No prompt file found" not in header.plain
@@ -169,7 +178,7 @@ def test_non_clan_agent_has_no_members_section() -> None:
 
     header, _ = build_header_text(agent, cheap=True)
 
-    assert not header.plain.startswith("CLAN")
+    assert not header.plain.startswith("◫ CLAN")
     assert "MEMBERS" not in header.plain
 
 
@@ -224,4 +233,4 @@ def test_clan_full_render_bypasses_attempt_and_artifact_paths() -> None:
     harness._update_display_impl(container)
 
     assert isinstance(harness.content, Text)
-    assert harness.content.plain.startswith("CLAN\nName: research\n")
+    assert harness.content.plain.startswith("◫ CLAN\nName: research\n")

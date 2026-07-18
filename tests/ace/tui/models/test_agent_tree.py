@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from rich.text import Text
+
 from sase.ace.tui.models._agent_tree import (
     agent_fold_key,
     agent_parent_fold_key,
@@ -22,6 +24,13 @@ from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.agent_list import _compute_fold_annotation
 
 _GENERATION = "20260717100000"
+
+
+def _style_at(text: Text, position: int) -> str | None:
+    for span in reversed(text.spans):
+        if span.start <= position < span.end:
+            return str(span.style)
+    return str(text.style) if text.style else None
 
 
 def _agent(
@@ -298,8 +307,17 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
         now=datetime(2026, 7, 17, 10, 5, 0),
     )
 
-    assert container_text.plain.startswith("◫ research @epic (RUNNING) ×2 [R1]")
-    assert family_text.plain.startswith("  └─ ⌘ research.family")
+    assert container_text.plain == "(RUNNING) ×2 [R1] ◫ research @epic"
+    assert "[agent]" not in container_text.plain
+    assert _style_at(container_text, container_text.plain.index("◫")) == (
+        "bold #D75FFF"
+    )
+    assert _style_at(container_text, container_text.plain.index("research")) == (
+        "#FFD700"
+    )
+    assert family_text.plain.startswith("  └─ research.family")
+    assert family_text.plain.endswith("⌘ research.family")
+    assert _style_at(family_text, family_text.plain.index("⌘")) == "bold #00AFFF"
     assert family_member.tree_depth == 2
     assert member_text.plain.startswith("  │  └─ research.family--code")
 
@@ -353,17 +371,27 @@ def test_family_glyph_requires_a_real_member() -> None:
     )
 
     assert family.is_family_container_row is True
-    assert family_text.plain.startswith("⌘ cx")
+    assert family_text.plain.startswith("cx")
+    assert family_text.plain.endswith("⌘ cx")
     assert lone_planner.is_family_container_row is False
     assert planner_text.plain.startswith("solo")
+    assert "⌘" not in planner_text.plain
     assert plain_text.plain.startswith("plain")
+    assert "⌘" not in plain_text.plain
     assert workflow_text.plain.startswith("anonymous-workflow")
+    assert "⌘" not in workflow_text.plain
+
+    family.agent_name = None
+    family.presented_agent_name = None
+    icon_only_text, _, _ = format_agent_option(family, 4, is_selected=False)
+    assert icon_only_text.plain.endswith(" ⌘")
 
 
 def test_clan_row_renders_unread_count_in_both_fold_states() -> None:
     done = _agent("research.done", "done", status="DONE")
     failed = _agent("research.failed", "failed", status="FAILED")
     container, done, failed = project_clan_tree([done, failed])
+    container.llm_provider = "codex"
     unread_ids = {done.identity, failed.identity}
 
     collapsed, _, _ = format_agent_option(
@@ -384,3 +412,6 @@ def test_clan_row_renders_unread_count_in_both_fold_states() -> None:
     assert "[F1 U2]" in collapsed.plain
     assert "[F1 U2]" in expanded.plain
     assert "D" not in collapsed.plain.split("[", 1)[1]
+    for clan_text in (collapsed, expanded):
+        assert not clan_text.plain.startswith(" ")
+        assert "  " not in clan_text.plain
