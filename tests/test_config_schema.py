@@ -489,6 +489,19 @@ def test_config_schema_accepts_builtin_model_aliases_with_at_references() -> Non
     assert errors == [], "\n".join(_format_schema_error(error) for error in errors)
 
 
+def test_config_schema_accepts_positive_big_epic_phase_threshold() -> None:
+    Draft7Validator(_schema()).validate({"bead": {"big_epic_phase_threshold": 1}})
+    Draft7Validator(_schema()).validate({"bead": {"big_epic_phase_threshold": 8}})
+
+
+@pytest.mark.parametrize("value", [0, -1, True, "5"])
+def test_config_schema_rejects_invalid_big_epic_phase_threshold(value: object) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate(
+            {"bead": {"big_epic_phase_threshold": value}}
+        )
+
+
 def test_config_schema_accepts_described_custom_model_aliases() -> None:
     schema = _schema()
     config = {

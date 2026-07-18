@@ -166,6 +166,30 @@ def test_model_aliases_ok_when_config_is_clean(
     assert not check.data["problems"]
 
 
+def test_model_aliases_recognizes_big_epic_lander_as_builtin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {
+            "model_aliases": {
+                "custom": {
+                    "big_epic_lander": {
+                        "model": "claude/opus",
+                        "description": "Wrong location.",
+                    }
+                }
+            }
+        },
+    )
+
+    check = check_config_model_aliases()
+
+    assert check.status == "WARN"
+    by_key = {row["key"]: row["message"] for row in check.data["problems"]}
+    assert "builtin alias" in by_key["model_aliases.custom.big_epic_lander"]
+
+
 def test_model_aliases_warns_on_dangling_bucket_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

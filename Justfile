@@ -212,6 +212,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-6p(plan_approval_status_for_selection)' \
         --epic-symbol 'sase-6p(translate_workflow_hitl_response)' \
         --epic-symbol 'sase-6p(validate_option_identifier)' \
+        --epic-symbol 'sase-6q(get_big_epic_phase_threshold)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

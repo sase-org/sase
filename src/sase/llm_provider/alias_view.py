@@ -22,11 +22,13 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from .config import (
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
     get_model_aliases,
+    implicit_model_alias_fallback,
     model_alias_bucket,
     model_alias_bucket_description,
     model_alias_config_source,
@@ -45,6 +47,7 @@ _ROLE_ALIAS_ORDER: tuple[str, ...] = (
     CODER_MODEL_ALIAS_NAME,
     EPIC_CREATOR_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     PHASE_WORKER_MODEL_ALIAS_NAME,
 )
 
@@ -103,6 +106,13 @@ class AliasView:
         if self.configured_value is None or not self.configured_value.startswith("@"):
             return None
         return self.configured_value[1:].strip() or None
+
+    @property
+    def implicit_fallback(self) -> str | None:
+        """Return the immediate fallback for an unconfigured implicit alias."""
+        if self.configured:
+            return None
+        return implicit_model_alias_fallback(self.name)
 
 
 @dataclass(frozen=True)

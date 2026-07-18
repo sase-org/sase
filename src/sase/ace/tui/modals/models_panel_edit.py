@@ -130,7 +130,7 @@ class AliasEditPreviewModal(ModalScreen["AliasEditOutcome | None"]):
             if self._reset_deletes_alias:
                 text.append(" by deleting the custom alias ", style=_MUTED)
             else:
-                text.append(" to its implicit default ", style=_MUTED)
+                text.append(" to its implicit fallback ", style=_MUTED)
             text.append("(removes the configured key)\n", style=_MUTED)
             return
         text.append("  set ", style="bold")

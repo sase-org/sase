@@ -1081,14 +1081,14 @@ markers. It does not delete workspace checkouts, and system-managed projects suc
 ## Models Panel
 
 Press `,m` from any tab to open the **Models** panel — one keyboard-driven surface for viewing and managing every model
-alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `phase_worker`) and any
-user-defined `llm_provider.model_aliases.custom` entry.
+alias: the implicit role aliases (`default`, `coder`, `<provider>_coder`, `epic_lander`, `big_epic_lander`,
+`phase_worker`) and any user-defined `llm_provider.model_aliases.custom` entry.
 
 Each row shows the alias name with a small kind badge (`default` / `role` / `<provider> coder` / `user`), its effective
-provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @default`, or an
+provider/model as a provider-themed badge, and a state tag — `configured`, `implicit` / `implicit → @<fallback>`, or an
 `override · <time> left` / `override · until cleared` chip when a temporary override is active. The top level is sorted
-deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `phase_worker`, then custom buckets and
-ungrouped user aliases in alphabetical order.
+deterministically: `default`, the built-in `coders` bucket, `epic_lander`, `big_epic_lander`, `phase_worker`, then
+custom buckets and ungrouped user aliases in alphabetical order.
 
 The always-present `coders` bucket groups `coder` first and every registered `<provider>_coder` alias alphabetically.
 Its collapsed row reports the member count and active overrides, while the description strip summarizes the distinct
@@ -1165,6 +1165,8 @@ Builtin aliases edit under `llm_provider.model_aliases.builtin.<name>`. User ali
   timezone and the override expires at that exact instant.
 - Highlight `phase_worker`, `o`, pick `claude/opus`, `Until cleared` — `@phase_worker` resolves to CLAUDE(opus) until
   you clear it; the violet non-default pill appears in the top bar.
+- Highlight `big_epic_lander`, `e`, pick a model, and confirm — only threshold-selected epic landers use that persistent
+  target; leaving it implicit preserves the `@epic_lander` target.
 - Highlight `coder`, `e`, pick a model, confirm the preview, then `y` — the configured
   `llm_provider.model_aliases.builtin.coder` value is updated and committed (and pushed / `chezmoi apply`-ed when
   `use_chezmoi` is set).

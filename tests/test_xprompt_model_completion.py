@@ -53,6 +53,7 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
         "@codex_coder",
         "@opencode_coder",
         "@epic_lander",
+        "@big_epic_lander",
         "@phase_worker",
         "@fast",
         "@worker",
@@ -76,6 +77,13 @@ def test_model_completion_catalog_includes_models_implicit_and_user_aliases(
     assert codex_coder.kind == "implicit_alias"
     assert codex_coder.description == "Codex coder follow-up model"
     assert codex_coder.aliases == ("codex_coder",)
+
+    big_epic_lander = by_value["@big_epic_lander"]
+    assert big_epic_lander.kind == "implicit_alias"
+    assert big_epic_lander.description == (
+        "threshold-selected large-epic land follow-up model"
+    )
+    assert big_epic_lander.aliases == ("big_epic_lander",)
 
     fast = by_value["@fast"]
     assert fast.kind == "user_alias"

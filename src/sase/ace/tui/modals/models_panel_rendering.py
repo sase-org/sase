@@ -87,10 +87,8 @@ def state_tag(view: AliasView, now: float) -> Text:
     if view.name == DEFAULT_MODEL_ALIAS_NAME:
         return Text("implicit", style=_IMPLICIT_TAG_STYLE)
     text = Text("implicit", style=_IMPLICIT_TAG_STYLE)
-    if view.kind == "provider_coder":
-        _append_reference(text, "coder")
-    else:
-        _append_reference(text, "default")
+    if view.implicit_fallback is not None:
+        _append_reference(text, view.implicit_fallback)
     return text
 
 

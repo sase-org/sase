@@ -15,6 +15,7 @@ from sase.llm_provider.config import (
     format_model_directive_value,
     get_builtin_model_aliases,
     get_custom_model_aliases,
+    implicit_model_alias_fallback,
     model_alias_bucket,
     model_alias_bucket_description,
     model_alias_bucket_names,
@@ -154,6 +155,10 @@ def test_model_alias_description_builtin_and_custom(
     mock_providers.return_value = ["claude"]
 
     assert model_alias_description("default").startswith("Model used")
+    assert model_alias_description("big_epic_lander") == (
+        "Epic land agents selected for plans at or above the configured "
+        "phase-count threshold."
+    )
     assert model_alias_description("claude_coder") == (
         "Coder follow-up agents for plans authored by claude."
     )
@@ -182,6 +187,7 @@ def test_model_alias_names_include_configured_and_special(
         "default",
         "coder",
         "epic_lander",
+        "big_epic_lander",
         "phase_worker",
         # per-provider coder aliases
         "claude_coder",
@@ -278,6 +284,9 @@ def test_role_alias_helpers() -> None:
     assert coder_model_alias_for_provider(" claude ") == "claude_coder"
     assert role_model_directive_value("phase_worker") == "@phase_worker"
     assert role_model_directive_value("default") == "@default"
+    assert implicit_model_alias_fallback("big_epic_lander") == "epic_lander"
+    assert implicit_model_alias_fallback("epic_lander") == "default"
+    assert implicit_model_alias_fallback("default") is None
 
 
 def test_default_alias_resolves_to_configured_target(
@@ -401,8 +410,68 @@ def test_epic_execution_role_aliases_chain_to_default(
     )
 
     assert resolve_model_alias("epic_creator") == "epic_creator"
-    for role in ("epic_lander", "phase_worker"):
+    for role in ("epic_lander", "big_epic_lander", "phase_worker"):
         assert resolve_model_alias(role) == "codex/gpt-5.6-sol"
+
+
+def test_big_epic_lander_inherits_configured_epic_lander(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The large-epic role preserves an existing epic-lander override."""
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "default": "codex/gpt-5.6-sol",
+                    "epic_lander": "claude/sonnet",
+                }
+            },
+        },
+    )
+
+    assert resolve_model_alias("big_epic_lander") == "claude/sonnet"
+
+
+def test_configured_big_epic_lander_shadows_implicit_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {
+                    "epic_lander": "claude/sonnet",
+                    "big_epic_lander": "codex/o3",
+                }
+            },
+        },
+    )
+
+    assert resolve_model_alias("big_epic_lander") == "codex/o3"
+    assert resolve_model_alias("epic_lander") == "claude/sonnet"
+
+
+def test_big_epic_lander_honors_launch_and_temporary_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_provider_config(monkeypatch, {"provider": "claude"})
+    temporary = MagicMock(provider="codex", model="o3")
+    monkeypatch.setattr(
+        "sase.llm_provider.config._active_alias_overrides",
+        lambda: {"big_epic_lander": temporary},
+    )
+
+    assert resolve_model_alias("@big_epic_lander") == "codex/o3"
+    assert (
+        resolve_model_alias(
+            "@big_epic_lander",
+            {"big_epic_lander": "claude/sonnet"},
+        )
+        == "claude/sonnet"
+    )
 
 
 def test_configured_role_alias_shadows_implicit_default(
@@ -506,7 +575,13 @@ def test_worker_and_other_no_longer_special_aliases(
     assert "worker" not in names
     assert "other" not in names
     # The role aliases are the implicit policy now.
-    assert {"default", "coder", "epic_lander", "phase_worker"} <= names
+    assert {
+        "default",
+        "coder",
+        "epic_lander",
+        "big_epic_lander",
+        "phase_worker",
+    } <= names
     assert "epic_creator" not in names
 
 

@@ -11,6 +11,7 @@ import re
 from dataclasses import dataclass, field
 
 from sase.llm_provider.config import (
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
     CODER_MODEL_ALIAS_NAME,
     DEFAULT_MODEL_ALIAS_NAME,
     EPIC_LANDER_MODEL_ALIAS_NAME,
@@ -37,6 +38,10 @@ _LEADING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
 )
 _TRAILING_IMPLICIT_ALIASES: tuple[tuple[str, str], ...] = (
     (EPIC_LANDER_MODEL_ALIAS_NAME, "epic land follow-up model"),
+    (
+        BIG_EPIC_LANDER_MODEL_ALIAS_NAME,
+        "threshold-selected large-epic land follow-up model",
+    ),
     (PHASE_WORKER_MODEL_ALIAS_NAME, "bead phase agent model"),
 )
 
@@ -64,9 +69,10 @@ def build_model_completion_catalog(
     Canonical model names come from the cached LLM metadata payload. Short
     aliases are kept as match/display hints only; they are not inserted as
     completion values. The implicit role aliases (``@default``, ``@coder``, each
-    registered ``@<provider>_coder``, ``@epic_lander``, ``@phase_worker``) and
-    user-configured aliases are inserted with their ``@``
-    form because those values resolve through the normal ``%model`` path.
+    registered ``@<provider>_coder``, ``@epic_lander``,
+    ``@big_epic_lander``, ``@phase_worker``) and user-configured aliases are
+    inserted with their ``@`` form because those values resolve through the
+    normal ``%model`` path.
     """
     global _CATALOG_CACHE  # noqa: PLW0603
 

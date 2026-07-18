@@ -7,6 +7,36 @@ import subprocess
 from pathlib import Path
 
 from sase.bead.project_name import infer_project_name_from_cwd
+from sase.config import load_merged_config
+
+
+DEFAULT_BIG_EPIC_PHASE_THRESHOLD = 5
+
+
+def get_big_epic_phase_threshold() -> int:
+    """Return the configured authored-phase threshold for large epics.
+
+    Missing or malformed values fall back to the shipped default. Booleans are
+    rejected explicitly because ``bool`` is a subclass of ``int`` in Python,
+    while the public configuration contract requires a positive integer.
+    """
+    try:
+        merged: object = load_merged_config()
+    except Exception:
+        return DEFAULT_BIG_EPIC_PHASE_THRESHOLD
+    if not isinstance(merged, dict):
+        return DEFAULT_BIG_EPIC_PHASE_THRESHOLD
+
+    bead_config = merged.get("bead", {})
+    if not isinstance(bead_config, dict):
+        return DEFAULT_BIG_EPIC_PHASE_THRESHOLD
+    value = bead_config.get(
+        "big_epic_phase_threshold",
+        DEFAULT_BIG_EPIC_PHASE_THRESHOLD,
+    )
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        return DEFAULT_BIG_EPIC_PHASE_THRESHOLD
+    return value
 
 
 def _git_user_email() -> str:

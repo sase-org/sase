@@ -453,8 +453,8 @@ directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ct
 works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
-implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@phase_worker`), and configured model
-aliases; provider short aliases are shown as filter/display hints but are not inserted.
+implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`),
+and configured model aliases; provider short aliases are shown as filter/display hints but are not inserted.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered workspace-provider refs and
 known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup in that project checkout. If no
@@ -480,6 +480,7 @@ llm_provider:
       default: opus # model used when a prompt has no %model directive
       claude_coder: codex/gpt-5.6-sol # coder follow-ups from Claude-authored plans
       codex_coder: claude/opus # coder follow-ups from Codex-authored plans
+      big_epic_lander: codex/gpt-5.6-sol # specialize threshold-selected epic landers
     custom:
       blogger:
         model: claude/opus
@@ -512,10 +513,12 @@ remaining independently addressable and editable.
 
 On top of any configured aliases, SASE exposes a fixed set of **implicit role aliases** that resolve even when unset:
 `@default` (no-`%model` launches), `@coder` and the per-provider `@<provider>_coder` (plan coder follow-ups),
-`@epic_lander` and `@phase_worker` (bead/epic role launches). Each falls back through other aliases to `@default`, so
-configuring `model_aliases.builtin.default` is enough to drive every role; override an individual role by configuring an
-alias of the same name. See [Implicit role aliases](llms.md#implicit-role-aliases) for the full table and
-[Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches pick a role.
+`@epic_lander`, `@big_epic_lander`, and `@phase_worker` (bead/epic role launches). `@big_epic_lander` falls back to
+`@epic_lander`, and every chain ultimately reaches `@default`, so configuring `model_aliases.builtin.default` is enough
+to drive every role while an existing `epic_lander` override applies to both epic sizes. Override only large epics by
+configuring `model_aliases.builtin.big_epic_lander`. See [Implicit role aliases](llms.md#implicit-role-aliases) for the
+full table and [Role Aliases for Delegated Work](llms.md#role-aliases-for-delegated-work) for how delegated launches
+pick a role.
 
 Legacy `model_aliases.builtin.epic_creator` entries remain accepted so existing configs still load, but SASE no longer
 launches an epic-creator agent or resolves that alias implicitly.
@@ -1322,12 +1325,17 @@ Configuration for the bead issue tracker.
 
 ```yaml
 bead:
+  big_epic_phase_threshold: 5 # minimum authored phase count for @big_epic_lander
   push_after_commit: true # default: true (also accepts false or async)
 ```
 
-| Field                    | Type        | Default | Description                                                                                                                                                                                                                                                                                        |
-| ------------------------ | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bead.push_after_commit` | bool or str | `true`  | Controls the post-commit `git push` after `sase bead work`. `true` pushes synchronously (failures only warn); `false` skips the push; `async` launches a detached background push and returns immediately, logging the result to a file. `sase bead work --no-push` overrides this per-invocation. |
+| Field                           | Type        | Default | Description                                                                                                                                                                                                                                                                                        |
+| ------------------------------- | ----------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bead.big_epic_phase_threshold` | int         | `5`     | Minimum total authored phase count that selects `@big_epic_lander` for an epic without an explicit land model. Must be at least `1`; malformed runtime values defensively fall back to `5`.                                                                                                        |
+| `bead.push_after_commit`        | bool or str | `true`  | Controls the post-commit `git push` after `sase bead work`. `true` pushes synchronously (failures only warn); `false` skips the push; `async` launches a detached background push and returns immediately, logging the result to a file. `sase bead work --no-push` overrides this per-invocation. |
+
+`@big_epic_lander` inherits `@epic_lander`, which then inherits `@default`. This two-step fallback preserves an existing
+`epic_lander` override for epics of every size while allowing a separate model only for threshold-selected large epics.
 
 Set to `false` for local-only checkouts, or when you would rather batch the bead-launch commit with later commits before
 pushing. Set to `async` to keep auto-pushing without blocking the command on remote network/credential latency. See

@@ -96,6 +96,16 @@ def _calm_views() -> list[AliasView]:
         ),
         _view("epic_lander", "role", provider="claude", model="opus"),
         _view(
+            "big_epic_lander",
+            "role",
+            provider="claude",
+            model="opus",
+            description=(
+                "Epic land agents selected for plans at or above the configured "
+                "phase-count threshold."
+            ),
+        ),
+        _view(
             "phase_worker",
             "role",
             configured=True,

@@ -29,7 +29,8 @@ ModelAliasConfigSource = Literal["builtin", "custom"]
 #
 #   - ``default``: the model used when a prompt has no explicit ``%model``.
 #   - ``coder`` / ``<provider>_coder``: coder follow-up roles.
-#   - ``epic_lander`` / ``phase_worker``: bead/epic roles.
+#   - ``epic_lander`` / ``big_epic_lander`` / ``phase_worker``: bead/epic
+#     roles.
 #
 # Each role falls back to another alias (ultimately ``@default``) when it is not
 # explicitly configured. ``default`` itself falls back to the configured or
@@ -56,6 +57,9 @@ EPIC_CREATOR_MODEL_ALIAS_NAME = "epic_creator"
 #: The implicit "epic_lander" role alias (epic land follow-up default).
 EPIC_LANDER_MODEL_ALIAS_NAME = "epic_lander"
 
+#: The implicit large-epic lander role alias (threshold-selected follow-up).
+BIG_EPIC_LANDER_MODEL_ALIAS_NAME = "big_epic_lander"
+
 #: The implicit "phase_worker" role alias (bead phase agent default).
 PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
 
@@ -64,6 +68,7 @@ PHASE_WORKER_MODEL_ALIAS_NAME = "phase_worker"
 _ROLE_ALIAS_FALLBACKS: dict[str, str] = {
     CODER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
     EPIC_LANDER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME: f"@{EPIC_LANDER_MODEL_ALIAS_NAME}",
     PHASE_WORKER_MODEL_ALIAS_NAME: f"@{DEFAULT_MODEL_ALIAS_NAME}",
 }
 
@@ -80,6 +85,10 @@ _ROLE_ALIAS_DESCRIPTIONS: dict[str, str] = {
     ),
     EPIC_LANDER_MODEL_ALIAS_NAME: (
         "Epic land agents that finalize and submit an epic."
+    ),
+    BIG_EPIC_LANDER_MODEL_ALIAS_NAME: (
+        "Epic land agents selected for plans at or above the configured "
+        "phase-count threshold."
     ),
     PHASE_WORKER_MODEL_ALIAS_NAME: (
         "Bead phase agents that implement individual plan phases."
@@ -373,7 +382,7 @@ def _special_model_alias_names() -> set[str]:
 
     This is the centralized alias policy that is the source of truth for which
     alias names always resolve: the fixed role aliases (``default`` plus
-    ``coder``/``epic_lander``/``phase_worker``) and a
+    ``coder``/``epic_lander``/``big_epic_lander``/``phase_worker``) and a
     ``<provider>_coder`` alias per registered provider. The legacy
     ``worker``/``other`` reserved aliases were retired with the worker lane
     (epic sase-5d phase 4); they only resolve now if a user defines them as
@@ -427,6 +436,15 @@ def strip_model_alias_prefix(value: str) -> str:
     if value.startswith("@"):
         return value[1:]
     return value
+
+
+def implicit_model_alias_fallback(name: str) -> str | None:
+    """Return the immediate implicit fallback alias for *name*, if any."""
+    alias = name.strip()
+    fallback = _ROLE_ALIAS_FALLBACKS.get(alias)
+    if fallback is None and _is_provider_coder_alias(alias):
+        fallback = f"@{CODER_MODEL_ALIAS_NAME}"
+    return strip_model_alias_prefix(fallback) if fallback is not None else None
 
 
 def format_model_directive_value(value: str) -> str:
@@ -486,11 +504,11 @@ def resolve_model_alias(
     Resolution follows configured ``llm_provider.model_aliases.builtin`` /
     ``llm_provider.model_aliases.custom`` chains and the implicit special aliases
     (``default``, ``coder``, ``<provider>_coder``, ``epic_lander``,
-    ``phase_worker``). A configured legacy ``epic_creator`` entry remains an
-    ordinary compatibility alias. Alias *values* may reference other aliases
-    with an ``@`` marker (e.g. ``coder: "@default"``); those references
-    are followed too. A user-configured alias always shadows the implicit
-    special of the same name.
+    ``big_epic_lander``, ``phase_worker``). A configured legacy
+    ``epic_creator`` entry remains an ordinary compatibility alias. Alias
+    *values* may reference other aliases with an ``@`` marker (e.g.
+    ``coder: "@default"``); those references are followed too. A
+    user-configured alias always shadows the implicit special of the same name.
 
     Unknown tokens return *model* unchanged. Cycles and overly deep chains fall
     back to the original input so a bad config cannot crash launches.
@@ -558,17 +576,12 @@ def resolve_model_alias(
         if bare == DEFAULT_MODEL_ALIAS_NAME:
             return _resolve_default_alias_target()
 
-        fallback = _ROLE_ALIAS_FALLBACKS.get(bare)
-        if fallback is None and _is_provider_coder_alias(bare):
-            # An unconfigured ``<provider>_coder`` inherits the generic ``coder``
-            # alias itself (not ``coder``'s own resolved fallback), so configuring
-            # ``coder`` once flows through to every provider-specific coder lane.
-            fallback = f"@{CODER_MODEL_ALIAS_NAME}"
+        fallback = implicit_model_alias_fallback(bare)
         if fallback is not None:
             if bare in seen:
                 return original
             seen.add(bare)
-            current = fallback
+            current = f"@{fallback}"
             continue
 
         # A concrete model name (or a dangling ``@`` reference): terminal.
