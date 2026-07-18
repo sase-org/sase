@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from copy import copy
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -29,6 +30,9 @@ from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
+
+if TYPE_CHECKING:
+    from ...models._agent_clan_sections import ClanSectionSnapshot
 
 _CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
 _FIELD_LABEL_STYLE = "bold #87D7FF"
@@ -267,8 +271,13 @@ def build_clan_detail_text(
     *,
     now: datetime | None = None,
     unread_ids: Collection[tuple[AgentType, str, str | None]] = (),
+    snapshot: ClanSectionSnapshot | None = None,
 ) -> Text:
     """Build the complete in-memory detail document for a clan container."""
+    # The fold-aware rendering phase consumes this snapshot.  Accept it now so
+    # the worker/data-layer boundary is stable while preserving today's level-1
+    # visual output in this phase.
+    _ = snapshot
     members = _ordered_members(agent)
     family_rows = tuple(member for member in members if _family_children(member))
     agent_count = sum(

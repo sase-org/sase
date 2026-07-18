@@ -105,8 +105,17 @@ def clear_detail_header_summary_cache(widget: object) -> None:
         cache.clear()
 
 
-def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
-    """Build expensive header enrichments outside hot selection rendering."""
+def build_detail_header_summary(
+    agent: Agent,
+    *,
+    include_slow_tools: bool = True,
+) -> DetailHeaderSummary:
+    """Build expensive header enrichments outside hot selection rendering.
+
+    ``include_slow_tools`` lets clan aggregation reuse all existing context
+    loaders without discovering tool-call artifacts unless that aggregate
+    section was explicitly requested by the current fold state.
+    """
     xprompts_used = None
     if agent.step_type not in ("bash", "python", "parallel"):
         xprompts_used = load_xprompts_used(agent)
@@ -125,7 +134,7 @@ def build_detail_header_summary(agent: Agent) -> DetailHeaderSummary:
     associated_plan = plan_enrichment.associated_plan
 
     slow_tool_sources = None
-    if supports_slow_tool_sources(agent):
+    if include_slow_tools and supports_slow_tool_sources(agent):
         slow_tool_sources = build_slow_tool_sources(agent)
 
     from sase.ace.tui.memory_reads import load_memory_reads_for_agent_context

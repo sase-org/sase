@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping
 from datetime import datetime as DateTime
 from pathlib import Path
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.style import StyleType
@@ -38,6 +38,9 @@ from ._helpers import (
     project_display_label,
     should_render_agent_detail_model,
 )
+
+if TYPE_CHECKING:
+    from ...models._agent_clan_sections import ClanSectionSnapshot
 from ._agent_output_variables import append_agent_output_variables_section
 
 
@@ -217,6 +220,7 @@ def build_header_text(
     agent_status_buckets: Mapping[str, str] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
+    clan_snapshot: ClanSectionSnapshot | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -244,7 +248,14 @@ def build_header_text(
     if agent.is_clan_container:
         from ._agent_display_clan import build_clan_detail_text
 
-        return build_clan_detail_text(agent, unread_ids=unread_agent_ids), None
+        return (
+            build_clan_detail_text(
+                agent,
+                unread_ids=unread_agent_ids,
+                snapshot=clan_snapshot,
+            ),
+            None,
+        )
 
     header_text = Text()
 

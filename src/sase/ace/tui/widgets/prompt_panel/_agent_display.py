@@ -15,6 +15,10 @@ from ._agent_display_attempts import (
     should_render_merged,
 )
 from ._agent_display_async import AgentDisplayWorkerMixin
+from ._agent_clan_aggregation import (
+    get_cached_clan_section_snapshot,
+    prepare_clan_section_snapshot,
+)
 from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
 
@@ -34,6 +38,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             agent: The Agent to display.
         """
         with tui_trace("widget.prompt_panel.update_display"):
+            self._cancel_clan_section_worker_for_selection_change(agent)
+            if agent.is_clan_container:
+                prepare_clan_section_snapshot(self, agent)
             self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
             prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
             if callable(prepare_sections):
@@ -47,6 +54,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
                 if callable(cancel_slow_tick):
                     cancel_slow_tick()
+                self._start_clan_section_enrichment_from_context(agent)
                 return
             self._start_agent_detail_header_enrichment_from_context(agent)
             self._start_agent_linked_delta_refresh_from_context(agent)
@@ -86,6 +94,9 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
         prompt body, reply, tools, and file content shortly after.
         """
         with tui_trace("widget.prompt_panel.update_header_only"):
+            self._cancel_clan_section_worker_for_selection_change(agent)
+            if agent.is_clan_container:
+                prepare_clan_section_snapshot(self, agent)
             self._agent_hint_mode_rendered = False  # type: ignore[attr-defined]
             prepare_sections = getattr(self, "prepare_section_document_for_agent", None)
             if callable(prepare_sections):
@@ -118,6 +129,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(
                     self
                 ),
+                clan_snapshot=get_cached_clan_section_snapshot(self, agent),
             )
             if error_tb_syntax is not None:
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]

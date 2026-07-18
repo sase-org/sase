@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from textual.worker import Worker, WorkerState
 
+from ...models._agent_clan_sections import (
+    CLAN_DISK_SECTIONS,
+    ClanDiskSection,
+    ClanDiskSnapshot,
+    ClanInMemorySnapshot,
+)
 from ...models.agent import Agent
 from ...models.agent_bead import (
     cached_bead_display,
@@ -20,7 +26,15 @@ from ._agent_display_header_summary import (
     get_cached_detail_header_summary,
     should_refresh_detail_header_summary,
 )
-from ._messages import AgentDetailHeaderEnriched
+from ._agent_clan_aggregation import (
+    build_clan_disk_snapshot,
+    cache_clan_disk_snapshot,
+    clear_clan_snapshot_loading,
+    get_cached_clan_section_snapshot,
+    mark_clan_snapshot_loading,
+    should_refresh_clan_disk_snapshot,
+)
+from ._messages import AgentDetailHeaderEnriched, ClanSectionSnapshotLoaded
 from ..file_panel._linked_deltas import (
     compute_linked_delta_groups,
     should_refresh_linked_delta_groups,
@@ -74,6 +88,21 @@ class _DetailHeaderEnrichmentRequest:
     is_current: Callable[[tuple[Any, ...], int, str, int | None], bool]
 
 
+@dataclass(frozen=True)
+class _ClanSectionEnrichmentRequest:
+    """State captured when clan disk-section loading starts."""
+
+    agent: Agent
+    agent_identity: tuple[Any, ...]
+    in_memory: ClanInMemorySnapshot
+    sections: frozenset[ClanDiskSection]
+    slow_tool_threshold_ms: int
+    generation: int
+    attempt_view_mode: str
+    attempt_pinned_number: int | None
+    is_current: Callable[[tuple[Any, ...], int, str, int | None], bool]
+
+
 class AgentDisplayWorkerMixin:
     """Async bead and linked-delta workers for AgentPromptPanel."""
 
@@ -92,6 +121,137 @@ class AgentDisplayWorkerMixin:
             attempt_pinned_number=attempt_pinned_number,
             is_current=is_current,
         )
+
+    def set_clan_disk_sections_required(
+        self,
+        sections: Collection[str],
+    ) -> None:
+        """Set disk sections required by the current fold-aware clan render.
+
+        The collapsed renderer leaves this empty.  The rendering phase can set
+        the effective non-collapsed sections before calling ``update_display``
+        without coupling this data layer to a particular fold-state owner.
+        """
+        self._clan_disk_sections_required = _normalize_clan_disk_sections(  # type: ignore[attr-defined]
+            sections
+        )
+
+    def _clan_disk_sections_from_context(
+        self,
+        agent: Agent,
+    ) -> frozenset[ClanDiskSection]:
+        sections: object = getattr(
+            self,
+            "_clan_disk_sections_required",
+            frozenset(),
+        )
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            app = None
+        resolver = getattr(app, "clan_disk_sections_for_agent", None)
+        if callable(resolver):
+            sections = resolver(agent)
+        return _normalize_clan_disk_sections(sections)
+
+    def _start_clan_section_enrichment_from_context(self, agent: Agent) -> None:
+        context: _AgentDetailRenderContext | None = getattr(
+            self, "_agent_detail_render_context", None
+        )
+        if context is None or context.attempt_pinned_number is not None:
+            return
+        sections = self._clan_disk_sections_from_context(agent)
+        if not sections or not should_refresh_clan_disk_snapshot(
+            self,
+            agent,
+            sections,
+        ):
+            return
+        snapshot = get_cached_clan_section_snapshot(self, agent)
+        if snapshot is None:
+            return
+        from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+
+        self.start_clan_section_enrichment(
+            agent,
+            in_memory=snapshot.in_memory,
+            sections=sections,
+            slow_tool_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
+            generation=context.generation,
+            attempt_view_mode=context.attempt_view_mode,
+            attempt_pinned_number=context.attempt_pinned_number,
+            is_current=context.is_current,
+        )
+
+    def start_clan_section_enrichment(
+        self,
+        agent: Agent,
+        *,
+        in_memory: ClanInMemorySnapshot,
+        sections: Collection[ClanDiskSection],
+        slow_tool_threshold_ms: int,
+        generation: int,
+        attempt_view_mode: str,
+        attempt_pinned_number: int | None,
+        is_current: Callable[[tuple[Any, ...], int, str, int | None], bool],
+    ) -> None:
+        """Load clan member artifacts in one coalesced worker thread."""
+        run_worker = getattr(self, "run_worker", None)
+        requested = frozenset(sections)
+        if not callable(run_worker) or not requested:
+            return
+        request = _ClanSectionEnrichmentRequest(
+            agent=agent,
+            agent_identity=agent.identity,
+            in_memory=in_memory,
+            sections=requested,
+            slow_tool_threshold_ms=slow_tool_threshold_ms,
+            generation=generation,
+            attempt_view_mode=attempt_view_mode,
+            attempt_pinned_number=attempt_pinned_number,
+            is_current=is_current,
+        )
+        current_worker = getattr(self, "_clan_section_worker", None)
+        if current_worker is not None and getattr(current_worker, "is_running", False):
+            current_request: _ClanSectionEnrichmentRequest | None = getattr(
+                self,
+                "_clan_section_request",
+                None,
+            )
+            if (
+                current_request is not None
+                and current_request.agent_identity == request.agent_identity
+                and request.sections.issubset(current_request.sections)
+            ):
+                self._clan_section_request = request  # type: ignore[attr-defined]
+                return
+            current_worker.cancel()
+
+        mark_clan_snapshot_loading(self, agent, requested)
+
+        def load_task() -> ClanDiskSnapshot:
+            return build_clan_disk_snapshot(
+                self,
+                agent,
+                in_memory,
+                sections=requested,
+                slow_tool_threshold_ms=slow_tool_threshold_ms,
+            )
+
+        self._clan_section_request = request  # type: ignore[attr-defined]
+        self._clan_section_worker = run_worker(load_task, thread=True)  # type: ignore[attr-defined]
+
+    def _cancel_clan_section_worker_for_selection_change(self, agent: Agent) -> None:
+        current_worker = getattr(self, "_clan_section_worker", None)
+        if current_worker is None or not getattr(current_worker, "is_running", False):
+            return
+        current_request: _ClanSectionEnrichmentRequest | None = getattr(
+            self,
+            "_clan_section_request",
+            None,
+        )
+        if current_request is None or current_request.agent_identity != agent.identity:
+            current_worker.cancel()
 
     def _start_agent_bead_display_resolve_from_context(self, agent: Agent) -> None:
         context: _AgentDetailRenderContext | None = getattr(
@@ -348,6 +508,40 @@ class AgentDisplayWorkerMixin:
             event.worker,
             event.state,
         )
+        self._apply_clan_section_enrichment_result(event.worker, event.state)
+
+    def _apply_clan_section_enrichment_result(
+        self,
+        worker: Worker[Any],
+        state: WorkerState,
+    ) -> None:
+        current_worker = getattr(self, "_clan_section_worker", None)
+        if worker != current_worker:
+            return
+        request: _ClanSectionEnrichmentRequest | None = getattr(
+            self,
+            "_clan_section_request",
+            None,
+        )
+        if state in (WorkerState.SUCCESS, WorkerState.ERROR, WorkerState.CANCELLED):
+            self._clan_section_worker = None  # type: ignore[attr-defined]
+            if request is not None:
+                clear_clan_snapshot_loading(self, request.agent)
+        if state != WorkerState.SUCCESS or request is None:
+            return
+        if not request.is_current(
+            request.agent_identity,
+            request.generation,
+            request.attempt_view_mode,
+            request.attempt_pinned_number,
+        ):
+            return
+        disk = cast(ClanDiskSnapshot, worker.result)
+        if cache_clan_disk_snapshot(self, request.agent, disk) is None:
+            return
+        post_message = getattr(self, "post_message", None)
+        if callable(post_message):
+            post_message(ClanSectionSnapshotLoaded(request.agent_identity))
 
     def _apply_agent_detail_header_enrichment_result(
         self, worker: Worker[Any], state: WorkerState
@@ -459,3 +653,15 @@ class AgentDisplayWorkerMixin:
                 )
 
         self._update_display_impl(request.agent)  # type: ignore[attr-defined]
+
+
+def _normalize_clan_disk_sections(
+    sections: Collection[str] | object,
+) -> frozenset[ClanDiskSection]:
+    if not isinstance(sections, Collection) or isinstance(sections, (str, bytes)):
+        return frozenset()
+    return frozenset(
+        cast(ClanDiskSection, section)
+        for section in sections
+        if isinstance(section, str) and section in CLAN_DISK_SECTIONS
+    )

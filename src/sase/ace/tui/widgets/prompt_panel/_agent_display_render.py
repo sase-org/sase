@@ -30,6 +30,7 @@ from ._agent_display_content import (
     render_phase_divider,
     render_timestamp_divider,
 )
+from ._agent_clan_aggregation import get_cached_clan_section_snapshot
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
     clear_detail_header_summary_cache,
@@ -156,6 +157,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             header_text, _error_tb_syntax = build_header_text(
                 agent,
                 unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
+                clan_snapshot=get_cached_clan_section_snapshot(self, agent),
             )
             self.update(header_text)  # type: ignore[attr-defined]
             return
@@ -466,6 +468,9 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
         current_worker = getattr(self, "_agent_detail_header_worker", None)
+        if current_worker is not None and getattr(current_worker, "is_running", False):
+            current_worker.cancel()
+        current_worker = getattr(self, "_clan_section_worker", None)
         if current_worker is not None and getattr(current_worker, "is_running", False):
             current_worker.cancel()
         clear_detail_header_summary_cache(self)

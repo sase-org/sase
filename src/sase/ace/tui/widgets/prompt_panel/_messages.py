@@ -9,3 +9,11 @@ class AgentDetailHeaderEnriched(Message):
     def __init__(self, agent_identity: tuple[object, ...]) -> None:
         super().__init__()
         self.agent_identity = agent_identity
+
+
+class ClanSectionSnapshotLoaded(Message):
+    """Disk-backed clan section data refreshed for a selected clan."""
+
+    def __init__(self, agent_identity: tuple[object, ...]) -> None:
+        super().__init__()
+        self.agent_identity = agent_identity

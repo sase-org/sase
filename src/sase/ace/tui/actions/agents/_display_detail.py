@@ -23,7 +23,10 @@ from ...models._agent_clan import agent_summary_status_counts
 from ...models.agent_groups import GroupingMode
 from ...util.pump_tasks import spawn_pump_free_task
 from ...util.trace import tui_trace
-from ...widgets.prompt_panel._messages import AgentDetailHeaderEnriched
+from ...widgets.prompt_panel._messages import (
+    AgentDetailHeaderEnriched,
+    ClanSectionSnapshotLoaded,
+)
 from .._widget_visibility import set_widget_hidden, widget_has_class
 from ._display_helpers import TabName
 
@@ -252,6 +255,23 @@ class DetailMixin:
                 self._render_agent_detail_with_hints(agent_detail, current_agent)
         else:
             agent_detail.refresh_detail_header_from_cache(current_agent)
+        message.stop()
+
+    def on_clan_section_snapshot_loaded(
+        self,
+        message: ClanSectionSnapshotLoaded,
+    ) -> None:
+        """Debounce the repaint for a current clan enrichment result."""
+        current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if (
+            current_agent is None
+            or not current_agent.is_clan_container
+            or current_agent.identity != message.agent_identity
+        ):
+            return
+        self._agent_detail_debouncer.schedule(  # type: ignore[attr-defined]
+            self._fire_debounced_detail_update
+        )
         message.stop()
 
     def _should_show_agents_onboarding(self) -> bool:
