@@ -2510,7 +2510,13 @@ You can also create a snippet on the fly from the prompt save panel, opened with
 Press `Ctrl+X` in that panel to switch to snippet mode and choose which config file should store the new `ace.snippets`
 entry; `Ctrl+G Ctrl+X Ctrl+X` performs that sequence directly from the draft. In snippet mode, rows are grouped by
 source and sorted alphabetically by trigger; snippet completions elsewhere are listed in trigger order, too, for stable
-display.
+display. As soon as ACE reports the snippet as created or saved, it is available to every prompt input already open in
+the current TUI; no prompt remount or restart is needed.
+
+When `use_chezmoi` is enabled, the save panel writes the chezmoi source file first. ACE keeps that successfully written
+snippet live as session state even before deployment. Skipping or failing the optional commit/push/apply step does not
+remove it from the running TUI, but another SASE process will not see the source-only change until chezmoi is applied.
+SASE applies chezmoi from this flow only after the user confirms the optional commit-and-push action.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
 client advertises `completionItem.snippetSupport`. The server uses the editor helper operation

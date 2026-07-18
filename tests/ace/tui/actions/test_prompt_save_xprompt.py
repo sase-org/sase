@@ -6,6 +6,7 @@ import asyncio
 import subprocess
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml  # type: ignore[import-untyped]
@@ -27,6 +28,7 @@ from sase.ace.tui.modals import (
 from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
+from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
 from sase.xprompt.save import SaveTargetFormat
 
@@ -39,6 +41,7 @@ class _SaveHarness(PromptBarSaveXpromptMixin):
         self.git_offers: list[tuple[str, bool, str, str]] = []
         self._user_snippets: dict[str, str] = {}
         self._snippets_cache: dict[str, str] | None = None
+        self._pending_snippet_saves: dict[str, str] = {}
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -65,6 +68,7 @@ class _CommitHarness(PromptBarSaveXpromptMixin):
         self.notifications: list[tuple[str, str | None]] = []
         self.pushed: list[tuple[object, object]] = []
         self.submitted: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        self.config_refreshes: list[str] = []
 
     def notify(self, msg: str, *, severity: str | None = None) -> None:
         self.notifications.append((msg, severity))
@@ -75,6 +79,9 @@ class _CommitHarness(PromptBarSaveXpromptMixin):
     def _submit_tracked_task(self, *args: object, **kwargs: object) -> object:
         self.submitted.append((args, kwargs))
         return object()
+
+    def _request_prompt_catalog_config_refresh(self, *, reason: str) -> None:
+        self.config_refreshes.append(reason)
 
 
 class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
@@ -88,6 +95,7 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
         self._prompt_context = None
         self._user_snippets: dict[str, str] = {}
         self._snippets_cache: dict[str, str] | None = None
+        self._pending_snippet_saves: dict[str, str] = {}
         self.save_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
 
     def compose(self) -> ComposeResult:
@@ -101,6 +109,9 @@ class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
 
     def _offer_git_commit(self, *_args: object, **_kwargs: object) -> None:
         pass
+
+    def get_snippets(self) -> dict[str, str]:
+        return self._snippets_cache or self._user_snippets
 
 
 async def _wait_save_tasks(harness: object) -> None:
@@ -327,19 +338,92 @@ async def test_unified_snippet_result_writes_only_active_pane_and_refreshes(
         frontmatter=PromptFrontmatter(),
     )
 
-    def merged() -> dict[str, object]:
-        return yaml.safe_load(config.read_text(encoding="utf-8"))
-
     with (
         patch("sase.xprompt.save_state.save_last_used_location", return_value=True),
-        patch("sase.config.load_merged_config", side_effect=merged),
     ):
         await harness._write_snippet_target(target, "beta")
 
     payload = yaml.safe_load(config.read_text(encoding="utf-8"))
     assert payload["ace"]["snippets"] == {"review": "beta"}
-    assert harness._user_snippets == {"review": "beta"}
+    assert harness._user_snippets == {}
+    assert harness._pending_snippet_saves == {"review": "beta"}
+    assert harness._snippets_cache == {"review": "beta"}
     assert harness.git_offers == [(str(config), True, "review", "snippet")]
+
+
+async def test_chezmoi_source_save_expands_in_same_mounted_prompt_before_apply(
+    tmp_path: Path,
+) -> None:
+    source_config = tmp_path / "chezmoi" / "dot_config" / "sase" / "sase.yml"
+    source_config.parent.mkdir(parents=True)
+    source_config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    target = UnifiedXPromptSaveResult(
+        mode="snippet",
+        name="welcome",
+        path=str(source_config),
+        location_path=str(source_config),
+        target_format=None,
+        entry_name="welcome",
+        display_path="chezmoi source",
+        exists=False,
+        frontmatter=PromptFrontmatter(),
+    )
+    app = _SaveFlowApp("draft")
+    app._user_snippets = {"applied": "Applied"}
+    app._snippets_cache = {
+        "applied": "Applied",
+        "xprompt": "Hello $1$0",
+    }
+
+    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+        async with app.run_test() as pilot:
+            text_area = app.query_one(PromptTextArea)
+            assert text_area.is_mounted
+
+            await app._write_snippet_target(target, "#[xprompt] from $1")
+
+            assert app._pending_snippet_saves == {"welcome": "#[xprompt] from $1"}
+            assert app._snippets_cache["applied"] == "Applied"
+            assert app._snippets_cache["xprompt"] == "Hello $1$0"
+            assert app._snippets_cache["welcome"] == "Hello $1 from $2$0"
+
+            text_area.load_text("welcome")
+            text_area.cursor_location = (0, len("welcome"))
+            with patch.object(
+                type(text_area),
+                "_ace_app",
+                new_callable=lambda: property(lambda _self: app),
+            ):
+                assert text_area._try_expand_snippet() is True
+            assert app.query_one(PromptTextArea) is text_area
+            assert text_area.text == "Hello  from "
+            await pilot.pause()
+
+
+async def test_second_save_replaces_pending_trigger_deterministically(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "sase.yml"
+    config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    target = UnifiedXPromptSaveResult(
+        mode="snippet",
+        name="review",
+        path=str(config),
+        location_path=str(config),
+        target_format=None,
+        entry_name="review",
+        display_path=str(config),
+        exists=False,
+        frontmatter=PromptFrontmatter(),
+    )
+    harness = _SaveHarness()
+
+    with patch("sase.xprompt.save_state.save_last_used_location", return_value=True):
+        await harness._write_snippet_target(target, "first")
+        await harness._write_snippet_target(target, "second")
+
+    assert harness._pending_snippet_saves == {"review": "second"}
+    assert harness._snippets_cache == {"review": "second"}
 
 
 def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
@@ -366,6 +450,83 @@ def test_commit_push_confirmation_submits_tracked_task(tmp_path: Path) -> None:
     args, kwargs = harness.submitted[0]
     assert args[:3] == ("xprompt-commit", "xprompts/review.md", str(tmp_path))
     assert kwargs["dedup_key"] == f"xprompt-commit:{tmp_path}:xprompts/review.md"
+
+
+def test_successful_snippet_commit_refreshes_config_catalog(tmp_path: Path) -> None:
+    path = tmp_path / "sase.yml"
+    path.write_text("ace: {}\n", encoding="utf-8")
+    harness = _CommitHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+            return_value=str(tmp_path),
+        ),
+        patch(
+            "sase.ace.tui.modals.xprompt_browser_helpers.has_git_changes",
+            return_value=True,
+        ),
+    ):
+        harness._offer_git_commit(
+            str(path),
+            is_new=False,
+            xprompt_name="review",
+            noun="snippet",
+            commit_type="snippet",
+        )
+        _confirm, callback = harness.pushed[0]
+        assert callable(callback)
+        callback(True)
+
+    on_complete = harness.submitted[0][1]["on_complete"]
+    assert callable(on_complete)
+    on_complete(
+        SimpleNamespace(
+            success=True,
+            message="Committed and pushed; applied chezmoi changes",
+            payload=False,
+        )
+    )
+
+    assert harness.config_refreshes == ["snippet_commit_apply"]
+
+
+def test_failed_or_skipped_snippet_commit_does_not_refresh_catalog(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "sase.yml"
+    path.write_text("ace: {}\n", encoding="utf-8")
+    harness = _CommitHarness()
+    with (
+        patch(
+            "sase.ace.tui.modals.xprompt_browser_helpers.get_git_root",
+            return_value=str(tmp_path),
+        ),
+        patch(
+            "sase.ace.tui.modals.xprompt_browser_helpers.has_git_changes",
+            return_value=True,
+        ),
+    ):
+        harness._offer_git_commit(
+            str(path),
+            is_new=False,
+            xprompt_name="review",
+            noun="snippet",
+            commit_type="snippet",
+        )
+        _confirm, callback = harness.pushed[0]
+        assert callable(callback)
+        callback(False)
+        assert harness.submitted == []
+
+        callback(True)
+
+    on_complete = harness.submitted[0][1]["on_complete"]
+    assert callable(on_complete)
+    on_complete(
+        SimpleNamespace(success=False, message="chezmoi apply failed", payload=False)
+    )
+
+    assert harness.config_refreshes == []
 
 
 def test_git_commit_push_worker_runs_git_sequence(tmp_path: Path) -> None:

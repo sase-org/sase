@@ -18,10 +18,12 @@ class StartupPromptCatalogMixin:
     """Mixin for memory-only prompt catalog and snippet state."""
 
     _snippets_cache: dict[str, str] | None
+    _pending_snippet_saves: dict[str, str]
     _prompt_catalog: PromptCatalogSnapshot | None
     _prompt_catalog_rebuild_in_flight: bool
     _prompt_catalog_rebuild_pending: bool
     _prompt_catalog_rebuild_pending_force: bool
+    _prompt_catalog_rebuild_pending_config_dirty: bool
     _prompt_catalog_projects: set[str | None]
     _prompt_catalog_generation: int
     _prompt_catalog_token_check_last_mono: float
@@ -132,6 +134,7 @@ class StartupPromptCatalogMixin:
         *,
         reason: str,
         force: bool = False,
+        config_dirty: bool = False,
     ) -> None:
         """Schedule a prompt catalog rebuild with last-request-wins coalescing."""
         del reason
@@ -141,16 +144,21 @@ class StartupPromptCatalogMixin:
             self._prompt_catalog_rebuild_pending_force = (
                 self._prompt_catalog_rebuild_pending_force or force
             )
+            self._prompt_catalog_rebuild_pending_config_dirty = (
+                self._prompt_catalog_rebuild_pending_config_dirty or config_dirty
+            )
             return
 
         self._prompt_catalog_rebuild_in_flight = True
         self._prompt_catalog_rebuild_pending = False
         self._prompt_catalog_rebuild_pending_force = False
+        self._prompt_catalog_rebuild_pending_config_dirty = False
         generation = self._prompt_catalog_generation
         projects = frozenset(self._prompt_catalog_projects)
+        pending_snippet_saves = dict(self._pending_snippet_saves)
         previous_token = (
             None
-            if force or self._prompt_catalog is None
+            if force or config_dirty or self._prompt_catalog is None
             else self._prompt_catalog.source_token
         )
 
@@ -159,6 +167,8 @@ class StartupPromptCatalogMixin:
                 generation,
                 projects,
                 previous_token,
+                pending_snippet_saves,
+                config_dirty,
             )
 
         try:
@@ -177,6 +187,8 @@ class StartupPromptCatalogMixin:
         generation: int,
         projects: frozenset[str | None],
         previous_source_token: tuple[Any, ...] | None,
+        pending_snippet_saves: dict[str, str],
+        config_dirty: bool,
     ) -> None:
         """Build the prompt catalog off-thread and apply it on the UI task."""
         import asyncio
@@ -190,6 +202,8 @@ class StartupPromptCatalogMixin:
                 generation=generation,
                 projects=projects,
                 previous_source_token=previous_source_token,
+                pending_snippet_saves=pending_snippet_saves,
+                config_dirty=config_dirty,
             )
         except Exception:
             log.exception("Prompt catalog rebuild failed")
@@ -209,12 +223,28 @@ class StartupPromptCatalogMixin:
 
         if self._prompt_catalog_rebuild_pending:
             pending_force = self._prompt_catalog_rebuild_pending_force
+            pending_config_dirty = self._prompt_catalog_rebuild_pending_config_dirty
             self._prompt_catalog_rebuild_pending = False
             self._prompt_catalog_rebuild_pending_force = False
+            self._prompt_catalog_rebuild_pending_config_dirty = False
             self._schedule_prompt_catalog_rebuild(
                 reason="prompt_catalog_pending",
                 force=pending_force,
+                config_dirty=pending_config_dirty,
             )
+
+    def _request_prompt_catalog_config_refresh(
+        self: Any,
+        *,
+        reason: str,
+    ) -> None:
+        """Invalidate in-flight work and request a fresh config-backed build."""
+        self._prompt_catalog_generation += 1
+        self._schedule_prompt_catalog_rebuild(
+            reason=reason,
+            force=True,
+            config_dirty=True,
+        )
 
     def _apply_prompt_catalog_snapshot(
         self: Any,
@@ -223,8 +253,12 @@ class StartupPromptCatalogMixin:
         """Publish a freshly-built prompt catalog snapshot."""
         if snapshot.generation != self._prompt_catalog_generation:
             return
+        for trigger, template in tuple(self._pending_snippet_saves.items()):
+            if snapshot.user_snippets.get(trigger) == template:
+                self._pending_snippet_saves.pop(trigger, None)
         self._prompt_catalog = snapshot
         self._prompt_catalog_assist_entries_cache = {}
+        self._user_snippets = dict(snapshot.user_snippets)
         self._snippets_cache = dict(snapshot.snippets)
         self._refresh_visible_prompt_catalog_surfaces()
 

@@ -124,11 +124,13 @@ def init_late_startup_state(
     # this on the mount path keeps the stopwatch tight.
     self._user_snippets = dict(user_snippets)
     self._snippets_cache = None
+    self._pending_snippet_saves = {}
     self._prompt_catalog = None
     self._prompt_catalog_generation = 0
     self._prompt_catalog_rebuild_in_flight = False
     self._prompt_catalog_rebuild_pending = False
     self._prompt_catalog_rebuild_pending_force = False
+    self._prompt_catalog_rebuild_pending_config_dirty = False
     self._prompt_catalog_projects = {None}
     self._prompt_catalog_token_check_last_mono = 0.0
     self._prompt_catalog_assist_entries_cache = {}
@@ -136,6 +138,7 @@ def init_late_startup_state(
     self._prompt_source_watcher_active = False
     self._prompt_source_watched_projects = set()
     self._prompt_source_debounce_timer = None
+    self._prompt_source_debounce_config_dirty = False
 
     # Build keymap registry from config
     from ..keymaps import (

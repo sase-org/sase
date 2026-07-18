@@ -39,6 +39,7 @@ class PromptCatalogSnapshot:
     generation: int
     source_token: tuple[Any, ...]
     snippets: Mapping[str, str]
+    user_snippets: Mapping[str, str]
     assist_entries_by_project: Mapping[
         str | None,
         tuple[XPromptAssistEntry, ...],
@@ -50,12 +51,19 @@ def build_prompt_catalog_snapshot(
     generation: int,
     projects: Iterable[str | None],
     previous_source_token: tuple[Any, ...] | None = None,
+    pending_snippet_saves: Mapping[str, str] | None = None,
+    config_dirty: bool = False,
 ) -> PromptCatalogSnapshot | None:
     """Build a complete prompt catalog snapshot off the UI thread.
 
     Returns ``None`` when the prompt source token has not changed. The caller
     keeps publishing the previous snapshot in that case.
     """
+    if config_dirty:
+        from sase.config.core import clear_config_cache
+
+        clear_config_cache()
+
     project_tuple = _normalize_prompt_catalog_projects(projects)
     source_token = _prompt_source_token(project_tuple)
     if previous_source_token is not None and source_token == previous_source_token:
@@ -72,14 +80,16 @@ def build_prompt_catalog_snapshot(
     merged = load_merged_config()
     ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
     raw_user_snippets = ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
+    user_snippets: dict[str, str] = {}
     if isinstance(raw_user_snippets, dict):
-        snippets.update(
-            {
-                str(key): value
-                for key, value in raw_user_snippets.items()
-                if isinstance(value, str)
-            }
-        )
+        user_snippets = {
+            str(key): value
+            for key, value in raw_user_snippets.items()
+            if isinstance(value, str)
+        }
+        snippets.update(user_snippets)
+    if pending_snippet_saves:
+        snippets.update(pending_snippet_saves)
     snippets = resolve_snippet_references(snippets)
 
     assist_entries_by_project: dict[str | None, tuple[XPromptAssistEntry, ...]] = {}
@@ -92,8 +102,19 @@ def build_prompt_catalog_snapshot(
         generation=generation,
         source_token=source_token,
         snippets=dict(snippets),
+        user_snippets=user_snippets,
         assist_entries_by_project=assist_entries_by_project,
     )
+
+
+def compose_pending_snippet_saves(
+    snippets: Mapping[str, str],
+    pending_snippet_saves: Mapping[str, str],
+) -> dict[str, str]:
+    """Overlay and resolve session-local snippet saves off the UI thread."""
+    composed = dict(snippets)
+    composed.update(pending_snippet_saves)
+    return resolve_snippet_references(composed)
 
 
 def _normalize_prompt_catalog_projects(
@@ -147,34 +168,26 @@ def prompt_source_watch_paths(projects: Iterable[str | None]) -> list[Path]:
     return list(watch_paths.values())
 
 
-def prompt_source_change_is_relevant(
-    changed_paths: Iterable[Path],
-    projects: Iterable[str | None],
-) -> bool:
-    """Return True when a watcher event touches an editable prompt source."""
-    roots = _prompt_source_roots(projects)
+def prompt_source_change_touches_config(changed_paths: Iterable[Path]) -> bool:
+    """Return whether a watcher burst may contain a merged-config edit.
+
+    This intentionally uses only path names so the UI-thread watcher callback
+    never discovers project roots, stats files, or loads configuration.  A
+    conservatively classified xprompt named ``sase.yml`` merely causes one
+    extra fresh config read in the catalog worker.
+    """
     for raw_path in changed_paths:
         path = raw_path.expanduser()
-        if _is_config_source_path(path):
+        if path == CONFIG_DIR:
             return True
-        for root in roots:
-            if _path_is_direct_prompt_source(path, root):
-                return True
-            if path == root:
-                return True
+        if path.name == "sase.yml":
+            return True
+        if path.name.startswith("sase_") and path.suffix.lower() in {
+            ".yml",
+            ".yaml",
+        }:
+            return True
     return False
-
-
-def _prompt_source_roots(projects: Iterable[str | None]) -> tuple[Path, ...]:
-    return (
-        *tuple(path.expanduser() for path in get_xprompt_search_paths()),
-        *tuple(
-            directory
-            for project in _normalize_prompt_catalog_projects(projects)
-            if project is not None
-            for directory in _project_xprompt_dirs(project)
-        ),
-    )
 
 
 def _prompt_file_tokens(dirs: Iterable[Path]) -> tuple[Any, ...]:
@@ -213,29 +226,12 @@ def _project_config_paths() -> tuple[Path, ...]:
     return resolve_project_layout(root).config.candidates
 
 
-def _is_config_source_path(path: Path) -> bool:
-    if path in _project_config_paths():
-        return True
-    if path == CONFIG_DIR:
-        return True
-    if path.parent != CONFIG_DIR:
-        return False
-    if path.name == "sase.yml":
-        return True
-    return path.name.startswith("sase_") and path.suffix.lower() in {".yml", ".yaml"}
-
-
-def _path_is_direct_prompt_source(path: Path, root: Path) -> bool:
-    if path.parent == root and path.suffix.lower() in PROMPT_SOURCE_SUFFIXES:
-        return True
-    return path.parent == root.parent and path.name == root.name
-
-
 __all__ = [
     "PROMPT_SOURCE_DEBOUNCE_S",
     "PROMPT_SOURCE_SUFFIXES",
     "PromptCatalogSnapshot",
     "build_prompt_catalog_snapshot",
-    "prompt_source_change_is_relevant",
+    "compose_pending_snippet_saves",
+    "prompt_source_change_touches_config",
     "prompt_source_watch_paths",
 ]

@@ -25,6 +25,7 @@ class StartupWatchersMixin:
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]
     _prompt_source_debounce_timer: Timer | None
+    _prompt_source_debounce_config_dirty: bool
 
     def _start_artifact_watcher(self: Any) -> None:
         """Spin up an inotify watcher on ``~/.sase/projects/`` if supported.
@@ -113,6 +114,7 @@ class StartupWatchersMixin:
         if timer is not None:
             timer.stop()
             self._prompt_source_debounce_timer = None
+        self._prompt_source_debounce_config_dirty = False
         watcher = self._prompt_source_watcher
         self._prompt_source_watcher = None
         self._prompt_source_watcher_active = False
@@ -130,12 +132,20 @@ class StartupWatchersMixin:
 
         from ..prompt_catalog import (
             PROMPT_SOURCE_DEBOUNCE_S,
-            prompt_source_change_is_relevant,
+            PROMPT_SOURCE_SUFFIXES,
+            prompt_source_change_touches_config,
         )
 
         paths = tuple(Path(path) for path in changed_paths)
-        if not prompt_source_change_is_relevant(paths, self._prompt_catalog_projects):
+        config_dirty = prompt_source_change_touches_config(paths)
+        if not config_dirty and not any(
+            not path.suffix or path.suffix.lower() in PROMPT_SOURCE_SUFFIXES
+            for path in paths
+        ):
             return
+        self._prompt_source_debounce_config_dirty = (
+            self._prompt_source_debounce_config_dirty or config_dirty
+        )
         timer = self._prompt_source_debounce_timer
         if timer is not None:
             timer.stop()
@@ -148,5 +158,10 @@ class StartupWatchersMixin:
     def _fire_prompt_source_debounce(self: Any) -> None:
         """Start one coalesced prompt catalog rebuild after source changes."""
         self._prompt_source_debounce_timer = None
+        config_dirty = self._prompt_source_debounce_config_dirty
+        self._prompt_source_debounce_config_dirty = False
         self._prompt_catalog_generation += 1
-        self._schedule_prompt_catalog_rebuild(reason="prompt_source_change")
+        self._schedule_prompt_catalog_rebuild(
+            reason="prompt_source_change",
+            config_dirty=config_dirty,
+        )

@@ -91,11 +91,13 @@ class StartupMixin(
     _last_full_sanity_refresh: float
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
+    _pending_snippet_saves: dict[str, str]
     _prompt_catalog: PromptCatalogSnapshot | None
     _prompt_catalog_generation: int
     _prompt_catalog_rebuild_in_flight: bool
     _prompt_catalog_rebuild_pending: bool
     _prompt_catalog_rebuild_pending_force: bool
+    _prompt_catalog_rebuild_pending_config_dirty: bool
     _prompt_catalog_projects: set[str | None]
     _prompt_catalog_token_check_last_mono: float
     _prompt_catalog_assist_entries_cache: dict[
@@ -106,5 +108,6 @@ class StartupMixin(
     _prompt_source_watcher_active: bool
     _prompt_source_watched_projects: set[str | None]
     _prompt_source_debounce_timer: Timer | None
+    _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings
     _slow_tool_call_threshold_ms: int

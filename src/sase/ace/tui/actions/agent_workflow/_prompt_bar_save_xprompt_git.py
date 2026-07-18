@@ -60,6 +60,7 @@ class PromptBarSaveXpromptGitMixin:
                 rel_path=rel_path,
                 message=message,
                 noun=noun,
+                refresh_config_on_success=noun == "snippet",
             )
 
         self.push_screen(  # type: ignore[attr-defined]
@@ -83,6 +84,7 @@ class PromptBarSaveXpromptGitMixin:
         rel_path: str,
         message: str,
         noun: str = "xprompt",
+        refresh_config_on_success: bool = False,
     ) -> None:
         """Run the git commit/push flow through the tracked task queue."""
 
@@ -102,6 +104,14 @@ class PromptBarSaveXpromptGitMixin:
         def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
             if completion.success:
                 self.notify(completion.message)  # type: ignore[attr-defined]
+                if refresh_config_on_success:
+                    refresh_config = getattr(
+                        self,
+                        "_request_prompt_catalog_config_refresh",
+                        None,
+                    )
+                    if callable(refresh_config):
+                        refresh_config(reason="snippet_commit_apply")
             else:
                 self.notify(  # type: ignore[attr-defined]
                     completion.message,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,8 @@ if TYPE_CHECKING:
         UnifiedXPromptSaveResult,
     )
 
+log = logging.getLogger(__name__)
+
 
 class PromptBarSaveSnippetMixin(
     PromptBarSaveXpromptTaskMixin,
@@ -22,6 +25,7 @@ class PromptBarSaveSnippetMixin(
 
     _user_snippets: dict[str, str]
     _snippets_cache: dict[str, str] | None
+    _pending_snippet_saves: dict[str, str]
 
     async def _write_snippet_target(
         self,
@@ -30,15 +34,10 @@ class PromptBarSaveSnippetMixin(
     ) -> None:
         import asyncio
 
-        from sase.config import load_merged_config
         from sase.xprompt.save_state import save_last_used_location
 
         try:
             await asyncio.to_thread(write_snippet_sync, target.path, target.name, body)
-            await asyncio.to_thread(
-                save_last_used_location, "snippet", target.location_path
-            )
-            merged = await asyncio.to_thread(load_merged_config)
         except Exception as exc:
             self.notify(  # type: ignore[attr-defined]
                 f"Failed to save snippet: {exc}",
@@ -46,11 +45,23 @@ class PromptBarSaveSnippetMixin(
             )
             return
 
+        try:
+            await asyncio.to_thread(
+                save_last_used_location, "snippet", target.location_path
+            )
+        except Exception as exc:
+            log.warning("Failed to remember snippet save location", exc_info=True)
+            self.notify(  # type: ignore[attr-defined]
+                f"Saved snippet, but failed to remember its location: {exc}",
+                severity="warning",
+            )
+
+        await self._publish_saved_snippet(target.name, body)
+
         verb = "Saved" if target.exists else "Created"
         self.notify(  # type: ignore[attr-defined]
             f"{verb} snippet '{target.name}' in {target.display_path}"
         )
-        self._refresh_snippet_caches(merged)
         self._offer_git_commit(
             target.path,
             is_new=not target.exists,
@@ -59,24 +70,55 @@ class PromptBarSaveSnippetMixin(
             commit_type="snippet",
         )
 
-    def _refresh_snippet_caches(self, merged: object) -> None:
-        """Apply an already-loaded merged config to the in-memory caches."""
-        ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
-        raw = ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
-        if isinstance(raw, dict):
-            self._user_snippets = {
-                key: value
-                for key, value in raw.items()
-                if isinstance(key, str) and isinstance(value, str)
-            }
-        else:
-            self._user_snippets = {}
-        self._snippets_cache = None
+    async def _publish_saved_snippet(self, trigger: str, template: str) -> None:
+        """Publish a durable save immediately, ahead of config convergence."""
+        import asyncio
+
+        from ...prompt_catalog import compose_pending_snippet_saves
+
+        pending = getattr(self, "_pending_snippet_saves", None)
+        if pending is None:
+            pending = {}
+            self._pending_snippet_saves = pending
+        pending[trigger] = template
         if hasattr(self, "_prompt_catalog_generation"):
             self._prompt_catalog_generation += 1
         schedule_rebuild = getattr(self, "_schedule_prompt_catalog_rebuild", None)
         if callable(schedule_rebuild):
-            schedule_rebuild(reason="snippet_save", force=True)
+            schedule_rebuild(
+                reason="snippet_save",
+                force=True,
+                config_dirty=True,
+            )
+
+        while True:
+            generation = getattr(self, "_prompt_catalog_generation", None)
+            base = (
+                self._snippets_cache
+                if self._snippets_cache is not None
+                else self._user_snippets
+            )
+            base_snapshot = dict(base)
+            pending_snapshot = dict(self._pending_snippet_saves)
+            composed = await asyncio.to_thread(
+                compose_pending_snippet_saves,
+                base_snapshot,
+                pending_snapshot,
+            )
+            if generation != getattr(self, "_prompt_catalog_generation", None):
+                continue
+            if pending_snapshot != self._pending_snippet_saves:
+                continue
+            self._snippets_cache = composed
+            break
+
+        refresh_surfaces = getattr(
+            self,
+            "_refresh_visible_prompt_catalog_surfaces",
+            None,
+        )
+        if callable(refresh_surfaces):
+            refresh_surfaces()
 
 
 def existing_snippet_names(config_path: str) -> set[str]:

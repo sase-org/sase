@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
+from typing import Any
 
 from sase.ace.tui import prompt_catalog
 from sase.ace.tui.actions._startup_prompt_catalog import StartupPromptCatalogMixin
+from sase.ace.tui.actions._startup_watchers import StartupWatchersMixin
 from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
 from sase.xprompt.models import XPrompt
 
@@ -59,43 +63,6 @@ def test_prompt_source_token_changes_for_project_file(
     after = prompt_catalog._prompt_source_token(["sase"])
 
     assert before != after
-
-
-def test_prompt_source_change_filter_matches_only_catalog_sources(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    config_dir = tmp_path / "config"
-    xprompt_dir = tmp_path / ".xprompts"
-    project_dir = config_dir / "xprompts" / "sase"
-    config_dir.mkdir()
-    xprompt_dir.mkdir()
-    project_dir.mkdir(parents=True)
-    monkeypatch.setattr(prompt_catalog, "CONFIG_DIR", config_dir)
-    monkeypatch.setattr(
-        prompt_catalog, "get_xprompt_search_paths", lambda: [xprompt_dir]
-    )
-
-    assert prompt_catalog.prompt_source_change_is_relevant(
-        [xprompt_dir / "review.md"],
-        ["sase"],
-    )
-    assert prompt_catalog.prompt_source_change_is_relevant(
-        [project_dir / "ship.yaml"],
-        ["sase"],
-    )
-    assert prompt_catalog.prompt_source_change_is_relevant(
-        [config_dir / "sase.yml"],
-        ["sase"],
-    )
-    assert not prompt_catalog.prompt_source_change_is_relevant(
-        [tmp_path / "README.md"],
-        ["sase"],
-    )
-    assert not prompt_catalog.prompt_source_change_is_relevant(
-        [config_dir / "notes.txt"],
-        ["sase"],
-    )
 
 
 def test_build_prompt_catalog_snapshot_short_circuits_unchanged_token(
@@ -154,6 +121,7 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
         generation=2,
         projects=[None],
         previous_source_token=None,
+        pending_snippet_saves={"combo": "#[review] + #[user]"},
     )
 
     assert snapshot is not None
@@ -161,8 +129,67 @@ def test_build_prompt_catalog_snapshot_merges_xprompt_and_user_snippets(
     assert snapshot.snippets == {
         "review": "Review this$0",
         "user": "User body$0",
+        "combo": "Review this + User body$0",
     }
+    assert snapshot.user_snippets == {"user": "User body$0"}
     assert snapshot.assist_entries_by_project[None][0].name == "review"
+
+
+def test_config_dirty_build_invalidates_warm_merged_config(monkeypatch) -> None:
+    state = {"fresh": False}
+    monkeypatch.setattr(
+        prompt_catalog,
+        "_prompt_source_token",
+        lambda _projects: ("fresh",) if state["fresh"] else ("stale",),
+    )
+    monkeypatch.setattr(prompt_catalog, "get_all_xprompts", lambda project=None: {})
+    monkeypatch.setattr(
+        prompt_catalog,
+        "build_xprompt_assist_entries",
+        lambda project=None: [],
+    )
+
+    import sase.config
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "clear_config_cache",
+        lambda: state.__setitem__("fresh", True),
+    )
+    monkeypatch.setattr(
+        sase.config,
+        "load_merged_config",
+        lambda: {
+            "ace": {
+                "snippets": {
+                    "saved": "new" if state["fresh"] else "old",
+                }
+            }
+        },
+    )
+
+    snapshot = prompt_catalog.build_prompt_catalog_snapshot(
+        generation=3,
+        projects=[None],
+        previous_source_token=("stale",),
+        config_dirty=True,
+    )
+
+    assert snapshot is not None
+    assert snapshot.user_snippets == {"saved": "new"}
+    assert snapshot.snippets == {"saved": "new"}
+
+
+def test_compose_pending_snippet_saves_preserves_existing_and_resolves_refs() -> None:
+    composed = prompt_catalog.compose_pending_snippet_saves(
+        {"xprompt": "Existing $1$0", "user": "User"},
+        {"saved": "#[xprompt] then $1"},
+    )
+
+    assert composed["xprompt"] == "Existing $1$0"
+    assert composed["user"] == "User"
+    assert composed["saved"] == "Existing $1 then $2$0"
 
 
 def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() -> None:
@@ -178,6 +205,7 @@ def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() 
         generation=1,
         source_token=("first",),
         snippets={},
+        user_snippets={},
         assist_entries_by_project={None: (_entry("review"),)},
     )
     app._prompt_catalog_assist_entries_cache = {}
@@ -191,6 +219,7 @@ def test_app_prompt_catalog_returns_stable_assist_list_until_snapshot_changes() 
         generation=2,
         source_token=("second",),
         snippets={},
+        user_snippets={},
         assist_entries_by_project={None: (_entry("ship"),)},
     )
     app._prompt_catalog_assist_entries_cache = {}
@@ -214,6 +243,7 @@ def test_exact_warm_catalog_does_not_fallback_to_default_project() -> None:
         generation=1,
         source_token=("first",),
         snippets={},
+        user_snippets={},
         assist_entries_by_project={None: (_entry("global"),)},
     )
     app._prompt_catalog_assist_entries_cache = {}
@@ -223,3 +253,153 @@ def test_exact_warm_catalog_does_not_fallback_to_default_project() -> None:
     exact_default = app.get_warm_prompt_catalog_assist_entries_exact(None)
     assert exact_default is not None
     assert exact_default[0].name == "global"
+
+
+def test_fresh_snapshot_retires_only_matching_pending_saves() -> None:
+    class CatalogApp(StartupPromptCatalogMixin):
+        def _refresh_visible_prompt_catalog_surfaces(self) -> None:
+            pass
+
+    app = CatalogApp()
+    app._prompt_catalog_generation = 4
+    app._pending_snippet_saves = {"applied": "body", "source_only": "later"}
+    app._prompt_catalog_assist_entries_cache = {}
+    app._user_snippets = {}
+    app._snippets_cache = {"older": "value"}
+
+    app._apply_prompt_catalog_snapshot(
+        prompt_catalog.PromptCatalogSnapshot(
+            generation=4,
+            source_token=("fresh",),
+            snippets={"applied": "body", "source_only": "later"},
+            user_snippets={"applied": "body"},
+            assist_entries_by_project={None: ()},
+        )
+    )
+
+    assert app._pending_snippet_saves == {"source_only": "later"}
+    assert app._user_snippets == {"applied": "body"}
+    assert app._snippets_cache == {"applied": "body", "source_only": "later"}
+
+
+def test_older_catalog_generation_cannot_erase_pending_save() -> None:
+    class CatalogApp(StartupPromptCatalogMixin):
+        def _refresh_visible_prompt_catalog_surfaces(self) -> None:
+            raise AssertionError("stale snapshots must not refresh widgets")
+
+    app = CatalogApp()
+    app._prompt_catalog_generation = 5
+    app._pending_snippet_saves = {"saved": "live"}
+    app._snippets_cache = {"saved": "live"}
+
+    app._apply_prompt_catalog_snapshot(
+        prompt_catalog.PromptCatalogSnapshot(
+            generation=4,
+            source_token=("old",),
+            snippets={"old": "catalog"},
+            user_snippets={"old": "catalog"},
+            assist_entries_by_project={None: ()},
+        )
+    )
+
+    assert app._snippets_cache == {"saved": "live"}
+    assert app._pending_snippet_saves == {"saved": "live"}
+
+
+async def test_catalog_rebuild_coalescing_keeps_queued_config_dirty(
+    monkeypatch,
+) -> None:
+    workers: list[Any] = []
+    dirty_calls: list[bool] = []
+
+    class CatalogApp(StartupPromptCatalogMixin):
+        def run_worker(self, worker: Any, **_kwargs: object) -> None:
+            workers.append(worker)
+
+        def notify(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+    app = CatalogApp()
+    app._prompt_catalog = None
+    app._prompt_catalog_generation = 1
+    app._prompt_catalog_projects = {None}
+    app._pending_snippet_saves = {}
+    app._prompt_catalog_rebuild_in_flight = False
+    app._prompt_catalog_rebuild_pending = False
+    app._prompt_catalog_rebuild_pending_force = False
+    app._prompt_catalog_rebuild_pending_config_dirty = False
+
+    def _build(**kwargs: object) -> None:
+        dirty_calls.append(bool(kwargs["config_dirty"]))
+        return None
+
+    monkeypatch.setattr(prompt_catalog, "build_prompt_catalog_snapshot", _build)
+
+    app._schedule_prompt_catalog_rebuild(reason="first")
+    app._schedule_prompt_catalog_rebuild(reason="watcher", config_dirty=True)
+    assert len(workers) == 1
+
+    await workers.pop(0)()
+    assert len(workers) == 1
+    await workers.pop(0)()
+
+    assert dirty_calls == [False, True]
+
+
+async def test_catalog_loading_worker_does_not_block_event_loop(monkeypatch) -> None:
+    entered = threading.Event()
+    release = threading.Event()
+
+    class CatalogApp(StartupPromptCatalogMixin):
+        def notify(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+    app = CatalogApp()
+    app._prompt_catalog_rebuild_in_flight = True
+    app._prompt_catalog_rebuild_pending = False
+    app._prompt_catalog_rebuild_pending_force = False
+    app._prompt_catalog_rebuild_pending_config_dirty = False
+
+    def _build(**_kwargs: object) -> None:
+        entered.set()
+        release.wait(timeout=1.0)
+        return None
+
+    monkeypatch.setattr(prompt_catalog, "build_prompt_catalog_snapshot", _build)
+    task = asyncio.create_task(
+        app._run_prompt_catalog_rebuild(1, frozenset({None}), None, {}, False)
+    )
+    try:
+        await asyncio.wait_for(asyncio.to_thread(entered.wait), timeout=0.5)
+        heartbeat = asyncio.Event()
+        asyncio.get_running_loop().call_soon(heartbeat.set)
+        await asyncio.wait_for(heartbeat.wait(), timeout=0.05)
+    finally:
+        release.set()
+        await task
+
+
+def test_config_watcher_burst_carries_dirty_signal_to_rebuild() -> None:
+    scheduled: list[dict[str, object]] = []
+
+    class _Timer:
+        def stop(self) -> None:
+            pass
+
+    class WatcherApp(StartupWatchersMixin):
+        def set_timer(self, *_args: object, **_kwargs: object) -> _Timer:
+            return _Timer()
+
+        def _schedule_prompt_catalog_rebuild(self, **kwargs: object) -> None:
+            scheduled.append(kwargs)
+
+    app = WatcherApp()
+    app._prompt_source_debounce_timer = None
+    app._prompt_source_debounce_config_dirty = False
+    app._prompt_catalog_generation = 1
+
+    app._on_prompt_source_change((Path("/tmp/config/sase.yml"),))
+    app._fire_prompt_source_debounce()
+
+    assert app._prompt_catalog_generation == 2
+    assert scheduled == [{"reason": "prompt_source_change", "config_dirty": True}]

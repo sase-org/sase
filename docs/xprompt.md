@@ -736,6 +736,11 @@ ace:
 `welcome` expands as `Hello $1! Welcome to $2.$0`. Positional arguments fill the referenced tabstops before the splice:
 `#[greet(World)]` or `#[greet:World]` expands as `Hello World!`.
 
+Snippets saved from the ACE prompt panel become available immediately to all prompt inputs in that running TUI. With
+`use_chezmoi` enabled, this includes a snippet written only to the chezmoi source tree: ACE keeps a session overlay
+until the applied config catches up. The optional confirmed commit/push flow applies chezmoi; saving by itself does not
+apply unconfirmed source changes.
+
 Editor clients receive the same templates through `sase lsp` when they support LSP snippets. To troubleshoot the raw
 registry, run:
 
