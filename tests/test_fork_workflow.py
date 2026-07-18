@@ -263,3 +263,62 @@ def test_embedded_clan_fork_injects_prompts_without_member_replies(
     assert "BETA_SECRET" not in expanded_prompt
     assert expanded_prompt.count("**Reply summary:**") == 2
     assert expanded_prompt.endswith("# New Query\nContinue")
+
+
+def test_embedded_tribe_fork_dispatches_to_clan_context_builder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    current_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/20260718020000"
+    current_dir.mkdir(parents=True)
+    (current_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "waiter"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    for suffix, name, prompt, reply in (
+        ("20260718022000", "review.alpha", "Alpha prompt", "ALPHA_SECRET"),
+        ("20260718023000", "review.beta", "Beta prompt", "BETA_SECRET"),
+    ):
+        chat_path = tmp_path / f"{name}.md"
+        chat_path.write_text(
+            f"## Prompt\n\n{prompt}\n\n## Response\n\n{reply}\n",
+            encoding="utf-8",
+        )
+        _write_completed_agent(
+            tmp_path,
+            suffix,
+            name,
+            response_path=chat_path,
+            meta={
+                "agent_clan": "review",
+                "agent_clan_generation": "20260718021000",
+                "clan_tribe": "epic",
+            },
+        )
+
+    fork_workflow = _load_fork_workflow()
+    parent_workflow = Workflow(
+        name="parent",
+        steps=[WorkflowStep(name="review", agent="#fork:@epic\nContinue")],
+    )
+    executor_artifacts = tmp_path / "executor-artifacts"
+    executor_artifacts.mkdir()
+    executor = WorkflowExecutor(parent_workflow, {}, str(executor_artifacts))
+
+    with patch(
+        "sase.xprompt.loader.get_all_workflows",
+        return_value={"fork": fork_workflow},
+    ):
+        expanded_prompt, _, _ = executor._expand_embedded_workflows_in_prompt(
+            "#fork:@epic\nContinue"
+        )
+
+    assert "agent clan `review`" in expanded_prompt
+    assert "Alpha prompt" in expanded_prompt
+    assert "Beta prompt" in expanded_prompt
+    assert "ALPHA_SECRET" not in expanded_prompt
+    assert "BETA_SECRET" not in expanded_prompt
+    assert expanded_prompt.endswith("# New Query\nContinue")

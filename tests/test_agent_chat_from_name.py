@@ -96,17 +96,17 @@ def test_agent_name_template_suffix_shape_resolves_latest_completed_agent(
     _write_agent(
         tmp_path,
         "20260504010101",
-        "0.cld",
+        "cld.0",
         done={"response_path": str(older_chat), "outcome": "completed"},
     )
     _write_agent(
         tmp_path,
         "20260504020202",
-        "1.cld",
+        "cld.1",
         done={"response_path": str(newer_chat), "outcome": "completed"},
     )
 
-    assert _resolve_agent_chat_path("@.cld") == str(newer_chat)
+    assert _resolve_agent_chat_path("cld.@") == str(newer_chat)
 
 
 def test_agent_name_template_excludes_current_agent(
@@ -475,5 +475,133 @@ def test_clan_and_agent_sources_preserve_parent_order(
 
     assert [(source.kind, source.name) for source in sources] == [
         ("clan", "review"),
+        ("agent", "builder"),
+    ]
+
+
+def test_tribe_fork_resolves_earliest_complete_standalone_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = _write_agent(tmp_path, "20260718020000", "waiter")
+    _write_agent(
+        tmp_path,
+        "20260718010000",
+        "old",
+        done={
+            "response_path": str(tmp_path / "old.md"),
+            "outcome": "completed",
+        },
+        meta={"tag": "epic"},
+    )
+    earliest_chat = tmp_path / "earliest.md"
+    _write_agent(
+        tmp_path,
+        "20260718022000",
+        "earliest",
+        done={"response_path": str(earliest_chat), "outcome": "completed"},
+        meta={"tag": "epic"},
+    )
+    _write_agent(
+        tmp_path,
+        "20260718024000",
+        "later",
+        done={
+            "response_path": str(tmp_path / "later.md"),
+            "outcome": "completed",
+        },
+        meta={"tag": "epic"},
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    sources = _resolve_agent_chat_sources(["@epic"])
+
+    assert [(source.kind, source.name, source.path) for source in sources] == [
+        ("agent", "earliest", str(earliest_chat))
+    ]
+
+
+def test_tribe_fork_dispatches_complete_clan_to_clan_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = _write_agent(tmp_path, "20260718020000", "waiter")
+    generation = "20260718021000"
+    first_chat = tmp_path / "first.md"
+    second_chat = tmp_path / "second.md"
+    first_dir = _write_agent(
+        tmp_path,
+        "20260718022000",
+        "review.one",
+        done={"response_path": str(first_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+            "clan_tribe": "epic",
+        },
+    )
+    second_dir = _write_agent(
+        tmp_path,
+        "20260718023000",
+        "review.two",
+        done={"response_path": str(second_chat), "outcome": "completed"},
+        meta={
+            "agent_clan": "review",
+            "agent_clan_generation": generation,
+            "clan_tribe": "epic",
+        },
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    source = _resolve_agent_chat_sources(["@epic"])[0]
+
+    assert source.kind == "clan"
+    assert source.name == "review"
+    assert source.generation == generation
+    assert source.tribe == "epic"
+    assert source.path == str(second_chat)
+    assert [
+        (member.name, member.path, member.artifact_dir) for member in source.members
+    ] == [
+        ("review.one", str(first_chat), str(first_dir)),
+        ("review.two", str(second_chat), str(second_dir)),
+    ]
+
+
+def test_tribe_fork_requires_launch_cutoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    with pytest.raises(RuntimeError, match="SASE_ARTIFACTS_DIR is not set"):
+        _resolve_agent_chat_sources(["@epic"])
+
+
+def test_mixed_tribe_and_named_fork_parents_preserve_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = _write_agent(tmp_path, "20260718020000", "waiter")
+    tribe_chat = tmp_path / "tribe.md"
+    named_chat = tmp_path / "named.md"
+    _write_agent(
+        tmp_path,
+        "20260718022000",
+        "tribe-worker",
+        done={"response_path": str(tribe_chat), "outcome": "completed"},
+        meta={"tag": "epic"},
+    )
+    _write_agent(
+        tmp_path,
+        "20260718023000",
+        "builder",
+        done={"response_path": str(named_chat), "outcome": "completed"},
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    sources = _resolve_agent_chat_sources(["@epic", "builder"])
+
+    assert [(source.kind, source.name) for source in sources] == [
+        ("agent", "tribe-worker"),
         ("agent", "builder"),
     ]

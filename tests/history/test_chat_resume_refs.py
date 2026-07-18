@@ -35,6 +35,12 @@ def test_find_resume_refs_backtick_quoted() -> None:
     assert refs[0] == ("#fork:`my agent`", "fork", "my agent")
 
 
+def test_find_resume_refs_tribe_target() -> None:
+    assert _find_resume_refs("#fork:@epic Continue") == [
+        ("#fork:@epic", "fork", "@epic")
+    ]
+
+
 def test_find_resume_refs_legacy_resume() -> None:
     """Historical chat transcripts can still contain legacy #resume refs."""
     refs = _find_resume_refs("#resume:myagent #resume_by_chat:old.md")
@@ -375,7 +381,7 @@ def test_template_suffix_resume_ref_resolves_latest_concrete_agent_chat(
         tmp_path,
         "proj",
         "20260506010101",
-        "0.cld",
+        "cld.0",
         done=True,
         outcome="completed",
         response_path=str(older_chat),
@@ -384,13 +390,17 @@ def test_template_suffix_resume_ref_resolves_latest_concrete_agent_chat(
         tmp_path,
         "proj",
         "20260506010202",
-        "1.cld",
+        "cld.1",
         done=True,
         outcome="completed",
         response_path=str(newer_chat),
     )
 
-    assert _resolve_resume_to_chat_path("fork", "@.cld") == str(newer_chat)
+    assert _resolve_resume_to_chat_path("fork", "cld.@") == str(newer_chat)
+
+
+def test_tribe_resume_ref_is_left_for_prompt_sanitization() -> None:
+    assert _resolve_resume_to_chat_path("fork", "@epic") is None
 
 
 def test_fork_by_chat_expansion() -> None:

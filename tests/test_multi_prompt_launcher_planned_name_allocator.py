@@ -37,6 +37,16 @@ def test_tribe_wait_plans_neutral_auto_name(tmp_path: Path) -> None:
     assert env_value == "0"
 
 
+def test_tribe_fork_plans_neutral_auto_name(tmp_path: Path) -> None:
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        name, env_value = allocator.planned_name_for_prompt("#fork:@epic\nContinue")
+
+    assert name == "0"
+    assert env_value == "0"
+
+
 def test_tribe_wait_is_not_rewritten_as_template(tmp_path: Path) -> None:
     allocator = PlannedNameAllocator()
 

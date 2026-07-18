@@ -150,6 +150,19 @@ def _resolve_resume_to_chat_path(xprompt_name: str, argument: str) -> str | None
             return resolved
         return path if os.path.exists(path) else None
 
+    if xprompt_name == "fork":
+        try:
+            from sase.core.agent_tribe import parse_tribe_reference
+
+            if parse_tribe_reference(argument) is not None:
+                # Historical recursive expansion has no launching-agent cutoff.
+                # The outer fork source already carries the resolved context;
+                # leave this ref for prompt sanitization instead of treating it
+                # as an agent-name template.
+                return None
+        except ValueError:
+            return None
+
     # fork/resume — resolve via agent name
     try:
         from sase.agent.names import resolve_resume_agent_name

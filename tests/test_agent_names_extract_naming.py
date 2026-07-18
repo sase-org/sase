@@ -216,6 +216,20 @@ class TestExtractDirectivesImplicitForkWait:
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
 
+    def test_tribe_fork_implies_tribe_wait_and_neutral_name(
+        self, tmp_path: Path
+    ) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=False,
+                prompt="expanded prompt",
+                raw_resolved_prompt="#fork:@epic do stuff",
+            )
+        assert result["meta"].get("wait_for") == ["@epic"]
+        assert result["info"].wait_names == ["@epic"]
+        assert result["info"].name == "0"
+
     def test_multi_parent_fork_waits_for_every_parent(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(

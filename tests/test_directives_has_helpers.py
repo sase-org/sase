@@ -125,6 +125,10 @@ def test_has_deferred_start_directive_absent() -> None:
     assert has_deferred_start_directive("#resume:foo do something") is False
 
 
+def test_has_deferred_start_directive_detects_tribe_fork() -> None:
+    assert has_deferred_start_directive("#fork:@epic do something") is True
+
+
 def test_has_deferred_start_directive_plain_prompt() -> None:
     """Returns False when no deferred-start syntax is present."""
     assert has_deferred_start_directive("Just a plain prompt") is False

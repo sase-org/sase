@@ -58,8 +58,10 @@ def agent_name_allocation_lock() -> Iterator[None]:
 
 def first_resume_agent_name(prompt: str | None) -> str | None:
     """Return the first parent for callers that explicitly want first-only behavior."""
-    for _kind, args in _iter_reference_arg_groups(prompt):
+    for kind, args in _iter_reference_arg_groups(prompt):
         if args:
+            if kind == "fork" and _is_tribe_reference(args[0]):
+                return args[0]
             return _resolve_fork_agent_reference(args[0])
     return None
 
@@ -83,6 +85,8 @@ def sole_resume_agent_name(prompt: str | None) -> str | None:
 
     parents = _resolved_fork_agent_names(groups)
     if len(parents) == 1:
+        if _is_tribe_reference(parents[0]):
+            return None
         return parents[0]
     return None
 
@@ -303,10 +307,19 @@ def _resolved_fork_agent_names(
         if kind != "fork":
             continue
         for arg in args:
-            name = _resolve_fork_agent_reference(arg)
+            name = (
+                arg if _is_tribe_reference(arg) else _resolve_fork_agent_reference(arg)
+            )
             if name not in resolved:
                 resolved.append(name)
     return resolved
+
+
+def _is_tribe_reference(name: str) -> bool:
+    """Return whether *name* is a validated next-entity tribe target."""
+    from sase.core.agent_tribe import parse_tribe_reference
+
+    return parse_tribe_reference(name) is not None
 
 
 def _resolve_fork_agent_reference(name: str) -> str:

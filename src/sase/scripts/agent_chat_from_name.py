@@ -21,6 +21,14 @@ from sase.agent.names import (
     resolve_agent_name_template_reference,
     resolve_resume_agent_name,
 )
+from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+from sase.core.agent_tribe import parse_tribe_reference
+from sase.core.paths import sase_projects_dir
+from sase.core.wait_dependency_resolution import (
+    TribeCandidate,
+    WaitDependencyIndex,
+    read_json_dict,
+)
 
 
 @dataclass(frozen=True)
@@ -154,6 +162,8 @@ def _normalize_name(name: str | None) -> str | None:
     stripped = name.strip()
     if not stripped:
         return None
+    if parse_tribe_reference(stripped) is not None:
+        return stripped
     if is_agent_name_template(stripped):
         return _resolve_template_name_excluding_current_agent(stripped)
     return resolve_agent_name_template_reference(stripped)
@@ -184,6 +194,10 @@ def _resolve_default_agent_name() -> str:
 
 def _resolve_fork_source(name: str) -> _ForkSource:
     """Resolve *name* to an agent transcript or a complete clan generation."""
+    tribe = parse_tribe_reference(name)
+    if tribe is not None:
+        return _resolve_tribe_fork_source(name, tribe)
+
     clan = find_agent_clan(name)
     if clan is None:
         source = _ForkSource(
@@ -224,6 +238,88 @@ def _resolve_fork_source(name: str) -> _ForkSource:
         tribe=_resolve_clan_tribe(clan),
         members=tuple(members),
     )
+
+
+def _resolve_tribe_fork_source(reference: str, tribe: str) -> _ForkSource:
+    """Resolve a tribe ref to the wait side's canonical next complete entity.
+
+    The implied wait normally makes an unresolved result unreachable. Rebuilding
+    the all-project index here preserves the wait check's entity aggregation and
+    earliest-launch ordering when the fork workflow starts after the barrier.
+    """
+    current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not current_artifacts_dir:
+        raise RuntimeError(
+            f"Cannot resolve tribe fork target {reference!r}: "
+            "SASE_ARTIFACTS_DIR is not set"
+        )
+
+    current = Path(current_artifacts_dir).expanduser().resolve(strict=False)
+    candidate = _build_all_projects_wait_index().tribe_candidate(
+        tribe,
+        newer_than=current.name,
+        exclude_artifact_dir=current,
+    )
+    if candidate is None:
+        raise RuntimeError(
+            f"No completed @{tribe} entity launched after {current.name}"
+        )
+    return _fork_source_from_tribe_candidate(candidate)
+
+
+def _build_all_projects_wait_index() -> WaitDependencyIndex:
+    """Build the same cross-project artifact index used by wait-check chops."""
+    projects_dir = sase_projects_dir()
+    index = WaitDependencyIndex.empty()
+    if not projects_dir.exists():
+        return index
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        for artifact_dir in iter_agent_artifact_dirs(
+            project_dir.name,
+            "ace-run",
+            projects_root=projects_dir,
+        ):
+            meta = read_json_dict(artifact_dir / "agent_meta.json")
+            if meta is not None:
+                index.add(artifact_dir, meta, project_name=project_dir.name)
+    return index
+
+
+def _fork_source_from_tribe_candidate(candidate: TribeCandidate) -> _ForkSource:
+    """Project a selected wait candidate into the fork workflow source wire."""
+    if candidate.kind == "agent":
+        member = candidate.members[0]
+        path = _completed_response_path(member.name, Path(member.artifact_dir))
+        return _ForkSource(kind="agent", name=member.name, path=path)
+
+    members = tuple(
+        _ForkClanMemberSource(
+            name=member.name,
+            path=_completed_response_path(member.name, Path(member.artifact_dir)),
+            artifact_dir=member.artifact_dir,
+        )
+        for member in sorted(candidate.members, key=lambda item: item.timestamp)
+    )
+    newest_member = max(members, key=lambda member: Path(member.artifact_dir).name)
+    return _ForkSource(
+        kind="clan",
+        name=candidate.name,
+        path=newest_member.path,
+        generation=candidate.generation,
+        tribe=candidate.tribe,
+        members=members,
+    )
+
+
+def _completed_response_path(name: str, artifact_dir: Path) -> str:
+    path = _read_json_string_field(artifact_dir / "done.json", "response_path")
+    if path is None:
+        raise RuntimeError(f"No agent with chat history found for: {name}")
+    _validate_readable_transcript(name, path)
+    return path
 
 
 def _resolve_clan_tribe(clan: AgentClan) -> str | None:

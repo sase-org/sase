@@ -17,6 +17,7 @@ from sase.agent.names import (
     resolve_resume_agent_name,
     sole_resume_agent_name,
 )
+from sase.core.agent_tribe import InvalidTagError
 
 from tests._agent_names_fixtures import make_agent as _make_agent
 
@@ -69,6 +70,24 @@ class TestResumeAgentNames:
     def test_single_parent_remains_the_sole_naming_parent(self) -> None:
         assert fork_agent_names("#fork:planner") == ["planner"]
         assert sole_resume_agent_name("#fork:planner") == "planner"
+
+    @pytest.mark.parametrize(
+        "prompt",
+        ["#fork:@epic", "#fork(@epic)", "#fork:`@epic`"],
+    )
+    def test_tribe_fork_passes_through_without_naming_parent(self, prompt: str) -> None:
+        assert fork_agent_names(prompt) == ["@epic"]
+        assert first_fork_agent_name(prompt) == "@epic"
+        assert sole_resume_agent_name(prompt) is None
+
+    def test_tribe_fork_mixes_with_named_parent(self) -> None:
+        assert fork_agent_names("#fork:@epic,builder") == ["@epic", "builder"]
+        assert sole_resume_agent_name("#fork:@epic,builder") is None
+
+    @pytest.mark.parametrize("reference", ["#fork:@", "#fork:@bad+name"])
+    def test_malformed_tribe_fork_is_rejected(self, reference: str) -> None:
+        with pytest.raises(InvalidTagError):
+            fork_agent_names(reference)
 
     def test_first_fork_finds_colon_paren_and_backtick(self) -> None:
         assert first_fork_agent_name("#fork:foo do work") == "foo"
@@ -147,11 +166,11 @@ class TestResumeAgentNames:
     def test_template_suffix_resume_reference_resolves_latest_concrete_name(
         self, tmp_path: Path
     ) -> None:
-        _make_agent(tmp_path, "proj", "run1", "0.cld")
-        _make_agent(tmp_path, "proj", "run2", "1.cld")
+        _make_agent(tmp_path, "proj", "run1", "cld.0")
+        _make_agent(tmp_path, "proj", "run2", "cld.1")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            assert first_resume_agent_name("#fork:@.cld do work") == "1.cld"
+            assert first_resume_agent_name("#fork:cld.@ do work") == "cld.1"
 
     def test_allocates_first_resume_slot(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):

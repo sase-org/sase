@@ -38,6 +38,12 @@ def test_sanitize_strips_directives_refs_and_jinja() -> None:
     assert not result.startswith(" ")
 
 
+def test_sanitize_strips_tribe_fork_reference() -> None:
+    result = _sanitize_resume_prompt("#fork:@epic Continue from the result.")
+
+    assert result == "Continue from the result."
+
+
 def test_sanitize_preserves_fenced_code() -> None:
     """%, #, and {{ }} inside fenced code blocks are preserved verbatim."""
     prompt = (

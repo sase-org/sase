@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 
 
@@ -146,6 +148,13 @@ def test_launch_multi_prompt_wait_segments_get_unique_artifacts(
     assert calls[2].kwargs["prompt"].startswith("%wait:0.w0")
 
 
+@pytest.mark.parametrize(
+    ("prompt", "planned_name"),
+    [
+        ("#fork:foo\nReview", "foo.f0"),
+        ("#fork:@epic\nReview", "0"),
+    ],
+)
 @patch("sase.agent.launcher.spawn_agent_subprocess")
 @patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
 @patch("sase.core.time.generate_timestamp")
@@ -165,15 +174,17 @@ def test_launch_multi_prompt_fork_reference_defers_workspace(
     mock_wait: MagicMock,
     mock_spawn: MagicMock,
     tmp_path: Path,
+    prompt: str,
+    planned_name: str,
 ) -> None:
-    """A bare #fork:<name> launch should not claim a numbered workspace."""
+    """An explicit fork target should not claim a numbered workspace."""
     mock_timestamp.return_value = "260501_120000"
     mock_wait.return_value = "alpha"
     mock_spawn.return_value = MagicMock(pid=1)
 
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
-            segments=["#fork:foo\nReview"],
+            segments=[prompt],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -186,7 +197,7 @@ def test_launch_multi_prompt_fork_reference_defers_workspace(
     assert kwargs["workspace_num"] == 0
     assert kwargs["workspace_dir"] == "/ws/main"
     assert kwargs["deferred_workspace"] is True
-    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "foo.f0"
+    assert kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == planned_name
     mock_claim_ws.assert_not_called()
     mock_ws_dir.assert_not_called()
     mock_create_artifacts.assert_not_called()
