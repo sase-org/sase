@@ -21,7 +21,10 @@ from sase.project_display_names import humanize_cl_name
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
-from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .._agent_list_styling import (
+    _AGENT_NAME_ANNOTATION_STYLE,
+    _FAMILY_NAME_STYLE,
+)
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_plan_section import ResponsivePlanSection
@@ -249,7 +252,12 @@ def build_header_text(
     header_text.append("Name: ", style="bold #87D7FF")
     presented_name = agent.presented_agent_name or agent.agent_name
     if presented_name:
-        header_text.append(f"{presented_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
+        name_style = (
+            _FAMILY_NAME_STYLE
+            if agent.is_family_container_row
+            else _AGENT_NAME_ANNOTATION_STYLE
+        )
+        header_text.append(f"{presented_name}\n", style=name_style)
         # Phase identity belongs exclusively to the deferred BEAD context lane.
         # The cold path remains memory-only and omits that lane until its typed
         # summary arrives. Non-phase compatibility rows still use only cached

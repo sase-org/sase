@@ -229,7 +229,7 @@ def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None
         panel_tag=None,
     )
 
-    assert rendered.plain == "(RUNNING) ◫ research @epic @review"
+    assert rendered.plain == "(RUNNING) research ◫ @epic @review"
     assert rendered.plain.count("@epic") == 1
 
 

@@ -91,7 +91,70 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         ".second · agent · ✗ FAILED · default · 45s"
     )
     assert _style_at(detail, detail.plain.index("◫")) == ("bold #D75FFF underline")
-    assert _style_at(detail, detail.plain.index("research")) == "#FFD700"
+    assert _style_at(detail, detail.plain.index("research")) == "#D75FFF"
+
+
+def test_family_header_recolors_only_real_container_name() -> None:
+    family = _agent(
+        "research.writer",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        family="research.writer",
+    )
+    family.agent_clan = None
+    family.agent_family_role = "root"
+    family.refresh_presented_agent_name()
+    synthetic = _agent(
+        "research.writer--plan",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+        family="research.writer",
+    )
+    synthetic.is_synthetic_planner = True
+    family.followup_agents = [synthetic]
+
+    lone_header, _ = build_header_text(family, cheap=True)
+
+    assert isinstance(lone_header, Text)
+    assert _style_at(lone_header, lone_header.plain.index("research.writer")) == (
+        "#FFD700"
+    )
+
+    member = _agent(
+        "research.writer--code",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+        family="research.writer",
+    )
+    family.followup_agents.append(member)
+
+    family_header, _ = build_header_text(family, cheap=True)
+
+    assert isinstance(family_header, Text)
+    assert (
+        _style_at(
+            family_header,
+            family_header.plain.index("research.writer"),
+        )
+        == "#00AFFF"
+    )
+
+    ordinary = _agent(
+        "research.reader",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 3, 0),
+    )
+    ordinary.agent_clan = None
+    ordinary_header, _ = build_header_text(ordinary, cheap=True)
+
+    assert isinstance(ordinary_header, Text)
+    assert (
+        _style_at(
+            ordinary_header,
+            ordinary_header.plain.index("research.reader"),
+        )
+        == "#FFD700"
+    )
 
 
 def test_clan_header_uses_same_unread_aggregate_as_list_row() -> None:

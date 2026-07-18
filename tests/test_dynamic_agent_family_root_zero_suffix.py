@@ -169,7 +169,7 @@ def test_plan_chain_family_is_unaffected() -> None:
 
     row_text, _, _ = format_agent_option(plan_root, 0, is_selected=False)
     header, _ = build_header_text(plan_root, cheap=True)
-    assert row_text.plain.endswith(" foo")
+    assert row_text.plain.endswith(" foo ⌘")
     assert "foo--plan" not in row_text.plain
     assert header.plain.startswith("Name: foo\n")
 

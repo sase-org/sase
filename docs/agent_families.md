@@ -47,13 +47,13 @@ workflow steps, and sequential families whose names stay inside the same hood.
 Killing or dismissing the synthetic clan row cascades to its live members, while acting on one member leaves the rest of
 the clan alone.
 
-ACE renders every grouping row with a trailing gold identity block. A clan is synthetic and ends with an orchid
-`◫ <name>` after its rolled-up status counts; its `@tribe` labels stay attached to that name. A real multi-member family
-root ends with an azure `⌘ <name>`, while a lone plan proposer with only its display-only planner child remains
-unbadged. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members of
-nested families; `h` collapses one level. Selecting the clan row shows an aggregate `◫ CLAN` header and a navigable
-`MEMBERS` section. The runtime is the union of member run intervals, with human-wait windows excluded, so concurrent
-members are not double-counted.
+ACE renders every grouping row with a trailing color-matched identity pair. A clan is synthetic and ends with orchid
+`<name> ◫` after its rolled-up status counts; its `@tribe` labels follow that pair. A real multi-member family root ends
+with azure `<name> ⌘`, while plain agent annotations remain gold and a lone plan proposer with only its display-only
+planner child remains unbadged. Press `l` once to reveal direct members and a second time to reveal hidden workflow
+steps and members of nested families; `h` collapses one level. Selecting the clan row shows an aggregate `◫ CLAN` header
+and a navigable `MEMBERS` section. The runtime is the union of member run intervals, with human-wait windows excluded,
+so concurrent members are not double-counted.
 
 ### Epic bead-work example
 
