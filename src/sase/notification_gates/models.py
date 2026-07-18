@@ -11,7 +11,8 @@ from typing import Any, Literal
 
 from sase.notification_gates.query import GateQueryError, parse_gate_query
 
-GATE_REQUEST_SCHEMA_VERSION = 2
+LEGACY_GATE_REQUEST_SCHEMA_VERSION = 2
+GATE_REQUEST_SCHEMA_VERSION = 3
 GATE_RESPONSE_SCHEMA_VERSION = 2
 GATE_RESULT_SCHEMA_VERSION = 2
 
@@ -447,6 +448,46 @@ def normalize_gate_structure(
     return parsed.query, options, tuple(groups), parsed.branches
 
 
+def normalize_primary_branch(
+    value: object,
+    branches: tuple[tuple[str, ...], ...],
+    *,
+    target: str = "primary_branch",
+) -> tuple[str, ...]:
+    """Validate the complete canonical branch used as a gate's primary action."""
+    if not isinstance(value, list) or not value:
+        raise GateError(
+            "invalid_primary_branch",
+            target,
+            f"{target} must be a non-empty array of option ids",
+        )
+    primary = tuple(
+        _validate_option_identifier(option_id, f"{target}[{index}]")
+        for index, option_id in enumerate(value)
+    )
+    if len(set(primary)) != len(primary):
+        raise GateError(
+            "invalid_primary_branch",
+            target,
+            f"{target} option ids must be unique",
+        )
+    matching = [branch for branch in branches if set(branch) == set(primary)]
+    if len(matching) != 1:
+        raise GateError(
+            "invalid_primary_branch",
+            target,
+            f"{target} must exactly match one complete query branch",
+        )
+    canonical = matching[0]
+    if primary != canonical:
+        raise GateError(
+            "invalid_primary_branch",
+            target,
+            f"{target} option ids must follow canonical query order",
+        )
+    return canonical
+
+
 @dataclass(frozen=True)
 class _GateOperation:
     """A non-terminal operation supported by a local gate surface."""
@@ -598,6 +639,7 @@ class GateSpec:
     options: tuple[GateOption, ...]
     groups: tuple[GateGroup, ...]
     branches: tuple[tuple[str, ...], ...]
+    primary_branch: tuple[str, ...]
     operations: tuple[_GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
@@ -613,8 +655,9 @@ class GateSpec:
             raise GateError(
                 "unsupported_schema",
                 "schema_version",
-                "schema_version must be 2; expected a v2 gate request with "
-                "query, options, and optional groups (choices/extras are unsupported)",
+                "schema_version must be 3; expected a v3 gate request with "
+                "query, options, primary_branch, and optional groups "
+                "(choices/extras are unsupported)",
             )
         _reject_unknown_fields(
             data,
@@ -631,6 +674,7 @@ class GateSpec:
                 "query",
                 "options",
                 "groups",
+                "primary_branch",
                 "operations",
                 "resources",
                 "assets",
@@ -673,6 +717,7 @@ class GateSpec:
             data.get("groups", []),
             default_feedback="optional" if kind == "custom" else "disabled",
         )
+        primary_branch = normalize_primary_branch(data.get("primary_branch"), branches)
         raw_operations = data.get("operations", [])
         if not isinstance(raw_operations, list):
             raise GateError(
@@ -719,6 +764,7 @@ class GateSpec:
             options=options,
             groups=groups,
             branches=branches,
+            primary_branch=primary_branch,
             operations=operations,
             resources=resources,
             auto=_GateAuto.from_value(data.get("auto")),

@@ -16,6 +16,7 @@ from sase.notification_gates.models import (
     GateFeedbackMode,
     GateGroup,
     GateOption,
+    normalize_primary_branch,
 )
 
 
@@ -27,6 +28,7 @@ class GateBranchData:
     options: tuple[GateOption, ...]
     groups: tuple[GateGroup, ...]
     branches: tuple[tuple[str, ...], ...]
+    primary_branch: tuple[str, ...]
 
     @classmethod
     def from_envelope(
@@ -35,11 +37,12 @@ class GateBranchData:
         *,
         default_feedback: GateFeedbackMode = "disabled",
     ) -> GateBranchData:
-        """Project an already-verified v2 envelope without re-parsing its query."""
+        """Project a verified envelope without re-parsing its canonical query."""
         query = envelope.get("query")
         raw_options = envelope.get("options")
         raw_groups = envelope.get("groups")
         raw_branches = envelope.get("branches")
+        raw_primary = envelope.get("primary_branch")
         if not isinstance(query, str) or not query:
             raise GateError("invalid_request", "query", "gate query is missing")
         if not isinstance(raw_options, list) or not raw_options:
@@ -90,11 +93,14 @@ class GateBranchData:
                 "groups",
                 "gate groups do not match the AND branches",
             )
+        normalized_branches = tuple(branches)
+        primary_branch = normalize_primary_branch(raw_primary, normalized_branches)
         return cls(
             query=query,
             options=options,
             groups=groups,
-            branches=tuple(branches),
+            branches=normalized_branches,
+            primary_branch=primary_branch,
         )
 
 
@@ -115,7 +121,7 @@ class _GateControlButton(Button):
 
 
 class GateBranchControls(VerticalScroll):
-    """Render v2 OR branches, AND toggles, and configured group submits."""
+    """Render OR branches, AND toggles, and configured group submits."""
 
     class Resolved(Message):
         """A valid branch selection activated by the reviewer."""
@@ -136,11 +142,9 @@ class GateBranchControls(VerticalScroll):
         self._groups_by_members = {
             frozenset(group.options): group for group in data.groups
         }
-        group_indices = [
-            index for index, branch in enumerate(data.branches) if len(branch) > 1
-        ]
+        self._primary_branch_index = data.branches.index(data.primary_branch)
         self._expanded_group_index = (
-            group_indices[0] if len(group_indices) == 1 else None
+            self._primary_branch_index if len(data.primary_branch) > 1 else None
         )
         self._selected_by_branch = {
             index: {
@@ -173,7 +177,16 @@ class GateBranchControls(VerticalScroll):
                             self._option_label(option),
                             branch_index=index,
                             id=f"gate-singleton-{index}",
-                            classes="gate-singleton",
+                            classes=(
+                                "gate-singleton gate-primary"
+                                if index == self._primary_branch_index
+                                else "gate-singleton"
+                            ),
+                            variant=(
+                                "success"
+                                if index == self._primary_branch_index
+                                else "default"
+                            ),
                         )
                 continue
 
@@ -210,8 +223,16 @@ class GateBranchControls(VerticalScroll):
                         self._group_label(group),
                         branch_index=branch_index,
                         id=f"gate-group-submit-{branch_index}",
-                        classes="gate-group-submit",
-                        variant="success",
+                        classes=(
+                            "gate-group-submit gate-primary"
+                            if branch_index == self._primary_branch_index
+                            else "gate-group-submit"
+                        ),
+                        variant=(
+                            "success"
+                            if branch_index == self._primary_branch_index
+                            else "default"
+                        ),
                         disabled=not self._selected_by_branch.get(branch_index),
                     )
             branch_index += 1
@@ -307,12 +328,13 @@ class GateBranchControls(VerticalScroll):
         _prefix, _gate, branch_value, option_value = (focused.id or "").split("-")
         self.toggle_option(int(branch_value), int(option_value))
 
-    def activate_focused_control(self) -> None:
+    def submit_primary_branch(self) -> None:
+        """Submit the declared primary branch without resetting its UI selection."""
         focused = self.screen.focused
         if isinstance(focused, Input) and focused.id == "gate-feedback-input":
             self._resolve_branch(self._active_branch_index)
-        elif isinstance(focused, Button) and (focused.id or "").startswith("gate-"):
-            focused.press()
+            return
+        self._resolve_branch(self._primary_branch_index)
 
     def submit_active_branch(self) -> None:
         self._resolve_branch(self._active_branch_index)

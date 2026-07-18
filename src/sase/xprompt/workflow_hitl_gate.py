@@ -40,13 +40,13 @@ def create_workflow_hitl_gate(
     output_types: Mapping[str, str] | None,
     timeout_seconds: float,
 ) -> Any:
-    """Create a v2 singleton-branch gate for a workflow review."""
+    """Create a singleton-branch gate for a workflow review."""
     option_ids = _hitl_gate_option_ids(step_type, has_output=has_output)
     from sase.notification_gates.service import create_gate
 
     return create_gate(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": "hitl",
             "request_id": f"hitl-{uuid4()}",
             "producer": {"artifacts_dir": artifacts_dir},
@@ -66,6 +66,7 @@ def create_workflow_hitl_gate(
                 "action_data": {"workflow_name": workflow_name},
             },
             "query": " OR ".join(option_ids),
+            "primary_branch": ["accept"],
             "options": [_hitl_gate_option(option_id) for option_id in option_ids],
             "resources": [
                 {

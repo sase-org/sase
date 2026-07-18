@@ -106,6 +106,7 @@ def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchDat
         options=options,
         groups=groups,
         branches=branches,
+        primary_branch=branches[0],
     )
 
 
@@ -260,7 +261,7 @@ class PlanApprovalModal(
             f"[green]{key_display_name(keys.next_control)}/"
             f"{key_display_name(keys.previous_control)}[/green]=Navigate  "
             f"[green]{key_display_name(keys.toggle_option)}[/green]=Toggle  "
-            f"[green]{key_display_name(keys.activate_control)}[/green]=Activate  "
+            f"[green]{key_display_name(keys.submit_primary)}[/green]=Submit primary  "
             f"[green]{key_display_name(keys.submit_branch)}[/green]=Submit  "
             "[green]c[/green]=Coder options  [blue]e[/blue]=Edit  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
@@ -366,8 +367,8 @@ class PlanApprovalModal(
     def action_toggle_option(self) -> None:
         self.query_one(GateBranchControls).toggle_focused_option()
 
-    def action_activate_control(self) -> None:
-        self.query_one(GateBranchControls).activate_focused_control()
+    def action_submit_primary(self) -> None:
+        self.query_one(GateBranchControls).submit_primary_branch()
 
     def action_submit_branch(self) -> None:
         self.query_one(GateBranchControls).submit_active_branch()

@@ -224,6 +224,21 @@ def _load_gate_keymaps(keymaps_cfg: dict[str, Any]) -> GateModalKeymaps:
         )
     raw_overrides = keymaps_cfg.get("gate", {})
     overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
+    legacy_activate = overrides.get("activate_control")
+    if isinstance(legacy_activate, str):
+        overrides = dict(overrides)
+        if "submit_primary" not in overrides:
+            overrides["submit_primary"] = legacy_activate
+            log.warning(
+                "Gate keymap action 'activate_control' is deprecated; treating it "
+                "as 'submit_primary'"
+            )
+        else:
+            log.warning(
+                "Gate keymap action 'activate_control' is deprecated and ignored "
+                "because 'submit_primary' is configured"
+            )
+        overrides.pop("activate_control", None)
     extra = sorted(set(overrides) - field_names)
     if extra:
         log.warning(

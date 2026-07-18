@@ -402,6 +402,7 @@ def test_create_launch_request_writes_preview_and_notification(
         "prompt": "%n(foo, reviewer)\nDo work",
     }
     assert envelope["query"] == "approve OR reject OR feedback"
+    assert envelope["primary_branch"] == ["approve"]
     assert {option["id"] for option in envelope["options"]} == {
         "approve",
         "reject",

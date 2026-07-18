@@ -54,8 +54,9 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _spec(*, kind: str = "custom") -> dict[str, object]:
+    singleton_id = "accept" if kind == "hitl" else "approve"
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "request_id": f"{kind}-ace",
         "kind": kind,
         "producer": {"agent": "test"},
@@ -70,14 +71,17 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
             "notes": ["Confirm the guarded command."],
             "preview": "preview.md",
         },
-        "query": "(approve AND audit)" if kind == "custom" else "approve",
+        "query": "(approve AND audit)" if kind == "custom" else singleton_id,
+        "primary_branch": (
+            ["approve", "audit"] if kind == "custom" else [singleton_id]
+        ),
         "options": [
             {
-                "id": "approve",
-                "label": "Approve",
+                "id": singleton_id,
+                "label": singleton_id.title(),
                 "icon": "✅",
                 "feedback": "optional" if kind == "custom" else "disabled",
-                "command": {"argv": ["commands/approve"]},
+                "command": {"argv": [f"commands/{singleton_id}"]},
                 "input_schema": {"type": "object"},
                 "result_schema": {"type": "object"},
             },
@@ -105,7 +109,7 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
         ),
         "resources": [
             {
-                "path": "commands/approve",
+                "path": f"commands/{singleton_id}",
                 "role": "command",
                 "content": (
                     "#!/usr/bin/env python3\n"
@@ -333,10 +337,10 @@ def test_neutral_hitl_loader_and_accept_alias_use_gate_choice(gate_home: Path) -
     data = _load_neutral_hitl_data(notification)
 
     assert data.input_data.step_name == "guarded work"
-    assert data.choice_ids == ("approve",)
+    assert data.choice_ids == ("accept",)
     assert (
         _neutral_hitl_choice_id(
             HITLResult(action="accept", approved=True), data.choice_ids
         )
-        == "approve"
+        == "accept"
     )

@@ -294,7 +294,7 @@ class UserQuestionModal(
         parts = ["[green]Space[/green]=Toggle", "[cyan]j[/cyan]/[cyan]k[/cyan]=Up/Down"]
         if total > 1:
             parts.append("[cyan]n[/cyan]/[cyan]p[/cyan]=Next/Prev")
-        parts.append("[bold green]S[/bold green]=Submit all")
+        parts.append("[bold green]Enter/S[/bold green]=Submit all")
         parts.append("[yellow]g[/yellow]=Global note")
         parts.append("[cyan]y[/cyan]=Copy")
         parts.append("[cyan]d[/cyan]=Debug")
@@ -635,7 +635,9 @@ class UserQuestionModal(
         if event.key == "enter" and not self._input_mode:
             # Only handle Enter when SelectionList has focus (not OptionList)
             focused = self.app.focused
-            if isinstance(focused, OptionList):
+            if isinstance(focused, OptionList) and not isinstance(
+                focused, SelectionList
+            ):
                 # Let the OptionList handle it (question list selection)
                 return
             self._save_current_answer()

@@ -296,13 +296,14 @@ def test_execute_mobile_gate_action_uses_selected_options_unchanged() -> None:
     )
     gate = create_gate(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": "custom",
             "request_id": "mobile-custom",
             "producer": {"agent": "test"},
             "payload": {},
             "presentation": {"icon": "📱", "notes": ["Confirm mobile action"]},
             "query": "(approve AND audit)",
+            "primary_branch": ["approve", "audit"],
             "options": [
                 {
                     "id": "approve",

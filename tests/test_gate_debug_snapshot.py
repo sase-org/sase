@@ -45,7 +45,7 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> dict:
     value: dict = {
-        "schema_version": 2,
+        "schema_version": 3,
         "request_id": request_id,
         "kind": "custom",
         "producer": {"agent": "debug-producer", "machine": "test-host"},
@@ -58,6 +58,7 @@ def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> di
             "files": ["preview.md"],
         },
         "query": "approve",
+        "primary_branch": ["approve"],
         "options": [
             {
                 "id": "approve",
@@ -118,6 +119,7 @@ def test_pending_snapshot_includes_integrity_options_pending_and_raw_row(
     assert [resource.integrity for resource in snapshot.resources] == ["ok", "ok"]
     assert "✓" in snapshot.overview.body
     assert "approve: Approve" in snapshot.overview.body
+    assert "Primary: approve" in snapshot.overview.body
     assert "available" in snapshot.overview.body
     assert f'"id": "{notification.id}"' in snapshot.row.body
 

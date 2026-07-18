@@ -171,7 +171,7 @@ _GATE_BINDING_META: tuple[tuple[str, str], ...] = (
     ("next_control", "Next control"),
     ("previous_control", "Previous control"),
     ("toggle_option", "Toggle option"),
-    ("activate_control", "Activate"),
+    ("submit_primary", "Submit primary"),
     ("submit_branch", "Submit"),
 )
 
@@ -466,7 +466,7 @@ class GateModalKeymaps:
     next_control: str = "j"
     previous_control: str = "k"
     toggle_option: str = "space"
-    activate_control: str = "enter"
+    submit_primary: str = "enter"
     submit_branch: str = "ctrl+s"
 
 

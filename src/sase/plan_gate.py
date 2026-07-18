@@ -105,7 +105,7 @@ def _build_plan_gate_spec(
     option_ids = plan_gate_option_ids(tier)
     plan_name = plan_file.name
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": "plan" if tier == "tale" else "epic_plan",
         "request_id": session_id,
         "producer": {
@@ -142,6 +142,11 @@ def _build_plan_gate_spec(
             "action_data": action_data,
         },
         "query": plan_gate_query(tier),
+        "primary_branch": (
+            [PLAN_APPROVE_OPTION_ID]
+            if tier == "epic"
+            else [PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID]
+        ),
         "options": [
             _plan_gate_option(option_id, tier=tier) for option_id in option_ids
         ],
@@ -411,7 +416,12 @@ def execute_plan_gate_auto_choice(
     envelope, adapter = load_and_verify_bundle(bundle_path)
     raw_options = envelope.get("options")
     raw_branches = envelope.get("branches")
-    if not isinstance(raw_options, list) or not isinstance(raw_branches, list):
+    raw_primary = envelope.get("primary_branch")
+    if (
+        not isinstance(raw_options, list)
+        or not isinstance(raw_branches, list)
+        or not isinstance(raw_primary, list)
+    ):
         raise GateError(
             "invalid_request", str(bundle_path / "request.json"), "options are missing"
         )
@@ -424,11 +434,13 @@ def execute_plan_gate_auto_choice(
         for branch in raw_branches
         if isinstance(branch, list)
     )
+    primary_branch = tuple(str(option_id) for option_id in raw_primary)
     spec = cast(
         GateSpec,
         SimpleNamespace(
             options=options,
             branches=branches,
+            primary_branch=primary_branch,
             payload=envelope.get("payload", {}),
         ),
     )

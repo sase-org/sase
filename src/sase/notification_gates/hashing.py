@@ -13,8 +13,10 @@ from sase.notification_gates.durability import (
 )
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
+    LEGACY_GATE_REQUEST_SCHEMA_VERSION,
     GateError,
     normalize_gate_structure,
+    normalize_primary_branch,
     validate_identifier,
     validate_relative_path,
 )
@@ -29,11 +31,15 @@ def load_and_verify_bundle(
     owned_root = assert_owned_bundle(bundle_path)
     request_path = owned_root / "request.json"
     envelope = read_json_object(request_path)
-    if envelope.get("schema_version") != GATE_REQUEST_SCHEMA_VERSION:
+    schema_version = envelope.get("schema_version")
+    if schema_version not in {
+        LEGACY_GATE_REQUEST_SCHEMA_VERSION,
+        GATE_REQUEST_SCHEMA_VERSION,
+    }:
         raise GateError(
             "unsupported_schema",
             "schema_version",
-            f"schema_version must be {GATE_REQUEST_SCHEMA_VERSION}",
+            "schema_version must be 2 or 3",
         )
     kind = validate_identifier(envelope.get("kind"), "kind")
     request_id = validate_identifier(envelope.get("request_id"), "request_id")
@@ -128,7 +134,14 @@ def load_and_verify_bundle(
             "groups",
             "stored groups do not match the query's AND branches",
         )
-    return envelope, adapter
+    primary_branch = (
+        branches[0]
+        if schema_version == LEGACY_GATE_REQUEST_SCHEMA_VERSION
+        else normalize_primary_branch(envelope.get("primary_branch"), branches)
+    )
+    projected = dict(envelope)
+    projected["primary_branch"] = list(primary_branch)
+    return projected, adapter
 
 
 __all__ = ["load_and_verify_bundle"]

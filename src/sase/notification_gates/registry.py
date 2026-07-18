@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.notification_gates.models import (
+    GATE_REQUEST_SCHEMA_VERSION,
     GateError,
     GateOption,
     GateSpec,
@@ -48,7 +49,7 @@ class GateAdapter:
                     "auto.argument",
                     f"unsupported {self.kind} auto argument: {argument}",
                 )
-            return _default_branch_selection(spec.branches[0], by_id)
+            return _default_branch_selection(spec.primary_branch, by_id)
 
         allowed = {
             "plan": {None, "", "plan", "tale"},
@@ -60,21 +61,7 @@ class GateAdapter:
                 "auto.argument",
                 f"unsupported {self.kind} auto argument: {argument}",
             )
-        preferred = ("approve",) if self.kind == "plan" else ("approve", "epic")
-        for option_id in preferred:
-            branch = next(
-                (branch for branch in spec.branches if option_id in branch),
-                None,
-            )
-            if branch is not None:
-                defaults = set(_default_branch_selection(branch, by_id))
-                defaults.add(option_id)
-                return tuple(member for member in branch if member in defaults)
-        raise GateError(
-            "invalid_auto_selection",
-            "options",
-            f"{self.kind} auto resolution requires an approval option",
-        )
+        return _default_branch_selection(spec.primary_branch, by_id)
 
     def apply_side_effects(
         self, *, bundle_path: Path, response: Mapping[str, Any]
@@ -311,6 +298,12 @@ def registered_gate_kinds() -> tuple[str, ...]:
 
 def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     """Validate cross-field ownership and adapter invariants."""
+    if spec.schema_version != GATE_REQUEST_SCHEMA_VERSION:
+        raise GateError(
+            "unsupported_schema",
+            "schema_version",
+            f"new gate requests require schema_version {GATE_REQUEST_SCHEMA_VERSION}",
+        )
     resource_paths = [resource.path for resource in spec.resources]
     _reject_duplicates(resource_paths, "resources", "resource path")
     reserved_roots = {
@@ -450,6 +443,20 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         _validate_question_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         _validate_plan_spec(spec, adapter)
+    expected_primary = {
+        "plan": ("approve", "commit"),
+        "epic_plan": ("approve",),
+        "question": ("submit",),
+        "launch": ("approve",),
+        "hitl": ("accept",),
+    }.get(adapter.kind)
+    if expected_primary is not None and spec.primary_branch != expected_primary:
+        raise GateError(
+            "invalid_primary_branch",
+            "primary_branch",
+            f"{adapter.kind} gates require primary branch: "
+            + ", ".join(expected_primary),
+        )
     if spec.auto.enabled:
         adapter.resolve_auto_selection(spec, spec.auto.argument)
         adapter.automatic_input(spec)

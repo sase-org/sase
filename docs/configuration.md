@@ -360,10 +360,11 @@ All TUI keybindings are configurable. The `keymaps` section has four scopes:
 | `next_control`     | `j`      | Focus the next branch control.                   |
 | `previous_control` | `k`      | Focus the previous branch control.               |
 | `toggle_option`    | `space`  | Toggle the focused option in an AND group.       |
-| `activate_control` | `enter`  | Activate the focused option, group, or button.   |
+| `submit_primary`   | `enter`  | Submit the gate's declared primary branch.       |
 | `submit_branch`    | `ctrl+s` | Submit the currently active branch and feedback. |
 
-Gate keys are scoped to the active modal and may overlap app-level bindings.
+Gate keys are scoped to the active modal and may overlap app-level bindings. `activate_control` remains accepted as a
+deprecated alias for `submit_primary`.
 
 **`telemetry`** — Bindings active only while the Admin Center Telemetry pane is focused. The available actions are:
 
@@ -2265,7 +2266,7 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 
 ### `sase gate`
 
-Create a durable command-backed gate from a schema-version 2 JSON specification, or wait mechanically for a gate's
+Create a durable command-backed gate from a schema-version 3 JSON specification, or wait mechanically for a gate's
 terminal result.
 
 | Form               | Flags                                               | Description                                               |
@@ -2273,10 +2274,11 @@ terminal result.
 | `sase gate create` | `-s/--sender`, `-t/--tag`                           | Create a durable gate from a JSON specification on stdin  |
 | `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout` | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout |
 
-Gate creation accepts one option `query`, an `options` list with configurable labels, icons, default selections, and
-feedback modes, plus optional `groups` metadata for AND-branch submit controls. It returns a stable JSON descriptor with
-the request identity, owned paths, continuation/auto state, and hashes. `sase gate wait -j` emits `status`,
-`selected_option_ids`, `feedback`, and `response_path`; a CLI timeout can shorten but not extend the request timeout.
+Gate creation accepts one option `query`, a required complete `primary_branch`, an `options` list with configurable
+labels, icons, default selections, and feedback modes, plus optional `groups` metadata for AND-branch submit controls.
+It returns a stable JSON descriptor with the request identity, owned paths, continuation/auto state, and hashes.
+`sase gate wait -j` emits `status`, `selected_option_ids`, `feedback`, and `response_path`; a CLI timeout can shorten
+but not extend the request timeout.
 
 ### `sase lsp`
 

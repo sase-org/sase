@@ -13,6 +13,8 @@ import pytest
 from sase.main.gate_handler import handle_gate_command
 from sase.main.notify_handler import handle_notify_command
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.durability import request_sha256
+from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import resolve_action_bundle
 from sase.notification_gates.poller import poll_gate, wait_for_gate
@@ -53,6 +55,7 @@ def _gate_spec(
     auto: object = False,
     timeout: float | None = None,
 ) -> dict[str, object]:
+    option_id = "accept" if kind == "hitl" else "approve"
     script = command or (
         "#!/usr/bin/env python3\n"
         "import json, sys\n"
@@ -60,7 +63,7 @@ def _gate_spec(
         "print(json.dumps({'status': 'ok', 'input': value}))\n"
     )
     spec: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "request_id": request_id,
         "kind": kind,
         "producer": {"agent": "test"},
@@ -72,12 +75,13 @@ def _gate_spec(
             "files": ["preview.md"],
             "preview": "preview.md",
         },
-        "query": "approve",
+        "query": option_id,
+        "primary_branch": [option_id],
         "options": [
             {
-                "id": "approve",
-                "label": "Approve",
-                "command": {"argv": ["commands/approve"]},
+                "id": option_id,
+                "label": option_id.title(),
+                "command": {"argv": [f"commands/{option_id}"]},
                 "input_schema": {"type": "object"},
                 "result_schema": {
                     "type": "object",
@@ -88,7 +92,7 @@ def _gate_spec(
         ],
         "resources": [
             {
-                "path": "commands/approve",
+                "path": f"commands/{option_id}",
                 "role": "command",
                 "content": script,
             },
@@ -122,7 +126,7 @@ def _custom_gate_spec(
     if feedback is not None:
         proceed["feedback"] = feedback
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "request_id": request_id,
         "kind": "custom",
         "producer": {"agent": "test"},
@@ -133,6 +137,7 @@ def _custom_gate_spec(
             "notes": ["Confirm guarded work"],
         },
         "query": "(proceed AND audit AND broken)",
+        "primary_branch": ["proceed", "audit", "broken"],
         "options": [
             proceed,
             {
@@ -418,6 +423,7 @@ def test_custom_gate_rejects_invalid_selections_and_disabled_feedback(
     with pytest.raises(GateError) as cross_branch:
         cross_branch_spec = _custom_gate_spec(request_id="cross-branch")
         cross_branch_spec["query"] = "proceed OR audit OR broken"
+        cross_branch_spec["primary_branch"] = ["proceed"]
         cross_branch_spec["groups"] = []
         cross_branch_result = create_gate(cross_branch_spec)
         execute_gate_selection(cross_branch_result.bundle_path, ["proceed", "audit"])
@@ -437,15 +443,13 @@ def test_execute_selection_validates_input_and_writes_response_once(
 ) -> None:
     result = create_gate(_gate_spec())
 
-    first = execute_gate_selection(result.bundle_path, ["approve"], {"reviewed": True})
-    second = execute_gate_selection(
-        result.bundle_path, ["approve"], {"reviewed": False}
-    )
+    first = execute_gate_selection(result.bundle_path, ["accept"], {"reviewed": True})
+    second = execute_gate_selection(result.bundle_path, ["accept"], {"reviewed": False})
 
     assert first.already_completed is False
     assert first.response["option_results"] == [
         {
-            "id": "approve",
+            "id": "accept",
             "result": {"status": "ok", "input": {"reviewed": True}},
         }
     ]
@@ -462,16 +466,49 @@ def test_hash_mismatch_and_malformed_output_leave_gate_answerable(
         _gate_spec(request_id="malformed", command="#!/bin/sh\nprintf 'not json'\n")
     )
     with pytest.raises(GateError, match="stdout must contain"):
-        execute_gate_selection(malformed.bundle_path, ["approve"])
+        execute_gate_selection(malformed.bundle_path, ["accept"])
     assert not malformed.response_path.exists()
     assert list((malformed.bundle_path / "errors").glob("*.json"))
 
     changed = create_gate(_gate_spec(request_id="changed"))
     (changed.bundle_path / "preview.md").write_text("changed", encoding="utf-8")
     with pytest.raises(GateError) as excinfo:
-        execute_gate_selection(changed.bundle_path, ["approve"])
+        execute_gate_selection(changed.bundle_path, ["accept"])
     assert excinfo.value.code == "hash_mismatch"
     assert not changed.response_path.exists()
+
+
+def test_primary_branch_is_hashed_with_the_reviewed_request(gate_home: Path) -> None:
+    gate = create_gate(_custom_gate_spec(request_id="primary-hash"))
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    envelope["primary_branch"] = []
+    gate.request_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    with pytest.raises(GateError) as exc_info:
+        load_and_verify_bundle(gate.bundle_path)
+
+    assert exc_info.value.code == "hash_mismatch"
+
+
+def test_persisted_v2_bundle_projects_first_branch_and_remains_answerable(
+    gate_home: Path,
+) -> None:
+    gate = create_gate(_custom_gate_spec(request_id="legacy-v2"))
+    envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
+    envelope["schema_version"] = 2
+    envelope.pop("primary_branch")
+    envelope["hashes"]["request"] = request_sha256(envelope)
+    gate.request_path.write_text(json.dumps(envelope), encoding="utf-8")
+
+    projected, _adapter = load_and_verify_bundle(gate.bundle_path)
+
+    assert projected["schema_version"] == 2
+    assert projected["primary_branch"] == ["proceed", "audit", "broken"]
+    response = execute_gate_selection(
+        gate.bundle_path,
+        ["proceed", "audit"],
+    ).response
+    assert response["selected_option_ids"] == ["proceed", "audit"]
 
 
 def test_automatic_resolution_uses_executor_without_pending_row(
@@ -497,7 +534,7 @@ def test_automatic_resolution_uses_executor_without_pending_row(
     schema = question_response_schema(questions)
     result = create_gate(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": "question",
             "request_id": "automatic-question",
             "continuation_mode": QUESTION_CONTINUATION_MODE,
@@ -506,6 +543,7 @@ def test_automatic_resolution_uses_executor_without_pending_row(
                 "session_id": "automatic-question",
             },
             "query": "submit",
+            "primary_branch": ["submit"],
             "options": [
                 {
                     "id": "submit",

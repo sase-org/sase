@@ -33,6 +33,7 @@ class LaunchApprovalModal(
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
         ("d", "debug_view", "Debug"),
+        ("enter", "approve", "Approve"),
         ("a", "approve", "Approve"),
         ("r", "reject", "Reject"),
         ("ctrl+d", "scroll_down", "Scroll down"),
@@ -55,7 +56,7 @@ class LaunchApprovalModal(
 
     def compose(self) -> ComposeResult:
         hints = (
-            "[green]a[/green]=Approve  [red]r[/red]=Reject  "
+            "[green]Enter/a[/green]=Approve  [red]r[/red]=Reject  "
             "[cyan]d[/cyan]=Debug  [dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
         with Container(id="launch-approval-container"):

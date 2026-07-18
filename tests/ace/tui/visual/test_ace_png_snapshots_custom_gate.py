@@ -74,6 +74,7 @@ def _data(
             options=options,
             groups=groups,
             branches=branches,
+            primary_branch=branches[0],
         ),
     )
 

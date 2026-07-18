@@ -54,7 +54,8 @@ def test_agent_hitl_gate_uses_singleton_option_branches(
     )
 
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
-    assert envelope["schema_version"] == 2
+    assert envelope["schema_version"] == 3
+    assert envelope["primary_branch"] == ["accept"]
     assert envelope["query"] == "accept OR edit OR feedback OR reject"
     assert envelope["branches"] == [
         ["accept"],

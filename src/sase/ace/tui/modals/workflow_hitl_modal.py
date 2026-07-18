@@ -53,6 +53,7 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
         ("d", "debug_view", "Debug"),
+        ("enter", "accept", "Accept"),
         ("a", "accept", "Accept"),
         ("x", "reject", "Reject"),
         ("e", "edit", "Edit"),  # Agent steps only
@@ -85,7 +86,7 @@ class WorkflowHITLModal(CopyModeForwardingMixin, ModalScreen[HITLResult | None])
             self.input_data.step_type in ("bash", "python")
             and self.input_data.has_output
         )
-        hints = "[green]a[/green]=Accept  [red]x[/red]=Reject"
+        hints = "[green]Enter/a[/green]=Accept  [red]x[/red]=Reject"
         if can_edit:
             hints += "  [yellow]e[/yellow]=Edit"
         if self.input_data.step_type in ("bash", "python"):

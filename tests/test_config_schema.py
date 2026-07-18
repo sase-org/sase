@@ -71,12 +71,18 @@ def test_config_schema_accepts_scoped_gate_keymaps() -> None:
                         "next_control": "down",
                         "previous_control": "up",
                         "toggle_option": "space",
-                        "activate_control": "enter",
+                        "submit_primary": "enter",
                         "submit_branch": "ctrl+enter",
                     }
                 }
             }
         }
+    )
+
+
+def test_config_schema_accepts_deprecated_activate_control_alias() -> None:
+    Draft7Validator(_schema()).validate(
+        {"ace": {"keymaps": {"gate": {"activate_control": "f12"}}}}
     )
 
 

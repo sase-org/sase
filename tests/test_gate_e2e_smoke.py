@@ -63,7 +63,7 @@ def test_e2e_custom_gate_with_restart_verify_reject_query(
 ) -> None:
     """Exercise a custom gate end-to-end: create, resolve with partial selection, check output."""
     spec = {
-        "schema_version": 2,
+        "schema_version": 3,
         "request_id": "custom-restart",
         "kind": "custom",
         "producer": {"agent": "smoke-test"},
@@ -74,6 +74,7 @@ def test_e2e_custom_gate_with_restart_verify_reject_query(
             "notes": ["Verify restart sequence"],
         },
         "query": "(restart AND verify) OR reject",
+        "primary_branch": ["restart", "verify"],
         "options": [
             {
                 "id": "restart",

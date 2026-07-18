@@ -1,4 +1,4 @@
-"""Option-query parser and v2 model contract coverage."""
+"""Option-query parser and v3 model contract coverage."""
 
 from __future__ import annotations
 
@@ -69,9 +69,10 @@ def _spec() -> dict[str, object]:
     approve = _option("approve", "Approve")
     approve["icon"] = "✅"
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": "custom",
         "query": " approve AND commit OR reject ",
+        "primary_branch": ["approve", "commit"],
         "options": [
             approve,
             _option("commit", "Commit"),
@@ -117,6 +118,43 @@ def test_gate_spec_defaults_group_control_to_first_option() -> None:
 
 
 @pytest.mark.parametrize(
+    "primary_branch",
+    [
+        None,
+        [],
+        ["approve"],
+        ["approve", "reject"],
+        ["missing"],
+        ["approve", "approve"],
+        ["commit", "approve"],
+    ],
+)
+def test_gate_spec_rejects_invalid_primary_branch_shapes(
+    primary_branch: object,
+) -> None:
+    value = _spec()
+    if primary_branch is None:
+        value.pop("primary_branch")
+    else:
+        value["primary_branch"] = primary_branch
+
+    with pytest.raises(GateError) as exc_info:
+        GateSpec.from_mapping(value)
+
+    assert exc_info.value.code == "invalid_primary_branch"
+    assert exc_info.value.target.startswith("primary_branch")
+
+
+def test_gate_spec_accepts_a_canonical_singleton_primary_branch() -> None:
+    value = _spec()
+    value["primary_branch"] = ["reject"]
+
+    spec = GateSpec.from_mapping(value)
+
+    assert spec.primary_branch == ("reject",)
+
+
+@pytest.mark.parametrize(
     ("mutation", "code"),
     [
         (lambda value: value.update(query="approve OR missing"), "unknown_option"),
@@ -141,7 +179,7 @@ def test_gate_spec_rejects_query_option_and_group_mismatches(
     assert exc_info.value.code == code
 
 
-def test_gate_spec_rejects_v1_with_v2_shape_guidance() -> None:
+def test_gate_spec_rejects_v1_with_v3_shape_guidance() -> None:
     value = _spec()
     value["schema_version"] = 1
     value["choices"] = value.pop("options")
@@ -150,5 +188,5 @@ def test_gate_spec_rejects_v1_with_v2_shape_guidance() -> None:
         GateSpec.from_mapping(value)
 
     assert exc_info.value.code == "unsupported_schema"
-    assert "query, options, and optional groups" in str(exc_info.value)
+    assert "query, options, primary_branch, and optional groups" in str(exc_info.value)
     assert "choices/extras are unsupported" in str(exc_info.value)

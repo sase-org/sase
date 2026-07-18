@@ -1931,11 +1931,12 @@ ace:
       next_control: "down"
       previous_control: "up"
       toggle_option: "space"
-      activate_control: "enter"
+      submit_primary: "enter"
       submit_branch: "ctrl+enter"
 ```
 
-These bindings dispatch only while a branch-driven gate modal is open, and its footer shows the effective keys.
+These bindings dispatch only while a branch-driven gate modal is open, and its footer shows the effective keys. The
+retired `activate_control` setting is accepted as a deprecated alias for `submit_primary`.
 
 ### Custom Modes
 

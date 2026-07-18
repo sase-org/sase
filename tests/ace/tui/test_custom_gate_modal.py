@@ -48,6 +48,7 @@ def _data(
     options: tuple[GateOption, ...],
     branches: tuple[tuple[str, ...], ...],
     groups: tuple[GateGroup, ...] = (),
+    primary_branch: tuple[str, ...] | None = None,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
@@ -62,6 +63,7 @@ def _data(
             options=options,
             groups=groups,
             branches=branches,
+            primary_branch=primary_branch or branches[0],
         ),
     )
 
@@ -133,18 +135,57 @@ async def test_required_feedback_blocks_until_entered() -> None:
     async with _TestApp().run_test(size=(100, 34)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        modal.query_one("#gate-singleton-0", Button).press()
+        await pilot.press("enter")
         await pilot.pause()
         assert results == []
         feedback = modal.query_one("#gate-feedback-input", Input)
         feedback.value = "Please revise the rollout."
-        modal.query_one("#gate-singleton-0", Button).press()
+        await pilot.press("enter")
         await pilot.pause()
 
     assert results == [CustomGateModalResult(("revise",), "Please revise the rollout.")]
 
 
-async def test_multiple_groups_start_collapsed_and_expand_one_at_a_time() -> None:
+async def test_enter_submits_declared_primary_even_when_focus_is_elsewhere() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=(_option("cancel", icon="❌"), _option("proceed", icon="✅")),
+            branches=(("cancel",), ("proceed",)),
+            primary_branch=("proceed",),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        assert modal.query_one("#gate-singleton-0", Button).has_focus
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert results == [CustomGateModalResult(("proceed",), None)]
+
+
+async def test_ctrl_s_still_submits_the_active_non_primary_branch() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed", icon="✅"), _option("cancel", icon="❌")),
+            branches=(("proceed",), ("cancel",)),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+    assert results == [CustomGateModalResult(("cancel",), None)]
+
+
+async def test_multiple_groups_expand_primary_and_switch_one_at_a_time() -> None:
     options = tuple(_option(option_id) for option_id in ("a", "b", "c", "d"))
     modal = CustomGateModal(
         _data(
@@ -160,7 +201,7 @@ async def test_multiple_groups_start_collapsed_and_expand_one_at_a_time() -> Non
     async with _TestApp().run_test(size=(100, 36)) as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
-        assert modal.query_one("#gate-group-details-0").has_class("hidden")
+        assert not modal.query_one("#gate-group-details-0").has_class("hidden")
         assert modal.query_one("#gate-group-details-1").has_class("hidden")
 
         await pilot.click("#gate-group-expand-1")
@@ -175,5 +216,5 @@ def test_bindings_match_shared_branch_actions() -> None:
         for binding in CustomGateModal.BINDINGS
     }
     assert {"next_control", "previous_control", "toggle_option"} <= actions
-    assert {"activate_control", "submit_branch"} <= actions
+    assert {"submit_primary", "submit_branch"} <= actions
     assert "next_choice" not in actions

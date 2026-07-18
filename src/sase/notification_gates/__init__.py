@@ -3,6 +3,7 @@
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
+    LEGACY_GATE_REQUEST_SCHEMA_VERSION,
     GATE_RESPONSE_SCHEMA_VERSION,
     GATE_RESULT_SCHEMA_VERSION,
     GateCreationResult,
@@ -40,6 +41,7 @@ from sase.notification_gates.service import create_gate, refresh_gate_after_edit
 
 __all__ = [
     "GATE_REQUEST_SCHEMA_VERSION",
+    "LEGACY_GATE_REQUEST_SCHEMA_VERSION",
     "GATE_RESPONSE_SCHEMA_VERSION",
     "GATE_RESULT_SCHEMA_VERSION",
     "PRIVILEGED_GATE_ACTIONS",

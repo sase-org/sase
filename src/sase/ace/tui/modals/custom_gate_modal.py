@@ -160,8 +160,8 @@ class CustomGateModal(
     def action_toggle_option(self) -> None:
         self.query_one(GateBranchControls).toggle_focused_option()
 
-    def action_activate_control(self) -> None:
-        self.query_one(GateBranchControls).activate_focused_control()
+    def action_submit_primary(self) -> None:
+        self.query_one(GateBranchControls).submit_primary_branch()
 
     def action_submit_branch(self) -> None:
         self.query_one(GateBranchControls).submit_active_branch()
@@ -214,7 +214,7 @@ class CustomGateModal(
             f"{key_display_name(keys.next_control)}/"
             f"{key_display_name(keys.previous_control)} navigate  "
             f"{key_display_name(keys.toggle_option)} toggle  "
-            f"{key_display_name(keys.activate_control)} activate  "
+            f"{key_display_name(keys.submit_primary)} submit primary  "
             f"{key_display_name(keys.submit_branch)} submit  d debug  q cancel"
         )
 

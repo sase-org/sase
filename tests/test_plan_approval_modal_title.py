@@ -100,7 +100,7 @@ def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
         "next_control",
         "previous_control",
         "toggle_option",
-        "activate_control",
+        "submit_primary",
         "submit_branch",
     } <= actions
     assert {"approve", "tale", "epic", "reject", "feedback"}.isdisjoint(actions)
@@ -153,8 +153,8 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
             modal.query_one("#gate-option-0-1", Button).label
         )
         assert "Tale" in str(modal.query_one("#gate-group-submit-0", Button).label)
-        controls.toggle_option(0, 0)
-        modal.action_submit_branch()
+        await pilot.press("space")
+        await pilot.press("enter")
         await pilot.pause()
 
     assert len(results) == 1
@@ -162,3 +162,38 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
     assert results[0].selected_option_ids == ("commit",)
     assert results[0].commit_plan is True
     assert results[0].run_coder is False
+
+
+async def test_enter_submits_untouched_tale_primary_without_toggling(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(str(plan), default_choice="tale")
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert results[0] is not None
+    assert results[0].selected_option_ids == ("approve", "commit")
+    assert results[0].run_coder is True
+    assert results[0].commit_plan is True
+
+
+async def test_enter_submits_epic_primary(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(str(plan), default_choice="epic")
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert results[0] is not None
+    assert results[0].selected_option_ids == ("approve",)
+    assert results[0].choice == "epic"

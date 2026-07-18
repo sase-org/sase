@@ -259,7 +259,7 @@ For example, this custom gate offers a restart-and-verify group plus a separate 
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "kind": "custom",
   "request_id": "restart-api",
   "producer": { "agent": "maintenance" },
@@ -272,6 +272,7 @@ For example, this custom gate offers a restart-and-verify group plus a separate 
     "preview": "preview.md"
   },
   "query": "(restart AND verify) OR reject",
+  "primary_branch": ["restart", "verify"],
   "options": [
     {
       "id": "restart",
@@ -335,7 +336,9 @@ mutually exclusive resolution path. A singleton branch renders as one button; an
 toggles plus a submit button. The selected ids must be a non-empty subset of exactly one branch. `default_selected`
 defaults to true, and a matching `groups` entry configures an AND branch's submit label and icon. `feedback` is
 `disabled`, `optional`, or `required`; custom options default to `optional`, and a group selection uses the strongest
-mode among its selected members. Automatic resolution is forbidden for custom gates.
+mode among its selected members. Automatic resolution is forbidden for custom gates. `primary_branch` must name one
+complete branch in canonical query order. ACE submits it with Enter while Space toggles the focused AND member;
+submitting a primary group preserves the reviewer's current toggles.
 
 Every option references a bundle-owned `command` resource and is executed in query order as an argv array without a
 shell after its hash is reverified. A selected-command failure is recorded in the bundle error log and leaves the gate
@@ -404,10 +407,10 @@ See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI ref
 Each new gate is written once under `~/.sase/interaction_requests/<kind>/<request-id>/`. The bundle contains canonical
 `request.json`, eventual write-once `response.json`, reviewed previews or attachments, and adapter-owned commands. The
 request records the continuation mode, optional gate timeout, typed payload, presentation metadata and icon,
-option-query branches, options with configurable icons and feedback modes, AND-group submit metadata, input/result
-schemas, and hashes for the request and owned resources. Commands are argv arrays executed without a shell. Plan editing
-is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored tier and refreshes the reviewed
-hashes before approval can continue.
+option-query branches, the declared primary branch, options with configurable icons and feedback modes, AND-group submit
+metadata, input/result schemas, and hashes for the request and owned resources. Commands are argv arrays executed
+without a shell. Plan editing is the one non-terminal operation: after `$EDITOR` exits, SASE revalidates the authored
+tier and refreshes the reviewed hashes before approval can continue.
 
 Manual creation succeeds only after the bundle, notification row, and pending-action registration are durable. A partial
 failure is compensated, and retries are idempotent by request ID. Manual and automatic selections use the same hash,
@@ -416,13 +419,14 @@ hide remote controls but does not terminate a waiting producer. Only cancellatio
 timeout is terminal.
 
 ACE, Telegram, and mobile render branches in query order from the same normalized envelope structure. Singleton branches
-are buttons. AND branches expose one toggle per option and a configurable submit control; when there is exactly one AND
-branch it starts expanded. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the
-selected commands in query order.
+are buttons. AND branches expose one toggle per option and a configurable submit control; the primary AND branch starts
+expanded. Enter submits the declared primary branch, Space toggles its focused options, and Ctrl+S submits the active
+branch. Surfaces submit only `selected_option_ids` and feedback, and the shared executor runs the selected commands in
+query order.
 
 Tale plan approval uses `(approve AND commit) OR reject OR feedback`. The approve and commit options start selected, the
-group submit is labeled **Approve**, and the two singleton branches remain **Reject** and **Send Feedback**. Epic plans
-use `approve OR reject OR feedback`.
+group submit is labeled **Tale**, and the two singleton branches remain **Reject** and **Send Feedback**. Epic plans use
+`approve OR reject OR feedback`.
 
 The typed projections remain deliberately distinct:
 
@@ -468,6 +472,9 @@ directories. New producers do not dual-write the old trees. Keep these fallbacks
 after neutral writers ship and beyond the 24-hour remote-action stale window. The cross-kind resolver regression test
 locks this rule in; removing a fallback requires a separately announced migration after that window, updated fixtures,
 and explicit release notes.
+
+Unanswered schema-v2 neutral bundles also remain hash-verifiable and answerable. Readers project their historical first
+branch as the primary action in memory; new gate creation requires schema v3 and an explicit `primary_branch`.
 
 Question summaries use the same resolver, so ACE can render both neutral and legacy questions. Gate command execution
 from ACE is scheduled as tracked background work rather than running on Textual's event loop.

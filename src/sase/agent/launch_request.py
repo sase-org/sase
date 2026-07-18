@@ -544,7 +544,7 @@ def _launch_gate_spec(
         }
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "kind": "launch",
         "request_id": str(request["request_id"]),
         "producer": dict(request.get("requester", {})),
@@ -565,6 +565,7 @@ def _launch_gate_spec(
             },
         },
         "query": "approve OR reject OR feedback",
+        "primary_branch": ["approve"],
         "options": options,
         "resources": resources,
         "auto": False,

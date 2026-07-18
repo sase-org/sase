@@ -302,7 +302,7 @@ def test_default_config_covers_all_gate_modal_keymaps() -> None:
         "next_control": "j",
         "previous_control": "k",
         "toggle_option": "space",
-        "activate_control": "enter",
+        "submit_primary": "enter",
         "submit_branch": "ctrl+s",
     }
     assert field_names == set(defaults)

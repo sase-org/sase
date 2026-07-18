@@ -159,7 +159,18 @@ def _option_inventory(envelope: Mapping[str, Any]) -> str:
     options = envelope.get("options")
     if not isinstance(options, list) or not options:
         return "  ⚠ no readable options"
-    lines = [f"  {envelope.get('query') or '?'}"]
+    raw_primary = envelope.get("primary_branch")
+    if not isinstance(raw_primary, list) and envelope.get("schema_version") == 2:
+        raw_branches = envelope.get("branches")
+        raw_primary = (
+            raw_branches[0] if isinstance(raw_branches, list) and raw_branches else None
+        )
+    primary = (
+        ", ".join(str(option_id) for option_id in raw_primary)
+        if isinstance(raw_primary, list)
+        else "?"
+    )
+    lines = [f"  {envelope.get('query') or '?'}", f"  Primary: {primary}"]
     for value in options:
         if not isinstance(value, dict):
             lines.append("  ✗ invalid option declaration")

@@ -1,5 +1,9 @@
 """Tests for loading ace TUI keymap registries."""
 
+import logging
+
+import pytest
+
 from sase.ace.tui.keymaps import (
     BangModeKeymaps,
     CopyModeKeymaps,
@@ -75,7 +79,7 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
                     "next_control": "down",
                     "previous_control": "up",
                     "toggle_option": "t",
-                    "activate_control": "a",
+                    "submit_primary": "a",
                     "submit_branch": "s",
                 }
             }
@@ -83,6 +87,16 @@ def test_gate_modal_keys_can_be_overridden_independently() -> None:
     )
 
     assert reg.gate == GateModalKeymaps("down", "up", "t", "a", "s")
+
+
+def test_retired_activate_control_override_aliases_submit_primary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"gate": {"activate_control": "f12"}}})
+
+    assert reg.gate.submit_primary == "f12"
+    assert "deprecated" in caplog.text
 
 
 def test_leader_repeat_last_default_binding() -> None:

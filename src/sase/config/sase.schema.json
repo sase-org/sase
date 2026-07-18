@@ -386,9 +386,14 @@
                   "type": "string",
                   "description": "Toggle the focused option in an AND group"
                 },
+                "submit_primary": {
+                  "type": "string",
+                  "description": "Submit the gate's declared primary branch"
+                },
                 "activate_control": {
                   "type": "string",
-                  "description": "Activate the focused singleton, group, or submit control"
+                  "deprecated": true,
+                  "description": "Deprecated alias for submit_primary"
                 },
                 "submit_branch": {
                   "type": "string",

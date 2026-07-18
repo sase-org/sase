@@ -82,6 +82,8 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_request["kind"] == "epic_plan"
     assert tale_request["query"] == plan_gate_query("tale")
     assert epic_request["query"] == plan_gate_query("epic")
+    assert tale_request["primary_branch"] == ["approve", "commit"]
+    assert epic_request["primary_branch"] == ["approve"]
     assert tale_request["branches"] == [
         ["approve", "commit"],
         ["reject"],
@@ -534,6 +536,7 @@ def test_plan_adapter_rejects_non_registered_query_shape(
         agent_vcs_tag=None,
     )
     spec["query"] = "approve OR commit OR reject OR feedback"
+    spec["primary_branch"] = ["approve"]
     spec["groups"] = []
 
     with pytest.raises(GateError) as exc_info:

@@ -83,7 +83,7 @@ ace:
       next_control: "j"
       previous_control: "k"
       toggle_option: "space"
-      activate_control: "enter"
+      submit_primary: "enter"
       submit_branch: "ctrl+s"
     # Focused Admin Center Telemetry-pane bindings. These keys are inactive
     # everywhere else, even when they overlap app-level actions.

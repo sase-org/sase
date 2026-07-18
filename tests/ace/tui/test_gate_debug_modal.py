@@ -81,6 +81,7 @@ def _custom_data(*, feedback: str = "disabled") -> CustomGateModalData:
             options=options,
             groups=(GateGroup(("approve", "audit"), "Approve", None),),
             branches=(("approve", "audit"),),
+            primary_branch=("approve", "audit"),
         ),
     )
 

@@ -67,7 +67,7 @@ def create_user_question_gate(
 
     return create_gate(
         {
-            "schema_version": 2,
+            "schema_version": 3,
             "kind": "question",
             "request_id": session_id,
             "producer": dict(producer or {}),
@@ -83,6 +83,7 @@ def create_user_question_gate(
                 "action_data": dict(action_data or {}),
             },
             "query": QUESTION_OPTION_ID,
+            "primary_branch": [QUESTION_OPTION_ID],
             "options": [
                 {
                     "id": QUESTION_OPTION_ID,
