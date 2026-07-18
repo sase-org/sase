@@ -273,6 +273,108 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
     assert outcome.success is True
 
 
+def test_finish_agent_launch_force_reuse_wipes_every_multi_prompt_name() -> None:
+    """The worker wipes and rewrites forced names in every submitted segment."""
+    app = _SubmitLaunchBodyApp()
+    prompt = "%name:!foo\nFirst\n---\n%n:!bar\nSecond\n---\n%name:!baz\nThird"
+    rewritten = "%name:foo\nFirst\n---\n%n:bar\nSecond\n---\n%name:baz\nThird"
+    rewritten_segments = [
+        "%name:foo\nFirst",
+        "%n:bar\nSecond",
+        "%name:baz\nThird",
+    ]
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=["forced-ts"],
+            )
+        )
+        _enter_launch_body_base_patches(stack)
+        wipe_names = stack.enter_context(
+            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
+        )
+        validate_names = stack.enter_context(
+            patch("sase.agent.launch_validation.validate_launch_name_requests")
+        )
+        save_history = stack.enter_context(
+            patch("sase.history.prompt.add_or_update_prompt")
+        )
+
+        app._finish_agent_launch(prompt)
+
+        wipe_names.assert_not_called()
+        assert len(app.launch_tasks) == 1
+        assert app.launch_tasks[0]["submitted_prompt"] == prompt
+
+        outcome = app.launch_tasks[0]["task_callable"]()
+
+    wipe_names.assert_called_once_with(["foo", "bar", "baz"])
+    validate_names.assert_called_once_with(rewritten_segments)
+    save_history.assert_called_once_with(rewritten, allow_short=True)
+    assert len(app.scheduled) == 1
+    queued_multi = app.scheduled[0][1][0]
+    assert queued_multi.segments == rewritten_segments
+    assert app.scheduled[0][1][3] == rewritten
+    assert outcome.success is True
+
+
+def test_finish_agent_launch_force_reuse_split_protects_fenced_separator() -> None:
+    """A separator inside a fenced block does not create a cleanup segment."""
+    app = _SubmitLaunchBodyApp()
+    prompt = (
+        "%name:!foo\nFirst\n```text\ninside\n---\nstill inside\n```\n"
+        "---\n%name:!bar\nSecond"
+    )
+
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+                return_value=["forced-ts"],
+            )
+        )
+        _enter_launch_body_base_patches(stack)
+        wipe_names = stack.enter_context(
+            patch("sase.agent.launch_validation.wipe_names_for_forced_reuse")
+        )
+        stack.enter_context(
+            patch("sase.agent.launch_validation.validate_launch_name_requests")
+        )
+        stack.enter_context(patch("sase.history.prompt.add_or_update_prompt"))
+
+        app._finish_agent_launch(prompt)
+        outcome = app.launch_tasks[0]["task_callable"]()
+
+    wipe_names.assert_called_once_with(["foo", "bar"])
+    assert outcome.success is True
+
+
+def test_finish_agent_launch_force_reuse_early_parse_failure_falls_back() -> None:
+    """Early split failures defer to the established prompt-parse error path."""
+    app = _SubmitLaunchBodyApp()
+    prompt = (
+        "---\nxprompts:\n  badname: content\n---\n"
+        "%name:!foo\nFirst\n---\n%name:!bar\nSecond"
+    )
+
+    with (
+        patch(
+            "sase.core.agent_launch_facade.reserve_launch_timestamp_batch",
+            return_value=["forced-ts"],
+        ),
+        patch("sase.agent.launch_validation.wipe_names_for_forced_reuse") as wipe_names,
+    ):
+        app._finish_agent_launch(prompt)
+
+        with pytest.raises(ValueError, match="must start with '_'"):
+            app.launch_tasks[0]["task_callable"]()
+
+    wipe_names.assert_called_once_with(["foo"])
+    assert app.scheduled == []
+
+
 def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> None:
     """Wipe failures are task failures and record the original submitted prompt."""
     app = _SubmitLaunchBodyApp()

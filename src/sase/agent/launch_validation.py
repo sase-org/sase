@@ -123,7 +123,11 @@ def internal_agent_name_bypass_enabled(
 
 
 def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameRequest]:
-    """Return explicit ``%name`` requests from already-expanded launch prompts."""
+    """Return explicit ``%name`` requests from already-split launch segments.
+
+    Each input must be one per-segment, already-expanded prompt. Only the first
+    ``%name``/``%n`` directive in each element is considered.
+    """
     requests: list[_LaunchNameRequest] = []
     for i, prompt in enumerate(prompts):
         parsed = _extract_explicit_name(prompt)
@@ -279,7 +283,11 @@ def rewrite_force_reuse_name_directives(prompt: str) -> str:
 
 
 def force_reuse_owner_names(prompts: list[str]) -> list[str]:
-    """Return force-reuse owner names in first-seen order."""
+    """Return force-reuse owner names from already-split launch segments.
+
+    Each input must be one per-segment prompt. Only the first ``%name``/``%n``
+    directive in each element is considered.
+    """
     names: list[str] = []
     seen: set[str] = set()
     for request in _explicit_launch_name_requests(prompts):

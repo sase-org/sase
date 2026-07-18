@@ -54,8 +54,19 @@ def run_agent_launch_body(
         rewrite_force_reuse_name_directives,
         wipe_names_for_forced_reuse,
     )
+    from sase.agent.multi_prompt import parse_multi_prompt
 
-    force_reuse_names = force_reuse_owner_names([prompt])
+    force_reuse_rewritten_prompt = rewrite_force_reuse_name_directives(prompt)
+    if force_reuse_rewritten_prompt != prompt:
+        try:
+            force_reuse_prompts = parse_multi_prompt(prompt).segments
+        except Exception:
+            # Preserve the existing prompt-parse error path below. This early
+            # parse only broadens forced-reuse cleanup to every swarm segment.
+            force_reuse_prompts = [prompt]
+        force_reuse_names = force_reuse_owner_names(force_reuse_prompts)
+    else:
+        force_reuse_names = []
     if force_reuse_names:
         try:
             wipe_names_for_forced_reuse(force_reuse_names)
@@ -82,7 +93,7 @@ def run_agent_launch_body(
                     severity="error",
                 )
             )
-        prompt = rewrite_force_reuse_name_directives(prompt)
+        prompt = force_reuse_rewritten_prompt
 
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
@@ -136,7 +147,6 @@ def run_agent_launch_body(
     from sase.agent.xprompt_swarm import (
         expand_xprompt_swarms_with_metadata,
     )
-    from sase.agent.multi_prompt import parse_multi_prompt
 
     with timer.stage("prompt_parse"):
         multi = parse_multi_prompt(prompt)
