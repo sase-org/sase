@@ -20,6 +20,8 @@ from sase.plan_approval_choices import (
 from sase.plan_gate import (
     PLAN_APPROVE_OPTION_ID,
     PLAN_COMMIT_OPTION_ID,
+    PlanGateTier,
+    plan_gate_option_label,
 )
 from ..actions.clipboard import copy_to_system_clipboard
 from ..keymaps import (
@@ -50,11 +52,27 @@ _DEFAULT_GATE_KEYMAPS = GateModalKeymaps(**load_builtin_gate_defaults())
 
 def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchData:
     """Build a display-only branch model for direct/legacy modal callers."""
+    tier: PlanGateTier = "epic" if default_choice == "epic" else "tale"
     definitions: tuple[tuple[str, str, str, str], ...] = (
-        ("approve", "Approve", "✅", "disabled"),
-        ("commit", "Commit plan file to the plans sidecar", "💾", "disabled"),
-        ("reject", "Reject", "❌", "disabled"),
-        ("feedback", "Send Feedback", "💬", "required"),
+        (
+            "approve",
+            plan_gate_option_label("approve", tier=tier),
+            "✅",
+            "disabled",
+        ),
+        (
+            "commit",
+            plan_gate_option_label("commit", tier=tier),
+            "💾",
+            "disabled",
+        ),
+        ("reject", plan_gate_option_label("reject", tier=tier), "❌", "disabled"),
+        (
+            "feedback",
+            plan_gate_option_label("feedback", tier=tier),
+            "💬",
+            "required",
+        ),
     )
     if default_choice == "epic":
         definitions = tuple(item for item in definitions if item[0] != "commit")

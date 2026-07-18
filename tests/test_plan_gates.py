@@ -100,7 +100,12 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     )
     tale_approve = tale_request["options"][0]
     assert tale_approve["id"] == "approve"
+    assert tale_approve["label"] == "Launch coder agent"
     assert tale_approve["icon"] == "✅"
+    epic_approve = epic_request["options"][0]
+    assert epic_approve["id"] == "approve"
+    assert epic_approve["label"] == "Approve"
+    assert epic_approve["icon"] == "✅"
     assert tale_request["options"][1]["id"] == "commit"
     assert tale_request["options"][1]["icon"] == "💾"
     assert all(option["default_selected"] for option in tale_request["options"])

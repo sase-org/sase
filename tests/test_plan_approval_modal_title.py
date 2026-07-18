@@ -2,6 +2,7 @@
 
 from textual.app import App
 from textual.binding import Binding
+from textual.widgets import Button
 
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls
 from sase.ace.tui.modals.plan_approval_modal import (
@@ -87,6 +88,7 @@ def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
     assert modal._model == "Gemini 3.5 Flash (High)"
     assert modal._default_choice == "epic"
     assert modal._gate.branches == (("approve",), ("reject",), ("feedback",))
+    assert modal._gate.options[0].label == "Approve"
 
 
 def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
@@ -144,6 +146,10 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         await pilot.pause()
         controls = modal.query_one(GateBranchControls)
         assert controls.selected_option_ids(0) == ("approve", "commit")
+        assert "Launch coder agent" in str(
+            modal.query_one("#gate-option-0-0", Button).label
+        )
+        assert "Approve" in str(modal.query_one("#gate-group-submit-0", Button).label)
         controls.toggle_option(0, 0)
         modal.action_submit_branch()
         await pilot.pause()

@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 import pytest
 from textual.app import App
+from textual.widgets import Button
 
 from sase.ace.tui.actions.agents._notification_modals import (
     _load_neutral_plan_modal_data,
@@ -118,6 +119,10 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         assert isinstance(modal, PlanApprovalModal)
         assert modal._plan_content is not None
         assert modal._gate.branches[0] == ("approve", "commit")
+        assert "Launch coder agent" in str(
+            modal.query_one("#gate-option-0-0", Button).label
+        )
+        assert "Approve" in str(modal.query_one("#gate-group-submit-0", Button).label)
 
 
 @pytest.mark.parametrize(

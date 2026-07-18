@@ -22,7 +22,7 @@ from sase.plan_gate import (
 )
 from sase.notifications import pending_actions
 
-from tests.plan_validation_helpers import VALID_TALE_PLAN
+from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
 
 @pytest.fixture()
@@ -214,7 +214,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
     commit_opt = options[PLAN_COMMIT_OPTION_ID]
     assert approve_opt["default_selected"] is True
     assert commit_opt["default_selected"] is True
-    assert approve_opt["label"] == "Approve"
+    assert approve_opt["label"] == "Launch coder agent"
     assert commit_opt["label"] == "Commit plan file to the plans sidecar"
 
     groups = request["groups"]
@@ -232,6 +232,25 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
         exec_approve_commit.response,
     )
     assert runner_proto["action"] == "approve"
+    assert runner_proto["run_coder"] is True
+    assert runner_proto["commit_plan"] is True
+
+
+def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
+    """Verify the epic singleton remains Approve and keeps epic protocol behavior."""
+    epic_path = _write_plan(gate_home, "epic.md", VALID_EPIC_PLAN)
+    result = create_plan_approval_gate(epic_path, "e2e-epic-request")
+
+    request = json.loads(result.request_path.read_text(encoding="utf-8"))
+    options = {option["id"]: option for option in request["options"]}
+
+    assert request["query"] == "approve OR reject OR feedback"
+    assert request["groups"] == []
+    assert options[PLAN_APPROVE_OPTION_ID]["label"] == "Approve"
+
+    execution = execute_gate_selection(result.bundle_path, [PLAN_APPROVE_OPTION_ID])
+    runner_proto = translate_plan_gate_response(result.bundle_path, execution.response)
+    assert runner_proto["action"] == "epic"
     assert runner_proto["run_coder"] is True
     assert runner_proto["commit_plan"] is True
 

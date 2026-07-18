@@ -529,7 +529,7 @@ def original_plan_file_for_resource(resource_path: Path) -> Path | None:
 def _plan_gate_option(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
     return {
         "id": option_id,
-        "label": _option_label(option_id),
+        "label": plan_gate_option_label(option_id, tier=tier),
         "icon": _option_icon(option_id),
         "default_selected": True,
         "command": {"argv": [f"commands/{option_id}"]},
@@ -602,7 +602,10 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
     }
 
 
-def _option_label(option_id: str) -> str:
+def plan_gate_option_label(option_id: str, *, tier: PlanGateTier) -> str:
+    """Return the tier-aware presentation label for a plan-gate option."""
+    if tier == "tale" and option_id == PLAN_APPROVE_OPTION_ID:
+        return "Launch coder agent"
     return {
         PLAN_APPROVE_OPTION_ID: "Approve",
         PLAN_COMMIT_OPTION_ID: "Commit plan file to the plans sidecar",
@@ -639,6 +642,7 @@ __all__ = [
     "original_plan_file_from_bundle",
     "plan_context_from_envelope",
     "plan_gate_command_script",
+    "plan_gate_option_label",
     "plan_gate_option_ids",
     "plan_gate_query",
     "validate_plan_auto_argument",
