@@ -42,6 +42,29 @@ Execute the rollout.
 """
 
 
+def _epic_plan_with_phase_count(
+    phase_count: int,
+    *,
+    model: str | None = None,
+) -> str:
+    model_line = f"model: {model}\n" if model else ""
+    phase_lines = "".join(
+        f"  - id: phase_{index}\n    title: Phase {index}\n    depends_on: []\n"
+        for index in range(1, phase_count + 1)
+    )
+    return (
+        "---\n"
+        "tier: epic\n"
+        "title: Threshold preview\n"
+        "goal: Preview threshold-aware lander routing.\n"
+        f"{model_line}"
+        "phases:\n"
+        f"{phase_lines}"
+        "---\n"
+        "# Plan\n"
+    )
+
+
 @pytest.fixture(autouse=True)
 def _stable_plan_formatting(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -598,7 +621,13 @@ def test_plan_file_rollback_keeps_best_effort_push_unless_disabled(
 
 def test_plan_file_dry_run_is_pure_and_previews_waves(
     project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    monkeypatch.setattr(
+        "sase.bead.work.get_big_epic_phase_threshold",
+        lambda: 5,
+    )
     source = project_dir / "rollout.md"
     source.write_text(EPIC_PLAN, encoding="utf-8")
     before = {
@@ -612,7 +641,7 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
         dry_run=True,
         yes=False,
         no_push=False,
-        render=False,
+        render=True,
     )
 
     after = {
@@ -624,6 +653,49 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     assert result.epic_id is None
     assert result.waves == (("core",), ("cli",), ("verify",))
     assert not result.archived_plan_path.exists()
+    assert "Land    @epic_lander" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("threshold", "phase_count", "model", "expected_model"),
+    [
+        pytest.param(5, 4, None, "@epic_lander", id="default-below"),
+        pytest.param(5, 5, None, "@big_epic_lander", id="default-exact"),
+        pytest.param(5, 6, None, "@big_epic_lander", id="default-above"),
+        pytest.param(3, 2, None, "@epic_lander", id="custom-below"),
+        pytest.param(3, 3, None, "@big_epic_lander", id="custom-exact"),
+        pytest.param(3, 4, None, "@big_epic_lander", id="custom-above"),
+        pytest.param(5, 6, "claude/opus", "claude/opus", id="explicit-model"),
+    ],
+)
+def test_plan_file_preview_matches_threshold_aware_land_model(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    threshold: int,
+    phase_count: int,
+    model: str | None,
+    expected_model: str,
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.work.get_big_epic_phase_threshold",
+        lambda: threshold,
+    )
+    source = project_dir / "threshold.md"
+    source.write_text(
+        _epic_plan_with_phase_count(phase_count, model=model),
+        encoding="utf-8",
+    )
+
+    work_from_plan_file(
+        str(source),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        render=True,
+    )
+
+    assert f"Land    {expected_model}" in capsys.readouterr().out
 
 
 def test_plan_file_json_output_is_one_stable_object(

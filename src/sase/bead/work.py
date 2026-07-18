@@ -14,9 +14,11 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from sase.bead import db
+from sase.bead.config import get_big_epic_phase_threshold
 from sase.bead.model import Dependency, Issue
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.config import BIG_EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import EPIC_LANDER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import PHASE_WORKER_MODEL_ALIAS_NAME
 from sase.llm_provider.config import format_model_directive_value
@@ -216,6 +218,27 @@ def _split_rust_error(text: str) -> tuple[str, str]:
     return kind, message
 
 
+def epic_land_model_directive_value(
+    explicit_model: str | None,
+    *,
+    total_phase_count: int,
+) -> str:
+    """Return the authoritative ``%model`` value for an epic land agent.
+
+    Explicit plan models always win. Otherwise, large epics use the dedicated
+    role alias according to the merged authored-phase threshold, while smaller
+    epics retain the original epic-lander role.
+    """
+    if explicit_model:
+        return format_model_directive_value(explicit_model)
+    alias = (
+        BIG_EPIC_LANDER_MODEL_ALIAS_NAME
+        if total_phase_count >= get_big_epic_phase_threshold()
+        else EPIC_LANDER_MODEL_ALIAS_NAME
+    )
+    return role_model_directive_value(alias)
+
+
 def render_multi_prompt(
     plan: EpicWorkPlan,
     work_phase_xprompt: Workflow,
@@ -278,12 +301,11 @@ def render_multi_prompt(
     land_lines.append(f"%name:!{plan.land_agent_name}")
     land_lines.append(f"%clan:{plan.epic_id}")
     land_lines.append("%tribe:epic")
-    if plan.land_model:
-        land_model = format_model_directive_value(plan.land_model)
-        land_lines.append(f"%model:{land_model}")
-    else:
-        land_alias = role_model_directive_value(EPIC_LANDER_MODEL_ALIAS_NAME)
-        land_lines.append(f"%model:{land_alias}")
+    land_model = epic_land_model_directive_value(
+        plan.land_model,
+        total_phase_count=plan.total_phase_count,
+    )
+    land_lines.append(f"%model:{land_model}")
     land_lines.append("%auto:tale")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")

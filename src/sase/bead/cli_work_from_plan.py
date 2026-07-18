@@ -633,11 +633,17 @@ def _render_plan_preview(
     plan: Any,
     waves: tuple[tuple[str, ...], ...],
 ) -> None:
+    from sase.bead.work import epic_land_model_directive_value
+
     title_by_id = {phase.id: phase.title for phase in plan.phases}
     for index, wave in enumerate(waves, start=1):
         entries = " · ".join(f"{phase_id} {title_by_id[phase_id]}" for phase_id in wave)
         Console().print(f"  [bold]Wave {index}[/bold]  {entries}")
-    Console().print("  [bold]Land[/bold]    @epic_lander")
+    land_model = epic_land_model_directive_value(
+        plan.model,
+        total_phase_count=len(plan.phases),
+    )
+    Console().print(f"  [bold]Land[/bold]    {land_model}")
 
 
 def _render_created_beads(

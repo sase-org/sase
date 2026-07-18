@@ -347,12 +347,15 @@ Once an epic bead exists, the shared launch path:
    `done.json` outcome, a failed or killed phase keeps dependent phases and the land agent parked until the phase name
    is retried successfully. Phase beads with a stored `model` emit `%model:<value>`; phase beads without one default to
    the `%model:@phase_worker` role alias. The land agent emits `%model:<value>` when the epic plan bead has a stored
-   `model`, and otherwise defaults to the `%model:@epic_lander` role alias. Both `@phase_worker` and `@epic_lander` are
-   role aliases that fall through to `@default` unless explicitly configured under `llm_provider.model_aliases.builtin`.
-   Each phase segment and the final land-epic segment carries `%auto:tale`, so submitted implementation and landing
-   plans are auto-approved through the tale path and committed under the resolved SDD tale directory before their
-   follow-up work continues. Each segment uses the force-reuse `%name:!<agent_name>` form so re-running `sase bead work`
-   after a killed or failed run wipes the stale name owners before the relaunch — the command is safe to retry.
+   `model`. Without one, it emits `%model:@epic_lander` below `bead.big_epic_phase_threshold` and
+   `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
+   resumed work has already-closed phases. `@big_epic_lander` falls through to `@epic_lander`, and both it and
+   `@phase_worker` ultimately fall through to `@default` unless explicitly configured under
+   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries `%auto:tale`, so
+   submitted implementation and landing plans are auto-approved through the tale path and committed under the resolved
+   SDD tale directory before their follow-up work continues. Each segment uses the force-reuse `%name:!<agent_name>`
+   form so re-running `sase bead work` after a killed or failed run wipes the stale name owners before the relaunch —
+   the command is safe to retry.
 
 | Flag            | Description                                                                              |
 | --------------- | ---------------------------------------------------------------------------------------- |

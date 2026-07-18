@@ -301,6 +301,28 @@ def test_work_dry_run_renders_model_directives(
     assert out.count("%auto:tale") == 3
 
 
+def test_work_dry_run_uses_custom_big_epic_threshold(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.config.load_merged_config",
+        lambda: {"bead": {"big_epic_phase_threshold": 3}},
+    )
+    with BeadProject(project_dir) as project:
+        epic = project.create("Custom threshold epic", IssueType.PLAN)
+        for index in range(3):
+            project.create(f"P{index}", IssueType.PHASE, parent_id=epic.id)
+
+    bead_cli.handle_bead_work(make_args(epic.id, dry_run=True, yes=True))
+
+    out = capsys.readouterr().out
+    land_segment = out.split("\n---\n")[-1]
+    assert f"%name:!{epic.id}.land" in land_segment
+    assert "%model:@big_epic_lander" in land_segment
+
+
 def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

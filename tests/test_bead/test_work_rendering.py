@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
+from sase.bead.model import Status
 from sase.bead.work import (
     ChangeSpecLaunchContext,
     EpicWorkPlan,
@@ -298,6 +301,136 @@ class TestChangeSpecRendering:
 
 
 class TestModelDirective:
+    @pytest.mark.parametrize(
+        ("threshold", "phase_count", "expected_alias"),
+        [
+            pytest.param(5, 4, "@epic_lander", id="default-below"),
+            pytest.param(5, 5, "@big_epic_lander", id="default-exact"),
+            pytest.param(5, 6, "@big_epic_lander", id="default-above"),
+            pytest.param(3, 2, "@epic_lander", id="custom-below"),
+            pytest.param(3, 3, "@big_epic_lander", id="custom-exact"),
+            pytest.param(3, 4, "@big_epic_lander", id="custom-above"),
+        ],
+    )
+    def test_implicit_land_alias_uses_authored_phase_threshold(
+        self,
+        conn: sqlite3.Connection,
+        monkeypatch: pytest.MonkeyPatch,
+        threshold: int,
+        phase_count: int,
+        expected_alias: str,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.bead.work.get_big_epic_phase_threshold",
+            lambda: threshold,
+        )
+        seed(
+            conn,
+            [epic("e1"), *[phase(f"p{index}") for index in range(phase_count)]],
+        )
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        land_segment = rendered.split("\n---\n")[-1]
+        assert f"%model:{expected_alias}" in land_segment
+
+    def test_closed_phases_still_select_big_epic_lander_on_resume(
+        self,
+        conn: sqlite3.Connection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.bead.work.get_big_epic_phase_threshold",
+            lambda: 5,
+        )
+        seed(
+            conn,
+            [
+                epic("e1"),
+                phase("p1", status=Status.CLOSED),
+                phase("p2"),
+                phase("p3"),
+                phase("p4"),
+                phase("p5"),
+            ],
+        )
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert plan.total_phase_count == 5
+        assert sum(len(wave) for wave in plan.waves) == 4
+        assert "%model:@big_epic_lander" in rendered.split("\n---\n")[-1]
+
+    def test_explicit_land_model_wins_for_large_epic(
+        self,
+        conn: sqlite3.Connection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.bead.work.get_big_epic_phase_threshold",
+            lambda: 5,
+        )
+        seed(
+            conn,
+            [epic("e1", model="claude/opus"), *[phase(f"p{i}") for i in range(5)]],
+        )
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        land_segment = rendered.split("\n---\n")[-1]
+        assert "%model:claude/opus" in land_segment
+        assert "@big_epic_lander" not in land_segment
+
+    def test_big_epic_directive_resolves_configured_target(
+        self,
+        conn: sqlite3.Connection,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.bead.work.get_big_epic_phase_threshold",
+            lambda: 2,
+        )
+        config = {
+            "provider": "claude",
+            "model_aliases": {
+                "builtin": {"big_epic_lander": "codex/o3"},
+            },
+        }
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_llm_provider_config",
+            lambda: config,
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.get_llm_provider_config",
+            lambda: config,
+        )
+        seed(conn, [epic("e1"), phase("p1"), phase("p2")])
+        plan = _build_epic_work_plan(conn, "e1")
+
+        rendered = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+        )
+
+        assert "%model:@big_epic_lander" in rendered.split("\n---\n")[-1]
+        assert resolve_model_provider("@big_epic_lander") == ("codex", "o3")
+
     def test_phase_model_emits_after_clan_and_tribe_before_plan(
         self, conn: sqlite3.Connection
     ) -> None:

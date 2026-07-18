@@ -176,7 +176,10 @@ phases:
 ```
 
 On Epic approval, SASE deterministically copies the top-level model to the epic plan bead and each phase model to its
-phase bead. Omitted phase models use `@phase_worker`; an omitted top-level model uses `@epic_lander`.
+phase bead. Omitted phase models use `@phase_worker`. When the top-level model is omitted, the land agent uses
+`@epic_lander` below `bead.big_epic_phase_threshold` and `@big_epic_lander` at or above the threshold (default `5`). The
+approval preview and emitted launch prompt use this same rule. Routing counts every authored phase, including
+already-closed phases when an epic resumes, so the selected lander role stays stable throughout the epic.
 
 ### Plan Frontmatter Schema and Validation
 
