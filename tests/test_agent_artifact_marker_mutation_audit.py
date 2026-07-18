@@ -269,7 +269,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("write_text",),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/scripts/sase_chop_wait_checks.py:main": Review(
+    "src/sase/scripts/sase_chop_wait_checks.py:_run": Review(
         mutation_calls=("open", "dump"),
         exemption=(
             "Writes ready.json success markers only; waiting.json and "

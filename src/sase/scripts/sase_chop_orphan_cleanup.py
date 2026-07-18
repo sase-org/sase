@@ -1,36 +1,16 @@
 #!/usr/bin/env python3
 """Orphaned workspace claims cleanup chop script."""
 
-import argparse
+from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 
-from sase.axe.chop_script_context import (
-    load_changespecs_from_file,
-    read_chop_context,
-)
-from sase.axe.hook_jobs import HookJobRunner
-from sase.axe.state import AxeMetrics
+
+@builtin_chop("orphan_cleanup")
+def _run(runtime: BuiltinChopRuntime) -> None:
+    runtime.hook_runner.run_orphan_cleanup(runtime.all_changespecs)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--context", required=True)
-    args = parser.parse_args()
-
-    ctx = read_chop_context(args.context)
-    all_cs = load_changespecs_from_file(ctx.all_changespecs_file)
-
-    def log(message: str, style: str | None = None) -> None:
-        print(message)
-
-    runner = HookJobRunner(
-        AxeMetrics(),
-        ctx.zombie_timeout_seconds,
-        ctx.max_hook_runners,
-        ctx.max_agent_runners,
-        log,
-        verbose_diagnostics=ctx.verbose_lumberjack_diagnostics,
-    )
-    runner.run_orphan_cleanup(all_cs)
+    run_builtin_chop("orphan_cleanup")
 
 
 if __name__ == "__main__":

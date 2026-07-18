@@ -6,12 +6,12 @@ by checking if named agents have completed. Writes ready.json when all
 dependencies for a waiting agent are satisfied.
 """
 
-import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.axe.chop_script_context import read_chop_context
+from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
+from sase.chops.sdk import ChopResultBuilder
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
 from sase.core.wait_dependency_resolution import (
@@ -27,22 +27,19 @@ class _WaitingMarker:
     waiting_path: Path
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--context", required=True)
-    args = parser.parse_args()
-
-    read_chop_context(args.context)  # validate context file
-
-    def log(message: str, style: str | None = None) -> None:
-        print(message)
-
+@builtin_chop("wait_checks")
+def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     projects_dir = sase_projects_dir()
     if not projects_dir.exists():
-        log(
-            "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 reason=no_projects_dir"
+        return runtime.emit_summary(
+            {
+                "projects": 0,
+                "artifacts": 0,
+                "waiting": 0,
+                "ready_written": 0,
+            },
+            reason="no_projects_dir",
         )
-        return
 
     projects = 0
     artifacts = 0
@@ -122,7 +119,7 @@ def main() -> None:
         )
         if status.resolved:
             cl_name = data.get("cl_name", "unknown")
-            log(
+            runtime.log(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
                 f"waited on: {', '.join(waiting_for)}",
             )
@@ -140,12 +137,7 @@ def main() -> None:
         else:
             unresolved += 1
 
-    summary = (
-        "wait_checks: "
-        f"projects={projects} artifacts={artifacts} waiting={waiting_markers} "
-        f"ready_written={ready_written} already_ready={skipped_ready} "
-        f"invalid={skipped_invalid} unresolved={unresolved}"
-    )
+    reason = None
     if ready_written == 0:
         if projects == 0:
             reason = "no_project_dirs"
@@ -157,8 +149,22 @@ def main() -> None:
             reason = "waiting_markers_already_ready"
         else:
             reason = "no_ready_markers_written"
-        summary += f" reason={reason}"
-    log(summary)
+    return runtime.emit_summary(
+        {
+            "projects": projects,
+            "artifacts": artifacts,
+            "waiting": waiting_markers,
+            "ready_written": ready_written,
+            "already_ready": skipped_ready,
+            "invalid": skipped_invalid,
+            "unresolved": unresolved,
+        },
+        reason=reason,
+    )
+
+
+def main() -> None:
+    run_builtin_chop("wait_checks")
 
 
 if __name__ == "__main__":

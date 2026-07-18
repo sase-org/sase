@@ -1,32 +1,16 @@
 #!/usr/bin/env python3
 """Stale RUNNING entries cleanup chop script."""
 
-import argparse
+from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 
-from sase.axe.chop_script_context import read_chop_context
-from sase.axe.hook_jobs import HookJobRunner
-from sase.axe.state import AxeMetrics
+
+@builtin_chop("stale_running_cleanup")
+def _run(runtime: BuiltinChopRuntime) -> None:
+    runtime.hook_runner.run_stale_running_cleanup()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--context", required=True)
-    args = parser.parse_args()
-
-    ctx = read_chop_context(args.context)
-
-    def log(message: str, style: str | None = None) -> None:
-        print(message)
-
-    runner = HookJobRunner(
-        AxeMetrics(),
-        ctx.zombie_timeout_seconds,
-        ctx.max_hook_runners,
-        ctx.max_agent_runners,
-        log,
-        verbose_diagnostics=ctx.verbose_lumberjack_diagnostics,
-    )
-    runner.run_stale_running_cleanup()
+    run_builtin_chop("stale_running_cleanup")
 
 
 if __name__ == "__main__":
