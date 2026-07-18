@@ -82,6 +82,24 @@ def test_wait_arg_completion_filters_visible_agent_candidates() -> None:
     assert shared == ""
 
 
+def test_wait_arg_completion_offers_deduplicated_tribe_targets() -> None:
+    candidates, shared = build_directive_arg_completion_candidates(
+        "wait",
+        "@e",
+        agent_candidates=[
+            agent_candidate("epic.alpha", tag="@epic"),
+            agent_candidate("epic.beta", tag="@epic"),
+            agent_candidate("reviewer", tag="@review"),
+        ],
+    )
+
+    assert [candidate.insertion for candidate in candidates] == ["@epic"]
+    assert directive_arg_metadata(candidates[0]).description == (
+        "target the next agent or clan joining this tribe"
+    )
+    assert shared == ""
+
+
 def test_wait_arg_completion_ignores_time_keyword_fragment() -> None:
     candidates, shared = build_directive_arg_completion_candidates(
         "wait",

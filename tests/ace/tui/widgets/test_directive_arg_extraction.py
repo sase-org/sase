@@ -69,6 +69,16 @@ def test_wait_arg_extraction_uses_active_comma_fragment_and_alias() -> None:
     )
 
 
+def test_wait_arg_extraction_accepts_tribe_reference_prefix() -> None:
+    line = "%w:planner, @ep"
+    assert extract_directive_arg_token_around_cursor(line, len(line)) == (
+        line.index("@ep"),
+        len(line),
+        "wait",
+        "@ep",
+    )
+
+
 def test_wait_arg_extraction_supports_paren_form_and_time_fragment() -> None:
     line = "%wait(planner, co, time=5m)"
     col = line.index(", time")

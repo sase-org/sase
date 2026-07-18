@@ -55,10 +55,15 @@ def model_entries() -> list[_ModelCompletionEntry]:
     ]
 
 
-def agent_candidate(name: str) -> AgentCompletionCandidate:
+def agent_candidate(
+    name: str,
+    *,
+    tag: str | None = None,
+) -> AgentCompletionCandidate:
     return AgentCompletionCandidate(
         name=name,
         label=name,
         status="RUNNING",
+        tag=tag,
         prompt_snippet=f"{name} prompt",
     )

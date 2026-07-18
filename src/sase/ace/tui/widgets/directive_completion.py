@@ -319,10 +319,34 @@ def build_agent_arg_completion_candidates(
     *,
     excluded_names: frozenset[str] = frozenset(),
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build visible-agent candidates for a wait/fork-style argument."""
+    """Build visible-agent and tribe candidates for a wait/fork argument."""
     if "=" in partial:
         return [], ""
 
+    partial_lower = partial.lower()
+    tribe_names = sorted(
+        {
+            entry.tag
+            for entry in agent_candidates or ()
+            if entry.tag
+            and entry.tag not in excluded_names
+            and entry.tag.lower().startswith(partial_lower)
+        },
+        key=str.lower,
+    )
+    tribe_candidates = [
+        CompletionCandidate(
+            display=tribe_name,
+            insertion=tribe_name,
+            is_dir=False,
+            name=tribe_name,
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name="tribe",
+                description="target the next agent or clan joining this tribe",
+            ),
+        )
+        for tribe_name in tribe_names
+    ]
     entries = [
         entry
         for entry in filter_agent_completion_candidates(agent_candidates, partial)
@@ -338,9 +362,9 @@ def build_agent_arg_completion_candidates(
         )
         for entry in entries
     ]
+    candidates = [*tribe_candidates, *candidates]
 
     shared_extension = ""
-    partial_lower = partial.lower()
     if len(candidates) > 1 and all(
         candidate.insertion.lower().startswith(partial_lower)
         for candidate in candidates
@@ -676,7 +700,7 @@ def _is_model_directive_argument_identifier(char: str) -> bool:
 
 
 def _is_wait_directive_argument_identifier(char: str) -> bool:
-    return _is_directive_identifier(char) or char in "-.="
+    return _is_directive_identifier(char) or char in "-.=@"
 
 
 def _is_valid_wait_argument_prefix(prefix: str) -> bool:

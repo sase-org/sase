@@ -252,6 +252,27 @@ async def test_wait_arg_completion_replaces_only_active_fragment() -> None:
     assert ta._file_completion_active is False
 
 
+async def test_wait_arg_completion_inserts_tribe_target() -> None:
+    app = CompletionTestApp()
+    app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
+        agent_candidate("epic.builder", tag="@epic")
+    ]
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%w:@ep")
+        ta.cursor_location = (0, len("%w:@ep"))
+
+        with patch.object(
+            type(ta),
+            "_ace_app",
+            new_callable=lambda: property(lambda _s: app),
+        ):
+            assert ta._try_file_completion_tab() is True
+
+    assert ta.text == "%w:@epic"
+    assert ta._file_completion_active is False
+
+
 async def test_prose_comma_after_wait_directive_does_not_reopen_panel() -> None:
     app = CompletionTestApp()
     app.visible_agent_completion_candidates = lambda: [  # type: ignore[attr-defined]
