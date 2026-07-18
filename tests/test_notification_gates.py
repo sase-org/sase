@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.main.gate_handler import handle_gate_command
 from sase.main.notify_handler import handle_notify_command
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import GateError
@@ -307,7 +308,7 @@ def test_custom_gate_runs_selected_options_in_query_order_and_persists_feedback(
     assert terminal.feedback == "Ship it carefully"
 
 
-def test_notify_wait_prints_stable_answered_json_and_human_summary(
+def test_gate_wait_prints_stable_answered_json_and_human_summary(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -319,7 +320,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
         feedback="Looks good",
     )
     args = argparse.Namespace(
-        notify_subcommand="wait",
+        gate_subcommand="wait",
         id="wait-answered",
         kind="custom",
         json=True,
@@ -327,7 +328,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
     )
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(args)
+        handle_gate_command(args)
 
     assert excinfo.value.code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -340,7 +341,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
 
     args.json = False
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(args)
+        handle_gate_command(args)
 
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
@@ -349,7 +350,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
     assert f"Response path: {result.response_path}" in out
 
 
-def test_notify_wait_reports_cancelled_gate_with_distinct_exit_code(
+def test_gate_wait_reports_cancelled_gate_with_distinct_exit_code(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -358,9 +359,9 @@ def test_notify_wait_reports_cancelled_gate_with_distinct_exit_code(
     cancel_gate(result.bundle_path, source="test")
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(
+        handle_gate_command(
             argparse.Namespace(
-                notify_subcommand="wait",
+                gate_subcommand="wait",
                 id="wait-cancelled",
                 kind="hitl",
                 json=True,
@@ -376,7 +377,7 @@ def test_notify_wait_reports_cancelled_gate_with_distinct_exit_code(
     assert payload["response_path"] == str(result.response_path)
 
 
-def test_notify_wait_reports_cli_timeout_with_distinct_exit_code(
+def test_gate_wait_reports_cli_timeout_with_distinct_exit_code(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -384,9 +385,9 @@ def test_notify_wait_reports_cli_timeout_with_distinct_exit_code(
     result = create_gate(_gate_spec(request_id="wait-timeout"))
 
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(
+        handle_gate_command(
             argparse.Namespace(
-                notify_subcommand="wait",
+                gate_subcommand="wait",
                 id="wait-timeout",
                 kind="hitl",
                 json=True,
@@ -627,7 +628,7 @@ def test_rejects_path_traversal_symlink_sources_and_reserved_files(
     assert excinfo.value.code == "unsafe_file"
 
 
-def test_notify_create_gate_json_and_raw_privileged_rejection(
+def test_gate_create_json_and_raw_notify_privileged_rejection(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -635,10 +636,9 @@ def test_notify_create_gate_json_and_raw_privileged_rejection(
     del gate_home
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(_gate_spec())))
     with pytest.raises(SystemExit) as excinfo:
-        handle_notify_command(
+        handle_gate_command(
             argparse.Namespace(
-                notify_subcommand="create",
-                gate=True,
+                gate_subcommand="create",
                 sender=None,
                 tag=None,
             )
@@ -657,7 +657,6 @@ def test_notify_create_gate_json_and_raw_privileged_rejection(
         handle_notify_command(
             argparse.Namespace(
                 notify_subcommand="create",
-                gate=False,
                 sender=None,
                 tag=None,
             )
@@ -680,7 +679,6 @@ def test_raw_notify_creation_preserves_silent(
         handle_notify_command(
             argparse.Namespace(
                 notify_subcommand="create",
-                gate=False,
                 sender=None,
                 tag=None,
             )
@@ -703,7 +701,6 @@ def test_raw_notify_cannot_spoof_custom_gate_and_custom_has_no_legacy_fallback(
         handle_notify_command(
             argparse.Namespace(
                 notify_subcommand="create",
-                gate=False,
                 sender=None,
                 tag=None,
             )

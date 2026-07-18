@@ -31,12 +31,7 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
 
         handle_notify_show(args)
         sys.exit(0)
-    if subcommand == "wait":
-        from sase.notifications.cli_wait import handle_notify_wait
-
-        handle_notify_wait(args)
-
-    print("Usage: sase notify [create|list|show|wait]", file=sys.stderr)
+    print("Usage: sase notify {create,list,show}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -57,9 +52,6 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
                 print("Error: stdin JSON must be an object", file=sys.stderr)
                 sys.exit(1)
             data = parsed
-
-    if getattr(args, "gate", False):
-        _handle_gate_create(data, args)
 
     # --sender flag overrides JSON sender
     if args.sender is not None:
@@ -90,40 +82,13 @@ def _handle_notify_create(args: argparse.Namespace) -> NoReturn:
 
     if notification.action in PRIVILEGED_GATE_ACTIONS:
         print(
-            f"Error: {notification.action} is privileged; use notify create --gate",
+            f"Error: {notification.action} is privileged; use sase gate create",
             file=sys.stderr,
         )
         sys.exit(1)
 
     append_notification(notification)
     print(notification.id)
-    sys.exit(0)
-
-
-def _handle_gate_create(data: dict[str, object], args: argparse.Namespace) -> NoReturn:
-    """Create a durable gate and emit its stable JSON descriptor."""
-    if args.sender is not None or getattr(args, "tag", None):
-        presentation = data.get("presentation", data.get("notification", {}))
-        if not isinstance(presentation, dict):
-            print("Error: presentation must be an object", file=sys.stderr)
-            sys.exit(1)
-        presentation = dict(presentation)
-        if args.sender is not None:
-            presentation["sender"] = args.sender
-        if getattr(args, "tag", None):
-            presentation["tags"] = _create_tags(presentation.get("tags"), args.tag)
-        data["presentation"] = presentation
-    try:
-        from sase.notification_gates.service import create_gate
-
-        result = create_gate(data)
-    except GateError as exc:
-        print(f"Error [{exc.code}] {exc.target}: {exc}", file=sys.stderr)
-        sys.exit(1)
-    except OSError as exc:
-        print(f"Error: gate creation failed: {exc}", file=sys.stderr)
-        sys.exit(1)
-    print(json.dumps(result.to_dict(), sort_keys=True))
     sys.exit(0)
 
 

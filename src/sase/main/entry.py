@@ -180,6 +180,12 @@ def main() -> NoReturn:
 
         handle_file_history_command(args)
 
+    # --- gate ---
+    if args.command == "gate":
+        from .gate_handler import handle_gate_command
+
+        handle_gate_command(args)
+
     # --- init ---
     if args.command == "init":
         if getattr(args, "all", False) and args.init_subcommand is not None:

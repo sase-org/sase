@@ -152,11 +152,19 @@ def test_parser_registers_explicit_create_alias() -> None:
     assert args.tag == ["Review"]
 
 
-def test_parser_registers_notify_wait_options_and_help() -> None:
+def test_parser_registers_gate_create_wait_options_and_help() -> None:
     parser = create_parser()
+    create_args = parser.parse_args(
+        ["gate", "create", "--sender", "worker", "--tag", "review"]
+    )
+    assert create_args.command == "gate"
+    assert create_args.gate_subcommand == "create"
+    assert create_args.sender == "worker"
+    assert create_args.tag == ["review"]
+
     args = parser.parse_args(
         [
-            "notify",
+            "gate",
             "wait",
             "--id",
             "custom-123",
@@ -168,20 +176,26 @@ def test_parser_registers_notify_wait_options_and_help() -> None:
         ]
     )
 
-    assert args.notify_subcommand == "wait"
+    assert args.gate_subcommand == "wait"
     assert args.id == "custom-123"
     assert args.json is True
     assert args.kind == "custom"
     assert args.timeout == 30.0
 
-    wait_parser = next(
+    gate_parser = next(
         action
         for action in parser._actions
         if isinstance(action, argparse._SubParsersAction)
-    ).choices["notify"]
+    ).choices["gate"]
+    gate_subparsers = next(
+        action
+        for action in gate_parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+    assert list(gate_subparsers.choices) == ["create", "wait"]
     wait_subparsers = next(
         action
-        for action in wait_parser._actions
+        for action in gate_parser._actions
         if isinstance(action, argparse._SubParsersAction)
     )
     wait_help = wait_subparsers.choices["wait"].format_help()
@@ -192,6 +206,15 @@ def test_parser_registers_notify_wait_options_and_help() -> None:
     assert "answered" in wait_help
     assert "cancelled" in wait_help
     assert "timeout" in wait_help
+
+
+def test_parser_retires_notify_gate_entrypoints() -> None:
+    parser = create_parser()
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["notify", "create", "--gate"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["notify", "wait", "--id", "custom-123", "--kind", "custom"])
 
 
 def test_explicit_create_path_writes_notification(

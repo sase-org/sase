@@ -1,4 +1,4 @@
-"""``sase notify wait`` — mechanically wait for a durable gate."""
+"""``sase gate wait`` — mechanically wait for a durable gate."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ _STATUS_PROJECTION = {
 }
 
 
-def handle_notify_wait(args: argparse.Namespace) -> NoReturn:
+def handle_gate_wait(args: argparse.Namespace) -> NoReturn:
     """Wait for one gate and emit its stable terminal projection."""
     request_id = str(args.id)
     kind = str(args.kind)
@@ -35,12 +35,12 @@ def handle_notify_wait(args: argparse.Namespace) -> NoReturn:
         )
     except GateError as exc:
         print(
-            f"sase notify wait: error [{exc.code}] {exc.target}: {exc}",
+            f"sase gate wait: error [{exc.code}] {exc.target}: {exc}",
             file=sys.stderr,
         )
         sys.exit(1)
     except OSError as exc:
-        print(f"sase notify wait: cannot read gate: {exc}", file=sys.stderr)
+        print(f"sase gate wait: cannot read gate: {exc}", file=sys.stderr)
         sys.exit(1)
 
     payload = _terminal_payload(result, paths.response)
@@ -99,4 +99,4 @@ def _print_human_summary(
     console.print(response, soft_wrap=True)
 
 
-__all__ = ["handle_notify_wait"]
+__all__ = ["handle_gate_wait"]
