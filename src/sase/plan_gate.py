@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import Any, Literal, cast
 
 from sase.notification_gates.entrypoints import gate_command_entrypoint
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GateError, GateGroup
 
 PLAN_EDIT_OPERATION_ID = "edit_plan"
 PLAN_RESOURCE_PATH = "plan.md"
@@ -21,6 +21,12 @@ PLAN_APPROVE_OPTION_ID = "approve"
 PLAN_COMMIT_OPTION_ID = "commit"
 PLAN_REJECT_OPTION_ID = "reject"
 PLAN_FEEDBACK_OPTION_ID = "feedback"
+
+TALE_PLAN_SUBMIT_GROUP = GateGroup(
+    options=(PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID),
+    label="Tale",
+    icon="✅",
+)
 
 PlanGateTier = Literal["tale", "epic"]
 
@@ -139,17 +145,7 @@ def _build_plan_gate_spec(
         "options": [
             _plan_gate_option(option_id, tier=tier) for option_id in option_ids
         ],
-        "groups": (
-            [
-                {
-                    "options": [PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID],
-                    "label": "Approve",
-                    "icon": "✅",
-                }
-            ]
-            if tier == "tale"
-            else []
-        ),
+        "groups": ([TALE_PLAN_SUBMIT_GROUP.to_dict()] if tier == "tale" else []),
         "operations": [
             {
                 "id": PLAN_EDIT_OPERATION_ID,

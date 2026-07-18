@@ -149,7 +149,10 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         assert "Launch coder agent" in str(
             modal.query_one("#gate-option-0-0", Button).label
         )
-        assert "Approve" in str(modal.query_one("#gate-group-submit-0", Button).label)
+        assert "Commit plan file to the plans sidecar" in str(
+            modal.query_one("#gate-option-0-1", Button).label
+        )
+        assert "Tale" in str(modal.query_one("#gate-group-submit-0", Button).label)
         controls.toggle_option(0, 0)
         modal.action_submit_branch()
         await pilot.pause()

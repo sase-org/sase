@@ -20,6 +20,7 @@ from sase.plan_approval_choices import (
 from sase.plan_gate import (
     PLAN_APPROVE_OPTION_ID,
     PLAN_COMMIT_OPTION_ID,
+    TALE_PLAN_SUBMIT_GROUP,
     PlanGateTier,
     plan_gate_option_label,
 )
@@ -86,7 +87,7 @@ def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchDat
     else:
         query = "(approve AND commit) OR reject OR feedback"
         branches = (("approve", "commit"), ("reject",), ("feedback",))
-        groups = (GateGroup(options=("approve", "commit"), label="Approve", icon="✅"),)
+        groups = (TALE_PLAN_SUBMIT_GROUP,)
     options = tuple(
         GateOption.from_mapping(
             {

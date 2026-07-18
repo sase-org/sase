@@ -460,6 +460,7 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     from sase.plan_gate import (
         PLAN_EDIT_OPERATION_ID,
         PLAN_RESOURCE_PATH,
+        TALE_PLAN_SUBMIT_GROUP,
         PlanGateTier,
         plan_gate_command_script,
         plan_gate_option_ids,
@@ -504,17 +505,34 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "options",
             f"{tier} plan gate options do not match the registered adapter",
         )
-    if tier == "tale" and (
-        len(spec.groups) != 1
-        or spec.groups[0].options != ("approve", "commit")
-        or spec.groups[0].label != "Approve"
-        or spec.groups[0].icon != "✅"
-    ):
-        raise GateError(
-            "invalid_plan_group",
-            "groups",
-            "tale plan gates require the configured Approve submit group",
-        )
+    if tier == "tale":
+        if len(spec.groups) != 1:
+            raise GateError(
+                "invalid_plan_group",
+                "groups",
+                "tale plan gates require exactly one configured submit group",
+            )
+        actual_group = spec.groups[0]
+        if actual_group.options != TALE_PLAN_SUBMIT_GROUP.options:
+            raise GateError(
+                "invalid_plan_group",
+                "groups[0].options",
+                "tale plan submit group must contain the canonical options: "
+                + ", ".join(TALE_PLAN_SUBMIT_GROUP.options),
+            )
+        if actual_group.label != TALE_PLAN_SUBMIT_GROUP.label:
+            raise GateError(
+                "invalid_plan_group",
+                "groups[0].label",
+                "tale plan submit group label must be "
+                f"{TALE_PLAN_SUBMIT_GROUP.label!r}",
+            )
+        if actual_group.icon != TALE_PLAN_SUBMIT_GROUP.icon:
+            raise GateError(
+                "invalid_plan_group",
+                "groups[0].icon",
+                f"tale plan submit group icon must be {TALE_PLAN_SUBMIT_GROUP.icon!r}",
+            )
     if tier == "epic" and spec.groups:
         raise GateError(
             "invalid_plan_group", "groups", "epic plan gates do not define groups"

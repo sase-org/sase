@@ -220,7 +220,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
     groups = request["groups"]
     assert len(groups) == 1
     assert groups[0]["options"] == [PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID]
-    assert groups[0]["label"] == "Approve"
+    assert groups[0]["label"] == "Tale"
     assert groups[0]["icon"] == "✅"
 
     exec_approve_commit = execute_gate_selection(

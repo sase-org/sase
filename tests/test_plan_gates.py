@@ -138,7 +138,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     ]
     assert all(option["default_selected"] for option in tale_request["options"])
     assert tale_request["groups"] == [
-        {"options": ["approve", "commit"], "label": "Approve", "icon": "✅"}
+        {"options": ["approve", "commit"], "label": "Tale", "icon": "✅"}
     ]
     assert epic_request["groups"] == []
     assert tale_request["operations"] == [
@@ -539,6 +539,50 @@ def test_plan_adapter_rejects_non_registered_query_shape(
     with pytest.raises(GateError) as exc_info:
         create_gate(spec)
     assert exc_info.value.code == "invalid_plan_query"
+
+
+def test_plan_adapter_accepts_tale_group_and_rejects_stale_label(
+    gate_home: Path,
+) -> None:
+    plan = _write_plan(gate_home, "group-label.md", VALID_TALE_PLAN)
+    canonical = _build_plan_gate_spec(
+        plan,
+        "canonical-group-label",
+        tier="tale",
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
+
+    result = create_gate(canonical)
+    request = json.loads(result.request_path.read_text(encoding="utf-8"))
+    assert request["groups"] == [
+        {"options": ["approve", "commit"], "label": "Tale", "icon": "✅"}
+    ]
+
+    stale = _build_plan_gate_spec(
+        plan,
+        "stale-group-label",
+        tier="tale",
+        auto_enabled=False,
+        auto_argument=None,
+        agent_name=None,
+        agent_model=None,
+        agent_llm_provider=None,
+        agent_runtime=None,
+        agent_vcs_tag=None,
+    )
+    stale["groups"][0]["label"] = "Approve"
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(stale)
+    assert exc_info.value.code == "invalid_plan_group"
+    assert exc_info.value.target == "groups[0].label"
+    assert str(exc_info.value) == "tale plan submit group label must be 'Tale'"
 
 
 def test_legacy_plan_approval_remains_answerable(gate_home: Path) -> None:
