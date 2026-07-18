@@ -12,10 +12,8 @@ from sase.plan_approval_choices import (
     PlanApprovalProtocolFields,
     approval_protocol_for_choice,
     custom_modal_choice_for_key,
-    plan_approval_consequence_for_selection,
     plan_approval_protocol_for_selection,
     plan_approval_selection_for_choice,
-    plan_approval_status_for_selection,
     require_plan_approval_choice,
 )
 
@@ -59,7 +57,7 @@ def test_epic_choice_delegates_archive_and_launch_to_bead_work() -> None:
     assert "background task" in record.consequence_text
 
 
-def test_selected_option_sets_drive_protocol_status_and_consequences() -> None:
+def test_selected_option_sets_drive_protocol_fields() -> None:
     assert plan_approval_selection_for_choice("approve", tier="tale") == (
         "approve",
         "commit",
@@ -70,14 +68,6 @@ def test_selected_option_sets_drive_protocol_status_and_consequences() -> None:
     assert plan_approval_protocol_for_selection(
         ("commit",), tier="tale"
     ) == PlanApprovalProtocolFields("approve", True, False)
-    assert (
-        plan_approval_status_for_selection(("approve", "commit"), tier="tale")
-        == "TALE APPROVED"
-    )
-    assert (
-        plan_approval_consequence_for_selection(("approve",), tier="tale")
-        == "No SDD commit; run coder"
-    )
     assert plan_approval_protocol_for_selection(
         ("approve",), tier="epic"
     ) == PlanApprovalProtocolFields("epic", True, True)

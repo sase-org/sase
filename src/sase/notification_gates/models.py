@@ -44,7 +44,7 @@ def validate_identifier(value: object, target: str) -> str:
     return value
 
 
-def validate_option_identifier(value: object, target: str) -> str:
+def _validate_option_identifier(value: object, target: str) -> str:
     """Return an identifier accepted by the option-query grammar."""
     if not isinstance(value, str) or not _OPTION_IDENTIFIER_RE.fullmatch(value):
         raise GateError(
@@ -247,7 +247,7 @@ class GateOption:
             },
             target,
         )
-        option_id = validate_option_identifier(data.get("id"), f"{target}.id")
+        option_id = _validate_option_identifier(data.get("id"), f"{target}.id")
         label = _validate_label(data.get("label"), f"{target}.label")
         default_selected = data.get("default_selected", True)
         if not isinstance(default_selected, bool):
@@ -316,7 +316,7 @@ class GateGroup:
                 "group options must be a non-empty array of option ids",
             )
         options = tuple(
-            validate_option_identifier(option_id, f"{target}.options[{option_index}]")
+            _validate_option_identifier(option_id, f"{target}.options[{option_index}]")
             for option_index, option_id in enumerate(raw_options)
         )
         if len(set(options)) != len(options):
@@ -834,6 +834,5 @@ __all__ = [
     "normalize_gate_structure",
     "validate_icon",
     "validate_identifier",
-    "validate_option_identifier",
     "validate_relative_path",
 ]

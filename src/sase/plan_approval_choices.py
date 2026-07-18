@@ -181,40 +181,6 @@ def plan_approval_protocol_for_selection(
     )
 
 
-def plan_approval_status_for_selection(
-    selected_option_ids: Sequence[str], *, tier: PlanApprovalTier
-) -> str | None:
-    """Return the immediate status label for a selected option set."""
-    selected = tuple(selected_option_ids)
-    if selected in {("reject",), ("feedback",)}:
-        return None
-    protocol = plan_approval_protocol_for_selection(selected, tier=tier)
-    if protocol.action == "epic":
-        return "EPIC APPROVED"
-    if protocol.commit_plan and protocol.run_coder:
-        return "TALE APPROVED"
-    if protocol.commit_plan:
-        return "PLAN COMMITTED"
-    return "PLAN APPROVED"
-
-
-def plan_approval_consequence_for_selection(
-    selected_option_ids: Sequence[str], *, tier: PlanApprovalTier
-) -> str:
-    """Describe the consequences of one approval selection."""
-    protocol = plan_approval_protocol_for_selection(selected_option_ids, tier=tier)
-    if protocol.action == "epic":
-        return (
-            "Commit to sdd/plans (tier: epic); launch beads via `sase bead work` "
-            "(background task)"
-        )
-    if protocol.commit_plan and protocol.run_coder:
-        return "Commit to sdd/plans (tier: tale); run coder"
-    if protocol.commit_plan:
-        return "Commit to sdd/plans; do not run coder"
-    return "No SDD commit; run coder"
-
-
 def plan_approval_response_message_for_selection(
     selected_option_ids: Sequence[str], *, tier: PlanApprovalTier
 ) -> str:

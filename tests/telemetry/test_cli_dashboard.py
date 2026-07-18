@@ -4,7 +4,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from sase.telemetry.cli_dashboard import _render_dashboard, load_dashboard_data
+from sase.telemetry.cli_dashboard import _render_dashboard, _load_dashboard_data
 from tests.telemetry.conftest import record_samples, use_store
 
 
@@ -101,7 +101,7 @@ def test_dashboard_loads_real_local_store(tmp_path: Path) -> None:
     use_store(store_path)
     _seed_dashboard(store_path)
 
-    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
+    data = _load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
 
     assert data.has_samples
     assert data.active_agents == 2
@@ -121,7 +121,7 @@ def test_dashboard_render_has_tiles_and_charts(tmp_path: Path) -> None:
     store_path = tmp_path / "metrics.sqlite"
     use_store(store_path)
     _seed_dashboard(store_path)
-    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
+    data = _load_dashboard_data(now_ts=200, range_key="15m", subsystem="agents")
 
     output = _render(_render_dashboard(data, width=120))
 
@@ -137,7 +137,7 @@ def test_dashboard_switches_subsystem_chart_set(tmp_path: Path) -> None:
     use_store(store_path)
     _seed_dashboard(store_path)
 
-    data = load_dashboard_data(now_ts=200, range_key="15m", subsystem="workspace")
+    data = _load_dashboard_data(now_ts=200, range_key="15m", subsystem="workspace")
 
     assert data.charts[0].title == "Active Workspaces"
     assert data.charts[-1].title == "VCS Operations"
@@ -146,7 +146,7 @@ def test_dashboard_switches_subsystem_chart_set(tmp_path: Path) -> None:
 def test_dashboard_empty_store_is_friendly(tmp_path: Path) -> None:
     use_store(tmp_path / "metrics.sqlite")
 
-    data = load_dashboard_data(now_ts=200, range_key="1h", subsystem="agents")
+    data = _load_dashboard_data(now_ts=200, range_key="1h", subsystem="agents")
     output = _render(_render_dashboard(data, width=120))
 
     assert not data.has_samples

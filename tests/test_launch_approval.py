@@ -29,7 +29,7 @@ from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import plan_fake_fanout
 from sase.integrations.mobile_notifications import execute_mobile_gate_action
 from sase.launch_approval_actions import (
-    LaunchApprovalActionContext,
+    _LaunchApprovalActionContext,
     LaunchApprovalActionError,
     execute_launch_approval_response,
 )
@@ -353,7 +353,7 @@ def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     response_dir = tmp_path / "launch"
     response_dir.mkdir()
     (response_dir / LAUNCH_REQUEST_FILE).write_text("{}", encoding="utf-8")
-    context = LaunchApprovalActionContext(
+    context = _LaunchApprovalActionContext(
         id="launch-notification",
         host_files=(),
         host_action_data={"response_dir": str(response_dir)},
@@ -441,7 +441,7 @@ def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
             "max_slots": 1,
         }
     )
-    context = LaunchApprovalActionContext(
+    context = _LaunchApprovalActionContext(
         id=feedback_request.notification_id,
         host_files=(str(feedback_request.preview_path),),
         host_action_data={
@@ -506,7 +506,7 @@ def test_neutral_launch_approval_dispatch_failure_is_terminal(
             "max_slots": 1,
         }
     )
-    context = LaunchApprovalActionContext(
+    context = _LaunchApprovalActionContext(
         id=request.notification_id,
         host_files=(str(request.preview_path),),
         host_action_data={
@@ -610,7 +610,7 @@ def test_approve_launch_response_dispatches_stored_request(
         ),
         encoding="utf-8",
     )
-    context = LaunchApprovalActionContext(
+    context = _LaunchApprovalActionContext(
         id="launch-notification",
         host_files=(),
         host_action_data={"response_dir": str(response_dir)},

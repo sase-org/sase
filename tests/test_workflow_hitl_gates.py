@@ -11,7 +11,7 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notifications import pending_actions
 from sase.xprompt.workflow_hitl_gate import (
     create_workflow_hitl_gate,
-    translate_workflow_hitl_response,
+    _translate_workflow_hitl_response,
 )
 
 
@@ -70,7 +70,7 @@ def test_agent_hitl_gate_uses_singleton_option_branches(
         feedback="Try a smaller change",
         source="test",
     )
-    result = translate_workflow_hitl_response(execution.response)
+    result = _translate_workflow_hitl_response(execution.response)
     assert result.action == "feedback"
     assert result.feedback == "Try a smaller change"
 
@@ -97,6 +97,6 @@ def test_command_hitl_gate_keeps_rerun_and_edit_actions(
         {"edited_output": {"artifact": "fixed.json"}},
         source="test",
     )
-    result = translate_workflow_hitl_response(execution.response)
+    result = _translate_workflow_hitl_response(execution.response)
     assert result.action == "edit"
     assert result.edited_output == {"artifact": "fixed.json"}

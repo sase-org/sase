@@ -11,7 +11,7 @@ from sase.agent.launch_preview import LAUNCH_REQUEST_FILE, LAUNCH_RESPONSE_FILE
 
 
 @dataclass(frozen=True)
-class LaunchApprovalActionContext:
+class _LaunchApprovalActionContext:
     id: str
     host_files: tuple[str, ...]
     host_action_data: dict[str, str]
@@ -43,7 +43,7 @@ class LaunchApprovalActionError(RuntimeError):
 
 
 def execute_launch_approval_response(
-    notification: LaunchApprovalActionContext,
+    notification: _LaunchApprovalActionContext,
     choice: str,
     *,
     feedback: str | None = None,
@@ -67,7 +67,7 @@ def execute_launch_approval_response(
 
 
 def _execute_legacy_launch_approval_response(
-    notification: LaunchApprovalActionContext,
+    notification: _LaunchApprovalActionContext,
     choice: str,
     *,
     feedback: str | None,
@@ -127,7 +127,7 @@ def _execute_legacy_launch_approval_response(
 
 
 def _execute_neutral_launch_approval_response(
-    notification: LaunchApprovalActionContext,
+    notification: _LaunchApprovalActionContext,
     bundle_path: Path,
     choice: str,
     *,
@@ -222,7 +222,7 @@ def _execute_neutral_launch_approval_response(
 
 
 def _run_launch_side_effects(
-    notification: LaunchApprovalActionContext,
+    notification: _LaunchApprovalActionContext,
     choice: str,
 ) -> None:
     try:
@@ -242,9 +242,9 @@ def _run_launch_side_effects(
 
 def launch_context_from_notification(
     notification: _NotificationLike,
-) -> LaunchApprovalActionContext:
+) -> _LaunchApprovalActionContext:
     """Build a host-side action context from a notification-like object."""
-    return LaunchApprovalActionContext(
+    return _LaunchApprovalActionContext(
         id=str(notification.id),
         host_files=tuple(str(Path(path).expanduser()) for path in notification.files),
         host_action_data={
@@ -298,7 +298,6 @@ def _write_json_replace(response_path: Path, response_json: dict[str, Any]) -> N
 
 
 __all__ = [
-    "LaunchApprovalActionContext",
     "LaunchApprovalActionError",
     "LaunchApprovalActionResult",
     "execute_launch_approval_response",

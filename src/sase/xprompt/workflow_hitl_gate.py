@@ -16,7 +16,7 @@ from sase.xprompt.workflow_executor_types import HITLResult
 HITL_CONTINUATION_MODE = "agent_hitl"
 
 
-def hitl_gate_option_ids(step_type: str, *, has_output: bool) -> tuple[str, ...]:
+def _hitl_gate_option_ids(step_type: str, *, has_output: bool) -> tuple[str, ...]:
     """Return the existing HITL actions available for one workflow step."""
     options = ["accept"]
     if step_type == "agent" or (step_type in {"bash", "python"} and has_output):
@@ -41,7 +41,7 @@ def create_workflow_hitl_gate(
     timeout_seconds: float,
 ) -> Any:
     """Create a v2 singleton-branch gate for a workflow review."""
-    option_ids = hitl_gate_option_ids(step_type, has_output=has_output)
+    option_ids = _hitl_gate_option_ids(step_type, has_output=has_output)
     from sase.notification_gates.service import create_gate
 
     return create_gate(
@@ -71,7 +71,7 @@ def create_workflow_hitl_gate(
                 {
                     "path": f"commands/{option_id}",
                     "role": "command",
-                    "content": hitl_gate_command_script(option_id),
+                    "content": _hitl_gate_command_script(option_id),
                 }
                 for option_id in option_ids
             ],
@@ -87,10 +87,10 @@ def wait_for_workflow_hitl_gate(bundle_path: Path) -> HITLResult:
     result = wait_for_gate(bundle_path)
     if result.status != "responded":
         return HITLResult(action="reject", approved=False)
-    return translate_workflow_hitl_response(result.payload)
+    return _translate_workflow_hitl_response(result.payload)
 
 
-def translate_workflow_hitl_response(response: Mapping[str, Any]) -> HITLResult:
+def _translate_workflow_hitl_response(response: Mapping[str, Any]) -> HITLResult:
     """Translate a uniform v2 response into the workflow runner protocol."""
     raw_selected = response.get("selected_option_ids")
     option_results = response.get("option_results")
@@ -142,7 +142,7 @@ def translate_workflow_hitl_response(response: Mapping[str, Any]) -> HITLResult:
     )
 
 
-def hitl_gate_command_script(option_id: str) -> str:
+def _hitl_gate_command_script(option_id: str) -> str:
     """Return the adapter-owned command wrapper for a HITL option."""
     return (
         f"#!{sys.executable}\n"
@@ -235,8 +235,5 @@ __all__ = [
     "HITL_CONTINUATION_MODE",
     "create_workflow_hitl_gate",
     "execute_hitl_gate_command",
-    "hitl_gate_command_script",
-    "hitl_gate_option_ids",
-    "translate_workflow_hitl_response",
     "wait_for_workflow_hitl_gate",
 ]

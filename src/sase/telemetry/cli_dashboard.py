@@ -51,7 +51,7 @@ class _ChartSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class ChartData:
+class _ChartData:
     """Presentation-ready series for one dashboard chart."""
 
     title: str
@@ -61,7 +61,7 @@ class ChartData:
 
 
 @dataclass(frozen=True, slots=True)
-class DashboardData:
+class _DashboardData:
     """One immutable local-store dashboard refresh."""
 
     subsystem: str
@@ -78,7 +78,7 @@ class DashboardData:
     bead_sparkline: tuple[float, ...]
     runs_sparkline: tuple[float, ...]
     error_sparkline: tuple[float, ...]
-    charts: tuple[ChartData, ...]
+    charts: tuple[_ChartData, ...]
 
 
 _AGENT_TOKEN_QUERIES = (
@@ -482,7 +482,7 @@ def _error_rate_series(cache: _RangeCache) -> Series:
     return Series.from_pairs("agent-error-rate", points, label="errors")
 
 
-def _chart_data(spec: _ChartSpec, cache: _RangeCache) -> ChartData:
+def _chart_data(spec: _ChartSpec, cache: _RangeCache) -> _ChartData:
     if spec.derived == "agent_error_rate":
         series = [_error_rate_series(cache)]
     else:
@@ -491,7 +491,7 @@ def _chart_data(spec: _ChartSpec, cache: _RangeCache) -> ChartData:
             for query in spec.queries
             for item in _series_for(query, cache.get(query))
         ]
-    return ChartData(
+    return _ChartData(
         title=spec.title,
         y_label=spec.y_label,
         value_format=spec.value_format,
@@ -510,9 +510,9 @@ def _range_values(cache: _RangeCache, query: _SeriesQuery) -> tuple[float, ...]:
     )
 
 
-def load_dashboard_data(
+def _load_dashboard_data(
     *, now_ts: int, range_key: str, subsystem: str
-) -> DashboardData:
+) -> _DashboardData:
     """Load one complete dashboard refresh from the configured local store."""
     stats = store_stats()
     sample_count = sum(
@@ -520,7 +520,7 @@ def load_dashboard_data(
         for key in ("raw_sample_count", "rollup_5m_count", "rollup_1h_count")
     )
     has_samples = sample_count > 0
-    empty = DashboardData(
+    empty = _DashboardData(
         subsystem=subsystem,
         range_key=range_key,
         recording_started_at=stats.get("earliest_sample_ts"),
@@ -567,7 +567,7 @@ def load_dashboard_data(
     error_rate = errors_in_range / runs_in_range * 100.0 if runs_in_range else 0.0
 
     chart_specs = _CHART_SETS.get(subsystem, _CHART_SETS["agents"])
-    return DashboardData(
+    return _DashboardData(
         subsystem=subsystem,
         range_key=range_key,
         recording_started_at=stats.get("earliest_sample_ts"),
@@ -597,7 +597,7 @@ def _error_status(rate: float) -> Status:
     return "ok"
 
 
-def _render_dashboard(data: DashboardData, *, width: int) -> Group:
+def _render_dashboard(data: _DashboardData, *, width: int) -> Group:
     """Render an immutable dashboard refresh with the shared chart toolkit."""
     header = Text.assemble(
         ("Telemetry Dashboard", "bold"),
@@ -691,7 +691,7 @@ def handle_telemetry_dashboard(args: argparse.Namespace) -> None:
         with Live(console=console, refresh_per_second=4) as live:
             while True:
                 try:
-                    data = load_dashboard_data(
+                    data = _load_dashboard_data(
                         now_ts=int(time.time()),
                         range_key=range_key,
                         subsystem=subsystem,
@@ -711,8 +711,5 @@ def handle_telemetry_dashboard(args: argparse.Namespace) -> None:
 
 
 __all__ = [
-    "ChartData",
-    "DashboardData",
     "handle_telemetry_dashboard",
-    "load_dashboard_data",
 ]
