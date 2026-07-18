@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from sase.main.notify_handler import handle_notify_command
-from sase.notification_gates.executor import cancel_gate, execute_gate_choice
+from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import resolve_action_bundle
 from sase.notification_gates.poller import poll_gate, wait_for_gate
@@ -59,7 +59,7 @@ def _gate_spec(
         "print(json.dumps({'status': 'ok', 'input': value}))\n"
     )
     spec: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "request_id": request_id,
         "kind": kind,
         "producer": {"agent": "test"},
@@ -71,7 +71,8 @@ def _gate_spec(
             "files": ["preview.md"],
             "preview": "preview.md",
         },
-        "choices": [
+        "query": "approve",
+        "options": [
             {
                 "id": "approve",
                 "label": "Approve",
@@ -105,7 +106,7 @@ def _custom_gate_spec(
     auto: object = False,
     feedback: str | None = None,
 ) -> dict[str, object]:
-    choice: dict[str, object] = {
+    proceed: dict[str, object] = {
         "id": "proceed",
         "label": "Proceed safely",
         "icon": "✅",
@@ -116,25 +117,11 @@ def _custom_gate_spec(
             "required": ["status"],
             "properties": {"status": {"const": "ok"}},
         },
-        "extras": [
-            {
-                "id": "audit",
-                "label": "Write audit record",
-                "icon": "📝",
-                "default_selected": True,
-                "command": {"argv": ["commands/audit"]},
-            },
-            {
-                "id": "broken",
-                "label": "Try fallible follow-up",
-                "command": {"argv": ["commands/broken"]},
-            },
-        ],
     }
     if feedback is not None:
-        choice["feedback"] = feedback
+        proceed["feedback"] = feedback
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "request_id": request_id,
         "kind": "custom",
         "producer": {"agent": "test"},
@@ -144,7 +131,29 @@ def _custom_gate_spec(
             "sender": "safety-check",
             "notes": ["Confirm guarded work"],
         },
-        "choices": [choice],
+        "query": "(proceed AND audit AND broken)",
+        "options": [
+            proceed,
+            {
+                "id": "audit",
+                "label": "Write audit record",
+                "icon": "📝",
+                "command": {"argv": ["commands/audit"]},
+            },
+            {
+                "id": "broken",
+                "label": "Try fallible follow-up",
+                "default_selected": False,
+                "command": {"argv": ["commands/broken"]},
+            },
+        ],
+        "groups": [
+            {
+                "options": ["broken", "proceed", "audit"],
+                "label": "Proceed safely",
+                "icon": "✅",
+            }
+        ],
         "resources": [
             {
                 "path": "commands/proceed",
@@ -183,7 +192,7 @@ def test_create_gate_returns_stable_descriptor_and_is_idempotent(
     repeated = create_gate(_gate_spec())
 
     assert repeated.to_dict() == result.to_dict()
-    assert result.schema_version == 1
+    assert result.schema_version == 2
     assert result.request_path.is_file()
     assert result.preview_path == result.bundle_path / "preview.md"
     assert result.response_path == result.bundle_path / "response.json"
@@ -198,19 +207,28 @@ def test_create_gate_returns_stable_descriptor_and_is_idempotent(
     assert entry["state"] == "available"
 
 
-def test_custom_gate_projects_icons_extras_and_privileged_pending_action(
+def test_custom_gate_projects_query_groups_and_privileged_pending_action(
     gate_home: Path,
 ) -> None:
     result = create_gate(_custom_gate_spec())
 
     request = json.loads(result.request_path.read_text(encoding="utf-8"))
-    [choice] = request["choices"]
+    options = request["options"]
     [notification] = load_notifications(include_dismissed=True)
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
 
     assert request["presentation"]["icon"] == "🛡️"
-    assert choice["feedback"] == "optional"
-    assert [extra["id"] for extra in choice["extras"]] == ["audit", "broken"]
+    assert request["query"] == "(proceed AND audit AND broken)"
+    assert request["branches"] == [["proceed", "audit", "broken"]]
+    assert request["groups"] == [
+        {
+            "options": ["proceed", "audit", "broken"],
+            "label": "Proceed safely",
+            "icon": "✅",
+        }
+    ]
+    assert [option["id"] for option in options] == ["proceed", "audit", "broken"]
+    assert all(option["feedback"] == "optional" for option in options)
     assert notification.icon == "🛡️"
     assert notification.action == "CustomGate"
     assert entry["action_kind"] == "custom_gate"
@@ -231,56 +249,61 @@ def test_custom_gate_auto_and_unsafe_display_shapes_are_rejected(
         create_gate(invalid_icon)
     assert icon_error.value.code == "invalid_icon"
 
-    duplicate_extra = _custom_gate_spec(request_id="duplicate-extra")
-    choices = duplicate_extra["choices"]
-    assert isinstance(choices, list)
-    extras = choices[0]["extras"]
-    assert isinstance(extras, list)
-    extras[1]["id"] = "audit"
+    duplicate_option = _custom_gate_spec(request_id="duplicate-option")
+    options = duplicate_option["options"]
+    assert isinstance(options, list)
+    options[2]["id"] = "audit"
     with pytest.raises(GateError) as duplicate_error:
-        create_gate(duplicate_extra)
+        create_gate(duplicate_option)
     assert duplicate_error.value.code == "duplicate_identifier"
     assert not (gate_home / "requests" / "custom" / "custom-auto").exists()
 
 
-def test_custom_gate_runs_selected_extras_and_persists_feedback_and_failures(
+def test_custom_gate_runs_selected_options_in_query_order_and_persists_feedback(
     gate_home: Path,
 ) -> None:
     result = create_gate(_custom_gate_spec(feedback="required"))
 
     with pytest.raises(GateError) as missing_feedback:
-        execute_gate_choice(result.bundle_path, "proceed")
+        execute_gate_selection(result.bundle_path, ["proceed"])
     assert missing_feedback.value.code == "feedback_required"
     assert not result.response_path.exists()
 
-    execution = execute_gate_choice(
+    started: list[str] = []
+    with pytest.raises(GateError) as failed_command:
+        execute_gate_selection(
+            result.bundle_path,
+            ["broken", "audit", "proceed"],
+            {"reviewed": True},
+            feedback="Ship it carefully",
+            on_command_start=lambda _kind, option_id, _label, _argv: started.append(
+                option_id
+            ),
+        )
+    assert failed_command.value.code == "command_failed"
+    assert started == ["proceed", "audit", "broken"]
+    assert not result.response_path.exists()
+    [error_log] = list((result.bundle_path / "errors").glob("*.json"))
+    assert json.loads(error_log.read_text())["option_id"] == "broken"
+
+    execution = execute_gate_selection(
         result.bundle_path,
-        "proceed",
+        ["audit", "proceed"],
         {"reviewed": True},
-        selected_extra_ids=["broken", "audit"],
         feedback="  Ship it carefully  ",
     )
 
-    assert execution.response["selected_extra_ids"] == ["audit", "broken"]
+    assert execution.response["selected_option_ids"] == ["proceed", "audit"]
     assert execution.response["feedback"] == "Ship it carefully"
-    assert execution.response["extra_results"][0] == {
-        "id": "audit",
-        "status": "succeeded",
-        "result": {"audit": {"reviewed": True}},
-    }
-    failed = execution.response["extra_results"][1]
-    assert failed["id"] == "broken"
-    assert failed["status"] == "failed"
-    assert failed["error"]["code"] == "command_failed"
-    assert failed["error"]["returncode"] == 7
+    assert execution.response["option_results"] == [
+        {"id": "proceed", "result": {"status": "ok"}},
+        {"id": "audit", "result": {"audit": {"reviewed": True}}},
+    ]
     assert result.response_path.is_file()
-    [error_log] = list((result.bundle_path / "errors").glob("*.json"))
-    assert json.loads(error_log.read_text())["extra_id"] == "broken"
 
     terminal = poll_gate(result.bundle_path)
     assert terminal is not None
-    assert terminal.choice_id == "proceed"
-    assert terminal.selected_extra_ids == ("audit", "broken")
+    assert terminal.selected_option_ids == ("proceed", "audit")
     assert terminal.feedback == "Ship it carefully"
 
 
@@ -290,10 +313,9 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
 ) -> None:
     del gate_home
     result = create_gate(_custom_gate_spec(request_id="wait-answered"))
-    execute_gate_choice(
+    execute_gate_selection(
         result.bundle_path,
-        "proceed",
-        selected_extra_ids=["audit"],
+        ["proceed", "audit"],
         feedback="Looks good",
     )
     args = argparse.Namespace(
@@ -311,8 +333,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
     payload = json.loads(capsys.readouterr().out)
     assert payload == {
         "status": "answered",
-        "choice_id": "proceed",
-        "selected_extra_ids": ["audit"],
+        "selected_option_ids": ["proceed", "audit"],
         "feedback": "Looks good",
         "response_path": str(result.response_path),
     }
@@ -324,8 +345,7 @@ def test_notify_wait_prints_stable_answered_json_and_human_summary(
     assert excinfo.value.code == 0
     out = capsys.readouterr().out
     assert "Gate custom/wait-answered answered" in out
-    assert "choice proceed" in out
-    assert "extras audit" in out
+    assert "options proceed, audit" in out
     assert f"Response path: {result.response_path}" in out
 
 
@@ -351,8 +371,7 @@ def test_notify_wait_reports_cancelled_gate_with_distinct_exit_code(
     assert excinfo.value.code == 3
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "cancelled"
-    assert payload["choice_id"] is None
-    assert payload["selected_extra_ids"] == []
+    assert payload["selected_option_ids"] == []
     assert payload["feedback"] is None
     assert payload["response_path"] == str(result.response_path)
 
@@ -385,36 +404,50 @@ def test_notify_wait_reports_cli_timeout_with_distinct_exit_code(
     assert cancellation["reason"] == "timeout"
 
 
-def test_custom_gate_rejects_unknown_extras_and_disabled_feedback(
+def test_custom_gate_rejects_invalid_selections_and_disabled_feedback(
     gate_home: Path,
 ) -> None:
     result = create_gate(_custom_gate_spec(feedback="disabled"))
-    with pytest.raises(GateError) as unknown_extra:
-        execute_gate_choice(
+    with pytest.raises(GateError) as unknown_option:
+        execute_gate_selection(
             result.bundle_path,
-            "proceed",
-            selected_extra_ids=["missing"],
+            ["missing"],
         )
-    assert unknown_extra.value.code == "unknown_extra"
+    assert unknown_option.value.code == "unknown_option"
+    with pytest.raises(GateError) as cross_branch:
+        cross_branch_spec = _custom_gate_spec(request_id="cross-branch")
+        cross_branch_spec["query"] = "proceed OR audit OR broken"
+        cross_branch_spec["groups"] = []
+        cross_branch_result = create_gate(cross_branch_spec)
+        execute_gate_selection(cross_branch_result.bundle_path, ["proceed", "audit"])
+    assert cross_branch.value.code == "selection_crosses_branches"
     with pytest.raises(GateError) as disabled_feedback:
-        execute_gate_choice(result.bundle_path, "proceed", feedback="not allowed")
+        execute_gate_selection(
+            result.bundle_path,
+            ["proceed"],
+            feedback="not allowed",
+        )
     assert disabled_feedback.value.code == "feedback_not_allowed"
     assert not result.response_path.exists()
 
 
-def test_execute_choice_validates_input_and_writes_response_once(
+def test_execute_selection_validates_input_and_writes_response_once(
     gate_home: Path,
 ) -> None:
     result = create_gate(_gate_spec())
 
-    first = execute_gate_choice(result.bundle_path, "approve", {"reviewed": True})
-    second = execute_gate_choice(result.bundle_path, "approve", {"reviewed": False})
+    first = execute_gate_selection(result.bundle_path, ["approve"], {"reviewed": True})
+    second = execute_gate_selection(
+        result.bundle_path, ["approve"], {"reviewed": False}
+    )
 
     assert first.already_completed is False
-    assert first.response["result"] == {
-        "status": "ok",
-        "input": {"reviewed": True},
-    }
+    assert first.response["option_results"] == [
+        {
+            "id": "approve",
+            "result": {"status": "ok", "input": {"reviewed": True}},
+        }
+    ]
     assert second.already_completed is True
     assert second.response == first.response
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
@@ -428,14 +461,14 @@ def test_hash_mismatch_and_malformed_output_leave_gate_answerable(
         _gate_spec(request_id="malformed", command="#!/bin/sh\nprintf 'not json'\n")
     )
     with pytest.raises(GateError, match="stdout must contain"):
-        execute_gate_choice(malformed.bundle_path, "approve")
+        execute_gate_selection(malformed.bundle_path, ["approve"])
     assert not malformed.response_path.exists()
     assert list((malformed.bundle_path / "errors").glob("*.json"))
 
     changed = create_gate(_gate_spec(request_id="changed"))
     (changed.bundle_path / "preview.md").write_text("changed", encoding="utf-8")
     with pytest.raises(GateError) as excinfo:
-        execute_gate_choice(changed.bundle_path, "approve")
+        execute_gate_selection(changed.bundle_path, ["approve"])
     assert excinfo.value.code == "hash_mismatch"
     assert not changed.response_path.exists()
 
@@ -443,31 +476,80 @@ def test_hash_mismatch_and_malformed_output_leave_gate_answerable(
 def test_automatic_resolution_uses_executor_without_pending_row(
     gate_home: Path,
 ) -> None:
-    from sase.user_question_actions import create_user_question_gate
+    from sase.user_question_actions import (
+        QUESTION_COMMAND_PATH,
+        QUESTION_CONTINUATION_MODE,
+        automatic_question_response,
+        question_gate_command_script,
+        question_response_schema,
+        validate_user_questions,
+    )
 
-    result = create_user_question_gate(
+    questions = validate_user_questions(
         [
             {
                 "question": "Choose one",
                 "options": [{"label": "First"}, {"label": "Second"}],
             }
-        ],
-        session_id="automatic-question",
-        auto=True,
+        ]
+    )
+    schema = question_response_schema(questions)
+    result = create_gate(
+        {
+            "schema_version": 2,
+            "kind": "question",
+            "request_id": "automatic-question",
+            "continuation_mode": QUESTION_CONTINUATION_MODE,
+            "payload": {
+                "questions": questions,
+                "session_id": "automatic-question",
+            },
+            "query": "submit",
+            "options": [
+                {
+                    "id": "submit",
+                    "label": "Submit answers",
+                    "command": {"argv": [QUESTION_COMMAND_PATH]},
+                    "input_schema": schema,
+                    "result_schema": schema,
+                    "feedback": "optional",
+                }
+            ],
+            "resources": [
+                {
+                    "path": QUESTION_COMMAND_PATH,
+                    "role": "command",
+                    "content": question_gate_command_script(),
+                }
+            ],
+            "auto": True,
+        }
     )
 
     assert result.notification_id is None
     assert result.auto_resolution["state"] == "resolved"
+    assert result.auto_resolution["selected_option_ids"] == ["submit"]
     assert result.response_path.is_file()
+    response = json.loads(result.response_path.read_text(encoding="utf-8"))
+    assert response["selected_option_ids"] == ["submit"]
+    assert response["option_results"] == [
+        {
+            "id": "submit",
+            "result": automatic_question_response({"questions": questions}),
+        }
+    ]
     assert load_notifications(include_dismissed=True) == []
     assert pending_actions.read_pending_action_store()["actions"] == {}
 
 
 def test_launch_adapter_rejects_automatic_resolution() -> None:
     from sase.notification_gates.registry import adapter_for_kind
+    from sase.notification_gates.models import GateSpec
 
     with pytest.raises(GateError) as exc_info:
-        adapter_for_kind("launch").resolve_auto_choice((), None)
+        adapter_for_kind("launch").resolve_auto_selection(
+            GateSpec.from_mapping(_gate_spec(kind="launch")), None
+        )
 
     assert exc_info.value.code == "auto_not_supported"
 
@@ -563,7 +645,7 @@ def test_notify_create_gate_json_and_raw_privileged_rejection(
         )
     assert excinfo.value.code == 0
     descriptor = json.loads(capsys.readouterr().out)
-    assert descriptor["schema_version"] == 1
+    assert descriptor["schema_version"] == 2
     assert descriptor["kind"] == "hitl"
 
     monkeypatch.setattr(

@@ -9,11 +9,14 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
-GATE_REQUEST_SCHEMA_VERSION = 1
-GATE_RESPONSE_SCHEMA_VERSION = 1
-GATE_RESULT_SCHEMA_VERSION = 1
+from sase.notification_gates.query import GateQueryError, parse_gate_query
+
+GATE_REQUEST_SCHEMA_VERSION = 2
+GATE_RESPONSE_SCHEMA_VERSION = 2
+GATE_RESULT_SCHEMA_VERSION = 2
 
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_OPTION_IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
 _MAX_GATE_LABEL_LENGTH = 160
 _MAX_GATE_ICON_CODEPOINTS = 32
 _MAX_GATE_ICON_BYTES = 128
@@ -37,6 +40,17 @@ def validate_identifier(value: object, target: str) -> str:
             "invalid_identifier",
             target,
             f"{target} must contain only letters, digits, '.', '_', or '-'",
+        )
+    return value
+
+
+def validate_option_identifier(value: object, target: str) -> str:
+    """Return an identifier accepted by the option-query grammar."""
+    if not isinstance(value, str) or not _OPTION_IDENTIFIER_RE.fullmatch(value):
+        raise GateError(
+            "invalid_identifier",
+            target,
+            f"{target} must match [a-z][a-z0-9_-]*",
         )
     return value
 
@@ -197,52 +211,8 @@ class _GateCommand:
 
 
 @dataclass(frozen=True)
-class GateExtra:
-    """One independently selectable add-on command for a terminal choice."""
-
-    id: str
-    label: str
-    command: _GateCommand
-    icon: str | None = None
-    default_selected: bool = False
-
-    @classmethod
-    def from_mapping(cls, value: object, choice_index: int, index: int) -> GateExtra:
-        target = f"choices[{choice_index}].extras[{index}]"
-        data = _json_object(value, target)
-        _reject_unknown_fields(
-            data,
-            {"id", "label", "command", "icon", "default_selected"},
-            target,
-        )
-        default_selected = data.get("default_selected", False)
-        if not isinstance(default_selected, bool):
-            raise GateError(
-                "invalid_request",
-                f"{target}.default_selected",
-                "default_selected must be a boolean",
-            )
-        return cls(
-            id=validate_identifier(data.get("id"), f"{target}.id"),
-            label=_validate_label(data.get("label"), f"{target}.label"),
-            command=_GateCommand.from_value(data.get("command"), f"{target}.command"),
-            icon=validate_icon(data.get("icon"), f"{target}.icon"),
-            default_selected=default_selected,
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "label": self.label,
-            "command": self.command.to_dict(),
-            "icon": self.icon,
-            "default_selected": self.default_selected,
-        }
-
-
-@dataclass(frozen=True)
-class GateChoice:
-    """One terminal choice exposed by a gate."""
+class GateOption:
+    """One command-bearing control referenced exactly once by a gate query."""
 
     id: str
     label: str
@@ -250,8 +220,8 @@ class GateChoice:
     input_schema: dict[str, Any] = field(default_factory=dict)
     result_schema: dict[str, Any] = field(default_factory=dict)
     icon: str | None = None
+    default_selected: bool = True
     feedback: GateFeedbackMode = "disabled"
-    extras: tuple[GateExtra, ...] = ()
 
     @classmethod
     def from_mapping(
@@ -260,8 +230,8 @@ class GateChoice:
         index: int,
         *,
         default_feedback: GateFeedbackMode = "disabled",
-    ) -> GateChoice:
-        target = f"choices[{index}]"
+    ) -> GateOption:
+        target = f"options[{index}]"
         data = _json_object(value, target)
         _reject_unknown_fields(
             data,
@@ -272,13 +242,20 @@ class GateChoice:
                 "input_schema",
                 "result_schema",
                 "icon",
+                "default_selected",
                 "feedback",
-                "extras",
             },
             target,
         )
-        choice_id = validate_identifier(data.get("id"), f"{target}.id")
+        option_id = validate_option_identifier(data.get("id"), f"{target}.id")
         label = _validate_label(data.get("label"), f"{target}.label")
+        default_selected = data.get("default_selected", True)
+        if not isinstance(default_selected, bool):
+            raise GateError(
+                "invalid_request",
+                f"{target}.default_selected",
+                "default_selected must be a boolean",
+            )
         feedback = data.get("feedback", default_feedback)
         if feedback not in {"disabled", "optional", "required"}:
             raise GateError(
@@ -286,15 +263,6 @@ class GateChoice:
                 f"{target}.feedback",
                 "feedback must be disabled, optional, or required",
             )
-        raw_extras = data.get("extras", [])
-        if not isinstance(raw_extras, list):
-            raise GateError(
-                "invalid_request", f"{target}.extras", "extras must be an array"
-            )
-        extras = tuple(
-            GateExtra.from_mapping(raw_extra, index, extra_index)
-            for extra_index, raw_extra in enumerate(raw_extras)
-        )
         input_schema = _json_object(
             data.get("input_schema", {}), f"{target}.input_schema"
         )
@@ -304,14 +272,14 @@ class GateChoice:
         _check_json_schema(input_schema, f"{target}.input_schema")
         _check_json_schema(result_schema, f"{target}.result_schema")
         return cls(
-            id=choice_id,
+            id=option_id,
             label=label,
             command=_GateCommand.from_value(data.get("command"), f"{target}.command"),
             input_schema=input_schema,
             result_schema=result_schema,
             icon=validate_icon(data.get("icon"), f"{target}.icon"),
+            default_selected=default_selected,
             feedback=feedback,
-            extras=extras,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -322,9 +290,161 @@ class GateChoice:
             "input_schema": self.input_schema,
             "result_schema": self.result_schema,
             "icon": self.icon,
+            "default_selected": self.default_selected,
             "feedback": self.feedback,
-            "extras": [extra.to_dict() for extra in self.extras],
         }
+
+
+@dataclass(frozen=True)
+class GateGroup:
+    """Display metadata for one AND branch's submit control."""
+
+    options: tuple[str, ...]
+    label: str | None = None
+    icon: str | None = None
+
+    @classmethod
+    def from_mapping(cls, value: object, index: int) -> GateGroup:
+        target = f"groups[{index}]"
+        data = _json_object(value, target)
+        _reject_unknown_fields(data, {"options", "label", "icon"}, target)
+        raw_options = data.get("options")
+        if not isinstance(raw_options, list) or not raw_options:
+            raise GateError(
+                "invalid_group",
+                f"{target}.options",
+                "group options must be a non-empty array of option ids",
+            )
+        options = tuple(
+            validate_option_identifier(option_id, f"{target}.options[{option_index}]")
+            for option_index, option_id in enumerate(raw_options)
+        )
+        if len(set(options)) != len(options):
+            raise GateError(
+                "invalid_group",
+                f"{target}.options",
+                "group option ids must be unique",
+            )
+        raw_label = data.get("label")
+        label = (
+            None if raw_label is None else _validate_label(raw_label, f"{target}.label")
+        )
+        return cls(
+            options=options,
+            label=label,
+            icon=validate_icon(data.get("icon"), f"{target}.icon"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "options": list(self.options),
+            "label": self.label,
+            "icon": self.icon,
+        }
+
+
+def normalize_gate_structure(
+    query_value: object,
+    options_value: object,
+    groups_value: object,
+    *,
+    default_feedback: GateFeedbackMode = "disabled",
+) -> tuple[
+    str, tuple[GateOption, ...], tuple[GateGroup, ...], tuple[tuple[str, ...], ...]
+]:
+    """Validate and normalize the query/options/groups cross-reference contract."""
+    try:
+        parsed = parse_gate_query(query_value)
+    except GateQueryError as exc:
+        raise GateError("invalid_query", "query", str(exc)) from exc
+
+    if not isinstance(options_value, list) or not options_value:
+        raise GateError(
+            "invalid_request", "options", "at least one gate option is required"
+        )
+    options = tuple(
+        GateOption.from_mapping(
+            option,
+            index,
+            default_feedback=default_feedback,
+        )
+        for index, option in enumerate(options_value)
+    )
+    option_ids = [option.id for option in options]
+    duplicates = sorted(
+        option_id for option_id in set(option_ids) if option_ids.count(option_id) > 1
+    )
+    if duplicates:
+        raise GateError(
+            "duplicate_identifier",
+            "options",
+            f"duplicate option id(s): {', '.join(duplicates)}",
+        )
+    queried_ids = {option_id for branch in parsed.branches for option_id in branch}
+    declared_ids = set(option_ids)
+    unknown = sorted(queried_ids - declared_ids)
+    missing = sorted(declared_ids - queried_ids)
+    if unknown:
+        raise GateError(
+            "unknown_option",
+            "query",
+            f"query references undeclared option(s): {', '.join(unknown)}",
+        )
+    if missing:
+        raise GateError(
+            "unreferenced_option",
+            "options",
+            f"option(s) are not referenced by the query: {', '.join(missing)}",
+        )
+
+    if groups_value is None:
+        groups_value = []
+    if not isinstance(groups_value, list):
+        raise GateError("invalid_request", "groups", "groups must be an array")
+    configs = tuple(
+        GateGroup.from_mapping(group, index) for index, group in enumerate(groups_value)
+    )
+    and_branches = tuple(branch for branch in parsed.branches if len(branch) > 1)
+    branch_by_members = {frozenset(branch): branch for branch in and_branches}
+    configs_by_members: dict[frozenset[str], GateGroup] = {}
+    for index, config in enumerate(configs):
+        members = frozenset(config.options)
+        branch = branch_by_members.get(members)
+        if branch is None:
+            raise GateError(
+                "invalid_group",
+                f"groups[{index}].options",
+                "configured group does not match an AND branch in the query",
+            )
+        if members in configs_by_members:
+            raise GateError(
+                "invalid_group",
+                f"groups[{index}].options",
+                "an AND branch may be configured only once",
+            )
+        configs_by_members[members] = config
+
+    by_id = {option.id: option for option in options}
+    groups: list[GateGroup] = []
+    for branch in and_branches:
+        group_config = configs_by_members.get(frozenset(branch))
+        first = by_id[branch[0]]
+        groups.append(
+            GateGroup(
+                options=branch,
+                label=(
+                    group_config.label
+                    if group_config is not None and group_config.label is not None
+                    else first.label
+                ),
+                icon=(
+                    group_config.icon
+                    if group_config is not None and group_config.icon is not None
+                    else first.icon
+                ),
+            )
+        )
+    return parsed.query, options, tuple(groups), parsed.branches
 
 
 @dataclass(frozen=True)
@@ -474,7 +594,10 @@ class GateSpec:
     gate_timeout_seconds: float | None
     payload: dict[str, Any]
     presentation: dict[str, Any]
-    choices: tuple[GateChoice, ...]
+    query: str
+    options: tuple[GateOption, ...]
+    groups: tuple[GateGroup, ...]
+    branches: tuple[tuple[str, ...], ...]
     operations: tuple[_GateOperation, ...]
     resources: tuple[GateResource, ...]
     auto: _GateAuto
@@ -482,6 +605,17 @@ class GateSpec:
     @classmethod
     def from_mapping(cls, value: object) -> GateSpec:
         data = _json_object(value, "request")
+        schema_version = data.get("schema_version")
+        if (
+            type(schema_version) is not int
+            or schema_version != GATE_REQUEST_SCHEMA_VERSION
+        ):
+            raise GateError(
+                "unsupported_schema",
+                "schema_version",
+                "schema_version must be 2; expected a v2 gate request with "
+                "query, options, and optional groups (choices/extras are unsupported)",
+            )
         _reject_unknown_fields(
             data,
             {
@@ -494,7 +628,9 @@ class GateSpec:
                 "payload",
                 "presentation",
                 "notification",
-                "choices",
+                "query",
+                "options",
+                "groups",
                 "operations",
                 "resources",
                 "assets",
@@ -502,16 +638,6 @@ class GateSpec:
             },
             "request",
         )
-        schema_version = data.get("schema_version")
-        if (
-            type(schema_version) is not int
-            or schema_version != GATE_REQUEST_SCHEMA_VERSION
-        ):
-            raise GateError(
-                "unsupported_schema",
-                "schema_version",
-                f"schema_version must be {GATE_REQUEST_SCHEMA_VERSION}",
-            )
         kind = validate_identifier(data.get("kind"), "kind")
         raw_request_id = data.get("request_id")
         request_id = (
@@ -541,18 +667,11 @@ class GateSpec:
                     "gate_timeout_seconds",
                     "gate_timeout_seconds must be a positive number",
                 )
-        raw_choices = data.get("choices")
-        if not isinstance(raw_choices, list) or not raw_choices:
-            raise GateError(
-                "invalid_request", "choices", "at least one terminal choice is required"
-            )
-        choices = tuple(
-            GateChoice.from_mapping(
-                choice,
-                index,
-                default_feedback="optional" if kind == "custom" else "disabled",
-            )
-            for index, choice in enumerate(raw_choices)
+        query, options, groups, branches = normalize_gate_structure(
+            data.get("query"),
+            data.get("options"),
+            data.get("groups", []),
+            default_feedback="optional" if kind == "custom" else "disabled",
         )
         raw_operations = data.get("operations", [])
         if not isinstance(raw_operations, list):
@@ -585,7 +704,7 @@ class GateSpec:
                 "use presentation or notification, not both",
             )
         return cls(
-            schema_version=schema_version,
+            schema_version=GATE_REQUEST_SCHEMA_VERSION,
             kind=kind,
             request_id=request_id,
             producer=_json_object(data.get("producer", {}), "producer"),
@@ -596,7 +715,10 @@ class GateSpec:
                 data.get("presentation", data.get("notification", {})),
                 "presentation",
             ),
-            choices=choices,
+            query=query,
+            options=options,
+            groups=groups,
+            branches=branches,
             operations=operations,
             resources=resources,
             auto=_GateAuto.from_value(data.get("auto")),
@@ -701,15 +823,17 @@ __all__ = [
     "GATE_REQUEST_SCHEMA_VERSION",
     "GATE_RESPONSE_SCHEMA_VERSION",
     "GATE_RESULT_SCHEMA_VERSION",
-    "GateChoice",
     "GateCreationResult",
     "GateError",
     "GateExecutionResult",
-    "GateExtra",
     "GateFeedbackMode",
+    "GateGroup",
+    "GateOption",
     "GateResource",
     "GateSpec",
+    "normalize_gate_structure",
     "validate_icon",
     "validate_identifier",
+    "validate_option_identifier",
     "validate_relative_path",
 ]

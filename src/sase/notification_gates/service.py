@@ -23,7 +23,7 @@ from sase.notification_gates.durability import (
     sha256_file,
     verify_mode,
 )
-from sase.notification_gates.executor import execute_gate_choice
+from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
     GATE_RESULT_SCHEMA_VERSION,
@@ -205,12 +205,11 @@ def _resolve_auto_gate(
     envelope: dict[str, Any],
     fingerprint: str,
 ) -> GateCreationResult:
-    choice = adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
-    execution = execute_gate_choice(
+    selected_option_ids = adapter.resolve_auto_selection(spec, spec.auto.argument)
+    execution = execute_gate_selection(
         paths.root,
-        choice.id,
+        selected_option_ids,
         adapter.automatic_input(spec),
-        selected_extra_ids=adapter.automatic_extra_ids(choice),
         source="auto_resolution",
     )
     result = _creation_result(
@@ -220,7 +219,7 @@ def _resolve_auto_gate(
         envelope,
         notification_id=None,
         auto_state="resolved",
-        auto_choice_id=choice.id,
+        auto_selected_option_ids=selected_option_ids,
     )
     atomic_write_json(paths.creation_result, result.to_dict())
     _write_journal(
@@ -230,7 +229,7 @@ def _resolve_auto_gate(
         kind=adapter.kind,
         notification_id=None,
         spec_sha256=fingerprint,
-        response_choice_id=execution.response.get("choice_id"),
+        response_selected_option_ids=execution.response.get("selected_option_ids"),
     )
     return result
 
@@ -250,7 +249,7 @@ def _complete_manual_gate(
         envelope,
         notification_id=notification_id,
         auto_state="disabled",
-        auto_choice_id=None,
+        auto_selected_option_ids=None,
     )
     atomic_write_json(paths.creation_result, result.to_dict())
     _write_journal(
@@ -288,7 +287,10 @@ def _build_envelope(
         "gate_timeout_seconds": spec.gate_timeout_seconds,
         "payload": spec.payload,
         "presentation": presentation,
-        "choices": [choice.to_dict() for choice in spec.choices],
+        "query": spec.query,
+        "options": [option.to_dict() for option in spec.options],
+        "groups": [group.to_dict() for group in spec.groups],
+        "branches": [list(branch) for branch in spec.branches],
         "operations": [operation.to_dict() for operation in spec.operations],
         "resources": [resource.envelope_dict() for resource in spec.resources],
         "auto": spec.auto.to_dict(),
@@ -356,7 +358,7 @@ def _creation_result(
     *,
     notification_id: str | None,
     auto_state: str,
-    auto_choice_id: str | None,
+    auto_selected_option_ids: tuple[str, ...] | None,
 ) -> GateCreationResult:
     preview = _preview_relative_path(spec)
     return GateCreationResult(
@@ -375,7 +377,11 @@ def _creation_result(
             "enabled": spec.auto.enabled,
             "argument": spec.auto.argument,
             "state": auto_state,
-            "choice_id": auto_choice_id,
+            "selected_option_ids": (
+                None
+                if auto_selected_option_ids is None
+                else list(auto_selected_option_ids)
+            ),
         },
         hashes=dict(envelope["hashes"]),
     )
@@ -503,7 +509,10 @@ def _spec_fingerprint(
         "gate_timeout_seconds": spec.gate_timeout_seconds,
         "payload": spec.payload,
         "presentation": spec.presentation,
-        "choices": [choice.to_dict() for choice in spec.choices],
+        "query": spec.query,
+        "options": [option.to_dict() for option in spec.options],
+        "groups": [group.to_dict() for group in spec.groups],
+        "branches": [list(branch) for branch in spec.branches],
         "operations": [operation.to_dict() for operation in spec.operations],
         "resources": [resource.envelope_dict() for resource in spec.resources],
         "resource_hashes": resource_hashes,

@@ -71,8 +71,8 @@ def build_gate_debug_overview(
     lines.extend(
         (
             "",
-            "Choices",
-            _choice_inventory(envelope),
+            "Option query",
+            _option_inventory(envelope),
             "",
             "Resource integrity",
             _resource_table(resources),
@@ -135,15 +135,14 @@ def _terminal_detail(
     payload: Mapping[str, Any], terminal_kind: str | None
 ) -> list[str]:
     if terminal_kind == "response":
-        selected = payload.get("selected_extra_ids")
-        extras = (
+        selected = payload.get("selected_option_ids")
+        options = (
             ", ".join(str(value) for value in selected)
             if isinstance(selected, list)
             else "none"
         )
         return [
-            _kv("Choice", str(payload.get("choice_id") or "unknown")),
-            _kv("Selected extras", extras or "none"),
+            _kv("Selected options", options or "none"),
             _kv("Feedback", str(payload.get("feedback") or "none")),
             _kv("Responded", _time_field(payload, "responded_at", "responded_at_unix")),
         ]
@@ -156,25 +155,24 @@ def _terminal_detail(
     return [_kv("Status detail", "waiting for a terminal response")]
 
 
-def _choice_inventory(envelope: Mapping[str, Any]) -> str:
-    choices = envelope.get("choices")
-    if not isinstance(choices, list) or not choices:
-        return "  ⚠ no readable choices"
-    lines: list[str] = []
-    for value in choices:
+def _option_inventory(envelope: Mapping[str, Any]) -> str:
+    options = envelope.get("options")
+    if not isinstance(options, list) or not options:
+        return "  ⚠ no readable options"
+    lines = [f"  {envelope.get('query') or '?'}"]
+    for value in options:
         if not isinstance(value, dict):
-            lines.append("  ✗ invalid choice declaration")
+            lines.append("  ✗ invalid option declaration")
             continue
         command = value.get("command")
         argv = command.get("argv") if isinstance(command, dict) else None
-        extras = value.get("extras")
         lines.append(
-            "  {icon} {id}: {label} | feedback={feedback} | extras={extras} | argv={argv}".format(
+            "  {icon} {id}: {label} | default={default} | feedback={feedback} | argv={argv}".format(
                 icon=value.get("icon") or "•",
                 id=value.get("id") or "?",
                 label=value.get("label") or "?",
+                default=str(value.get("default_selected", True)).lower(),
                 feedback=value.get("feedback") or "disabled",
-                extras=len(extras) if isinstance(extras, list) else 0,
                 argv=" ".join(str(item) for item in argv)
                 if isinstance(argv, list)
                 else "?",

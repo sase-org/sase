@@ -1,6 +1,6 @@
 """Durable command-backed notification gate service."""
 
-from sase.notification_gates.executor import cancel_gate, execute_gate_choice
+from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
     GATE_RESPONSE_SCHEMA_VERSION,
@@ -8,7 +8,14 @@ from sase.notification_gates.models import (
     GateCreationResult,
     GateError,
     GateExecutionResult,
+    GateGroup,
+    GateOption,
     GateSpec,
+)
+from sase.notification_gates.query import (
+    GateQueryError,
+    ParsedGateQuery,
+    parse_gate_query,
 )
 from sase.notification_gates.paths import (
     GateBundlePaths,
@@ -41,15 +48,20 @@ __all__ = [
     "GateCreationResult",
     "GateError",
     "GateExecutionResult",
+    "GateGroup",
+    "GateOption",
     "GatePollResult",
+    "GateQueryError",
     "GateSpec",
+    "ParsedGateQuery",
     "ResolvedGateBundle",
     "adapter_for_action",
     "adapter_for_kind",
     "bundle_paths",
     "cancel_gate",
     "create_gate",
-    "execute_gate_choice",
+    "execute_gate_selection",
+    "parse_gate_query",
     "poll_gate",
     "refresh_gate_after_edit",
     "registered_gate_kinds",

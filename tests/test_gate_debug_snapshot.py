@@ -11,7 +11,7 @@ from sase.notification_gates.debug import (
     MAX_ARTIFACT_BYTES,
     build_gate_debug_snapshot,
 )
-from sase.notification_gates.executor import cancel_gate, execute_gate_choice
+from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.models import GateCreationResult
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
@@ -45,7 +45,7 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> dict:
     value: dict = {
-        "schema_version": 1,
+        "schema_version": 2,
         "request_id": request_id,
         "kind": "custom",
         "producer": {"agent": "debug-producer", "machine": "test-host"},
@@ -57,7 +57,8 @@ def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> di
             "tags": ["debug"],
             "files": ["preview.md"],
         },
-        "choices": [
+        "query": "approve",
+        "options": [
             {
                 "id": "approve",
                 "label": "Approve",
@@ -70,7 +71,6 @@ def _spec(*, request_id: str = "debug-gate", timeout: float | None = None) -> di
                     "required": ["status"],
                     "properties": {"status": {"const": "ok"}},
                 },
-                "extras": [],
             }
         ],
         "resources": [
@@ -103,7 +103,7 @@ def _created_notification() -> tuple[GateCreationResult, Notification]:
     return created, notification
 
 
-def test_pending_snapshot_includes_integrity_choices_pending_and_raw_row(
+def test_pending_snapshot_includes_integrity_options_pending_and_raw_row(
     gate_home: Path,
 ) -> None:
     del gate_home
@@ -127,7 +127,11 @@ def test_answered_snapshot_and_error_records_are_rendered_newest_first(
 ) -> None:
     del gate_home
     created, notification = _created_notification()
-    execute_gate_choice(created.bundle_path, "approve", feedback="Reviewed")
+    execute_gate_selection(
+        created.bundle_path,
+        ["approve"],
+        feedback="Reviewed",
+    )
     errors = created.bundle_path / "errors"
     errors.mkdir(exist_ok=True)
     for name, code in (("1-old.json", "old"), ("2-new.json", "new")):
@@ -148,7 +152,8 @@ def test_answered_snapshot_and_error_records_are_rendered_newest_first(
     snapshot = build_gate_debug_snapshot(notification, notification.action_data)
 
     assert snapshot.status == "ANSWERED"
-    assert '"choice_id": "approve"' in snapshot.response.body
+    assert '"selected_option_ids": [' in snapshot.response.body
+    assert '"approve"' in snapshot.response.body
     assert [record.code for record in snapshot.errors] == ["new", "old"]
     assert "stderr:" in snapshot.errors_artifact.body
     assert "already_handled" in snapshot.overview.body

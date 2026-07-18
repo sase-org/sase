@@ -59,8 +59,7 @@ def handle_notify_wait(args: argparse.Namespace) -> NoReturn:
 def _terminal_payload(result: GatePollResult, response_path: Path) -> dict[str, object]:
     return {
         "status": _STATUS_PROJECTION[result.status],
-        "choice_id": result.choice_id,
-        "selected_extra_ids": list(result.selected_extra_ids),
+        "selected_option_ids": list(result.selected_option_ids),
         "feedback": result.feedback,
         "response_path": str(response_path),
     }
@@ -82,14 +81,12 @@ def _print_human_summary(
     summary.append(symbol, style=style)
     summary.append(f" Gate {kind}/{request_id} ")
     summary.append(label, style=style)
-    choice_id = payload["choice_id"]
-    if choice_id is not None:
-        summary.append(" · choice ", style="dim")
-        summary.append(str(choice_id), style="bold")
-    extras = payload["selected_extra_ids"]
-    if isinstance(extras, list) and extras:
-        summary.append(" · extras ", style="dim")
-        summary.append(", ".join(str(extra) for extra in extras))
+    selected = payload["selected_option_ids"]
+    if isinstance(selected, list) and selected:
+        summary.append(" · options ", style="dim")
+        summary.append(
+            ", ".join(str(option_id) for option_id in selected), style="bold"
+        )
     feedback = payload["feedback"]
     if feedback is not None:
         summary.append(" · feedback ", style="dim")

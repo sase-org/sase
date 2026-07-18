@@ -13,8 +13,8 @@ from sase.notification_gates.durability import (
 )
 from sase.notification_gates.models import (
     GATE_REQUEST_SCHEMA_VERSION,
-    GateChoice,
     GateError,
+    normalize_gate_structure,
     validate_identifier,
     validate_relative_path,
 )
@@ -102,11 +102,32 @@ def load_and_verify_bundle(
             f"hashes reference undeclared resources: {', '.join(sorted(extra_hashes))}",
         )
 
-    choices = envelope.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise GateError("invalid_request", "choices", "gate has no terminal choices")
-    for index, choice in enumerate(choices):
-        GateChoice.from_mapping(choice, index)
+    query, _options, groups, branches = normalize_gate_structure(
+        envelope.get("query"),
+        envelope.get("options"),
+        envelope.get("groups"),
+        default_feedback="optional" if adapter.kind == "custom" else "disabled",
+    )
+    if envelope.get("query") != query:
+        raise GateError(
+            "invalid_query",
+            "query",
+            "stored gate query is not in canonical form",
+        )
+    expected_branches = [list(branch) for branch in branches]
+    if envelope.get("branches") != expected_branches:
+        raise GateError(
+            "invalid_branches",
+            "branches",
+            "stored branches do not match the canonical gate query",
+        )
+    expected_groups = [group.to_dict() for group in groups]
+    if envelope.get("groups") != expected_groups:
+        raise GateError(
+            "invalid_groups",
+            "groups",
+            "stored groups do not match the query's AND branches",
+        )
     return envelope, adapter
 
 

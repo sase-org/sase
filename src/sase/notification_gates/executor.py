@@ -23,169 +23,173 @@ from sase.notification_gates.durability import (
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import (
     GATE_RESPONSE_SCHEMA_VERSION,
-    GateChoice,
     GateError,
     GateExecutionResult,
-    GateExtra,
     GateFeedbackMode,
+    GateOption,
 )
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
     RESPONSE_FILENAME,
     assert_owned_bundle,
-    owned_resource_path,
     open_regular_nofollow,
+    owned_resource_path,
 )
 
 
-def execute_gate_choice(
+def execute_gate_selection(
     bundle_path: Path,
-    choice_id: str,
+    selected_option_ids: Sequence[str],
     input_data: object | None = None,
     *,
-    selected_extra_ids: Sequence[str] | None = None,
     feedback: str | None = None,
     source: str = "host",
     on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None = None,
     on_output_line: Callable[[str, str, str, str], None] | None = None,
     on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None = None,
 ) -> GateExecutionResult:
-    """Run one terminal choice plus selected extras and persist one response."""
+    """Execute a non-empty subset of one branch and persist one response.
+
+    Submitted ids are normalized to query order before command execution and
+    persistence. Every selected option receives the same JSON input value.
+    """
     bundle_path = assert_owned_bundle(bundle_path)
-    lock_path = bundle_path / ".response.lock"
-    with file_lock(lock_path):
+    response_path = bundle_path / RESPONSE_FILENAME
+    cancellation_path = bundle_path / CANCELLATION_FILENAME
+    with file_lock(bundle_path / ".response.lock"):
         envelope, adapter = load_and_verify_bundle(bundle_path)
-        choice = _find_choice(envelope, choice_id)
-        response_path = bundle_path / RESPONSE_FILENAME
+        options = _options_from_envelope(envelope)
+        selected = _resolve_selection(envelope, options, selected_option_ids)
         if response_path.exists():
             existing_response = read_json_object(response_path)
             _mark_pending_handled(envelope, existing_response, source=source)
             return GateExecutionResult(
-                response=existing_response, already_completed=True
+                response=existing_response,
+                already_completed=True,
             )
-        cancellation_path = bundle_path / CANCELLATION_FILENAME
         if cancellation_path.exists():
             raise GateError(
-                "gate_cancelled", str(cancellation_path), "gate is already cancelled"
+                "gate_cancelled",
+                str(cancellation_path),
+                "gate is already cancelled",
             )
 
         normalized_input = {} if input_data is None else input_data
-        _validate_json_instance(
-            normalized_input, choice.input_schema, f"choice {choice.id} input"
-        )
-        selected_extras = _resolve_selected_extras(choice, selected_extra_ids)
-        normalized_feedback = _normalize_feedback(choice, feedback)
-        try:
-            if on_command_start is not None:
-                on_command_start("choice", choice.id, choice.label, choice.command.argv)
-            completed = _run_owned_command(
-                bundle_path,
-                choice.command.argv,
-                expected_hash=envelope["hashes"]["resources"][choice.command.argv[0]],
-                input_data=normalized_input,
-                on_output_line=(
-                    None
-                    if on_output_line is None
-                    else lambda stream, line: on_output_line(
-                        "choice", choice.id, stream, line
-                    )
-                ),
-                on_process_state=on_process_state,
-            )
-            _reject_command_terminal_state(
-                response_path,
-                cancellation_path,
-                target=choice.id,
-            )
-        except GateError as exc:
-            _record_execution_error(
-                bundle_path,
-                choice_id=choice.id,
-                code=exc.code,
-                message=str(exc),
-                source=source,
-            )
-            raise
-        if completed.returncode != 0:
-            message = _decode_output(completed.stderr) or (
-                f"command exited with status {completed.returncode}"
-            )
-            _record_execution_error(
-                bundle_path,
-                choice_id=choice.id,
-                code="command_failed",
-                message=message,
-                source=source,
-                returncode=completed.returncode,
-                stdout=_decode_output(completed.stdout),
-                stderr=_decode_output(completed.stderr),
-            )
-            raise GateError("command_failed", choice.id, message)
-
-        try:
-            result = _decode_json_result(completed.stdout)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            _record_execution_error(
-                bundle_path,
-                choice_id=choice.id,
-                code="invalid_command_output",
-                message=str(exc),
-                source=source,
-                stdout=_decode_output(completed.stdout),
-                stderr=_decode_output(completed.stderr),
-            )
-            raise GateError(
-                "invalid_command_output",
-                choice.id,
-                "command stdout must contain one JSON value",
-            ) from exc
-        try:
+        for option in selected:
             _validate_json_instance(
-                result, choice.result_schema, f"choice {choice.id} result"
+                normalized_input,
+                option.input_schema,
+                f"option {option.id} input",
             )
-        except GateError as exc:
-            _record_execution_error(
-                bundle_path,
-                choice_id=choice.id,
-                code=exc.code,
-                message=str(exc),
-                source=source,
-                stdout=_decode_output(completed.stdout),
-                stderr=_decode_output(completed.stderr),
-            )
-            raise
+        normalized_feedback = _normalize_feedback(selected, feedback)
 
-        current_envelope, _current_adapter = load_and_verify_bundle(bundle_path)
-        if current_envelope["hashes"]["request"] != envelope["hashes"]["request"]:
-            raise GateError(
-                "request_changed", str(bundle_path), "request changed during execution"
+        option_results: list[dict[str, Any]] = []
+        for option in selected:
+            stream_output = (
+                None
+                if on_output_line is None
+                else _bind_output_callback(on_output_line, option.id)
             )
-        extra_results = [
-            _execute_extra(
-                bundle_path,
-                extra,
-                envelope=envelope,
-                input_data=normalized_input,
-                response_path=response_path,
-                cancellation_path=cancellation_path,
-                choice_id=choice.id,
-                source=source,
-                on_command_start=on_command_start,
-                on_output_line=on_output_line,
-                on_process_state=on_process_state,
-            )
-            for extra in selected_extras
-        ]
+
+            try:
+                if on_command_start is not None:
+                    on_command_start(
+                        "option",
+                        option.id,
+                        option.label,
+                        option.command.argv,
+                    )
+                completed = _run_owned_command(
+                    bundle_path,
+                    option.command.argv,
+                    expected_hash=envelope["hashes"]["resources"][
+                        option.command.argv[0]
+                    ],
+                    input_data=normalized_input,
+                    on_output_line=stream_output,
+                    on_process_state=on_process_state,
+                )
+                _reject_command_terminal_state(
+                    response_path,
+                    cancellation_path,
+                    target=option.id,
+                )
+            except GateError as exc:
+                _record_execution_error(
+                    bundle_path,
+                    option_id=option.id,
+                    code=exc.code,
+                    message=str(exc),
+                    source=source,
+                )
+                raise
+            if completed.returncode != 0:
+                message = _decode_output(completed.stderr) or (
+                    f"command exited with status {completed.returncode}"
+                )
+                _record_execution_error(
+                    bundle_path,
+                    option_id=option.id,
+                    code="command_failed",
+                    message=message,
+                    source=source,
+                    returncode=completed.returncode,
+                    stdout=_decode_output(completed.stdout),
+                    stderr=_decode_output(completed.stderr),
+                )
+                raise GateError("command_failed", option.id, message)
+
+            try:
+                result = _decode_json_result(completed.stdout)
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                _record_execution_error(
+                    bundle_path,
+                    option_id=option.id,
+                    code="invalid_command_output",
+                    message=str(exc),
+                    source=source,
+                    stdout=_decode_output(completed.stdout),
+                    stderr=_decode_output(completed.stderr),
+                )
+                raise GateError(
+                    "invalid_command_output",
+                    option.id,
+                    "command stdout must contain one JSON value",
+                ) from exc
+            try:
+                _validate_json_instance(
+                    result,
+                    option.result_schema,
+                    f"option {option.id} result",
+                )
+            except GateError as exc:
+                _record_execution_error(
+                    bundle_path,
+                    option_id=option.id,
+                    code=exc.code,
+                    message=str(exc),
+                    source=source,
+                    stdout=_decode_output(completed.stdout),
+                    stderr=_decode_output(completed.stderr),
+                )
+                raise
+            option_results.append({"id": option.id, "result": result})
+
+            current_envelope, _current_adapter = load_and_verify_bundle(bundle_path)
+            if current_envelope["hashes"]["request"] != envelope["hashes"]["request"]:
+                raise GateError(
+                    "request_changed",
+                    str(bundle_path),
+                    "request changed during execution",
+                )
+
         response: dict[str, Any] = {
             "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
             "request_id": envelope["request_id"],
             "kind": adapter.kind,
-            "choice_id": choice.id,
+            "selected_option_ids": [option.id for option in selected],
             "input": normalized_input,
-            "result": result,
-            "selected_extra_ids": [extra.id for extra in selected_extras],
-            "extras_selection_provided": selected_extra_ids is not None,
-            "extra_results": extra_results,
+            "option_results": option_results,
             "feedback": normalized_feedback,
             "source": source,
             "responded_at_unix": time.time(),
@@ -202,13 +206,15 @@ def execute_gate_choice(
         except Exception as exc:
             _record_execution_error(
                 bundle_path,
-                choice_id=choice.id,
+                option_id=selected[0].id,
                 code="side_effect_failed",
                 message=str(exc),
                 source=source,
             )
             raise GateError(
-                "side_effect_failed", adapter.kind, f"host side effect failed: {exc}"
+                "side_effect_failed",
+                adapter.kind,
+                f"host side effect failed: {exc}",
             ) from exc
         return GateExecutionResult(response=response)
 
@@ -240,88 +246,120 @@ def cancel_gate(
             "cancelled_at_unix": time.time(),
         }
         atomic_write_json(path, cancellation, exclusive=True)
-        _mark_pending_handled(envelope, {"choice_id": "cancelled"}, source=source)
+        _mark_pending_handled(envelope, {}, source=source, action="cancelled")
         return cancellation
 
 
-def _find_choice(envelope: Mapping[str, Any], choice_id: str) -> GateChoice:
-    choices = envelope.get("choices")
-    assert isinstance(choices, list)
+def _options_from_envelope(envelope: Mapping[str, Any]) -> tuple[GateOption, ...]:
+    raw_options = envelope.get("options")
+    assert isinstance(raw_options, list)
     default_feedback: GateFeedbackMode = (
         "optional" if envelope.get("kind") == "custom" else "disabled"
     )
-    for index, raw_choice in enumerate(choices):
-        choice = GateChoice.from_mapping(
-            raw_choice,
+    return tuple(
+        GateOption.from_mapping(
+            raw_option,
             index,
             default_feedback=default_feedback,
         )
-        if choice.id == choice_id:
-            return choice
-    raise GateError(
-        "unknown_choice",
-        choice_id,
-        f"choice is not present in the request: {choice_id}",
+        for index, raw_option in enumerate(raw_options)
     )
 
 
-def _resolve_selected_extras(
-    choice: GateChoice,
-    selected_extra_ids: Sequence[str] | None,
-) -> tuple[GateExtra, ...]:
-    if selected_extra_ids is None:
-        return ()
+def _resolve_selection(
+    envelope: Mapping[str, Any],
+    options: tuple[GateOption, ...],
+    selected_option_ids: Sequence[str],
+) -> tuple[GateOption, ...]:
     if (
-        not isinstance(selected_extra_ids, Sequence)
-        or isinstance(selected_extra_ids, (str, bytes))
-        or not all(isinstance(extra_id, str) for extra_id in selected_extra_ids)
+        not isinstance(selected_option_ids, Sequence)
+        or isinstance(selected_option_ids, (str, bytes))
+        or not all(isinstance(option_id, str) for option_id in selected_option_ids)
     ):
         raise GateError(
-            "invalid_extras",
-            "selected_extra_ids",
-            "selected_extra_ids must be an array of strings",
+            "invalid_selection",
+            "selected_option_ids",
+            "selected_option_ids must be an array of strings",
         )
-    requested = tuple(selected_extra_ids)
+    requested = tuple(selected_option_ids)
+    if not requested:
+        raise GateError(
+            "empty_selection",
+            "selected_option_ids",
+            "at least one option must be selected",
+        )
     if len(set(requested)) != len(requested):
         raise GateError(
-            "duplicate_extra",
-            "selected_extra_ids",
-            "selected extra ids must be unique",
+            "duplicate_option",
+            "selected_option_ids",
+            "selected option ids must be unique",
         )
-    available = {extra.id: extra for extra in choice.extras}
-    unknown = sorted(set(requested) - set(available))
+    by_id = {option.id: option for option in options}
+    unknown = sorted(set(requested) - set(by_id))
     if unknown:
         raise GateError(
-            "unknown_extra",
-            "selected_extra_ids",
-            f"extra is not present on choice {choice.id}: {', '.join(unknown)}",
+            "unknown_option",
+            "selected_option_ids",
+            f"option is not present in the request: {', '.join(unknown)}",
         )
-    selected = set(requested)
-    return tuple(extra for extra in choice.extras if extra.id in selected)
+    raw_branches = envelope.get("branches")
+    assert isinstance(raw_branches, list)
+    selected_set = set(requested)
+    matching = [
+        tuple(str(option_id) for option_id in branch)
+        for branch in raw_branches
+        if isinstance(branch, list) and selected_set <= set(branch)
+    ]
+    if len(matching) != 1:
+        raise GateError(
+            "selection_crosses_branches",
+            "selected_option_ids",
+            "selected options must be a non-empty subset of exactly one branch",
+        )
+    branch = matching[0]
+    return tuple(by_id[option_id] for option_id in branch if option_id in selected_set)
 
 
-def _normalize_feedback(choice: GateChoice, feedback: str | None) -> str | None:
+def _normalize_feedback(
+    selected: tuple[GateOption, ...], feedback: str | None
+) -> str | None:
     if feedback is not None and not isinstance(feedback, str):
         raise GateError(
             "invalid_feedback", "feedback", "feedback must be a string or null"
         )
-    if choice.feedback == "disabled":
+    ranks: dict[GateFeedbackMode, int] = {
+        "disabled": 0,
+        "optional": 1,
+        "required": 2,
+    }
+    effective = max((option.feedback for option in selected), key=ranks.__getitem__)
+    selected_text = ", ".join(option.id for option in selected)
+    if effective == "disabled":
         if feedback is not None:
             raise GateError(
                 "feedback_not_allowed",
                 "feedback",
-                f"choice {choice.id} does not accept feedback",
+                f"selected option(s) do not accept feedback: {selected_text}",
             )
         return None
     normalized = feedback.strip() if isinstance(feedback, str) else None
     normalized = normalized or None
-    if choice.feedback == "required" and normalized is None:
+    if effective == "required" and normalized is None:
         raise GateError(
             "feedback_required",
             "feedback",
-            f"choice {choice.id} requires feedback",
+            f"selected option(s) require feedback: {selected_text}",
         )
     return normalized
+
+
+def _bind_output_callback(
+    callback: Callable[[str, str, str, str], None], option_id: str
+) -> Callable[[str, str], None]:
+    def emit(stream: str, line: str) -> None:
+        callback("option", option_id, stream, line)
+
+    return emit
 
 
 def _run_owned_command(
@@ -465,118 +503,6 @@ def _decode_json_result(value: bytes) -> Any:
     return json.loads(value)
 
 
-def _execute_extra(
-    bundle_path: Path,
-    extra: GateExtra,
-    *,
-    envelope: Mapping[str, Any],
-    input_data: object,
-    response_path: Path,
-    cancellation_path: Path,
-    choice_id: str,
-    source: str,
-    on_command_start: Callable[[str, str, str, tuple[str, ...]], None] | None,
-    on_output_line: Callable[[str, str, str, str], None] | None,
-    on_process_state: Callable[[subprocess.Popen[bytes], bool], None] | None,
-) -> dict[str, Any]:
-    try:
-        if on_command_start is not None:
-            on_command_start("extra", extra.id, extra.label, extra.command.argv)
-        completed = _run_owned_command(
-            bundle_path,
-            extra.command.argv,
-            expected_hash=envelope["hashes"]["resources"][extra.command.argv[0]],
-            input_data=input_data,
-            on_output_line=(
-                None
-                if on_output_line is None
-                else lambda stream, line: on_output_line(
-                    "extra", extra.id, stream, line
-                )
-            ),
-            on_process_state=on_process_state,
-        )
-        _reject_command_terminal_state(
-            response_path,
-            cancellation_path,
-            target=extra.id,
-        )
-    except GateError as exc:
-        return _extra_failure(
-            bundle_path,
-            extra,
-            choice_id=choice_id,
-            code=exc.code,
-            message=str(exc),
-            source=source,
-        )
-    stdout = _decode_output(completed.stdout)
-    stderr = _decode_output(completed.stderr)
-    if completed.returncode != 0:
-        message = stderr or f"command exited with status {completed.returncode}"
-        return _extra_failure(
-            bundle_path,
-            extra,
-            choice_id=choice_id,
-            code="command_failed",
-            message=message,
-            source=source,
-            returncode=completed.returncode,
-            stdout=stdout,
-            stderr=stderr,
-        )
-    try:
-        result = json.loads(completed.stdout)
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return _extra_failure(
-            bundle_path,
-            extra,
-            choice_id=choice_id,
-            code="invalid_command_output",
-            message="command stdout must contain one JSON value",
-            source=source,
-            stdout=stdout,
-            stderr=stderr,
-        )
-    return {"id": extra.id, "status": "succeeded", "result": result}
-
-
-def _extra_failure(
-    bundle_path: Path,
-    extra: GateExtra,
-    *,
-    choice_id: str,
-    code: str,
-    message: str,
-    source: str,
-    returncode: int | None = None,
-    stdout: str | None = None,
-    stderr: str | None = None,
-) -> dict[str, Any]:
-    _record_execution_error(
-        bundle_path,
-        choice_id=choice_id,
-        extra_id=extra.id,
-        code=code,
-        message=message,
-        source=source,
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-    return {
-        "id": extra.id,
-        "status": "failed",
-        "error": {
-            "code": code,
-            "message": message,
-            "returncode": returncode,
-            "stdout": stdout,
-            "stderr": stderr,
-        },
-    }
-
-
 def _validate_json_instance(value: object, schema: dict[str, Any], target: str) -> None:
     try:
         from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
@@ -611,8 +537,7 @@ def _remove_untrusted_terminal(path: Path) -> None:
 def _record_execution_error(
     bundle_path: Path,
     *,
-    choice_id: str,
-    extra_id: str | None = None,
+    option_id: str,
     code: str,
     message: str,
     source: str,
@@ -623,8 +548,7 @@ def _record_execution_error(
     errors = bundle_path / "errors"
     payload = {
         "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
-        "choice_id": choice_id,
-        "extra_id": extra_id,
+        "option_id": option_id,
         "code": code,
         "message": message,
         "source": source,
@@ -637,18 +561,28 @@ def _record_execution_error(
 
 
 def _mark_pending_handled(
-    envelope: Mapping[str, Any], response: Mapping[str, Any], *, source: str
+    envelope: Mapping[str, Any],
+    response: Mapping[str, Any],
+    *,
+    source: str,
+    action: str | None = None,
 ) -> None:
     notification_id = envelope.get("notification_id")
     if not isinstance(notification_id, str) or not notification_id:
         return
     from sase.notifications.pending_actions import mark_already_handled
 
+    raw_selected = response.get("selected_option_ids")
+    selected = (
+        [str(option_id) for option_id in raw_selected]
+        if isinstance(raw_selected, list)
+        else []
+    )
     mark_already_handled(
         notification_id,
         source=source,
-        action=str(response.get("choice_id") or "resolved"),
+        action=action or "+".join(selected) or "resolved",
     )
 
 
-__all__ = ["cancel_gate", "execute_gate_choice"]
+__all__ = ["cancel_gate", "execute_gate_selection"]

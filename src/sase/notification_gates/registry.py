@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.notification_gates.models import (
-    GateChoice,
     GateError,
+    GateOption,
     GateSpec,
     validate_icon,
 )
@@ -30,11 +30,11 @@ class GateAdapter:
     auto_policy: str
     neutral_only: bool = False
 
-    def resolve_auto_choice(
-        self, choices: tuple[GateChoice, ...], argument: str | None
-    ) -> GateChoice:
+    def resolve_auto_selection(
+        self, spec: GateSpec, argument: str | None
+    ) -> tuple[str, ...]:
         """Interpret the common opaque auto argument for this kind."""
-        by_id = {choice.id: choice for choice in choices}
+        by_id = {option.id: option for option in spec.options}
         if self.auto_policy == "forbidden":
             raise GateError(
                 "auto_not_supported",
@@ -48,7 +48,7 @@ class GateAdapter:
                     "auto.argument",
                     f"unsupported {self.kind} auto argument: {argument}",
                 )
-            return choices[0]
+            return _default_branch_selection(spec.branches[0], by_id)
 
         allowed = {
             "plan": {None, "", "plan", "tale"},
@@ -60,17 +60,20 @@ class GateAdapter:
                 "auto.argument",
                 f"unsupported {self.kind} auto argument: {argument}",
             )
-        if self.kind == "plan":
-            preferred = ("approve",)
-        else:
-            preferred = ("epic",)
-        for choice_id in preferred:
-            if choice_id in by_id:
-                return by_id[choice_id]
+        preferred = ("approve",) if self.kind == "plan" else ("approve", "epic")
+        for option_id in preferred:
+            branch = next(
+                (branch for branch in spec.branches if option_id in branch),
+                None,
+            )
+            if branch is not None:
+                defaults = set(_default_branch_selection(branch, by_id))
+                defaults.add(option_id)
+                return tuple(member for member in branch if member in defaults)
         raise GateError(
-            "invalid_auto_choice",
-            "choices",
-            f"{self.kind} auto resolution requires an approval choice",
+            "invalid_auto_selection",
+            "options",
+            f"{self.kind} auto resolution requires an approval option",
         )
 
     def apply_side_effects(
@@ -87,14 +90,35 @@ class GateAdapter:
         )
 
         envelope = read_json_object(bundle_path / "request.json")
-        result = response.get("result")
-        choice = response.get("choice_id")
-        if not isinstance(result, dict) or not isinstance(choice, str):
+        selected = response.get("selected_option_ids")
+        option_results = response.get("option_results")
+        if (
+            not isinstance(selected, list)
+            or not selected
+            or not all(isinstance(option_id, str) for option_id in selected)
+            or not isinstance(option_results, list)
+        ):
             raise GateError(
                 "invalid_response",
                 str(bundle_path / "response.json"),
-                "plan response is missing its choice or result",
+                "plan response is missing its selected options or results",
             )
+        choice = selected[0]
+        first_result = next(
+            (
+                entry.get("result")
+                for entry in option_results
+                if isinstance(entry, Mapping) and entry.get("id") == choice
+            ),
+            None,
+        )
+        if not isinstance(first_result, dict):
+            raise GateError(
+                "invalid_response",
+                str(bundle_path / "response.json"),
+                "plan response is missing the primary option result",
+            )
+        result = first_result
         context = plan_context_from_envelope(bundle_path, envelope)
         translated = translate_plan_gate_response(bundle_path, response)
         result.update(translated)
@@ -168,9 +192,14 @@ class GateAdapter:
             return {"epic_launch_mode": "detached"}
         return {}
 
-    def automatic_extra_ids(self, choice: GateChoice) -> tuple[str, ...]:
-        """Return the adapter-owned default extras for automatic resolution."""
-        return tuple(extra.id for extra in choice.extras if extra.default_selected)
+
+def _default_branch_selection(
+    branch: tuple[str, ...], by_id: Mapping[str, GateOption]
+) -> tuple[str, ...]:
+    selected = tuple(
+        option_id for option_id in branch if by_id[option_id].default_selected
+    )
+    return selected or (branch[0],)
 
 
 _ADAPTERS = (
@@ -294,47 +323,27 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             )
     resources = {resource.path: resource for resource in spec.resources}
 
-    choice_ids = [choice.id for choice in spec.choices]
-    _reject_duplicates(choice_ids, "choices", "choice id")
+    option_ids = [option.id for option in spec.options]
+    _reject_duplicates(option_ids, "options", "option id")
     operation_ids = [operation.id for operation in spec.operations]
     _reject_duplicates(operation_ids, "operations", "operation id")
-    overlap = set(choice_ids) & set(operation_ids)
+    overlap = set(option_ids) & set(operation_ids)
     if overlap:
         raise GateError(
             "duplicate_identifier",
             "operations",
-            f"choice and operation ids overlap: {', '.join(sorted(overlap))}",
+            f"option and operation ids overlap: {', '.join(sorted(overlap))}",
         )
 
-    for choice in spec.choices:
-        command_path = choice.command.argv[0]
+    for option in spec.options:
+        command_path = option.command.argv[0]
         resource = resources.get(command_path)
         if resource is None or resource.role != "command" or not resource.executable:
             raise GateError(
                 "unowned_command",
-                f"choices.{choice.id}.command",
+                f"options.{option.id}.command",
                 f"command must reference an executable command resource: {command_path}",
             )
-        extra_ids = [extra.id for extra in choice.extras]
-        _reject_duplicates(
-            extra_ids,
-            f"choices.{choice.id}.extras",
-            "extra id",
-        )
-        for extra in choice.extras:
-            extra_path = extra.command.argv[0]
-            extra_resource = resources.get(extra_path)
-            if (
-                extra_resource is None
-                or extra_resource.role != "command"
-                or not extra_resource.executable
-            ):
-                raise GateError(
-                    "unowned_command",
-                    f"choices.{choice.id}.extras.{extra.id}.command",
-                    "extra command must reference an executable command resource: "
-                    f"{extra_path}",
-                )
     for operation in spec.operations:
         resource = resources.get(operation.target)
         if resource is None or resource.role != "editable":
@@ -435,7 +444,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
     if adapter.kind in {"plan", "epic_plan"}:
         _validate_plan_spec(spec, adapter)
     if spec.auto.enabled:
-        adapter.resolve_auto_choice(spec.choices, spec.auto.argument)
+        adapter.resolve_auto_selection(spec, spec.auto.argument)
         adapter.automatic_input(spec)
 
 
@@ -447,8 +456,6 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         PlanGateTier,
         plan_gate_choice_ids,
         plan_gate_command_script,
-        plan_gate_extra_command_script,
-        plan_gate_extra_ids,
     )
 
     tier = "epic" if adapter.kind == "epic_plan" else "tale"
@@ -466,48 +473,14 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         )
 
     expected_choices = plan_gate_choice_ids(cast(PlanGateTier, tier))
-    actual_commands = {choice.id: choice.command.argv[0] for choice in spec.choices}
+    actual_commands = {option.id: option.command.argv[0] for option in spec.options}
     expected_commands = {choice: f"commands/{choice}" for choice in expected_choices}
     if actual_commands != expected_commands:
         raise GateError(
             "invalid_plan_choices",
-            "choices",
-            f"{tier} plan gate choices do not match the registered adapter",
+            "options",
+            f"{tier} plan gate options do not match the registered adapter",
         )
-    registered_extra_ids = plan_gate_extra_ids(cast(PlanGateTier, tier))
-    approval_choice = next(
-        (choice for choice in spec.choices if choice.id == "approve"), None
-    )
-    expected_extra_ids = (
-        registered_extra_ids
-        if approval_choice is not None and approval_choice.extras
-        else ()
-    )
-    for choice in spec.choices:
-        actual_extra_commands = {
-            extra.id: extra.command.argv[0] for extra in choice.extras
-        }
-        expected_extra_commands = (
-            {extra_id: f"commands/{extra_id}" for extra_id in expected_extra_ids}
-            if choice.id == "approve"
-            else {}
-        )
-        if actual_extra_commands != expected_extra_commands:
-            raise GateError(
-                "invalid_plan_choices",
-                f"choices.{choice.id}.extras",
-                f"{tier} plan gate extras do not match the registered adapter",
-            )
-        if (
-            choice.id == "approve"
-            and expected_extra_ids
-            and not all(extra.default_selected for extra in choice.extras)
-        ):
-            raise GateError(
-                "invalid_plan_choices",
-                "choices.approve.extras",
-                "plan approval extras must use the registered defaults",
-            )
     if len(spec.operations) != 1 or (
         spec.operations[0].id,
         spec.operations[0].kind,
@@ -527,7 +500,7 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             PLAN_RESOURCE_PATH,
             "plan gates require one editable plan.md resource",
         )
-    for choice_id, path in expected_commands.items():
+    for option_id, path in expected_commands.items():
         resource = resources.get(path)
         if resource is None or resource.role != "command":
             raise GateError(
@@ -545,36 +518,11 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             raise GateError(
                 "invalid_plan_command", path, f"cannot read plan command: {exc}"
             ) from exc
-        if content != plan_gate_command_script(choice_id):
+        if content != plan_gate_command_script(option_id):
             raise GateError(
                 "invalid_plan_command",
                 path,
                 "plan command does not match the registered adapter",
-            )
-    for extra_id in expected_extra_ids:
-        path = f"commands/{extra_id}"
-        resource = resources.get(path)
-        if resource is None or resource.role != "command":
-            raise GateError(
-                "invalid_plan_command", path, "plan extra command resource is missing"
-            )
-        try:
-            content = (
-                resource.content
-                if resource.content is not None
-                else resource.source.read_text(encoding="utf-8")
-                if resource.source is not None
-                else None
-            )
-        except OSError as exc:
-            raise GateError(
-                "invalid_plan_command", path, f"cannot read plan extra command: {exc}"
-            ) from exc
-        if content != plan_gate_extra_command_script(extra_id):
-            raise GateError(
-                "invalid_plan_command",
-                path,
-                "plan extra command does not match the registered adapter",
             )
 
 
@@ -585,12 +533,12 @@ def _validate_launch_spec(spec: GateSpec) -> None:
         "reject": "commands/reject",
         "feedback": "commands/feedback",
     }
-    actual_commands = {choice.id: choice.command.argv[0] for choice in spec.choices}
+    actual_commands = {option.id: option.command.argv[0] for option in spec.options}
     if actual_commands != expected_commands:
         raise GateError(
             "invalid_launch_choices",
-            "choices",
-            "launch gates require approve, reject, and feedback commands",
+            "options",
+            "launch gates require approve, reject, and feedback options",
         )
 
     from sase.agent.launch_request import launch_gate_command_script
@@ -676,29 +624,29 @@ def _validate_question_spec(spec: GateSpec) -> None:
             "payload.session_id",
             "question session id must match request id",
         )
-    if len(spec.choices) != 1:
+    if len(spec.options) != 1 or spec.branches != ((QUESTION_CHOICE_ID,),):
         raise GateError(
             "invalid_question_choices",
-            "choices",
-            "question gates require one submit choice",
+            "options",
+            "question gates require one singleton submit branch",
         )
-    choice = spec.choices[0]
-    if choice.id != QUESTION_CHOICE_ID or choice.command.argv != (
+    option = spec.options[0]
+    if option.id != QUESTION_CHOICE_ID or option.command.argv != (
         QUESTION_COMMAND_PATH,
     ):
         raise GateError(
             "invalid_question_choices",
-            "choices",
-            "question gates require the registered submit command",
+            "options",
+            "question gates require the registered submit option",
         )
     expected_schema = question_response_schema(questions)
     if (
-        choice.input_schema != expected_schema
-        or choice.result_schema != expected_schema
+        option.input_schema != expected_schema
+        or option.result_schema != expected_schema
     ):
         raise GateError(
             "invalid_question_schema",
-            "choices.submit",
+            "options.submit",
             "question submit schemas must match the adapter input form",
         )
     resources = {resource.path: resource for resource in spec.resources}
