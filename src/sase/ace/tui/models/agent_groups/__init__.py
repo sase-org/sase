@@ -22,10 +22,11 @@ any of its non-project-scoped agents targets a ChangeSpec
        May contain optional child **name prefix** subgroups, producing a
        fourth structural level.
 
-``BY_STATUS`` replaces the project level with a status bucket, then uses
-the same name-root and optional name-prefix levels. ``BY_DATE`` replaces
-the tree with date bucket → time subgroup and intentionally suppresses
-name-root/name-prefix grouping.
+``BY_STATUS`` replaces the project level with a priority-ordered status
+bucket, then uses the same name-root and optional name-prefix levels. Its
+top-level display units sort newest-launch-first using the outer/root agent's
+``start_time``. ``BY_DATE`` replaces the tree with date bucket → time subgroup
+and intentionally suppresses name-root/name-prefix grouping.
 
 Tag-level grouping is not part of this tree — tags drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel

@@ -105,7 +105,12 @@ def test_full_tree_workflow_children_stay_with_parent_after_sort() -> None:
         ),
         (
             GroupingMode.BY_STATUS,
-            _agent(cl_name="stopped", agent_name="stopped", status="QUESTION"),
+            _agent(
+                cl_name="newer",
+                agent_name="newer",
+                status="RUNNING",
+                start_time=datetime(2026, 4, 26, 10, 0, 0),
+            ),
             _agent(cl_name="done", agent_name="done", status="DONE"),
         ),
         (

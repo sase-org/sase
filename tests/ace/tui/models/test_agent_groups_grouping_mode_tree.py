@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from sase.ace.tui.models.agent_groups import (
     GroupingMode,
     build_agent_tree,
@@ -63,7 +65,7 @@ def test_build_agent_tree_by_date_orders_buckets_newest_first_regardless_of_inpu
 
 def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
     """BY_STATUS bucket order is fixed at
-    Stopped → Failed → Running → Waiting → Done → Starting.
+    Running → Done → Waiting → Stopped → Failed → Starting.
     """
     needs = _agent(cl_name="a", agent_name="x.a", status="QUESTION")
     running = _agent(cl_name="b", agent_name="y.a", status="RUNNING")
@@ -88,13 +90,155 @@ def test_build_agent_tree_by_status_orders_buckets_priority_first() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
     assert l0_banners == [
+        ("Running",),
+        ("Done",),
+        ("Waiting",),
         ("Stopped",),
         ("Failed",),
-        ("Running",),
-        ("Waiting",),
-        ("Done",),
         ("Starting",),
     ]
+
+
+def test_build_agent_tree_by_status_sorts_running_units_by_launch_recency() -> None:
+    newest = _agent(
+        cl_name="newest",
+        agent_name="newest",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    equal_first = _agent(
+        cl_name="equal-first",
+        agent_name="equal-first",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    equal_second = _agent(
+        cl_name="equal-second",
+        agent_name="equal-second",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    older = _agent(
+        cl_name="older",
+        agent_name="older",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    missing = _agent(cl_name="missing", agent_name="missing", start_time=None)
+
+    agents = [missing, equal_first, older, newest, equal_second]
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+
+    assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
+        3,
+        1,
+        4,
+        2,
+        0,
+    ]
+
+
+@pytest.mark.parametrize("status", ["DONE", "WAITING"])
+def test_build_agent_tree_by_status_sorts_terminal_and_waiting_by_launch_recency(
+    status: str,
+) -> None:
+    newer = _agent(
+        cl_name="newer",
+        agent_name="newer",
+        status=status,
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    older = _agent(
+        cl_name="older",
+        agent_name="older",
+        status=status,
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    missing = _agent(
+        cl_name="missing",
+        agent_name="missing",
+        status=status,
+        start_time=None,
+    )
+
+    entries = build_agent_tree(
+        [missing, older, newer], mode=GroupingMode.BY_STATUS, now=_NOW
+    )
+
+    assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
+        2,
+        1,
+        0,
+    ]
+
+
+def test_build_agent_tree_by_status_keeps_root_anchored_family_contiguous() -> None:
+    family_root = _agent(
+        cl_name="family-root",
+        agent_name="a9f",
+        raw_suffix="ts-root",
+        role_suffix="-plan",
+        agent_family="a9f",
+        agent_family_role="root",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    newer_followup = _agent(
+        cl_name="family-followup",
+        agent_name="a9f.w1",
+        raw_suffix="ts-followup",
+        role_suffix="-plan",
+        agent_family="a9f.w1",
+        agent_family_role="root",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    workflow_child = _agent(
+        cl_name="family-step",
+        agent_name="step.bash",
+        parent_workflow="a9f.w1",
+        parent_timestamp="ts-followup",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 13, 0, 0),
+    )
+    newer_singleton = _agent(
+        cl_name="newer-singleton",
+        agent_name="newer-singleton",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    older_singleton = _agent(
+        cl_name="older-singleton",
+        agent_name="older-singleton",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    agents = [
+        family_root,
+        newer_followup,
+        workflow_child,
+        newer_singleton,
+        older_singleton,
+    ]
+
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+
+    # The family's 09:00 root anchors the complete name group. Its newer
+    # follow-up and workflow child neither split it nor move it above the 10:00
+    # singleton, and its established root/follow-up/child preorder is retained.
+    assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
+        3,
+        0,
+        1,
+        2,
+        4,
+    ]
+    rendered_banner_keys = [
+        entry.group.group_key
+        for entry in entries
+        if entry.kind == "group" and entry.group is not None
+    ]
+    assert rendered_banner_keys == [
+        ("Running",),
+        ("Running", "a9f"),
+        ("Running", "a9f", "a9f.w1"),
+    ]
+    assert (
+        enumerate_group_keys(agents, mode=GroupingMode.BY_STATUS, now=_NOW)
+        == rendered_banner_keys
+    )
 
 
 def test_build_agent_tree_by_date_drops_changespec_and_project_levels() -> None:

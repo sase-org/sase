@@ -543,6 +543,23 @@ def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> Non
     )
 
 
+def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tag=None, suffix="a1", status="RUNNING")
+    app = _by_status_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    new_agent = replace(
+        old_agent,
+        start_time=datetime(2026, 6, 8, 12, 1, 0),
+    )
+    app._agents = [new_agent]
+
+    assert app._try_patch_agent_row(new_agent) is False
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "unsupported_grouping"
+    )
+
+
 def test_stale_widget_grouping_mode_falls_back_to_full_rebuild(
     monkeypatch: Any,
 ) -> None:

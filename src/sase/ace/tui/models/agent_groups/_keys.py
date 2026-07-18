@@ -98,22 +98,25 @@ def _name_prefix_member_rank(agent: Agent) -> int:
     return 1
 
 
-def status_grouping_signature(agent: Agent) -> tuple[str, str, str, int]:
+def status_grouping_signature(
+    agent: Agent,
+) -> tuple[str, str, str, int, datetime | None]:
     """Return the ``BY_STATUS`` grouping determinants for a single agent.
 
     Captures exactly the fields that decide which status bucket and
-    name-root / name-prefix subgroup a row renders under: the status bucket,
-    the name root, the name prefix, and the exact-prefix member rank. Used by
-    the in-place row-patch guard to confirm a badge-only change (e.g. a
-    deferred live-hint pencil) leaves the row in the same group before patching
-    its Option in place; any difference means the row moved and the caller must
-    rebuild instead.
+    name-root / name-prefix subgroup and position a row renders under: the
+    status bucket, name root, name prefix, exact-prefix member rank, and launch
+    anchor. Used by the in-place row-patch guard to confirm a badge-only change
+    (e.g. a deferred live-hint pencil) leaves the row in the same group and
+    position before patching its Option in place; any difference means the row
+    may have moved and the caller must rebuild instead.
     """
     return (
         status_bucket_for(agent),
         _name_root(agent),
         _name_prefix(agent),
         _name_prefix_member_rank(agent),
+        agent.start_time,
     )
 
 
@@ -276,22 +279,27 @@ def walk_anchors(
     *,
     anchors: dict[int, Agent] | None = None,
 ) -> list[tuple[float, int]]:
-    """Per-agent ``(-anchor_epoch, is_child)`` tiebreak under ``BY_DATE``.
+    """Return per-agent ``(-anchor_epoch, is_child)`` ordering metadata.
 
     Structural descendants adopt their outer root's anchor.  The depth slot
     remains available to legacy callers; clustered walks preserve projected
     preorder directly rather than sorting descendants by depth.
 
-    Terminal agents (``DONE`` / ``PLAN DONE`` / ``EPIC CREATED``) anchor
-    on ``stop_time`` so a recently-finished agent floats to the top of
-    the Done segment regardless of when it started; they fall back to
-    ``start_time`` when ``stop_time`` is missing.  Non-terminal agents
-    continue to anchor on ``start_time``.
+    Under ``BY_DATE``, terminal agents (``DONE`` / ``PLAN DONE`` /
+    ``EPIC CREATED``) anchor on ``stop_time`` so a recently-finished agent
+    floats to the top of its date segment regardless of when it started; they
+    fall back to ``start_time`` when ``stop_time`` is missing. Non-terminal
+    agents anchor on ``start_time``.
+
+    Under ``BY_STATUS``, every display unit anchors on the outer presentation
+    root's ``start_time``. :func:`walk_order` then shares one effective value
+    across each visible name group so a newer child or follow-up cannot split
+    or re-anchor its family. Other modes receive neutral metadata.
 
     Agents with no usable anchor sort last within their bucket (``+inf``
     in the negated-epoch slot).
     """
-    if mode is not GroupingMode.BY_DATE:
+    if mode not in {GroupingMode.BY_DATE, GroupingMode.BY_STATUS}:
         return [(0.0, 0)] * len(agents)
     anchor_lookup = (
         anchors
@@ -302,7 +310,11 @@ def walk_anchors(
     for agent in agents:
         target = presentation_anchor(agent, parent_lookup, anchor_lookup)
         is_child = agent_tree_depth(agent) if target is not agent else 0
-        anchor_time = hour_anchor_time(target)
+        anchor_time = (
+            hour_anchor_time(target)
+            if mode is GroupingMode.BY_DATE
+            else target.start_time
+        )
         if anchor_time is None:
             anchor = float("inf")
         else:
@@ -344,6 +356,42 @@ def walk_order(
     else:
         sortable_indices = list(range(len(keys_per_agent)))
 
+    # BY_STATUS puts recency ahead of the structural name keys. Give every
+    # visible name group one effective recency first so its banner and members
+    # stay contiguous instead of being split by a newer singleton. When the
+    # group has an exact root marker (``foo`` alongside ``foo.bar``), that
+    # outer/root agent owns the group's launch anchor; otherwise the newest
+    # atomic cluster anchors the group. Missing anchors remain ``+inf`` and
+    # therefore sort after timestamped units.
+    status_recencies = [0.0] * len(keys_per_agent)
+    if mode is GroupingMode.BY_STATUS:
+        status_units: dict[tuple[object, ...], list[int]] = {}
+        for i in sortable_indices:
+            k = keys_per_agent[i]
+            grouped_root = (
+                bool(k.name_root)
+                and root_counts.get((parent_keys[i], k.name_root), 0) >= 2
+            )
+            unit_key: tuple[object, ...]
+            if grouped_root:
+                unit_key = ("name", parent_keys[i], k.name_root)
+            else:
+                unit_key = ("cluster", i)
+            status_units.setdefault(unit_key, []).append(i)
+
+        for members in status_units.values():
+            exact_roots = [
+                i
+                for i in members
+                if keys_per_agent[i].name_root and not keys_per_agent[i].name_prefix
+            ]
+            if exact_roots:
+                effective_recency = anchors[min(exact_roots)][0]
+            else:
+                effective_recency = min(anchors[i][0] for i in members)
+            for i in members:
+                status_recencies[i] = effective_recency
+
     ordered = sorted(
         sortable_indices,
         key=lambda i: (
@@ -353,6 +401,7 @@ def walk_order(
                 if use_changespec_level
                 else (0, "")
             ),
+            status_recencies[i],
             _date_subgroup_sort_key(
                 keys_per_agent[i].project,
                 keys_per_agent[i].date_subgroup,
@@ -391,8 +440,8 @@ def walk_order(
                 >= 2
                 else 0
             ),
-            anchors[i][0],
-            anchors[i][1],
+            anchors[i][0] if mode is GroupingMode.BY_DATE else 0.0,
+            anchors[i][1] if mode is GroupingMode.BY_DATE else 0,
             i,
         ),
     )
