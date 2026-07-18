@@ -28,6 +28,7 @@ class _FakeApp(EventHandlersMixin):
         self.current_tab = "agents"
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
+        self.countdown_calls: list[str] = []
 
     def set_timer(self, delay: float, callback: Callable[[], Any]) -> None:
         self.deferred_calls.append((delay, callback))
@@ -52,12 +53,40 @@ class _FakeApp(EventHandlersMixin):
     def _schedule_changespecs_async_refresh(self) -> None:
         self.refresh_calls.append("schedule_changespecs")
 
+    def _update_agents_info_panel(self) -> None:
+        self.countdown_calls.append("info")
+
+    def _patch_agent_runtime_rows(self) -> None:
+        self.countdown_calls.append("runtime")
+
+    def _poll_starting_agent_transitions(self) -> None:
+        self.countdown_calls.append("starting")
+
 
 def test_record_jk_navigation_arms_gate() -> None:
     app = _FakeApp()
     assert not app._nav_gate.is_navigating()
     app._record_jk_navigation()
     assert app._nav_gate.is_navigating()
+
+
+def test_countdown_tick_defers_agent_work_while_navigating() -> None:
+    app = _FakeApp()
+    app._record_jk_navigation()
+
+    app._on_countdown_tick()
+
+    assert app._countdown_remaining == 9
+    assert app.countdown_calls == []
+
+
+def test_countdown_tick_updates_agents_when_navigation_is_idle() -> None:
+    app = _FakeApp()
+
+    app._on_countdown_tick()
+
+    assert app._countdown_remaining == 9
+    assert app.countdown_calls == ["info", "runtime", "starting"]
 
 
 def test_auto_refresh_defers_when_navigating() -> None:
