@@ -418,7 +418,6 @@ def test_managed_sync_worker_locks_local_integration_only(tmp_path, monkeypatch)
         probe_store_write_lock,
     )
     monkeypatch.setattr("sase.bead.sync_worker._git", fake_git)
-    monkeypatch.setattr("sase.bead.sync.mark_bead_integration", lambda _repo: None)
 
     outcome = run_managed_sync_worker(
         tmp_path,

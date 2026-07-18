@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
+from sase.sdd._store_link import _pull_sdd_clone
 from sase.sdd._store_types import SddMaterializationError
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
@@ -33,6 +35,43 @@ def test_moved_sidecar_clone_with_matching_remote_is_accepted(
     assert git(["remote", "get-url", "origin"], moved_clone).stdout.strip() == str(
         remote
     )
+
+
+@pytest.mark.parametrize(
+    ("mode", "force_fresh", "marker_fresh", "expected_integrations"),
+    [
+        ("background", False, True, 0),
+        ("off", False, True, 0),
+        ("blocking", False, True, 1),
+        ("background", True, True, 1),
+        ("background", False, False, 1),
+    ],
+)
+def test_pull_sdd_clone_ttl_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    force_fresh: bool,
+    marker_fresh: bool,
+    expected_integrations: int,
+) -> None:
+    integrations: list[Path] = []
+
+    def integrate(repo_root: Path, **_kwargs):
+        integrations.append(repo_root)
+        return SimpleNamespace(succeeded=True)
+
+    monkeypatch.setattr("sase.sdd._integration_marker.bead_refresh_mode", lambda: mode)
+    monkeypatch.setattr(
+        "sase.sdd._integration_marker.integration_is_fresh",
+        lambda _repo: marker_fresh,
+    )
+    monkeypatch.setattr(
+        "sase.sdd._repository_transaction.integrate_sdd_repository", integrate
+    )
+
+    assert _pull_sdd_clone(tmp_path, fresh=force_fresh) is True
+    assert len(integrations) == expected_integrations
 
 
 def test_retained_https_sidecar_clone_is_rewritten_without_losing_state(

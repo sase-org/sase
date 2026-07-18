@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+
+
+BeadRefreshMode = Literal["background", "blocking", "off"]
 
 
 class BeadWorkLaunchCommitError(RuntimeError):
@@ -29,11 +31,6 @@ class _AsyncPushHandle:
 
     pid: int
     log_path: Path
-
-
-BeadRefreshMode = Literal["background", "blocking", "off"]
-_DEFAULT_REFRESH_TTL_SECONDS = 120.0
-_INTEGRATION_MARKER = "sase-bead-sync.integration"
 
 
 def git_sync(beads_dir: Path) -> None:
@@ -374,39 +371,6 @@ def push_bead_work_launch_async(beads_dir: Path) -> _AsyncPushHandle | None:
     return _AsyncPushHandle(pid=process.pid, log_path=log_path)
 
 
-def bead_refresh_mode() -> BeadRefreshMode:
-    """Return the configured remote-freshness policy for bead commands."""
-    try:
-        from sase.config import load_merged_config
-
-        raw = (
-            load_merged_config()
-            .get("sdd", {})
-            .get("bead_refresh", {})
-            .get("mode", "background")
-        )
-    except Exception:
-        return "background"
-    return raw if raw in {"background", "blocking", "off"} else "background"
-
-
-def _bead_refresh_ttl_seconds() -> float:
-    """Return the minimum age before another background sync is launched."""
-    try:
-        from sase.config import load_merged_config
-
-        raw = (
-            load_merged_config()
-            .get("sdd", {})
-            .get("bead_refresh", {})
-            .get("ttl_seconds", _DEFAULT_REFRESH_TTL_SECONDS)
-        )
-        value = float(raw)
-    except Exception:
-        return _DEFAULT_REFRESH_TTL_SECONDS
-    return max(0.0, value)
-
-
 def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
     """Launch a TTL-gated background integration for a warm sidecar store."""
     if bead_refresh_mode() != "background":
@@ -415,6 +379,27 @@ def _maybe_schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
     if repo_root is None or _integration_is_fresh(repo_root):
         return None
     return push_bead_work_launch_async(beads_dir)
+
+
+def bead_refresh_mode() -> BeadRefreshMode:
+    """Return the configured remote-freshness policy for bead commands."""
+    from sase.sdd._integration_marker import bead_refresh_mode as sdd_refresh_mode
+
+    return sdd_refresh_mode()
+
+
+def _integration_is_fresh(repo_root: Path) -> bool:
+    """Compatibility wrapper for the SDD-owned integration marker."""
+    from sase.sdd._integration_marker import integration_is_fresh
+
+    return integration_is_fresh(repo_root)
+
+
+def mark_bead_integration(repo_root: Path) -> None:
+    """Compatibility wrapper for the SDD-owned integration marker."""
+    from sase.sdd._integration_marker import mark_bead_integration as mark_integration
+
+    mark_integration(repo_root)
 
 
 def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
@@ -428,13 +413,6 @@ def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
         return _maybe_schedule_bead_refresh(location.beads_dir)
     except Exception:
         return None
-
-
-def mark_bead_integration(repo_root: Path) -> None:
-    """Record a successful fetch/rebase integration for TTL gating."""
-    marker = _git_state_path(repo_root, _INTEGRATION_MARKER)
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.touch()
 
 
 def bead_sync_diagnostics(beads_dir: Path) -> list[str]:
@@ -492,24 +470,8 @@ def _new_sync_log_path() -> Path:
     return log_dir / f"sync-{generate_timestamp()}.log"
 
 
-def _integration_is_fresh(repo_root: Path) -> bool:
-    marker = _git_state_path(repo_root, _INTEGRATION_MARKER)
-    try:
-        age = time.time() - marker.stat().st_mtime
-    except OSError:
-        return False
-    return age < _bead_refresh_ttl_seconds()
-
-
 def _git_state_path(repo_root: Path, name: str) -> Path:
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-dir"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    git_dir = Path(result.stdout.strip()) if result.returncode == 0 else Path(".git")
-    if not git_dir.is_absolute():
-        git_dir = repo_root / git_dir
-    return git_dir / name if name else git_dir
+    """Compatibility wrapper for resolving files in a checkout's Git dir."""
+    from sase.sdd._integration_marker import git_state_path
+
+    return git_state_path(repo_root, name)

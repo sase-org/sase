@@ -135,6 +135,45 @@ def integrate_sdd_repository(
 ) -> _SddIntegrationOutcome:
     """Fetch and rebase an SDD checkout, restoring it on every failed rebase.
 
+    Successful integrations with an upstream update the shared freshness marker.
+    """
+    outcome = _integrate_sdd_repository(
+        repo_root,
+        beads_dir=beads_dir,
+        upstream=upstream,
+        fetch=fetch,
+        expected_branch=expected_branch,
+        op_prefix=op_prefix,
+        git_runner=git_runner,
+        lock_factory=lock_factory,
+        event_logger=event_logger,
+    )
+    if outcome.succeeded and outcome.upstream_present:
+        from sase.sdd._integration_marker import mark_bead_integration
+
+        try:
+            mark_bead_integration(repo_root.expanduser().resolve())
+        except OSError:
+            # The marker is a freshness optimization. Its failure must not turn a
+            # completed fetch/rebase into an integration failure.
+            pass
+    return outcome
+
+
+def _integrate_sdd_repository(
+    repo_root: Path,
+    *,
+    beads_dir: Path | None = None,
+    upstream: str = "@{upstream}",
+    fetch: bool = True,
+    expected_branch: str | None = None,
+    op_prefix: str = "sdd.integrate",
+    git_runner: GitRunner | None = None,
+    lock_factory: LockFactory | None = None,
+    event_logger: EventLogger | None = None,
+) -> _SddIntegrationOutcome:
+    """Implement one transactional fetch/rebase attempt.
+
     Network fetch deliberately happens before the cooperative store write lock.
     The lock then covers health inspection, ancestry checks, rebase, semantic
     bead repair, continuation, and rollback verification.

@@ -34,8 +34,12 @@ def ensure_sidecar_sdd_clone(
     remote_url: str,
     *,
     strict: bool = False,
+    fresh: bool = False,
 ) -> None:
-    """Ensure a split-store sidecar clone exists and tracks its real remote."""
+    """Ensure a split-store sidecar clone exists and tracks its real remote.
+
+    ``fresh`` forces a remote integration even within the configured TTL.
+    """
 
     try:
         clone_dir = clone_dir.expanduser()
@@ -63,7 +67,7 @@ def ensure_sidecar_sdd_clone(
                 raise SddMaterializationError(
                     f"could not normalize SDD sidecar origin at {clone_dir}"
                 )
-            _pull_sdd_clone(clone_dir, strict=strict)
+            _pull_sdd_clone(clone_dir, strict=strict, fresh=fresh)
             return
 
         cloned = _clone_sdd_store(remote_url, clone_dir, strict=strict)
@@ -255,7 +259,24 @@ def _sync_workspace_sdd_clone(
         _fast_forward_workspace_clone_from_primary(workspace_sdd, primary_sdd)
 
 
-def _pull_sdd_clone(workspace_sdd: Path, *, strict: bool = False) -> bool:
+def _pull_sdd_clone(
+    workspace_sdd: Path,
+    *,
+    strict: bool = False,
+    fresh: bool = False,
+) -> bool:
+    from sase.sdd._integration_marker import (
+        bead_refresh_mode,
+        integration_is_fresh,
+    )
+
+    if (
+        not fresh
+        and bead_refresh_mode() != "blocking"
+        and integration_is_fresh(workspace_sdd)
+    ):
+        return True
+
     from sase.sdd._repository_transaction import (
         SddIntegrationStatus,
         integrate_sdd_repository,

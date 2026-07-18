@@ -201,7 +201,6 @@ _lint-pyscripts: _setup
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
-        --epic-symbol 'sase-6n(set_prompt_clan)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

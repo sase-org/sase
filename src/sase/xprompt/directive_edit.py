@@ -43,12 +43,6 @@ def set_prompt_name(prompt: str, name: str) -> str:
     return _set_prompt_directive(prompt, {"name"}, f"%name:{name}")
 
 
-def set_prompt_clan(prompt: str, clan: str | None) -> str:
-    """Return *prompt* with ``%clan`` set or removed."""
-    replacement = f"%clan:{clan}" if clan else None
-    return _set_prompt_directive(prompt, {"clan"}, replacement)
-
-
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
     """Return *prompt* with ``%tribe`` set or removed."""
     replacement = f"%tribe:{tribe}" if tribe else None

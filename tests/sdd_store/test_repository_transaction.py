@@ -12,6 +12,7 @@ from sase.sdd._repository_transaction import (
     integrate_sdd_repository,
     require_sdd_repository_health,
 )
+from sase.sdd._integration_marker import integration_is_fresh
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
 from sase.sdd._store_types import SddMaterializationError
 from tests.sdd_store._helpers import (
@@ -122,6 +123,33 @@ def test_fetch_failure_is_typed_only_when_repository_remains_healthy(
     assert outcome.structurally_healthy is True
     assert _snapshot(clone_dir) == starting
     require_sdd_repository_health(clone_dir)
+
+
+def test_successful_integration_updates_shared_freshness_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    clone_dir = tmp_path / "clone"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, clone_dir)
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"sdd": {"bead_refresh": {"ttl_seconds": 120}}},
+    )
+
+    assert integration_is_fresh(clone_dir) is False
+
+    outcome = integrate_sdd_repository(clone_dir)
+
+    assert outcome.succeeded is True
+    assert outcome.upstream_present is True
+    assert integration_is_fresh(clone_dir) is True
 
 
 def test_strict_clone_refuses_preexisting_rebase_without_modifying_it(

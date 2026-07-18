@@ -7,7 +7,6 @@ from unittest.mock import patch
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     set_prompt_auto_mode,
-    set_prompt_clan,
     set_prompt_name,
     set_prompt_tribe,
     set_prompt_wait,
@@ -36,11 +35,6 @@ def test_set_prompt_tribe_set_and_unset_alias() -> None:
 def test_set_prompt_tribe_migrates_removed_group_spellings() -> None:
     prompt = "%group:old\n%g:older\nDo work"
     assert set_prompt_tribe(prompt, "triage") == "%tribe:triage\nDo work"
-
-
-def test_set_prompt_clan_set_and_unset_alias() -> None:
-    assert set_prompt_clan("%c:old\nDo work", "research") == ("%clan:research\nDo work")
-    assert set_prompt_clan("%clan:research\nDo work", None) == "Do work"
 
 
 def test_set_prompt_auto_mode_canonical_forms() -> None:
