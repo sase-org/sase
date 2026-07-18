@@ -86,44 +86,22 @@ steps:
     assert local.inputs[0].description == "Target name for the helper."
 
 
-def test_bundled_audit_workflows_validate() -> None:
-    """Regression: checked-in audit workflows satisfy validator rules."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
+def test_hidden_launcher_fixture_validates(tmp_path: Path) -> None:
+    """Hidden launcher semantics use a synthetic fixture, not a bundled workflow."""
+    path = tmp_path / "hidden_launcher.yml"
+    path.write_text(
+        "description: Synthetic detached launcher.\n"
+        "hidden: true\n"
+        "steps:\n"
+        "  - name: launch\n"
+        "    hidden: true\n"
+        "    python: print('launched=true')\n",
+        encoding="utf-8",
+    )
 
-    for name in ("audit_recent_bugs", "audit_recent_improvements"):
-        workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
-        assert workflow is not None
+    workflow = _load_workflow_from_file(path)
 
-        validate_workflow(workflow)
-
-
-def test_disowned_agent_launcher_workflows_are_hidden() -> None:
-    """Repo-local launchers hide only their parent workflow row."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
-
-    for name in (
-        "audit_recent_bugs",
-        "audit_recent_improvements",
-        "refresh_docs",
-    ):
-        workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
-        assert workflow is not None
-        assert workflow.hidden is True
-
-        validate_workflow(workflow)
-
-
-def test_notification_suppressed_launcher_steps_are_hidden() -> None:
-    """Bundled launchers hide every executable step to suppress notifications."""
-    xprompts_dir = Path(__file__).resolve().parents[1] / "sase" / "xprompts"
-
-    for name in (
-        "audit_recent_bugs",
-        "audit_recent_improvements",
-        "refresh_docs",
-    ):
-        workflow = _load_workflow_from_file(xprompts_dir / f"{name}.yml")
-        assert workflow is not None
-        assert all(step.hidden is True for step in workflow.steps)
-
-        validate_workflow(workflow)
+    assert workflow is not None
+    assert workflow.hidden is True
+    assert all(step.hidden is True for step in workflow.steps)
+    validate_workflow(workflow)

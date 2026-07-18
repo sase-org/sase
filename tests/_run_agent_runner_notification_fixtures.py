@@ -9,7 +9,7 @@ def base_kwargs(tmp_path):
     return {
         "cl_name": "test-cl",
         "artifacts_timestamp": "20260425232621",
-        "workflow_name": "refresh_docs",
+        "workflow_name": "nightly_docs",
         "success": True,
         "agent_hidden": False,
         "agent_name": None,
@@ -26,5 +26,5 @@ def base_kwargs(tmp_path):
         "video_paths": [],
         "output_path": str(tmp_path / "output.log"),
         "step_output": None,
-        "prompt": "#gh:sase #!sase/refresh_docs %auto",
+        "prompt": "#gh:sase #!sase/nightly_docs %auto",
     }

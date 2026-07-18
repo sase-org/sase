@@ -382,11 +382,11 @@ def test_run_agent_launch_body_known_project_ref_without_provider_targets_projec
                 return_value=True,
             )
         )
-        app._run_agent_launch_body("#gh:sase #!sase/fix_just")
+        app._run_agent_launch_body("#gh:sase #!sase/maintenance")
 
     assert len(app.launched) == 1
     launch = app.launched[0]
-    assert launch["prompt"] == "#gh:sase #!sase/fix_just"
+    assert launch["prompt"] == "#gh:sase #!sase/maintenance"
     assert launch["project_name"] == "sase"
     assert launch["project_file"] == project_file
     assert launch["workspace_dir"] == str(allocated_workspace)

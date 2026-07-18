@@ -106,7 +106,7 @@
         "script": {
           "type": "string",
           "minLength": 1,
-          "description": "Exact executable name; defaults to the chop identity"
+          "description": "Exact installed console-script or executable name; defaults to the chop identity"
         },
         "enabled": {
           "type": "boolean",
@@ -233,7 +233,7 @@
         },
         "vars": {
           "type": "object",
-          "description": "Arbitrary non-secret values copied into the chop context",
+          "description": "Arbitrary non-secret values copied into the chop context; builtin refresh_docs accepts prompt and polish_prompt string overrides",
           "additionalProperties": true
         }
       }
@@ -745,7 +745,7 @@
                         "script": {
                           "type": "string",
                           "minLength": 1,
-                          "description": "Exact executable name; defaults to the chop name"
+                          "description": "Exact installed console-script or executable name; defaults to the chop name"
                         },
                         "enabled": {
                           "type": "boolean",

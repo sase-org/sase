@@ -909,8 +909,8 @@ back to ANSI rendering for everything else:
 - **Lumberjack aggregate logs** (`[YYYY-MM-DD HH:MM:SS] [lumberjack] message`) get timestamp, lumberjack name, status
   words (`success`, `failure`, `timeout`, `running`, `error`, …), PIDs, durations, exit codes, and counts colored by
   severity and consistent with the sidebar taxonomy.
-- **Controlled chop output** — the agent-launch line `Launched agent chop '<name>' (PID <pid>)` emitted for
-  `agent_launched` runs — is highlighted with the chop name and PID coherent with sidebar colors.
+- **Controlled chop output** — runner lifecycle lines such as `Launched proposal 1 as <name> (PID <pid>)` use the same
+  status-word, PID, duration, and count highlighting as other lumberjack messages.
 - **External chop scripts** and **background command output** are arbitrary text and stay on the ANSI fallback
   (`Text.from_ansi`) with the existing capping and tail-biased caching behavior.
 

@@ -168,7 +168,7 @@ def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> 
             },
             "chops": {
                 "refresh_docs": {
-                    "script": "refresh-docs",
+                    "script": "sase_chop_refresh_docs",
                     "env": {"SHARED": "chop"},
                     "vars": {"prompt": "Update docs"},
                     "for_each": [
@@ -194,6 +194,7 @@ def test_parse_lumberjacks_map_form_merges_env_and_expands_literal_targets() -> 
     ]
     core = docs.chops[0]
     assert core.parent_name == "refresh_docs"
+    assert core.script_name == "sase_chop_refresh_docs"
     assert core.target_key == "sase-core"
     assert core.target["workspace"] == "gh:sase-org/sase-core"
     assert core.run_every == 5400

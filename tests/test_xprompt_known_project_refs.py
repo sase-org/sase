@@ -58,7 +58,7 @@ def test_extract_known_project_vcs_ref_matches_owner_repo_form() -> None:
         "sase.xprompt.loader.get_known_project_workspaces",
         return_value={"sase": object()},
     ):
-        result = extract_known_project_vcs_ref("#gh:sase-org/sase #!sase/refresh_docs")
+        result = extract_known_project_vcs_ref("#gh:sase-org/sase #!sase/nightly_docs")
     assert result == ("gh", "sase-org/sase")
 
 
@@ -102,5 +102,5 @@ def test_strip_known_project_vcs_refs_handles_owner_repo_form() -> None:
         "sase.xprompt.loader.get_known_project_workspaces",
         return_value={"sase": object()},
     ):
-        result = strip_known_project_vcs_refs("#gh:sase-org/sase #!sase/refresh_docs")
-    assert result == "#!sase/refresh_docs"
+        result = strip_known_project_vcs_refs("#gh:sase-org/sase #!sase/nightly_docs")
+    assert result == "#!sase/nightly_docs"

@@ -49,7 +49,7 @@ def test_proposal_validation_rejects_standalone_workflow_reference() -> None:
     with pytest.raises(ValueError, match="workflow_reference_forbidden"):
         validate_chop_proposal(
             {
-                "prompt": "#!refresh_docs",
+                "prompt": "#!retired_workflow",
                 "workspace": "git:sase",
             }
         )

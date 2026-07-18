@@ -56,11 +56,11 @@ def test_parse_plus_reference_is_boolean_shorthand() -> None:
 
 
 def test_parse_namespaced_standalone_reference_with_colon_arg() -> None:
-    ref = _single_ref("#!sase/refresh_docs:prod")
+    ref = _single_ref("#!sase/nightly_docs:prod")
 
-    assert ref.name == "sase/refresh_docs"
+    assert ref.name == "sase/nightly_docs"
     assert ref.arg_kind is XPromptReferenceArgKind.COLON
-    assert ref.raw == "#!sase/refresh_docs:prod"
+    assert ref.raw == "#!sase/nightly_docs:prod"
     assert ref.argument_source == ":prod"
     assert ref.parse_arguments() == (["prod"], {})
 

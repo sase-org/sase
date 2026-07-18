@@ -39,9 +39,9 @@ operators can also manage it directly with `sase axe start` and `sase axe stop`.
 - **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed interval. Each lumberjack has a name
   (e.g., "hooks", "checks"), runs one or more chops per cycle, and maintains independent state and metrics.
 
-- **Chop**: A single job unit executed by a lumberjack. Can be a script (external executable that reads context JSON) or
-  an agent (background process launched via the agent launcher). Chops can be configured with custom environment
-  variables and run frequency.
+- **Chop**: A single script-only job unit executed by a lumberjack. The executable reads context JSON and may return a
+  structured result containing validated agent-launch proposals. The runner, never the script, launches those agents.
+  Chops can declare cadence, triggers, guards, target fan-out, environment, and dedupe policy.
 
 ## CLI Commands
 
@@ -86,6 +86,9 @@ sase axe chop doctor            # exits 1 if a configured script chop cannot be 
 
 # Run a single chop once
 sase axe chop run hook_checks
+
+# Preview a proposal-emitting chop without launching agents
+sase axe chop run 'refresh_docs[sase]' -L docs --dry-run --chop-verbose
 
 # Disambiguate when the same chop name appears in multiple lumberjacks
 sase axe chop run hook_checks --lumberjack hooks   # -L is the short form
@@ -195,6 +198,14 @@ axe:
           timeout: "30s" # Per-chop timeout (overrides chop_timeout)
           env:
             MY_VAR: "value" # Custom environment variables
+          inhibit_if:
+            agent_hood: { hood: busy_workers }
+          trigger:
+            git.commits_since:
+              project: "{target.name}"
+              threshold: 10
+              checkpoint: on_action_success
+          once_per: "{target.name}:{proposal.id}"
           for_each:
             source: projects # One stable my_chop[project] instance per enabled project
             vcs: [git, gh]
@@ -211,6 +222,9 @@ axe:
 | `run_every`   | `str \| null`          | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                          |
 | `timeout`     | `str \| null`          | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                 |
 | `env`         | `dict[str, env-value]` | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs    |
+| `inhibit_if`  | list or map            | `changespec` / `agent_hood` guards evaluated before the script                        |
+| `trigger`     | string or map          | `always` or `git.commits_since`; scheduled runs fire only when it accepts             |
+| `once_per`    | string or object       | Bounded per-proposal dedupe-key template                                              |
 | `for_each`    | list or source         | Literal target objects or `source: projects`, expanded to stable per-target instances |
 | `vars`        | `dict`                 | Non-secret configuration copied into the script context                               |
 
@@ -219,6 +233,11 @@ Map-form chops compose by identity across config layers. A higher-priority layer
 names such as `my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe state. Literal
 targets may include an `overrides:` object for per-target fields such as `run_every`; the `projects` source accepts
 `name`/`names` and `vcs` filters.
+
+Configuration is validated fail-closed. Unknown fields, duplicate chop identities, and invalid or non-positive durations
+produce actionable errors with their config paths. Secret references resolve at dispatch and fail closed with
+provider-specific diagnostics. Legacy `agent:` and `xprompt:` chop fields are rejected: scheduled agent work must
+originate from a script's structured launch proposals.
 
 ### Script Chops
 
@@ -240,10 +259,11 @@ Axe runs script chops as:
 ```
 
 The context file contains the effective runner limits, zombie timeout, query, lumberjack name, lumberjack state
-directory, paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files, plus the current `target`
-and configured `vars`. Target fields are also exported as `SASE_CHOP_TARGET_<FIELD>` along with `SASE_CHOP_TARGET_KEY`.
-Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or `chop_timeout` to keep a slow
-script from blocking later ticks indefinitely.
+directory, paths to serialized `all_changespecs.json` and `filtered_changespecs.json` files, the current `target`,
+configured `vars`, and the run-local result path. The result path is also exported as `SASE_CHOP_RESULT_FILE`.
+`SASE_CHOP_VERBOSE` enables opt-in debug output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with
+`SASE_CHOP_TARGET_KEY`. Scheduled script chops within one lumberjack tick run concurrently; use `timeout` or
+`chop_timeout` to keep a slow script from blocking later ticks indefinitely.
 
 Script chop stdout and stderr are streamed to the chop's per-run log file while the subprocess is still alive (see
 [Chop Run History](#chop-run-history) below). The Axe-tab dashboard tails that file so a long-running chop's output
@@ -253,6 +273,96 @@ Chop output is part of the operator contract. Every actual chop run should write
 both no-op and action paths. At minimum, include the chop identity or run scope, counts of inspected/skipped/updated or
 launched items, an explicit no-op reason, and bounded identifiers for any affected items. Avoid tokens, full
 notification bodies, full prompts, and unbounded command output in ordinary AXE logs.
+
+#### Structured Results and Launch Proposals
+
+Exit-code-only scripts remain supported: exit zero means `success`, a non-zero exit means `failure`, and no result file
+is required. A proposal-emitting script atomically writes a schema-versioned JSON document to `SASE_CHOP_RESULT_FILE`:
+
+```json
+{
+  "schema_version": 1,
+  "status": "ok",
+  "summary": "refresh_docs: targets=1 proposals=2",
+  "counters": { "targets": 1, "proposals": 2 },
+  "proposed_launches": [
+    {
+      "id": "update",
+      "prompt": "Refresh the user documentation.",
+      "workspace": "gh:sase-org/sase"
+    },
+    {
+      "id": "polish",
+      "prompt": "Fact-check and polish the documentation update.",
+      "workspace": "gh:sase-org/sase",
+      "wait_on": "update"
+    }
+  ]
+}
+```
+
+Result `status` is `ok`, `no_op`, or `check_error`. Results can also carry a `reason`, integer `counters`, and relative
+`evidence` file paths. Each proposal requires `prompt` and `workspace`; optional fields are `id`, `agent_name`, `tribe`,
+`model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal index or ID).
+
+The runner validates the full document before launching anything. It injects the workspace reference, a deterministic
+agent name, `%tribe:chop`, model/effort directives, and a `%wait` dependency for `wait_on`, then launches proposals in
+document order. Standalone `#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
+references remain valid. The runner records every launched agent in `agent_chops.json` and finalizes the chop only when
+the linked agents reach terminal state.
+
+Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`, `ChopLogger`, `ChopResultBuilder`,
+and `launch_proposal`) for argument parsing, summaries, validation, and atomic result writes.
+
+#### Triggers, Guards, Dedupe, and Targets
+
+Policy is runner-owned and evaluated before the script:
+
+- `run_every` limits cadence for each expanded chop instance.
+- `inhibit_if` supports `changespec` and `agent_hood` guards. A matching guard records a visible `skipped` run with its
+  reason.
+- `trigger` defaults to `always`. `git.commits_since` observes a project repository, fires when its threshold is met,
+  and owns its checkpoint under the chop's state directory. A missing checkpoint fires once so a new chop is not
+  silently inert.
+- Checkpoint policy can be `on_observation`, `on_action_accepted`, or `on_action_success`. The last option advances only
+  after every linked proposal agent succeeds.
+- `once_per` renders a bounded per-proposal key; a proposal's own `dedupe_key` takes precedence. Duplicate proposals are
+  skipped without relaunching work.
+- `for_each` accepts literal target rows or `source: projects`. Expansion creates stable instances such as
+  `refresh_docs[sase-core]`, each with independent cadence, history, checkpoints, and dedupe state. Target overrides can
+  patch per-instance fields such as `run_every` and trigger thresholds.
+
+Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested a run, but still honor guards.
+Pass `-f/--force` on the CLI to bypass both for that run.
+
+#### Builtin `refresh_docs`
+
+`sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an expanded target with a
+`workspace`, then emits an `update` proposal and a `polish` proposal whose `wait_on` points to `update`. Commit counting
+and checkpoints belong to `git.commits_since`; project fan-out belongs to `for_each`:
+
+```yaml
+axe:
+  lumberjacks:
+    docs:
+      interval: 300
+      chops:
+        refresh_docs:
+          script: sase_chop_refresh_docs
+          description: Refresh documentation after meaningful repository drift
+          run_every: "30m"
+          trigger:
+            git.commits_since:
+              project: "{target.name}"
+              threshold: 25
+              checkpoint: on_action_success
+          for_each:
+            source: projects
+            vcs: [git, gh]
+```
+
+The builtin supplies plain-language update and polish prompts. Override them with non-blank `vars.prompt` and
+`vars.polish_prompt` strings. The script only proposes work; it never calls `sase run` or updates marker files.
 
 ### Manual Chop Runs
 
@@ -265,6 +375,9 @@ scheduled runs.
 ```bash
 sase axe chop run <chop>                       # name must be unique across lumberjacks
 sase axe chop run <chop> --lumberjack <lj>     # explicit lumberjack (short form: -L <lj>)
+sase axe chop run <chop> --dry-run             # -n: validate and preview; launch nothing
+sase axe chop run <chop> --chop-verbose        # -V: script diagnostics + full result
+sase axe chop run <chop> --force               # -f: bypass guards (triggers already bypassed)
 ```
 
 When the same chop name appears under multiple lumberjacks, `sase axe chop run <chop>` fails with an unambiguous error
@@ -290,34 +403,38 @@ them with a `Source: manual` chip so it is easy to tell at a glance why a run st
 
 Every chop execution — whether kicked off by a scheduled lumberjack tick or by `sase axe chop run …` — is recorded as a
 separate run under `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. Each run is assigned a sortable, microsecond-
-precision `run_id` and persisted as a pair of files in a shared `runs/` directory. `index.json` (kept next to `runs/`)
-lists the chop's run IDs newest-first:
+precision `run_id`. `index.json` (kept next to `runs/`) lists the chop's run IDs newest-first:
 
 ```
 ~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/
 ├── index.json              # Ordered run IDs (newest first)
 └── runs/
-    ├── <run_id>.json       # Run metadata (see below)
-    └── <run_id>.log        # Streamed stdout+stderr from the chop process
+    ├── <run_id>.json         # Run metadata (see below)
+    ├── <run_id>.log          # Streamed stdout+stderr from the chop process
+    ├── <run_id>.context.json # Private context passed to this invocation
+    └── <run_id>.result.json  # Structured result, when the script writes one
 ```
 
 Each `<run_id>.json` is a serialized `ChopRunEntry` (see `src/sase/axe/state.py`). The most relevant fields are
 `status`, `started_at`, `finished_at`, `duration_ms`, `exit_code`, `pid`, `source` (`scheduled`, `manual`, or
-`oneshot`), `started_by`, and `output_bytes`.
+`oneshot`), `started_by`, `output_bytes`, `result`, proposal previews, launches, and the recorded skip/error `reason`.
 
-A run is created in `running` state before the subprocess is launched. On exit it is updated in place with a terminal
-status — `success`, `failure`, `timeout`, or `missing_script`. `finished_at` is `null` while the run is still active.
+A run starts as `running`. Exit-code-only scripts end as `success`, `failure`, `timeout`, or `missing_script`. Policy
+rejections are `skipped`; structured healthy no-work and degraded probes are `no_op` and `check_error`. A result with
+accepted proposals moves to `launched`, then the housekeeping pass finalizes it as `action_succeeded` or `action_failed`
+from linked agent completion artifacts. `running` and `launched` are active states, so `finished_at` is `null` for both.
 
-History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Runs
-still in `running` state are always kept regardless of position, so a slow chop is never deleted out from under its own
-process.
+History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY` (10) terminal runs per chop. Active
+`running` and `launched` entries are always kept regardless of position, so slow scripts and pending actions are never
+deleted out from under their lifecycle owners.
 
 ### AXE Tab Views
 
 The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops as indented children, followed
-by any background commands (`!!`). Each chop row shows a status marker derived from its newest cached run: `[●]` while a
-run is active, `[✓]` for the most recent `success`, `[!]` for `failure` or `timeout`, `[?]` for `missing_script`, and
-`[·]` for chops that have never run. Selection drives three distinct dashboard views:
+by any background commands (`!!`). Each chop row shows a status marker derived from its newest cached run: active
+`running` / `launched`, successful `success` / `action_succeeded`, healthy `no_op`, policy `skipped`, degraded
+`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`. Chops with no history remain marked
+as never run. Selection drives three distinct dashboard views:
 
 - **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle count, error count, and a
   per-chop table with each chop's last-run status, relative timestamp, and duration. For a chop whose newest run is
@@ -335,11 +452,10 @@ if the pinned run is pruned or itself becomes the newest run.
 
 ### Chop-Agent Registry
 
-The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata remain available for agents launched from chop
-execution. They no longer select a chop input variant: configuration is always script-based. The structured-result
-runner can reuse this linkage to associate script proposals with agent lifecycle state. The script environment currently
-includes `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, and `SASE_CHOP_RUN_ID` (see `build_chop_launch_env()` in
-`src/sase/axe/chop_agents.py`).
+The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata associate launched proposals with chop lifecycle
+state. Configuration is always script-based. Each launched agent receives `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`,
+`SASE_CHOP_RUN_ID`, and a prompt hash; the housekeeping pass uses the registry plus normal agent completion artifacts to
+finalize `launched` runs.
 
 ## Concurrency Management
 

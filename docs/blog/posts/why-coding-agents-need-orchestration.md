@@ -202,8 +202,7 @@ system wearing a fake mustache.
 
 Cases where YAML workflows really are necessary:
 
-- `#!sase/fix_just`, because it has to run setup/repair/check steps around the agent.
-- `#!sase/refresh_docs`, because it compares docs drift and launches targeted documentation work.
+- `#!sync`, because it coordinates repository and daemon state around the operation.
 - Research swarms, because they need fan-out, aggregation, and artifacts.
 - Bead epic creation workflows, because they write SDD plans, initialize beads, and launch follow-up work.
 
@@ -251,7 +250,7 @@ full reference is in [XPrompts: Directives](../../xprompt.md#directives); this i
 | `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
 | `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                   | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                       | `%h %n:background-log-checker inspect logs`                        |
-| `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                           | `%a #!sase/fix_just` or `%auto:epic %n:checkout plan the rewrite`  |
+| `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                           | `%a #!sync` or `%auto:epic %n:checkout plan the rewrite`           |
 | `%repeat` | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.             | `%r:5 %n:flaky-repro try to reproduce the flaky test once`         |
 | `%tribe`  | `%t`  | Assign the agent's user-managed tribe for ACE grouping and filtering.                                                                | `%t:review review the latest ChangeSpec`                           |
 | `%alt`    | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product.     | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
@@ -397,23 +396,21 @@ Alt text: "ACE Artifacts PRs view showing a ChangeSpec with file deltas, commits
 [AXE](../../axe.md) is the background daemon. It runs **lumberjacks**, and lumberjacks run **chops**. Yes, the naming
 theme got away from me. No, I am not apologizing yet.
 
-A lumberjack is a scheduled lane of background work. A chop is one unit of work in that lane. Chops can be scripts or
-agent prompts. Built-in lumberjacks handle things like hook checks, wait checks, mentor checks, workflow cleanup,
-comment polling, stale-running cleanup, and error digests.
+A lumberjack is a scheduled lane of background work. A chop is one script-only unit of work in that lane. Built-in
+lumberjacks handle things like hook checks, wait checks, mentor checks, workflow cleanup, comment polling, stale-running
+cleanup, and error digests.
 
-My own machine has more opinionated chops in my chezmoi config:
+Scripts can return a versioned JSON result with structured launch proposals. AXE validates those proposals, injects
+workspace/name/tribe scaffolding, launches the agents, and follows them through success or failure. The scripts never
+self-launch. Declarative commit triggers, ChangeSpec and agent-hood guards, once-per dedupe, and project target fan-out
+keep the scheduling mechanics out of individual scripts.
 
-- `sase_fix_just`: periodically runs `#!sase/fix_just` against `sase` when there is not already an open fixer
-  ChangeSpec.
-- `toobig_split`: scans configured source trees and launches one split-file agent per oversized Python file.
-- `sase_refresh_docs`, `sase_core_refresh_docs`, `sase_github_refresh_docs`, `sase_nvim_refresh_docs`, and
-  `sase_telegram_refresh_docs`: keep docs fresh across linked repos when drift passes a threshold.
-- `gh_actions_fix`: checks configured GitHub repositories for failed Actions runs, de-dupes seen failures, fetches logs,
-  and launches a focused fixer agent.
-- `tg_inbound` and `tg_outbound`: connect AXE to `sase-telegram`, polling chat input and sending notifications.
+The builtin `sase_chop_refresh_docs`, for example, fans out over enabled projects and proposes an update agent followed
+by a polish agent. External chop packages can add focused audits or maintenance jobs through full-name console scripts,
+while `tg_inbound` and `tg_outbound` connect AXE to `sase-telegram`.
 
-That is the pattern: AXE is not "one more agent." It is the supervisor that notices state changes and schedules the
-right scripts or agents.
+That is the pattern: AXE is not "one more agent." It is the supervisor that notices state changes, runs the right
+scripts, and owns any resulting agent lifecycle.
 
 <!--
 SCREENSHOT BRIEF 3 - optional, place after the AXE examples if the final post wants a third TUI image.

@@ -72,13 +72,16 @@ def test_build_chop_launch_env() -> None:
     env = build_chop_launch_env(
         lumberjack_name="recurring",
         chop_name="my_agent",
-        prompt="#!refresh_docs",
+        prompt="Review the repository.",
     )
 
     assert env[ENV_CHOP_LUMBERJACK] == "recurring"
     assert env[ENV_CHOP_NAME] == "my_agent"
     assert env[ENV_CHOP_RUN_ID]
-    assert env[ENV_CHOP_PROMPT_HASH] == hashlib.sha256(b"#!refresh_docs").hexdigest()
+    assert (
+        env[ENV_CHOP_PROMPT_HASH]
+        == hashlib.sha256(b"Review the repository.").hexdigest()
+    )
     assert "SASE_AGENT_AUTO_DISMISS" not in env
 
 

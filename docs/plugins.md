@@ -395,6 +395,18 @@ Plugin packages can provide default configuration by declaring a `sase_config` e
 package must contain a `default_config.yml` file. Plugin configs are merged between the bundled package defaults and the
 user's `sase.yml`. See the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge chain.
 
+### Chop Script Packages
+
+Chop scripts are installed console scripts, not a pluggy entry-point group. Axe resolves the exact configured `script`
+name from `axe.chop_script_dirs`, the running interpreter's bin directory, then `$PATH`; it never adds a `sase_chop_`
+prefix. A package may also expose a `sase_config` resource when it wants to contribute disabled-by-default or
+ready-to-patch lumberjack configuration.
+
+Proposal-emitting packages should depend on `sase` and use the public `sase.chops` SDK. Scripts read `--context`, write
+their versioned result atomically to `SASE_CHOP_RESULT_FILE`, and emit structured launch proposals. They must not call
+`sase run` themselves, and proposal prompts cannot contain standalone `#!workflow` references. Axe validates and
+launches proposals so dry runs remain side-effect free and action lifecycle stays observable.
+
 ## Disabling Plugins
 
 Resource plugins can be disabled via environment variables:
@@ -510,6 +522,61 @@ my_sase_plugin/
 
 Plugin configs are merged using the [deep-merge system](configuration.md#deep-merge-system). User config in `sase.yml`
 takes precedence over plugin defaults.
+
+### Example: Chop Script Package
+
+Declare each executable by its full public name:
+
+```toml
+[project]
+dependencies = ["sase"]
+
+[project.scripts]
+my_chop_audit = "my_sase_plugin.chops.audit:main"
+```
+
+Use the SDK to load the runner context and write a validated result:
+
+```python
+from sase.chops import ChopResultBuilder, load_chop_invocation
+
+
+def main() -> None:
+    invocation = load_chop_invocation(description="Audit one target project")
+    target = invocation.context.target or {}
+    workspace = str(target["workspace"])
+    result = ChopResultBuilder(
+        summary="audit: targets=1 proposals=1",
+        counters={"targets": 1, "proposals": 1},
+    )
+    result.propose(
+        "Audit recent changes and fix confirmed correctness bugs only.",
+        workspace,
+        proposal_id="audit",
+    )
+    result.write(context=invocation.context)
+```
+
+Configure the exact script name and debug it through the runner:
+
+```yaml
+axe:
+  lumberjacks:
+    audits:
+      interval: 300
+      chops:
+        project_audit:
+          script: my_chop_audit
+          for_each: { source: projects }
+```
+
+```bash
+sase axe chop run 'project_audit[sase]' -L audits --dry-run --chop-verbose
+```
+
+Third-party packages can opt into `sase plugin list` by adding the `sase--plugin` repository topic. See
+[Axe](axe.md#structured-results-and-launch-proposals) for the result contract, proposal fields, trigger/guard policy,
+and lifecycle statuses.
 
 ### Example: LLM Provider Plugin
 

@@ -288,7 +288,7 @@ Examples:
 
 ```bash
 sase run '#!sync'
-sase run '#gh:sase #!sase/refresh_docs %auto'
+sase run '#gh:sase #!sync'
 ```
 
 During the compatibility window, top-level legacy invocations such as `sase run '#sync'` still run but emit a warning
@@ -331,9 +331,9 @@ whose basename resolves to `home`, for example `#git:/path/to/home.git`.
 
 Provider-prefixed refs that point at a known project name are preserved as workspace launches even if the matching
 workspace plugin is not loaded in the current process. Known projects come from `~/.sase/projects/*/*.sase` (with legacy
-`~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!fix_just` therefore targets the
-registered `sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the
-wrapper ref when identifying an embedded workflow body.
+`~/.sase/projects/*/*.gp` accepted as a fallback). A launch such as `#gh:sase #!sync` therefore targets the registered
+`sase` project, allocates a numbered workspace for non-wait runs, and lets dispatch surfaces strip the wrapper ref when
+identifying an embedded workflow body.
 
 Known projects may also declare `PROJECT_NAME` and `PROJECT_ALIASES` in their ProjectSpec. Friendly refs in VCS
 workspace tags are canonicalized before workspace resolution and xprompt expansion, so `#gh:bob #p` is processed as a
@@ -905,31 +905,14 @@ Glossary note: this feature uses the runner's double-dash plan-chain family mode
 hoods/neighbors in the ACE TUI, a distinct grouping concept. See [Agent Clans, Families, and Tribes](agent_families.md)
 for the full family model.
 
-### Bundled Standalone Workflows
+### Scheduled Work Uses Chops
 
-The project `sase/xprompts/` directory also ships standalone YAML workflows that are normally invoked with `#!`:
-
-| Reference                          | Inputs                           | Purpose                                        |
-| ---------------------------------- | -------------------------------- | ---------------------------------------------- |
-| `#!sase/fix_just`                  | none                             | Repair or validate `just` workflow issues      |
-| `#!sase/refresh_docs`              | `project`, `gh_ref`, `threshold` | Scheduled documentation refresh                |
-| `#!sase/audit_recent_bugs`         | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed bugs         |
-| `#!sase/audit_recent_improvements` | `project`, `gh_ref`, `threshold` | Scheduled audit of recently filed improvements |
-
-The `#!sase/fix_just` workflow first bootstraps the workspace with `just install`, then records the results of
-`just fmt-check`, `just lint`, and `just test`. Those three checks run before any repair step, so lint/test failures are
-based on the original checkout state for that workflow run. If formatting failed, the workflow runs `just fmt`, stages
-the resulting tree with `git add -A`, creates a commit when the staged diff is non-empty, then rebases on upstream and
-pushes. If lint or test failed, it launches separate draft-PR repair agents through `#gh:sase #pr(...)` for
-`fix_just_linters` and `fix_just_tests`; workflow expansion applies the normal PR context before the agents run.
-
-The scheduled documentation refresh workflow lives in this repo as `sase/xprompts/refresh_docs.yml` and is invoked as
-`#!sase/refresh_docs`. It accepts `project`, `gh_ref`, and `threshold`, defaulting to the main `sase` repo behavior
-(`project=sase`, `gh_ref=sase`, `threshold=50`). For scheduled checks in linked repos, pass repo-specific values such as
-`#!sase/refresh_docs(project=sase-core, gh_ref=sase-org/sase-core, threshold=25)`. The `project` input selects the
-marker path under `~/.sase/projects/<project>/refresh_docs_marker`; `gh_ref` is forwarded to the nested docs agent as
-`#gh:<gh_ref>`. Scheduled lumberjack agents in `sase_athena.yml` reach these workflows by embedding `#gh:sase-org/sase`
-in their prompts so the `sase` project workspace is selected before resolution.
+Scheduled automation is no longer implemented by chop-owned xprompt workflows. The former `refresh_docs`,
+`audit_recent_bugs`, `audit_recent_improvements`, and `fix_just` workflows were retired. Axe now runs scripts that may
+emit structured launch proposals; shared triggers, guards, checkpoints, dedupe, and target fan-out stay in the runner.
+Proposal prompts may use inline `#xprompt` templates, but standalone `#!workflow` references are rejected. See
+[Axe](axe.md#structured-results-and-launch-proposals) for the script/result contract and the builtin documentation
+refresh chop.
 
 ## Config-Based XPrompts
 

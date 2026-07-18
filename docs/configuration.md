@@ -899,21 +899,28 @@ axe:
 
 **Chop fields** (per entry under `chops`):
 
-| Field         | Type                    | Required  | Default | Description                                                      |
-| ------------- | ----------------------- | --------- | ------- | ---------------------------------------------------------------- |
-| `name`        | string                  | list only | -       | Stable identity; map form uses the entry key.                    |
-| `script`      | string                  | no        | `name`  | Exact executable name; no prefix is added automatically.         |
-| `enabled`     | boolean                 | no        | `true`  | Soft-disable a keyed entry while retaining inherited fields.     |
-| `description` | string                  | no        | `""`    | Human-readable description of what the chop does.                |
-| `run_every`   | string                  | no        | -       | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`. |
-| `timeout`     | string                  | no        | -       | Per-chop duration limit. Overrides lumberjack `chop_timeout`.    |
-| `env`         | dict[string, env-value] | no        | `{}`    | Literal values or `{env:}`, `{file:}`, `{pass:}` references.     |
-| `for_each`    | list or source          | no        | -       | Literal targets or the filtered `projects` source.               |
-| `vars`        | object                  | no        | `{}`    | Non-secret values copied to the chop context.                    |
+| Field         | Type                    | Required  | Default  | Description                                                      |
+| ------------- | ----------------------- | --------- | -------- | ---------------------------------------------------------------- |
+| `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                    |
+| `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.         |
+| `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.     |
+| `description` | string                  | no        | `""`     | Human-readable description of what the chop does.                |
+| `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`. |
+| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.    |
+| `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.     |
+| `inhibit_if`  | list or map             | no        | -        | `changespec` / `agent_hood` guards evaluated before dispatch.    |
+| `trigger`     | string or map           | no        | `always` | `always` or `git.commits_since` scheduled-run trigger.           |
+| `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                        |
+| `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.               |
+| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                    |
 
 All chops are scripts. Exact-name resolution checks `chop_script_dirs`, then the running interpreter's bin directory,
 then `$PATH`. Invalid fields, duplicate identities, non-positive intervals, and invalid durations fail config loading
 with a dotted config path and source-layer diagnostic. `agent:` and `xprompt:` are rejected with a migration message.
+
+Environment values resolve at dispatch time. Use a literal for non-secret data or `{env: NAME}`, `{file: path}`, and
+`{pass: entry}` references for secrets. Lumberjack-level `env` is inherited by every chop, then a chop's own `env`
+overrides matching names.
 
 The built-in `wait_checks` chop writes `ready.json` only after named `%wait` dependencies complete successfully. Failed,
 killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the dependency.
@@ -930,11 +937,13 @@ axe:
         API_TOKEN: { env: DOCS_API_TOKEN }
       chops:
         refresh_docs:
-          script: refresh-docs
+          script: sase_chop_refresh_docs
+          run_every: "30m"
           trigger:
             git.commits_since:
               project: "{target.name}"
               threshold: 10
+              checkpoint: on_action_success
           for_each:
             source: projects
             vcs: [git, gh]
@@ -945,7 +954,19 @@ axe:
 `for_each` produces stable identities such as `refresh_docs[sase-core]`. Each instance has independent scheduling,
 history, checkpoints, and once-per state. Target data is available in the context JSON under `target` and through
 `SASE_CHOP_TARGET_KEY` / `SASE_CHOP_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target chop
-fields such as `run_every`.
+fields such as `run_every` and trigger thresholds.
+
+`inhibit_if` accepts keyed `changespec` and `agent_hood` providers. `trigger` accepts `always` or `git.commits_since`;
+the git provider requires `project` and `threshold`, and its checkpoint policy is `on_observation`,
+`on_action_accepted`, or `on_action_success`. Skips are recorded with reasons. Manual runs bypass the trigger but honor
+guards unless `sase axe chop run -f/--force` is used. `once_per` can be a key template string or an object with `key`
+and bounded `capacity`; proposal-supplied `dedupe_key` values take precedence.
+
+The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal that waits for the update. It uses
+the target source's `workspace`, while cadence and commit thresholds stay declarative in configuration. Its default
+prompts can be replaced with non-blank `vars.prompt` and `vars.polish_prompt` strings. See
+[Axe structured results and launch proposals](axe.md#structured-results-and-launch-proposals) for the result document,
+proposal fields, lifecycle statuses, and debugging commands.
 
 Each chop entry can also be a plain string (chop name only, legacy format):
 
@@ -960,7 +981,7 @@ chops:
     description: Run custom analysis
     run_every: "1h30m"
     env:
-      MY_API_KEY: "secret"
+      MY_API_KEY: { env: MY_API_KEY }
   # String format (legacy, description defaults to empty)
   - hook_checks
 ```

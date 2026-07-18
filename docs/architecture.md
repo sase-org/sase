@@ -29,8 +29,8 @@ or cross-frontend consistency.
 
 ## Agent Launch Flow
 
-Most agent work enters through `sase run`, ACE, axe agent chops, bead epic execution, or mobile/editor helper bridges.
-The launch path follows the same shape across those entry points:
+Most agent work enters through `sase run`, ACE, validated axe chop proposals, bead epic execution, or mobile/editor
+helper bridges. The launch path follows the same shape across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators, then canonicalize ProjectSpec aliases in
    launch-bound VCS refs. For example, `#gh:bob` becomes the stable directory-key ref `#gh:bob-cli` before history or

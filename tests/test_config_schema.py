@@ -200,7 +200,7 @@ def test_config_schema_accepts_keyed_chops_secret_refs_and_targets() -> None:
                         },
                         "chops": {
                             "refresh_docs": {
-                                "script": "refresh-docs",
+                                "script": "sase_chop_refresh_docs",
                                 "enabled": True,
                                 "vars": {"prompt": "Update docs"},
                                 "for_each": {

@@ -128,7 +128,7 @@ def test_chop_inventory_surfaces_disabled_and_target_instances() -> None:
                         name="refresh_docs[sase]",
                         base_name="refresh_docs",
                         description="docs",
-                        script="refresh-docs",
+                        script="sase_chop_refresh_docs",
                         target_key="sase",
                         target={"name": "sase"},
                         provenance={"script": "default", "run_every": "overlay"},

@@ -216,16 +216,16 @@ def test_canonical_workflow_and_steps_override_legacy_sources(
 def test_get_all_workflows_file_overrides_plugin() -> None:
     """File-backed workflows override plugin workflows with the same name."""
     plugin_workflow = Workflow(
-        name="refresh_docs",
+        name="nightly_docs",
         inputs=[],
         steps=[],
         source_path="plugin:sase/foo.yml",
     )
     file_workflow = Workflow(
-        name="refresh_docs",
+        name="nightly_docs",
         inputs=[],
         steps=[],
-        source_path="/repo/xprompts/refresh_docs.yml",
+        source_path="/repo/xprompts/nightly_docs.yml",
     )
 
     with (
@@ -235,7 +235,7 @@ def test_get_all_workflows_file_overrides_plugin() -> None:
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_plugins",
-            return_value={"refresh_docs": plugin_workflow},
+            return_value={"nightly_docs": plugin_workflow},
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_project",
@@ -247,12 +247,12 @@ def test_get_all_workflows_file_overrides_plugin() -> None:
         ),
         patch(
             "sase.xprompt.workflow_loader._load_workflows_from_files",
-            return_value={"refresh_docs": file_workflow},
+            return_value={"nightly_docs": file_workflow},
         ),
     ):
         workflows = get_all_workflows(project="sase")
 
-    assert workflows["refresh_docs"].source_path == "/repo/xprompts/refresh_docs.yml"
+    assert workflows["nightly_docs"].source_path == "/repo/xprompts/nightly_docs.yml"
 
 
 def test_get_all_workflows_ignores_config_workflows_block(
@@ -264,7 +264,7 @@ def test_get_all_workflows_ignores_config_workflows_block(
     config_dir.mkdir()
     (config_dir / "sase_athena.yml").write_text(
         "workflows:\n"
-        "  refresh_docs:\n"
+        "  nightly_docs:\n"
         "    steps:\n"
         "      - name: run\n"
         "        bash: echo legacy\n",
@@ -313,8 +313,8 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
     xprompts = workspace / "sase" / "xprompts"
     xprompts.mkdir(parents=True)
     other_cwd.mkdir()
-    (xprompts / "fix_just.yml").write_text(
-        "steps:\n  - name: run\n    bash: echo fix\n",
+    (xprompts / "maintenance.yml").write_text(
+        "steps:\n  - name: run\n    bash: echo maintain\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(other_cwd)
@@ -339,8 +339,10 @@ def test_get_all_workflows_loads_known_project_workspace_from_other_cwd(
     ):
         workflows = get_all_workflows(project="sase")
 
-    assert "sase/fix_just" in workflows
-    assert workflows["sase/fix_just"].source_path == str(xprompts / "fix_just.yml")
+    assert "sase/maintenance" in workflows
+    assert workflows["sase/maintenance"].source_path == str(
+        xprompts / "maintenance.yml"
+    )
 
 
 def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
@@ -349,8 +351,8 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
 ) -> None:  # type: ignore[no-untyped-def]
     """``#gh:sase-org/sase`` resolves to the ``sase`` workspace's workflows.
 
-    Confirms the migrated SASE workflows in ``sase/xprompts/`` are visible
-    through the known-project workspace fallback
+    Confirms synthetic SASE workflows in ``sase/xprompts/`` are visible through
+    the known-project workspace fallback
     once the resolver has normalized ``sase-org/sase`` to the registered
     ``sase`` project name.
     """
@@ -359,7 +361,7 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
     xprompts = workspace / "sase" / "xprompts"
     xprompts.mkdir(parents=True)
     other_cwd.mkdir()
-    for name in ("refresh_docs", "audit_recent_bugs", "audit_recent_improvements"):
+    for name in ("daily_checks", "weekly_cleanup", "release_notes"):
         (xprompts / f"{name}.yml").write_text(
             "steps:\n  - name: run\n    bash: echo " + name + "\n",
             encoding="utf-8",
@@ -386,6 +388,6 @@ def test_get_all_workflows_loads_athena_workflows_for_normalized_gh_ref(
     ):
         workflows = get_all_workflows(project="sase")
 
-    assert "sase/refresh_docs" in workflows
-    assert "sase/audit_recent_bugs" in workflows
-    assert "sase/audit_recent_improvements" in workflows
+    assert "sase/daily_checks" in workflows
+    assert "sase/weekly_cleanup" in workflows
+    assert "sase/release_notes" in workflows
