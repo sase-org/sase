@@ -78,7 +78,7 @@
     height: 1fr;
 }
 
-CommitFilterBar {
+FilterBar {
     display: none;
     width: 100%;
     height: 3;
@@ -86,28 +86,26 @@ CommitFilterBar {
     background: $background;
 }
 
-CommitFilterBar #commit-filter-row {
+FilterBar .filter-bar-row {
     layer: base;
     width: 100%;
     height: 3;
 }
 
-CommitFilterBar #commit-filter-sigil {
+FilterBar .filter-bar-sigil {
     width: 3;
     height: 3;
-    color: #FFD700;
     text-style: bold;
     content-align: center middle;
 }
 
-CommitFilterBar #commit-filter-input {
+FilterBar .filter-bar-input {
     width: 1fr;
     height: 3;
-    border: solid #FFD700;
     background: $background;
 }
 
-CommitFilterBar #commit-filter-status {
+FilterBar .filter-bar-status {
     width: auto;
     min-width: 14;
     max-width: 40%;
@@ -118,11 +116,11 @@ CommitFilterBar #commit-filter-status {
     text-overflow: ellipsis;
 }
 
-CommitFilterBar #commit-filter-status.error {
+FilterBar .filter-bar-status.error {
     min-width: 24;
 }
 
-CommitFilterBar #commit-filter-completion {
+FilterBar .filter-bar-completion {
     display: none;
     layer: overlay;
     position: absolute;
@@ -132,14 +130,37 @@ CommitFilterBar #commit-filter-completion {
     max-width: 80;
     height: auto;
     max-height: 10;
-    border: solid #FFD700;
     background: $panel;
     scrollbar-size-vertical: 1;
 }
 
-CommitFilterBar #commit-filter-completion > .option-list--option-highlighted {
+CommitFilterBar .filter-bar-sigil {
+    color: #FFD700;
+}
+
+CommitFilterBar .filter-bar-input,
+CommitFilterBar .filter-bar-completion {
+    border: solid #FFD700;
+}
+
+CommitFilterBar .filter-bar-completion > .option-list--option-highlighted {
     color: $background;
     background: #FFD700;
+    text-style: bold;
+}
+
+PlanFilterBar .filter-bar-sigil {
+    color: #AF87FF;
+}
+
+PlanFilterBar .filter-bar-input,
+PlanFilterBar .filter-bar-completion {
+    border: solid #AF87FF;
+}
+
+PlanFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #AF87FF;
     text-style: bold;
 }
 
