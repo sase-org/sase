@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from textual.app import App
 from textual.binding import Binding
+from textual.containers import VerticalScroll
 from textual.widgets import Button, Input
 
 from sase.ace.tui.keymaps import GateModalKeymaps
@@ -50,6 +51,8 @@ def _data(
     branches: tuple[tuple[str, ...], ...],
     groups: tuple[GateGroup, ...] = (),
     primary_branch: tuple[str, ...] | None = None,
+    preview_name: str | None = None,
+    preview_text: str | None = None,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
@@ -57,8 +60,8 @@ def _data(
         icon="🛡️",
         notes=("Review guarded work.",),
         attachments=(),
-        preview_name=None,
-        preview_text=None,
+        preview_name=preview_name,
+        preview_text=preview_text,
         gate=GateBranchData(
             query="test query",
             options=options,
@@ -231,6 +234,66 @@ async def test_multiple_groups_expand_primary_and_switch_one_at_a_time() -> None
         await pilot.pause()
         assert modal.query_one("#gate-group-details-0").has_class("hidden")
         assert not modal.query_one("#gate-group-details-1").has_class("hidden")
+
+
+async def test_preview_composes_two_pane_shell_with_document_border_title() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            preview_name="change.md",
+            preview_text="# Change\n",
+        )
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal.query_one(".gate-review-body")
+        assert modal.query_one(".gate-review-actions")
+        scroll = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
+        assert scroll.has_class("gate-review-document")
+        assert scroll.border_title == "change.md"
+        assert not modal.query_one("#custom-gate-container").has_class(
+            "gate-review-shell--compact"
+        )
+        assert modal.has_class("-gate-review-wide")
+
+
+async def test_preview_uses_narrow_breakpoint_below_threshold() -> None:
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed"),),
+            branches=(("proceed",),),
+            preview_name="change.md",
+            preview_text="# Change\n",
+        )
+    )
+
+    async with _TestApp().run_test(size=(90, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal.has_class("-gate-review-narrow")
+        assert not modal.has_class("-gate-review-wide")
+
+
+async def test_previewless_gate_composes_compact_actions_only() -> None:
+    modal = CustomGateModal(
+        _data(options=(_option("proceed"),), branches=(("proceed",),))
+    )
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        shell = modal.query_one("#custom-gate-container")
+        assert shell.has_class("gate-review-shell--compact")
+        assert not modal.query(".gate-review-body")
+        assert not modal.query(".gate-review-document")
+        actions = modal.query_one("#custom-gate-review-scroll", VerticalScroll)
+        assert actions.has_class("gate-review-actions--compact")
 
 
 def test_bindings_match_shared_branch_actions() -> None:

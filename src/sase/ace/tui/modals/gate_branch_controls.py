@@ -135,8 +135,14 @@ class GateBranchControls(VerticalScroll):
             self.selected_option_ids = selected_option_ids
             self.feedback = feedback
 
-    def __init__(self, data: GateBranchData, *, id: str | None = None) -> None:
-        super().__init__(id=id)
+    def __init__(
+        self,
+        data: GateBranchData,
+        *,
+        id: str | None = None,
+        classes: str | None = None,
+    ) -> None:
+        super().__init__(id=id, classes=classes)
         self.data = data
         self._options_by_id = {option.id: option for option in data.options}
         self._groups_by_members = {

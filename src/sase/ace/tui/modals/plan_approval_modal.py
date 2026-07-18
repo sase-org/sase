@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.binding import BindingsMap
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from sase.notification_gates.debug import GateDebugContext
 from sase.notification_gates.models import GateGroup, GateOption
@@ -197,6 +197,11 @@ class PlanApprovalModal(
 ):
     """Modal for reviewing and approving/rejecting a Claude Code plan."""
 
+    HORIZONTAL_BREAKPOINTS = [
+        (0, "-gate-review-narrow"),
+        (100, "-gate-review-wide"),
+    ]
+
     BINDINGS = [
         *_PLAN_GATE_STATIC_BINDINGS,
         *build_gate_modal_bindings(_DEFAULT_GATE_KEYMAPS),
@@ -246,7 +251,6 @@ class PlanApprovalModal(
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
-        plan_name = os.path.basename(self._plan_file)
         badge = _provider_badge_markup(self._llm_provider, self._model)
         badge_segment = f"  {badge}" if badge else ""
         title = (
@@ -254,34 +258,63 @@ class PlanApprovalModal(
             if getattr(self, "_default_choice", "approve") == "epic"
             else "Plan Review"
         )
-        return f"[bold cyan]{title}[/bold cyan]{badge_segment}  [dim]{plan_name}[/dim]"
+        return f"[bold cyan]{title}[/bold cyan]{badge_segment}"
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        with Container(id="plan-approval-container"):
+        with Container(
+            id="plan-approval-container",
+            classes="gate-review-shell",
+        ):
             yield Static(
                 self._build_title_markup(),
                 id="plan-approval-title",
+                classes="gate-review-header",
             )
 
-            with VerticalScroll(id="plan-approval-scroll"):
-                # Read and display plan file content
-                content = (
-                    self._plan_content
-                    if self._plan_content is not None
-                    else self._read_plan_file()
-                )
-                syntax = Syntax(
-                    content,
-                    "markdown",
-                    theme="monokai",
-                    word_wrap=True,
-                )
-                yield Static(syntax, id="plan-approval-content")
+            with Container(classes="gate-review-body"):
+                with VerticalScroll(classes="gate-review-actions"):
+                    yield Static("Decision", classes="gate-review-section-title")
+                    yield GateBranchControls(
+                        self._gate,
+                        id="plan-approval-branches",
+                        classes="gate-branch-controls--stacked",
+                    )
+                    yield Button(
+                        "Cancel",
+                        id="plan-approval-cancel",
+                        classes="gate-review-cancel",
+                    )
 
-            yield GateBranchControls(self._gate, id="plan-approval-branches")
+                review_scroll = VerticalScroll(
+                    id="plan-approval-scroll",
+                    classes="gate-review-document",
+                )
+                review_scroll.border_title = Text(os.path.basename(self._plan_file))
+                with review_scroll:
+                    # Read and display plan file content
+                    content = (
+                        self._plan_content
+                        if self._plan_content is not None
+                        else self._read_plan_file()
+                    )
+                    syntax = Syntax(
+                        content,
+                        "markdown",
+                        theme="monokai",
+                        word_wrap=True,
+                    )
+                    yield Static(syntax, id="plan-approval-content")
 
-            yield Static(self._footer_text(), id="plan-approval-footer")
+            yield Static(
+                self._footer_text(),
+                id="plan-approval-footer",
+                classes="gate-review-footer",
+            )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "plan-approval-cancel":
+            self.action_cancel()
 
     def _footer_text(self) -> Text:
         """Return footer hints with the declared primary action emphasized."""

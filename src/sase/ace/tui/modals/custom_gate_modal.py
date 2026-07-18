@@ -9,7 +9,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
@@ -65,6 +65,11 @@ class CustomGateModal(
 ):
     """Review and answer a custom notification gate from its branch model."""
 
+    HORIZONTAL_BREAKPOINTS = [
+        (0, "-gate-review-narrow"),
+        (100, "-gate-review-wide"),
+    ]
+
     BINDINGS = [
         *_CUSTOM_GATE_STATIC_BINDINGS,
         *build_gate_modal_bindings(_DEFAULT_GATE_KEYMAPS),
@@ -89,42 +94,69 @@ class CustomGateModal(
         )
 
     def compose(self) -> ComposeResult:
-        with Container(id="custom-gate-container"):
-            yield Static(self._title(), id="custom-gate-title")
-            with VerticalScroll(id="custom-gate-review-scroll"):
-                yield Static(self._notes(), id="custom-gate-notes")
-                if self._data.preview_text is not None:
-                    preview_name = self._data.preview_name or "Preview"
-                    yield Static(
-                        f"[bold #87D7FF]{escape(preview_name)}[/bold #87D7FF]",
-                        classes="custom-gate-section-title",
-                    )
-                    yield Static(
-                        Syntax(
-                            self._data.preview_text,
-                            "markdown",
-                            theme="monokai",
-                            word_wrap=True,
-                        ),
-                        id="custom-gate-preview",
-                    )
-                if self._data.attachments:
-                    yield Static(
-                        self._attachment_summary(),
-                        id="custom-gate-attachments",
-                    )
-
+        shell_classes = "gate-review-shell"
+        if self._data.preview_text is None:
+            shell_classes += " gate-review-shell--compact"
+        with Container(id="custom-gate-container", classes=shell_classes):
             yield Static(
-                "[bold]Choose one resolution branch[/bold]",
-                id="custom-gate-choice-label",
+                self._title(),
+                id="custom-gate-title",
+                classes="gate-review-header",
             )
-            yield GateBranchControls(self._data.gate, id="custom-gate-branches")
-            with Horizontal(id="custom-gate-cancel-row"):
-                yield Button("Cancel", id="custom-gate-cancel")
+            if self._data.preview_text is None:
+                with VerticalScroll(
+                    id="custom-gate-review-scroll",
+                    classes="gate-review-actions gate-review-actions--compact",
+                ):
+                    yield from self._compose_actions()
+            else:
+                with Container(classes="gate-review-body"):
+                    with VerticalScroll(classes="gate-review-actions"):
+                        yield from self._compose_actions()
+
+                    preview_name = self._data.preview_name or "Preview"
+                    review_scroll = VerticalScroll(
+                        id="custom-gate-review-scroll",
+                        classes="gate-review-document",
+                    )
+                    review_scroll.border_title = Text(preview_name)
+                    with review_scroll:
+                        yield Static(
+                            Syntax(
+                                self._data.preview_text,
+                                "markdown",
+                                theme="monokai",
+                                word_wrap=True,
+                            ),
+                            id="custom-gate-preview",
+                        )
+
             yield Static(
                 self._footer_text(),
                 id="custom-gate-footer",
+                classes="gate-review-footer",
             )
+
+    def _compose_actions(self) -> ComposeResult:
+        yield Static("Context", classes="gate-review-section-title")
+        yield Static(self._notes(), id="custom-gate-notes")
+        if self._data.attachments:
+            yield Static("Attachments", classes="gate-review-section-title")
+            yield Static(
+                self._attachment_summary(),
+                id="custom-gate-attachments",
+            )
+        yield Static("Decision", classes="gate-review-section-title")
+        yield GateBranchControls(
+            self._data.gate,
+            id="custom-gate-branches",
+            classes="gate-branch-controls--stacked",
+        )
+        yield Button(
+            "Cancel",
+            id="custom-gate-cancel",
+            classes="gate-review-cancel",
+        )
 
     def on_mount(self) -> None:
         self.query_one(GateBranchControls).focus_next_control()
@@ -204,7 +236,7 @@ class CustomGateModal(
         return text
 
     def _attachment_summary(self) -> Text:
-        text = Text("Attachments\n", style="bold #87D7FF")
+        text = Text()
         for attachment in self._data.attachments:
             text.append(f"• {attachment}\n", style="dim")
         return text

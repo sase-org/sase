@@ -1186,81 +1186,78 @@ WorkflowHITLModal {
     padding-top: 1;
 }
 
-/* Plan Approval Modal styling */
-PlanApprovalModal {
-    align: center middle;
-}
-
-#plan-approval-container {
-    width: 90%;
-    max-width: 150;
-    height: 85%;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-#plan-approval-title {
-    text-align: center;
-    text-style: bold;
-    height: auto;
-    margin-bottom: 1;
-}
-
-#plan-approval-scroll {
-    height: 1fr;
-    scrollbar-gutter: stable;
-}
-
-#plan-approval-footer {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    margin-top: 1;
-    border-top: solid $secondary;
-    padding-top: 1;
-}
-
-/* Generic custom notification gate */
+/* Branch-driven gate review workbench */
+PlanApprovalModal,
 CustomGateModal {
     align: center middle;
 }
 
-CustomGateModal > #custom-gate-container {
-    width: 90%;
-    max-width: 150;
-    height: 96%;
-    border: double $accent;
+.gate-review-shell {
+    width: 98%;
+    height: 98%;
     background: $surface;
-    padding: 1 2;
+    padding: 0 1;
 }
 
-CustomGateModal #custom-gate-title {
+#plan-approval-container {
+    border: double $primary;
+}
+
+CustomGateModal > #custom-gate-container {
+    border: double $accent;
+}
+
+.gate-review-header {
     text-align: center;
     height: auto;
     margin-bottom: 1;
 }
 
-CustomGateModal #custom-gate-review-scroll {
+.gate-review-body {
     height: 1fr;
-    min-height: 3;
-    max-height: 35%;
+}
+
+.gate-review-body > .gate-review-actions {
+    dock: left;
+    width: 42;
+    height: 1fr;
+    margin-right: 1;
+}
+
+.gate-review-actions {
     border: solid $secondary;
     padding: 0 1;
     scrollbar-gutter: stable;
 }
 
+.gate-review-section-title {
+    height: auto;
+    color: $text-muted;
+    text-style: bold;
+    margin-top: 1;
+}
+
 CustomGateModal #custom-gate-notes,
-CustomGateModal #custom-gate-preview,
-CustomGateModal #custom-gate-attachments,
-CustomGateModal .custom-gate-section-title {
+CustomGateModal #custom-gate-attachments {
     height: auto;
     margin-bottom: 1;
 }
 
-CustomGateModal #custom-gate-choice-label {
+.gate-review-document {
+    width: 1fr;
+    height: 1fr;
+    border: solid $secondary;
+    border-title-align: left;
+    border-title-color: #87D7FF;
+    padding: 0 1;
+    scrollbar-gutter: stable;
+}
+
+.gate-review-footer {
     height: auto;
     color: $text-muted;
+    text-align: center;
+    border-top: solid $secondary;
     margin-top: 1;
 }
 
@@ -1308,23 +1305,55 @@ GateBranchControls #gate-feedback-input {
     margin-bottom: 1;
 }
 
-CustomGateModal #custom-gate-cancel-row {
+GateBranchControls.gate-branch-controls--stacked {
+    width: 100%;
     height: auto;
-    align-horizontal: center;
+    max-height: initial;
+    border: none;
+    padding: 0;
+    overflow-y: hidden;
+    scrollbar-gutter: auto;
 }
 
-CustomGateModal #custom-gate-cancel-row Button {
-    min-width: 20;
-    margin: 0 1;
+GateBranchControls.gate-branch-controls--stacked .gate-singleton-row {
+    width: 100%;
+    layout: vertical;
+    align-horizontal: left;
 }
 
-CustomGateModal #custom-gate-footer {
+GateBranchControls.gate-branch-controls--stacked .gate-singleton-row Button,
+GateBranchControls.gate-branch-controls--stacked .gate-group-expand,
+GateBranchControls.gate-branch-controls--stacked .gate-group-submit {
+    width: 100%;
+    margin: 0;
+}
+
+.gate-review-cancel {
+    width: 100%;
     height: auto;
     color: $text-muted;
-    text-align: center;
-    border-top: solid $secondary;
     margin-top: 1;
-    padding-top: 1;
+}
+
+.gate-review-shell--compact {
+    width: 60;
+    max-width: 96%;
+    height: auto;
+    max-height: 96%;
+}
+
+.gate-review-shell--compact > .gate-review-actions--compact {
+    width: 100%;
+    height: auto;
+    max-height: 30;
+}
+
+PlanApprovalModal.-gate-review-narrow .gate-review-body > .gate-review-actions,
+CustomGateModal.-gate-review-narrow .gate-review-body > .gate-review-actions {
+    dock: bottom;
+    width: 100%;
+    height: 48%;
+    margin: 1 0 0 0;
 }
 
 /* Launch Approval Modal styling */

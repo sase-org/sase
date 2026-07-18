@@ -1,8 +1,9 @@
-"""Tests for PlanApprovalModal title and branch-driven controls."""
+"""Tests for PlanApprovalModal workbench and branch-driven controls."""
 
 from textual.app import App
 from textual.binding import Binding
-from textual.widgets import Button
+from textual.containers import VerticalScroll
+from textual.widgets import Button, Static
 
 from sase.ace.tui.modals.gate_branch_controls import GateBranchControls
 from sase.ace.tui.modals.plan_approval_modal import (
@@ -54,18 +55,18 @@ def test_badge_markup_infers_claude_from_model_name() -> None:
     assert "opus" in markup
 
 
-def test_title_markup_without_badge_matches_legacy_form() -> None:
+def test_title_markup_without_badge_omits_document_name() -> None:
     modal = PlanApprovalModal.__new__(PlanApprovalModal)
     modal._plan_file = "/tmp/20260422_143012_my_feature.md"
     modal._llm_provider = None
     modal._model = None
     title = modal._build_title_markup()
     assert "Plan Review" in title
-    assert "20260422_143012_my_feature.md" in title
+    assert "20260422_143012_my_feature.md" not in title
     assert "CLAUDE" not in title
 
 
-def test_title_markup_with_badge_includes_provider_and_filename() -> None:
+def test_title_markup_with_badge_omits_document_name() -> None:
     modal = PlanApprovalModal.__new__(PlanApprovalModal)
     modal._plan_file = "/tmp/20260422_143012_my_feature.md"
     modal._llm_provider = "claude"
@@ -74,7 +75,7 @@ def test_title_markup_with_badge_includes_provider_and_filename() -> None:
     assert "Plan Review" in title
     assert "CLAUDE" in title
     assert "opus" in title
-    assert "20260422_143012_my_feature.md" in title
+    assert "20260422_143012_my_feature.md" not in title
 
 
 def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
@@ -162,6 +163,93 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
     assert results[0].selected_option_ids == ("commit",)
     assert results[0].commit_plan is True
     assert results[0].run_coder is False
+
+
+async def test_plan_document_uses_two_pane_shell_and_border_title(tmp_path) -> None:
+    plan = tmp_path / "review-plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    modal = PlanApprovalModal(str(plan), plan_content="# Preloaded\n")
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        assert modal.query_one(".gate-review-body")
+        assert modal.query_one(".gate-review-actions")
+        scroll = modal.query_one("#plan-approval-scroll", VerticalScroll)
+        assert scroll.has_class("gate-review-document")
+        assert scroll.border_title == "review-plan.md"
+        assert (
+            "review-plan.md"
+            not in modal.query_one("#plan-approval-title", Static).render().plain
+        )
+
+
+async def test_breakpoint_classes_switch_between_narrow_and_wide(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+
+    narrow = PlanApprovalModal(str(plan))
+    async with _TestApp().run_test(size=(90, 40)) as pilot:
+        pilot.app.push_screen(narrow)
+        await pilot.pause()
+        assert narrow.has_class("-gate-review-narrow")
+        assert not narrow.has_class("-gate-review-wide")
+
+    wide = PlanApprovalModal(str(plan))
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(wide)
+        await pilot.pause()
+        assert wide.has_class("-gate-review-wide")
+        assert not wide.has_class("-gate-review-narrow")
+
+
+async def test_plan_cancel_button_dismisses_without_result(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    results: list[PlanApprovalResult | None] = []
+    modal = PlanApprovalModal(str(plan))
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        await pilot.click("#plan-approval-cancel")
+        await pilot.pause()
+
+    assert results == [None]
+
+
+async def test_vertical_stack_navigation_cycles_every_control(tmp_path) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n", encoding="utf-8")
+    modal = PlanApprovalModal(str(plan), default_choice="tale")
+
+    async with _TestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        expected_ids = [
+            "gate-option-0-0",
+            "gate-option-0-1",
+            "gate-group-submit-0",
+            "gate-singleton-1",
+            "gate-singleton-2",
+        ]
+        focused_ids: list[str | None] = []
+        feedback_became_visible = False
+        for _ in expected_ids:
+            focused_ids.append(modal.focused.id if modal.focused is not None else None)
+            if modal.focused is not None and modal.focused.id == "gate-singleton-2":
+                feedback_became_visible = not modal.query_one(
+                    "#gate-feedback-input"
+                ).has_class("hidden")
+            await pilot.press("j")
+            await pilot.pause()
+
+        assert focused_ids == expected_ids
+        assert feedback_became_visible
+        assert modal.focused is not None
+        assert modal.focused.id == expected_ids[0]
+        assert modal.query_one(".gate-review-actions").query_one("#gate-feedback-input")
 
 
 async def test_enter_submits_untouched_tale_primary_without_toggling(tmp_path) -> None:

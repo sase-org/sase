@@ -52,6 +52,7 @@ def _data(
     options: tuple[GateOption, ...],
     branches: tuple[tuple[str, ...], ...],
     groups: tuple[GateGroup, ...] = (),
+    preview: bool = True,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="deploy-production-42",
@@ -62,12 +63,16 @@ def _data(
             "Choose one resolution branch.",
         ),
         attachments=("release-preview.md", "deployment-manifest.json"),
-        preview_name="release-preview.md",
+        preview_name="release-preview.md" if preview else None,
         preview_text=(
-            "# Production deployment\n\n"
-            "- Version: `0.10.2`\n"
-            "- Region: `us-east-1`\n"
-            "- Health checks: passing\n"
+            (
+                "# Production deployment\n\n"
+                "- Version: `0.10.2`\n"
+                "- Region: `us-east-1`\n"
+                "- Health checks: passing\n"
+            )
+            if preview
+            else None
         ),
         gate=GateBranchData(
             query="visual query",
@@ -86,11 +91,12 @@ async def _snapshot_modal(
     data: CustomGateModalData,
     snapshot_name: str,
     title: str,
+    size: tuple[int, int] = (120, 40),
 ) -> None:
     patch_startup_loaders(monkeypatch, agents=[])
     async with AcePage(
         query='"visual"',
-        size=(120, 40),
+        size=size,
         changespecs=changespecs(),
     ) as page:
         await wait_for_startup(page)
@@ -161,6 +167,27 @@ async def test_custom_gate_required_feedback_png_snapshot(
     )
 
 
+async def test_custom_gate_no_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("approve",), ("cancel",)),
+            preview=False,
+        ),
+        snapshot_name="custom_gate_no_preview_120x40",
+        title="ACE compact custom gate without preview",
+    )
+
+
 async def test_tale_plan_gate_five_controls_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -208,4 +235,31 @@ async def test_epic_plan_gate_action_png_snapshot(
             page,
             "plan_gate_epic_action_120x40",
             title="ACE epic plan gate action",
+        )
+
+
+async def test_narrow_plan_gate_stacked_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "narrow-plan.md"
+    plan.write_text(
+        "# Narrow plan\n\nReview the document above the available actions.\n",
+        encoding="utf-8",
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=(90, 40),
+        changespecs=changespecs(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
+        await page.expect_modal("PlanApprovalModal")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "plan_gate_tale_stacked_90x40",
+            title="ACE narrow stacked tale plan gate",
         )
