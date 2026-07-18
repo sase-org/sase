@@ -216,6 +216,7 @@ def test_e2e_tale_plan_gate_structure_and_branches(gate_home: Path) -> None:
     assert approve_opt["default_selected"] is True
     assert commit_opt["default_selected"] is True
     assert approve_opt["label"] == "Launch coder agent"
+    assert approve_opt["icon"] == "🚀"
     assert commit_opt["label"] == "Commit plan file to the plans sidecar"
 
     groups = request["groups"]
@@ -248,6 +249,7 @@ def test_e2e_epic_plan_retains_single_approve_control(gate_home: Path) -> None:
     assert request["query"] == "approve OR reject OR feedback"
     assert request["groups"] == []
     assert options[PLAN_APPROVE_OPTION_ID]["label"] == "Epic"
+    assert options[PLAN_APPROVE_OPTION_ID]["icon"] == "✅"
 
     execution = execute_gate_selection(
         result.bundle_path,

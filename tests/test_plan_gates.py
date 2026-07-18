@@ -22,8 +22,10 @@ from sase.plan_approval_actions import (
 )
 from sase.plan_gate import (
     _build_plan_gate_spec,
+    PlanGateTier,
     create_plan_approval_gate,
     plan_context_from_envelope,
+    plan_gate_option_icon,
     plan_gate_option_ids,
     plan_gate_query,
     translate_plan_gate_response,
@@ -103,7 +105,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     tale_approve = tale_request["options"][0]
     assert tale_approve["id"] == "approve"
     assert tale_approve["label"] == "Launch coder agent"
-    assert tale_approve["icon"] == "✅"
+    assert tale_approve["icon"] == "🚀"
     epic_approve = epic_request["options"][0]
     assert epic_approve["id"] == "approve"
     assert epic_approve["label"] == "Epic"
@@ -158,6 +160,22 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
 
     actions = {row.action for row in load_notifications()}
     assert actions == {"PlanApproval", "EpicApproval"}
+
+
+@pytest.mark.parametrize(
+    ("tier", "option_id", "expected"),
+    [
+        ("tale", "approve", "🚀"),
+        ("epic", "approve", "✅"),
+        ("tale", "commit", "💾"),
+        ("tale", "reject", "❌"),
+        ("tale", "feedback", "💬"),
+    ],
+)
+def test_plan_gate_option_icons_are_tier_aware(
+    tier: PlanGateTier, option_id: str, expected: str
+) -> None:
+    assert plan_gate_option_icon(option_id, tier=tier) == expected
 
 
 def test_edit_revalidates_tier_then_refreshes_review_hashes(gate_home: Path) -> None:

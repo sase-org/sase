@@ -147,13 +147,15 @@ async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
         await pilot.pause()
         controls = modal.query_one(GateBranchControls)
         assert controls.selected_option_ids(0) == ("approve", "commit")
-        assert "Launch coder agent" in str(
-            modal.query_one("#gate-option-0-0", Button).label
-        )
+        coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
+        assert "🚀" in coder_label
+        assert "Launch coder agent" in coder_label
         assert "Commit plan file to the plans sidecar" in str(
             modal.query_one("#gate-option-0-1", Button).label
         )
-        assert "Tale" in str(modal.query_one("#gate-group-submit-0", Button).label)
+        tale_label = str(modal.query_one("#gate-group-submit-0", Button).label)
+        assert "✅" in tale_label
+        assert "Tale" in tale_label
         await pilot.press("space")
         await pilot.press("enter")
         await pilot.pause()

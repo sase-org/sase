@@ -97,6 +97,8 @@ def test_plan_modal_loader_projects_tale_branch_model(gate_home: Path) -> None:
     )
     assert loaded.gate.groups[0].label == "Tale"
     assert loaded.gate.groups[0].icon == "✅"
+    assert loaded.gate.options[0].label == "Launch coder agent"
+    assert loaded.gate.options[0].icon == "🚀"
     assert "tier: tale" in loaded.plan_content
 
 
@@ -119,9 +121,9 @@ async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
         assert isinstance(modal, PlanApprovalModal)
         assert modal._plan_content is not None
         assert modal._gate.branches[0] == ("approve", "commit")
-        assert "Launch coder agent" in str(
-            modal.query_one("#gate-option-0-0", Button).label
-        )
+        coder_label = str(modal.query_one("#gate-option-0-0", Button).label)
+        assert "🚀" in coder_label
+        assert "Launch coder agent" in coder_label
         assert "Commit plan file to the plans sidecar" in str(
             modal.query_one("#gate-option-0-1", Button).label
         )
@@ -148,7 +150,10 @@ async def test_epic_plan_modal_renders_canonical_singleton_label(
         assert modal._default_choice == "epic"
         assert modal._gate.options[0].id == "approve"
         assert modal._gate.options[0].label == "Epic"
-        assert "Epic" in str(modal.query_one("#gate-singleton-0", Button).label)
+        assert modal._gate.options[0].icon == "✅"
+        epic_label = str(modal.query_one("#gate-singleton-0", Button).label)
+        assert "✅" in epic_label
+        assert "Epic" in epic_label
 
 
 @pytest.mark.parametrize(

@@ -538,7 +538,7 @@ def _plan_gate_option(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
     return {
         "id": option_id,
         "label": plan_gate_option_label(option_id, tier=tier),
-        "icon": _option_icon(option_id),
+        "icon": plan_gate_option_icon(option_id, tier=tier),
         "default_selected": True,
         "command": {"argv": [f"commands/{option_id}"]},
         "input_schema": _plan_input_schema(option_id, tier=tier),
@@ -621,9 +621,11 @@ def plan_gate_option_label(option_id: str, *, tier: PlanGateTier) -> str:
     }[option_id]
 
 
-def _option_icon(option_id: str) -> str:
+def plan_gate_option_icon(option_id: str, *, tier: PlanGateTier) -> str:
+    """Return the tier-aware presentation icon for a plan-gate option."""
+    if option_id == PLAN_APPROVE_OPTION_ID:
+        return "✅" if tier == "epic" else "🚀"
     return {
-        PLAN_APPROVE_OPTION_ID: "✅",
         PLAN_COMMIT_OPTION_ID: "💾",
         PLAN_REJECT_OPTION_ID: "❌",
         PLAN_FEEDBACK_OPTION_ID: "💬",
@@ -649,6 +651,7 @@ __all__ = [
     "original_plan_file_from_bundle",
     "plan_context_from_envelope",
     "plan_gate_command_script",
+    "plan_gate_option_icon",
     "plan_gate_option_label",
     "plan_gate_option_ids",
     "plan_gate_query",

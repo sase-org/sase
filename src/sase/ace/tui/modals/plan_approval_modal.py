@@ -23,6 +23,7 @@ from sase.plan_gate import (
     PLAN_COMMIT_OPTION_ID,
     TALE_PLAN_SUBMIT_GROUP,
     PlanGateTier,
+    plan_gate_option_icon,
     plan_gate_option_label,
 )
 from ..actions.clipboard import copy_to_system_clipboard
@@ -60,20 +61,25 @@ def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchDat
         (
             "approve",
             plan_gate_option_label("approve", tier=tier),
-            "✅",
+            plan_gate_option_icon("approve", tier=tier),
             "disabled",
         ),
         (
             "commit",
             plan_gate_option_label("commit", tier=tier),
-            "💾",
+            plan_gate_option_icon("commit", tier=tier),
             "disabled",
         ),
-        ("reject", plan_gate_option_label("reject", tier=tier), "❌", "disabled"),
+        (
+            "reject",
+            plan_gate_option_label("reject", tier=tier),
+            plan_gate_option_icon("reject", tier=tier),
+            "disabled",
+        ),
         (
             "feedback",
             plan_gate_option_label("feedback", tier=tier),
-            "💬",
+            plan_gate_option_icon("feedback", tier=tier),
             "required",
         ),
     )
