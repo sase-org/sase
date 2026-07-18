@@ -447,7 +447,6 @@ def _epic_launch_cwd(notification: PlanApprovalActionContext) -> Path | None:
 
 def _resolve_plan_approval_choice(plan_file: str, choice: str | None) -> str:
     """Resolve an implicit approval choice and enforce target-tier validation.
-
     An omitted choice follows the tier authored in the pending plan. Explicit
     ``tale`` and ``epic`` choices are cross-tier overrides and therefore
     validate against their target schema before any approval side effect.
