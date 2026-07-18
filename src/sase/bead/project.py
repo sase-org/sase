@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,11 +60,8 @@ class BeadProject:
                 f"No {beads_dirname}/ directory found at {self.root_dir}. "
                 "Run 'sase bead init' first."
             )
-        # Keep the legacy SQLite file available for compatibility callers,
-        # while the primary public API reads from Rust's JSONL-backed engine.
-        rebuild_from_jsonl(self.beads_dir)
         self._config: dict[str, object] = load_config(self.beads_dir)
-        self._conn = db_mod.init_db(self.beads_dir / "beads.db")
+        self._conn_cache: sqlite3.Connection | None = None
         prefix = str(self._config.get("issue_prefix", "beads"))
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))
@@ -73,7 +71,20 @@ class BeadProject:
         return self
 
     def __exit__(self, *_: object) -> None:
-        self._conn.close()
+        self._close_connection()
+
+    @property
+    def _conn(self) -> sqlite3.Connection:
+        """Open the compatibility mirror on first legacy use."""
+        if self._conn_cache is None:
+            rebuild_from_jsonl(self.beads_dir)
+            self._conn_cache = db_mod.init_db(self.beads_dir / "beads.db")
+        return self._conn_cache
+
+    def _close_connection(self) -> None:
+        if self._conn_cache is not None:
+            self._conn_cache.close()
+            self._conn_cache = None
 
     @staticmethod
     def init(root_dir: str | Path, beads_dirname: str = BEADS_DIRNAME) -> BeadProject:
@@ -431,9 +442,10 @@ class BeadProject:
     def _refresh_db_from_jsonl(self) -> None:
         """Refresh lightweight config state after a Rust-owned mutation.
 
-        The SQLite compatibility mirror is rebuilt lazily when the next
-        :class:`BeadProject` is opened, using ``issues.jsonl`` mtimes.
+        The SQLite compatibility mirror is rebuilt lazily on its next use,
+        using ``issues.jsonl`` mtimes.
         """
+        self._close_connection()
         self._config = load_config(self.beads_dir)
         raw_counter = self._config.get("next_counter", 1)
         counter = raw_counter if isinstance(raw_counter, int) else int(str(raw_counter))

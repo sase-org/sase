@@ -242,7 +242,9 @@ def _load_dependencies(conn: sqlite3.Connection, issue_id: str) -> list[Dependen
     ]
 
 
-def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
+def create_issue(
+    conn: sqlite3.Connection, issue: Issue, *, commit: bool = True
+) -> Issue:
     """Insert a new issue into the database."""
     if issue.issue_type == IssueType.PLAN and issue.tier is None:
         issue.tier = BeadTier.EPIC
@@ -277,7 +279,8 @@ def create_issue(conn: sqlite3.Connection, issue: Issue) -> Issue:
             issue.changespec_bug_id,
         ),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return issue
 
 
@@ -323,7 +326,11 @@ def list_issues(
 
 
 def update_issue(
-    conn: sqlite3.Connection, issue_id: str, **fields: str | int | None
+    conn: sqlite3.Connection,
+    issue_id: str,
+    *,
+    commit: bool = True,
+    **fields: str | int | None,
 ) -> Issue | None:
     """Update specific fields on an issue."""
     allowed = {
@@ -355,7 +362,8 @@ def update_issue(
         f"UPDATE issues SET {set_clause} WHERE id = ?",  # noqa: S608
         values,
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return get_issue(conn, issue_id)
 
 
@@ -365,6 +373,8 @@ def add_dependency(
     depends_on_id: str,
     created_at: str,
     created_by: str = "",
+    *,
+    commit: bool = True,
 ) -> Dependency:
     """Add a dependency: issue_id depends on depends_on_id."""
     conn.execute(
@@ -372,7 +382,8 @@ def add_dependency(
         "VALUES (?, ?, ?, ?)",
         (issue_id, depends_on_id, created_at, created_by),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return Dependency(
         issue_id=issue_id,
         depends_on_id=depends_on_id,

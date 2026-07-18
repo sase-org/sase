@@ -41,6 +41,27 @@ def test_constructor_raises_without_beads_dir(tmp_path):
         BeadProject(tmp_path)
 
 
+def test_read_commands_do_not_open_compatibility_mirror(tmp_path: Path) -> None:
+    with BeadProject.init(tmp_path) as project:
+        epic = project.create("Epic", IssueType.PLAN)
+        child = project.create("Child", IssueType.PHASE, parent_id=epic.id)
+
+    db_path = tmp_path / "sdd/beads/beads.db"
+    for suffix in ("", "-shm", "-wal"):
+        candidate = db_path.parent / f"{db_path.name}{suffix}"
+        if candidate.exists():
+            candidate.unlink()
+
+    with BeadProject(tmp_path) as project:
+        assert project.show(epic.id).id == epic.id
+        assert [issue.id for issue in project.list_issues()] == [epic.id, child.id]
+        assert [issue.id for issue in project.get_epic_children(epic.id)] == [child.id]
+        assert not db_path.exists()
+
+        assert project._max_local_child_counter(epic.id) == 1
+        assert db_path.exists()
+
+
 def test_create_epic(project):
     issue = project.create("My Epic", IssueType.PLAN)
     assert issue.title == "My Epic"

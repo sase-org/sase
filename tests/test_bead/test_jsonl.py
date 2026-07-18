@@ -18,6 +18,14 @@ from sase.bead.model import BeadTier, Issue, IssueType, Status
 NOW = "2026-03-17T00:00:00Z"
 
 
+class _CountingConnection(sqlite3.Connection):
+    commit_count = 0
+
+    def commit(self) -> None:
+        self.commit_count += 1
+        super().commit()
+
+
 @pytest.fixture
 def conn(tmp_path: object):
     from pathlib import Path
@@ -136,6 +144,66 @@ class TestExport:
 
 
 class TestImport:
+    def test_import_uses_one_transaction_and_skips_invalid_dependency(
+        self, tmp_path: object
+    ) -> None:
+        from pathlib import Path
+
+        assert isinstance(tmp_path, Path)
+        db_path = tmp_path / "batched.db"
+        schema_conn = init_db(db_path)
+        schema_conn.close()
+        conn = sqlite3.connect(str(db_path), factory=_CountingConnection)
+        assert isinstance(conn, _CountingConnection)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys=ON")
+        jsonl_path = tmp_path / "issues.jsonl"
+        first = {
+            "id": "e-1",
+            "title": "First",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "dependencies": [],
+        }
+        second = {
+            "id": "e-2",
+            "title": "Second",
+            "status": "open",
+            "issue_type": "plan",
+            "parent_id": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+            "dependencies": [
+                {
+                    "issue_id": "e-2",
+                    "depends_on_id": "e-1",
+                    "created_at": NOW,
+                },
+                {
+                    "issue_id": "e-2",
+                    "depends_on_id": "missing",
+                    "created_at": NOW,
+                },
+            ],
+        }
+        jsonl_path.write_text(
+            "\n".join(json.dumps(issue) for issue in (first, second)) + "\n"
+        )
+
+        try:
+            imported = import_from_jsonl(jsonl_path, conn)
+
+            assert conn.commit_count == 1
+            assert [issue.id for issue in imported] == ["e-1", "e-2"]
+            stored = get_issue(conn, "e-2")
+            assert stored is not None
+            assert [dep.depends_on_id for dep in stored.dependencies] == ["e-1"]
+        finally:
+            conn.close()
+
     def test_import_creates_issues(
         self, conn: sqlite3.Connection, tmp_path: object
     ) -> None:

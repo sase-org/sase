@@ -129,43 +129,52 @@ def import_from_jsonl(path: Path, conn: sqlite3.Connection) -> list[Issue]:
     # Sort: plans first, then phases (so parent FK is satisfied)
     issues.sort(key=lambda i: (0 if i.issue_type == IssueType.PLAN else 1, i.id))
 
-    # Upsert into database
-    for issue in issues:
-        existing = db_mod.get_issue(conn, issue.id)
-        if existing is None:
-            db_mod.create_issue(conn, issue)
-        else:
-            db_mod.update_issue(
-                conn,
-                issue.id,
-                title=issue.title,
-                status=issue.status.value,
-                assignee=issue.assignee,
-                updated_at=issue.updated_at,
-                closed_at=issue.closed_at,
-                close_reason=issue.close_reason,
-                description=issue.description,
-                notes=issue.notes,
-                design=issue.design,
-                model=issue.model,
-                tier=issue.tier.value if issue.tier else None,
-                is_ready_to_work=int(issue.is_ready_to_work),
-                changespec_name=issue.changespec_name,
-                changespec_bug_id=issue.changespec_bug_id,
-            )
-
-        # Sync dependencies
-        for dep in issue.dependencies:
-            try:
-                db_mod.add_dependency(
+    # Upsert the entire mirror in one transaction. The SQLite database is
+    # derived compatibility state, so partial imports are never useful.
+    try:
+        for issue in issues:
+            existing = db_mod.get_issue(conn, issue.id)
+            if existing is None:
+                db_mod.create_issue(conn, issue, commit=False)
+            else:
+                db_mod.update_issue(
                     conn,
-                    dep.issue_id,
-                    dep.depends_on_id,
-                    dep.created_at,
-                    dep.created_by,
+                    issue.id,
+                    commit=False,
+                    title=issue.title,
+                    status=issue.status.value,
+                    assignee=issue.assignee,
+                    updated_at=issue.updated_at,
+                    closed_at=issue.closed_at,
+                    close_reason=issue.close_reason,
+                    description=issue.description,
+                    notes=issue.notes,
+                    design=issue.design,
+                    model=issue.model,
+                    tier=issue.tier.value if issue.tier else None,
+                    is_ready_to_work=int(issue.is_ready_to_work),
+                    changespec_name=issue.changespec_name,
+                    changespec_bug_id=issue.changespec_bug_id,
                 )
-            except Exception:
-                pass  # Already exists or FK violation
+
+            # Sync dependencies. A duplicate or invalid legacy dependency is
+            # skipped without aborting the surrounding transaction.
+            for dep in issue.dependencies:
+                try:
+                    db_mod.add_dependency(
+                        conn,
+                        dep.issue_id,
+                        dep.depends_on_id,
+                        dep.created_at,
+                        dep.created_by,
+                        commit=False,
+                    )
+                except Exception:
+                    pass  # Already exists or FK violation
+    except BaseException:
+        conn.rollback()
+        raise
+    conn.commit()
 
     return issues
 
