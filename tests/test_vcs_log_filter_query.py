@@ -11,7 +11,6 @@ from sase.vcs_log.dates import parse_time_bound
 from sase.vcs_log.filter_query import (
     CommitFilterQueryError,
     CommitLogFilterValues,
-    commit_matches,
     compile_commit_matcher,
     completion_context,
     parse_commit_filter_query,
@@ -228,7 +227,8 @@ def test_commit_matcher_ands_kinds_and_text_but_ors_authors(
         text=("fix", "preview"),
     )
 
-    assert commit_matches(values, _entry(**entry_kwargs)) is expected  # type: ignore[arg-type]
+    matcher = compile_commit_matcher(values)
+    assert matcher(_entry(**entry_kwargs)) is expected  # type: ignore[arg-type]
 
 
 def test_compiled_matcher_accepts_repo_aliases_case_insensitively() -> None:

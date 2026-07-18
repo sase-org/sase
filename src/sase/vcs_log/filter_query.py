@@ -210,16 +210,6 @@ def compile_commit_matcher(
     return matches
 
 
-def commit_matches(
-    values: CommitLogFilterValues,
-    entry: AggregatedCommitWire,
-    *,
-    repo_aliases: RepoAliases | None = None,
-) -> bool:
-    """Return whether one aggregated commit satisfies *values*."""
-    return compile_commit_matcher(values, repo_aliases=repo_aliases)(entry)
-
-
 def completion_context(text: str, cursor: int) -> tuple[CompletionKind, str]:
     """Classify the token prefix immediately before *cursor*.
 
@@ -398,7 +388,6 @@ __all__ = [
     "CommitFilterQueryError",
     "CommitLogFilterValues",
     "CompletionKind",
-    "commit_matches",
     "compile_commit_matcher",
     "completion_context",
     "parse_commit_filter_query",
