@@ -145,6 +145,14 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         )
 
     def _update_display_impl(self, agent: Agent) -> None:
+        # Clan rows are synthetic containers. Their complete detail document
+        # is derived from already-loaded members and must never probe agent
+        # artifacts or append ordinary prompt/reply sections.
+        if agent.is_clan_container:
+            header_text, _error_tb_syntax = build_header_text(agent)
+            self.update(header_text)  # type: ignore[attr-defined]
+            return
+
         # Attempt-pinned view: render the selected prior attempt's full error
         # + prompt + captured reply; skip all other rendering paths.
         if self.attempt_pinned_number is not None:

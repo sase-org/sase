@@ -144,34 +144,31 @@ def test_section_marker_preserves_text_and_ignores_user_matching_content() -> No
     assert marked_ranges == [(0, len("AGENT PROMPT"), "agent-prompt")]
 
 
-def test_parallel_family_members_section_is_a_navigation_target() -> None:
-    root = Agent(
+def test_clan_members_section_is_a_navigation_target() -> None:
+    container = Agent(
         agent_type=AgentType.RUNNING,
-        cl_name="family-root",
+        cl_name="research",
         project_file="/tmp/demo.sase",
         status="RUNNING",
         start_time=datetime(2026, 7, 16, 12, 0, 0),
-        raw_suffix="20260716120000",
-        agent_name="family-root",
-        agent_family="family-root",
-        agent_family_role="root",
-        agent_family_parallel=True,
+        agent_clan="research",
+        agent_clan_generation="20260716120000",
+        is_clan_container=True,
     )
-    root.runtime_children = [
+    container.runtime_children = [
         Agent(
             agent_type=AgentType.RUNNING,
-            cl_name="family-member",
+            cl_name="research.member",
             project_file="/tmp/demo.sase",
             status="WAITING",
             start_time=datetime(2026, 7, 16, 12, 1, 0),
             raw_suffix="20260716120100",
-            agent_name="family-member",
-            agent_family="family-root",
-            agent_family_role="phase",
-            agent_family_parallel=True,
+            agent_name="research.member",
+            agent_clan="research",
+            agent_clan_generation="20260716120000",
         )
     ]
-    header, _ = build_header_text(root, cheap=True)
+    header, _ = build_header_text(container, cheap=True)
     panel = _render_panel(Group(header), width=80)
 
     target = panel.resolve_section_target(1, width=80)

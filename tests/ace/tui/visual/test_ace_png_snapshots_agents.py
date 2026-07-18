@@ -339,6 +339,70 @@ def _clan_tree_agents() -> list[Agent]:
     )
 
 
+def _epic_clan_agents() -> list[Agent]:
+    generation = "20260717120000"
+
+    def member(
+        name: str,
+        status: str,
+        minute: int,
+        *,
+        stop_minute: int | None = None,
+        model: str,
+        provider: str,
+    ) -> Agent:
+        return Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-{name}",
+            project_file="/workspace/sase/visual_project.sase",
+            status=status,
+            start_time=datetime(2026, 7, 17, 12, minute, 0),
+            run_start_time=datetime(2026, 7, 17, 12, minute, 0),
+            stop_time=(
+                datetime(2026, 7, 17, 12, stop_minute, 0)
+                if stop_minute is not None
+                else None
+            ),
+            raw_suffix=f"2026071712{minute:02d}00-{name}",
+            agent_name=f"sase-6n.{name}",
+            agent_clan="sase-6n",
+            agent_clan_generation=generation,
+            agent_family_role="land" if name == "land" else "phase",
+            tag="epic",
+            llm_provider=provider,
+            model=model,
+        )
+
+    return sort_and_reorder(
+        [
+            member(
+                "phase-runtime",
+                "DONE",
+                0,
+                stop_minute=7,
+                model="gpt-5",
+                provider="codex",
+            ),
+            member(
+                "phase-tui",
+                "DONE",
+                2,
+                stop_minute=9,
+                model="sonnet",
+                provider="claude",
+            ),
+            member(
+                "land",
+                "RUNNING",
+                9,
+                model="gemini-pro",
+                provider="gemini",
+            ),
+        ],
+        [],
+    )
+
+
 def _runner_slot_wait_agents() -> list[Agent]:
     return [
         Agent(
@@ -569,6 +633,56 @@ async def test_clan_tree_fold_levels_png_snapshots(
             page,
             "agents_clan_tree_fully_expanded_120x40",
             title="ACE clan tree fully expanded",
+        )
+
+
+async def test_epic_clan_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 12, 15, 0))
+    patch_startup_loaders(monkeypatch, agents=_epic_clan_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "sase-6n")
+        assert_page_svg_contains(page, "3 agents")
+        assert_page_svg_contains(page, ".land")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_epic_120x40",
+            title="ACE epic clan panel",
+        )
+
+
+async def test_swarm_clan_panel_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 17, 10, 15, 0))
+    patch_startup_loaders(monkeypatch, agents=_clan_tree_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "CLAN")
+        assert_page_svg_contains(page, "3 agents")
+        assert_page_svg_contains(page, "1 family")
+        assert_page_svg_contains(page, "--code")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_panel_swarm_120x40",
+            title="ACE swarm clan panel",
         )
 
 

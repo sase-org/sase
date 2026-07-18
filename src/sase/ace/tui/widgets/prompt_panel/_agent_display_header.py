@@ -57,7 +57,7 @@ _AUTO_APPROVE_KIND_STYLES: dict[str, tuple[str, str]] = {
     "tale": ("\u26a1 TALE", "bold #FFD75F"),
     "epic": ("\u26a1 EPIC", "bold #AF87FF"),
 }
-_MEMBER_STATUS_STYLES: dict[str, str] = {
+_LEGACY_MEMBER_STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
     "Running": "bold #FFD700",
@@ -158,8 +158,16 @@ def _append_auto_approve_field(text: Text, agent: Agent) -> None:
     text.append(f"{token}\n", style=style)
 
 
-def _append_clan_members_section(text: Text, agent: Agent) -> None:
-    """Append the already-loaded members for a selected clan container."""
+def _append_legacy_parallel_members_section(text: Text, agent: Agent) -> None:
+    """Preserve archived parallel-family member summaries.
+
+    Modern parallel launches project to synthetic clan containers and return
+    from :func:`build_header_text` before this compatibility path. Only old
+    records carrying ``agent_family_parallel`` retain the root-shaped panel.
+    """
+    if not agent.agent_family_parallel:
+        return
+
     from ...models._agent_clan import clan_members
 
     members = sorted(
@@ -183,7 +191,7 @@ def _append_clan_members_section(text: Text, agent: Agent) -> None:
         name = member.agent_name or _UNASSIGNED_AGENT_NAME_DISPLAY
         bucket = status_bucket_for_values(member.status)
         glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
-        status_style = _MEMBER_STATUS_STYLES[bucket]
+        status_style = _LEGACY_MEMBER_STATUS_STYLES[bucket]
         model = member.model or "default"
 
         text.append(role, style="italic #AF87FF")
@@ -229,6 +237,11 @@ def build_header_text(
     Returns:
         Tuple of (header_text, error_traceback_syntax).
     """
+    if agent.is_clan_container:
+        from ._agent_display_clan import build_clan_detail_text
+
+        return build_clan_detail_text(agent), None
+
     header_text = Text()
 
     # Agent name is always the first metadata row in the details panel.
@@ -512,7 +525,7 @@ def build_header_text(
             style="#D7D7FF",
         )
 
-    _append_clan_members_section(header_text, agent)
+    _append_legacy_parallel_members_section(header_text, agent)
 
     append_agent_output_variables_section(header_text, agent)
 
