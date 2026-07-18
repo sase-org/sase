@@ -223,6 +223,17 @@ def test_waiting_json_with_agents_and_duration(tmp_path: Path) -> None:
     assert agent.wait_duration == 300.0
 
 
+def test_waiting_json_preserves_tribe_reference_for_display(tmp_path: Path) -> None:
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "waiting.json").write_text(json.dumps({"waiting_for": ["@epic"]}))
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "WAITING"
+    assert agent.waiting_for == ["@epic"]
+
+
 def test_duration_only_waiting_json_sets_waiting_status(tmp_path: Path) -> None:
     """Duration-only waiting.json (empty waiting_for) sets WAITING status."""
     meta = {"pid": 1234}

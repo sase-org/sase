@@ -234,9 +234,14 @@ def extract_directives_and_write_meta(
     wait_name: str | None = None
     if not directives.name_explicit and not auto_dismiss:
         from sase.agent.names import sole_resume_agent_name
+        from sase.core.agent_tribe import parse_tribe_reference
 
         resume_name = sole_resume_agent_name(raw_resolved_prompt)
-        if resume_name is None and len(wait_names) == 1:
+        if (
+            resume_name is None
+            and len(wait_names) == 1
+            and parse_tribe_reference(wait_names[0]) is None
+        ):
             wait_name = wait_names[0]
 
     repeat_name = os.environ.get("SASE_REPEAT_NAME")

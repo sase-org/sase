@@ -20,6 +20,9 @@ def dependency_resolution_status(
     self_artifact_dir: str | Path | None = None,
 ) -> WaitDependencyStatus:
     resolved_dep_items = tuple(resolved_deps)
+    waiter_launch_cutoff = (
+        Path(self_artifact_dir).name if self_artifact_dir is not None else None
+    )
     identity_names: set[str] = set()
     for dependency in wait_identity_deps:
         if not isinstance(dependency, Mapping):
@@ -43,7 +46,11 @@ def dependency_resolution_status(
             continue
         if name in resolved_dep_items:
             continue
-        if not index.is_resolved(name, exclude_artifact_dir=self_artifact_dir):
+        if not index.is_resolved(
+            name,
+            exclude_artifact_dir=self_artifact_dir,
+            newer_than=waiter_launch_cutoff if name.startswith("@") else None,
+        ):
             return WaitDependencyStatus("waiting")
     return WaitDependencyStatus("resolved")
 

@@ -120,6 +120,17 @@ def test_set_prompt_wait_formats_runner_threshold() -> None:
     assert rewritten == "%wait(dep, time=5m, runners=0)\nDo work"
 
 
+def test_set_prompt_wait_round_trips_tribe_reference() -> None:
+    rewritten = set_prompt_wait(
+        "%w:old\nDo work",
+        PromptWaitDirective(agents=("@epic", "builder")),
+    )
+
+    assert rewritten == "%wait(@epic, builder)\nDo work"
+    _, directives = extract_prompt_directives(rewritten)
+    assert directives.wait == ["@epic", "builder"]
+
+
 def test_insert_after_frontmatter() -> None:
     prompt = "---\ntitle: demo\n---\nDo work"
     assert set_prompt_name(prompt, "agent") == (

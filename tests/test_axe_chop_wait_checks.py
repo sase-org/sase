@@ -370,6 +370,43 @@ def test_dependency_launched_after_waiter_eventually_resolves(
     assert ready == {"resolved_deps": ["late-dep"]}
 
 
+def test_tribe_dependency_resolves_to_next_tagged_entity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(
+        tmp_path,
+        "@epic",
+        suffix="20260718020000",
+    )
+    older = make_agent(
+        tmp_path,
+        "proj",
+        "20260718010000",
+        "old-epic",
+        done=True,
+        outcome="completed",
+    )
+    newer = make_agent(
+        tmp_path,
+        "proj",
+        "20260718030000",
+        "new-epic",
+        done=True,
+        outcome="completed",
+    )
+    for artifact in (older, newer):
+        meta_path = artifact / "agent_meta.json"
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["tag"] = "epic"
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["@epic"]}
+
+
 def test_concrete_indexed_wait_marker_resolves_without_template_marker(
     tmp_path: Path, monkeypatch
 ) -> None:

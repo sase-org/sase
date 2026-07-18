@@ -27,6 +27,30 @@ def test_multi_parent_fork_plans_neutral_auto_name(tmp_path: Path) -> None:
     assert env_value == "0"
 
 
+def test_tribe_wait_plans_neutral_auto_name(tmp_path: Path) -> None:
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        name, env_value = allocator.planned_name_for_prompt("%wait:@epic\nContinue")
+
+    assert name == "0"
+    assert env_value == "0"
+
+
+def test_tribe_wait_is_not_rewritten_as_template(tmp_path: Path) -> None:
+    allocator = PlannedNameAllocator()
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        assert allocator.planned_name_for_prompt("%name:build-@\nBuild")[0] == (
+            "build-0"
+        )
+        rewritten = allocator.rewrite_template_references(
+            "%wait:@epic,build-@\nContinue"
+        )
+
+    assert rewritten == "%wait:@epic,build-0\nContinue"
+
+
 @pytest.mark.parametrize(
     ("prompt", "expected"),
     [

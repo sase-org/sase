@@ -219,13 +219,13 @@ def test_wait_template_resolves_latest() -> None:
 
 def test_wait_template_comma_args() -> None:
     """Comma-separated %wait templates resolve each argument independently."""
-    prompt = "%wait:foo-@,@.cld\nDo work"
+    prompt = "%wait:foo-@,cld-@\nDo work"
     with patch(
         "sase.agent.names._registry.get_reserved_agent_names",
-        return_value={"foo-2", "1.cld"},
+        return_value={"foo-2", "cld-1"},
     ):
         _, directives = extract_prompt_directives(prompt)
-    assert directives.wait == ["foo-2", "1.cld"]
+    assert directives.wait == ["foo-2", "cld-1"]
 
 
 def test_wait_template_middle_shape_resolves_latest() -> None:
@@ -259,6 +259,57 @@ def test_wait_template_no_existing_latest_raises() -> None:
         pytest.raises(DirectiveError, match="No existing agent name found"),
     ):
         extract_prompt_directives(prompt)
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("%wait:@epic\nDo work", "@epic"),
+        ("%w:`@review`\nDo work", "@review"),
+        ("%wait(@builders)\nDo work", "@builders"),
+    ],
+)
+def test_wait_tribe_reference_round_trips_verbatim(
+    prompt: str,
+    expected: str,
+) -> None:
+    cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.wait == [expected]
+
+
+def test_wait_tribe_reference_mixed_with_agent_and_template() -> None:
+    prompt = "%wait(@epic, builder-2, base-@)\nDo work"
+    with patch(
+        "sase.agent.names._registry.get_reserved_agent_names",
+        return_value={"base-3"},
+    ):
+        cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == "Do work"
+    assert directives.wait == ["@epic", "builder-2", "base-3"]
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "%wait:@\nDo work",
+        "%wait:`@bad name`\nDo work",
+        '%wait("@bad/name")\nDo work',
+    ],
+)
+def test_wait_tribe_reference_rejects_malformed_name(prompt: str) -> None:
+    with pytest.raises(DirectiveError, match="Invalid '%wait' tribe reference"):
+        extract_prompt_directives(prompt)
+
+
+def test_wait_tribe_reference_does_not_collide_with_tribe_directive() -> None:
+    cleaned, directives = extract_prompt_directives("%t:epic\n%w:@epic\nDo work")
+
+    assert cleaned == "Do work"
+    assert directives.tag == "epic"
+    assert directives.wait == ["@epic"]
 
 
 @pytest.mark.parametrize("agent_name", ["05s", "00s", "007"])

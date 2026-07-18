@@ -70,6 +70,21 @@ class TestExtractDirectivesMetadata:
         assert result["info"].name is not None
         assert result["meta"].get("name") is not None
 
+    def test_tribe_wait_uses_neutral_auto_name(self, tmp_path: Path) -> None:
+        with (
+            patch.object(Path, "home", return_value=tmp_path),
+            patch(
+                "sase.agent.names.allocate_wait_name",
+                side_effect=AssertionError("tribe waits are not naming templates"),
+            ),
+            patch("sase.agent.names.get_next_auto_name", return_value="neutral"),
+        ):
+            result = run_extract(tmp_path, prompt="%wait:@epic\ndo stuff")
+
+        assert result["info"].name == "neutral"
+        assert result["info"].wait_names == ["@epic"]
+        assert result["meta"]["wait_for"] == ["@epic"]
+
     def test_normal_agent_not_hidden(self, tmp_path: Path) -> None:
         """Without auto-dismiss, agents are not hidden."""
         with patch.object(Path, "home", return_value=tmp_path):

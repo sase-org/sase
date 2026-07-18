@@ -16,13 +16,17 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.core.agent_tribe import (
+    InvalidTagError,
+    load_raw_agent_tags,
+    validate_tag_name,
+)
 from sase.core.paths import sase_home
 
 if TYPE_CHECKING:
@@ -32,36 +36,9 @@ _AGENT_TAGS_FILE: Path | None = None
 
 REVIEW_AGENT_TAG = "review"
 
-TAG_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-
-
-class InvalidTagError(ValueError):
-    """Raised when a tag name fails validation."""
-
 
 def _agent_tags_file() -> Path:
     return _AGENT_TAGS_FILE or sase_home() / "agent_tags.json"
-
-
-def validate_tag_name(tag: str) -> str:
-    """Return *tag* if valid, otherwise raise :class:`InvalidTagError`.
-
-    Rejects empty strings, ``@``-prefixed values (with a hint to drop the
-    prefix), and any character outside ``^[A-Za-z0-9_.-]+$``.
-    """
-    if not isinstance(tag, str) or not tag:
-        raise InvalidTagError("tag name must be a non-empty string")
-    if tag.startswith("@"):
-        raise InvalidTagError(
-            f"tag name {tag!r} must not start with '@' "
-            "(the '@' is added on display only — drop it from the input)"
-        )
-    if not TAG_NAME_RE.match(tag):
-        raise InvalidTagError(
-            f"tag name {tag!r} must match ^[A-Za-z0-9_.-]+$ "
-            "(letters, digits, underscore, dot, dash)"
-        )
-    return tag
 
 
 def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
@@ -77,49 +54,13 @@ def load_agent_tags() -> dict[tuple[AgentType, str, str | None], str]:
     """
     from .tui.models.agent import AgentType
 
-    path = _agent_tags_file()
-    if not path.exists():
-        return {}
-
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(data, list):
-        return {}
-
     result: dict[tuple[AgentType, str, str | None], str] = {}
-    for entry in data:
-        if not isinstance(entry, dict):
-            continue
-        identity_raw = entry.get("id")
-        if not isinstance(identity_raw, list) or len(identity_raw) != 3:
-            continue
+    for (agent_type_raw, cl_name, raw_suffix), tag in load_raw_agent_tags(
+        _agent_tags_file()
+    ).items():
         try:
-            agent_type = AgentType(identity_raw[0])
+            agent_type = AgentType(agent_type_raw)
         except (ValueError, TypeError):
-            continue
-        cl_name = identity_raw[1]
-        raw_suffix = identity_raw[2]
-        if not isinstance(cl_name, str):
-            continue
-        if raw_suffix is not None and not isinstance(raw_suffix, str):
-            continue
-
-        tag: str | None = None
-        scalar_raw = entry.get("tag")
-        if isinstance(scalar_raw, str) and TAG_NAME_RE.match(scalar_raw):
-            tag = scalar_raw
-        else:
-            list_raw = entry.get("tags")
-            if isinstance(list_raw, list):
-                for candidate in list_raw:
-                    if isinstance(candidate, str) and TAG_NAME_RE.match(candidate):
-                        tag = candidate
-                        break
-
-        if tag is None:
             continue
         result[(agent_type, cl_name, raw_suffix)] = tag
     return result

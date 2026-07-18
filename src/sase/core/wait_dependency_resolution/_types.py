@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 SUCCESS_OUTCOME = "completed"
 IDENTITY_SUCCESS_OUTCOMES = frozenset({"completed", "plan_rejected"})
@@ -34,6 +35,21 @@ class ArtifactCandidate:
     is_identity_success: bool
     is_failed: bool = False
     is_queued: bool = False
+    clan_name: str | None = None
+    clan_generation: str | None = None
+    clan_tribe: str | None = None
+
+
+@dataclass(frozen=True)
+class TribeCandidate:
+    """The canonical next complete entity for one tribe wait target."""
+
+    tribe: str
+    kind: Literal["agent", "clan"]
+    name: str
+    timestamp: str
+    members: tuple[ArtifactCandidate, ...]
+    generation: str | None = None
 
 
 @dataclass(frozen=True)

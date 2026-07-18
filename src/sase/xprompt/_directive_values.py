@@ -42,8 +42,21 @@ def resolve_wait_agent_args(seen_multi: dict[str, list[str]]) -> None:
                 )
             resolved_wait.append(prev_name)
             continue
+        _parse_wait_tribe_reference(raw_arg)
         resolved_wait.append(raw_arg)
     seen_multi["wait"] = resolved_wait
+
+
+def _parse_wait_tribe_reference(value: str) -> str | None:
+    """Parse a wait tribe target and translate validation into directive errors."""
+    from sase.core.agent_tribe import InvalidTagError, parse_tribe_reference
+
+    try:
+        return parse_tribe_reference(value)
+    except InvalidTagError as exc:
+        raise DirectiveError(
+            f"Invalid '%wait' tribe reference {value!r}: {exc}"
+        ) from exc
 
 
 def resolve_wait_time_args(
@@ -253,6 +266,9 @@ def resolve_wait_templates(expanded_multi: dict[str, list[str]]) -> None:
 
     resolved_waits: list[str] = []
     for raw_wait in expanded_multi["wait"]:
+        if _parse_wait_tribe_reference(raw_wait) is not None:
+            resolved_waits.append(raw_wait)
+            continue
         if not is_agent_name_template(raw_wait):
             resolved_waits.append(raw_wait)
             continue
@@ -290,7 +306,7 @@ def parse_tribe_tag(expanded_args: dict[str, str]) -> str | None:
     """Parse and validate the ``%tribe`` directive."""
     raw_tag = expanded_args.get("tribe")
     if raw_tag:
-        from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+        from sase.core.agent_tribe import InvalidTagError, validate_tag_name
 
         try:
             return validate_tag_name(raw_tag)
@@ -331,7 +347,7 @@ def resolve_clan_tribe(
     if not tribe:
         raise DirectiveError("'%clan(..., tribe=...)' requires a non-empty tribe name.")
 
-    from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+    from sase.core.agent_tribe import InvalidTagError, validate_tag_name
 
     try:
         return validate_tag_name(tribe)

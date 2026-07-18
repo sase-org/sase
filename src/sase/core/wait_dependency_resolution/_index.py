@@ -8,6 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
+from sase.core.agent_clan_tribe import ClanTribeMemberWire, resolve_clan_tribe
+from sase.core.agent_tribe import (
+    InvalidTagError,
+    RawAgentTagIdentity,
+    load_raw_agent_tags,
+    parse_tribe_reference,
+    validate_tag_name,
+)
 from sase.plan_chain import planner_row_name
 
 from ._artifact_state import (
@@ -24,6 +32,7 @@ from ._types import (
     SUCCESS_OUTCOME,
     ArtifactCandidate,
     FamilyCandidate,
+    TribeCandidate,
     WaitCandidate,
     WaitDependencyStatus,
 )
@@ -35,16 +44,26 @@ class WaitDependencyIndex:
     workflows: dict[str, list[ArtifactCandidate]]
     families: dict[str, list[ArtifactCandidate]]
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
+    tribes: dict[str, list[ArtifactCandidate]]
+    effective_clan_tribes: dict[tuple[str, str], str]
+    agent_tags: dict[RawAgentTagIdentity, str]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
 
     @classmethod
-    def empty(cls) -> WaitDependencyIndex:
+    def empty(
+        cls,
+        *,
+        agent_tags_path: Path | str | None = None,
+    ) -> WaitDependencyIndex:
         return cls(
             named={},
             workflows={},
             families={},
             clans={},
+            tribes={},
+            effective_clan_tribes={},
+            agent_tags=load_raw_agent_tags(agent_tags_path),
             artifacts={},
             artifacts_by_dir={},
         )
@@ -55,8 +74,9 @@ class WaitDependencyIndex:
         project_name: str,
         *,
         projects_root: Path | str | None = None,
+        agent_tags_path: Path | str | None = None,
     ) -> WaitDependencyIndex:
-        index = cls.empty()
+        index = cls.empty(agent_tags_path=agent_tags_path)
         for artifact_dir in iter_agent_artifact_dirs(
             project_name,
             "ace-run",
@@ -118,22 +138,46 @@ class WaitDependencyIndex:
 
         workflow_name = meta.get("workflow_name")
         family_name = family_base_from_meta(meta)
+        parent_timestamp = (
+            meta.get("parent_timestamp")
+            if isinstance(meta.get("parent_timestamp"), str)
+            else None
+        )
+        clan_name = meta.get("agent_clan")
+        if not isinstance(clan_name, str) or not clan_name:
+            legacy_family = meta.get("agent_family")
+            if (
+                meta.get("agent_family_parallel") is True
+                and isinstance(legacy_family, str)
+                and legacy_family
+            ):
+                clan_name = legacy_family
+        if not isinstance(clan_name, str) or not clan_name:
+            clan_name = None
+        generation: str | None = None
+        if clan_name is not None:
+            generation_value = meta.get("agent_clan_generation")
+            generation = (
+                generation_value
+                if isinstance(generation_value, str) and generation_value
+                else parent_timestamp or timestamp
+            )
+        clan_tribe = self._valid_tribe(meta.get("clan_tribe"))
         artifact = ArtifactCandidate(
             name=name if isinstance(name, str) else str(workflow_name or ""),
             timestamp=timestamp,
             project_name=project_name,
             artifact_dir=str(artifact_dir),
-            parent_timestamp=(
-                meta.get("parent_timestamp")
-                if isinstance(meta.get("parent_timestamp"), str)
-                else None
-            ),
+            parent_timestamp=parent_timestamp,
             family_name=family_name,
             is_resolved=is_resolved,
             is_done=is_done,
             is_identity_success=is_identity_success,
             is_failed=is_failed,
             is_queued=is_queued,
+            clan_name=clan_name,
+            clan_generation=generation,
+            clan_tribe=clan_tribe,
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact
@@ -144,22 +188,167 @@ class WaitDependencyIndex:
             if family_name is not None:
                 self.families.setdefault(family_name, []).append(artifact)
 
-        clan_name = meta.get("agent_clan")
-        if not isinstance(clan_name, str) or not clan_name:
-            legacy_family = meta.get("agent_family")
-            if (
-                meta.get("agent_family_parallel") is True
-                and isinstance(legacy_family, str)
-                and legacy_family
-            ):
-                clan_name = legacy_family
-        if isinstance(clan_name, str) and clan_name:
-            generation = meta.get("agent_clan_generation")
-            if not isinstance(generation, str) or not generation:
-                generation = artifact.parent_timestamp or artifact.timestamp
+        if clan_name is not None and generation is not None:
             self.clans.setdefault(clan_name, {}).setdefault(generation, []).append(
                 artifact
             )
+            self._refresh_effective_clan_tribe(clan_name, generation)
+
+        direct_tribes = {
+            tribe
+            for tribe in (
+                self._valid_tribe(meta.get("tag")),
+                self._posthoc_tribe(meta, timestamp),
+            )
+            if tribe is not None
+        }
+        for tribe in direct_tribes:
+            self.tribes.setdefault(tribe, []).append(artifact)
+
+    @staticmethod
+    def _valid_tribe(value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        try:
+            return validate_tag_name(value)
+        except InvalidTagError:
+            return None
+
+    def _posthoc_tribe(self, meta: Mapping[str, Any], timestamp: str) -> str | None:
+        cl_name = meta.get("cl_name")
+        if not isinstance(cl_name, str) or not cl_name:
+            return None
+        for agent_type in ("workflow", "run"):
+            tribe = self.agent_tags.get((agent_type, cl_name, timestamp))
+            if tribe is not None:
+                return tribe
+        return None
+
+    def _refresh_effective_clan_tribe(
+        self,
+        clan_name: str,
+        generation: str,
+    ) -> None:
+        members = self.clans[clan_name][generation]
+        resolution = resolve_clan_tribe(
+            clan_name,
+            generation,
+            [
+                ClanTribeMemberWire(
+                    agent_clan=clan_name,
+                    agent_clan_generation=generation,
+                    launch_timestamp=member.timestamp,
+                    identity=member.artifact_dir,
+                    clan_tribe=member.clan_tribe,
+                )
+                for member in members
+            ],
+        )
+        key = (clan_name, generation)
+        if resolution.tribe is None:
+            self.effective_clan_tribes.pop(key, None)
+        else:
+            self.effective_clan_tribes[key] = resolution.tribe
+
+    def tribe_candidate(
+        self,
+        tribe: str,
+        *,
+        newer_than: str | None,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> TribeCandidate | None:
+        """Return the earliest complete entity launched after *newer_than*.
+
+        A tagged clan member enrolls its whole generation. Clan entities use
+        the generation's earliest member launch as their timestamp and resolve
+        only once the same member aggregate used by clan waits is successful.
+        """
+        if newer_than is None:
+            return None
+
+        entity_keys: set[tuple[str, str, str | None]] = set()
+        for tagged_artifact in self.tribes.get(tribe, []):
+            if tagged_artifact.clan_name and tagged_artifact.clan_generation:
+                entity_keys.add(
+                    (
+                        "clan",
+                        tagged_artifact.clan_name,
+                        tagged_artifact.clan_generation,
+                    )
+                )
+            else:
+                entity_keys.add(("agent", tagged_artifact.artifact_dir, None))
+        entity_keys.update(
+            ("clan", clan_name, generation)
+            for (clan_name, generation), resolved_tribe in (
+                self.effective_clan_tribes.items()
+            )
+            if resolved_tribe == tribe
+        )
+
+        complete: list[TribeCandidate] = []
+        for kind, identity, generation in entity_keys:
+            if kind == "agent":
+                standalone = self.artifacts_by_dir.get(identity)
+                if standalone is None or same_artifact_dir(
+                    standalone.artifact_dir, exclude_artifact_dir
+                ):
+                    continue
+                if standalone.timestamp <= newer_than:
+                    continue
+                if standalone.is_resolved and standalone.is_done:
+                    complete.append(
+                        TribeCandidate(
+                            tribe=tribe,
+                            kind="agent",
+                            name=standalone.name,
+                            timestamp=standalone.timestamp,
+                            members=(standalone,),
+                        )
+                    )
+                continue
+
+            assert generation is not None
+            generation_members = self.clans.get(identity, {}).get(generation, [])
+            if not generation_members or any(
+                same_artifact_dir(member.artifact_dir, exclude_artifact_dir)
+                for member in generation_members
+            ):
+                continue
+            launch_timestamp = min(member.timestamp for member in generation_members)
+            if launch_timestamp <= newer_than:
+                continue
+            members = self._aggregate_candidates(
+                generation_members,
+                exclude_artifact_dir=None,
+            )
+            if members and all(
+                member.is_resolved and member.is_done for member in members
+            ):
+                complete.append(
+                    TribeCandidate(
+                        tribe=tribe,
+                        kind="clan",
+                        name=identity,
+                        generation=generation,
+                        timestamp=launch_timestamp,
+                        members=tuple(
+                            sorted(members, key=lambda member: member.timestamp)
+                        ),
+                    )
+                )
+
+        if not complete:
+            return None
+        return min(
+            complete,
+            key=lambda candidate: (
+                candidate.timestamp,
+                candidate.kind,
+                candidate.name,
+                candidate.generation or "",
+            ),
+        )
 
     def clan_candidate(
         self,
@@ -385,6 +574,21 @@ class WaitDependencyIndex:
         exclude_artifact_dir: str | Path | None = None,
         newer_than: str | None = None,
     ) -> bool:
+        if name.startswith("@"):
+            try:
+                tribe = parse_tribe_reference(name)
+            except InvalidTagError:
+                return False
+            assert tribe is not None
+            return (
+                self.tribe_candidate(
+                    tribe,
+                    newer_than=newer_than,
+                    exclude_artifact_dir=exclude_artifact_dir,
+                )
+                is not None
+            )
+
         candidates = [
             candidate
             for candidate in (
@@ -488,5 +692,10 @@ def build_wait_dependency_index(
     project_name: str,
     *,
     projects_root: Path | str | None = None,
+    agent_tags_path: Path | str | None = None,
 ) -> WaitDependencyIndex:
-    return WaitDependencyIndex.build(project_name, projects_root=projects_root)
+    return WaitDependencyIndex.build(
+        project_name,
+        projects_root=projects_root,
+        agent_tags_path=agent_tags_path,
+    )

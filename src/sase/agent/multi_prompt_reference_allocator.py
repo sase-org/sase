@@ -13,6 +13,7 @@ from sase.agent.multi_prompt_reference_resume import (
     _RESUME_REF_RE,
     has_non_resume_xprompt_reference,
 )
+from sase.core.agent_tribe import parse_tribe_reference
 
 if TYPE_CHECKING:
     from sase.agent.names import AgentNameNamespaceReservationIndex
@@ -97,7 +98,7 @@ class PlannedNameAllocator:
             return None, None
 
         wait_target = single_wait_agent_name(prompt)
-        if wait_target is not None:
+        if wait_target is not None and parse_tribe_reference(wait_target) is None:
             template = wait_agent_name_template(wait_target)
             name = self._allocate_template_name(
                 template,
@@ -341,6 +342,8 @@ class PlannedNameAllocator:
     def _resolve_template_arg(self, arg: str) -> str | None:
         from sase.agent.names import is_agent_name_template
 
+        if parse_tribe_reference(arg) is not None:
+            return None
         if not is_agent_name_template(arg):
             return None
         return self._latest_template_name(arg)

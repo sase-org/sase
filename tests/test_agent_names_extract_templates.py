@@ -105,18 +105,18 @@ class TestExtractDirectivesTemplates:
         assert result["meta"]["wait_for"] == ["build-3"]
         assert result["meta"]["name"] == "build-3.w0"
 
-    def test_wait_template_suffix_shape_persists_concrete_latest_name(
+    def test_wait_template_trailing_marker_persists_concrete_latest_name(
         self, tmp_path: Path
     ) -> None:
-        make_agent(tmp_path, "proj", "run1", "0.cld")
-        make_agent(tmp_path, "proj", "run2", "1.cld")
+        make_agent(tmp_path, "proj", "run1", "cld-0")
+        make_agent(tmp_path, "proj", "run2", "cld-1")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            result = run_extract(tmp_path, prompt="%wait:@.cld\nDo work")
+            result = run_extract(tmp_path, prompt="%wait:cld-@\nDo work")
 
-        assert result["info"].wait_names == ["1.cld"]
-        assert result["meta"]["wait_for"] == ["1.cld"]
-        assert result["meta"]["name"] == "1.cld.w0"
+        assert result["info"].wait_names == ["cld-1"]
+        assert result["meta"]["wait_for"] == ["cld-1"]
+        assert result["meta"]["name"] == "cld-1.w0"
 
     def test_indexed_wait_resolves_before_same_segment_indexed_name(
         self, tmp_path: Path

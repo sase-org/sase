@@ -85,13 +85,13 @@ def test_wait_template_resolves_latest() -> None:
 
 def test_wait_template_comma_args() -> None:
     """Comma-separated %wait templates resolve each argument independently."""
-    prompt = "%wait:foo-@,@.cld\nDo work"
+    prompt = "%wait:foo-@,cld-@\nDo work"
     with patch(
         "sase.agent.names._registry.get_reserved_agent_names",
-        return_value={"foo-2", "1.cld"},
+        return_value={"foo-2", "cld-1"},
     ):
         _, directives = extract_prompt_directives(prompt)
-    assert directives.wait == ["foo-2", "1.cld"]
+    assert directives.wait == ["foo-2", "cld-1"]
 
 
 def test_wait_template_middle_shape_resolves_latest() -> None:

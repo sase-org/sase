@@ -457,7 +457,18 @@ def resolve_resume_agent_name(name: str) -> NamedAgent | None:
 
 
 def resolve_wait_dependency(name: str) -> bool:
-    """Return whether a wait dependency has completed successfully."""
+    """Return whether a wait dependency has completed successfully.
+
+    Tribe waits require the waiting artifact's launch cutoff and therefore
+    resolve only through ``WaitDependencyIndex`` runner callers.
+    """
+    from sase.core.agent_tribe import InvalidTagError, parse_tribe_reference
+
+    try:
+        if parse_tribe_reference(name) is not None:
+            return False
+    except InvalidTagError:
+        return False
     clan_complete = is_agent_clan_complete(name)
     if clan_complete is not None:
         return clan_complete

@@ -263,6 +263,11 @@ def apply_fanout_naming_with_metadata(
 
         resume_target = sole_resume_agent_name(sub_prompts[0])
         wait_target = None if resume_target else single_wait_agent_name(sub_prompts[0])
+        if wait_target is not None:
+            from sase.core.agent_tribe import parse_tribe_reference
+
+            if parse_tribe_reference(wait_target) is not None:
+                wait_target = None
         if resume_target or wait_target:
             with agent_name_allocation_lock():
                 if resume_target:

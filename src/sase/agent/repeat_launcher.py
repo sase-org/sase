@@ -28,6 +28,7 @@ from sase.agent.names import (
     single_wait_agent_name,
     sole_resume_agent_name,
 )
+from sase.core.agent_tribe import parse_tribe_reference
 from sase.xprompt._exceptions import DirectiveError
 
 __all__ = [
@@ -143,6 +144,8 @@ def spawn_repeat_batch(
             if explicit_base is not None
             else single_wait_agent_name(prompt_stripped)
         )
+        if wait_target is not None and parse_tribe_reference(wait_target) is not None:
+            wait_target = None
         if wait_target is not None:
             with agent_name_allocation_lock():
                 names = allocate_wait_names(wait_target, count)

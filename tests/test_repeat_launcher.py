@@ -233,6 +233,17 @@ class TestSpawnRepeatBatch:
         assert [s.name for s in specs] == ["foo.w0", "foo.w1", "foo.w2"]
         assert [s.prev_name for s in specs] == [None, "foo.w0", "foo.w1"]
 
+    def test_tribe_wait_uses_neutral_repeat_names(self, tmp_path: Path) -> None:
+        with patch.object(Path, "home", return_value=tmp_path):
+            specs = spawn_repeat_batch(
+                "%r:2 %wait:@epic do X",
+                base_spawn_fn=lambda _s: None,
+                sleep_between=0.0,
+            )
+
+        assert [spec.name for spec in specs] == ["0.1", "0.2"]
+        assert all("%wait:@epic" in spec.prompt for spec in specs)
+
     def test_preexisting_user_wait_is_preserved(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
