@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.wire import known_field_kwargs
+
 PROMPT_STASH_WIRE_SCHEMA_VERSION = 1
 
 
@@ -93,7 +95,9 @@ def prompt_stash_snapshot_from_dict(
         entries=[
             _prompt_stash_entry_from_dict(item) for item in data.get("entries") or []
         ],
-        stats=_PromptStashStoreStatsWire(**(data.get("stats") or {})),
+        stats=_PromptStashStoreStatsWire(
+            **known_field_kwargs(_PromptStashStoreStatsWire, data.get("stats") or {})
+        ),
     )
 
 

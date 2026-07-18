@@ -29,6 +29,7 @@ from sase.core.agent_scan_wire_records import (
     AgentArtifactScanStatsWire,
     AgentArtifactScanWire,
 )
+from sase.core.wire import known_field_kwargs
 
 
 def agent_scan_wire_to_json_dict(record: Any) -> Any:
@@ -135,10 +136,18 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         agent_meta=_agent_meta_from_dict(agent_meta)
         if isinstance(agent_meta, dict)
         else None,
-        done=DoneMarkerWire(**done) if isinstance(done, dict) else None,
-        running=RunningMarkerWire(**running) if isinstance(running, dict) else None,
-        waiting=WaitingMarkerWire(**waiting) if isinstance(waiting, dict) else None,
-        pending_question=PendingQuestionMarkerWire(**pending_question)
+        done=DoneMarkerWire(**known_field_kwargs(DoneMarkerWire, done))
+        if isinstance(done, dict)
+        else None,
+        running=RunningMarkerWire(**known_field_kwargs(RunningMarkerWire, running))
+        if isinstance(running, dict)
+        else None,
+        waiting=WaitingMarkerWire(**known_field_kwargs(WaitingMarkerWire, waiting))
+        if isinstance(waiting, dict)
+        else None,
+        pending_question=PendingQuestionMarkerWire(
+            **known_field_kwargs(PendingQuestionMarkerWire, pending_question)
+        )
         if isinstance(pending_question, dict)
         else None,
         workflow_state=(
@@ -146,11 +155,12 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             if isinstance(workflow_state, dict)
             else None
         ),
-        plan_path=PlanPathMarkerWire(**plan_path)
+        plan_path=PlanPathMarkerWire(**known_field_kwargs(PlanPathMarkerWire, plan_path))
         if isinstance(plan_path, dict)
         else None,
         prompt_steps=[
-            PromptStepMarkerWire(**step) for step in data.get("prompt_steps") or []
+            PromptStepMarkerWire(**known_field_kwargs(PromptStepMarkerWire, step))
+            for step in data.get("prompt_steps") or []
         ],
         raw_prompt_snippet=data.get("raw_prompt_snippet"),
         has_done_marker=bool(data.get("has_done_marker", False)),
@@ -168,13 +178,17 @@ def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
     payload["plan_committed"] = (
         raw_plan_committed if type(raw_plan_committed) is bool else None
     )
-    return AgentMetaWire(**payload)
+    return AgentMetaWire(**known_field_kwargs(AgentMetaWire, payload))
 
 
 def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:
     raw_steps = data.get("steps") or []
-    steps = [WorkflowStepStateWire(**step) for step in raw_steps]
-    payload = {k: v for k, v in data.items() if k != "steps"}
+    steps = [
+        WorkflowStepStateWire(**known_field_kwargs(WorkflowStepStateWire, step))
+        for step in raw_steps
+    ]
+    payload = known_field_kwargs(WorkflowStateWire, data)
+    payload.pop("steps", None)
     return WorkflowStateWire(steps=steps, **payload)
 
 
@@ -185,9 +199,11 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
     Rust adapter (the PyO3 binding returns plain Python dicts/lists) and
     by tests that round-trip the snapshot through JSON.
 
-    Missing optional fields fall back to dataclass defaults; unknown keys
-    raise ``TypeError`` from the dataclass constructors so a wire-version
-    drift surfaces immediately.
+    Missing optional fields fall back to dataclass defaults, and unknown
+    keys are dropped via :func:`sase.core.wire.known_field_kwargs` so a
+    newer writer (Rust core or marker files from a newer sase) never
+    crashes an older reader; incompatible shape changes surface through
+    the wire schema version, not constructor ``TypeError``.
     """
     options = _options_from_dict(data.get("options") or {})
     stats = _stats_from_dict(data.get("stats") or {})

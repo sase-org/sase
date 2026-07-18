@@ -22,6 +22,7 @@ from sase.core.wire import (
     CommitWire,
     ParseErrorWire,
     SourceSpanWire,
+    known_field_kwargs,
     to_json_dict,
 )
 from sase.core.wire_conversion import (
@@ -322,6 +323,20 @@ def test_changespec_wire_from_older_dict_defaults_project_name_metadata() -> Non
     }
     wire = changespec_wire_from_dict(payload)
     assert wire.project_display_name is None
+
+
+def test_known_field_kwargs_drops_unknown_keys_and_keeps_known() -> None:
+    """A newer writer's additive fields must be ignored, never a TypeError."""
+    payload = {
+        "file_path": "p.sase",
+        "start_line": 3,
+        "end_line": 9,
+        "added_by_newer_writer": "ignored",
+    }
+    kwargs = known_field_kwargs(SourceSpanWire, payload)
+    assert kwargs == {"file_path": "p.sase", "start_line": 3, "end_line": 9}
+    span = SourceSpanWire(**kwargs)
+    assert span.start_line == 3
 
 
 def test_empty_changespec_collections_become_empty_lists() -> None:

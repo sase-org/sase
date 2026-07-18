@@ -20,6 +20,7 @@ JSON shape conventions:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -184,3 +185,30 @@ def to_json_dict(record: Any) -> Any:
     if hasattr(record, "__dataclass_fields__"):
         return asdict(record)
     return record
+
+
+_DATACLASS_FIELD_NAMES: dict[type[Any], frozenset[str]] = {}
+
+
+def _dataclass_field_names(cls: type[Any]) -> frozenset[str]:
+    names = _DATACLASS_FIELD_NAMES.get(cls)
+    if names is None:
+        names = frozenset(cls.__dataclass_fields__)
+        _DATACLASS_FIELD_NAMES[cls] = names
+    return names
+
+
+def known_field_kwargs(cls: type[Any], data: Mapping[str, Any]) -> dict[str, Any]:
+    """Project *data* onto the dataclass fields of *cls*.
+
+    Tolerant-reader guard for rehydrating wire dataclasses from dicts a
+    different sase/sase-core version produced: a newer writer may add fields
+    this reader does not know about yet, and splatting the raw dict raises
+    ``TypeError`` from the constructor (which crashed every published TUI
+    when ``sase-core-rs`` 0.3.4 added ``video_paths`` to the done-marker
+    wire). Additive fields must degrade to "ignored", not crash; removed or
+    renamed fields still surface through wire schema-version checks and
+    defaulted attributes.
+    """
+    known = _dataclass_field_names(cls)
+    return {key: value for key, value in data.items() if key in known}

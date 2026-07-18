@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.wire import known_field_kwargs
+
 AGENT_CLEANUP_WIRE_SCHEMA_VERSION = 2
 
 CLEANUP_SCOPE_FOCUSED_PANEL = "focused_panel"
@@ -354,7 +356,9 @@ def cleanup_plan_from_dict(data: dict[str, Any]) -> AgentCleanupPlanWire:
             )
             for item in data.get("skipped_items") or ()
         ),
-        counts=AgentCleanupCountsWire(**(data.get("counts") or {})),
+        counts=AgentCleanupCountsWire(
+            **known_field_kwargs(AgentCleanupCountsWire, data.get("counts") or {})
+        ),
         confirmation_severity=str(
             data.get("confirmation_severity", CONFIRMATION_SEVERITY_NONE)
         ),

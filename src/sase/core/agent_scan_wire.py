@@ -51,7 +51,11 @@ through 3F will plug the snapshot into:
 The wire is deliberately compact: arbitrary unknown fields from the marker
 JSON files are NOT round-tripped. If a future call site needs an extra
 field, add it here (and bump :data:`AGENT_SCAN_WIRE_SCHEMA_VERSION` if the
-shape changes incompatibly).
+shape changes incompatibly). Rehydration is tolerant in the other
+direction: unknown keys produced by a newer writer (Rust core or marker
+files from a newer sase) are ignored via
+:func:`sase.core.wire.known_field_kwargs`, so additive fields never crash
+an older installed reader.
 
 JSON shape conventions
 ----------------------

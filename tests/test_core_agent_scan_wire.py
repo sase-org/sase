@@ -234,6 +234,76 @@ def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
     ] == [True, False, None, None]
 
 
+def test_rehydration_ignores_unknown_marker_keys() -> None:
+    """A newer Rust core (or marker files written by a newer sase) may carry
+    fields this reader does not know yet; they must be dropped, not raise.
+
+    Regression guard for the released-pair crash where ``sase-core-rs``
+    0.3.4 added ``video_paths`` to the done-marker wire and every published
+    sase TUI died with ``TypeError`` on scan rehydration.
+    """
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "options": {"added_by_newer_writer": True},
+            "stats": {"added_by_newer_writer": 7},
+            "records": [
+                {
+                    "project_name": "myproj",
+                    "project_dir": "/tmp/projects/myproj",
+                    "project_file": "/tmp/projects/myproj/myproj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/myproj/artifacts/ace-run/20260601010101",
+                    "timestamp": "20260601010101",
+                    "agent_meta": {
+                        "name": "producer",
+                        "added_by_newer_writer": "ignored",
+                    },
+                    "done": {
+                        "outcome": "completed",
+                        "cl_name": "myproj",
+                        "added_by_newer_writer": ["ignored"],
+                    },
+                    "running": {"pid": 123, "added_by_newer_writer": None},
+                    "waiting": {"added_by_newer_writer": 1},
+                    "pending_question": {"added_by_newer_writer": 1},
+                    "workflow_state": {
+                        "cl_name": "myproj",
+                        "added_by_newer_writer": 1,
+                        "steps": [
+                            {"name": "main", "added_by_newer_writer": 1},
+                        ],
+                    },
+                    "plan_path": {"added_by_newer_writer": 1},
+                    "prompt_steps": [
+                        {
+                            "file_name": "prompt_step_main.json",
+                            "added_by_newer_writer": 1,
+                        }
+                    ],
+                    "raw_prompt_snippet": None,
+                    "has_done_marker": True,
+                }
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.done is not None
+    assert record.done.outcome == "completed"
+    assert record.done.cl_name == "myproj"
+    assert record.running is not None
+    assert record.running.pid == 123
+    assert record.agent_meta is not None
+    assert record.agent_meta.name == "producer"
+    assert record.workflow_state is not None
+    assert record.workflow_state.cl_name == "myproj"
+    assert [step.name for step in record.workflow_state.steps] == ["main"]
+    assert [step.file_name for step in record.prompt_steps] == ["prompt_step_main.json"]
+    assert not hasattr(record.done, "added_by_newer_writer")
+
+
 def test_fixture_summary_matches_expectations() -> None:
     """Pin the fixture's surface area so adding a branch forces a test update."""
     summary = fixture_summary()

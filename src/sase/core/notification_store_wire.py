@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.wire import known_field_kwargs
 from sase.notifications.models import Notification
 
 NOTIFICATION_STORE_WIRE_SCHEMA_VERSION = 1
@@ -132,9 +133,13 @@ def notification_snapshot_from_dict(
         notifications=[
             _notification_from_dict(item) for item in data.get("notifications") or []
         ],
-        counts=_NotificationCountsWire(**(data.get("counts") or {})),
+        counts=_NotificationCountsWire(
+            **known_field_kwargs(_NotificationCountsWire, data.get("counts") or {})
+        ),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
-        stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
+        stats=_NotificationStoreStatsWire(
+            **known_field_kwargs(_NotificationStoreStatsWire, data.get("stats") or {})
+        ),
     )
 
 
@@ -156,9 +161,13 @@ def notification_update_outcome_from_dict(
         notifications=[
             _notification_from_dict(item) for item in data.get("notifications") or []
         ],
-        counts=_NotificationCountsWire(**(data.get("counts") or {})),
+        counts=_NotificationCountsWire(
+            **known_field_kwargs(_NotificationCountsWire, data.get("counts") or {})
+        ),
         expired_ids=[str(item) for item in data.get("expired_ids") or []],
-        stats=_NotificationStoreStatsWire(**(data.get("stats") or {})),
+        stats=_NotificationStoreStatsWire(
+            **known_field_kwargs(_NotificationStoreStatsWire, data.get("stats") or {})
+        ),
     )
 
 
