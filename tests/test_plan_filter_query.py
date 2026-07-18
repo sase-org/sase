@@ -15,7 +15,7 @@ from sase.ace.tui.widgets.artifacts.plans_data import (
     ProjectIssue,
 )
 from sase.ace.tui.widgets.artifacts.plans_filtering import (
-    PlanFilterRecord,
+    _PlanFilterRecord,
     build_plan_filter_index,
     compile_plan_matcher,
 )
@@ -33,7 +33,7 @@ from sase.plan_search.model import Plan, PlanSearchMatch
 from sase.vcs_log.dates import parse_time_bound
 
 
-def _record(**changes: object) -> PlanFilterRecord:
+def _record(**changes: object) -> _PlanFilterRecord:
     values: dict[str, object] = {
         "kind": "epic",
         "project": "sase",
@@ -47,7 +47,7 @@ def _record(**changes: object) -> PlanFilterRecord:
         "option_id": "epic:sase-6t",
     }
     values.update(changes)
-    return PlanFilterRecord(**values)  # type: ignore[arg-type]
+    return _PlanFilterRecord(**values)  # type: ignore[arg-type]
 
 
 def _snapshot() -> PlansSnapshot:

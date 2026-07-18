@@ -13,14 +13,14 @@ from sase.plan_search.filter_query import PlanFilterValues
 
 from .plans_data import PlanProposal, PlansSnapshot, ProjectArchive
 
-PlanFilterRecordKind = Literal["proposal", "epic", "phase", "archive"]
+_PlanFilterRecordKind = Literal["proposal", "epic", "phase", "archive"]
 
 
 @dataclass(frozen=True)
-class PlanFilterRecord:
+class _PlanFilterRecord:
     """One prefolded, presentation-neutral plan row."""
 
-    kind: PlanFilterRecordKind
+    kind: _PlanFilterRecordKind
     project: str
     project_display_name: str
     project_labels: frozenset[str]
@@ -37,10 +37,10 @@ class PlanFilterIndex:
     """Immutable record snapshot used by live plans filtering."""
 
     source_key: tuple[object, ...]
-    records: tuple[PlanFilterRecord, ...]
-    by_option_id: Mapping[str, PlanFilterRecord]
+    records: tuple[_PlanFilterRecord, ...]
+    by_option_id: Mapping[str, _PlanFilterRecord]
 
-    def __iter__(self) -> Iterator[PlanFilterRecord]:
+    def __iter__(self) -> Iterator[_PlanFilterRecord]:
         return iter(self.records)
 
     def __len__(self) -> int:
@@ -49,7 +49,7 @@ class PlanFilterIndex:
 
 def build_plan_filter_index(snapshot: PlansSnapshot) -> PlanFilterIndex:
     """Build prefolded records for every row in *snapshot*."""
-    records: list[PlanFilterRecord] = []
+    records: list[_PlanFilterRecord] = []
 
     for proposal in snapshot.proposals:
         records.append(_proposal_record(snapshot, proposal))
@@ -84,14 +84,14 @@ def build_plan_filter_index(snapshot: PlansSnapshot) -> PlanFilterIndex:
 def build_plan_archive_filter_records(
     snapshot: PlansSnapshot,
     archive: tuple[ProjectArchive, ...],
-) -> tuple[PlanFilterRecord, ...]:
+) -> tuple[_PlanFilterRecord, ...]:
     """Build prefolded records for a worker-fetched archive corpus."""
     return tuple(_archive_record(snapshot, item) for item in archive)
 
 
 def compile_plan_matcher(
     values: PlanFilterValues,
-) -> Callable[[PlanFilterRecord], bool]:
+) -> Callable[[_PlanFilterRecord], bool]:
     """Compile *values* into a cheap, reusable record predicate."""
     wanted_kinds = frozenset(value.casefold() for value in values.kinds)
     wanted_statuses = frozenset(value.casefold() for value in values.statuses)
@@ -101,7 +101,7 @@ def compile_plan_matcher(
     since = values.since
     until = values.until
 
-    def matches(record: PlanFilterRecord) -> bool:
+    def matches(record: _PlanFilterRecord) -> bool:
         if wanted_kinds and record.kind not in wanted_kinds:
             return False
         if wanted_statuses and record.status_labels.isdisjoint(wanted_statuses):
@@ -126,7 +126,7 @@ def compile_plan_matcher(
 def _proposal_record(
     snapshot: PlansSnapshot,
     proposal: PlanProposal,
-) -> PlanFilterRecord:
+) -> _PlanFilterRecord:
     tiers = _fold_labels((proposal.tier, proposal.frontmatter.get("tier", "")))
     identity = proposal.notification.id
     return _record(
@@ -156,7 +156,7 @@ def _issue_record(
     issue: Issue,
     *,
     kind: Literal["epic", "phase"],
-) -> PlanFilterRecord:
+) -> _PlanFilterRecord:
     status_labels = {issue.status.value.casefold()}
     issue_key = (project, issue.id)
     if issue_key in snapshot.blocked_ids:
@@ -194,7 +194,7 @@ def _issue_record(
 def _archive_record(
     snapshot: PlansSnapshot,
     project_archive: ProjectArchive,
-) -> PlanFilterRecord:
+) -> _PlanFilterRecord:
     project = project_archive.project
     plan = project_archive.match.plan
     status_labels = _fold_labels((plan.status, plan.frontmatter.get("status", "")))
@@ -223,14 +223,14 @@ def _archive_record(
 def _record(
     snapshot: PlansSnapshot,
     *,
-    kind: PlanFilterRecordKind,
+    kind: _PlanFilterRecordKind,
     project: str,
     status_labels: frozenset[str],
     tier_labels: frozenset[str],
     timestamp: int | None,
     haystack: tuple[str, ...],
     identity: str,
-) -> PlanFilterRecord:
+) -> _PlanFilterRecord:
     display_name = snapshot.display_names.get(project, project)
     project_labels = _fold_labels((project, display_name))
     folded_haystack = _fold_haystack(
@@ -242,7 +242,7 @@ def _record(
             *tier_labels,
         )
     )
-    return PlanFilterRecord(
+    return _PlanFilterRecord(
         kind=kind,
         project=project,
         project_display_name=display_name,
@@ -258,7 +258,7 @@ def _record(
 
 def _row_option_id(
     snapshot: PlansSnapshot,
-    kind: PlanFilterRecordKind,
+    kind: _PlanFilterRecordKind,
     project: str,
     identity: str,
 ) -> str:
@@ -292,8 +292,6 @@ def _timestamp_epoch(value: str) -> int | None:
 
 __all__ = [
     "PlanFilterIndex",
-    "PlanFilterRecord",
-    "PlanFilterRecordKind",
     "build_plan_archive_filter_records",
     "build_plan_filter_index",
     "compile_plan_matcher",
