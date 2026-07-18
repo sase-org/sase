@@ -54,6 +54,8 @@ def build_plans_status(
     loading: bool,
     load_error: str | None,
     matched_counts: Mapping[str, int] | None = None,
+    archive_total: int | None = None,
+    archive_coverage_label: str | None = None,
 ) -> Text:
     """Build the snapshot summary shown above the plan list."""
     text = Text()
@@ -101,10 +103,13 @@ def build_plans_status(
         archive_label = _matched_count_label(
             matched_counts,
             "archive",
-            len(snapshot.archive),
+            len(snapshot.archive) if archive_total is None else archive_total,
             "archived",
         )
-        if snapshot.archive_truncated:
+        if archive_coverage_label is not None:
+            if archive_coverage_label:
+                archive_label += f" ({archive_coverage_label})"
+        elif snapshot.archive_truncated:
             archive_label += " (newest shown)"
         text.append(archive_label, style="#00D7AF")
         if snapshot.errors:

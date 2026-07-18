@@ -24,9 +24,16 @@ from ...keymaps import KeymapRegistry, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import ArtifactEntryTarget
 from .panes import ArtifactsPaneLifecycle
-from .plans_data import (
-    PlansSnapshot,
-    load_plans_snapshot,
+from .plans_data import PlansSnapshot, ProjectArchive, load_plans_snapshot
+from .plans_deep_archive import (
+    DEEP_ARCHIVE_DEBOUNCE_S,
+    DeepArchiveRequest,
+    DeepArchiveResult,
+    deep_archive_coverage,
+    load_deep_archive_result,
+    make_deep_archive_request,
+    merge_archive_matches,
+    remember_deep_archive_result,
 )
 from .plans_detail import (
     archive_preview_markdown,
@@ -93,6 +100,14 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._live_filter_values: PlanFilterValues | None = None
         self._filter_query_error: PlanFilterQueryError | None = None
         self._display_matched_counts: dict[str, int] | None = None
+        self._display_archive_total: int | None = None
+        self._display_archive_coverage_label: str | None = None
+        self._deep_archive_debouncer: DetailPanelDebouncer | None = None
+        self._deep_archive_worker: Worker[DeepArchiveResult] | None = None
+        self._deep_archive_request: DeepArchiveRequest | None = None
+        self._deep_archive_in_flight: DeepArchiveRequest | None = None
+        self._deep_archive_pending: DeepArchiveRequest | None = None
+        self._deep_archive_cache: dict[DeepArchiveRequest, DeepArchiveResult] = {}
         self._rows: dict[str, PlanRow] = {}
         self._expanded_epics: set[tuple[str, str]] = set()
         self._loading = False
@@ -123,13 +138,24 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
 
     def on_mount(self) -> None:
         self._detail_debouncer = DetailPanelDebouncer(self.app)
+        self._deep_archive_debouncer = DetailPanelDebouncer(
+            self.app,
+            delay_s=DEEP_ARCHIVE_DEBOUNCE_S,
+        )
         self._refresh_options()
 
     def on_unmount(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        if self._deep_archive_debouncer is not None:
+            self._deep_archive_debouncer.cancel()
         if self._worker is not None and not self._worker.is_finished:
             self._worker.cancel()
+        if (
+            self._deep_archive_worker is not None
+            and not self._deep_archive_worker.is_finished
+        ):
+            self._deep_archive_worker.cancel()
 
     def on_first_activate(self) -> None:
         self._request_load(force=False)
@@ -138,10 +164,13 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self.focus_list()
         if self._snapshot is None or self._snapshot.project != self.project_scope:
             self._request_load(force=False)
+        else:
+            self._schedule_deep_archive(self._display_filter_values())
 
     def on_deactivate(self) -> None:
         if self._detail_debouncer is not None:
             self._detail_debouncer.cancel()
+        self._invalidate_deep_archive_request()
 
     def on_refresh(self) -> None:
         self._request_load(force=True)
@@ -164,6 +193,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         if not changed:
             return
         self._load_error = None
+        self._reset_deep_archive_state()
         if self.artifacts_active:
             self._request_load(force=False)
         else:
@@ -204,6 +234,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._set_filter_completion_sources()
         bar.open(to_query_string(self.filters))
         self._refresh_options(preferred_id=self._filter_restore_selection)
+        self._schedule_deep_archive(self.filters)
 
     def on_plan_filter_bar_query_changed(
         self,
@@ -214,6 +245,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             values = parse_plan_filter_query(event.text)
         except PlanFilterQueryError as exc:
             self._filter_query_error = exc
+            self._invalidate_deep_archive_request()
             self.query_one(PlanFilterBar).set_status(
                 None,
                 exact=False,
@@ -225,6 +257,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._live_filter_values = values
         self._cancel_jump_mode_for_filter_change()
         self._refresh_options()
+        self._schedule_deep_archive(values)
 
     def on_plan_filter_bar_submitted(
         self,
@@ -235,6 +268,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             values = parse_plan_filter_query(event.text)
         except PlanFilterQueryError as exc:
             self._filter_query_error = exc
+            self._invalidate_deep_archive_request()
             self.query_one(PlanFilterBar).set_status(
                 None,
                 exact=False,
@@ -249,6 +283,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._close_filter_session()
         self._cancel_jump_mode_for_filter_change()
         self._refresh_options(preferred_id=preferred_id)
+        self._schedule_deep_archive(values)
         self.focus_list()
 
     def on_plan_filter_bar_dismissed(
@@ -263,9 +298,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self.filters = restore_values
         if restore_expanded is not None:
             self._expanded_epics = set(restore_expanded)
+        self._invalidate_deep_archive_request()
         self._close_filter_session()
         self._cancel_jump_mode_for_filter_change()
         self._refresh_options(preferred_id=restore_selection)
+        self._schedule_deep_archive(self.filters)
         self.focus_list()
 
     def _close_filter_session(self) -> None:
@@ -303,6 +340,20 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             if record.kind == "archive"
             for status in record.status_labels
         )
+        deep_result = self._deep_archive_result_for(self._display_filter_values())
+        if deep_result is not None:
+            archive_statuses = (
+                *archive_statuses,
+                *(
+                    status
+                    for item in deep_result.archive
+                    for status in (
+                        item.match.plan.status,
+                        item.match.plan.frontmatter.get("status", ""),
+                    )
+                    if status
+                ),
+            )
         projects = tuple(
             value
             for project in snapshot.projects
@@ -313,14 +364,96 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             projects,
         )
 
-    def _filter_is_exact(self, values: PlanFilterValues) -> bool:
-        snapshot = self._snapshot
-        if snapshot is None:
-            return False
-        archive_reachable = not values.kinds or any(
-            kind.casefold() == "archive" for kind in values.kinds
+    def _filter_coverage(
+        self,
+        values: PlanFilterValues,
+    ) -> tuple[bool, str | None]:
+        return deep_archive_coverage(
+            self._snapshot,
+            values,
+            self._deep_archive_result_for(values),
         )
-        return not (snapshot.archive_truncated and archive_reachable)
+
+    def _deep_archive_request_for(
+        self,
+        values: PlanFilterValues,
+    ) -> DeepArchiveRequest | None:
+        return make_deep_archive_request(
+            self._snapshot,
+            project_scope=self.project_scope,
+            filter_session_open=self._filter_session_open,
+            values=values,
+        )
+
+    def _deep_archive_result_for(
+        self,
+        values: PlanFilterValues,
+    ) -> DeepArchiveResult | None:
+        request = self._deep_archive_request_for(values)
+        return None if request is None else self._deep_archive_cache.get(request)
+
+    def _schedule_deep_archive(self, values: PlanFilterValues) -> None:
+        request = self._deep_archive_request_for(values)
+        if request is None:
+            self._invalidate_deep_archive_request()
+            return
+        self._deep_archive_request = request
+        cached = self._deep_archive_cache.get(request)
+        if cached is not None:
+            if self._deep_archive_debouncer is not None:
+                self._deep_archive_debouncer.cancel()
+            if self.is_mounted:
+                self._refresh_options()
+            return
+        if self._deep_archive_in_flight == request:
+            return
+
+        def launch() -> None:
+            self._launch_deep_archive(request)
+
+        if self._deep_archive_debouncer is None:
+            launch()
+        else:
+            self._deep_archive_debouncer.schedule(launch)
+
+    def _launch_deep_archive(self, request: DeepArchiveRequest) -> None:
+        if request != self._deep_archive_request:
+            return
+        if request in self._deep_archive_cache:
+            self._refresh_options()
+            return
+        worker = self._deep_archive_worker
+        if worker is not None and not worker.is_finished:
+            self._deep_archive_pending = request
+            return
+        snapshot = self._snapshot
+        if snapshot is None or id(snapshot) != request.snapshot_identity:
+            return
+
+        def task() -> DeepArchiveResult:
+            return load_deep_archive_result(snapshot, request)
+
+        self._deep_archive_in_flight = request
+        self._deep_archive_pending = None
+        self._deep_archive_worker = self.run_worker(
+            task,
+            thread=True,
+            group="artifacts-plans-deep-archive",
+            exclusive=False,
+            exit_on_error=False,
+        )
+
+    def _invalidate_deep_archive_request(self) -> None:
+        if self._deep_archive_debouncer is not None:
+            self._deep_archive_debouncer.cancel()
+        self._deep_archive_request = None
+        self._deep_archive_pending = None
+
+    def _reset_deep_archive_state(self) -> None:
+        self._invalidate_deep_archive_request()
+        self._deep_archive_cache.clear()
+        self._display_archive_total = None
+        self._display_archive_coverage_label = None
 
     def _cancel_jump_mode_for_filter_change(self) -> None:
         cancel_jump = getattr(
@@ -493,6 +626,9 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         )
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        if event.worker is self._deep_archive_worker:
+            self._on_deep_archive_worker_changed(event)
+            return
         if event.worker is not self._worker:
             return
         terminal = event.state in {
@@ -513,13 +649,17 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 )
                 if callable(cancel_jump):
                     cancel_jump("plans")
+                snapshot_changed = result is not self._snapshot
                 self._snapshot = result
                 self._filter_index = None
                 self._filter_index_snapshot = None
+                if snapshot_changed:
+                    self._reset_deep_archive_state()
                 self._load_error = None
                 if self._filter_session_open:
                     self._set_filter_completion_sources()
                 self._refresh_options(preferred_id=preferred)
+                self._schedule_deep_archive(self._display_filter_values())
         elif event.state == WorkerState.ERROR:
             self._loading = False
             self._load_error = str(event.worker.error or "Plans load failed")
@@ -532,6 +672,36 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self._reload_pending = False
             self._force_pending = False
             self.call_later(lambda: self._request_load(force=force))
+
+    def _on_deep_archive_worker_changed(
+        self,
+        event: Worker.StateChanged,
+    ) -> None:
+        if event.state not in {
+            WorkerState.SUCCESS,
+            WorkerState.ERROR,
+            WorkerState.CANCELLED,
+        }:
+            return
+        request = self._deep_archive_in_flight
+        self._deep_archive_worker = None
+        self._deep_archive_in_flight = None
+        if event.state == WorkerState.SUCCESS:
+            result = event.worker.result
+            if (
+                isinstance(result, DeepArchiveResult)
+                and request == self._deep_archive_request
+                and result.request == request
+            ):
+                remember_deep_archive_result(self._deep_archive_cache, result)
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
+                self._refresh_options()
+
+        pending = self._deep_archive_pending
+        self._deep_archive_pending = None
+        if pending is not None and pending == self._deep_archive_request:
+            self._launch_deep_archive(pending)
 
     def _refresh_options(
         self,
@@ -546,7 +716,10 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             preferred_id = self._selected_option_id()
         values = self._display_filter_values()
         matched_option_ids: frozenset[str] | None = None
+        archive_entries: tuple[ProjectArchive, ...] | None = None
         self._display_matched_counts = None
+        self._display_archive_total = None
+        self._display_archive_coverage_label = None
         match_count: int | None = None
         filter_index = self._ensure_filter_index(
             needed=self._filter_session_open or not values.is_empty
@@ -556,8 +729,66 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             matching_records = tuple(
                 record for record in filter_index if matcher(record)
             )
-            match_count = len(matching_records)
-            if not values.is_empty:
+            deep_result = self._deep_archive_result_for(values)
+            if deep_result is not None and self._snapshot is not None:
+                non_archive_records = tuple(
+                    record for record in matching_records if record.kind != "archive"
+                )
+                preview_archive_ids = frozenset(
+                    record.option_id
+                    for record in matching_records
+                    if record.kind == "archive"
+                )
+                preview_archive = tuple(
+                    item
+                    for item in self._snapshot.archive
+                    if row_option_id(
+                        self._snapshot,
+                        "archive",
+                        item.project,
+                        item.match.plan.path,
+                    )
+                    in preview_archive_ids
+                )
+                archive_entries = merge_archive_matches(
+                    preview_archive,
+                    deep_result.archive,
+                )
+                match_count = len(non_archive_records) + len(archive_entries)
+                self._display_archive_total = max(
+                    deep_result.scanned_count,
+                    len(archive_entries),
+                )
+                _, coverage_label = deep_archive_coverage(
+                    self._snapshot,
+                    values,
+                    deep_result,
+                )
+                self._display_archive_coverage_label = (
+                    "" if deep_result.exact else coverage_label or "preview"
+                )
+                if not values.is_empty:
+                    matched_option_ids = frozenset(
+                        record.option_id for record in non_archive_records
+                    ).union(
+                        row_option_id(
+                            self._snapshot,
+                            "archive",
+                            item.project,
+                            item.match.plan.path,
+                        )
+                        for item in archive_entries
+                    )
+                    matched_counts = dict.fromkeys(
+                        ("proposal", "epic", "phase", "archive"), 0
+                    )
+                    for record in non_archive_records:
+                        matched_counts[record.kind] += 1
+                    matched_counts["archive"] = len(archive_entries)
+                    self._display_matched_counts = matched_counts
+            else:
+                match_count = len(matching_records)
+            if not values.is_empty and matched_option_ids is None:
                 matched_option_ids = frozenset(
                     record.option_id for record in matching_records
                 )
@@ -574,6 +805,8 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             expanded_epics=self._expanded_epics,
             jump_hints=self._entry_jump_hints,
             matched_option_ids=matched_option_ids,
+            archive_entries=archive_entries,
+            archive_total=self._display_archive_total,
         )
         self._rows = rows
         self._syncing_options = True
@@ -589,10 +822,12 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._update_status()
         self._update_static("#plans-info", self._scope_text())
         if self._filter_session_open and self._filter_query_error is None:
+            exact, coverage_label = self._filter_coverage(values)
             self.query_one(PlanFilterBar).set_status(
                 match_count,
-                exact=self._filter_is_exact(values),
+                exact=exact,
                 error=None,
+                coverage_label=coverage_label,
             )
         if update_detail:
             if self._detail_debouncer is None or (
@@ -677,6 +912,8 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             loading=self._loading,
             load_error=self._load_error,
             matched_counts=self._display_matched_counts,
+            archive_total=self._display_archive_total,
+            archive_coverage_label=self._display_archive_coverage_label,
         )
 
     def _hints_text(self) -> Text:

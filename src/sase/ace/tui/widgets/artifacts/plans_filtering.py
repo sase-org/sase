@@ -81,6 +81,14 @@ def build_plan_filter_index(snapshot: PlansSnapshot) -> PlanFilterIndex:
     )
 
 
+def build_plan_archive_filter_records(
+    snapshot: PlansSnapshot,
+    archive: tuple[ProjectArchive, ...],
+) -> tuple[PlanFilterRecord, ...]:
+    """Build prefolded records for a worker-fetched archive corpus."""
+    return tuple(_archive_record(snapshot, item) for item in archive)
+
+
 def compile_plan_matcher(
     values: PlanFilterValues,
 ) -> Callable[[PlanFilterRecord], bool]:
@@ -286,6 +294,7 @@ __all__ = [
     "PlanFilterIndex",
     "PlanFilterRecord",
     "PlanFilterRecordKind",
+    "build_plan_archive_filter_records",
     "build_plan_filter_index",
     "compile_plan_matcher",
 ]

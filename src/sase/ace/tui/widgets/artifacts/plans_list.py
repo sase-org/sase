@@ -71,6 +71,8 @@ def build_plan_options(
     expanded_epics: set[tuple[str, str]],
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
     matched_option_ids: frozenset[str] | None = None,
+    archive_entries: tuple[ProjectArchive, ...] | None = None,
+    archive_total: int | None = None,
 ) -> tuple[list[Option], dict[str, PlanRow]]:
     """Build the grouped plan options and their identity-preserving row map."""
     options: list[Option] = []
@@ -238,7 +240,9 @@ def build_plan_options(
             )
         )
 
-    archive_entries: tuple[ProjectArchive, ...] = snapshot.archive
+    displayed_archive: tuple[ProjectArchive, ...] = (
+        snapshot.archive if archive_entries is None else archive_entries
+    )
     archive_rows = tuple(
         (
             project_archive,
@@ -249,7 +253,7 @@ def build_plan_options(
                 project_archive.match.plan.path,
             ),
         )
-        for project_archive in archive_entries
+        for project_archive in displayed_archive
     )
     visible_archive = tuple(
         entry
@@ -259,7 +263,7 @@ def build_plan_options(
     options.append(
         _section_option(
             "Plan archive",
-            len(snapshot.archive),
+            len(snapshot.archive) if archive_total is None else archive_total,
             matched_count=len(visible_archive) if filter_active else None,
         )
     )

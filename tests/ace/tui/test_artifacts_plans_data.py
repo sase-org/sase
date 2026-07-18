@@ -289,6 +289,99 @@ def test_all_projects_archive_is_capped_after_recent_merge(
     assert {entry.project for entry in snapshot.archive} == {"beta", "gamma"}
 
 
+def test_project_archive_preview_detects_per_project_truncation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        plans_data,
+        "_resolve_projects",
+        lambda _scope: (_project("alpha"),),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_project_beads_dir",
+        lambda _project: tmp_path / "alpha" / "beads",
+    )
+    monkeypatch.setattr(plans_data, "_load_proposals", lambda _scope, _enabled: ())
+    monkeypatch.setattr(
+        plans_data,
+        "_load_project_beads",
+        lambda _root: ([], frozenset(), frozenset()),
+    )
+    monkeypatch.setattr(
+        plans_data,
+        "_load_project_archive",
+        lambda root: tuple(
+            _archive(
+                root,
+                title=f"plan-{index:02d}",
+                created_at=f"2026-07-16 12:00:{index:02d}",
+            )
+            for index in range(51)
+        ),
+    )
+
+    snapshot = load_plans_snapshot("alpha", force=True)
+
+    assert len(snapshot.archive) == 50
+    assert snapshot.archive_truncated is True
+
+
+def test_deep_archive_browse_is_bounded_deduped_and_recent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shared = _archive(
+        tmp_path / "shared",
+        title="shared",
+        created_at="2026-07-14 12:00:00",
+    )
+    alpha = _archive(
+        tmp_path / "alpha",
+        title="alpha",
+        created_at="2026-07-13 12:00:00",
+    )
+    beta = _archive(
+        tmp_path / "beta",
+        title="beta",
+        created_at="2026-07-15 12:00:00",
+    )
+    calls: list[tuple[object, ...]] = []
+
+    def search(
+        query: str | None,
+        *,
+        kinds: tuple[str, ...],
+        source: str,
+        sort: str,
+        limit: int,
+        repo_root: str,
+    ) -> tuple[PlanSearchMatch, ...]:
+        calls.append((query, kinds, source, sort, limit, repo_root))
+        return (shared, alpha) if repo_root.endswith("alpha") else (beta, shared)
+
+    monkeypatch.setattr("sase.plan_search.facade.search", search)
+
+    result = plans_data.load_deep_plan_archive(
+        (("alpha", "/plans/alpha"), ("beta", "/plans/beta")),
+        limit=2,
+    )
+
+    assert [item.match.plan.title for item in result.archive] == [
+        "beta",
+        "shared",
+        "alpha",
+    ]
+    assert result.scanned_count == 3
+    assert result.capped is True
+    assert result.errors == {}
+    assert calls == [
+        (None, ("tale", "epic"), "repo", "recent", 2, "/plans/alpha"),
+        (None, ("tale", "epic"), "repo", "recent", 2, "/plans/beta"),
+    ]
+
+
 def test_snapshot_sorts_proposals_and_epics_newest_first(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

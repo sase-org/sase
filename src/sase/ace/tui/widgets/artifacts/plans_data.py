@@ -47,6 +47,16 @@ class ProjectArchive:
 
 
 @dataclass(frozen=True)
+class _DeepArchiveFetch:
+    """One bounded, cross-project archive browse completed off-thread."""
+
+    archive: tuple[ProjectArchive, ...]
+    scanned_count: int
+    capped: bool
+    errors: dict[str, str]
+
+
+@dataclass(frozen=True)
 class PlansSnapshot:
     """Immutable result applied to the Plans pane on the UI thread."""
 
@@ -78,6 +88,7 @@ class _PlansProject:
 
 _ARCHIVE_PER_PROJECT_LIMIT = 50
 _ARCHIVE_MERGED_LIMIT = 100
+DEEP_ARCHIVE_PER_PROJECT_LIMIT = 500
 
 
 def load_plans_snapshot(
@@ -140,6 +151,7 @@ def load_plans_snapshot(
     ready_ids: set[tuple[str, str]] = set()
     blocked_ids: set[tuple[str, str]] = set()
     archive: list[ProjectArchive] = []
+    archive_truncated = False
     errors: dict[str, str] = {}
 
     for item in resolved:
@@ -178,9 +190,13 @@ def load_plans_snapshot(
             )
 
         try:
+            project_archive = _load_project_archive(plans_root)
+            archive_truncated = (
+                archive_truncated or len(project_archive) > _ARCHIVE_PER_PROJECT_LIMIT
+            )
             archive.extend(
                 ProjectArchive(project_name, match)
-                for match in _load_project_archive(plans_root)
+                for match in project_archive[:_ARCHIVE_PER_PROJECT_LIMIT]
             )
         except Exception as exc:
             _add_project_error(
@@ -196,16 +212,10 @@ def load_plans_snapshot(
             item.project,
         )
     )
-    archive.sort(
-        key=lambda item: (
-            item.match.plan.created_at,
-            item.match.plan.path,
-            item.project,
-        ),
-        reverse=True,
-    )
-    archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
-    if archive_truncated:
+    archive.sort(key=_archive_recency_key, reverse=True)
+    merged_archive_truncated = len(archive) > _ARCHIVE_MERGED_LIMIT
+    archive_truncated = archive_truncated or merged_archive_truncated
+    if merged_archive_truncated:
         del archive[_ARCHIVE_MERGED_LIMIT:]
 
     return PlansSnapshot(
@@ -375,9 +385,64 @@ def _load_project_archive(plans_root: Path) -> tuple[PlanSearchMatch, ...]:
             kinds=("tale", "epic"),
             source=SOURCE_REPO,
             sort="recent",
-            limit=_ARCHIVE_PER_PROJECT_LIMIT,
+            limit=_ARCHIVE_PER_PROJECT_LIMIT + 1,
             repo_root=plans_root,
         )
+    )
+
+
+def load_deep_plan_archive(
+    project_roots: tuple[tuple[str, str], ...],
+    *,
+    limit: int = DEEP_ARCHIVE_PER_PROJECT_LIMIT,
+) -> _DeepArchiveFetch:
+    """Browse a bounded archive corpus for each project.
+
+    This performs filesystem access through the Rust-backed plan-search facade
+    and therefore must only be called from a worker thread.  Query membership
+    is deliberately left to the pane's Python matcher so preview and deep
+    reconciliation cannot drift.
+    """
+    from sase.plan_search.facade import SOURCE_REPO, search
+
+    archive: list[ProjectArchive] = []
+    errors: dict[str, str] = {}
+    capped = False
+    for project, plans_root in project_roots:
+        try:
+            matches = tuple(
+                search(
+                    None,
+                    kinds=("tale", "epic"),
+                    source=SOURCE_REPO,
+                    sort="recent",
+                    limit=limit,
+                    repo_root=plans_root,
+                )
+            )
+        except Exception as exc:
+            errors[project] = str(exc)
+            continue
+        capped = capped or len(matches) >= limit
+        archive.extend(ProjectArchive(project, match) for match in matches)
+
+    deduped: dict[str, ProjectArchive] = {}
+    for project_archive in archive:
+        deduped.setdefault(project_archive.match.plan.path, project_archive)
+    ordered = tuple(sorted(deduped.values(), key=_archive_recency_key, reverse=True))
+    return _DeepArchiveFetch(
+        archive=ordered,
+        scanned_count=len(ordered),
+        capped=capped,
+        errors=errors,
+    )
+
+
+def _archive_recency_key(item: ProjectArchive) -> tuple[str, str, str]:
+    return (
+        item.match.plan.created_at,
+        item.match.plan.path,
+        item.project,
     )
 
 
@@ -480,9 +545,11 @@ def _timestamp_recency_key(timestamp: str) -> tuple[bool, float]:
 
 
 __all__ = [
+    "DEEP_ARCHIVE_PER_PROJECT_LIMIT",
     "PlanProposal",
     "PlansSnapshot",
     "ProjectArchive",
     "ProjectIssue",
+    "load_deep_plan_archive",
     "load_plans_snapshot",
 ]

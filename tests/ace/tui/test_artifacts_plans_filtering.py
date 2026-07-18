@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from threading import Event
 from unittest.mock import Mock
 
 import pytest
@@ -11,11 +12,45 @@ from textual.widgets import OptionList, Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.artifacts.plan_filter_bar import PlanFilterBar
-from sase.ace.tui.widgets.artifacts.plans_data import PlansSnapshot, ProjectIssue
+from sase.ace.tui.widgets.artifacts import plans_data
+from sase.ace.tui.widgets.artifacts.plans_data import (
+    PlansSnapshot,
+    ProjectArchive,
+    ProjectIssue,
+)
+from sase.ace.tui.widgets.artifacts.plans_deep_archive import (
+    DeepArchiveResult,
+    merge_archive_matches,
+)
 from sase.ace.tui.widgets.artifacts.plans_pane import ArtifactsPlansPane
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
+from sase.plan_search.filter_query import parse_plan_filter_query
 
 from .test_artifacts_plans import _choices, _snapshot
+
+
+def _deep_archive(
+    snapshot: PlansSnapshot,
+    tmp_path: Path,
+    *,
+    name: str,
+    title: str,
+    created_at: str,
+) -> ProjectArchive:
+    preview = snapshot.archive[0]
+    plan = replace(
+        preview.match.plan,
+        path=str(tmp_path / "202606" / f"{name}.md"),
+        relpath=f"202606/{name}.md",
+        name=name,
+        title=title,
+        created_at=created_at,
+        body=f"# {title}",
+    )
+    return ProjectArchive(
+        preview.project,
+        replace(preview.match, plan=plan),
+    )
 
 
 async def test_plans_filter_bar_live_filters_tree_commits_and_survives_refresh(
@@ -213,3 +248,193 @@ async def test_plans_filter_rejects_invalid_submit(
         assert bar.display is True
         assert bar.query_one("#plan-filter-status", Static).has_class("error")
         assert pane.filters.is_empty
+
+
+def test_deep_archive_trigger_and_capped_coverage_are_honest(
+    tmp_path: Path,
+) -> None:
+    snapshot = replace(_snapshot(tmp_path), archive_truncated=True)
+    pane = ArtifactsPlansPane()
+    pane.project_scope = "alpha"
+    pane._snapshot = snapshot
+    pane._filter_session_open = True
+
+    values = parse_plan_filter_query("needle")
+    request = pane._deep_archive_request_for(values)
+    assert request is not None
+    assert (
+        pane._deep_archive_request_for(parse_plan_filter_query("kind:proposal needle"))
+        is None
+    )
+
+    pane._deep_archive_cache[request] = DeepArchiveResult(
+        request=request,
+        archive=(),
+        scanned_count=500,
+        capped=True,
+        errors=(),
+    )
+    assert pane._filter_coverage(values) == (False, "newest 500 searched")
+
+    pane._snapshot = replace(snapshot, archive_truncated=False)
+    assert pane._deep_archive_request_for(values) is None
+
+
+def test_deep_archive_merge_deduplicates_and_preserves_recency(
+    tmp_path: Path,
+) -> None:
+    snapshot = _snapshot(tmp_path)
+    preview = snapshot.archive[0]
+    duplicate = ProjectArchive(
+        preview.project,
+        replace(
+            preview.match,
+            plan=replace(preview.match.plan, title="Deep copy wins"),
+        ),
+    )
+    newest = _deep_archive(
+        snapshot,
+        tmp_path,
+        name="newest",
+        title="Newest",
+        created_at="2026-07-05 10:00:00",
+    )
+    oldest = _deep_archive(
+        snapshot,
+        tmp_path,
+        name="oldest",
+        title="Oldest",
+        created_at="2026-07-03 10:00:00",
+    )
+
+    merged = merge_archive_matches((preview, oldest), (duplicate, newest))
+
+    assert [item.match.plan.title for item in merged] == [
+        "Newest",
+        "Deep copy wins",
+        "Oldest",
+    ]
+
+
+async def test_deep_archive_typing_burst_fetches_once_and_becomes_exact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = replace(_snapshot(tmp_path), archive_truncated=True)
+    older_match = _deep_archive(
+        snapshot,
+        tmp_path,
+        name="needle",
+        title="Needle in the deep archive",
+        created_at="2026-06-01 10:00:00",
+    )
+    calls: list[tuple[tuple[str, str], ...]] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    def load_deep(
+        roots: tuple[tuple[str, str], ...],
+    ) -> plans_data._DeepArchiveFetch:
+        calls.append(roots)
+        return plans_data._DeepArchiveFetch(
+            archive=(*snapshot.archive, older_match),
+            scanned_count=2,
+            capped=False,
+            errors={},
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_deep_archive.load_deep_plan_archive",
+        load_deep,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("[")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        bar = pane.query_one(PlanFilterBar)
+
+        await page.press("slash", "n", "e", "e", "d", "l", "e")
+        await page.wait_for(lambda _state: len(calls) == 1)
+
+        def option_ids() -> set[str]:
+            options = pane.query_one("#plans-list", OptionList)
+            return {
+                options.get_option_at_index(index).id or ""
+                for index in range(options.option_count)
+            }
+
+        deep_option_id = f"archive:{older_match.match.plan.path}"
+        await page.wait_for(lambda _state: deep_option_id in option_ids())
+        status = bar.query_one("#plan-filter-status", Static).content.plain
+        assert "1 match" in status
+        assert "exact" in status
+        assert "1/2 archived" in pane.query_one("#plans-status", Static).content.plain
+        assert calls == [(("alpha", str(tmp_path)),)]
+
+
+async def test_escape_discards_in_flight_deep_archive_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot = replace(_snapshot(tmp_path), archive_truncated=True)
+    stale_match = _deep_archive(
+        snapshot,
+        tmp_path,
+        name="stale",
+        title="Needle from a stale request",
+        created_at="2026-06-01 10:00:00",
+    )
+    started = Event()
+    release = Event()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.artifacts._collect_artifacts_project_choices",
+        _choices,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_pane.load_plans_snapshot",
+        lambda _project, **_kwargs: snapshot,
+    )
+
+    def load_deep(
+        _roots: tuple[tuple[str, str], ...],
+    ) -> plans_data._DeepArchiveFetch:
+        started.set()
+        assert release.wait(timeout=5)
+        return plans_data._DeepArchiveFetch(
+            archive=(stale_match,),
+            scanned_count=1,
+            capped=False,
+            errors={},
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.artifacts.plans_deep_archive.load_deep_plan_archive",
+        load_deep,
+    )
+
+    async with AcePage(initial_tab="changespecs") as page:
+        await page.press("[")
+        pane = page.query_one_widget("#artifacts-plans-pane", ArtifactsPlansPane)
+        await page.wait_for(lambda _state: pane.snapshot is snapshot)
+        bar = pane.query_one(PlanFilterBar)
+
+        await page.press("slash", "n", "e", "e", "d", "l", "e")
+        await page.wait_for(lambda _state: started.is_set())
+        await page.press("escape")
+        await page.wait_for(lambda _state: not bar.display)
+        release.set()
+        await page.wait_for(lambda _state: pane._deep_archive_worker is None)
+
+        assert pane.filters.is_empty
+        assert pane._deep_archive_cache == {}
+        assert all(
+            row.archive is None or row.archive.plan.path != stale_match.match.plan.path
+            for row in pane._rows.values()
+        )
