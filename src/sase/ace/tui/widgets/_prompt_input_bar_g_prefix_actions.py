@@ -27,7 +27,8 @@ class _PromptGPrefixBinding:
     ``label_method_name`` renders the hint, and ``availability_method_name``
     gates whether the continuation is currently useful (and thus hinted).
     ``ctrl_g_only`` keeps a continuation on the prompt-local ``Ctrl+G`` surface
-    without claiming the bare vim ``g`` prefix.
+    without claiming the bare vim ``g`` prefix. ``ctrl_g_aliases`` adds alternate
+    continuations to that surface without duplicating the action or hint row.
     """
 
     key: str
@@ -36,6 +37,7 @@ class _PromptGPrefixBinding:
     availability_method_name: str
     uses_target_mode: bool = False
     ctrl_g_only: bool = False
+    ctrl_g_aliases: tuple[str, ...] = ()
 
 
 _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
@@ -127,6 +129,7 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "request_save_as_xprompt",
         "_g_prefix_label_save_xprompt",
         "_g_prefix_available_save_xprompt",
+        ctrl_g_aliases=("ctrl+x",),
     ),
     _PromptGPrefixBinding(
         "X",
@@ -191,7 +194,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         prefix, not bare vim ``g``.
         """
         for binding in _PROMPT_G_PREFIX_BINDINGS:
-            if binding.key != key:
+            if binding.key != key and not (
+                via_ctrl_g and key in binding.ctrl_g_aliases
+            ):
                 continue
             if binding.ctrl_g_only and not via_ctrl_g:
                 continue
@@ -216,7 +221,8 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
             if not is_available():
                 continue
             label = getattr(self, binding.label_method_name)()
-            entries.append(PromptGPrefixHintEntry(binding.key, label))
+            aliases = binding.ctrl_g_aliases if via_ctrl_g else ()
+            entries.append(PromptGPrefixHintEntry(binding.key, label, aliases))
         return entries
 
     def submit_active_pane(self) -> None:

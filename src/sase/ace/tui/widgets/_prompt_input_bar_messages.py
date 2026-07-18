@@ -132,14 +132,14 @@ class SaveAsXpromptRequested(Message, namespace="prompt_input_bar"):
       the app can still serialize it. The app joins these panes with
       ``\n---\n`` for xprompt creation / overwrite.
     - ``snippet_body`` is the *snippet* body source: only the active pane's
-      stripped text, so choosing "Create a new snippet..." saves that single
-      pane even when the stack holds several ``---`` panes. ``None`` marks a
-      legacy/direct event that carried no separate snippet source, in which case
-      the app falls back to the single-pane body when that is unambiguous.
+      stripped text, so switching the unified panel to snippet mode saves that
+      single pane even when the stack holds several ``---`` panes. ``None`` marks
+      a legacy/direct event that carried no separate snippet source, in which
+      case the app falls back to the single-pane body when that is unambiguous.
 
     ``single_pane`` reflects whether the bar held exactly one prompt pane *before*
     empty panes were filtered out. It is retained only as compatibility/context;
-    the snippet option is now always offered, with ``snippet_body`` as its
+    snippet mode is now always available, with ``snippet_body`` as its
     source.
     """
 

@@ -64,7 +64,13 @@ class UnifiedXPromptSaveModal(
         Binding("escape", "cancel", "Cancel"),
         Binding("ctrl+n", "next_location", "Next destination", show=False),
         Binding("ctrl+p", "prev_location", "Previous destination", show=False),
-        Binding("ctrl+t", "toggle_mode", "Xprompt / snippet", show=False),
+        Binding(
+            "ctrl+x",
+            "toggle_mode",
+            "Xprompt / snippet",
+            show=False,
+            priority=True,
+        ),
         Binding("ctrl+o", "cycle_preview", "Cycle preview", show=False),
         Binding("ctrl+d", "scroll_preview_down", "Scroll down", show=False),
         Binding("ctrl+u", "scroll_preview_up", "Scroll up", show=False),
@@ -140,7 +146,7 @@ class UnifiedXPromptSaveModal(
                         yield Static("", id="unified-save-preview", markup=False)
             yield Static("", id="unified-save-verdict", markup=False)
             yield Static(
-                "↑↓ destination · tab next field · ^o preview · ^t snippet · ^d/^u scroll · esc cancel",
+                "↑↓ destination · tab next field · ^o preview · ^x snippet · ^d/^u scroll · esc cancel",
                 id="unified-save-hints",
                 markup=False,
             )

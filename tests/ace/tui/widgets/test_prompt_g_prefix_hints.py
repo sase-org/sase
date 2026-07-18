@@ -87,6 +87,7 @@ def _hint_panel(bar: PromptInputBar) -> Static:
 
 def test_resolve_g_prefix_second_key_uses_printable_characters_only() -> None:
     assert _resolve_g_prefix_second_key(Key("ctrl+c", "\x03")) == "ctrl+c"
+    assert _resolve_g_prefix_second_key(Key("ctrl+x", "\x18")) == "ctrl+x"
     assert _resolve_g_prefix_second_key(Key("enter", "\r")) == "enter"
     assert _resolve_g_prefix_second_key(Key("minus", "-")) == "-"
     assert _resolve_g_prefix_second_key(Key("equals_sign", "=")) == "="
@@ -145,6 +146,17 @@ async def test_single_pane_with_stash_includes_open_stash_on_ctrl_g() -> None:
             ("X", "save as local xprompt"),
             ("p", "stashed prompts…"),
         ]
+
+        bare_save = next(
+            entry for entry in bar.g_prefix_hint_entries() if entry.key == "x"
+        )
+        ctrl_g_save = next(
+            entry
+            for entry in bar.g_prefix_hint_entries(via_ctrl_g=True)
+            if entry.key == "x"
+        )
+        assert bare_save.aliases == ()
+        assert ctrl_g_save.aliases == ("ctrl+x",)
 
 
 async def test_single_pane_with_pin_includes_update_pin_on_bare_and_ctrl_g() -> None:
@@ -273,6 +285,8 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
         assert "g=   toggle frontmatter" in plain
+        assert "gx   save as xprompt" in plain
+        assert "g^X" not in plain
         # Multi-pane and stash-open entries are absent on the bare g surface.
         assert "gs" not in plain
         assert "gS" not in plain
@@ -303,6 +317,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
+        assert "^Gx / ^G^X   save as xprompt" in plain
         assert "^Gp   stashed prompts…" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
@@ -334,6 +349,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^G^C   cancel all panes" in plain
         assert "^G-   add pane" in plain
         assert "^G=   toggle frontmatter" in plain
+        assert "^Gx / ^G^X   save as xprompt" in plain
         assert "^Gs" not in plain
         assert "^GS" not in plain
         assert bar.active_text_area()._vim_mode == "normal"
@@ -363,6 +379,35 @@ async def test_normal_ctrl_g_continuation_dispatches_in_normal_mode(
         assert bar._g_prefix_hints_visible is False
         assert bar.active_text_area()._normal_g_prefix_pending is False
         assert bar.active_text_area()._vim_mode == "normal"
+
+
+@pytest.mark.parametrize("continuation", ["x", "ctrl+x"])
+@pytest.mark.parametrize("start_normal", [False, True], ids=["insert", "normal"])
+async def test_ctrl_g_save_continuations_preserve_draft_and_clear_prefix(
+    continuation: str,
+    start_normal: bool,
+) -> None:
+    app = _GPrefixHintApp("reusable draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        text_area = bar.active_text_area()
+
+        if start_normal:
+            await pilot.press("escape")
+        await pilot.press("ctrl+g", continuation)
+        await pilot.pause()
+
+        assert len(app.save_xprompt_requests) == 1
+        assert [pane.text for pane in app.save_xprompt_requests[0].panes] == [
+            "reusable draft"
+        ]
+        assert bar.all_prompt_texts() == ["reusable draft"]
+        assert text_area._insert_g_prefix_pending is False
+        assert text_area._normal_g_prefix_pending is False
+        assert bar._g_prefix_hints_visible is False
+        assert text_area._vim_mode == ("normal" if start_normal else "insert")
 
 
 async def test_real_terminal_ctrl_g_ctrl_c_cancels_all_from_insert() -> None:
@@ -668,6 +713,8 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             assert bar.dispatch_g_prefix_key(key) is True
         assert bar.dispatch_g_prefix_key("ctrl+c") is False
         assert bar.dispatch_g_prefix_key("ctrl+c", via_ctrl_g=True) is True
+        assert bar.dispatch_g_prefix_key("ctrl+x") is False
+        assert bar.dispatch_g_prefix_key("ctrl+x", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("p") is False
         assert bar.dispatch_g_prefix_key("p", via_ctrl_g=True) is True
         assert bar.dispatch_g_prefix_key("S", via_ctrl_g=True) is True
@@ -691,6 +738,7 @@ async def test_dispatch_g_prefix_key_routes_each_continuation(
             "x",
             "X",
             "ctrl+c",
+            "x",
             "p",
             "S",
         ]

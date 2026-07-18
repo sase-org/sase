@@ -95,10 +95,9 @@ class PromptInputBar(
         self._completion_panel_kind: str | None = None
         self._g_prefix_hints_visible = False
         self._g_prefix_hints_line_count = 0
-        self._g_prefix_hints_signature: tuple[str, tuple[tuple[str, str], ...]] = (
-            "",
-            (),
-        )
+        self._g_prefix_hints_signature: tuple[
+            str, tuple[tuple[str, tuple[str, ...], str], ...]
+        ] = ("", ())
         self._search_command_visible = False
         self._search_command_line_count = 0
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"

@@ -1985,36 +1985,36 @@ multi-agent parsing rules live in the [XPrompt reference](xprompt.md#multi-agent
 
 ### INSERT Mode (Default)
 
-| Key             | Action                                                                                      |
-| --------------- | ------------------------------------------------------------------------------------------- |
-| `Enter`         | Submit; in a prompt stack, open the submit chooser                                          |
-| `Ctrl+S`        | Stash the active pane; from an empty prompt, open the stashed-prompt picker                 |
-| `Ctrl+G Enter`  | Submit only the selected pane                                                               |
-| `Ctrl+C`        | Cancel the prompt; in a prompt stack, cancel only the selected pane                         |
-| `Ctrl+J`        | Insert a newline                                                                            |
-| `Ctrl+A`        | Move to start of line (jumps to previous line start if already at col 0)                    |
-| `Ctrl+E`        | Move to end of line (jumps to next line end if already at end)                              |
-| `Ctrl+G`        | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                |
-| `Ctrl+G Enter`  | Submit only the selected pane                                                               |
-| `Ctrl+G j/k`    | Focus the next / previous pane and leave the target pane in INSERT mode                     |
-| `Ctrl+G J/K`    | Move the active pane down / up and leave it in INSERT mode                                  |
-| `Ctrl+G -`      | Add an empty bottom pane                                                                    |
-| `Ctrl+G =`      | Show/focus the xprompt frontmatter panel                                                    |
-| `Ctrl+G s`      | Bundle every non-empty pane into one stash row                                              |
-| `Ctrl+G S`      | Overwrite a pinned stashed prompt with the current stack                                    |
-| `Ctrl+G x`      | Save the current stack as a reusable xprompt or snippet                                     |
-| `Ctrl+G X`      | Convert the active pane into a frontmatter-local xprompt                                    |
-| `Ctrl+G Ctrl+C` | Cancel every pane in the prompt stack at once                                               |
-| `Ctrl+G p`      | Open the stashed-prompt picker                                                              |
-| `Ctrl+Y`        | Open the workflow YAML editor                                                               |
-| `Ctrl+K`        | Open prompt history from a single-line prompt, pre-filtered by that text                    |
-| `Ctrl+P`        | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping       |
-| `Ctrl+N`        | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping       |
-| `Ctrl+T`        | Completion (structured tokens, paths, or prompt-local words; see [Completion](#completion)) |
-| `Ctrl+R`        | Recursive fuzzy file finder using the same prompt-aware path root as file completion        |
-| `Tab`           | Snippet expansion (see below)                                                               |
-| `#@`            | Open XPrompt snippet picker (type `#` then `@`)                                             |
-| `Escape`        | Switch to vim NORMAL mode                                                                   |
+| Key                          | Action                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                          |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                 |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                               |
+| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                         |
+| `Ctrl+J`                     | Insert a newline                                                                            |
+| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                    |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                              |
+| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                               |
+| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                     |
+| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                  |
+| `Ctrl+G -`                   | Add an empty bottom pane                                                                    |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel                                                    |
+| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                              |
+| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                    |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Save the current stack as a reusable xprompt or snippet                                     |
+| `Ctrl+G X`                   | Convert the active pane into a frontmatter-local xprompt                                    |
+| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                               |
+| `Ctrl+G p`                   | Open the stashed-prompt picker                                                              |
+| `Ctrl+Y`                     | Open the workflow YAML editor                                                               |
+| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                    |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping       |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping       |
+| `Ctrl+T`                     | Completion (structured tokens, paths, or prompt-local words; see [Completion](#completion)) |
+| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion        |
+| `Tab`                        | Snippet expansion (see below)                                                               |
+| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                             |
+| `Escape`                     | Switch to vim NORMAL mode                                                                   |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single quotes, double quotes, and
 backticks. Typing the matching closer over an auto-inserted closer moves the cursor across it instead of duplicating it,
@@ -2088,11 +2088,14 @@ plus the shared prompt frontmatter; when other panes remain the bar stays open, 
 bar closes without also recording the draft as cancelled history. If the active pane is empty, `Ctrl+S` opens the
 stashed-prompt picker instead. `gs` captures all non-empty panes in their current order as one bundled stash row and
 dismisses the bar. `gS` opens an update flow for an existing pinned stash and overwrites the chosen row with the current
-non-empty panes. `gx` opens one save screen containing the name, storage location, resolved path, and a live preview
-when the name collides; it can also start snippet creation. A successful save binds the prompt stack to that source.
-`gw` then performs atomic write-back, and if the source changed since load it offers overwrite, reload, or save-as
-instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same bound editing loop. `gX` instead
-converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed helper.
+non-empty panes. `gx`, `Ctrl+G x`, and `Ctrl+G Ctrl+X` open one save screen containing the name, storage location,
+resolved path, and a live preview when the name collides. Inside that screen, `Ctrl+X` switches between xprompt and
+snippet mode, so `Ctrl+G Ctrl+X Ctrl+X` goes directly from a prompt draft to snippet mode. `Ctrl+T` remains manual
+completion in the prompt input and does not toggle this save screen. A successful save binds the prompt stack to that
+source. `gw` then performs atomic write-back, and if the source changed since load it offers overwrite, reload, or
+save-as instead of clobbering it. `gd` loads the simple xprompt under the cursor for the same bound editing loop. `gX`
+instead converts the active pane through a prefilled frontmatter ghost row and rewrites the pane to invoke the committed
+helper.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
 tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a
@@ -2502,10 +2505,11 @@ snippets and `ace.snippets` are merged, any snippet can splice another snippet b
 `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's `$1`, `$2`, ... tabstops before splicing. The
 final template is renumbered so tabstops from the caller and referenced snippets do not collide.
 
-You can also create a snippet on the fly from the prompt save (`gx`) menu: it always offers a **Create a new snippet**
-option that asks which config file should store the new `ace.snippets` entry. In that save menu, snippet rows are
-grouped by source and sorted alphabetically by trigger; snippet completions elsewhere are listed in trigger order, too,
-for stable display.
+You can also create a snippet on the fly from the prompt save panel, opened with `gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X`.
+Press `Ctrl+X` in that panel to switch to snippet mode and choose which config file should store the new `ace.snippets`
+entry; `Ctrl+G Ctrl+X Ctrl+X` performs that sequence directly from the draft. In snippet mode, rows are grouped by
+source and sorted alphabetically by trigger; snippet completions elsewhere are listed in trigger order, too, for stable
+display.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after bare trigger words when the
 client advertises `completionItem.snippetSupport`. The server uses the editor helper operation

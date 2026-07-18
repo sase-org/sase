@@ -152,7 +152,7 @@ class PromptInputBarStashActionsMixin(_MixinBase):
             return
         self._sync_state_from_widgets()
         # ``single_pane`` is captured before empty panes are filtered out and
-        # kept only as context. The snippet save option is always offered, with
+        # kept only as context. Snippet mode is always available, with
         # ``snippet_body`` (the active pane only) as its source — so a multi-pane
         # ``---`` stack still saves just the current pane as a snippet, while
         # ``panes`` remains the full xprompt-save source.

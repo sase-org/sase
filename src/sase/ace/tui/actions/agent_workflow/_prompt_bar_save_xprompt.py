@@ -103,7 +103,7 @@ class PromptBarSaveXpromptMixin(PromptBarSaveSnippetMixin):
         )
 
         non_empty_count = sum(1 for pane in panes if pane.text.strip())
-        # The snippet save option is always offered. Its source is the active
+        # Snippet mode is always available. Its source is the active
         # pane captured separately as ``snippet_body``; a legacy/direct event
         # without that field falls back to the xprompt body, but only when a
         # single non-blank pane makes that unambiguous. Snippets are single

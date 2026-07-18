@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml  # type: ignore[import-untyped]
+from textual.app import App, ComposeResult
 
 from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
     PromptBarSaveXpromptMixin,
@@ -19,9 +20,11 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
 )
 from sase.ace.tui.modals import (
     ConfirmActionModal,
+    UnifiedSaveLocation,
     UnifiedXPromptSaveModal,
     UnifiedXPromptSaveResult,
 )
+from sase.ace.tui.modals.xprompt_location_modal import XPromptLocation
 from sase.ace.tui.widgets._prompt_input_bar_stack_actions import StashedPromptPane
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.xprompt.prompt_frontmatter import PromptFrontmatter
@@ -74,6 +77,32 @@ class _CommitHarness(PromptBarSaveXpromptMixin):
         return object()
 
 
+class _SaveFlowApp(PromptBarSaveXpromptMixin, App[None]):
+    """Exercise prompt dispatch and the real async save-panel boundary."""
+
+    ENABLE_COMMAND_PALETTE = False
+
+    def __init__(self, initial_value: str) -> None:
+        super().__init__()
+        self._initial_value = initial_value
+        self._prompt_context = None
+        self._user_snippets: dict[str, str] = {}
+        self._snippets_cache: dict[str, str] | None = None
+        self.save_requests: list[PromptInputBar.SaveAsXpromptRequested] = []
+
+    def compose(self) -> ComposeResult:
+        yield PromptInputBar(initial_value=self._initial_value)
+
+    async def on_prompt_input_bar_save_as_xprompt_requested(
+        self, event: PromptInputBar.SaveAsXpromptRequested
+    ) -> None:
+        self.save_requests.append(event)
+        await super().on_prompt_input_bar_save_as_xprompt_requested(event)
+
+    def _offer_git_commit(self, *_args: object, **_kwargs: object) -> None:
+        pass
+
+
 async def _wait_save_tasks(harness: object) -> None:
     tasks = list(getattr(harness, "_xprompt_save_async_tasks", set()))
     if tasks:
@@ -119,6 +148,65 @@ async def test_request_opens_one_screen_with_active_pane_snippet_source() -> Non
     assert modal._body == "alpha\n---\nbeta"
     assert modal._snippet_body == "beta"
     assert modal._pane_count == 2
+
+
+async def test_ctrl_g_ctrl_x_ctrl_x_opens_panel_in_snippet_mode(
+    tmp_path: Path,
+) -> None:
+    xprompt_directory = tmp_path / "xprompts"
+    xprompt_directory.mkdir()
+    snippet_config = tmp_path / "sase.yml"
+    snippet_config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    xprompt_location = UnifiedSaveLocation(
+        location=XPromptLocation("Xprompts", str(xprompt_directory), "directory"),
+        group="CWD directories",
+        display_path=str(xprompt_directory),
+        names=frozenset(),
+    )
+    snippet_location = UnifiedSaveLocation(
+        location=XPromptLocation("Snippets", str(snippet_config), "config"),
+        group="Config files",
+        display_path=str(snippet_config),
+        names=frozenset(),
+    )
+    app = _SaveFlowApp("draft to reuse")
+
+    with (
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_save_locations",
+            return_value=[xprompt_location],
+        ),
+        patch(
+            "sase.ace.tui.modals.unified_xprompt_save_modal.load_unified_snippet_locations",
+            return_value=[snippet_location],
+        ),
+        patch("sase.xprompt.save_state.load_last_used_locations", return_value={}),
+    ):
+        async with app.run_test(size=(105, 36)) as pilot:
+            await pilot.pause()
+            bar = app.query_one(PromptInputBar)
+            text_area = bar.active_text_area()
+
+            await pilot.press("ctrl+g", "ctrl+x")
+            for _ in range(20):
+                await pilot.pause()
+                if isinstance(app.screen, UnifiedXPromptSaveModal):
+                    break
+
+            modal = app.screen
+            assert isinstance(modal, UnifiedXPromptSaveModal)
+            assert len(app.save_requests) == 1
+            assert bar.all_prompt_texts() == ["draft to reuse"]
+            assert text_area._insert_g_prefix_pending is False
+            assert bar._g_prefix_hints_visible is False
+
+            await pilot.press("ctrl+x")
+            assert modal._mode == "snippet"
+            assert bar.all_prompt_texts() == ["draft to reuse"]
+
+    # Opening and toggling the deterministic panel never writes either target.
+    assert list(xprompt_directory.iterdir()) == []
+    assert snippet_config.read_text(encoding="utf-8") == "ace:\n  snippets: {}\n"
 
 
 async def test_save_request_returns_while_location_reads_are_stuck() -> None:

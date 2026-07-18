@@ -236,9 +236,11 @@ With no `--name`, `save` derives a deterministic slug from the prompt preview. I
 file unless you pass `--force`.
 
 For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save directly to xprompt storage:
-use `gx` in prompt NORMAL mode or `Ctrl+G x` in INSERT mode, then choose an existing xprompt to overwrite, create a new
-one, or **Create a new snippet** (which asks which config file should hold the new `ace.snippets` entry). If the prompt
-bar contains a stack, ACE saves the non-empty panes as one `---`-separated xprompt body.
+use `gx` in prompt NORMAL mode, or use either `Ctrl+G x` or `Ctrl+G Ctrl+X` in INSERT or NORMAL mode. The unified save
+panel starts in xprompt mode; press `Ctrl+X` there to switch to snippet mode and choose which config file should hold
+the new `ace.snippets` entry. Thus `Ctrl+G Ctrl+X Ctrl+X` opens the panel and immediately selects snippet mode.
+Prompt-input `Ctrl+T` remains completion. If the prompt bar contains a stack, ACE saves the non-empty panes as one
+`---`-separated xprompt body, while snippet mode saves only the active pane.
 
 ### Export a prompt to SDD
 

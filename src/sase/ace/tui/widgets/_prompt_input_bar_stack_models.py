@@ -26,3 +26,4 @@ class PromptGPrefixHintEntry:
 
     key: str
     label: str
+    aliases: tuple[str, ...] = ()

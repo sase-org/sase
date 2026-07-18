@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, Static
+from textual.widgets import Input, OptionList, Static
 
 from sase.ace.tui.modals.unified_xprompt_save_modal import (
     UnifiedSaveLocation,
@@ -161,7 +161,7 @@ async def test_description_and_typed_name_drive_exact_markdown_draft(
         )
 
 
-async def test_ctrl_t_toggles_in_screen_snippet_mode(tmp_path: Path) -> None:
+async def test_ctrl_x_toggles_in_screen_snippet_mode(tmp_path: Path) -> None:
     directory = tmp_path / "xprompts"
     directory.mkdir()
     config = tmp_path / "sase.yml"
@@ -180,7 +180,7 @@ async def test_ctrl_t_toggles_in_screen_snippet_mode(tmp_path: Path) -> None:
             results.append,
         )
         await pilot.pause()
-        await pilot.press("ctrl+t", "r", "e", "v", "i", "e", "w", "enter")
+        await pilot.press("ctrl+x", "r", "e", "v", "i", "e", "w", "enter")
         await pilot.pause()
 
     result = results[0]
@@ -188,6 +188,63 @@ async def test_ctrl_t_toggles_in_screen_snippet_mode(tmp_path: Path) -> None:
     assert result.mode == "snippet"
     assert result.name == "review"
     assert result.path == str(config)
+
+
+async def test_ctrl_x_wins_over_input_cut_and_works_from_every_field(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "xprompts"
+    directory.mkdir()
+    config = tmp_path / "sase.yml"
+    config.write_text("ace:\n  snippets: {}\n", encoding="utf-8")
+    app = _ModalApp()
+
+    async with app.run_test(size=(105, 36)) as pilot:
+        app.push_screen(
+            UnifiedXPromptSaveModal(
+                [_row(directory)],
+                snippet_locations=[_row(config, location_type="config")],
+                initial_name="xprompt_name",
+                frontmatter=PromptFrontmatter(description="keep this description"),
+                body="all panes",
+                snippet_body="active pane",
+            )
+        )
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, UnifiedXPromptSaveModal)
+        name = modal.query_one("#unified-save-name", Input)
+        description = modal.query_one("#unified-save-description", Input)
+
+        # The base Input binds Ctrl+X to cut. The modal must intercept it first,
+        # preserving selected text as the xprompt-mode name.
+        name.select_all()
+        await pilot.press("ctrl+x")
+        assert modal._mode == "snippet"
+        await pilot.press("s", "n", "i", "p")
+        assert name.value == "snip"
+
+        # Ctrl+T is retired only in this modal and must not change save mode.
+        await pilot.press("ctrl+t")
+        assert modal._mode == "snippet"
+        assert name.value == "snip"
+
+        await pilot.press("ctrl+x")
+        assert modal._mode == "xprompt"
+        assert name.value == "xprompt_name"
+
+        # Description input selection is likewise preserved across the toggle.
+        description.focus()
+        description.select_all()
+        await pilot.press("ctrl+x", "ctrl+x")
+        assert modal._mode == "xprompt"
+        assert description.value == "keep this description"
+
+        # The same screen-level chord works when the destination list has focus.
+        modal.query_one("#unified-save-locations", OptionList).focus()
+        await pilot.press("ctrl+x")
+        assert modal._mode == "snippet"
+        assert name.value == "snip"
 
 
 async def test_config_target_returns_entry_name(tmp_path: Path) -> None:

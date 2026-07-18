@@ -22,7 +22,9 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
 
     if TYPE_CHECKING:
         _g_prefix_hints_line_count: int
-        _g_prefix_hints_signature: tuple[str, tuple[tuple[str, str], ...]]
+        _g_prefix_hints_signature: tuple[
+            str, tuple[tuple[str, tuple[str, ...], str], ...]
+        ]
         _g_prefix_hints_visible: bool
 
         def _update_height(self) -> None: ...
@@ -40,14 +42,16 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         entries = self.g_prefix_hint_entries(via_ctrl_g=(prefix_label == "^G"))
         if include_editor:
             entries = [
-                PromptGPrefixHintEntry("g / ^G^G", "edit in editor"),
+                PromptGPrefixHintEntry("g", "edit in editor", ("ctrl+g",)),
                 *entries,
             ]
         if not entries:
             self.hide_g_prefix_hints()
             return
 
-        entry_signature = tuple((entry.key, entry.label) for entry in entries)
+        entry_signature = tuple(
+            (entry.key, entry.aliases, entry.label) for entry in entries
+        )
         signature = (prefix_label, entry_signature)
         if self._g_prefix_hints_visible and signature == self._g_prefix_hints_signature:
             return
@@ -100,11 +104,14 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         content = Text()
         for index, entry in enumerate(entries):
             content.append("  ")
-            content.append(prefix_label, style="dim #87D7FF")
-            content.append(
-                PromptInputBarGPrefixHintsMixin._display_g_prefix_key(entry.key),
-                style="bold #00D7AF",
-            )
+            for key_index, key in enumerate((entry.key, *entry.aliases)):
+                if key_index:
+                    content.append(" / ")
+                content.append(prefix_label, style="dim #87D7FF")
+                content.append(
+                    PromptInputBarGPrefixHintsMixin._display_g_prefix_key(key),
+                    style="bold #00D7AF",
+                )
             content.append("   ")
             content.append(entry.label)
             if index < len(entries) - 1:
@@ -116,6 +123,6 @@ class PromptInputBarGPrefixHintsMixin(_MixinBase):
         """Return the visible continuation label for a prompt ``g`` key."""
         if key == "enter":
             return "<enter>"
-        if key == "ctrl+c":
-            return "^C"
+        if key.startswith("ctrl+") and len(key.removeprefix("ctrl+")) == 1:
+            return f"^{key[-1].upper()}"
         return key
