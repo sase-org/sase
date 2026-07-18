@@ -55,7 +55,7 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _spec(*, kind: str = "custom") -> dict[str, object]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "request_id": f"{kind}-ace",
         "kind": kind,
         "producer": {"agent": "test"},
@@ -70,7 +70,8 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
             "notes": ["Confirm the guarded command."],
             "preview": "preview.md",
         },
-        "choices": [
+        "query": "(approve AND audit)" if kind == "custom" else "approve",
+        "options": [
             {
                 "id": "approve",
                 "label": "Approve",
@@ -79,21 +80,29 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
                 "command": {"argv": ["commands/approve"]},
                 "input_schema": {"type": "object"},
                 "result_schema": {"type": "object"},
-                "extras": (
-                    [
-                        {
-                            "id": "audit",
-                            "label": "Write audit record",
-                            "icon": "📝",
-                            "default_selected": True,
-                            "command": {"argv": ["commands/audit"]},
-                        }
-                    ]
-                    if kind == "custom"
-                    else []
-                ),
-            }
+            },
+            *(
+                [
+                    {
+                        "id": "audit",
+                        "label": "Write audit record",
+                        "icon": "📝",
+                        "default_selected": True,
+                        "feedback": "disabled",
+                        "command": {"argv": ["commands/audit"]},
+                        "input_schema": {"type": "object"},
+                        "result_schema": {"type": "object"},
+                    }
+                ]
+                if kind == "custom"
+                else []
+            ),
         ],
+        "groups": (
+            [{"options": ["approve", "audit"], "label": "Approve", "icon": "✅"}]
+            if kind == "custom"
+            else []
+        ),
         "resources": [
             {
                 "path": "commands/approve",
@@ -105,11 +114,17 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
                     "print(json.dumps({'approved': True, 'input': value}))\n"
                 ),
             },
-            {
-                "path": "commands/audit",
-                "role": "command",
-                "content": "#!/bin/sh\nprintf '{\"audited\": true}\\n'\n",
-            },
+            *(
+                [
+                    {
+                        "path": "commands/audit",
+                        "role": "command",
+                        "content": "#!/bin/sh\nprintf '{\"audited\": true}\\n'\n",
+                    }
+                ]
+                if kind == "custom"
+                else []
+            ),
             {
                 "path": "preview.md",
                 "role": "preview",
@@ -210,8 +225,9 @@ def test_custom_gate_loader_projects_icons_preview_and_defaults(
     assert data.sender == "safety-agent"
     assert data.preview_name == "preview.md"
     assert data.preview_text is not None and "Guarded work" in data.preview_text
-    assert data.choices[0].icon == "✅"
-    assert data.choices[0].extras[0].default_selected is True
+    assert data.gate.options[0].icon == "✅"
+    assert data.gate.options[1].default_selected is True
+    assert data.gate.branches == (("approve", "audit"),)
 
 
 def test_tracked_executor_reports_terminal_and_extra_commands_live(
@@ -224,8 +240,7 @@ def test_tracked_executor_reports_terminal_and_extra_commands_live(
     outcome = _execute_gate_submission(
         created.bundle_path,
         GateSubmission(
-            choice_id="approve",
-            selected_extra_ids=("audit",),
+            selected_option_ids=("approve", "audit"),
             feedback="Reviewed",
             input_data={},
         ),
@@ -234,8 +249,8 @@ def test_tracked_executor_reports_terminal_and_extra_commands_live(
 
     assert outcome.success is True
     assert reporter.phases == [
-        "Running choice: Approve",
-        "Running add-on: Write audit record",
+        "Running option: Approve",
+        "Running option: Write audit record",
     ]
     assert reporter.task_info.running == set()
     assert any('"approved": true' in line for _stream, line in reporter.lines)
@@ -254,7 +269,11 @@ def test_custom_gate_submission_uses_tracked_task_toast_and_refresh(
     submitted = submit_gate_execution_task(
         app,
         notification,
-        GateSubmission(choice_id="approve", feedback="Reviewed", input_data={}),
+        GateSubmission(
+            selected_option_ids=("approve",),
+            feedback="Reviewed",
+            input_data={},
+        ),
     )
 
     assert submitted is True

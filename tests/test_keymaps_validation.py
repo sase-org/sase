@@ -190,6 +190,22 @@ def test_invalid_telemetry_key_reverts_to_default() -> None:
     assert reg.telemetry.refresh == "r"
 
 
+def test_duplicate_gate_keys_revert_overrides() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "gate": {
+                    "next_control": "f12",
+                    "previous_control": "f12",
+                }
+            }
+        }
+    )
+
+    assert reg.gate.next_control == "j"
+    assert reg.gate.previous_control == "k"
+
+
 def test_custom_mode_prefix_conflicts_with_compound_app_key(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

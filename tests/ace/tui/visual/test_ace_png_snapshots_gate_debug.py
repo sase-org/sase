@@ -49,24 +49,26 @@ def _context() -> GateDebugContext:
 
 def _snapshot(*, answered: bool) -> GateDebugSnapshot:
     request_text = """{
-  "schema_version": 1,
+  "schema_version": 2,
   "request_id": "deploy-production-42",
   "kind": "custom",
+  "query": "(deploy AND announce AND monitor) OR cancel",
+  "branches": [["deploy", "announce", "monitor"], ["cancel"]],
   "continuation_mode": "resume_agent"
 }"""
     response_text = """{
-  "schema_version": 1,
+  "schema_version": 2,
   "request_id": "deploy-production-42",
   "kind": "custom",
-  "choice_id": "deploy",
-  "selected_extra_ids": [
+  "selected_option_ids": [
+    "deploy",
     "announce",
     "monitor"
   ],
   "feedback": "Release checks passed.",
-  "extra_results": [
-    {"id": "announce", "status": "succeeded"},
-    {"id": "monitor", "status": "failed", "error": {"code": "command_failed"}}
+  "option_results": [
+    {"id": "deploy", "result": {"deployed": true}},
+    {"id": "announce", "result": {"announced": true}}
   ]
 }"""
     error_body = (
@@ -91,9 +93,15 @@ Timeout             30m
 Deadline state      18m remaining
 Status detail       waiting for a terminal response
 
-Choices
-  🚀 deploy: Deploy signed build | feedback=optional | extras=3 | argv=commands/deploy
-  🛑 cancel: Cancel release | feedback=disabled | extras=0 | argv=commands/cancel
+Branches
+  🚀 deploy AND 📣 announce AND 📈 monitor | submit=🚀 Deploy signed build
+  🛑 cancel
+
+Options
+  🚀 deploy: Deploy signed build | feedback=optional | argv=commands/deploy
+  📣 announce: Post release announcement | feedback=disabled | argv=commands/announce
+  📈 monitor: Start health monitor | feedback=disabled | argv=commands/monitor
+  🛑 cancel: Cancel release | feedback=disabled | argv=commands/cancel
 
 Resource integrity
   state  size       mode  role        path

@@ -369,6 +369,33 @@
           "description": "Keymap configuration for the TUI",
           "additionalProperties": false,
           "properties": {
+            "gate": {
+              "type": "object",
+              "description": "Bindings active inside branch-driven plan and custom gate modals",
+              "additionalProperties": false,
+              "properties": {
+                "next_control": {
+                  "type": "string",
+                  "description": "Focus the next gate control"
+                },
+                "previous_control": {
+                  "type": "string",
+                  "description": "Focus the previous gate control"
+                },
+                "toggle_option": {
+                  "type": "string",
+                  "description": "Toggle the focused option in an AND group"
+                },
+                "activate_control": {
+                  "type": "string",
+                  "description": "Activate the focused singleton, group, or submit control"
+                },
+                "submit_branch": {
+                  "type": "string",
+                  "description": "Submit the active branch"
+                }
+              }
+            },
             "telemetry": {
               "type": "object",
               "description": "Bindings active only while the Admin Center Telemetry pane is focused",

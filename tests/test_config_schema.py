@@ -62,6 +62,38 @@ def test_config_schema_accepts_scoped_telemetry_keymaps() -> None:
     )
 
 
+def test_config_schema_accepts_scoped_gate_keymaps() -> None:
+    Draft7Validator(_schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "gate": {
+                        "next_control": "down",
+                        "previous_control": "up",
+                        "toggle_option": "space",
+                        "activate_control": "enter",
+                        "submit_branch": "ctrl+enter",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        {"next_control": 12},
+        {"unknown_action": "x"},
+    ],
+)
+def test_config_schema_rejects_invalid_scoped_gate_keymaps(
+    gate: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(_schema()).validate({"ace": {"keymaps": {"gate": gate}}})
+
+
 @pytest.mark.parametrize(
     "telemetry",
     [

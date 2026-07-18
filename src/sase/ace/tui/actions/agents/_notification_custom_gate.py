@@ -56,8 +56,7 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
                 app,
                 notification,
                 GateSubmission(
-                    choice_id=result.choice_id,
-                    selected_extra_ids=result.selected_extra_ids,
+                    selected_option_ids=result.selected_option_ids,
                     feedback=result.feedback,
                     input_data={},
                 ),
@@ -67,6 +66,9 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
             CustomGateModal(
                 data,
                 debug_context=debug_context_from_notification(notification),
+                gate_keymaps=getattr(
+                    getattr(app, "_keymap_registry", None), "gate", None
+                ),
             ),
             on_dismiss,
         )
@@ -85,10 +87,10 @@ def handle_custom_gate(app: object, notification: Notification) -> bool:
 
 def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalData:
     """Read and verify the custom gate bundle in a worker thread."""
-    from ...modals import CustomGateModalData
+    from ...modals import CustomGateModalData, GateBranchData
     from ...modals.notification_modal_constants import notification_icon
     from sase.notification_gates.hashing import load_and_verify_bundle
-    from sase.notification_gates.models import GateChoice, GateError
+    from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import resolve_notification_bundle
 
     bundle = resolve_notification_bundle(notification)
@@ -99,15 +101,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
             "notification does not reference a neutral custom gate",
         )
     envelope, _adapter = load_and_verify_bundle(bundle.root)
-    raw_choices = envelope.get("choices")
-    if not isinstance(raw_choices, list) or not raw_choices:
-        raise GateError(
-            "invalid_request", "choices", "custom gate has no terminal choices"
-        )
-    choices = tuple(
-        GateChoice.from_mapping(raw, index, default_feedback="optional")
-        for index, raw in enumerate(raw_choices)
-    )
+    gate = GateBranchData.from_envelope(envelope, default_feedback="optional")
     preview_path = _preview_path(notification)
     preview_text = _read_text_preview(preview_path)
     attachments = tuple(dict.fromkeys(Path(path).name for path in notification.files))
@@ -119,7 +113,7 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         attachments=attachments,
         preview_name=None if preview_path is None else preview_path.name,
         preview_text=preview_text,
-        choices=choices,
+        gate=gate,
     )
 
 

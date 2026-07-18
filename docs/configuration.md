@@ -351,7 +351,19 @@ ace:
 
 #### `ace.keymaps`
 
-All TUI keybindings are configurable. The `keymaps` section has three scopes:
+All TUI keybindings are configurable. The `keymaps` section has four scopes:
+
+**`gate`** — Bindings active in the shared branch controls used by plan and custom gate modals:
+
+| Field              | Default  | Description                                      |
+| ------------------ | -------- | ------------------------------------------------ |
+| `next_control`     | `j`      | Focus the next branch control.                   |
+| `previous_control` | `k`      | Focus the previous branch control.               |
+| `toggle_option`    | `space`  | Toggle the focused option in an AND group.       |
+| `activate_control` | `enter`  | Activate the focused option, group, or button.   |
+| `submit_branch`    | `ctrl+s` | Submit the currently active branch and feedback. |
+
+Gate keys are scoped to the active modal and may overlap app-level bindings.
 
 **`telemetry`** — Bindings active only while the Admin Center Telemetry pane is focused. The available actions are:
 

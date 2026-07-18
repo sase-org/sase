@@ -4,6 +4,7 @@ from sase.ace.tui.keymaps import (
     BangModeKeymaps,
     CopyModeKeymaps,
     FoldModeKeymaps,
+    GateModalKeymaps,
     LeaderModeKeymaps,
     ModeKeymaps,
     TelemetryPaneKeymaps,
@@ -40,6 +41,9 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert isinstance(reg.leader_mode, LeaderModeKeymaps)
     assert isinstance(reg.bang_mode, BangModeKeymaps)
     assert isinstance(reg.telemetry, TelemetryPaneKeymaps)
+    assert isinstance(reg.gate, GateModalKeymaps)
+    assert reg.gate.toggle_option == "space"
+    assert reg.gate.submit_branch == "ctrl+s"
     assert reg.telemetry.cycle_subsystem == "s"
     assert reg.telemetry.cycle_range == "t"
     assert reg.telemetry.refresh == "r"
@@ -61,6 +65,24 @@ def test_telemetry_pane_keys_can_be_overridden_independently() -> None:
     assert reg.telemetry.cycle_subsystem == "f12"
     assert reg.telemetry.cycle_range == "f11"
     assert reg.telemetry.refresh == "f10"
+
+
+def test_gate_modal_keys_can_be_overridden_independently() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "gate": {
+                    "next_control": "down",
+                    "previous_control": "up",
+                    "toggle_option": "t",
+                    "activate_control": "a",
+                    "submit_branch": "s",
+                }
+            }
+        }
+    )
+
+    assert reg.gate == GateModalKeymaps("down", "up", "t", "a", "s")
 
 
 def test_leader_repeat_last_default_binding() -> None:

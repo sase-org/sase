@@ -22,6 +22,7 @@ from sase.ace.tui.keymaps.types import (
     _KEY_DISPLAY,
     _MODE_PREFIX_ACTIONS,
     AppKeymaps,
+    GateModalKeymaps,
     KeymapRegistry,
     ModeKeymaps,
     TelemetryPaneKeymaps,
@@ -33,7 +34,11 @@ from sase.ace.tui.keymaps.types import (
 )
 
 # Re-import _BINDING_META so build_app_bindings can use it.
-from sase.ace.tui.keymaps.types import _BINDING_META, _TELEMETRY_BINDING_META
+from sase.ace.tui.keymaps.types import (
+    _BINDING_META,
+    _GATE_BINDING_META,
+    _TELEMETRY_BINDING_META,
+)
 
 log = logging.getLogger(__name__)
 
@@ -123,6 +128,25 @@ def load_builtin_telemetry_defaults() -> dict[str, str]:
     return dict(_builtin_telemetry_defaults())
 
 
+@functools.cache
+def _builtin_gate_defaults() -> Mapping[str, str]:
+    """Cache focused gate-modal defaults from bundled configuration."""
+
+    gate = _builtin_keymaps_config().get("gate", {})
+    if not isinstance(gate, dict):
+        msg = "default_config.yml missing ace.keymaps.gate section"
+        raise RuntimeError(msg)
+    return MappingProxyType(
+        {k: canonicalize_key_binding(str(v)) for k, v in gate.items()}
+    )
+
+
+def load_builtin_gate_defaults() -> dict[str, str]:
+    """Return a mutable copy of bundled focused gate-modal defaults."""
+
+    return dict(_builtin_gate_defaults())
+
+
 def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps:
     """Load and validate the focused Telemetry-pane binding scope."""
 
@@ -185,6 +209,64 @@ def _load_telemetry_keymaps(keymaps_cfg: dict[str, Any]) -> TelemetryPaneKeymaps
             values[name] = defaults[name]
 
     return TelemetryPaneKeymaps(**values)
+
+
+def _load_gate_keymaps(keymaps_cfg: dict[str, Any]) -> GateModalKeymaps:
+    """Load and validate the focused gate-modal binding scope."""
+
+    defaults = load_builtin_gate_defaults()
+    field_names = {field.name for field in fields(GateModalKeymaps)}
+    missing = sorted(field_names - set(defaults))
+    if missing:
+        raise ValueError(
+            "default_config.yml missing gate keymaps: "
+            f"{', '.join(missing)}. Add these under ace.keymaps.gate."
+        )
+    raw_overrides = keymaps_cfg.get("gate", {})
+    overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
+    extra = sorted(set(overrides) - field_names)
+    if extra:
+        log.warning(
+            "Unknown gate keymap action(s) in config (ignored): %s",
+            ", ".join(extra),
+        )
+    values = {
+        name: canonicalize_key_binding(overrides[name])
+        if isinstance(overrides.get(name), str)
+        else defaults[name]
+        for name in field_names
+    }
+    user_overridden = {name for name in field_names if values[name] != defaults[name]}
+    for name in sorted(user_overridden):
+        if not is_valid_key(values[name]):
+            log.warning(
+                "Invalid key %r for gate action %r; reverting to default %r",
+                values[name],
+                name,
+                defaults[name],
+            )
+            values[name] = defaults[name]
+            user_overridden.discard(name)
+        else:
+            values[name] = normalize_key_binding(values[name])
+    key_to_actions: dict[str, list[str]] = {}
+    for name, key_value in values.items():
+        for key_part in split_key_alternatives(key_value):
+            key_to_actions.setdefault(key_part, []).append(name)
+    for key_value, actions in key_to_actions.items():
+        if len(actions) <= 1:
+            continue
+        for name in [action for action in actions if action in user_overridden]:
+            log.warning(
+                "Duplicate gate key %r: action %r conflicts with %s; "
+                "reverting to default %r",
+                key_value,
+                name,
+                [action for action in actions if action != name],
+                defaults[name],
+            )
+            values[name] = defaults[name]
+    return GateModalKeymaps(**values)
 
 
 # ---------------------------------------------------------------------------
@@ -325,6 +407,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
 
     app_km = AppKeymaps(**app_kwargs)
     telemetry_km = _load_telemetry_keymaps(keymaps_cfg)
+    gate_km = _load_gate_keymaps(keymaps_cfg)
 
     # --- Mode keymaps ---
     modes_cfg = keymaps_cfg.get("modes", {})
@@ -412,7 +495,12 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
                 keys[k] = spec
         modes[mode_name] = ModeKeymaps(prefix=prefix, keys=keys)
 
-    registry = KeymapRegistry(app=app_km, telemetry=telemetry_km, modes=modes)
+    registry = KeymapRegistry(
+        app=app_km,
+        telemetry=telemetry_km,
+        gate=gate_km,
+        modes=modes,
+    )
 
     # --- Prefix sync: mode prefix wins over app action ---
     for mode_name, action_name in _MODE_PREFIX_ACTIONS.items():
@@ -495,6 +583,21 @@ def build_telemetry_bindings(keymaps: TelemetryPaneKeymaps) -> list[Binding]:
             show=False,
         )
         for action, description in _TELEMETRY_BINDING_META
+    ]
+
+
+def build_gate_modal_bindings(keymaps: GateModalKeymaps) -> list[Binding]:
+    """Build instance-local bindings for a branch-driven gate modal."""
+
+    return [
+        Binding(
+            getattr(keymaps, action),
+            action,
+            description,
+            show=False,
+            priority=True,
+        )
+        for action, description in _GATE_BINDING_META
     ]
 
 

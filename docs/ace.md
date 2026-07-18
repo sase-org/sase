@@ -1870,8 +1870,8 @@ the keybinding footer when the selected agent has one or more prior attempts.
 
 ## Custom Keymaps
 
-All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap app-level and focused
-Telemetry-pane keys and define entirely new prefix-key modes.
+All TUI keybindings are configurable via the `ace.keymaps` section in `sase.yml`. You can remap app-level, gate-modal,
+and focused Telemetry-pane keys and define entirely new prefix-key modes.
 
 ### Remapping Built-in Keys
 
@@ -1901,6 +1901,23 @@ ace:
 
 These keys dispatch only while the Admin Center Telemetry pane is focused. They may overlap app-level bindings without
 creating a global conflict, and the pane's hint bar always shows the effective keys.
+
+### Remapping Gate Modal Keys
+
+Override the shared plan/custom gate controls under `ace.keymaps.gate`:
+
+```yaml
+ace:
+  keymaps:
+    gate:
+      next_control: "down"
+      previous_control: "up"
+      toggle_option: "space"
+      activate_control: "enter"
+      submit_branch: "ctrl+enter"
+```
+
+These bindings dispatch only while a branch-driven gate modal is open, and its footer shows the effective keys.
 
 ### Custom Modes
 

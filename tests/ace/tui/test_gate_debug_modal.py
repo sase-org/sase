@@ -10,13 +10,17 @@ from unittest.mock import MagicMock, patch
 import pytest
 from textual.app import App
 from textual.screen import ModalScreen
-from textual.widgets import Input, SelectionList
+from textual.widgets import Input
 
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
 )
 from sase.ace.tui.modals.gate_debug_modal import GateDebugModal
+from sase.ace.tui.modals.gate_branch_controls import (
+    GateBranchControls,
+    GateBranchData,
+)
 from sase.ace.tui.modals.launch_approval_modal import LaunchApprovalModal
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
@@ -26,7 +30,7 @@ from sase.ace.tui.modals.workflow_hitl_modal import (
     WorkflowHITLModal,
 )
 from sase.notification_gates.debug import debug_context_from_notification
-from sase.notification_gates.models import GateChoice
+from sase.notification_gates.models import GateGroup, GateOption
 from sase.notifications.models import Notification
 
 
@@ -51,23 +55,18 @@ def _notification(tmp_path: Path) -> Notification:
 
 
 def _custom_data(*, feedback: str = "disabled") -> CustomGateModalData:
-    choice = GateChoice.from_mapping(
-        {
-            "id": "approve",
-            "label": "Approve",
-            "command": {"argv": ["commands/approve"]},
-            "feedback": feedback,
-            "extras": [
-                {
-                    "id": "audit",
-                    "label": "Audit",
-                    "default_selected": True,
-                    "command": {"argv": ["commands/audit"]},
-                }
-            ],
-        },
-        0,
-        default_feedback="optional",
+    options = tuple(
+        GateOption.from_mapping(
+            {
+                "id": option_id,
+                "label": option_id.title(),
+                "command": {"argv": [f"commands/{option_id}"]},
+                "feedback": feedback if option_id == "approve" else "disabled",
+            },
+            index,
+            default_feedback="optional",
+        )
+        for index, option_id in enumerate(("approve", "audit"))
     )
     return CustomGateModalData(
         request_id="debug-request",
@@ -77,7 +76,12 @@ def _custom_data(*, feedback: str = "disabled") -> CustomGateModalData:
         attachments=(),
         preview_name=None,
         preview_text=None,
-        choices=(choice,),
+        gate=GateBranchData(
+            query="approve AND audit",
+            options=options,
+            groups=(GateGroup(("approve", "audit"), "Approve", None),),
+            branches=(("approve", "audit"),),
+        ),
     )
 
 
@@ -135,10 +139,10 @@ async def test_closing_debug_preserves_custom_gate_form_state(tmp_path: Path) ->
     async with _TestApp().run_test(size=(110, 36)) as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
-        feedback = modal.query_one("#custom-gate-feedback-0", Input)
+        feedback = modal.query_one("#gate-feedback-input", Input)
         feedback.value = "Keep this answer"
-        extras = modal.query_one("#custom-gate-extras-0", SelectionList)
-        assert tuple(extras.selected) == ("audit",)
+        controls = modal.query_one(GateBranchControls)
+        assert controls.selected_option_ids(0) == ("approve", "audit")
 
         modal.action_debug_view()
         await pilot.pause()
@@ -148,7 +152,7 @@ async def test_closing_debug_preserves_custom_gate_form_state(tmp_path: Path) ->
 
         assert pilot.app.screen is modal
         assert feedback.value == "Keep this answer"
-        assert tuple(extras.selected) == ("audit",)
+        assert controls.selected_option_ids(0) == ("approve", "audit")
 
 
 async def test_notification_row_opens_debug_even_without_gate_bundle() -> None:

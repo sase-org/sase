@@ -110,8 +110,8 @@ from .custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
     CustomGateModalResult,
-    GateExtrasSelectionList,
 )
+from .gate_branch_controls import GateBranchControls, GateBranchData
 from .workflow_select_modal import WorkflowSelectModal
 from .workspace_input_modal import WorkspaceInputModal
 from .zoom_panel_modal import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
@@ -299,7 +299,8 @@ __all__ = [
     "CustomGateModal",
     "CustomGateModalData",
     "CustomGateModalResult",
-    "GateExtrasSelectionList",
+    "GateBranchControls",
+    "GateBranchData",
     "WorkflowSelectModal",
     "WorkspaceInputModal",
     "ZoomPanelModal",

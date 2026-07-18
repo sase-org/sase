@@ -1,6 +1,8 @@
-"""PNG snapshots for the generic custom notification-gate modal."""
+"""PNG snapshots for branch-driven ACE gate modals."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -9,7 +11,9 @@ from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
 )
-from sase.notification_gates.models import GateChoice
+from sase.ace.tui.modals.gate_branch_controls import GateBranchData
+from sase.ace.tui.modals.plan_approval_modal import PlanApprovalModal
+from sase.notification_gates.models import GateGroup, GateOption
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     changespecs,
     patch_startup_loaders,
@@ -21,36 +25,41 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _choice(
-    choice_id: str,
+def _option(
+    option_id: str,
     label: str,
     *,
     icon: str,
     feedback: str = "disabled",
-    extras: list[dict[str, object]] | None = None,
-) -> GateChoice:
-    return GateChoice.from_mapping(
+    selected: bool = True,
+) -> GateOption:
+    return GateOption.from_mapping(
         {
-            "id": choice_id,
+            "id": option_id,
             "label": label,
             "icon": icon,
             "feedback": feedback,
-            "command": {"argv": [f"commands/{choice_id}"]},
-            "extras": extras or [],
+            "default_selected": selected,
+            "command": {"argv": [f"commands/{option_id}"]},
         },
         0,
         default_feedback="optional",
     )
 
 
-def _data(*choices: GateChoice) -> CustomGateModalData:
+def _data(
+    *,
+    options: tuple[GateOption, ...],
+    branches: tuple[tuple[str, ...], ...],
+    groups: tuple[GateGroup, ...] = (),
+) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="deploy-production-42",
         sender="release-guardian",
         icon="🛡️",
         notes=(
             "The release agent is ready to deploy the signed build.",
-            "Choose one outcome and optionally add follow-up commands.",
+            "Choose one resolution branch.",
         ),
         attachments=("release-preview.md", "deployment-manifest.json"),
         preview_name="release-preview.md",
@@ -60,7 +69,12 @@ def _data(*choices: GateChoice) -> CustomGateModalData:
             "- Region: `us-east-1`\n"
             "- Health checks: passing\n"
         ),
-        choices=choices,
+        gate=GateBranchData(
+            query="visual query",
+            options=options,
+            groups=groups,
+            branches=branches,
+        ),
     )
 
 
@@ -89,58 +103,43 @@ async def test_custom_gate_choices_only_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
     await _snapshot_modal(
         ace_png_visual,
         monkeypatch,
-        data=_data(
-            _choice("approve", "Approve deployment", icon="✅"),
-            _choice("cancel", "Cancel release", icon="🛑"),
-        ),
+        data=_data(options=options, branches=(("approve",), ("cancel",))),
         snapshot_name="custom_gate_choices_only_120x40",
-        title="ACE custom gate choices",
+        title="ACE custom gate singleton branches",
     )
 
 
-async def test_custom_gate_extras_png_snapshot(
+async def test_custom_gate_group_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    options = (
+        _option("deploy", "Deploy signed build", icon="🚀", feedback="optional"),
+        _option("announce", "Post release announcement", icon="📣"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    group = GateGroup(
+        ("deploy", "announce"),
+        "Deploy signed build",
+        "🚀",
+    )
     await _snapshot_modal(
         ace_png_visual,
         monkeypatch,
         data=_data(
-            _choice(
-                "deploy",
-                "Deploy signed build",
-                icon="🚀",
-                feedback="optional",
-                extras=[
-                    {
-                        "id": "announce",
-                        "label": "Post release announcement",
-                        "icon": "📣",
-                        "default_selected": True,
-                        "command": {"argv": ["commands/announce"]},
-                    },
-                    {
-                        "id": "monitor",
-                        "label": "Start ten-minute health monitor",
-                        "icon": "📈",
-                        "default_selected": True,
-                        "command": {"argv": ["commands/monitor"]},
-                    },
-                    {
-                        "id": "cleanup",
-                        "label": "Remove staging artifacts",
-                        "icon": "🧹",
-                        "command": {"argv": ["commands/cleanup"]},
-                    },
-                ],
-            ),
-            _choice("cancel", "Cancel release", icon="🛑"),
+            options=options,
+            branches=(("deploy", "announce"), ("cancel",)),
+            groups=(group,),
         ),
         snapshot_name="custom_gate_extras_120x40",
-        title="ACE custom gate extras",
+        title="ACE custom gate AND group",
     )
 
 
@@ -148,18 +147,40 @@ async def test_custom_gate_required_feedback_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    options = (
+        _option("override", "Override warning", icon="⚠️", feedback="required"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
     await _snapshot_modal(
         ace_png_visual,
         monkeypatch,
-        data=_data(
-            _choice(
-                "override",
-                "Override warning",
-                icon="⚠️",
-                feedback="required",
-            ),
-            _choice("cancel", "Cancel release", icon="🛑"),
-        ),
+        data=_data(options=options, branches=(("override",), ("cancel",))),
         snapshot_name="custom_gate_required_feedback_120x40",
         title="ACE custom gate required feedback",
     )
+
+
+async def test_tale_plan_gate_five_controls_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "release-plan.md"
+    plan.write_text(
+        "# Release plan\n\nDeploy the signed build safely.\n", encoding="utf-8"
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        changespecs=changespecs(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
+        await page.expect_modal("PlanApprovalModal")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "plan_gate_tale_five_controls_120x40",
+            title="ACE tale plan gate five controls",
+        )

@@ -5,7 +5,9 @@ Keeps historical imports stable while focused modules handle individual flows.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -35,20 +37,61 @@ from sase.plan_approval_choices import (
 )
 
 if TYPE_CHECKING:
-    from sase.notification_gates.models import GateExtra
+    from sase.notification_gates.paths import ResolvedGateBundle
     from sase.notifications import Notification
 
     from ...models import Agent
-    from ...modals import PlanApprovalResult
+    from ...modals import GateBranchData, PlanApprovalResult
 
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _PlanGateModalLoad:
+    """Worker-loaded data needed to compose a neutral plan gate."""
+
+    plan_file: str
+    plan_content: str
+    default_choice: PlanApprovalModalChoice
+    gate: GateBranchData
+    bundle: ResolvedGateBundle
+
+
+def _load_neutral_plan_modal_data(
+    notification: Notification,
+) -> _PlanGateModalLoad:
+    """Verify a v2 plan bundle and read its display content off the UI thread."""
+    if not notification.files:
+        raise RuntimeError("plan file is missing")
+    from sase.notification_gates.hashing import load_and_verify_bundle
+    from sase.notification_gates.paths import resolve_notification_bundle
+
+    from ...modals import GateBranchData
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None or bundle.legacy:
+        raise RuntimeError("notification does not reference a neutral plan gate")
+    envelope, _adapter = load_and_verify_bundle(bundle.root)
+    kind = envelope.get("kind")
+    default_choice: PlanApprovalModalChoice = "epic" if kind == "epic_plan" else "tale"
+    plan_file = notification.files[0]
+    plan_content = Path(plan_file).expanduser().read_text(encoding="utf-8")
+    return _PlanGateModalLoad(
+        plan_file=plan_file,
+        plan_content=plan_content,
+        default_choice=default_choice,
+        gate=GateBranchData.from_envelope(envelope),
+        bundle=bundle,
+    )
 
 
 def handle_plan_approval(
     app: object,
     notification: Notification,
     pending_approve_state: object | None = None,
+    *,
+    _loaded: _PlanGateModalLoad | None = None,
 ) -> bool:
     """Show the plan approval modal for a Claude Code plan.
 
@@ -65,74 +108,94 @@ def handle_plan_approval(
     from ...modals import PlanApprovalModal, PlanApprovalResult
 
     from sase.notification_gates.debug import debug_context_from_notification
-    from sase.notification_gates.paths import resolve_notification_bundle
 
-    bundle = resolve_notification_bundle(notification)
-    if bundle is None:
-        app.notify(  # type: ignore[attr-defined]
-            "No plan request in notification; press d on the notification to debug",
-            severity="warning",
+    if _loaded is None and notification.action_data.get("bundle_path"):
+        from ...util.pump_tasks import spawn_pump_free_task
+
+        async def load_and_open() -> None:
+            try:
+                loaded = await asyncio.to_thread(
+                    _load_neutral_plan_modal_data,
+                    notification,
+                )
+            except Exception as exc:
+                app.notify(  # type: ignore[attr-defined]
+                    f"Could not open plan gate: {exc}; press d on the notification to debug",
+                    severity="error",
+                )
+                return
+            handle_plan_approval(
+                app,
+                notification,
+                pending_approve_state,
+                _loaded=loaded,
+            )
+
+        task = spawn_pump_free_task(
+            app,
+            load_and_open(),
+            name=f"plan-gate-open:{notification.id}",
+            registry_attr="_plan_gate_open_tasks",
         )
-        return False
+        if task is not None:
+            return True
+        try:
+            _loaded = _load_neutral_plan_modal_data(notification)
+        except Exception as exc:
+            app.notify(  # type: ignore[attr-defined]
+                f"Could not open plan gate: {exc}; press d on the notification to debug",
+                severity="error",
+            )
+            return False
+
+    if _loaded is not None:
+        bundle = _loaded.bundle
+    else:
+        from sase.notification_gates.paths import resolve_notification_bundle
+
+        resolved_bundle = resolve_notification_bundle(notification)
+        if resolved_bundle is None:
+            app.notify(  # type: ignore[attr-defined]
+                "No plan request in notification; press d on the notification to debug",
+                severity="warning",
+            )
+            return False
+        bundle = resolved_bundle
 
     response_path = bundle.root
     request_path = bundle.request
 
-    if not request_path.exists():
+    if _loaded is None and not request_path.exists():
         app.notify(  # type: ignore[attr-defined]
             "Plan approval request expired or not found; press d on the notification to debug",
             severity="warning",
         )
         return False
-    # Get plan file path from notification files
-    if not notification.files:
+    # Get plan file path from the worker projection or legacy notification.
+    if _loaded is None and not notification.files:
         app.notify(  # type: ignore[attr-defined]
             "No plan file in notification; press d on the notification to debug",
             severity="warning",
         )
         return False
 
-    plan_file = notification.files[0]
+    plan_file = _loaded.plan_file if _loaded is not None else notification.files[0]
+    plan_content = None if _loaded is None else _loaded.plan_content
     llm_provider = notification.action_data.get("llm_provider")
     model = notification.action_data.get("model")
-    from sase.sdd.plan_tiers import read_plan_tier
+    if _loaded is not None:
+        default_choice: PlanApprovalModalChoice | None = _loaded.default_choice
+        gate: GateBranchData | None = _loaded.gate
+    else:
+        from sase.sdd.plan_tiers import read_plan_tier
 
-    authored_tier = read_plan_tier(Path(plan_file).expanduser())
-    default_choice = (
-        cast(PlanApprovalModalChoice, authored_tier)
-        if authored_tier in {"tale", "epic"}
-        else None
-    )
-    allowed_choices: tuple[PlanApprovalModalChoice, ...] | None = None
-    approval_extras: tuple[GateExtra, ...] = ()
-    if not bundle.legacy:
-        try:
-            from sase.notification_gates.durability import read_json_object
-            from sase.notification_gates.models import GateChoice
-
-            envelope = read_json_object(bundle.request)
-            raw_choices = envelope.get("choices")
-            if isinstance(raw_choices, list):
-                parsed_choices = tuple(
-                    GateChoice.from_mapping(raw, index)
-                    for index, raw in enumerate(raw_choices)
-                )
-                allowed_choices = tuple(
-                    cast(PlanApprovalModalChoice, choice.id)
-                    for choice in parsed_choices
-                    if choice.id in {"approve", "tale", "epic"}
-                )
-                approval_extras = next(
-                    (
-                        choice.extras
-                        for choice in parsed_choices
-                        if choice.id == "approve"
-                    ),
-                    (),
-                )
-        except Exception:
-            allowed_choices = None
-            approval_extras = ()
+        authored_tier = read_plan_tier(Path(plan_file).expanduser())
+        default_choice = (
+            cast(PlanApprovalModalChoice, authored_tier)
+            if authored_tier in {"tale", "epic"}
+            else None
+        )
+        gate = None
 
     def on_dismiss(result: object) -> None:
         if result is None:
@@ -166,9 +229,14 @@ def handle_plan_approval(
                     llm_provider=llm_provider,
                     model=model,
                     default_choice=default_choice,
-                    allowed_choices=allowed_choices,
-                    approval_extras=approval_extras,
+                    gate=gate,
+                    plan_content=Path(plan_file)
+                    .expanduser()
+                    .read_text(encoding="utf-8"),
                     debug_context=debug_context_from_notification(notification),
+                    gate_keymaps=getattr(
+                        getattr(app, "_keymap_registry", None), "gate", None
+                    ),
                 ),
                 on_dismiss,
             )
@@ -325,9 +393,10 @@ def handle_plan_approval(
             llm_provider=llm_provider,
             model=model,
             default_choice=default_choice,
-            allowed_choices=allowed_choices,
-            approval_extras=approval_extras,
+            gate=gate,
+            plan_content=plan_content,
             debug_context=debug_context_from_notification(notification),
+            gate_keymaps=getattr(getattr(app, "_keymap_registry", None), "gate", None),
         ),
         on_dismiss,
     )

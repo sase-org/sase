@@ -1126,18 +1126,6 @@ PlanApprovalModal {
     scrollbar-gutter: stable;
 }
 
-#plan-approval-extras-label {
-    height: auto;
-    color: $text-muted;
-    margin-top: 1;
-}
-
-#plan-approval-extras {
-    height: auto;
-    max-height: 5;
-    border: solid $secondary;
-}
-
 #plan-approval-footer {
     text-align: center;
     color: $text-muted;
@@ -1190,55 +1178,56 @@ CustomGateModal #custom-gate-choice-label {
     margin-top: 1;
 }
 
-CustomGateModal #custom-gate-choice-buttons {
+GateBranchControls {
     height: auto;
-    align-horizontal: center;
-    margin-bottom: 1;
+    max-height: 18;
+    border: solid $secondary;
+    padding: 0 1;
+    scrollbar-gutter: stable;
 }
 
-CustomGateModal #custom-gate-choice-buttons Button {
-    min-width: 16;
+GateBranchControls .gate-singleton-row {
+    height: auto;
+    align-horizontal: center;
+}
+
+GateBranchControls .gate-singleton-row Button {
+    min-width: 18;
     margin: 0 1;
 }
 
-CustomGateModal #custom-gate-choice-details {
+GateBranchControls .gate-group,
+GateBranchControls .gate-group-details {
     height: auto;
-    max-height: 12;
 }
 
-CustomGateModal .custom-gate-choice-panel {
-    height: auto;
-    padding: 0 1;
+GateBranchControls .gate-group-expand,
+GateBranchControls .gate-group-submit {
+    min-width: 20;
+    margin: 0 1;
 }
 
-CustomGateModal .custom-gate-choice-panel.hidden {
-    display: none;
+GateBranchControls .gate-option-toggle {
+    width: 100%;
+    text-align: left;
 }
 
-CustomGateModal .custom-gate-field-label,
-CustomGateModal .custom-gate-empty-extras,
-CustomGateModal .custom-gate-feedback-disabled {
+GateBranchControls #gate-feedback-label {
     height: auto;
     color: $text-muted;
+    margin-top: 1;
 }
 
-CustomGateModal SelectionList {
-    height: auto;
-    max-height: 5;
-    border: solid $secondary;
+GateBranchControls #gate-feedback-input {
     margin-bottom: 1;
 }
 
-CustomGateModal Input {
-    margin-bottom: 1;
-}
-
-CustomGateModal #custom-gate-submit-buttons {
+CustomGateModal #custom-gate-cancel-row {
     height: auto;
     align-horizontal: center;
 }
 
-CustomGateModal #custom-gate-submit-buttons Button {
+CustomGateModal #custom-gate-cancel-row Button {
     min-width: 20;
     margin: 0 1;
 }

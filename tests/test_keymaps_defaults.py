@@ -6,11 +6,13 @@ from unittest.mock import patch
 
 from sase.ace.tui.keymaps import (
     AppKeymaps,
+    GateModalKeymaps,
     KeymapRegistry,
     LeaderModeKeymaps,
     TelemetryPaneKeymaps,
     _BINDING_META,
     load_builtin_app_defaults,
+    load_builtin_gate_defaults,
     load_builtin_telemetry_defaults,
     load_keymap_registry,
 )
@@ -287,6 +289,21 @@ def test_default_config_covers_all_telemetry_keymaps() -> None:
         "cycle_subsystem": "s",
         "cycle_range": "t",
         "refresh": "r",
+    }
+    assert field_names == set(defaults)
+
+
+def test_default_config_covers_all_gate_modal_keymaps() -> None:
+    """The bundled config is the source of truth for shared gate controls."""
+    defaults = load_builtin_gate_defaults()
+    field_names = {field.name for field in fields(GateModalKeymaps)}
+
+    assert defaults == {
+        "next_control": "j",
+        "previous_control": "k",
+        "toggle_option": "space",
+        "activate_control": "enter",
+        "submit_branch": "ctrl+s",
     }
     assert field_names == set(defaults)
 

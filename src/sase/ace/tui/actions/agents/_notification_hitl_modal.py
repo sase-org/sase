@@ -184,7 +184,7 @@ def _handle_neutral_hitl(app: object, notification: Notification) -> bool:
                 app,
                 notification,
                 GateSubmission(
-                    choice_id=choice_id,
+                    selected_option_ids=(choice_id,),
                     feedback=resolved.feedback,
                     input_data=response_input,
                 ),
@@ -212,7 +212,7 @@ def _handle_neutral_hitl(app: object, notification: Notification) -> bool:
 
 def _load_neutral_hitl_data(notification: Notification) -> _NeutralHitlModalData:
     from sase.notification_gates.hashing import load_and_verify_bundle
-    from sase.notification_gates.models import GateChoice, GateError
+    from sase.notification_gates.models import GateError, GateOption
     from sase.notification_gates.paths import resolve_notification_bundle
 
     from ...modals import WorkflowHITLInput
@@ -223,11 +223,11 @@ def _load_neutral_hitl_data(notification: Notification) -> _NeutralHitlModalData
             "missing_gate", notification.id, "notification has no neutral HITL gate"
         )
     envelope, _adapter = load_and_verify_bundle(bundle.root)
-    raw_choices = envelope.get("choices")
-    if not isinstance(raw_choices, list) or not raw_choices:
-        raise GateError("invalid_request", "choices", "HITL gate has no choices")
-    choices = tuple(
-        GateChoice.from_mapping(raw, index) for index, raw in enumerate(raw_choices)
+    raw_options = envelope.get("options")
+    if not isinstance(raw_options, list) or not raw_options:
+        raise GateError("invalid_request", "options", "HITL gate has no options")
+    options = tuple(
+        GateOption.from_mapping(raw, index) for index, raw in enumerate(raw_options)
     )
     raw_payload = envelope.get("payload")
     payload = raw_payload if isinstance(raw_payload, dict) else {}
@@ -253,7 +253,7 @@ def _load_neutral_hitl_data(notification: Notification) -> _NeutralHitlModalData
         has_output=bool(payload.get("has_output", bool(output))),
         output_types=output_types,
     )
-    return _NeutralHitlModalData(input_data, tuple(choice.id for choice in choices))
+    return _NeutralHitlModalData(input_data, tuple(option.id for option in options))
 
 
 def _neutral_hitl_choice_id(

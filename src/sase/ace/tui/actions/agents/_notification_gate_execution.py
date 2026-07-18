@@ -19,8 +19,7 @@ _GateTaskSeverity = Literal["warning", "error"]
 class GateSubmission:
     """Surface-neutral input for one gate executor call."""
 
-    choice_id: str
-    selected_extra_ids: tuple[str, ...] = ()
+    selected_option_ids: tuple[str, ...]
     feedback: str | None = None
     input_data: object | None = None
 
@@ -82,7 +81,7 @@ def submit_gate_execution_task(
         f"gate {request_id}",
         str(bundle_path),
         work,
-        display_name=f"Gate response: {submission.choice_id}",
+        display_name=f"Gate response: {', '.join(submission.selected_option_ids)}",
         dedup_key=f"notification-gate:{notification.id}",
         duplicate_message="This gate response is already being processed",
         on_complete=on_complete,
@@ -98,7 +97,7 @@ def _execute_gate_submission(
     *,
     reporter: TaskReporter,
 ) -> _GateTaskOutcome:
-    from sase.notification_gates.executor import execute_gate_choice
+    from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.models import GateError
 
     def command_start(
@@ -107,9 +106,9 @@ def _execute_gate_submission(
         label: str,
         argv: tuple[str, ...],
     ) -> None:
-        noun = "choice" if command_kind == "choice" else "add-on"
-        reporter.phase(f"Running {noun}: {label}")
-        reporter.section(f"{noun.title()} {command_id}")
+        del command_kind
+        reporter.phase(f"Running option: {label}")
+        reporter.section(f"Option {command_id}")
         reporter.set_command(argv)
 
     def output_line(
@@ -127,11 +126,10 @@ def _execute_gate_submission(
             reporter.task_info.unregister_process(process)
 
     try:
-        result = execute_gate_choice(
+        result = execute_gate_selection(
             bundle_path,
-            submission.choice_id,
+            submission.selected_option_ids,
             submission.input_data,
-            selected_extra_ids=submission.selected_extra_ids,
             feedback=submission.feedback,
             source="tui",
             on_command_start=command_start,
@@ -145,20 +143,8 @@ def _execute_gate_submission(
 
     if result.already_completed:
         return _GateTaskOutcome("Gate was already answered", True, "warning")
-    failures = [
-        item
-        for item in result.response.get("extra_results", [])
-        if isinstance(item, dict) and item.get("status") == "failed"
-    ]
-    if failures:
-        count = len(failures)
-        return _GateTaskOutcome(
-            f"Gate answered; {count} add-on command{'s' if count != 1 else ''} failed",
-            True,
-            "warning",
-        )
     return _GateTaskOutcome(
-        f"Gate answered with {submission.choice_id}",
+        f"Gate answered with {', '.join(submission.selected_option_ids)}",
         True,
     )
 

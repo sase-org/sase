@@ -166,6 +166,15 @@ _TELEMETRY_BINDING_META: tuple[tuple[str, str], ...] = (
     ("refresh", "Refresh"),
 )
 
+# Shared bindings owned by the branch renderer inside gate-review modals.
+_GATE_BINDING_META: tuple[tuple[str, str], ...] = (
+    ("next_control", "Next control"),
+    ("previous_control", "Previous control"),
+    ("toggle_option", "Toggle option"),
+    ("activate_control", "Activate"),
+    ("submit_branch", "Submit"),
+)
+
 # Maps mode name -> the app-level action that activates it.
 _MODE_PREFIX_ACTIONS: dict[str, str] = {
     "fold_mode": "start_fold_mode",
@@ -451,6 +460,17 @@ class TelemetryPaneKeymaps:
 
 
 @dataclass
+class GateModalKeymaps:
+    """Focused actions shared by plan and custom gate modals."""
+
+    next_control: str = "j"
+    previous_control: str = "k"
+    toggle_option: str = "space"
+    activate_control: str = "enter"
+    submit_branch: str = "ctrl+s"
+
+
+@dataclass
 class ModeKeymaps:
     """Generic container for a prefix-key mode."""
 
@@ -599,6 +619,7 @@ class KeymapRegistry:
 
     app: AppKeymaps
     telemetry: TelemetryPaneKeymaps = field(default_factory=TelemetryPaneKeymaps)
+    gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
     modes: dict[str, ModeKeymaps] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

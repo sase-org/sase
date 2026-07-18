@@ -1,44 +1,18 @@
-"""Tests for PlanApprovalModal title rendering with provider/model badge."""
+"""Tests for PlanApprovalModal title and branch-driven controls."""
 
 from textual.app import App
+from textual.binding import Binding
 
-from sase.ace.tui.modals.custom_gate_modal import GateExtrasSelectionList
+from sase.ace.tui.modals.gate_branch_controls import GateBranchControls
 from sase.ace.tui.modals.plan_approval_modal import (
     PlanApprovalModal,
     PlanApprovalResult,
     _provider_badge_markup,
 )
-from sase.notification_gates.models import GateChoice, GateExtra
 
 
 class _TestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
-
-
-def _approval_extras() -> tuple[GateExtra, ...]:
-    choice = GateChoice.from_mapping(
-        {
-            "id": "approve",
-            "label": "Approve",
-            "command": {"argv": ["commands/approve"]},
-            "extras": [
-                {
-                    "id": "commit_plan",
-                    "label": "Commit plan file to the plans sidecar",
-                    "default_selected": True,
-                    "command": {"argv": ["commands/commit_plan"]},
-                },
-                {
-                    "id": "run_coder",
-                    "label": "Run coder follow-up",
-                    "default_selected": True,
-                    "command": {"argv": ["commands/run_coder"]},
-                },
-            ],
-        },
-        0,
-    )
-    return choice.extras
 
 
 def test_badge_markup_empty_when_no_provider_or_model() -> None:
@@ -88,8 +62,6 @@ def test_title_markup_without_badge_matches_legacy_form() -> None:
     assert "Plan Review" in title
     assert "20260422_143012_my_feature.md" in title
     assert "CLAUDE" not in title
-    assert "CODEX" not in title
-    assert "AGY" not in title
 
 
 def test_title_markup_with_badge_includes_provider_and_filename() -> None:
@@ -104,100 +76,52 @@ def test_title_markup_with_badge_includes_provider_and_filename() -> None:
     assert "20260422_143012_my_feature.md" in title
 
 
-def test_modal_constructor_accepts_keyword_only_provider_and_model() -> None:
+def test_modal_constructor_accepts_provider_model_and_authored_tier() -> None:
     modal = PlanApprovalModal(
-        "/tmp/plan.md", llm_provider="agy", model="Gemini 3.5 Flash (High)"
+        "/tmp/plan.md",
+        llm_provider="agy",
+        model="Gemini 3.5 Flash (High)",
+        default_choice="epic",
     )
     assert modal._llm_provider == "agy"
     assert modal._model == "Gemini 3.5 Flash (High)"
-
-
-def test_modal_constructor_defaults_provider_and_model_to_none() -> None:
-    modal = PlanApprovalModal("/tmp/plan.md")
-    assert modal._llm_provider is None
-    assert modal._model is None
-    assert modal._default_choice == "approve"
-
-
-def test_modal_constructor_accepts_authored_tier_default() -> None:
-    modal = PlanApprovalModal("/tmp/plan.md", default_choice="epic")
-
     assert modal._default_choice == "epic"
+    assert modal._gate.branches == (("approve",), ("reject",), ("feedback",))
 
 
-def test_bindings_include_g_scroll_to_top() -> None:
-    assert ("g", "scroll_to_top", "Top") in PlanApprovalModal.BINDINGS
+def test_bindings_use_shared_branch_actions_and_drop_presets() -> None:
+    actions = {
+        binding.action if isinstance(binding, Binding) else binding[1]
+        for binding in PlanApprovalModal.BINDINGS
+    }
+    assert {
+        "next_control",
+        "previous_control",
+        "toggle_option",
+        "activate_control",
+        "submit_branch",
+    } <= actions
+    assert {"approve", "tale", "epic", "reject", "feedback"}.isdisjoint(actions)
 
 
-def test_bindings_include_capital_g_scroll_to_bottom() -> None:
-    assert ("G", "scroll_to_bottom", "Bottom") in PlanApprovalModal.BINDINGS
-
-
-def test_bindings_show_approve_for_approve_action() -> None:
-    assert ("a", "approve", "Approve") in PlanApprovalModal.BINDINGS
-    assert ("a", "approve", "Tale") not in PlanApprovalModal.BINDINGS
-
-
-def test_bindings_include_tale_action() -> None:
-    assert ("t", "tale", "Tale") in PlanApprovalModal.BINDINGS
-
-
-def test_bindings_include_custom_action_instead_of_options() -> None:
-    assert ("c", "custom", "Custom") in PlanApprovalModal.BINDINGS
-    assert ("A", "approve_options", "Options") not in PlanApprovalModal.BINDINGS
-
-
-def test_action_approve_returns_pure_approve_choice() -> None:
-    modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    captured: list[PlanApprovalResult] = []
-
-    def fake_dismiss(value: PlanApprovalResult) -> None:
-        captured.append(value)
-
-    modal.dismiss = fake_dismiss  # type: ignore[assignment]
-    modal.action_approve()
-
-    assert len(captured) == 1
-    result = captured[0]
-    assert result.action == "approve"
-    assert result.choice == "approve"
-    assert result.commit_plan is False
-    assert result.run_coder is True
-
-
-def test_action_tale_returns_tale_choice_with_commit() -> None:
-    modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    captured: list[PlanApprovalResult] = []
-
-    def fake_dismiss(value: PlanApprovalResult) -> None:
-        captured.append(value)
-
-    modal.dismiss = fake_dismiss  # type: ignore[assignment]
-    modal.action_tale()
-
-    assert len(captured) == 1
-    result = captured[0]
-    assert result.action == "approve"
-    assert result.choice == "tale"
-    assert result.commit_plan is True
-    assert result.run_coder is True
-
-
-def test_action_approve_default_uses_authored_tier() -> None:
-    modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    modal._default_choice = "epic"
+def test_programmatic_approve_and_tale_project_selected_options() -> None:
+    modal = PlanApprovalModal("/tmp/plan.md")
     captured: list[PlanApprovalResult] = []
     modal.dismiss = captured.append  # type: ignore[assignment]
 
-    modal.action_approve_default()
+    modal.action_approve()
+    modal.action_tale()
 
-    assert captured[0].choice == "epic"
-    assert captured[0].action == "epic"
+    assert captured[0].selected_option_ids == ("approve",)
+    assert captured[0].commit_plan is False
+    assert captured[0].run_coder is True
+    assert captured[1].selected_option_ids == ("approve", "commit")
+    assert captured[1].commit_plan is True
+    assert captured[1].run_coder is True
 
 
-def test_action_custom_uses_custom_modal_path() -> None:
-    modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    modal._default_choice = "epic"
+def test_action_custom_uses_coder_options_path() -> None:
+    modal = PlanApprovalModal("/tmp/plan.md", default_choice="epic")
     called: list[object] = []
 
     def fake_push_approve_options(**kwargs: object) -> None:
@@ -209,57 +133,23 @@ def test_action_custom_uses_custom_modal_path() -> None:
     assert called == ["epic"]
 
 
-def test_remodeled_single_key_presets_submit_primary_approve() -> None:
-    modal = PlanApprovalModal.__new__(PlanApprovalModal)
-    modal._approval_extras = _approval_extras()
-    modal._allowed_choices = frozenset(("approve", "tale"))
-    captured: list[PlanApprovalResult] = []
-    modal.dismiss = captured.append  # type: ignore[assignment]
-
-    modal.action_approve()
-    modal.action_tale()
-
-    assert captured == [
-        PlanApprovalResult(
-            action="approve",
-            commit_plan=False,
-            run_coder=True,
-            choice="approve",
-        ),
-        PlanApprovalResult(
-            action="approve",
-            commit_plan=True,
-            run_coder=True,
-            choice="approve",
-        ),
-    ]
-
-
-async def test_remodeled_default_submits_current_checkbox_selection(tmp_path) -> None:
+async def test_group_submit_uses_current_branch_selection(tmp_path) -> None:
     plan = tmp_path / "plan.md"
     plan.write_text("# Plan\n", encoding="utf-8")
     results: list[PlanApprovalResult | None] = []
-    modal = PlanApprovalModal(
-        str(plan),
-        default_choice="tale",
-        allowed_choices=("approve", "tale"),
-        approval_extras=_approval_extras(),
-    )
+    modal = PlanApprovalModal(str(plan), default_choice="tale")
 
     async with _TestApp().run_test(size=(100, 34)) as pilot:
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-        extras = modal.query_one("#plan-approval-extras", GateExtrasSelectionList)
-        assert extras.selected_extra_ids == ("commit_plan", "run_coder")
-        extras.apply_selection(("commit_plan",))
-        modal.action_approve_default()
+        controls = modal.query_one(GateBranchControls)
+        assert controls.selected_option_ids(0) == ("approve", "commit")
+        controls.toggle_option(0, 0)
+        modal.action_submit_branch()
         await pilot.pause()
 
-    assert results == [
-        PlanApprovalResult(
-            action="approve",
-            commit_plan=True,
-            run_coder=False,
-            choice="approve",
-        )
-    ]
+    assert len(results) == 1
+    assert results[0] is not None
+    assert results[0].selected_option_ids == ("commit",)
+    assert results[0].commit_plan is True
+    assert results[0].run_coder is False

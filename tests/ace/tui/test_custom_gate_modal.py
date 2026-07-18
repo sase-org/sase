@@ -1,273 +1,179 @@
-"""Interaction coverage for the generic custom-gate modal."""
+"""Interaction coverage for the shared branch-driven gate modal."""
 
 from __future__ import annotations
 
 from textual.app import App
-from textual.widgets import Button, Input, SelectionList
+from textual.binding import Binding
+from textual.widgets import Button, Input
 
 from sase.ace.tui.modals.custom_gate_modal import (
     CustomGateModal,
     CustomGateModalData,
     CustomGateModalResult,
-    GateExtrasSelectionList,
 )
-from sase.notification_gates.models import GateChoice
+from sase.ace.tui.modals.gate_branch_controls import (
+    GateBranchControls,
+    GateBranchData,
+)
+from sase.notification_gates.models import GateGroup, GateOption
 
 
 class _TestApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
 
 
-def _choice(
-    choice_id: str,
-    label: str,
+def _option(
+    option_id: str,
     *,
+    label: str | None = None,
+    icon: str | None = None,
+    selected: bool = True,
     feedback: str = "disabled",
-    extras: list[dict[str, object]] | None = None,
-) -> GateChoice:
-    return GateChoice.from_mapping(
+) -> GateOption:
+    return GateOption.from_mapping(
         {
-            "id": choice_id,
-            "label": label,
-            "command": {"argv": [f"commands/{choice_id}"]},
+            "id": option_id,
+            "label": label or option_id.title(),
+            "icon": icon,
+            "default_selected": selected,
             "feedback": feedback,
-            "extras": extras or [],
+            "command": {"argv": [f"commands/{option_id}"]},
         },
         0,
-        default_feedback="optional",
     )
 
 
-def _data(*choices: GateChoice) -> CustomGateModalData:
+def _data(
+    *,
+    options: tuple[GateOption, ...],
+    branches: tuple[tuple[str, ...], ...],
+    groups: tuple[GateGroup, ...] = (),
+) -> CustomGateModalData:
     return CustomGateModalData(
-        request_id="guarded-work",
-        sender="safety-agent",
+        request_id="custom-ace",
+        sender="review-agent",
         icon="🛡️",
-        notes=("Review the command and select any auditable follow-ups.",),
-        attachments=("preview.md",),
-        preview_name="preview.md",
-        preview_text="# Preview\n\nThe command changes local configuration.",
-        choices=choices,
+        notes=("Review guarded work.",),
+        attachments=(),
+        preview_name=None,
+        preview_text=None,
+        gate=GateBranchData(
+            query="test query",
+            options=options,
+            groups=groups,
+            branches=branches,
+        ),
     )
 
 
-async def test_required_feedback_blocks_submit_and_keeps_default_extras() -> None:
-    choice = _choice(
-        "proceed",
-        "Proceed safely",
-        feedback="required",
-        extras=[
-            {
-                "id": "audit",
-                "label": "Write audit record",
-                "icon": "📝",
-                "default_selected": True,
-                "command": {"argv": ["commands/audit"]},
-            },
-            {
-                "id": "notify",
-                "label": "Notify the team",
-                "command": {"argv": ["commands/notify"]},
-            },
-        ],
-    )
+async def test_singleton_button_resolves_its_option() -> None:
     results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=(_option("proceed", icon="✅"), _option("cancel", icon="❌")),
+            branches=(("proceed",), ("cancel",)),
+        )
+    )
 
     async with _TestApp().run_test(size=(100, 34)) as pilot:
-        modal = CustomGateModal(_data(choice))
         pilot.app.push_screen(modal, results.append)
         await pilot.pause()
-
-        extras = modal.query_one("#custom-gate-extras-0", SelectionList)
-        assert tuple(extras.selected) == ("audit",)
-        assert modal.query_one("#custom-gate-submit", Button).disabled is True
-
-        modal.action_submit()
+        await pilot.click("#gate-singleton-0")
         await pilot.pause()
-        assert pilot.app.screen is modal
+
+    assert results == [CustomGateModalResult(("proceed",), None)]
+
+
+async def test_group_renders_defaults_toggles_and_configured_submit() -> None:
+    results: list[CustomGateModalResult | None] = []
+    group = GateGroup(
+        options=("approve", "audit"),
+        label="Approve guarded work",
+        icon="✅",
+    )
+    modal = CustomGateModal(
+        _data(
+            options=(
+                _option("approve", icon="✅"),
+                _option("audit", icon="📝", selected=False),
+                _option("reject", icon="❌"),
+            ),
+            branches=(("approve", "audit"), ("reject",)),
+            groups=(group,),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 36)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        controls = modal.query_one(GateBranchControls)
+        assert controls.selected_option_ids(0) == ("approve",)
+        assert "⬜" in str(modal.query_one("#gate-option-0-1", Button).label)
+        assert "Approve guarded work" in str(
+            modal.query_one("#gate-group-submit-0", Button).label
+        )
+
+        modal.query_one("#gate-option-0-1", Button).press()
+        await pilot.pause()
+        modal.query_one("#gate-group-submit-0", Button).press()
+        await pilot.pause()
+
+    assert results == [CustomGateModalResult(("approve", "audit"), None)]
+
+
+async def test_required_feedback_blocks_until_entered() -> None:
+    results: list[CustomGateModalResult | None] = []
+    modal = CustomGateModal(
+        _data(
+            options=(_option("revise", feedback="required", icon="💬"),),
+            branches=(("revise",),),
+        )
+    )
+
+    async with _TestApp().run_test(size=(100, 34)) as pilot:
+        pilot.app.push_screen(modal, results.append)
+        await pilot.pause()
+        modal.query_one("#gate-singleton-0", Button).press()
+        await pilot.pause()
         assert results == []
-
-        modal.query_one(
-            "#custom-gate-feedback-0", Input
-        ).value = "Approved after review"
-        await pilot.pause()
-        assert modal.query_one("#custom-gate-submit", Button).disabled is False
-
-        modal.action_submit()
+        feedback = modal.query_one("#gate-feedback-input", Input)
+        feedback.value = "Please revise the rollout."
+        modal.query_one("#gate-singleton-0", Button).press()
         await pilot.pause()
 
-    assert results == [
-        CustomGateModalResult(
-            choice_id="proceed",
-            selected_extra_ids=("audit",),
-            feedback="Approved after review",
-        )
-    ]
+    assert results == [CustomGateModalResult(("revise",), "Please revise the rollout.")]
 
 
-async def test_choice_navigation_switches_feedback_and_submit_target() -> None:
-    results: list[CustomGateModalResult | None] = []
+async def test_multiple_groups_start_collapsed_and_expand_one_at_a_time() -> None:
+    options = tuple(_option(option_id) for option_id in ("a", "b", "c", "d"))
     modal = CustomGateModal(
         _data(
-            _choice("approve", "Approve", feedback="optional"),
-            _choice("cancel", "Cancel operation"),
-        )
-    )
-
-    async with _TestApp().run_test(size=(100, 34)) as pilot:
-        pilot.app.push_screen(modal, results.append)
-        await pilot.pause()
-        modal.action_next_choice()
-        await pilot.pause()
-        assert modal._choice_index == 1
-        assert modal.query_one("#custom-gate-submit", Button).disabled is False
-        modal.action_submit()
-        await pilot.pause()
-
-    assert results == [CustomGateModalResult("cancel", (), None)]
-
-
-async def test_command_keymaps_work_from_initial_button_focus() -> None:
-    results: list[CustomGateModalResult | None] = []
-    modal = CustomGateModal(
-        _data(
-            _choice(
-                "proceed",
-                "Proceed",
-                extras=[
-                    {
-                        "id": "audit",
-                        "label": "Write audit record",
-                        "default_selected": True,
-                        "command": {"argv": ["commands/audit"]},
-                    },
-                    {
-                        "id": "notify",
-                        "label": "Notify the team",
-                        "command": {"argv": ["commands/notify"]},
-                    },
-                ],
-            )
-        )
-    )
-
-    async with _TestApp().run_test(size=(100, 34)) as pilot:
-        pilot.app.push_screen(modal, results.append)
-        await pilot.pause()
-
-        extras = modal.query_one("#custom-gate-extras-0", GateExtrasSelectionList)
-        assert pilot.app.focused is modal.query_one("#custom-gate-choice-0", Button)
-        assert extras.highlighted == 0
-
-        await pilot.press("j")
-        assert pilot.app.focused is extras
-        assert extras.highlighted == 1
-
-        await pilot.press("space")
-        assert extras.selected_extra_ids == ("audit", "notify")
-
-        await pilot.press("k")
-        assert extras.highlighted == 0
-        await pilot.press("space")
-        assert extras.selected_extra_ids == ("notify",)
-
-        await pilot.press("ctrl+s")
-
-    assert results == [CustomGateModalResult("proceed", ("notify",), None)]
-
-
-async def test_command_keymaps_only_target_active_choice() -> None:
-    results: list[CustomGateModalResult | None] = []
-    modal = CustomGateModal(
-        _data(
-            _choice(
-                "approve",
-                "Approve",
-                extras=[
-                    {
-                        "id": "audit",
-                        "label": "Write audit record",
-                        "default_selected": True,
-                        "command": {"argv": ["commands/audit"]},
-                    }
-                ],
-            ),
-            _choice("cancel", "Cancel operation"),
-            _choice(
-                "revise",
-                "Revise",
-                extras=[
-                    {
-                        "id": "notify",
-                        "label": "Notify the team",
-                        "command": {"argv": ["commands/notify"]},
-                    }
-                ],
+            options=options,
+            branches=(("a", "b"), ("c", "d")),
+            groups=(
+                GateGroup(("a", "b"), "First", "1️⃣"),
+                GateGroup(("c", "d"), "Second", "2️⃣"),
             ),
         )
     )
 
-    async with _TestApp().run_test(size=(100, 34)) as pilot:
-        pilot.app.push_screen(modal, results.append)
-        await pilot.pause()
-
-        approve_extras = modal.query_one(
-            "#custom-gate-extras-0", GateExtrasSelectionList
-        )
-        revise_extras = modal.query_one(
-            "#custom-gate-extras-2", GateExtrasSelectionList
-        )
-
-        await pilot.press("right")
-        assert modal._choice_index == 1
-        cancel_button = modal.query_one("#custom-gate-choice-1", Button)
-        assert pilot.app.focused is cancel_button
-
-        await pilot.press("j", "k", "space")
-        assert pilot.app.focused is cancel_button
-        assert approve_extras.selected_extra_ids == ("audit",)
-        assert revise_extras.selected_extra_ids == ()
-
-        await pilot.press("right", "space")
-        assert modal._choice_index == 2
-        assert pilot.app.focused is revise_extras
-        assert revise_extras.selected_extra_ids == ("notify",)
-        assert approve_extras.selected_extra_ids == ("audit",)
-
-        await pilot.press("ctrl+s")
-
-    assert results == [CustomGateModalResult("revise", ("notify",), None)]
-
-
-async def test_feedback_input_keeps_printable_command_keys() -> None:
-    modal = CustomGateModal(
-        _data(
-            _choice(
-                "approve",
-                "Approve",
-                feedback="optional",
-                extras=[
-                    {
-                        "id": "audit",
-                        "label": "Write audit record",
-                        "default_selected": True,
-                        "command": {"argv": ["commands/audit"]},
-                    }
-                ],
-            )
-        )
-    )
-
-    async with _TestApp().run_test(size=(100, 34)) as pilot:
+    async with _TestApp().run_test(size=(100, 36)) as pilot:
         pilot.app.push_screen(modal)
         await pilot.pause()
+        assert modal.query_one("#gate-group-details-0").has_class("hidden")
+        assert modal.query_one("#gate-group-details-1").has_class("hidden")
 
-        feedback = modal.query_one("#custom-gate-feedback-0", Input)
-        extras = modal.query_one("#custom-gate-extras-0", GateExtrasSelectionList)
-        feedback.focus()
-        await pilot.press("j", "k", "space")
+        await pilot.click("#gate-group-expand-1")
+        await pilot.pause()
+        assert modal.query_one("#gate-group-details-0").has_class("hidden")
+        assert not modal.query_one("#gate-group-details-1").has_class("hidden")
 
-        assert pilot.app.focused is feedback
-        assert feedback.value == "jk "
-        assert extras.highlighted == 0
-        assert extras.selected_extra_ids == ("audit",)
+
+def test_bindings_match_shared_branch_actions() -> None:
+    actions = {
+        binding.action if isinstance(binding, Binding) else binding[1]
+        for binding in CustomGateModal.BINDINGS
+    }
+    assert {"next_control", "previous_control", "toggle_option"} <= actions
+    assert {"activate_control", "submit_branch"} <= actions
+    assert "next_choice" not in actions

@@ -8,12 +8,16 @@ from types import SimpleNamespace
 from typing import Any, Literal
 
 import pytest
+from textual.app import App
 
 from sase.ace.tui.actions.agents._notification_modals import (
+    _load_neutral_plan_modal_data,
     _plan_approval_status,
+    handle_plan_approval,
     submit_neutral_plan_response,
 )
 from sase.ace.tui.modals.plan_approval_modal import (
+    PlanApprovalModal,
     _plan_approval_result_for_choice,
 )
 from sase.notification_gates import paths
@@ -72,19 +76,63 @@ class _TrackedPlanApp:
         return SimpleNamespace(task_id="plan-gate-task")
 
 
+class _PlanModalApp(App[None]):
+    ENABLE_COMMAND_PALETTE = False
+
+
+def test_plan_modal_loader_projects_tale_branch_model(gate_home: Path) -> None:
+    plan = gate_home / "tale.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-branches")
+    [notification] = load_notifications()
+
+    loaded = _load_neutral_plan_modal_data(notification)
+
+    assert loaded.default_choice == "tale"
+    assert loaded.gate.branches == (
+        ("approve", "commit"),
+        ("reject",),
+        ("feedback",),
+    )
+    assert loaded.gate.groups[0].label == "Approve"
+    assert loaded.gate.groups[0].icon == "✅"
+    assert "tier: tale" in loaded.plan_content
+
+
+async def test_plan_modal_bundle_loading_stays_off_the_message_pump(
+    gate_home: Path,
+) -> None:
+    plan = gate_home / "async-tale.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    create_plan_approval_gate(plan, "tui-async-branches")
+    [notification] = load_notifications()
+
+    async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
+        assert handle_plan_approval(pilot.app, notification) is True
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(pilot.app.screen, PlanApprovalModal):
+                break
+
+        modal = pilot.app.screen
+        assert isinstance(modal, PlanApprovalModal)
+        assert modal._plan_content is not None
+        assert modal._gate.branches[0] == ("approve", "commit")
+
+
 @pytest.mark.parametrize(
-    ("choice", "expected_choice_id", "expected_extra_ids", "selection_provided"),
+    ("choice", "commit_plan", "expected_option_ids", "expected_status"),
     [
-        ("approve", "approve", ["commit_plan", "run_coder"], True),
-        ("tale", "tale", [], False),
+        ("approve", False, ["approve"], "PLAN APPROVED"),
+        ("tale", True, ["approve", "commit"], "TALE APPROVED"),
     ],
 )
 def test_neutral_plan_submission_executes_actual_modal_choice(
     gate_home: Path,
     choice: Literal["approve", "tale"],
-    expected_choice_id: str,
-    expected_extra_ids: list[str],
-    selection_provided: bool,
+    commit_plan: bool,
+    expected_option_ids: list[str],
+    expected_status: str,
 ) -> None:
     plan = gate_home / f"{choice}.md"
     plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
@@ -92,7 +140,7 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     [notification] = load_notifications()
     result = _plan_approval_result_for_choice(
         choice,
-        commit_plan=True,
+        commit_plan=commit_plan,
         run_coder=True,
     )
     app = _TrackedPlanApp()
@@ -102,9 +150,8 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     assert submitted is True
     assert getattr(app.completion, "success", False) is True
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
-    assert response["choice_id"] == expected_choice_id
-    assert response["selected_extra_ids"] == expected_extra_ids
-    assert response["extras_selection_provided"] is selection_provided
-    assert _plan_approval_status(result) == "TALE APPROVED"
+    assert response["selected_option_ids"] == expected_option_ids
+    assert [item["id"] for item in response["option_results"]] == expected_option_ids
+    assert _plan_approval_status(result) == expected_status
     assert app.notifications == []
     assert app.refresh_count == 1

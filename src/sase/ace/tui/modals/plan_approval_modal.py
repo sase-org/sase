@@ -1,31 +1,93 @@
 """Plan approval modal for the ace TUI."""
 
 import os
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import cast
 
 from rich.syntax import Syntax
 from textual.app import ComposeResult
+from textual.binding import BindingsMap
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.notification_gates.debug import GateDebugContext
-from sase.notification_gates.models import GateExtra
+from sase.notification_gates.models import GateGroup, GateOption
 from sase.plan_approval_choices import (
     PlanApprovalModalChoice as PlanApprovalChoice,
     PlanApprovalProtocolFields,
     approval_protocol_for_choice as _approval_protocol_for_choice,
-    review_modal_choice_bindings,
 )
 from sase.plan_gate import (
-    PLAN_COMMIT_EXTRA_ID,
-    PLAN_RUN_CODER_EXTRA_ID,
-    plan_gate_preset_extra_ids,
+    PLAN_APPROVE_OPTION_ID,
+    PLAN_COMMIT_OPTION_ID,
 )
 from ..actions.clipboard import copy_to_system_clipboard
+from ..keymaps import (
+    GateModalKeymaps,
+    build_gate_modal_bindings,
+    key_display_name,
+    load_builtin_gate_defaults,
+)
 from .base import CopyModeForwardingMixin
+from .gate_branch_controls import GateBranchControls, GateBranchData
+
+
+_PLAN_GATE_STATIC_BINDINGS = [
+    ("escape", "cancel", "Cancel"),
+    ("q", "cancel", "Cancel"),
+    ("d", "debug_view", "Debug"),
+    ("c", "custom", "Custom"),
+    ("e", "edit", "Edit"),
+    ("y", "copy_plan", "Copy"),
+    ("Y", "copy_plan_path", "Copy path"),
+    ("ctrl+d", "scroll_down", "Scroll down"),
+    ("ctrl+u", "scroll_up", "Scroll up"),
+    ("g", "scroll_to_top", "Top"),
+    ("G", "scroll_to_bottom", "Bottom"),
+]
+_DEFAULT_GATE_KEYMAPS = GateModalKeymaps(**load_builtin_gate_defaults())
+
+
+def _default_plan_gate_data(default_choice: PlanApprovalChoice) -> GateBranchData:
+    """Build a display-only branch model for direct/legacy modal callers."""
+    definitions: tuple[tuple[str, str, str, str], ...] = (
+        ("approve", "Approve", "✅", "disabled"),
+        ("commit", "Commit plan file to the plans sidecar", "💾", "disabled"),
+        ("reject", "Reject", "❌", "disabled"),
+        ("feedback", "Send Feedback", "💬", "required"),
+    )
+    if default_choice == "epic":
+        definitions = tuple(item for item in definitions if item[0] != "commit")
+        query = "approve OR reject OR feedback"
+        branches: tuple[tuple[str, ...], ...] = (
+            ("approve",),
+            ("reject",),
+            ("feedback",),
+        )
+        groups: tuple[GateGroup, ...] = ()
+    else:
+        query = "(approve AND commit) OR reject OR feedback"
+        branches = (("approve", "commit"), ("reject",), ("feedback",))
+        groups = (GateGroup(options=("approve", "commit"), label="Approve", icon="✅"),)
+    options = tuple(
+        GateOption.from_mapping(
+            {
+                "id": option_id,
+                "label": label,
+                "icon": icon,
+                "command": {"argv": [f"commands/{option_id}"]},
+                "feedback": feedback,
+            },
+            index,
+        )
+        for index, (option_id, label, icon, feedback) in enumerate(definitions)
+    )
+    return GateBranchData(
+        query=query,
+        options=options,
+        groups=groups,
+        branches=branches,
+    )
 
 
 def approval_protocol_for_choice(
@@ -46,14 +108,29 @@ def _plan_approval_result_for_choice(
 ) -> "PlanApprovalResult":
     """Build a modal result for a product-level approval choice."""
     protocol = approval_protocol_for_choice(choice)
+    effective_commit = protocol.commit_plan if commit_plan is None else commit_plan
+    effective_run = protocol.run_coder if run_coder is None else run_coder
+    selected_option_ids = (
+        (PLAN_APPROVE_OPTION_ID,)
+        if choice == "epic"
+        else tuple(
+            option_id
+            for option_id, selected in (
+                (PLAN_APPROVE_OPTION_ID, effective_run),
+                (PLAN_COMMIT_OPTION_ID, effective_commit),
+            )
+            if selected
+        )
+    )
     return PlanApprovalResult(
         action=protocol.action,
         feedback=feedback,
-        commit_plan=(protocol.commit_plan if commit_plan is None else commit_plan),
-        run_coder=(protocol.run_coder if run_coder is None else run_coder),
+        commit_plan=effective_commit,
+        run_coder=effective_run,
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         choice=choice,
+        selected_option_ids=selected_option_ids,
     )
 
 
@@ -79,6 +156,7 @@ class PlanApprovalResult:
     coder_prompt: str | None = None
     coder_model: str | None = None
     choice: PlanApprovalChoice | None = None
+    selected_option_ids: tuple[str, ...] = ()
 
 
 @dataclass
@@ -98,21 +176,8 @@ class PlanApprovalModal(
     """Modal for reviewing and approving/rejecting a Claude Code plan."""
 
     BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("q", "cancel", "Cancel"),
-        ("d", "debug_view", "Debug"),
-        ("enter", "approve_default", "Default"),
-        *review_modal_choice_bindings(),
-        ("c", "custom", "Custom"),
-        ("r", "reject", "Reject"),
-        ("f", "feedback", "Feedback"),
-        ("e", "edit", "Edit"),
-        ("y", "copy_plan", "Copy"),
-        ("Y", "copy_plan_path", "Copy path"),
-        ("ctrl+d", "scroll_down", "Scroll down"),
-        ("ctrl+u", "scroll_up", "Scroll up"),
-        ("g", "scroll_to_top", "Top"),
-        ("G", "scroll_to_bottom", "Bottom"),
+        *_PLAN_GATE_STATIC_BINDINGS,
+        *build_gate_modal_bindings(_DEFAULT_GATE_KEYMAPS),
     ]
 
     def __init__(
@@ -123,9 +188,10 @@ class PlanApprovalModal(
         llm_provider: str | None = None,
         model: str | None = None,
         default_choice: PlanApprovalChoice | None = None,
-        allowed_choices: Iterable[PlanApprovalChoice] | None = None,
-        approval_extras: Iterable[GateExtra] | None = None,
+        gate: GateBranchData | None = None,
+        plan_content: str | None = None,
         debug_context: GateDebugContext | None = None,
+        gate_keymaps: GateModalKeymaps | None = None,
     ) -> None:
         """Initialize the plan approval modal.
 
@@ -145,11 +211,16 @@ class PlanApprovalModal(
         self._llm_provider = llm_provider
         self._model = model
         self._default_choice: PlanApprovalChoice = default_choice or "approve"
-        self._allowed_choices = frozenset(
-            allowed_choices or ("approve", "tale", "epic")
-        )
-        self._approval_extras = tuple(approval_extras or ())
+        self._gate = gate or _default_plan_gate_data(self._default_choice)
+        self._plan_content = plan_content
         self._debug_context = debug_context
+        self._gate_keymaps = gate_keymaps or _DEFAULT_GATE_KEYMAPS
+        self._bindings = BindingsMap(
+            [
+                *_PLAN_GATE_STATIC_BINDINGS,
+                *build_gate_modal_bindings(self._gate_keymaps),
+            ]
+        )
 
     def _build_title_markup(self) -> str:
         """Return the Rich markup string used for the modal title."""
@@ -165,31 +236,14 @@ class PlanApprovalModal(
 
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
-        default_choice = cast(
-            PlanApprovalChoice, getattr(self, "_default_choice", "approve")
-        )
-        allowed_choices = getattr(
-            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
-        )
-        remodeled = bool(getattr(self, "_approval_extras", ()))
-        default_label = "Approve" if remodeled else default_choice.title()
-        choice_hints = "  ".join(
-            hint
-            for choice, hint in (
-                ("approve", "[green]a[/green]=Approve"),
-                ("tale", "[green]t[/green]=Tale"),
-                ("epic", "[magenta]E[/magenta]=Epic"),
-            )
-            if choice in allowed_choices
-        )
-        custom_hint = (
-            "  [green]c[/green]=Custom" if {"approve", "tale"} & allowed_choices else ""
-        )
+        keys = self._gate_keymaps
         hints = (
-            f"[green]enter[/green]={default_label}  "
-            f"{choice_hints}{custom_hint}  [red]r[/red]=Reject  "
-            "[yellow]f[/yellow]=Feedback  "
-            "[blue]e[/blue]=Edit  "
+            f"[green]{key_display_name(keys.next_control)}/"
+            f"{key_display_name(keys.previous_control)}[/green]=Navigate  "
+            f"[green]{key_display_name(keys.toggle_option)}[/green]=Toggle  "
+            f"[green]{key_display_name(keys.activate_control)}[/green]=Activate  "
+            f"[green]{key_display_name(keys.submit_branch)}[/green]=Submit  "
+            "[green]c[/green]=Coder options  [blue]e[/blue]=Edit  "
             "[cyan]y[/cyan]=Copy  [cyan]Y[/cyan]=Copy path  "
             "[cyan]d[/cyan]=Debug  [dim]q[/dim]=Cancel  |  Ctrl+D/U / g / G to scroll"
         )
@@ -202,7 +256,11 @@ class PlanApprovalModal(
 
             with VerticalScroll(id="plan-approval-scroll"):
                 # Read and display plan file content
-                content = self._read_plan_file()
+                content = (
+                    self._plan_content
+                    if self._plan_content is not None
+                    else self._read_plan_file()
+                )
                 syntax = Syntax(
                     content,
                     "markdown",
@@ -211,17 +269,7 @@ class PlanApprovalModal(
                 )
                 yield Static(syntax, id="plan-approval-content")
 
-            if remodeled:
-                from .custom_gate_modal import GateExtrasSelectionList
-
-                yield Static(
-                    "[bold]Approve with optional add-on commands[/bold]",
-                    id="plan-approval-extras-label",
-                )
-                yield GateExtrasSelectionList(
-                    self._approval_extras,
-                    id="plan-approval-extras",
-                )
+            yield GateBranchControls(self._gate, id="plan-approval-branches")
 
             yield Static(hints, id="plan-approval-footer")
 
@@ -236,6 +284,8 @@ class PlanApprovalModal(
                 coder_model=state.coder_model,
                 choice=state.choice,
             )
+            return
+        self.query_one(GateBranchControls).focus_next_control()
 
     def _read_plan_file(self) -> str:
         """Read the plan file content."""
@@ -277,42 +327,49 @@ class PlanApprovalModal(
 
         show_gate_debug(self, self._debug_context)
 
+    def on_gate_branch_controls_resolved(
+        self, event: GateBranchControls.Resolved
+    ) -> None:
+        event.stop()
+        self.dismiss(
+            self._result_for_selection(
+                event.selected_option_ids,
+                feedback=event.feedback,
+            )
+        )
+
+    def action_next_control(self) -> None:
+        self.query_one(GateBranchControls).focus_next_control()
+
+    def action_previous_control(self) -> None:
+        self.query_one(GateBranchControls).focus_previous_control()
+
+    def action_toggle_option(self) -> None:
+        self.query_one(GateBranchControls).toggle_focused_option()
+
+    def action_activate_control(self) -> None:
+        self.query_one(GateBranchControls).activate_focused_control()
+
+    def action_submit_branch(self) -> None:
+        self.query_one(GateBranchControls).submit_active_branch()
+
     def action_approve(self) -> None:
-        """Apply the legacy plain-approval preset."""
+        """Backward-compatible programmatic plain-approval action."""
         if not self._choice_allowed("approve"):
             return
-        if self._has_approval_extras():
-            self.dismiss(
-                self._result_for_extra_ids(plan_gate_preset_extra_ids("approve"))
-            )
-            return
-        self.dismiss(_plan_approval_result_for_choice("approve"))
+        self.dismiss(self._result_for_selection((PLAN_APPROVE_OPTION_ID,)))
 
     def action_approve_default(self) -> None:
-        """Approve using the current extras, or the authored legacy tier."""
-        if self._has_approval_extras():
-            from .custom_gate_modal import GateExtrasSelectionList
-
-            selected = self.query_one(
-                "#plan-approval-extras", GateExtrasSelectionList
-            ).selected_extra_ids
-            self.dismiss(self._result_for_extra_ids(selected))
-            return
-        default_choice = cast(
-            PlanApprovalChoice, getattr(self, "_default_choice", "approve")
-        )
-        if not self._choice_allowed(default_choice):
-            return
-        self.dismiss(_plan_approval_result_for_choice(default_choice))
+        """Backward-compatible alias for submitting the active branch."""
+        self.action_submit_branch()
 
     def action_tale(self) -> None:
-        """Apply the legacy tale preset."""
+        """Backward-compatible programmatic tale selection."""
         if not self._choice_allowed("tale"):
             return
-        if self._has_approval_extras():
-            self.dismiss(self._result_for_extra_ids(plan_gate_preset_extra_ids("tale")))
-            return
-        self.dismiss(_plan_approval_result_for_choice("tale"))
+        self.dismiss(
+            self._result_for_selection((PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID))
+        )
 
     def _push_approve_options(
         self,
@@ -343,19 +400,24 @@ class PlanApprovalModal(
                         coder_prompt=result.coder_prompt,
                         coder_model=result.coder_model,
                         choice=result.choice,
+                        selected_option_ids=self._approval_selection(
+                            result.commit_plan,
+                            result.run_coder,
+                        ),
                     )
                 )
                 return
-            approval_result = _plan_approval_result_for_choice(
+            approval_result = self._result_for_selection(
                 (
-                    "approve"
-                    if self._has_approval_extras() and result.choice != "epic"
-                    else result.choice
+                    (PLAN_APPROVE_OPTION_ID,)
+                    if result.choice == "epic"
+                    else self._approval_selection(
+                        result.commit_plan,
+                        result.run_coder,
+                    )
                 ),
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
-                commit_plan=result.commit_plan,
-                run_coder=result.run_coder,
             )
             self.dismiss(approval_result)
 
@@ -373,10 +435,9 @@ class PlanApprovalModal(
 
     def action_custom(self) -> None:
         """Open the custom approval modal."""
-        allowed_choices = getattr(
-            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
-        )
-        if not {"approve", "tale"} & allowed_choices:
+        if not any(
+            option.id == PLAN_APPROVE_OPTION_ID for option in self._gate.options
+        ):
             self.notify(
                 "Custom approval is not available for this gate",
                 severity="warning",
@@ -409,13 +470,16 @@ class PlanApprovalModal(
         """Create an epic from the plan."""
         if not self._choice_allowed("epic"):
             return
-        self.dismiss(_plan_approval_result_for_choice("epic"))
+        self.dismiss(self._result_for_selection((PLAN_APPROVE_OPTION_ID,)))
 
     def _choice_allowed(self, choice: PlanApprovalChoice) -> bool:
-        allowed_choices = getattr(
-            self, "_allowed_choices", frozenset(("approve", "tale", "epic"))
+        option_ids = {option.id for option in self._gate.options}
+        allowed = (
+            PLAN_APPROVE_OPTION_ID in option_ids
+            if choice in {"approve", "epic"}
+            else {PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID} <= option_ids
         )
-        if choice in allowed_choices:
+        if allowed:
             return True
         self.notify(
             "Choice is not present in this approval request",
@@ -424,34 +488,81 @@ class PlanApprovalModal(
         return False
 
     def _has_approval_extras(self) -> bool:
-        return bool(getattr(self, "_approval_extras", ()))
+        return any(len(branch) > 1 for branch in self._gate.branches)
 
     def _selected_approval_flags(self) -> tuple[bool, bool]:
-        from .custom_gate_modal import GateExtrasSelectionList
-
-        selected = set(
-            self.query_one(
-                "#plan-approval-extras", GateExtrasSelectionList
-            ).selected_extra_ids
+        controls = self.query_one(GateBranchControls)
+        branch_index = next(
+            index
+            for index, branch in enumerate(self._gate.branches)
+            if PLAN_APPROVE_OPTION_ID in branch
         )
+        selected = set(controls.selected_option_ids(branch_index))
         return (
-            PLAN_COMMIT_EXTRA_ID in selected,
-            PLAN_RUN_CODER_EXTRA_ID in selected,
+            PLAN_COMMIT_OPTION_ID in selected,
+            PLAN_APPROVE_OPTION_ID in selected,
         )
 
-    def _result_for_extra_ids(
-        self, selected_extra_ids: Iterable[str] | None
+    @staticmethod
+    def _approval_selection(
+        commit_plan: bool,
+        run_coder: bool,
+    ) -> tuple[str, ...]:
+        return tuple(
+            option_id
+            for option_id, selected in (
+                (PLAN_APPROVE_OPTION_ID, run_coder),
+                (PLAN_COMMIT_OPTION_ID, commit_plan),
+            )
+            if selected
+        )
+
+    def _result_for_selection(
+        self,
+        selected_option_ids: tuple[str, ...],
+        *,
+        feedback: str | None = None,
+        coder_prompt: str | None = None,
+        coder_model: str | None = None,
     ) -> PlanApprovalResult:
-        selected = set(selected_extra_ids or ())
-        return _plan_approval_result_for_choice(
-            "approve",
-            commit_plan=PLAN_COMMIT_EXTRA_ID in selected,
-            run_coder=PLAN_RUN_CODER_EXTRA_ID in selected,
+        selected = set(selected_option_ids)
+        if selected_option_ids == ("reject",):
+            return PlanApprovalResult(
+                action="reject",
+                selected_option_ids=selected_option_ids,
+            )
+        if selected_option_ids == ("feedback",):
+            return PlanApprovalResult(
+                action="reject",
+                feedback=feedback,
+                selected_option_ids=selected_option_ids,
+            )
+        epic = self._default_choice == "epic"
+        return PlanApprovalResult(
+            action="epic" if epic else "approve",
+            commit_plan=epic or PLAN_COMMIT_OPTION_ID in selected,
+            run_coder=epic or PLAN_APPROVE_OPTION_ID in selected,
+            coder_prompt=coder_prompt,
+            coder_model=coder_model,
+            choice=(
+                "epic"
+                if epic
+                else "tale"
+                if selected == {PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID}
+                else "approve"
+                if selected == {PLAN_APPROVE_OPTION_ID}
+                else None
+            ),
+            selected_option_ids=selected_option_ids,
         )
 
     def action_copy_plan(self) -> None:
         """Copy the plan file contents to clipboard."""
-        content = self._read_plan_file()
+        content = (
+            self._plan_content
+            if self._plan_content is not None
+            else self._read_plan_file()
+        )
         if content.startswith("[Error"):
             self.notify("Failed to read plan file", severity="error")
             return
