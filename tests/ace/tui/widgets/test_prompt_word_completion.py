@@ -12,7 +12,7 @@ from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
-    _PromptWordCompletionResult,
+    WordCompletionResult,
     build_prompt_word_completion_result,
 )
 
@@ -22,7 +22,7 @@ from ._completion_helpers import CompletionTestApp
 def _result(
     text: str,
     cursor_offset: int | None = None,
-) -> _PromptWordCompletionResult:
+) -> WordCompletionResult:
     if cursor_offset is None:
         cursor_offset = len(text)
     result = build_prompt_word_completion_result(text, cursor_offset)

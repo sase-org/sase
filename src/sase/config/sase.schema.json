@@ -361,6 +361,18 @@
               "description": "Maximum automatic completion rows reserved for future popup modes",
               "minimum": 1,
               "default": 1
+            },
+            "history_word_count": {
+              "type": "integer",
+              "description": "Maximum unique recent prompt-history words retained for manual completion; 0 disables the fallback",
+              "minimum": 0,
+              "default": 1000
+            },
+            "history_word_min_length": {
+              "type": "integer",
+              "description": "Minimum character length retained for prompt-history word completion",
+              "minimum": 1,
+              "default": 5
             }
           }
         },

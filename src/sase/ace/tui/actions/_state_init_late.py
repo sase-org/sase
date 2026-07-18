@@ -115,6 +115,10 @@ def init_late_startup_state(
     self._prompt_completion_settings = parse_prompt_completion_settings(
         ace_cfg.get("prompt_completion", {}) if isinstance(ace_cfg, dict) else {}
     )
+    self._history_prompt_words_cache = None
+    self._history_prompt_words_source_token = None
+    self._history_prompt_words_rebuild_in_flight = False
+    self._history_prompt_words_rebuild_pending = False
     user_snippets: dict[str, str] = (
         ace_cfg.get("snippets", {}) if isinstance(ace_cfg, dict) else {}
     )

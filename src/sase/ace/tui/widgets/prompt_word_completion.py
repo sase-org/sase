@@ -11,8 +11,8 @@ PROMPT_WORD_COMPLETION_KIND = "prompt_word"
 
 
 @dataclass(frozen=True, slots=True)
-class _PromptWordCompletionResult:
-    """Prompt-local word completion context at one absolute cursor offset."""
+class WordCompletionResult:
+    """Word completion context at one absolute cursor offset."""
 
     prefix: str
     replacement_start: int
@@ -24,7 +24,7 @@ class _PromptWordCompletionResult:
 def build_prompt_word_completion_result(
     text: str,
     cursor_offset: int,
-) -> _PromptWordCompletionResult | None:
+) -> WordCompletionResult | None:
     """Return prompt-local word matches for the prefix left of the cursor.
 
     Words use the prompt widget's identifier-like semantics: a maximal run of
@@ -32,7 +32,7 @@ def build_prompt_word_completion_result(
     non-empty word prefix immediately to its left. The result replaces the
     complete word around that prefix, including any suffix right of the cursor.
     """
-    word_range = _word_range_at_cursor(text, cursor_offset)
+    word_range = word_range_at_cursor(text, cursor_offset)
     if word_range is None:
         return None
     replacement_start, replacement_end = word_range
@@ -41,7 +41,7 @@ def build_prompt_word_completion_result(
     prefix_folded = prefix.casefold()
 
     spellings: set[str] = set()
-    for start, end in _word_ranges(text):
+    for start, end in word_ranges(text):
         if start == replacement_start and end == replacement_end:
             continue
         word = text[start:end]
@@ -62,51 +62,51 @@ def build_prompt_word_completion_result(
         )
         for word in ordered
     ]
-    return _PromptWordCompletionResult(
+    return WordCompletionResult(
         prefix=prefix,
         replacement_start=replacement_start,
         replacement_end=replacement_end,
         candidates=candidates,
-        shared_extension=_shared_extension(ordered, prefix),
+        shared_extension=shared_word_extension(ordered, prefix),
     )
 
 
-def _word_range_at_cursor(text: str, cursor_offset: int) -> tuple[int, int] | None:
+def word_range_at_cursor(text: str, cursor_offset: int) -> tuple[int, int] | None:
     """Return the complete word containing the non-empty cursor prefix."""
     if cursor_offset <= 0 or cursor_offset > len(text):
         return None
-    if not _is_word_character(text[cursor_offset - 1]):
+    if not is_word_character(text[cursor_offset - 1]):
         return None
 
     start = cursor_offset - 1
-    while start > 0 and _is_word_character(text[start - 1]):
+    while start > 0 and is_word_character(text[start - 1]):
         start -= 1
 
     end = cursor_offset
-    while end < len(text) and _is_word_character(text[end]):
+    while end < len(text) and is_word_character(text[end]):
         end += 1
     return start, end
 
 
-def _word_ranges(text: str) -> Iterator[tuple[int, int]]:
+def word_ranges(text: str) -> Iterator[tuple[int, int]]:
     """Yield absolute ranges for all prompt words in source order."""
     start = 0
     while start < len(text):
-        if not _is_word_character(text[start]):
+        if not is_word_character(text[start]):
             start += 1
             continue
         end = start + 1
-        while end < len(text) and _is_word_character(text[end]):
+        while end < len(text) and is_word_character(text[end]):
             end += 1
         yield start, end
         start = end
 
 
-def _is_word_character(character: str) -> bool:
+def is_word_character(character: str) -> bool:
     return character == "_" or character.isalnum()
 
 
-def _shared_extension(insertions: list[str], prefix: str) -> str:
+def shared_word_extension(insertions: list[str], prefix: str) -> str:
     """Return the case-insensitive common suffix beyond *prefix*."""
     if len(insertions) <= 1:
         return ""

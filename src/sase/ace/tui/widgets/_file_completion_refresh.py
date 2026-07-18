@@ -12,16 +12,24 @@ from sase.ace.tui.widgets.directive_completion import (
     is_directive_like_token,
 )
 from sase.ace.tui.widgets.file_completion import (
+    CompletionCandidate,
     build_completion_candidates,
     is_path_like_token,
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
+from sase.ace.tui.widgets.history_word_completion import (
+    HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionPlaceholder,
+    build_history_word_completion_result,
+    build_loading_history_words_placeholder,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     build_prompt_word_completion_result,
+    word_range_at_cursor,
 )
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
@@ -50,6 +58,10 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
 
         if self._completion_kind == PROMPT_WORD_COMPLETION_KIND:
             self._refresh_prompt_word_completion()
+            return
+
+        if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
+            self._refresh_history_word_completion()
             return
 
         if self._completion_kind == PLACEHOLDER_COMPLETION_KIND:
@@ -315,6 +327,76 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
                     self._file_completion_index = index
                     break
         self._update_file_completion_panel(result.prefix)
+
+    def _refresh_history_word_completion(
+        self,
+        words: list[str] | None = None,
+    ) -> None:
+        """Refresh history words, preserving structured and local precedence."""
+        if self._structured_completion_claims_cursor():
+            self._clear_file_completion()
+            return
+
+        cursor_offset = self._absolute_offset(self.cursor_location)
+        local_result = build_prompt_word_completion_result(self.text, cursor_offset)
+        if local_result is not None:
+            self._completion_kind = PROMPT_WORD_COMPLETION_KIND
+            self._replace_completion_candidates_preserving_selection(
+                local_result.candidates
+            )
+            self._update_file_completion_panel(local_result.prefix)
+            return
+
+        if words is None:
+            words = self._history_prompt_words()
+        if words is None:
+            word_range = word_range_at_cursor(self.text, cursor_offset)
+            if word_range is None:
+                self._clear_file_completion()
+                return
+            start, _end = word_range
+            if not self._file_completion_candidates or not isinstance(
+                self._file_completion_candidates[0].metadata,
+                HistoryWordCompletionPlaceholder,
+            ):
+                self._file_completion_candidates = [
+                    build_loading_history_words_placeholder()
+                ]
+                self._file_completion_index = 0
+            self._update_file_completion_panel(self.text[start:cursor_offset])
+            return
+
+        result = build_history_word_completion_result(
+            self.text,
+            cursor_offset,
+            words,
+        )
+        if result is None:
+            self._clear_file_completion()
+            return
+        self._replace_completion_candidates_preserving_selection(result.candidates)
+        self._update_file_completion_panel(result.prefix)
+
+    def _replace_completion_candidates_preserving_selection(
+        self,
+        candidates: list[CompletionCandidate],
+    ) -> None:
+        """Replace completion rows while retaining the selected insertion."""
+        previous = None
+        if self._file_completion_candidates:
+            previous = self._file_completion_candidates[
+                self._file_completion_index
+            ].insertion
+        self._file_completion_candidates = candidates
+        self._file_completion_index = min(
+            self._file_completion_index,
+            len(candidates) - 1,
+        )
+        if previous is not None:
+            for index, candidate in enumerate(candidates):
+                if candidate.insertion == previous:
+                    self._file_completion_index = index
+                    break
 
     def _structured_completion_claims_cursor(self) -> bool:
         """Return whether an existing provider shadows prompt-word fallback."""

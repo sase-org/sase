@@ -19,6 +19,11 @@ from sase.ace.tui.widgets.file_completion import (
     build_file_history_completion_candidates,
     is_path_like_token,
 )
+from sase.ace.tui.widgets.history_word_completion import (
+    HISTORY_WORD_COMPLETION_KIND,
+    build_history_word_completion_result,
+    build_loading_history_words_placeholder,
+)
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
@@ -27,6 +32,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     build_prompt_word_completion_result,
+    word_range_at_cursor,
 )
 from sase.ace.tui.widgets.vcs_project_completion import (
     VCS_PROJECT_COMPLETION_KIND,
@@ -486,11 +492,10 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
         return True
 
     def _try_prompt_word_completion_tab(self, cursor_offset: int) -> bool:
-        """Handle the final plain-prose Ctrl+T completion fallback."""
+        """Handle prompt-local words before falling back to history."""
         result = build_prompt_word_completion_result(self.text, cursor_offset)
         if result is None:
-            self._clear_file_completion()
-            return False
+            return self._try_history_word_completion_tab(cursor_offset)
 
         self._completion_kind = PROMPT_WORD_COMPLETION_KIND
         candidates = result.candidates
@@ -512,6 +517,76 @@ class FileCompletionOpenMixin(FileCompletionRefreshMixin):
             refreshed = build_prompt_word_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+            )
+            if refreshed is None:
+                self._clear_file_completion()
+                return True
+            result = refreshed
+            candidates = refreshed.candidates
+
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._update_file_completion_panel(result.prefix)
+        return True
+
+    def _try_history_word_completion_tab(self, cursor_offset: int) -> bool:
+        """Handle the final plain-prose Ctrl+T completion fallback."""
+        settings = self._prompt_completion_settings()
+        if settings.history_word_count <= 0 or not callable(
+            getattr(self.app, "history_prompt_words", None)
+        ):
+            self._clear_file_completion()
+            return False
+
+        words = self._history_prompt_words()
+        if words is None:
+            word_range = word_range_at_cursor(self.text, cursor_offset)
+            if word_range is None:
+                self._clear_file_completion()
+                return False
+            start, _end = word_range
+            prefix = self.text[start:cursor_offset]
+            self._completion_kind = HISTORY_WORD_COMPLETION_KIND
+            self._file_completion_active = True
+            self._file_completion_candidates = [
+                build_loading_history_words_placeholder()
+            ]
+            self._file_completion_index = 0
+            self._update_file_completion_panel(prefix)
+            self._schedule_history_word_completion_load()
+            return True
+
+        result = build_history_word_completion_result(
+            self.text,
+            cursor_offset,
+            words,
+        )
+        if result is None:
+            self._clear_file_completion()
+            return False
+
+        self._completion_kind = HISTORY_WORD_COMPLETION_KIND
+        candidates = result.candidates
+        if len(candidates) == 1:
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                candidates[0].insertion,
+            )
+            self._clear_file_completion()
+            return True
+
+        if result.shared_extension:
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                f"{result.prefix}{result.shared_extension}",
+            )
+            refreshed = build_history_word_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+                words,
             )
             if refreshed is None:
                 self._clear_file_completion()

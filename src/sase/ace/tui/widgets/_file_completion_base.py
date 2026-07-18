@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.placeholder_completion import (
         PlaceholderCompletionResult,
     )
+    from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.xprompt.vcs_ref_completion import VcsRefTrigger
 
 
@@ -66,6 +67,7 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         _vcs_ref_completion_has_namespaces: bool
 
         def _find_prompt_bar(self) -> Any: ...
+        def _prompt_completion_settings(self) -> PromptCompletionSettings: ...
         def _placeholder_completion_at_cursor(
             self,
         ) -> PlaceholderCompletionResult | None: ...
@@ -90,6 +92,10 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
             token: str,
         ) -> tuple[list[CompletionCandidate], str] | None: ...
         def _refresh_xprompt_arg_hint_from_cursor(self) -> None: ...
+        def _refresh_history_word_completion(
+            self,
+            words: list[str] | None = None,
+        ) -> None: ...
         def _expand_snippet_template_at_range(
             self,
             template: str,
@@ -259,6 +265,44 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         except Exception:
             self._agent_completion_candidates = []
         return self._agent_completion_candidates
+
+    def _history_prompt_words(self) -> list[str] | None:
+        """Return the app's warm history-word list without touching disk."""
+        provider = getattr(self.app, "history_prompt_words", None)
+        if not callable(provider):
+            return None
+        try:
+            words = provider()
+        except Exception:
+            return []
+        return words if isinstance(words, list) else None
+
+    def _schedule_history_word_completion_load(self) -> None:
+        """Ask the app cache to warm for an active cold history menu."""
+        warmer = getattr(self.app, "warm_history_prompt_words", None)
+        if callable(warmer):
+            warmer()
+
+    def _apply_history_word_completion_result(self, words: list[str]) -> None:
+        """Apply a completed app-cache load to the active history menu."""
+        from sase.ace.tui.widgets.history_word_completion import (
+            HISTORY_WORD_COMPLETION_KIND,
+        )
+
+        if (
+            not self._file_completion_active
+            or self._completion_kind != HISTORY_WORD_COMPLETION_KIND
+        ):
+            return
+        self._refresh_history_word_completion(words)
+
+    def _warm_history_word_completion_cache(self) -> None:
+        """Warm prompt-history words off the mount and keystroke paths."""
+        if not callable(getattr(self.app, "get_prompt_completion_settings", None)):
+            return
+        if self._prompt_completion_settings().history_word_count <= 0:
+            return
+        self._schedule_history_word_completion_load()
 
     def _warm_vcs_project_completion_catalog(self) -> None:
         """Warm the ``#+`` project catalog off the keystroke path.

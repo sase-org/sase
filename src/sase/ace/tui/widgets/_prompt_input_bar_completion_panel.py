@@ -25,6 +25,10 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     vcs_repo_label_width,
 )
 from sase.ace.tui.widgets.file_completion import MAX_VISIBLE, CompletionCandidate
+from sase.ace.tui.widgets.history_word_completion import (
+    HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionPlaceholder,
+)
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
@@ -115,6 +119,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         is_jinja = completion_kind == "jinja"
         is_placeholder = completion_kind == PLACEHOLDER_COMPLETION_KIND
         is_prompt_word = completion_kind == PROMPT_WORD_COMPLETION_KIND
+        is_history_word = completion_kind == HISTORY_WORD_COMPLETION_KIND
         is_vcs_project = completion_kind == VCS_PROJECT_COMPLETION_KIND
         is_vcs_ref = completion_kind == VCS_REF_COMPLETION_KIND
         is_vcs_repo = completion_kind == VCS_REPO_COMPLETION_KIND
@@ -193,6 +198,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 append_placeholder_completion_row(content, candidate, is_selected)
             elif is_prompt_word:
                 append_prompt_word_completion_row(content, candidate, is_selected)
+            elif is_history_word:
+                if isinstance(
+                    candidate.metadata,
+                    HistoryWordCompletionPlaceholder,
+                ):
+                    content.append(candidate.display, style="dim italic")
+                else:
+                    append_prompt_word_completion_row(content, candidate, is_selected)
             elif candidate.is_dir:
                 content.append("\U0001f4c1 ")
                 content.append(
@@ -238,6 +251,8 @@ class PromptInputBarCompletionMixin(_MixinBase):
             panel.border_title = "placeholder"
         elif is_prompt_word:
             panel.border_title = "prompt words"
+        elif is_history_word:
+            panel.border_title = "history words"
         elif is_history:
             panel.border_title = "recent files"
         elif "/" in token:

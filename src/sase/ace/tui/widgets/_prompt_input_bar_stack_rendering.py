@@ -200,6 +200,7 @@ class PromptInputBarStackRenderingMixin(_MixinBase):
         self._cursor_to_end(text_area)
         text_area._warm_current_xprompt_assist_entries()
         text_area._warm_vcs_project_completion_catalog()
+        text_area._warm_history_word_completion_cache()
         text_area._on_prompt_completion_context_changed()
         self._apply_active_classes()
         self._refresh_title()

@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING
 
 from sase.ace.tui.widgets._file_completion_base import FileCompletionBaseMixin
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.history_word_completion import (
+    HISTORY_WORD_COMPLETION_KIND,
+    HistoryWordCompletionPlaceholder,
+    build_history_word_completion_result,
+)
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
@@ -13,6 +18,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     build_prompt_word_completion_result,
+    word_range_at_cursor,
 )
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
@@ -196,6 +202,29 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             )
             self._update_file_completion_panel("" if result is None else result.prefix)
             return True
+        if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
+            words = self._history_prompt_words()
+            result = (
+                None
+                if words is None
+                else build_history_word_completion_result(
+                    self.text,
+                    self._absolute_offset(self.cursor_location),
+                    words,
+                )
+            )
+            if result is not None:
+                prefix = result.prefix
+            else:
+                cursor_offset = self._absolute_offset(self.cursor_location)
+                word_range = word_range_at_cursor(self.text, cursor_offset)
+                prefix = (
+                    ""
+                    if word_range is None
+                    else self.text[word_range[0] : cursor_offset]
+                )
+            self._update_file_completion_panel(prefix)
+            return True
         if self._completion_kind == VCS_PROJECT_COMPLETION_KIND:
             project_trigger = self._get_vcs_project_trigger()
             self._update_file_completion_panel(
@@ -266,6 +295,29 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
             result = build_prompt_word_completion_result(
                 self.text,
                 self._absolute_offset(self.cursor_location),
+            )
+            if result is None:
+                self._clear_file_completion()
+                return False
+            self._replace_absolute_range(
+                result.replacement_start,
+                result.replacement_end,
+                selected.insertion,
+            )
+            self._clear_file_completion()
+            return True
+        if self._completion_kind == HISTORY_WORD_COMPLETION_KIND:
+            if isinstance(selected.metadata, HistoryWordCompletionPlaceholder):
+                self._clear_file_completion()
+                return False
+            words = self._history_prompt_words()
+            if words is None:
+                self._clear_file_completion()
+                return False
+            result = build_history_word_completion_result(
+                self.text,
+                self._absolute_offset(self.cursor_location),
+                words,
             )
             if result is None:
                 self._clear_file_completion()
