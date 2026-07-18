@@ -10,6 +10,11 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.agent_tags import load_agent_tags, save_agent_tags
+from sase.agent.clan_membership import (
+    CLAN_MEMBERSHIP_ENV,
+    ClanMembershipPlan,
+    encode_clan_membership_plan,
+)
 from sase.ace.tui.models.agent import AgentType
 from sase.axe.run_agent_phases import AgentInfo, extract_directives_and_write_meta
 from sase.bead.work import (
@@ -119,6 +124,9 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
                 "plan_committed": True,
                 "epic_bead_id": "sase-7",
                 "phase_bead_id": "sase-7.2",
+                "agent_clan": "sase-7",
+                "agent_clan_generation": "20260718090000",
+                "clan_tribe": "epic",
             }
         ),
         encoding="utf-8",
@@ -144,6 +152,9 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
     assert info.meta["plan_committed"] is True
     assert info.meta["epic_bead_id"] == "sase-7"
     assert info.meta["phase_bead_id"] == "sase-7.2"
+    assert info.meta["agent_clan"] == "sase-7"
+    assert info.meta["agent_clan_generation"] == "20260718090000"
+    assert info.meta["clan_tribe"] == "epic"
 
 
 def test_extract_directives_persists_tag_with_atomic_helper(
@@ -244,6 +255,28 @@ def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> Non
         existing: "foo",
         identity: "bar",
     }
+
+
+def test_clan_tribe_uses_metadata_without_agent_tag_store(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    existing = (AgentType.RUNNING, "seed", "ts1")
+    plan = ClanMembershipPlan(clan_name="research", generation="g1")
+    monkeypatch.setenv(CLAN_MEMBERSHIP_ENV, encode_clan_membership_plan(plan))
+
+    info, meta, tags = _extract_with_agent_tags(
+        tmp_path,
+        "%name:research.worker\n%clan(research, tribe=research)\nDo work",
+        seed_tags={existing: "legacy"},
+    )
+
+    assert info.tag is None
+    assert meta["agent_clan"] == "research"
+    assert meta["agent_clan_generation"] == "g1"
+    assert meta["clan_tribe"] == "research"
+    assert "tag" not in meta
+    assert tags == {existing: "legacy"}
 
 
 def test_named_agent_does_not_inherit_existing_tribe(tmp_path: Path) -> None:

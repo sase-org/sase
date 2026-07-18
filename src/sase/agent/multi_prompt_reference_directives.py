@@ -9,6 +9,7 @@ class StaticClanDirective:
     """Top-level clan declaration visible before xprompt expansion."""
 
     name: str
+    tribe: str | None = None
 
 
 def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
@@ -17,9 +18,11 @@ def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
         return None
 
     from sase.xprompt._directive_collect import collect_prompt_directive_matches
-    from sase.xprompt._directive_values import resolve_clan_membership
+    from sase.xprompt._directive_values import (
+        resolve_clan_membership,
+        resolve_clan_tribe,
+    )
     from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._exceptions import DirectiveError
     from sase.xprompt._fenced_blocks import protect_fenced_blocks
 
     fenced: list[str] = []
@@ -29,14 +32,14 @@ def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
     collected = collect_prompt_directive_matches(protected)
     if "clan" not in collected.seen:
         return None
-    if collected.name_family_args is not None:
-        raise DirectiveError(
-            "Cannot combine %clan with %n(parent, suffix); choose clan "
-            "membership or serial family attachment."
-        )
     clan = resolve_clan_membership(collected.seen)
     assert clan is not None
-    return StaticClanDirective(name=clan)
+    clan_tribe = resolve_clan_tribe(
+        collected.clan_tribe_arg,
+        present=collected.clan_tribe_present,
+        process_references=lambda value: value,
+    )
+    return StaticClanDirective(name=clan, tribe=clan_tribe)
 
 
 def extract_static_name_directive(prompt: str) -> str | None:

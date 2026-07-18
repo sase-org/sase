@@ -268,6 +268,28 @@ def test_family_attach_child_inherits_parent_clan_metadata(
     assert child_meta["agent_clan"] == "research"
     assert child_meta["agent_clan_generation"] == "20260701010000"
 
+    conflict_dir = tmp_path / "conflict-child"
+    conflict_dir.mkdir()
+    conflict_prompt = "%n(research.worker, reviewer)\n%tribe:solo\nReview"
+    with (
+        patch("sase.agent.names.ensure_historical_auto_name_migration"),
+        patch(
+            "sase.xprompt.process_xprompt_references",
+            side_effect=lambda prompt, **_: prompt,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="tribe membership belongs to the inherited clan",
+        ),
+    ):
+        extract_directives_and_write_meta(
+            conflict_prompt,
+            workspace_dir="/tmp/workspace",
+            artifacts_dir=str(conflict_dir),
+            cl_name="feature",
+            raw_resolved_prompt=conflict_prompt,
+        )
+
 
 def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> None:
     events: list[str] = []

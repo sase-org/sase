@@ -31,7 +31,7 @@ def _preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
             preserved[key] = value
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
-    for key in ("agent_clan", "agent_clan_generation"):
+    for key in ("agent_clan", "agent_clan_generation", "clan_tribe"):
         value = existing_meta.get(key)
         if isinstance(value, str) and value:
             preserved[key] = value
@@ -175,6 +175,17 @@ def extract_directives_and_write_meta(
         clan_membership_plan = resolve_existing_clan_membership(directives.clan)
     elif clan_membership_plan is not None and directives.clan is None:
         raise ClanMembershipError("Clan membership payload requires a %clan directive")
+    if (
+        directives.tag is not None
+        and family_attach_plan is not None
+        and family_attach_plan.parent_agent_clan
+    ):
+        raise ClanMembershipError(
+            "Cannot use %tribe on a family attachment that inherits clan "
+            "membership; tribe membership belongs to the inherited clan and "
+            "must be supplied by a clan member's "
+            "%clan(<clan>, tribe=<tribe>) declaration."
+        )
     from sase.llm_provider.launch_alias_overrides import (
         active_launch_alias_overrides,
         export_launch_alias_overrides,
@@ -438,6 +449,8 @@ def extract_directives_and_write_meta(
                 )
             agent_meta[AGENT_CLAN_FIELD] = clan_membership_plan.clan_name
             agent_meta[AGENT_CLAN_GENERATION_FIELD] = clan_membership_plan.generation
+            if directives.clan_tribe:
+                agent_meta["clan_tribe"] = directives.clan_tribe
 
         if agent_name:
             from sase.agent.names import claim_agent_name

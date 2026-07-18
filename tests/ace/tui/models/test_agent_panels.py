@@ -259,3 +259,32 @@ def test_clan_subtree_uses_outer_root_panel_in_split_and_merged_modes() -> None:
 
     assert panel_key_per_agent(agents, merge_tag_panels=True) == [None] * len(agents)
     assert agents_for_panel(agents, None, merge_tag_panels=True) == agents
+
+
+def test_new_clan_tribe_keeps_entire_subtree_in_one_panel() -> None:
+    phase = _agent(suffix="20260718080001", tag="legacy", name="research.phase")
+    phase.agent_clan = "research"
+    phase.agent_clan_generation = "20260718080000"
+    phase.clan_tribe = "alpha"
+    step = _agent(
+        suffix="20260718080002",
+        tag="other-legacy",
+        name="research.phase.step",
+        parent_timestamp="20260718080001",
+        parent_workflow="phase",
+    )
+    peer = _agent(
+        suffix="20260718080003",
+        tag="ignored-legacy",
+        name="research.peer",
+    )
+    peer.agent_clan = "research"
+    peer.agent_clan_generation = phase.agent_clan_generation
+    peer.clan_tribe = "quality"
+
+    clan = project_clan_tree([phase, step, peer])
+
+    assert clan[0].tag == "quality"
+    assert effective_tag_per_agent(clan) == ["quality"] * len(clan)
+    assert AgentPanelGroup.from_agents(clan).panel_keys == ["quality"]
+    assert agents_for_panel(clan, "quality") == clan

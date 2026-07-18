@@ -15,7 +15,11 @@ from ._directive_types import (
 )
 from ._disabled_regions import protect_disabled_regions, unprotect_disabled_regions
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
-from ._parsing import find_matching_brace_for_args, find_matching_paren_for_args
+from ._parsing import (
+    find_matching_brace_for_args,
+    find_matching_paren_for_args,
+    parse_args,
+)
 
 AutoMode = Literal["plan", "tale", "epic"]
 
@@ -45,11 +49,91 @@ def set_prompt_name(prompt: str, name: str) -> str:
 
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:
     """Return *prompt* with ``%tribe`` set or removed."""
+    if _prompt_has_effective_clan(prompt):
+        rewritten = set_prompt_clan_tribe(prompt, tribe)
+        return _set_prompt_directive(rewritten, {"g", "group", "tribe"}, None)
     replacement = f"%tribe:{tribe}" if tribe else None
     # Editing an existing agent also migrates launch prompts written before
     # tribes replaced groups. These spellings remain unsupported by the
     # runtime parser; recognizing them here is cleanup, not a legacy alias.
     return _set_prompt_directive(prompt, {"g", "group", "tribe"}, replacement)
+
+
+def set_prompt_clan_tribe(prompt: str, tribe: str | None) -> str:
+    """Add, replace, or remove ``tribe=`` on the prompt's clan directive."""
+    protected, restore = _protect_ignored_regions(prompt)
+    alt_inner_regions = _alt_inner_regions(protected)
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        if _inside_regions(match.start(), alt_inner_regions):
+            continue
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "clan":
+            continue
+
+        end = match.end()
+        parenthesized = match.group(2) is not None
+        if parenthesized:
+            paren_end = find_matching_paren_for_args(protected, match.end() - 1)
+            if paren_end is None:
+                raise ValueError(
+                    "Cannot update clan tribe: malformed %clan(...) directive."
+                )
+            positional, named = parse_args(
+                protected[match.end() : paren_end],
+                reject_duplicate_named_args=True,
+            )
+            if len(positional) != 1 or not positional[0]:
+                raise ValueError(
+                    "Cannot update clan tribe: %clan requires exactly one clan name."
+                )
+            if any(key != "tribe" for key in named):
+                raise ValueError(
+                    "Cannot update clan tribe: only tribe= is supported on %clan."
+                )
+            clan_name = positional[0]
+            end = paren_end + 1
+        else:
+            colon_arg = match.group(3)
+            if colon_arg is None:
+                raise ValueError(
+                    "Cannot update clan tribe: %clan requires a clan name."
+                )
+            clan_name = (
+                colon_arg[1:-1]
+                if colon_arg.startswith("`") and colon_arg.endswith("`")
+                else colon_arg
+            )
+            if not clan_name:
+                raise ValueError(
+                    "Cannot update clan tribe: %clan requires a clan name."
+                )
+
+        if tribe:
+            replacement = f"%clan({clan_name}, tribe={tribe})"
+        elif parenthesized:
+            replacement = f"%clan({clan_name})"
+        else:
+            replacement = f"%clan:{clan_name}"
+        rewritten = protected[: match.start()] + replacement + protected[end:]
+        return restore(rewritten)
+
+    raise ValueError(
+        "Cannot update a clan tribe from this prompt; tribe membership belongs "
+        "to the inherited clan and must be supplied by a clan member's "
+        "%clan(<clan>, tribe=<tribe>) declaration."
+    )
+
+
+def _prompt_has_effective_clan(prompt: str) -> bool:
+    protected, _restore = _protect_ignored_regions(prompt)
+    alt_inner_regions = _alt_inner_regions(protected)
+    for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
+        if _inside_regions(match.start(), alt_inner_regions):
+            continue
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name == "clan":
+            return True
+    return False
 
 
 def set_prompt_auto_mode(prompt: str, mode: AutoMode | None) -> str:

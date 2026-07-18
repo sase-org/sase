@@ -272,6 +272,7 @@ class AgentState:
     # identify a real agent row.
     agent_clan: str | None = None
     agent_clan_generation: str | None = None
+    clan_tribe: str | None = None
     # Agents-tab-only tree projection. Clan containers are synthetic rows;
     # ``tree_parent_key`` and ``tree_depth`` place their loaded members below
     # them without overloading artifact ``parent_timestamp`` relationships.

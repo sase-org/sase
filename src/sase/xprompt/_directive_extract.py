@@ -6,7 +6,6 @@ import re
 from collections.abc import Callable
 
 from ._directive_collect import collect_prompt_directive_matches
-from ._exceptions import DirectiveError
 from ._directive_types import PromptDirectives
 from ._directive_values import (
     expand_multi_directive_args,
@@ -14,6 +13,7 @@ from ._directive_values import (
     normalize_model_directive,
     parse_repeat_count,
     parse_tribe_tag,
+    resolve_clan_tribe,
     resolve_clan_membership,
     resolve_auto_argument,
     resolve_auto_mode,
@@ -55,12 +55,6 @@ def extract_prompt_directives(
         if strip_disabled_markers:
             prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
-
-    if "clan" in collected.seen and collected.name_family_args is not None:
-        raise DirectiveError(
-            "Cannot combine %clan with %n(parent, suffix); choose clan "
-            "membership or serial family attachment."
-        )
 
     name_explicit = collected.name_family_args is None and bool(
         collected.seen.get("name")
@@ -109,6 +103,11 @@ def extract_prompt_directives(
     repeat_count = parse_repeat_count(expanded_args)
     parsed_tag = parse_tribe_tag(expanded_args)
     clan = resolve_clan_membership(expanded_args)
+    clan_tribe = resolve_clan_tribe(
+        collected.clan_tribe_arg,
+        present=collected.clan_tribe_present,
+        process_references=process_references,
+    )
     reasoning_effort = resolve_reasoning_effort(
         effort_directive=expanded_args.get("effort"),
         effort_present="effort" in expanded_args,
@@ -133,6 +132,7 @@ def extract_prompt_directives(
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
         clan=clan,
+        clan_tribe=clan_tribe,
         family_attach_parent=(
             collected.name_family_args[0]
             if collected.name_family_args is not None

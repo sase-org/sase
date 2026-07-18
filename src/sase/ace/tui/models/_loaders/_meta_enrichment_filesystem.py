@@ -143,6 +143,9 @@ def enrich_agent_from_meta(
         raw_generation = data.get("agent_clan_generation")
         if isinstance(raw_generation, str) and raw_generation:
             agent.agent_clan_generation = raw_generation
+        raw_clan_tribe = data.get("clan_tribe")
+        if isinstance(raw_clan_tribe, str) and raw_clan_tribe:
+            agent.clan_tribe = raw_clan_tribe
     if not workflow_child and data.get("plan_chain_root"):
         agent.plan_chain_root = True
     if workflow_child:

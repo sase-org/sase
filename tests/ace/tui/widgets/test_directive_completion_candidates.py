@@ -120,8 +120,25 @@ def test_directive_completion_includes_clan_and_alias() -> None:
     assert clan.insertion == "%clan"
     assert alias.insertion == "%clan"
     assert directive_metadata(clan).aliases == ("c",)
-    assert directive_metadata(clan).argument_hint == ":name"
+    assert directive_metadata(clan).argument_hint == ":name or (name, tribe=tribe)"
     assert directive_metadata(clan).description == "join a named parallel agent clan"
+
+
+def test_clan_parenthesized_completion_advertises_tribe_keyword() -> None:
+    context = extract_directive_arg_token_around_cursor(
+        "%clan(research, tr)",
+        len("%clan(research, tr"),
+    )
+    assert context is not None
+    _, _, directive_name, partial = context
+
+    candidates, shared = build_directive_arg_completion_candidates(
+        directive_name,
+        partial,
+    )
+
+    assert shared == ""
+    assert [candidate.insertion for candidate in candidates] == ["tribe="]
 
 
 def test_all_directive_completion_candidates_have_descriptions() -> None:

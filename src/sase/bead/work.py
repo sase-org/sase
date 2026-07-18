@@ -248,8 +248,8 @@ def render_multi_prompt(
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
-    Each phase becomes a segment with ``%name``, ``%clan:<epic_id>``, the
-    ``@epic`` tribe, optional ``%w``, and a
+    Each phase becomes a segment with ``%name``,
+    ``%clan(<epic_id>, tribe=epic)``, optional ``%w``, and a
     ``#<work_phase_xprompt.name>:<bead_id>`` reference. The final land segment
     joins the same clan and tribe, invokes
     ``#<land_epic_xprompt.name>:<epic_id>``, and waits on every launched phase
@@ -283,8 +283,7 @@ def render_multi_prompt(
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
             lines.append(f"%name:!{assignment.agent_name}")
-            lines.append(f"%clan:{plan.epic_id}")
-            lines.append("%tribe:epic")
+            lines.append(f"%clan({plan.epic_id}, tribe=epic)")
             if assignment.model:
                 model_value = format_model_directive_value(assignment.model)
                 lines.append(f"%model:{model_value}")
@@ -299,8 +298,7 @@ def render_multi_prompt(
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
     land_lines.append(f"%name:!{plan.land_agent_name}")
-    land_lines.append(f"%clan:{plan.epic_id}")
-    land_lines.append("%tribe:epic")
+    land_lines.append(f"%clan({plan.epic_id}, tribe=epic)")
     land_model = epic_land_model_directive_value(
         plan.land_model,
         total_phase_count=plan.total_phase_count,

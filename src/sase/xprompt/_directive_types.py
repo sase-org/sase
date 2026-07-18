@@ -94,6 +94,7 @@ class PromptDirectives:
         name: Agent name assigned via %name directive, or None.
         clan: Clan name or name template requested via ``%clan``/``%c``, or
             None when no clan membership was declared.
+        clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
@@ -119,6 +120,7 @@ class PromptDirectives:
     name_explicit: bool = False
     name_force_reuse: bool = False
     clan: str | None = None
+    clan_tribe: str | None = None
     family_attach_parent: str | None = None
     family_attach_suffix: str | None = None
     name_template: str | None = None

@@ -10,6 +10,7 @@ from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
 from sase.xprompt._exceptions import DirectiveError
+from sase.xprompt.models import XPrompt
 
 
 def _launch_with_captured_spawns(
@@ -147,6 +148,56 @@ def test_clan_member_fanout_variants_share_generation(
     ]
     assert payloads[0] == payloads[1]
     assert payloads[0]["clan_name"] == "root"
+
+
+def test_same_clan_segments_with_different_tribes_share_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    calls = _launch_with_captured_spawns(
+        [
+            "%name:root.one\n%clan(root, tribe=alpha)\nOne",
+            "%name:root.two\n%clan(root, tribe=beta)\nTwo",
+        ]
+    )
+
+    payloads = [
+        json.loads(str(call["extra_env"][CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for call in calls
+    ]
+    assert payloads[0] == payloads[1]
+    assert payloads[0]["clan_name"] == "root"
+
+
+def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    spawn = patch("sase.agent.launcher.spawn_agent_subprocess")
+    with (
+        spawn as mock_spawn,
+        pytest.raises(
+            DirectiveError,
+            match="Cannot combine %tribe with %clan",
+        ),
+    ):
+        launch_multi_prompt_agents(
+            segments=["%name:root.one\n%tribe:research\n#_join"],
+            local_xprompts={
+                "_join": XPrompt(
+                    name="_join",
+                    content="%clan(root, tribe=research)\nWork",
+                )
+            },
+            cl_name="feature",
+            project_file="/tmp/sase.sase",
+            project_name="sase",
+            is_home_mode=True,
+            vcs_ref=None,
+        )
+    mock_spawn.assert_not_called()
 
 
 @pytest.mark.parametrize(

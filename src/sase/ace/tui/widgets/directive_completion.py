@@ -49,7 +49,7 @@ class DirectiveArgCompletionMetadata:
 _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "alt": "(variants)",
     "auto": ":argument (e.g. plan|tale|epic)",
-    "clan": ":name",
+    "clan": ":name or (name, tribe=tribe)",
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
@@ -102,6 +102,10 @@ _DIRECTIVE_ARGUMENT_DESCRIPTIONS: dict[str, dict[str, str]] = {
 _WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
     ("runners=", "start when at most this many agents are already running"),
     ("time=", "start after a duration or absolute wall-clock time"),
+)
+
+_CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("tribe=", "assign one tribe to the entire clan"),
 )
 
 
@@ -174,6 +178,8 @@ def extract_directive_arg_token_around_cursor(
         return None
 
     if marker == "(":
+        if directive_name == "clan":
+            return _extract_clan_paren_arg_token(line, col, name_end)
         if directive_name == "wait":
             return _extract_wait_paren_arg_token(line, col, name_end)
         if directive_name == "model":
@@ -256,6 +262,12 @@ def build_directive_arg_completion_candidates(
     """Build fixed-value candidates for a directive argument token."""
     if directive_name == "model_alias_key":
         return _build_model_alias_key_completion_candidates(partial)
+    if directive_name == "clan_keyword":
+        return _build_keyword_completion_candidates(
+            partial,
+            directive_name="clan",
+            keywords=_CLAN_KEYWORD_ARGUMENTS,
+        )
     if directive_name == "model_or_alias_key":
         models, _ = _build_model_arg_completion_candidates(partial)
         aliases, _ = _build_model_alias_key_completion_candidates(partial)
@@ -373,6 +385,30 @@ def _build_wait_arg_completion_candidates(
         if len(shared_prefix) > len(partial):
             shared_extension = shared_prefix[len(partial) :]
     return candidates, shared_extension
+
+
+def _build_keyword_completion_candidates(
+    partial: str,
+    *,
+    directive_name: str,
+    keywords: tuple[tuple[str, str], ...],
+) -> tuple[list[CompletionCandidate], str]:
+    partial_lower = partial.lower()
+    candidates = [
+        CompletionCandidate(
+            display=value,
+            insertion=value,
+            is_dir=False,
+            name=value[:-1],
+            metadata=DirectiveArgCompletionMetadata(
+                directive_name=directive_name,
+                description=description,
+            ),
+        )
+        for value, description in keywords
+        if value.lower().startswith(partial_lower)
+    ]
+    return candidates, ""
 
 
 def _build_model_arg_completion_candidates(
@@ -514,6 +550,39 @@ def _extract_wait_paren_arg_token(
         fragment_end += 1
 
     return fragment_start, fragment_end, "wait", line[fragment_start:fragment_end]
+
+
+def _extract_clan_paren_arg_token(
+    line: str,
+    col: int,
+    open_index: int,
+) -> tuple[int, int, str, str] | None:
+    value_start = open_index + 1
+    prefix = line[value_start:col]
+    if ")" in prefix:
+        return None
+    comma_index = line.rfind(",", value_start, col)
+    if comma_index < value_start:
+        return None
+    fragment_start = comma_index + 1
+    while fragment_start < col and line[fragment_start].isspace():
+        fragment_start += 1
+    fragment = line[fragment_start:col]
+    if "=" in fragment or any(
+        not _is_directive_argument_identifier(char) for char in fragment
+    ):
+        return None
+    fragment_end = col
+    while fragment_end < len(line) and _is_directive_argument_identifier(
+        line[fragment_end]
+    ):
+        fragment_end += 1
+    return (
+        fragment_start,
+        fragment_end,
+        "clan_keyword",
+        line[fragment_start:fragment_end],
+    )
 
 
 def _extract_model_paren_arg_token(

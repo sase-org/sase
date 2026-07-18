@@ -180,7 +180,40 @@ def _container_for_clan(clan_name: str, rows: list[Agent]) -> Agent:
         row.agent_clan_generation for row in rows if row.agent_clan_generation
     ]
     generation = generations[0] if generations else None
-    tags = tuple(sorted({row.tag for row in rows if row.tag}, key=str.lower))
+    explicit_clan_tribe = any(row.clan_tribe for row in rows)
+    resolved_clan_tribe: str | None = None
+    tags: tuple[str, ...]
+    if explicit_clan_tribe:
+        from sase.core.agent_clan_tribe import (
+            ClanTribeMemberWire,
+            resolve_clan_tribe,
+        )
+
+        resolution = resolve_clan_tribe(
+            clan_name,
+            generation,
+            [
+                ClanTribeMemberWire(
+                    agent_clan=row.agent_clan or clan_name,
+                    agent_clan_generation=row.agent_clan_generation,
+                    clan_tribe=row.clan_tribe,
+                    launch_timestamp=row.raw_suffix or "",
+                    identity=(
+                        f"{row.agent_type.value}:{row.cl_name}:"
+                        f"{row.raw_suffix or ''}:{row.agent_name or ''}"
+                    ),
+                )
+                for row in rows
+            ],
+        )
+        resolved_clan_tribe = resolution.tribe
+
+    # A new-style declaration is authoritative. Only generations with no
+    # declaration use legacy per-member tag aggregation.
+    if explicit_clan_tribe:
+        tags = (resolved_clan_tribe,) if resolved_clan_tribe else ()
+    else:
+        tags = tuple(sorted({row.tag for row in rows if row.tag}, key=str.lower))
     starts = [row.start_time for row in runtime_members if row.start_time is not None]
     run_starts = [
         row.run_start_time for row in runtime_members if row.run_start_time is not None
@@ -201,6 +234,7 @@ def _container_for_clan(clan_name: str, rows: list[Agent]) -> Agent:
         raw_suffix=None,
         agent_clan=clan_name,
         agent_clan_generation=generation,
+        clan_tribe=resolved_clan_tribe,
         is_clan_container=True,
         clan_tags=tags,
         tag=tags[0] if len(tags) == 1 else None,

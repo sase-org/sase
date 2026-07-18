@@ -96,6 +96,10 @@ def enrich_agent_from_meta_wire(
         agent.agent_family_role = meta.agent_family_role
     if meta.agent_clan:
         agent.agent_clan = meta.agent_clan
+    if meta.agent_clan_generation:
+        agent.agent_clan_generation = meta.agent_clan_generation
+    if meta.clan_tribe:
+        agent.clan_tribe = meta.clan_tribe
     agent.agent_family_parallel = meta.agent_family_parallel
     if meta.plan_chain_root:
         agent.plan_chain_root = True

@@ -86,6 +86,50 @@ def test_running_record_carries_commit_diff_path_through_scan_and_index(
     assert indexed_rec.agent_meta.commit_diff_path == "/tmp/running_commit.diff"
 
 
+def test_running_record_carries_clan_tribe_through_scan_and_index(
+    fixture_root: Path,
+    tmp_path: Path,
+) -> None:
+    meta_path = (
+        fixture_root
+        / "myproj"
+        / "artifacts"
+        / "ace-run"
+        / TS_ACE_RUN_RUNNING
+        / "agent_meta.json"
+    )
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    data["agent_clan"] = "research"
+    data["agent_clan_generation"] = "20260718090000"
+    data["clan_tribe"] = "research"
+    meta_path.write_text(json.dumps(data), encoding="utf-8")
+
+    snapshot = scan_agent_artifacts(fixture_root)
+    rec = record_by_timestamp(snapshot, TS_ACE_RUN_RUNNING)
+    assert rec.agent_meta is not None
+    assert rec.agent_meta.agent_clan_generation == "20260718090000"
+    assert rec.agent_meta.clan_tribe == "research"
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    rebuild_agent_artifact_index(index_path, fixture_root)
+    indexed = query_agent_artifact_index(
+        index_path,
+        fixture_root,
+        AgentArtifactIndexQueryWire(
+            include_active=True,
+            include_recent_completed=False,
+            include_full_history=False,
+            active_limit=None,
+            recent_completed_limit=None,
+            include_hidden=True,
+        ),
+    )
+    indexed_rec = record_by_timestamp(indexed, TS_ACE_RUN_RUNNING)
+    assert indexed_rec.agent_meta is not None
+    assert indexed_rec.agent_meta.agent_clan_generation == "20260718090000"
+    assert indexed_rec.agent_meta.clan_tribe == "research"
+
+
 def test_running_record_carries_output_variables_through_scan_and_index(
     fixture_root: Path,
     tmp_path: Path,

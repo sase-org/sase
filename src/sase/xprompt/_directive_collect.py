@@ -32,6 +32,8 @@ class _CollectedDirectives:
     wait_time_args: list[str] = field(default_factory=list)
     wait_runners_args: list[str] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
+    clan_tribe_arg: str | None = None
+    clan_tribe_present: bool = False
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
@@ -56,10 +58,6 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         raw_args: list[str] = []
 
         if has_open_paren:
-            if name == "clan":
-                raise DirectiveError(
-                    "%clan uses the colon form only (e.g., %clan:research)"
-                )
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(prompt, paren_start)
             if paren_end is not None:
@@ -67,10 +65,16 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 try:
                     positional_args, named_args = parse_args(
                         paren_content,
-                        reject_duplicate_named_args=name in {"model", "wait"},
+                        reject_duplicate_named_args=name in {"clan", "model", "wait"},
                     )
                 except ValueError as exc:
                     raise DirectiveError(str(exc)) from exc
+                if name == "clan":
+                    raw_args = _collect_clan_paren_args(
+                        collected,
+                        positional_args,
+                        named_args,
+                    )
                 if name == "name":
                     (
                         raw_args,
@@ -103,7 +107,9 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_runners_args.append(named_args["runners"])
                 if name == "model":
                     collected.model_alias_overrides = dict(named_args)
-                if is_multi:
+                if name == "clan":
+                    pass
+                elif is_multi:
                     raw_args = list(positional_args)
                 elif (
                     name == "model" and len([arg for arg in positional_args if arg]) > 1
@@ -117,6 +123,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     raw_args = [positional_args[0] if positional_args else ""]
                 match_end = paren_end + 1
             else:
+                if name == "clan":
+                    raise DirectiveError(
+                        "Malformed %clan(...) directive: missing closing ')'."
+                    )
                 raw_args = [""]
         elif colon_arg is not None:
             if colon_arg.startswith("`") and colon_arg.endswith("`"):
@@ -134,7 +144,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         elif plus_suffix is not None:
             if name == "clan":
                 raise DirectiveError(
-                    "%clan uses the colon form only (e.g., %clan:research)"
+                    "%clan does not support '+'; use %clan:<name> or "
+                    "%clan(<name>, tribe=<tribe>)."
                 )
             raw_args = ["true"]
         else:
@@ -146,7 +157,42 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             _store_single_directive(collected, prompt, match, match_end, name, raw_args)
         collected.regions_to_remove.append((match.start(), match_end))
 
+    _validate_clan_directive_contract(collected)
     return collected
+
+
+def _collect_clan_paren_args(
+    collected: _CollectedDirectives,
+    positional_args: list[str],
+    named_args: dict[str, str],
+) -> list[str]:
+    """Validate and retain the canonical ``%clan(...)`` argument shape."""
+    unknown_keys = sorted(key for key in named_args if key != "tribe")
+    if unknown_keys:
+        keys = ", ".join(f"{key}=" for key in unknown_keys)
+        raise DirectiveError(
+            f"Unsupported keyword on %clan: {keys}. Only tribe= is supported."
+        )
+    if len(positional_args) > 1:
+        raise DirectiveError("%clan accepts exactly one positional clan name argument.")
+    if "tribe" in named_args:
+        collected.clan_tribe_present = True
+        collected.clan_tribe_arg = named_args["tribe"]
+    return [positional_args[0] if positional_args else ""]
+
+
+def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
+    """Reject directive combinations that would create two clan axes."""
+    if "clan" in collected.seen and "tribe" in collected.seen:
+        raise DirectiveError(
+            "Cannot combine %tribe with %clan; use "
+            "%clan(<clan>, tribe=<tribe>) to assign the clan to a tribe."
+        )
+    if "clan" in collected.seen and collected.name_family_args is not None:
+        raise DirectiveError(
+            "Cannot combine %clan with %n(parent, suffix); choose clan "
+            "membership or serial family attachment."
+        )
 
 
 def _directive_matches_outside_alt(prompt: str) -> list[re.Match[str]]:

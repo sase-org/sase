@@ -25,8 +25,8 @@ from .agent_scan_golden import (
 
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
-    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 2
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 11
+    assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 3
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 12
 
 
 def test_artifact_index_wire_helpers() -> None:
@@ -175,9 +175,11 @@ def test_agent_meta_clan_field_order_matches_rust_wire() -> None:
 
     names = [field.name for field in fields(AgentMetaWire)]
     workflow_index = names.index("workflow_name")
-    assert names[workflow_index : workflow_index + 5] == [
+    assert names[workflow_index : workflow_index + 7] == [
         "workflow_name",
         "agent_clan",
+        "agent_clan_generation",
+        "clan_tribe",
         "agent_family",
         "agent_family_role",
         "agent_family_parallel",
@@ -189,10 +191,14 @@ def test_explicit_agent_clan_preserves_sequential_family_fields() -> None:
 
     meta = AgentMetaWire(
         agent_clan="alpha",
+        agent_clan_generation="g1",
+        clan_tribe="quality",
         agent_family="alpha.family",
         agent_family_role="code",
     )
     assert meta.agent_clan == "alpha"
+    assert meta.agent_clan_generation == "g1"
+    assert meta.clan_tribe == "quality"
     assert meta.agent_family == "alpha.family"
     assert meta.agent_family_role == "code"
 

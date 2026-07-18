@@ -123,6 +123,8 @@ class AgentMetaWire:
     parent_agent_name: str | None = None
     workflow_name: str | None = None
     agent_clan: str | None = None
+    agent_clan_generation: str | None = None
+    clan_tribe: str | None = None
     agent_family: str | None = None
     agent_family_role: str | None = None
     agent_family_parallel: bool = False

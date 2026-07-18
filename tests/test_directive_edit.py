@@ -7,6 +7,7 @@ from unittest.mock import patch
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     set_prompt_auto_mode,
+    set_prompt_clan_tribe,
     set_prompt_name,
     set_prompt_tribe,
     set_prompt_wait,
@@ -35,6 +36,46 @@ def test_set_prompt_tribe_set_and_unset_alias() -> None:
 def test_set_prompt_tribe_migrates_removed_group_spellings() -> None:
     prompt = "%group:old\n%g:older\nDo work"
     assert set_prompt_tribe(prompt, "triage") == "%tribe:triage\nDo work"
+
+
+def test_set_prompt_clan_tribe_adds_replaces_and_removes_keyword() -> None:
+    assert set_prompt_clan_tribe("%clan:review\nDo work", "quality") == (
+        "%clan(review, tribe=quality)\nDo work"
+    )
+    assert (
+        set_prompt_clan_tribe("%c(review, tribe=old)\nDo work", "quality")
+        == "%clan(review, tribe=quality)\nDo work"
+    )
+    assert (
+        set_prompt_clan_tribe("%clan(review, tribe=quality)\nDo work", None)
+        == "%clan(review)\nDo work"
+    )
+
+
+def test_set_prompt_clan_tribe_preserves_ignored_regions() -> None:
+    prompt = (
+        "%clan:review\n"
+        "```text\n%clan(example, tribe=literal)\n```\n"
+        "%xprompts_enabled:false\n%clan:disabled\n%xprompts_enabled:true\n"
+        "Do work"
+    )
+
+    assert set_prompt_clan_tribe(prompt, "quality") == prompt.replace(
+        "%clan:review", "%clan(review, tribe=quality)", 1
+    )
+
+
+def test_set_prompt_tribe_routes_clan_launches_to_clan_keyword() -> None:
+    assert set_prompt_tribe("%clan:review\nDo work", "quality") == (
+        "%clan(review, tribe=quality)\nDo work"
+    )
+    assert (
+        set_prompt_tribe(
+            "%tribe:legacy\n%clan:review\nDo work",
+            "quality",
+        )
+        == "%clan(review, tribe=quality)\nDo work"
+    )
 
 
 def test_set_prompt_auto_mode_canonical_forms() -> None:

@@ -349,6 +349,23 @@ def test_launch_preview_annotates_rootless_clan_members(tmp_path: Path) -> None:
     assert "family root" not in preview
 
 
+def test_launch_preview_annotates_clan_tribe(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout(
+            "multi_prompt",
+            ["%name:demo.phase\n%clan(demo, tribe=quality)\nImplement"],
+        ),
+        context=_context(tmp_path),
+        source_surface="agent_skill",
+        request_id="launch-clan-tribe",
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    assert "clan `demo` · tribe `@quality`" in preview
+
+
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
     response_dir = tmp_path / "launch"
     response_dir.mkdir()

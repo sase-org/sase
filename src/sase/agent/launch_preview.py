@@ -186,7 +186,12 @@ def _clan_annotations_for_preview(
         prompt = str(slot.get("prompt") or "")
         try:
             directive = extract_static_clan_directive(prompt)
-            annotations.append(None if directive is None else directive.name)
+            if directive is None:
+                annotations.append(None)
+            elif directive.tribe:
+                annotations.append(f"{directive.name}` · tribe `@{directive.tribe}")
+            else:
+                annotations.append(directive.name)
         except Exception:
             # Preview rendering remains best-effort; launch validation owns
             # malformed directives and will report the precise error.

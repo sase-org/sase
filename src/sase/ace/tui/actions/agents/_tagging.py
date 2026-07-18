@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
-from sase.xprompt.directive_edit import set_prompt_tribe
+from sase.xprompt.directive_edit import set_prompt_clan_tribe, set_prompt_tribe
 
 from ...models.agent_pin import DEFAULT_PINNED_TAG
 from ..task_actions import TrackedTaskCompletion, TrackedTaskResult
@@ -35,6 +35,13 @@ if TYPE_CHECKING:
 def _prompt_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
     def _mutate(prompt: str) -> str:
         return set_prompt_tribe(prompt, tribe)
+
+    return _mutate
+
+
+def _prompt_clan_tribe_mutator(tribe: str | None) -> Callable[[str], str]:
+    def _mutate(prompt: str) -> str:
+        return set_prompt_clan_tribe(prompt, tribe)
 
     return _mutate
 
@@ -130,9 +137,11 @@ class AgentTaggingMixin:
         changed = 0
         affected_identities = {agent.identity for agent in affected}
         prior_tags = {agent.identity: agent.tag for agent in affected}
+        prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
         specs: list[AgentDirectivePersistenceSpec] = []
         for agent in affected:
-            visible_before = agent.tag
+            clan_bound = bool(agent.agent_clan)
+            visible_before = agent.clan_tribe if clan_bound else agent.tag
             if result.action == "set":
                 assert result.tag is not None
                 after: str | None = result.tag
@@ -143,23 +152,52 @@ class AgentTaggingMixin:
                 changed += 1
 
             artifacts_dir = agent.get_artifacts_dir()
+            if clan_bound and not artifacts_dir:
+                self.notify(  # type: ignore[attr-defined]
+                    "Cannot edit a synthetic clan row directly; set the tribe "
+                    "through a member's %clan(<clan>, tribe=<tribe>) directive.",
+                    severity="warning",
+                )
+                return
             specs.append(
                 AgentDirectivePersistenceSpec(
                     artifacts_dir=artifacts_dir,
                     prompt_mutator=(
-                        _prompt_tribe_mutator(after) if artifacts_dir else None
-                    ),
-                    meta_patch=(
-                        AgentMetaPatch(
-                            set_values={"tag": after} if after else {},
-                            remove_keys=("tag",) if after is None else (),
+                        (
+                            _prompt_clan_tribe_mutator(after)
+                            if clan_bound
+                            else _prompt_tribe_mutator(after)
                         )
                         if artifacts_dir
                         else None
                     ),
-                    tag_patch=AgentTagStorePatch(
-                        identity=agent.identity,
-                        tag=after,
+                    meta_patch=(
+                        AgentMetaPatch(
+                            set_values=(
+                                {"clan_tribe": after}
+                                if clan_bound and after
+                                else {"tag": after}
+                                if after
+                                else {}
+                            ),
+                            remove_keys=(
+                                ("clan_tribe",)
+                                if clan_bound and after is None
+                                else ("tag",)
+                                if after is None
+                                else ()
+                            ),
+                        )
+                        if artifacts_dir
+                        else None
+                    ),
+                    tag_patch=(
+                        None
+                        if clan_bound
+                        else AgentTagStorePatch(
+                            identity=agent.identity,
+                            tag=after,
+                        )
                     ),
                 )
             )
@@ -187,6 +225,7 @@ class AgentTaggingMixin:
                 for candidate in candidates:
                     if candidate.identity in prior_tags:
                         candidate.tag = prior_tags[candidate.identity]
+                        candidate.clan_tribe = prior_clan_tribes[candidate.identity]
 
         def _on_complete(
             completion: TrackedTaskCompletion[list[AgentDirectivePersistenceResult]],
@@ -222,7 +261,10 @@ class AgentTaggingMixin:
             for candidates in (self._agents, self._agents_with_children):
                 for candidate in candidates:
                     if candidate.identity == agent.identity:
-                        candidate.tag = after
+                        if candidate.agent_clan:
+                            candidate.clan_tribe = after
+                        else:
+                            candidate.tag = after
 
         suffix = "agent" if changed == 1 else "agents"
         if result.action == "set":

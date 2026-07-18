@@ -316,6 +316,29 @@ def resolve_clan_membership(expanded_args: dict[str, str]) -> str | None:
     return clan
 
 
+def resolve_clan_tribe(
+    raw_tribe: str | None,
+    *,
+    present: bool,
+    process_references: ProcessReferences,
+) -> str | None:
+    """Expand and validate the optional ``tribe=`` keyword on ``%clan``."""
+    if not present:
+        return None
+    tribe = raw_tribe or ""
+    if tribe and "#" in tribe:
+        tribe = process_references(tribe).strip()
+    if not tribe:
+        raise DirectiveError("'%clan(..., tribe=...)' requires a non-empty tribe name.")
+
+    from sase.ace.agent_tags import InvalidTagError, validate_tag_name
+
+    try:
+        return validate_tag_name(tribe)
+    except InvalidTagError as exc:
+        raise DirectiveError(f"Invalid '%clan' tribe= value: {exc}") from exc
+
+
 def resolve_reasoning_effort(
     *,
     effort_directive: str | None,

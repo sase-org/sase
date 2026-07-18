@@ -202,8 +202,25 @@ def _prepare_clan_launches(
     from sase.xprompt._parsing import normalize_default_vcs_workflow_segment
     from sase.xprompt.directives import has_deferred_start_directive
 
+    # Resolve xprompts before the static clan scan so a declaration or conflict
+    # introduced by an xprompt fails the whole batch before timestamp/workspace
+    # allocation. Literal fenced/disabled regions remain protected by the
+    # shared directive collector used by ``extract_static_clan_directive``.
+    from sase.xprompt import process_xprompt_references
+
+    effective_segments: list[str] = []
+    for segment in segments:
+        segment_xprompts = _local_xprompts_for_segment(segment, local_xprompts)
+        effective_segments.append(
+            process_xprompt_references(
+                segment,
+                extra_xprompts=segment_xprompts or None,
+            )
+            if "#" in segment
+            else segment
+        )
     directives: list[_StaticClanDirective | None] = [
-        _extract_static_clan_directive(segment) for segment in segments
+        _extract_static_clan_directive(segment) for segment in effective_segments
     ]
     if not any(directive is not None for directive in directives):
         return _empty_clan_prepass()

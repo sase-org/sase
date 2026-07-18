@@ -46,6 +46,7 @@ def _agent(
     clan: str | None = "research",
     generation: str | None = _GENERATION,
     tag: str | None = None,
+    clan_tribe: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -63,6 +64,7 @@ def _agent(
         agent_clan=clan,
         agent_clan_generation=generation,
         tag=tag,
+        clan_tribe=clan_tribe,
     )
 
 
@@ -138,6 +140,43 @@ def test_project_clan_tree_keeps_generations_separate() -> None:
     assert containers[1].runtime_children == [old]
     assert new.tree_parent_key == agent_fold_key(containers[0])
     assert old.tree_parent_key == agent_fold_key(containers[1])
+
+
+def test_project_clan_tree_uses_latest_explicit_clan_tribe() -> None:
+    first = _agent(
+        "research.first",
+        "20260717100001",
+        tag="legacy",
+        clan_tribe="alpha",
+    )
+    latest = _agent(
+        "research.latest",
+        "20260717100002",
+        tag="other-legacy",
+        clan_tribe="beta",
+    )
+    later_without_declaration = _agent(
+        "research.later",
+        "20260717100003",
+        tag="ignored-legacy",
+    )
+
+    container = project_clan_tree([later_without_declaration, first, latest])[0]
+
+    assert container.tag == "beta"
+    assert container.clan_tribe == "beta"
+    assert container.clan_tags == ("beta",)
+
+
+def test_project_clan_tree_retains_legacy_tag_fallback() -> None:
+    first = _agent("research.first", "one", tag="alpha")
+    second = _agent("research.second", "two", tag="beta")
+
+    container = project_clan_tree([first, second])[0]
+
+    assert container.tag is None
+    assert container.clan_tribe is None
+    assert container.clan_tags == ("alpha", "beta")
 
 
 def test_clan_tree_does_not_invent_a_changespec_banner_from_one_member() -> None:
