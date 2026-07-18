@@ -28,6 +28,16 @@ from sase.xprompt.workflow_models import Workflow
 from .work_test_helpers import depends, epic, phase, seed
 
 
+def _assert_bare_auto_directives(rendered: str) -> None:
+    segments = rendered.split("\n---\n")
+    for segment in segments:
+        assert "%auto" in segment.splitlines()
+        assert "%auto:tale" not in segment
+        _, directives = extract_prompt_directives(segment)
+        assert directives.auto_enabled is True
+        assert directives.auto_argument is None
+
+
 class TestRenderEdgeCases:
     def test_vcs_context_prefixes_every_regular_epic_segment(
         self, conn: sqlite3.Connection
@@ -174,7 +184,7 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
@@ -182,16 +192,12 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@epic_lander\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
         )
         assert rendered == expected
-        phase_segment, land_segment = rendered.split("\n---\n")
-        assert "%auto:tale" in phase_segment.splitlines()
-        assert "%auto:tale" in land_segment.splitlines()
-        assert "%auto" not in phase_segment.splitlines()
-        assert "%auto" not in land_segment.splitlines()
+        _assert_bare_auto_directives(rendered)
 
     def test_dependency_chain_wraps_only_first_phase_with_pr(
         self, conn: sqlite3.Connection
@@ -218,7 +224,7 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
@@ -226,7 +232,7 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1\n"
             "#custom/work:p2\n"
             "---\n"
@@ -235,7 +241,7 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p2\n"
             "#custom/work:p3\n"
             "---\n"
@@ -244,14 +250,12 @@ class TestChangeSpecRendering:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@epic_lander\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1,p2,p3\n"
             "#custom/land:e1"
         )
         assert rendered == expected
-        segments = rendered.split("\n---\n")
-        assert all("%auto:tale" in segment.splitlines() for segment in segments)
-        assert all("%auto" not in segment.splitlines() for segment in segments)
+        _assert_bare_auto_directives(rendered)
 
     def test_independent_phases_only_first_gets_pr(
         self, conn: sqlite3.Connection
@@ -444,12 +448,13 @@ class TestModelDirective:
         )
 
         phase_segment, land_segment = rendered.split("\n---\n")
+        _assert_bare_auto_directives(rendered)
         assert phase_segment == (
             "%name:!p1\n"
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:claude/opus\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1"
         )
         # The epic has no explicit land model, so the land agent defaults to the
@@ -516,6 +521,7 @@ class TestModelDirective:
 
         segments = rendered.split("\n---\n")
         phase_segment, land_segment = segments
+        _assert_bare_auto_directives(rendered)
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
@@ -523,7 +529,7 @@ class TestModelDirective:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:claude/opus\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1\n"
             "#bd/land_epic:e1"
         )
@@ -552,19 +558,19 @@ class TestModelDirective:
             "%name:!p1\n"
             "%clan:e1\n"
             "%tribe:epic\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
             "%clan:e1\n"
             "%tribe:epic\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
             "%name:!e1.land\n"
             "%clan:e1\n"
             "%tribe:epic\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1,p2\n"
             "#bd/land_epic:e1"
         )
@@ -574,6 +580,7 @@ class TestModelDirective:
             "%model:@epic_lander\n", ""
         )
         assert stripped == pre_model_baseline
+        _assert_bare_auto_directives(rendered)
         # The role aliases resolve through @default to the configured provider.
         assert resolve_model_provider("@phase_worker") == ("claude", "opus")
         assert resolve_model_provider("@epic_lander") == ("claude", "opus")

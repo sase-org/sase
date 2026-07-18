@@ -15,6 +15,7 @@ from sase.bead.work import (
     _plan_from_payload,
     render_multi_prompt,
 )
+from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
 from .work_test_helpers import depends, epic, phase, seed, wave_bead_ids
@@ -111,14 +112,14 @@ class TestDiamond:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "%name:!p2\n"
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
@@ -126,7 +127,7 @@ class TestDiamond:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1\n"
             "#bd/work_phase_bead:p3\n"
             "---\n"
@@ -134,7 +135,7 @@ class TestDiamond:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@phase_worker\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p2,p3\n"
             "#bd/work_phase_bead:p4\n"
             "---\n"
@@ -142,7 +143,7 @@ class TestDiamond:
             "%clan:e1\n"
             "%tribe:epic\n"
             "%model:@epic_lander\n"
-            "%auto:tale\n"
+            "%auto\n"
             "%w:p1,p2,p3,p4\n"
             "#bd/land_epic:e1"
         )
@@ -152,8 +153,12 @@ class TestDiamond:
         assert all("%tribe:epic" in segment for segment in segments)
         assert all("%family" not in segment for segment in segments)
         assert all("%group:" not in segment for segment in segments)
-        assert all("%auto:tale" in segment.splitlines() for segment in segments)
-        assert all("%auto" not in segment.splitlines() for segment in segments)
+        assert all("%auto" in segment.splitlines() for segment in segments)
+        assert all("%auto:tale" not in segment for segment in segments)
+        for segment in segments:
+            _, directives = extract_prompt_directives(segment)
+            assert directives.auto_enabled is True
+            assert directives.auto_argument is None
 
 
 class TestMixedDAG:

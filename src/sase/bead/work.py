@@ -291,7 +291,7 @@ def render_multi_prompt(
             else:
                 phase_alias = role_model_directive_value(PHASE_WORKER_MODEL_ALIAS_NAME)
                 lines.append(f"%model:{phase_alias}")
-            lines.append("%auto:tale")
+            lines.append("%auto")
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.append(f"#{work_phase_xprompt.name}:{assignment.bead_id}")
@@ -306,7 +306,7 @@ def render_multi_prompt(
         total_phase_count=plan.total_phase_count,
     )
     land_lines.append(f"%model:{land_model}")
-    land_lines.append("%auto:tale")
+    land_lines.append("%auto")
     if plan.land_waits_on:
         land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
     land_lines.append(f"#{land_epic_xprompt.name}:{plan.epic_id}")

@@ -287,18 +287,19 @@ def test_work_dry_run_renders_model_directives(
 
     out = capsys.readouterr().out
     membership = f"%clan:{epic_id}\n%tribe:epic"
-    assert f"%name:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto:tale" in out
+    assert f"%name:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto\n" in out
     # Phase without an explicit model defaults to the phase-worker role alias.
-    assert f"%name:!{p2_id}\n{membership}\n%model:@phase_worker\n%auto:tale" in out
+    assert f"%name:!{p2_id}\n{membership}\n%model:@phase_worker\n%auto\n" in out
     # The epic's explicit land model still wins over the epic-lander alias.
-    assert f"%name:!{epic_id}.land\n{membership}\n%model:claude/opus" in out
+    assert f"%name:!{epic_id}.land\n{membership}\n%model:claude/opus\n%auto\n" in out
     assert out.count(f"%clan:{epic_id}") == 3
     assert out.count("%tribe:epic") == 3
     assert "%family" not in out
     assert "%group:" not in out
     # Three %model directives: explicit phase, phase-worker phase, and land.
     assert out.count("%model:") == 3
-    assert out.count("%auto:tale") == 3
+    assert out.count("\n%auto\n") == 3
+    assert "%auto:tale" not in out
 
 
 def test_work_dry_run_uses_custom_big_epic_threshold(

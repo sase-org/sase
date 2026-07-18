@@ -351,11 +351,11 @@ Once an epic bead exists, the shared launch path:
    `%model:@big_epic_lander` at or above the threshold (default `5`), using the total authored phase count even when
    resumed work has already-closed phases. `@big_epic_lander` falls through to `@epic_lander`, and both it and
    `@phase_worker` ultimately fall through to `@default` unless explicitly configured under
-   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries `%auto:tale`, so
-   submitted implementation and landing plans are auto-approved through the tale path and committed under the resolved
-   SDD tale directory before their follow-up work continues. Each segment uses the force-reuse `%name:!<agent_name>`
-   form so re-running `sase bead work` after a killed or failed run wipes the stale name owners before the relaunch —
-   the command is safe to retry.
+   `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`, so
+   submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
+   plan's authored `tier` selects the corresponding automatic follow-up path. Each segment uses the force-reuse
+   `%name:!<agent_name>` form so re-running `sase bead work` after a killed or failed run wipes the stale name owners
+   before the relaunch — the command is safe to retry.
 
 | Flag            | Description                                                                              |
 | --------------- | ---------------------------------------------------------------------------------------- |
@@ -365,9 +365,9 @@ Once an epic bead exists, the shared launch path:
 | `-y, --yes`     | Skip the launch confirmation prompt                                                      |
 
 The work xprompts are resolved by `XPromptTag` (tag-based lookup), so a project-local or user-defined xprompt with the
-matching tag overrides the built-in. For epic-tier work, every phase and land segment carries `%auto:tale`, so spawned
-agents can auto-approve and commit their submitted plans under the resolved SDD tale directory without a
-human-in-the-loop checkpoint between waves.
+matching tag overrides the built-in. For epic-tier work, every phase and land segment carries bare `%auto`, so spawned
+agents can auto-approve submitted tale or epic plans and follow the path selected by the authored `tier`, without a
+human-in-the-loop checkpoint between dependency waves.
 
 When the epic plan bead is attached to ChangeSpec metadata (`--changespec` / `--bug-id`), `sase bead work` preserves the
 current project's VCS context in the generated prompt. The first phase segment targets the project reference and adds a

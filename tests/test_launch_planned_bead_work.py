@@ -14,9 +14,8 @@ def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
     segments = [
         "#git:proj\n%name:proj-epic.1\n"
         "%family(proj-epic, role=phase)\n%model:@worker\n"
-        "%auto:tale\n#bd/work_phase_bead:proj-epic.1",
-        "#git:proj\n%name:proj-epic\n%auto:tale\n"
-        "%w:proj-epic.1\n#bd/land_epic:proj-epic",
+        "%auto\n#bd/work_phase_bead:proj-epic.1",
+        "#git:proj\n%name:proj-epic\n%auto\n%w:proj-epic.1\n#bd/land_epic:proj-epic",
     ]
     envs = [
         {"SASE_BEAD_ID": "proj-epic.1", "SASE_INTERNAL_AGENT_NAME_BYPASS": "1"},

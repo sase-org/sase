@@ -155,7 +155,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             if isinstance(workflow_state, dict)
             else None
         ),
-        plan_path=PlanPathMarkerWire(**known_field_kwargs(PlanPathMarkerWire, plan_path))
+        plan_path=PlanPathMarkerWire(
+            **known_field_kwargs(PlanPathMarkerWire, plan_path)
+        )
         if isinstance(plan_path, dict)
         else None,
         prompt_steps=[
