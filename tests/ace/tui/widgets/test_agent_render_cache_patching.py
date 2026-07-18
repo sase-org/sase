@@ -103,6 +103,43 @@ async def test_patch_agent_row_reflects_unread_change() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_family_root_adds_badge_with_first_real_member() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        root = _agent(agent_name="demo")
+        root.agent_family = "demo"
+        root.agent_family_role = "root"
+        root.appears_as_agent = True
+        synthetic = _agent(
+            cl_name="demo--plan",
+            agent_name="demo--plan",
+            raw_suffix="20260425143001",
+        )
+        synthetic.is_synthetic_planner = True
+        root.followup_agents = [synthetic]
+
+        widget.update_list([root], current_idx=0)
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        prompt_before = widget.get_option_at_index(row).prompt
+
+        root.followup_agents.append(
+            _agent(
+                cl_name="demo--code",
+                agent_name="demo--code",
+                raw_suffix="20260425143002",
+            )
+        )
+        assert widget.patch_agent_row(0) is True
+        await pilot.pause()
+        prompt_after = widget.get_option_at_index(row).prompt
+
+        assert "⌘" not in str(prompt_before)
+        assert "⌘" in str(prompt_after)
+
+
+@pytest.mark.asyncio
 async def test_patch_clan_row_preserves_latest_panel_context() -> None:
     app = _Harness()
     async with app.run_test() as pilot:

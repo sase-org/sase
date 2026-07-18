@@ -57,6 +57,8 @@ from ._agent_list_styling import (
     _CHILD_INDENT,
     _CLAN_GLYPH,
     _CLAN_GLYPH_STYLE,
+    _FAMILY_GLYPH,
+    _FAMILY_GLYPH_STYLE,
     _FILE_CHANGE_GLYPH,
     _FILE_CHANGE_GLYPH_STYLE,
     _HIDDEN_ICON,
@@ -183,6 +185,8 @@ def format_agent_option(
     # readability.
     if agent.is_clan_container:
         text.append(f"{_CLAN_GLYPH} ", style=_CLAN_GLYPH_STYLE)
+    elif agent.is_family_container_row:
+        text.append(f"{_FAMILY_GLYPH} ", style=_FAMILY_GLYPH_STYLE)
     elif not (is_appears_as_agent or agent_is_tree_child(agent)):
         type_glyph = _TYPE_GLYPHS.get(dt)
         if type_glyph is not None:

@@ -111,10 +111,12 @@ _REVERTED_GLYPH_STYLE = "bold #D7875F"
 _CHILD_INDENT = "  └─ "
 _TREE_GUIDE = "│  "
 
-# Synthetic clan-container row marker. Kept to one terminal cell so runtime
-# column alignment remains deterministic across renderers.
-_CLAN_GLYPH = "⌂"
+# Agent-grouping row markers. Kept to one terminal cell so runtime column
+# alignment remains deterministic across renderers.
+_CLAN_GLYPH = "◫"
 _CLAN_GLYPH_STYLE = "bold #D7AFFF"
+_FAMILY_GLYPH = "⌘"
+_FAMILY_GLYPH_STYLE = "bold #D7AFFF"
 
 # Type glyphs for the small set of non-``RUNNING`` top-level rows.  The
 # ``RUNNING`` (a.k.a. ``agent``) type is omitted entirely — its color

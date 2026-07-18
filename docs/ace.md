@@ -575,12 +575,13 @@ top-level agents are marked and `[~]` when only some are marked. Marks take prio
 a non-empty mark set always drives the bulk action regardless of banner focus. When a fold change hides the previously
 focused agent, focus snaps to the nearest visible ancestor banner so navigation context is never lost.
 
-Clan and family rows add an agent-tree hierarchy inside those grouping banners. A clan is a selectable synthetic `⌂`
-container, never an agent. From a collapsed clan row, press `l` once to reveal direct members (agents, family rows, and
-visible workflow steps), then press `l` again to reveal hidden steps and family members at a third indentation level.
-`h` walks those levels in reverse. A sequential family is also a pure container: its members use `--<suffix>` names and
-run one after another. Killing or dismissing a clan row cascades to the clan's live members; acting on one member leaves
-its siblings alone.
+Clan and family rows add an agent-tree hierarchy inside those grouping banners. A clan is a selectable synthetic `◫`
+container, never an agent. A family root remains a real teal agent row; when it has at least one real member it carries
+a lavender `⌘` glyph. A lone plan proposer with only its display-only planner child remains unbadged. From a collapsed
+clan row, press `l` once to reveal direct members (agents, family rows, and visible workflow steps), then press `l`
+again to reveal hidden steps and family members at a third indentation level. `h` walks those levels in reverse.
+Sequential family members use `--<suffix>` names and run one after another. Killing or dismissing a clan row cascades to
+the clan's live members; acting on one member leaves its siblings alone.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  ` segment per ancestor L0/L1
 banner (in the parent tier's dim accent — project blue or ChangeSpec cooler accent), so nesting reads as a tree at a
@@ -656,7 +657,8 @@ To keep rows compact, agent statuses and types are rendered as one- or two-chara
 | `≡`   | Workflow row (top-level)                             |
 | `❑`   | ChangeSpec / ChangeSpec row (top-level)              |
 | `⚡`  | Autonomous (`%auto`) agent                           |
-| `⌂`   | Agent clan container                                 |
+| `◫`   | Agent clan container                                 |
+| `⌘`   | Agent family container                               |
 | `◌`   | Hidden agent (visible only when `.` toggles them in) |
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the status glyph and the tribe/name. A

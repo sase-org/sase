@@ -266,6 +266,8 @@ def test_clan_tree_query_retains_complete_immediate_parent_chain() -> None:
 
 def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
     family = _agent("research.family", "family", tag="epic")
+    family.agent_family = "research.family"
+    family.agent_family_role = "root"
     family_member = _agent(
         "research.family--code",
         "family-code",
@@ -273,6 +275,7 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
         clan=None,
         generation=None,
     )
+    family.followup_agents = [family_member]
     container, family, family_member = project_clan_tree([family, family_member])
 
     container_text, _, _ = format_agent_option(
@@ -295,10 +298,66 @@ def test_clan_and_member_rows_render_glyph_tags_and_depth_guides() -> None:
         now=datetime(2026, 7, 17, 10, 5, 0),
     )
 
-    assert container_text.plain.startswith("⌂ research @epic (RUNNING) ×2 [R1]")
-    assert family_text.plain.startswith("  └─ research.family")
+    assert container_text.plain.startswith("◫ research @epic (RUNNING) ×2 [R1]")
+    assert family_text.plain.startswith("  └─ ⌘ research.family")
     assert family_member.tree_depth == 2
     assert member_text.plain.startswith("  │  └─ research.family--code")
+
+
+def test_family_glyph_requires_a_real_member() -> None:
+    family = _agent("cx", "family", clan=None, generation=None)
+    family.agent_family = "cx"
+    family.agent_family_role = "root"
+    family.appears_as_agent = True
+    member = _agent(
+        "cx--code",
+        "family-code",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    family.followup_agents = [member]
+
+    lone_planner = _agent("solo", "planner", clan=None, generation=None)
+    lone_planner.agent_family = "solo"
+    lone_planner.agent_family_role = "root"
+    lone_planner.appears_as_agent = True
+    synthetic = _agent(
+        "solo--plan",
+        "synthetic-plan",
+        parent_timestamp=lone_planner.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    synthetic.is_synthetic_planner = True
+    lone_planner.followup_agents = [synthetic]
+
+    plain = _agent("plain", "plain", clan=None, generation=None)
+    plain.appears_as_agent = True
+    anonymous_workflow = _agent(
+        "anonymous-workflow",
+        "anonymous-workflow",
+        agent_type=AgentType.WORKFLOW,
+        clan=None,
+        generation=None,
+    )
+    anonymous_workflow.appears_as_agent = True
+
+    family_text, _, _ = format_agent_option(family, 0, is_selected=False)
+    planner_text, _, _ = format_agent_option(lone_planner, 1, is_selected=False)
+    plain_text, _, _ = format_agent_option(plain, 2, is_selected=False)
+    workflow_text, _, _ = format_agent_option(
+        anonymous_workflow,
+        3,
+        is_selected=False,
+    )
+
+    assert family.is_family_container_row is True
+    assert family_text.plain.startswith("⌘ cx")
+    assert lone_planner.is_family_container_row is False
+    assert planner_text.plain.startswith("solo")
+    assert plain_text.plain.startswith("plain")
+    assert workflow_text.plain.startswith("anonymous-workflow")
 
 
 def test_clan_row_renders_unread_count_in_both_fold_states() -> None:

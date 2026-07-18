@@ -47,11 +47,12 @@ workflow steps, and sequential families whose names stay inside the same hood.
 Killing or dismissing the synthetic clan row cascades to its live members, while acting on one member leaves the rest of
 the clan alone.
 
-ACE renders a clan as a synthetic `⌂` row with rolled-up status counts, `@tribe` labels, and wall-clock runtime. Press
-`l` once to reveal direct members and a second time to reveal hidden workflow steps and members of nested families; `h`
-collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable `MEMBERS` section. The
-runtime is the union of member run intervals, with human-wait windows excluded, so concurrent members are not
-double-counted.
+ACE renders a clan as a synthetic `◫` row with rolled-up status counts, `@tribe` labels, and wall-clock runtime. A real
+multi-member family root carries the related lavender `⌘` glyph; a lone plan proposer with only its display-only planner
+child does not. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members of
+nested families; `h` collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable
+`MEMBERS` section. The runtime is the union of member run intervals, with human-wait windows excluded, so concurrent
+members are not double-counted.
 
 ### Epic bead-work example
 

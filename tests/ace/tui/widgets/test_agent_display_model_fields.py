@@ -56,6 +56,7 @@ class TestLoaderFollowupPopulation:
             role_suffix=".plan",
             status="DONE",
         )
+        parent.plan_chain_root = True
         coder = make_agent(
             parent_timestamp="20240101142345",
             role_suffix=".code",
@@ -64,6 +65,11 @@ class TestLoaderFollowupPopulation:
         _apply_status_overrides([parent, coder])
         assert len(parent.followup_agents) == 2
         assert coder in parent.followup_agents
+        synthetic = next(
+            child for child in parent.followup_agents if child is not coder
+        )
+        assert synthetic.is_synthetic_planner is True
+        assert parent.is_family_container_row is True
 
     def test_feedback_attached(self) -> None:
         from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -127,3 +133,5 @@ class TestLoaderFollowupPopulation:
         _apply_status_overrides([parent, step])
         assert len(parent.followup_agents) == 1
         assert parent.followup_agents[0].role_suffix == "--plan"
+        assert parent.followup_agents[0].is_synthetic_planner is True
+        assert parent.is_family_container_row is False

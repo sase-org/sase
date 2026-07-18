@@ -183,6 +183,7 @@ def agent_render_key(
         agent.agent_clan,
         agent.agent_clan_generation,
         agent.is_clan_container,
+        agent.is_family_container_row,
         agent.tree_parent_key,
         agent.tree_depth,
         agent.clan_tags,

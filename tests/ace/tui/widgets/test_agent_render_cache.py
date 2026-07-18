@@ -53,6 +53,33 @@ def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
     assert parts_after[1].plain == "✅"
 
 
+def test_cached_family_root_invalidates_when_first_real_member_is_added() -> None:
+    cache = AgentRenderCache()
+    root = _agent(agent_name="demo")
+    root.agent_family = "demo"
+    root.agent_family_role = "root"
+    synthetic = _agent(
+        cl_name="demo--plan",
+        agent_name="demo--plan",
+        raw_suffix="20260425143001",
+    )
+    synthetic.is_synthetic_planner = True
+    root.followup_agents = [synthetic]
+
+    before = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+    member = _agent(
+        cl_name="demo--code",
+        agent_name="demo--code",
+        raw_suffix="20260425143002",
+    )
+    root.followup_agents.append(member)
+    after = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+
+    assert before[0] is not after[0]
+    assert not before[0].plain.startswith("⌘ ")
+    assert after[0].plain.startswith("⌘ ")
+
+
 def test_cached_family_root_recolors_when_member_status_changes() -> None:
     cache = AgentRenderCache()
     root = _agent(status="RUNNING")

@@ -167,6 +167,8 @@ def _waiting_family_child_agents() -> list[Agent]:
         start_time=datetime(2026, 7, 5, 21, 0, 0),
         raw_suffix="20260705-210000-parent",
         agent_name="visual-parent",
+        agent_family="visual-parent",
+        agent_family_role="root",
         llm_provider="codex",
         model="gpt-5",
     )
@@ -188,6 +190,7 @@ def _waiting_family_child_agents() -> list[Agent]:
         llm_provider="codex",
         model="gpt-5",
     )
+    parent.followup_agents = [child]
     return [parent, child]
 
 
@@ -549,6 +552,56 @@ def _renamed_plan_family_agents() -> list[Agent]:
     return rows
 
 
+def _family_and_lone_planner_agents() -> list[Agent]:
+    family = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-real-family",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 12, 0, 0),
+        stop_time=datetime(2026, 7, 18, 12, 4, 0),
+        raw_suffix="20260718120000",
+        role_suffix="--plan",
+        agent_name="visual-real-family--plan",
+        agent_family="visual-real-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        appears_as_agent=True,
+    )
+    member = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-real-family-code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 12, 5, 0),
+        stop_time=datetime(2026, 7, 18, 12, 8, 0),
+        raw_suffix="20260718120500",
+        parent_timestamp=family.raw_suffix,
+        role_suffix="--code",
+        agent_name="visual-real-family--code",
+        agent_family="visual-real-family",
+        agent_family_role="code",
+    )
+    lone_planner = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-lone-planner",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 12, 10, 0),
+        stop_time=datetime(2026, 7, 18, 12, 15, 0),
+        raw_suffix="20260718121000",
+        role_suffix="--plan",
+        agent_name="visual-lone-planner--plan",
+        agent_family="visual-lone-planner",
+        agent_family_role="root",
+        plan_chain_root=True,
+        appears_as_agent=True,
+    )
+    rows = [family, member, lone_planner]
+    _apply_status_overrides(rows)
+    return rows
+
+
 async def test_agent_plan_handoff_status_colors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -654,6 +707,35 @@ async def test_parallel_family_root_counts_png_snapshot(
         )
 
 
+async def test_family_and_lone_planner_glyph_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 12, 15, 0))
+    rows = _family_and_lone_planner_agents()
+    family = next(row for row in rows if row.cl_name == "visual-real-family")
+    lone_planner = next(row for row in rows if row.cl_name == "visual-lone-planner")
+    assert family.is_family_container_row is True
+    assert lone_planner.is_family_container_row is False
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 2)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "⌘")
+        assert_page_svg_contains(page, "visual-real-family")
+        assert_page_svg_contains(page, "visual-lone-planner")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_family_and_lone_planner_glyph_120x40",
+            title="ACE family and lone planner glyph contrast",
+        )
+
+
 async def test_clan_tree_fold_levels_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -670,7 +752,7 @@ async def test_clan_tree_fold_levels_png_snapshots(
 
         assert page.app._agents[0].is_clan_container is True
         assert page.app._agents[0].clan_tags == ("epic", "review")
-        assert_page_svg_contains(page, "⌂")
+        assert_page_svg_contains(page, "◫")
         assert_page_svg_contains(page, "research")
         assert_page_svg_styled_text_contains(page, "[R1 W1 D1]")
         assert_page_svg_contains(page, "@epic")

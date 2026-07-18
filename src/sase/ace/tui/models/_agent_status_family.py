@@ -609,5 +609,6 @@ def ensure_synthetic_planner_children(
         planner.question_request_path = parent.question_request_path
         planner.question_response_path = parent.question_response_path
         planner.question_session_id = parent.question_session_id
+        planner.is_synthetic_planner = True
         agents.append(planner)
         all_agents.append(planner)
