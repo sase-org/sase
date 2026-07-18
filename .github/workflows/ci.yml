@@ -6,15 +6,26 @@ on:
   pull_request:
     branches: [master]
 
+# Latest-wins per ref: a newer push supersedes queued/in-flight CI for the
+# same ref so high push volume cannot grow the org-wide runner queue without
+# bound (the starvation that stalled the sase-core v0.6.0 wheel publish).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 env:
   SASE_CORE_DIR: ${{ github.workspace }}/sase-core
 
+# Every job carries a timeout-minutes ceiling; without one, a wedged job
+# holds an org runner slot for GitHub's 6-hour default and starves every
+# other workflow in the org, including release publishes.
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -104,6 +115,7 @@ jobs:
 
   fmt-md-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Install just
@@ -118,6 +130,7 @@ jobs:
 
   docs-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -143,6 +156,7 @@ jobs:
   # Coverage is collected from the 3.12 leg.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     strategy:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
@@ -192,6 +206,7 @@ jobs:
 
   visual-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -259,6 +274,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -292,6 +308,7 @@ jobs:
   # before the broad matrix hides the cause.
   bead-backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -340,6 +357,7 @@ jobs:
   # outside this gate (see sdd/plans/202604/rust_backend_phase7_phase7e_handoff.md).
   phase7-perf-floor:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -378,6 +396,7 @@ jobs:
   # baseline while still using fake subprocesses/no LLM CLIs.
   launch-perf-floor:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -417,6 +436,7 @@ jobs:
   # the CLI a user would run.
   install-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Check out Rust core
@@ -449,6 +469,7 @@ jobs:
   # from the package index, with no source checkout or dependency override.
   published-core-minimum-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
