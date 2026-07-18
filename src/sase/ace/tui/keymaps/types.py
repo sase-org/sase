@@ -87,6 +87,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("plans_next", "Next Plan", False),
     ("plans_prev", "Previous Plan", False),
     ("plans_view_selected", "View Plan", False),
+    ("plans_filters", "Plan Filters", False),
     ("plans_expand", "Expand Epic", False),
     ("plans_collapse", "Collapse Epic", False),
     ("plans_cycle_status", "Bead Status", False),
@@ -340,6 +341,7 @@ class AppKeymaps:
     plans_next: str
     plans_prev: str
     plans_view_selected: str
+    plans_filters: str
     plans_expand: str
     plans_collapse: str
     plans_cycle_status: str

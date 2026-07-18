@@ -19,6 +19,7 @@ PLANS_ARTIFACT_ACTIONS: frozenset[str] = frozenset(
         "plans_next",
         "plans_prev",
         "plans_view_selected",
+        "plans_filters",
         "plans_expand",
         "plans_collapse",
         "plans_cycle_status",
@@ -58,6 +59,11 @@ class ArtifactsPlansActionsMixin:
                 pane.move_selection(-1)
             finally:
                 self._finish_artifacts_navigation()  # type: ignore[attr-defined]
+
+    def action_plans_filters(self) -> None:
+        pane = self._plans_pane()
+        if pane is not None:
+            pane.show_filters()
 
     def action_plans_expand(self) -> None:
         pane = self._plans_pane()

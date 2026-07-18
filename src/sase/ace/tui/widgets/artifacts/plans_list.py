@@ -70,6 +70,7 @@ def build_plan_options(
     loading: bool,
     expanded_epics: set[tuple[str, str]],
     jump_hints: Mapping[ArtifactEntryTarget, str] | None = None,
+    matched_option_ids: frozenset[str] | None = None,
 ) -> tuple[list[Option], dict[str, PlanRow]]:
     """Build the grouped plan options and their identity-preserving row map."""
     options: list[Option] = []
@@ -79,14 +80,32 @@ def build_plan_options(
         options.append(Option(single_line_text(label), disabled=True))
         return options, rows
 
-    options.append(_section_option("Proposals", len(snapshot.proposals)))
-    for proposal in snapshot.proposals:
-        option_id = row_option_id(
-            snapshot,
-            "proposal",
-            proposal.project,
-            proposal.notification.id,
+    filter_active = matched_option_ids is not None
+    proposal_entries = tuple(
+        (
+            proposal,
+            row_option_id(
+                snapshot,
+                "proposal",
+                proposal.project,
+                proposal.notification.id,
+            ),
         )
+        for proposal in snapshot.proposals
+    )
+    visible_proposals = tuple(
+        entry
+        for entry in proposal_entries
+        if matched_option_ids is None or entry[1] in matched_option_ids
+    )
+    options.append(
+        _section_option(
+            "Proposals",
+            len(snapshot.proposals),
+            matched_count=len(visible_proposals) if filter_active else None,
+        )
+    )
+    for proposal, option_id in visible_proposals:
         row = PlanRow(
             "proposal",
             option_id,
@@ -106,31 +125,57 @@ def build_plan_options(
                 id=option_id,
             )
         )
-    if not snapshot.proposals:
+    if not visible_proposals:
         options.append(
             Option(
-                single_line_text("  No pending proposals", style="dim"),
+                single_line_text(
+                    "  No matching proposals"
+                    if filter_active
+                    else "  No pending proposals",
+                    style="dim",
+                ),
                 disabled=True,
             )
         )
 
-    options.append(_section_option("Epics", len(snapshot.epics)))
     epic_entries: tuple[ProjectIssue, ...] = snapshot.epics
+    visible_epics = 0
+    epic_options: list[Option] = []
+    epic_rows: dict[str, PlanRow] = {}
     for project_epic in epic_entries:
         project = project_epic.project
         epic = project_epic.issue
         epic_key = (project, epic.id)
         option_id = row_option_id(snapshot, "epic", project, epic.id)
-        row = PlanRow("epic", option_id, project, issue=epic)
-        rows[option_id] = row
         phases = snapshot.phases_by_epic.get(epic_key, ())
-        options.append(
+        epic_matches = matched_option_ids is None or option_id in matched_option_ids
+        matching_phase_ids = frozenset(
+            phase_option_id
+            for project_phase in phases
+            if (
+                phase_option_id := row_option_id(
+                    snapshot,
+                    "phase",
+                    project,
+                    project_phase.issue.id,
+                )
+            )
+            in (matched_option_ids or ())
+        )
+        if filter_active and not epic_matches and not matching_phase_ids:
+            continue
+
+        visible_epics += 1
+        row = PlanRow("epic", option_id, project, issue=epic)
+        epic_rows[option_id] = row
+        effectively_expanded = epic_key in expanded_epics or bool(matching_phase_ids)
+        epic_options.append(
             Option(
                 prepend_jump_hint(
                     epic_text(
                         epic,
                         tuple(item.issue for item in phases),
-                        expanded=epic_key in expanded_epics,
+                        expanded=effectively_expanded,
                         project=project,
                         ready_ids=snapshot.ready_ids,
                         blocked_ids=snapshot.blocked_ids,
@@ -141,19 +186,25 @@ def build_plan_options(
                 id=option_id,
             )
         )
-        if epic_key not in expanded_epics:
+        if not effectively_expanded:
             continue
         for project_phase in phases:
             phase = project_phase.issue
             phase_option_id = row_option_id(snapshot, "phase", project, phase.id)
+            if (
+                filter_active
+                and phase_option_id not in matching_phase_ids
+                and not (epic_matches and epic_key in expanded_epics)
+            ):
+                continue
             row = PlanRow(
                 "phase",
                 phase_option_id,
                 project,
                 issue=phase,
             )
-            rows[phase_option_id] = row
-            options.append(
+            epic_rows[phase_option_id] = row
+            epic_options.append(
                 Option(
                     prepend_jump_hint(
                         phase_text(
@@ -167,21 +218,54 @@ def build_plan_options(
                     id=phase_option_id,
                 )
             )
-    if not snapshot.epics:
+    options.append(
+        _section_option(
+            "Epics",
+            len(snapshot.epics),
+            matched_count=visible_epics if filter_active else None,
+        )
+    )
+    options.extend(epic_options)
+    rows.update(epic_rows)
+    if not visible_epics:
         options.append(
             Option(
-                single_line_text("  No epic beads", style="dim"),
+                single_line_text(
+                    "  No matching epic beads" if filter_active else "  No epic beads",
+                    style="dim",
+                ),
                 disabled=True,
             )
         )
 
-    options.append(_section_option("Plan archive", len(snapshot.archive)))
     archive_entries: tuple[ProjectArchive, ...] = snapshot.archive
-    for project_archive in archive_entries:
+    archive_rows = tuple(
+        (
+            project_archive,
+            row_option_id(
+                snapshot,
+                "archive",
+                project_archive.project,
+                project_archive.match.plan.path,
+            ),
+        )
+        for project_archive in archive_entries
+    )
+    visible_archive = tuple(
+        entry
+        for entry in archive_rows
+        if matched_option_ids is None or entry[1] in matched_option_ids
+    )
+    options.append(
+        _section_option(
+            "Plan archive",
+            len(snapshot.archive),
+            matched_count=len(visible_archive) if filter_active else None,
+        )
+    )
+    for project_archive, option_id in visible_archive:
         project = project_archive.project
         match = project_archive.match
-        plan = match.plan
-        option_id = row_option_id(snapshot, "archive", project, plan.path)
         row = PlanRow(
             "archive",
             option_id,
@@ -201,10 +285,15 @@ def build_plan_options(
                 id=option_id,
             )
         )
-    if not snapshot.archive:
+    if not visible_archive:
         options.append(
             Option(
-                single_line_text("  No committed plans", style="dim"),
+                single_line_text(
+                    "  No matching committed plans"
+                    if filter_active
+                    else "  No committed plans",
+                    style="dim",
+                ),
                 disabled=True,
             )
         )
@@ -223,10 +312,16 @@ def row_option_id(
     return f"{kind}:{identity}"
 
 
-def _section_option(label: str, count: int) -> Option:
+def _section_option(
+    label: str,
+    count: int,
+    *,
+    matched_count: int | None = None,
+) -> Option:
     text = single_line_text()
     text.append(f"── {label} ", style=f"bold {ARTIFACTS_ACCENTS['plans']}")
-    text.append(f"({count}) ", style="dim")
+    count_label = str(count) if matched_count is None else f"{matched_count}/{count}"
+    text.append(f"({count_label}) ", style="dim")
     if label == "Epics":
         text.append("· ", style="dim")
         text.append(BLOCKED_STATE_GLYPH, style="bold #FF5F5F")

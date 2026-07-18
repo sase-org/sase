@@ -403,15 +403,14 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
             lambda _state: any(call["force_fetch"] is True for call in calls)
         )
 
-        # Slash remains scoped to Commits; Bugs and Plans do not open either
-        # the commit bar or the historical PR query modal.
-        for key, subtab in (("3", "bugs"), ("4", "plans")):
-            await page.press(key)
-            await page.expect_state("artifacts_subtab", subtab)
-            await page.press("slash")
-            await page.pause()
-            assert bar.display is False
-            assert page.state["modal"] is None
+        # Slash remains inert on Bugs rather than opening the commit bar or
+        # historical PR query modal. Plans owns its own filter-bar route.
+        await page.press("3")
+        await page.expect_state("artifacts_subtab", "bugs")
+        await page.press("slash")
+        await page.pause()
+        assert bar.display is False
+        assert page.state["modal"] is None
 
 
 async def test_commits_filter_bar_rejects_invalid_submit(

@@ -13,6 +13,13 @@ from textual.widgets import Markdown, OptionList, Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
+from sase.plan_search.filter_query import (
+    PlanFilterQueryError,
+    PlanFilterValues,
+    parse_plan_filter_query,
+    to_query_string,
+    to_query_tokens,
+)
 from ...keymaps import KeymapRegistry, load_keymap_registry
 from .._prompt_preview_target import PreviewPayload
 from .entry_navigation import ArtifactEntryTarget
@@ -34,6 +41,12 @@ from .plans_list import (
     build_plan_options,
     plan_row_target,
     row_option_id,
+)
+from .plan_filter_bar import PlanFilterBar
+from .plans_filtering import (
+    PlanFilterIndex,
+    build_plan_filter_index,
+    compile_plan_matcher,
 )
 from .plans_rendering import (
     archive_text,
@@ -70,6 +83,16 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._project_display_name: str | None = None
         self._registry = load_keymap_registry({})
         self._snapshot: PlansSnapshot | None = None
+        self.filters = PlanFilterValues()
+        self._filter_index: PlanFilterIndex | None = None
+        self._filter_index_snapshot: PlansSnapshot | None = None
+        self._filter_session_open = False
+        self._filter_restore_values: PlanFilterValues | None = None
+        self._filter_restore_expanded: set[tuple[str, str]] | None = None
+        self._filter_restore_selection: str | None = None
+        self._live_filter_values: PlanFilterValues | None = None
+        self._filter_query_error: PlanFilterQueryError | None = None
+        self._display_matched_counts: dict[str, int] | None = None
         self._rows: dict[str, PlanRow] = {}
         self._expanded_epics: set[tuple[str, str]] = set()
         self._loading = False
@@ -82,6 +105,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         self._entry_jump_hints: dict[ArtifactEntryTarget, str] = {}
 
     def compose(self) -> ComposeResult:
+        yield PlanFilterBar(id="plan-filter-bar")
         yield Static(self._scope_text(), classes="artifacts-pane-info", id="plans-info")
         with Horizontal(id="plans-panels"):
             list_panel = Vertical(id="plans-list-panel")
@@ -163,6 +187,149 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         option_list = self._option_list()
         if option_list is not None:
             option_list.focus()
+
+    def show_filters(self) -> None:
+        """Open and focus the inline plans filter bar."""
+        bar = self.query_one(PlanFilterBar)
+        if self._filter_session_open:
+            bar.query_one("#plan-filter-input").focus()
+            return
+        self._filter_session_open = True
+        self._filter_restore_values = self.filters
+        self._filter_restore_expanded = set(self._expanded_epics)
+        self._filter_restore_selection = self._selected_option_id()
+        self._live_filter_values = self.filters
+        self._filter_query_error = None
+        self._ensure_filter_index(needed=True)
+        self._set_filter_completion_sources()
+        bar.open(to_query_string(self.filters))
+        self._refresh_options(preferred_id=self._filter_restore_selection)
+
+    def on_plan_filter_bar_query_changed(
+        self,
+        event: PlanFilterBar.QueryChanged,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_plan_filter_query(event.text)
+        except PlanFilterQueryError as exc:
+            self._filter_query_error = exc
+            self.query_one(PlanFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            return
+
+        self._filter_query_error = None
+        self._live_filter_values = values
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options()
+
+    def on_plan_filter_bar_submitted(
+        self,
+        event: PlanFilterBar.Submitted,
+    ) -> None:
+        event.stop()
+        try:
+            values = parse_plan_filter_query(event.text)
+        except PlanFilterQueryError as exc:
+            self._filter_query_error = exc
+            self.query_one(PlanFilterBar).set_status(
+                None,
+                exact=False,
+                error=exc,
+            )
+            self.notify(exc.message, severity="error")
+            return
+
+        self.filters = values
+        self._live_filter_values = values
+        preferred_id = self._selected_option_id()
+        self._close_filter_session()
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=preferred_id)
+        self.focus_list()
+
+    def on_plan_filter_bar_dismissed(
+        self,
+        event: PlanFilterBar.Dismissed,
+    ) -> None:
+        event.stop()
+        restore_values = self._filter_restore_values
+        restore_expanded = self._filter_restore_expanded
+        restore_selection = self._filter_restore_selection
+        if restore_values is not None:
+            self.filters = restore_values
+        if restore_expanded is not None:
+            self._expanded_epics = set(restore_expanded)
+        self._close_filter_session()
+        self._cancel_jump_mode_for_filter_change()
+        self._refresh_options(preferred_id=restore_selection)
+        self.focus_list()
+
+    def _close_filter_session(self) -> None:
+        self.query_one(PlanFilterBar).close()
+        self._filter_session_open = False
+        self._filter_restore_values = None
+        self._filter_restore_expanded = None
+        self._filter_restore_selection = None
+        self._live_filter_values = None
+        self._filter_query_error = None
+
+    def _display_filter_values(self) -> PlanFilterValues:
+        if self._filter_session_open and self._live_filter_values is not None:
+            return self._live_filter_values
+        return self.filters
+
+    def _ensure_filter_index(self, *, needed: bool) -> PlanFilterIndex | None:
+        snapshot = self._snapshot
+        if not needed or snapshot is None or snapshot.project != self.project_scope:
+            return None
+        if self._filter_index_snapshot is not snapshot:
+            self._filter_index = build_plan_filter_index(snapshot)
+            self._filter_index_snapshot = snapshot
+        return self._filter_index
+
+    def _set_filter_completion_sources(self) -> None:
+        snapshot = self._snapshot
+        index = self._ensure_filter_index(needed=True)
+        if snapshot is None or index is None:
+            self.query_one(PlanFilterBar).set_completion_sources((), ())
+            return
+        archive_statuses = tuple(
+            status
+            for record in index
+            if record.kind == "archive"
+            for status in record.status_labels
+        )
+        projects = tuple(
+            value
+            for project in snapshot.projects
+            for value in (project, snapshot.display_names.get(project, project))
+        )
+        self.query_one(PlanFilterBar).set_completion_sources(
+            archive_statuses,
+            projects,
+        )
+
+    def _filter_is_exact(self, values: PlanFilterValues) -> bool:
+        snapshot = self._snapshot
+        if snapshot is None:
+            return False
+        archive_reachable = not values.kinds or any(
+            kind.casefold() == "archive" for kind in values.kinds
+        )
+        return not (snapshot.archive_truncated and archive_reachable)
+
+    def _cancel_jump_mode_for_filter_change(self) -> None:
+        cancel_jump = getattr(
+            self.app,
+            "_cancel_artifacts_jump_mode_for_model_change",
+            None,
+        )
+        if callable(cancel_jump):
+            cancel_jump("plans")
 
     def move_selection(self, step: int) -> None:
         option_list = self._option_list()
@@ -347,7 +514,11 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
                 if callable(cancel_jump):
                     cancel_jump("plans")
                 self._snapshot = result
+                self._filter_index = None
+                self._filter_index_snapshot = None
                 self._load_error = None
+                if self._filter_session_open:
+                    self._set_filter_completion_sources()
                 self._refresh_options(preferred_id=preferred)
         elif event.state == WorkerState.ERROR:
             self._loading = False
@@ -373,12 +544,36 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             return
         if preferred_id is None:
             preferred_id = self._selected_option_id()
+        values = self._display_filter_values()
+        matched_option_ids: frozenset[str] | None = None
+        self._display_matched_counts = None
+        match_count: int | None = None
+        filter_index = self._ensure_filter_index(
+            needed=self._filter_session_open or not values.is_empty
+        )
+        if filter_index is not None:
+            matcher = compile_plan_matcher(values)
+            matching_records = tuple(
+                record for record in filter_index if matcher(record)
+            )
+            match_count = len(matching_records)
+            if not values.is_empty:
+                matched_option_ids = frozenset(
+                    record.option_id for record in matching_records
+                )
+                matched_counts = dict.fromkeys(
+                    ("proposal", "epic", "phase", "archive"), 0
+                )
+                for record in matching_records:
+                    matched_counts[record.kind] += 1
+                self._display_matched_counts = matched_counts
         options, rows = build_plan_options(
             self._snapshot,
             project_scope=self.project_scope,
             loading=self._loading,
             expanded_epics=self._expanded_epics,
             jump_hints=self._entry_jump_hints,
+            matched_option_ids=matched_option_ids,
         )
         self._rows = rows
         self._syncing_options = True
@@ -392,8 +587,20 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
         finally:
             self._syncing_options = False
         self._update_status()
+        self._update_static("#plans-info", self._scope_text())
+        if self._filter_session_open and self._filter_query_error is None:
+            self.query_one(PlanFilterBar).set_status(
+                match_count,
+                exact=self._filter_is_exact(values),
+                error=None,
+            )
         if update_detail:
-            self._update_detail()
+            if self._detail_debouncer is None or (
+                not self._filter_session_open and values.is_empty
+            ):
+                self._update_detail()
+            else:
+                self._detail_debouncer.schedule(self._update_detail)
 
     @on(OptionList.OptionHighlighted, "#plans-list")
     def _on_option_highlighted(self, _event: OptionList.OptionHighlighted) -> None:
@@ -461,6 +668,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self._registry,
             project_scope=self.project_scope,
             project_display_name=self._project_display_name,
+            filter_tokens=to_query_tokens(self.filters),
         )
 
     def _status_text(self) -> Text:
@@ -468,6 +676,7 @@ class ArtifactsPlansPane(ArtifactsPaneLifecycle, Vertical):
             self._snapshot,
             loading=self._loading,
             load_error=self._load_error,
+            matched_counts=self._display_matched_counts,
         )
 
     def _hints_text(self) -> Text:

@@ -103,6 +103,7 @@ _PLANS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.plans_next",
         "app.plans_prev",
         "app.plans_view_selected",
+        "app.plans_filters",
         "app.plans_expand",
         "app.plans_collapse",
         "app.plans_cycle_status",
@@ -203,11 +204,11 @@ def _changespecs_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.artifacts_subtab == "bugs"
     if spec.id in _COMMITS_ARTIFACT_COMMANDS:
         return ctx.artifacts_subtab == "commits"
+    if spec.id in _PLANS_ARTIFACT_COMMANDS:
+        return ctx.artifacts_subtab == "plans"
     if spec.id == "app.edit_query" and ctx.artifacts_subtab != "prs":
-        return ctx.artifacts_subtab == "commits"
+        return ctx.artifacts_subtab in {"commits", "plans"}
     if ctx.artifacts_subtab != "prs":
-        if spec.id in _PLANS_ARTIFACT_COMMANDS:
-            return ctx.artifacts_subtab == "plans"
         return spec.id.startswith("artifacts.") or spec.id in _NON_PRS_ARTIFACT_COMMANDS
     if spec.id == "app.pick_artifacts_project":
         return False

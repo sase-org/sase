@@ -101,6 +101,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("j", "plans_next", "Next Plan", show=False),
     Binding("k", "plans_prev", "Previous Plan", show=False),
     Binding("enter", "plans_view_selected", "View Plan", show=False),
+    Binding("f", "plans_filters", "Plan Filters", show=False),
     Binding("l", "plans_expand", "Expand Epic", show=False),
     Binding("h", "plans_collapse", "Collapse Epic", show=False),
     Binding("s", "plans_cycle_status", "Bead Status", show=False),

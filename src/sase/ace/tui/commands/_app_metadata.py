@@ -134,6 +134,7 @@ APP_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("plans_next", "Plans: next row", "Navigation", CL_ONLY, ("plan down",)),
     ("plans_prev", "Plans: previous row", "Navigation", CL_ONLY, ("plan up",)),
     ("plans_view_selected", "Plans: view selected", "Display", CL_ONLY, ()),
+    ("plans_filters", "Plans: filter bar", "Display", CL_ONLY, ()),
     ("plans_expand", "Plans: expand epic", "Folding", CL_ONLY, ()),
     ("plans_collapse", "Plans: collapse epic", "Folding", CL_ONLY, ()),
     (

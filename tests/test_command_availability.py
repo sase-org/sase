@@ -132,7 +132,7 @@ def test_bug_commands_only_available_on_bugs_subtab() -> None:
     )
 
 
-def test_edit_query_is_available_on_prs_and_commits_only() -> None:
+def test_edit_query_is_available_on_prs_commits_and_plans() -> None:
     spec = _catalog_by_id()["app.edit_query"]
     assert is_command_available(
         spec,
@@ -142,7 +142,23 @@ def test_edit_query_is_available_on_prs_and_commits_only() -> None:
         spec,
         CommandContext(tab="changespecs", artifacts_subtab="commits"),
     )
-    for subtab in ("bugs", "plans"):
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="plans"),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="bugs"),
+    )
+
+
+def test_plans_filter_command_is_available_only_on_plans() -> None:
+    spec = _catalog_by_id()["app.plans_filters"]
+    assert is_command_available(
+        spec,
+        CommandContext(tab="changespecs", artifacts_subtab="plans"),
+    )
+    for subtab in ("prs", "commits", "bugs"):
         assert not is_command_available(
             spec,
             CommandContext(tab="changespecs", artifacts_subtab=subtab),

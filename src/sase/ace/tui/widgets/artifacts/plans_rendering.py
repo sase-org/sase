@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 
 from rich.text import Text
@@ -25,6 +26,7 @@ def build_plans_scope(
     *,
     project_scope: str | None,
     project_display_name: str | None,
+    filter_tokens: tuple[str, ...] = (),
 ) -> Text:
     """Build the pane's project-scope header."""
     text = Text()
@@ -40,6 +42,9 @@ def build_plans_scope(
         f"{key_display_name(registry.app.pick_artifacts_project)} change",
         style="dim",
     )
+    for token in filter_tokens:
+        text.append("  ·  ", style="dim")
+        text.append(token, style="dim #87D7FF")
     return text
 
 
@@ -48,6 +53,7 @@ def build_plans_status(
     *,
     loading: bool,
     load_error: str | None,
+    matched_counts: Mapping[str, int] | None = None,
 ) -> Text:
     """Build the snapshot summary shown above the plan list."""
     text = Text()
@@ -62,13 +68,42 @@ def build_plans_status(
         if snapshot.project is None:
             text.append(f"{len(snapshot.projects)} projects", style="bold white")
             text.append("  ·  ", style="dim")
-        text.append(f"{len(snapshot.proposals)} proposals", style="#FFD700")
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "proposal",
+                len(snapshot.proposals),
+                "proposals",
+            ),
+            style="#FFD700",
+        )
         text.append("  ·  ", style="dim")
-        text.append(f"{len(snapshot.epics)} epics", style=ARTIFACTS_ACCENTS["plans"])
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "epic",
+                len(snapshot.epics),
+                "epics",
+            ),
+            style=ARTIFACTS_ACCENTS["plans"],
+        )
         text.append("  ·  ", style="dim")
-        text.append(f"{phase_count} phases", style="#87D7FF")
+        text.append(
+            _matched_count_label(
+                matched_counts,
+                "phase",
+                phase_count,
+                "phases",
+            ),
+            style="#87D7FF",
+        )
         text.append("  ·  ", style="dim")
-        archive_label = f"{len(snapshot.archive)} archived"
+        archive_label = _matched_count_label(
+            matched_counts,
+            "archive",
+            len(snapshot.archive),
+            "archived",
+        )
         if snapshot.archive_truncated:
             archive_label += " (newest shown)"
         text.append(archive_label, style="#00D7AF")
@@ -89,6 +124,7 @@ def build_plans_hints(registry: KeymapRegistry) -> Text:
         (keymap.plans_next, "next"),
         (keymap.plans_prev, "prev"),
         (keymap.plans_view_selected, "view"),
+        (keymap.edit_query, "filter"),
         (keymap.plans_expand, "expand"),
         (keymap.plans_collapse, "collapse"),
         (keymap.plans_cycle_status, "status"),
@@ -106,6 +142,18 @@ def build_plans_hints(registry: KeymapRegistry) -> Text:
         text.append(key_display_name(key), style=f"bold {ARTIFACTS_ACCENTS['plans']}")
         text.append(f" {label}", style="dim")
     return text
+
+
+def _matched_count_label(
+    matched_counts: Mapping[str, int] | None,
+    kind: str,
+    total: int,
+    noun: str,
+) -> str:
+    count = str(total)
+    if matched_counts is not None:
+        count = f"{matched_counts.get(kind, 0)}/{total}"
+    return f"{count} {noun}"
 
 
 def build_empty_plan_detail(

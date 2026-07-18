@@ -114,6 +114,13 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (f"{d(a.plans_next)} / {d(a.plans_prev)}", "Next / previous row"),
                 (d(a.plans_view_selected), "Open selected plan or bead"),
                 (
+                    f"{d(a.edit_query)} / {d(a.plans_filters)}",
+                    "Open inline plans filter bar",
+                ),
+                ("kind: / status: / tier:", "Filter row type, state, or tier"),
+                ("project: / since: / until:", "Filter scope or creation date"),
+                ("bare text", "Match title, body, id, and metadata"),
+                (
                     f"{d(a.plans_expand)} / {d(a.plans_collapse)}",
                     "Expand / collapse epic phases",
                 ),

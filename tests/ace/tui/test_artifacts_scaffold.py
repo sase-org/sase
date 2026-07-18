@@ -78,7 +78,8 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
 
         await page.press("[")
         await page.expect_state("artifacts_subtab", "plans")
-        assert page.app.check_action("edit_query", ()) is False
+        assert page.app.check_action("edit_query", ()) is not False
+        assert page.app.check_action("plans_filters", ()) is True
 
 
 async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:

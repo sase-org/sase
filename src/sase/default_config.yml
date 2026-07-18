@@ -125,6 +125,7 @@ ace:
       plans_next: "j"
       plans_prev: "k"
       plans_view_selected: "enter"
+      plans_filters: "f"
       plans_expand: "l"
       plans_collapse: "h"
       plans_cycle_status: "s"
