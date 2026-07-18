@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import TreeEntry
 
@@ -69,3 +70,54 @@ def _group_keys(entries: list[TreeEntry], level: int) -> list[tuple[str, ...]]:
         for e in entries
         if e.kind == "group" and e.group is not None and e.group.level == level
     ]
+
+
+def _anchored_clan_agents() -> list[Agent]:
+    """Return a clan whose grandchildren carry conflicting presentation data."""
+    generation = "20260718080000"
+    phase = _agent(
+        cl_name="phase-changespec",
+        project_file="/r/root/root.sase",
+        tag="epic",
+        agent_name="sase-6r.phase-plan",
+        raw_suffix="phase",
+        status="DONE",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    phase.agent_clan = "sase-6r"
+    phase.agent_clan_generation = generation
+    ordinary = _agent(
+        cl_name="descendant-changespec",
+        project_file="/r/other/other.sase",
+        tag="review",
+        agent_name="detached.family.step",
+        raw_suffix="ordinary",
+        parent_workflow="phase",
+        parent_timestamp="phase",
+        status="QUESTION",
+        start_time=datetime(2026, 4, 26, 11, 0, 0),
+    )
+    hidden = _agent(
+        cl_name="hidden-changespec",
+        project_file="/r/hidden/hidden.sase",
+        tag="hidden",
+        agent_name="hidden.family.step",
+        raw_suffix="hidden",
+        parent_workflow="phase",
+        parent_timestamp="phase",
+        status="FAILED",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    hidden.is_hidden_step = True
+    peer = _agent(
+        cl_name="peer-changespec",
+        project_file="/r/root/root.sase",
+        tag="review",
+        agent_name="sase-6r.phase-review",
+        raw_suffix="peer",
+        status="RUNNING",
+        start_time=datetime(2026, 4, 26, 9, 0, 0),
+    )
+    peer.agent_clan = "sase-6r"
+    peer.agent_clan_generation = generation
+    return project_clan_tree([phase, ordinary, hidden, peer])

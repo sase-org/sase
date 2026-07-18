@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
-from sase.ace.tui.models.agent_groups import TreeEntry, build_agent_tree
+from datetime import datetime
 
-from ._agent_groups_helpers import _agent, _group_keys, _kinds
+import pytest
+
+from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
+from sase.ace.tui.models.agent_groups import GroupingMode, TreeEntry, build_agent_tree
+
+from ._agent_groups_helpers import (
+    _NOW,
+    _agent,
+    _anchored_clan_agents,
+    _group_keys,
+    _kinds,
+)
 
 
 def test_full_tree_does_not_split_same_project_group() -> None:
@@ -74,6 +85,56 @@ def test_full_tree_workflow_children_stay_with_parent_after_sort() -> None:
     agent_order = [e.agent_idx for e in entries if e.kind == "agent"]
     # demo (cl_name=demo) sorts before "other" within the same project.
     assert agent_order == [0, 1, 3, 2]
+
+
+@pytest.mark.parametrize(
+    ("mode", "before", "after"),
+    [
+        (
+            GroupingMode.STANDARD,
+            _agent(
+                cl_name="alpha",
+                project_file="/r/alpha/alpha.sase",
+                agent_name="alpha",
+            ),
+            _agent(
+                cl_name="zeta",
+                project_file="/r/zeta/zeta.sase",
+                agent_name="zeta",
+            ),
+        ),
+        (
+            GroupingMode.BY_STATUS,
+            _agent(cl_name="stopped", agent_name="stopped", status="QUESTION"),
+            _agent(cl_name="done", agent_name="done", status="DONE"),
+        ),
+        (
+            GroupingMode.BY_DATE,
+            _agent(
+                cl_name="newer",
+                agent_name="newer",
+                start_time=datetime(2026, 4, 26, 10, 0, 0),
+            ),
+            _agent(
+                cl_name="older",
+                agent_name="older",
+                start_time=datetime(2026, 4, 26, 7, 0, 0),
+            ),
+        ),
+    ],
+)
+def test_grouping_orders_clan_subtree_as_one_atomic_cluster(
+    mode: GroupingMode,
+    before: Agent,
+    after: Agent,
+) -> None:
+    clan = _anchored_clan_agents()
+    agents = [*clan, before, after]
+
+    entries = build_agent_tree(agents, mode=mode, now=_NOW)
+
+    agent_order = [entry.agent_idx for entry in entries if entry.kind == "agent"]
+    assert agent_order == [len(clan), *range(len(clan)), len(clan) + 1]
 
 
 def test_full_tree_singleton_name_root_still_suppressed_after_sort() -> None:

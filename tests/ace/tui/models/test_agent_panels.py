@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import (
     AgentPanelGroup,
+    agents_for_panel,
     effective_tag_per_agent,
     panel_key_per_agent,
 )
@@ -221,3 +223,39 @@ def test_merged_panels_use_one_panel_but_preserve_effective_tags() -> None:
     assert group.focused_idx == 0
     assert panel_key_per_agent(agents, merge_tag_panels=True) == [None, None, None]
     assert effective_tag_per_agent(agents) == ["fix", "fix", "review"]
+
+
+def test_clan_subtree_uses_outer_root_panel_in_split_and_merged_modes() -> None:
+    phase = _agent(suffix="phase", tag="epic", name="sase-6r.phase")
+    phase.agent_clan = "sase-6r"
+    phase.agent_clan_generation = "20260718080000"
+    step = _agent(
+        suffix="step",
+        tag="review",
+        name="sase-6r.phase.step",
+        parent_timestamp="phase",
+        parent_workflow="phase",
+    )
+    peer = _agent(suffix="peer", tag="review", name="sase-6r.peer")
+    peer.agent_clan = "sase-6r"
+    peer.agent_clan_generation = phase.agent_clan_generation
+    clan = project_clan_tree([phase, step, peer])
+    standalone = _agent(suffix="standalone", tag="fix", name="standalone")
+    standalone_step = _agent(
+        suffix="standalone-step",
+        name="standalone.step",
+        parent_timestamp="standalone",
+        parent_workflow="standalone",
+    )
+    unrelated = _agent(suffix="unrelated", tag="review", name="unrelated")
+    agents = [*clan, standalone, standalone_step, unrelated]
+
+    expected_tags = [None] * len(clan) + ["fix", "fix", "review"]
+    assert clan[0].clan_tags == ("epic", "review")
+    assert effective_tag_per_agent(agents) == expected_tags
+    assert panel_key_per_agent(agents) == expected_tags
+    assert AgentPanelGroup.from_agents(agents).panel_keys == [None, "fix", "review"]
+    assert agents_for_panel(agents, None) == clan
+
+    assert panel_key_per_agent(agents, merge_tag_panels=True) == [None] * len(agents)
+    assert agents_for_panel(agents, None, merge_tag_panels=True) == agents

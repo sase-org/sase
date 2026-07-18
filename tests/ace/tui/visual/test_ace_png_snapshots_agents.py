@@ -14,6 +14,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
@@ -294,6 +295,7 @@ def _clan_tree_agents() -> list[Agent]:
         raw_suffix="20260717100100-audit-prompt",
         parent_workflow="audit",
         parent_timestamp=workflow.raw_suffix,
+        agent_family="research.audit",
         step_name="audit",
         step_type="agent",
         step_index=0,
@@ -312,6 +314,7 @@ def _clan_tree_agents() -> list[Agent]:
         raw_suffix="20260717100030-audit-setup",
         parent_workflow="audit",
         parent_timestamp=workflow.raw_suffix,
+        agent_family="research.audit",
         step_name="setup",
         step_type="bash",
         step_index=1,
@@ -654,6 +657,25 @@ async def test_clan_tree_fold_levels_png_snapshots(
             page,
             "agents_clan_tree_fully_expanded_120x40",
             title="ACE clan member fully expanded",
+        )
+
+        await page.press("o", "o")
+        await wait_for_visual_idle(page)
+        assert page.app._grouping_mode is GroupingMode.BY_STATUS
+        assert page.app._panel_group.panel_keys == [None]
+        status_group_keys = [
+            entry.group.group_key
+            for entry in build_agent_tree(
+                page.app._agents,
+                mode=GroupingMode.BY_STATUS,
+            )
+            if entry.group is not None
+        ]
+        assert status_group_keys == [("Running",)]
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_clan_tree_fully_expanded_by_status_120x40",
+            title="ACE clan member fully expanded by status",
         )
 
 

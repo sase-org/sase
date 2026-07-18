@@ -10,7 +10,12 @@ from sase.core.time import local_now
 from sase.plan_chain import agent_family_base, canonical_plan_chain_suffix
 
 from ..agent import Agent
-from .._agent_tree import tree_parent, tree_parent_lookup
+from .._agent_tree import (
+    agent_tree_depth,
+    presentation_anchor,
+    presentation_anchor_lookup,
+    tree_parent_lookup,
+)
 from ._buckets import (
     NO_PROJECT,
     GroupingMode,
@@ -51,7 +56,7 @@ def _grouping_name(agent: Agent) -> str:
 
 
 @dataclass(frozen=True)
-class _GroupingKeys:
+class GroupingKeys:
     project: str  # project_name (or NO_PROJECT)
     changespec: str  # real ChangeSpec name (may be "")
     name_root: str
@@ -168,7 +173,7 @@ def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
     """Compute the L0 string value for *agent* under *mode*.
 
     For STANDARD this is the project name; for BY_DATE / BY_STATUS it's
-    the bucket name.  Stored in :class:`_GroupingKeys.project` so the
+    the bucket name.  Stored in :class:`GroupingKeys.project` so the
     rest of the tree-building plumbing stays unchanged.
     """
     if mode is GroupingMode.STANDARD:
@@ -183,23 +188,24 @@ def grouping_keys_for(
     parent_lookup: dict[str, Agent],
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
-) -> _GroupingKeys:
+    *,
+    anchors: dict[int, Agent] | None = None,
+) -> GroupingKeys:
     """Compute (L0, changespec, name_root, name_prefix) for *agent*.
 
-    Workflow children inherit grouping from their parent so a banner is
-    never inserted between a parent and its workflow steps.  ``now`` is
-    only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
-    ``changespec`` is always empty in non-STANDARD modes since the
-    ChangeSpec level disappears from the hierarchy.  ``name_root`` and
-    ``name_prefix`` are additionally suppressed under ``BY_DATE`` —
-    within a date bucket, same-base-name agents are not a meaningful
-    sub-unit, so the bucket renders as a flat list sorted by
-    ``start_time``.
+    Structural descendants inherit grouping from their outer presentation
+    anchor so a banner is never inserted inside a rendered subtree.  ``now``
+    is only consulted for ``BY_DATE`` (defaults to ``datetime.now()``);
+    ``changespec`` is always empty in non-STANDARD modes since the ChangeSpec
+    level disappears from the hierarchy.  ``name_root`` and ``name_prefix``
+    are additionally suppressed under ``BY_DATE`` — within a date bucket,
+    same-base-name agents are not a meaningful sub-unit, so the bucket renders
+    as a flat list sorted by root time.
     """
-    target = tree_parent(agent, parent_lookup) or agent
+    target = presentation_anchor(agent, parent_lookup, anchors)
     reference = now if now is not None else local_now()
     l0 = _l0_value_for(target, mode, reference)
-    return _GroupingKeys(
+    return GroupingKeys(
         project=l0,
         changespec=(
             _changespec_name_for_grouping(target)
@@ -222,15 +228,23 @@ def grouping_keys_for_agents(
     agents: list[Agent],
     mode: GroupingMode = GroupingMode.STANDARD,
     now: datetime | None = None,
-) -> list[_GroupingKeys]:
+) -> list[GroupingKeys]:
     """Public-ish helper exposing per-agent grouping keys."""
     parent_lookup = tree_parent_lookup(agents)
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
     reference = now if now is not None else local_now()
-    return [grouping_keys_for(a, parent_lookup, mode, reference) for a in agents]
+    return [
+        grouping_keys_for(a, parent_lookup, mode, reference, anchors=anchors)
+        for a in agents
+    ]
 
 
 def panel_uses_changespec_level(
-    panel_agents: list[Agent], mode: GroupingMode = GroupingMode.STANDARD
+    panel_agents: list[Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+    *,
+    parent_lookup: dict[str, Agent] | None = None,
+    anchors: dict[int, Agent] | None = None,
 ) -> bool:
     """Whether *panel_agents* should use the 3-level layout.
 
@@ -240,9 +254,16 @@ def panel_uses_changespec_level(
     """
     if mode is not GroupingMode.STANDARD:
         return False
-    parent_lookup = tree_parent_lookup(panel_agents)
+    lookup = (
+        parent_lookup if parent_lookup is not None else tree_parent_lookup(panel_agents)
+    )
+    anchor_lookup = (
+        anchors
+        if anchors is not None
+        else presentation_anchor_lookup(panel_agents, lookup)
+    )
     for agent in panel_agents:
-        target = tree_parent(agent, parent_lookup) or agent
+        target = presentation_anchor(agent, lookup, anchor_lookup)
         if _changespec_name_for_grouping(target):
             return True
     return False
@@ -252,13 +273,14 @@ def walk_anchors(
     agents: list[Agent],
     parent_lookup: dict[str, Agent],
     mode: GroupingMode,
+    *,
+    anchors: dict[int, Agent] | None = None,
 ) -> list[tuple[float, int]]:
     """Per-agent ``(-anchor_epoch, is_child)`` tiebreak under ``BY_DATE``.
 
-    Workflow children adopt their parent's anchor and a ``1`` in the
-    ``is_child`` slot so they sort immediately after the parent
-    regardless of the child's own timestamps.  Non-``BY_DATE`` modes
-    return a constant ``(0.0, 0)`` per agent so the sort is unchanged.
+    Structural descendants adopt their outer root's anchor.  The depth slot
+    remains available to legacy callers; clustered walks preserve projected
+    preorder directly rather than sorting descendants by depth.
 
     Terminal agents (``DONE`` / ``PLAN DONE`` / ``EPIC CREATED``) anchor
     on ``stop_time`` so a recently-finished agent floats to the top of
@@ -271,10 +293,15 @@ def walk_anchors(
     """
     if mode is not GroupingMode.BY_DATE:
         return [(0.0, 0)] * len(agents)
+    anchor_lookup = (
+        anchors
+        if anchors is not None
+        else presentation_anchor_lookup(agents, parent_lookup)
+    )
     out: list[tuple[float, int]] = []
     for agent in agents:
-        target = tree_parent(agent, parent_lookup) or agent
-        is_child = agent.tree_depth if target is not agent else 0
+        target = presentation_anchor(agent, parent_lookup, anchor_lookup)
+        is_child = agent_tree_depth(agent) if target is not agent else 0
         anchor_time = hour_anchor_time(target)
         if anchor_time is None:
             anchor = float("inf")
@@ -285,13 +312,14 @@ def walk_anchors(
 
 
 def walk_order(
-    keys_per_agent: list[_GroupingKeys],
+    keys_per_agent: list[GroupingKeys],
     anchors: list[tuple[float, int]],
     *,
     use_changespec_level: bool,
     mode: GroupingMode = GroupingMode.STANDARD,
+    cluster_roots: list[int] | None = None,
 ) -> list[int]:
-    """Return a stable permutation of agent indices sorted by grouping keys."""
+    """Return a stable permutation, optionally treating root trees atomically."""
     parent_keys: list[tuple[str, str]] = [
         (k.project, k.changespec) if use_changespec_level else (k.project, "")
         for k in keys_per_agent
@@ -307,8 +335,17 @@ def walk_order(
             prefix_counts[(parent, k.name_root, k.name_prefix)] = (
                 prefix_counts.get((parent, k.name_root, k.name_prefix), 0) + 1
             )
-    return sorted(
-        range(len(keys_per_agent)),
+    cluster_members: dict[int, list[int]] | None = None
+    if cluster_roots is not None and len(cluster_roots) == len(keys_per_agent):
+        cluster_members = {}
+        for i, root_idx in enumerate(cluster_roots):
+            cluster_members.setdefault(root_idx, []).append(i)
+        sortable_indices = list(cluster_members)
+    else:
+        sortable_indices = list(range(len(keys_per_agent)))
+
+    ordered = sorted(
+        sortable_indices,
         key=lambda i: (
             _project_sort_key(mode, keys_per_agent[i].project),
             (
@@ -359,3 +396,6 @@ def walk_order(
             i,
         ),
     )
+    if cluster_members is None:
+        return ordered
+    return [i for root_idx in ordered for i in cluster_members[root_idx]]

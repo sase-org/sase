@@ -73,6 +73,86 @@ def tree_parent(agent: Agent, lookup: dict[str, Agent]) -> Agent | None:
     return None
 
 
+def presentation_anchor_lookup(
+    agents: list[Agent],
+    parent_lookup: dict[str, Agent] | None = None,
+) -> dict[int, Agent]:
+    """Resolve each row to its outermost available rendered-tree root.
+
+    The returned mapping is keyed by object identity because :class:`Agent`
+    rows are mutable and intentionally unhashable.  Resolution memoizes every
+    traversed path, keeping the batch operation linear for well-formed trees.
+
+    Missing parents terminate a path at the highest row that was actually
+    resolved.  Malformed cycles are collapsed onto the shallowest cycle row,
+    with input order as a deterministic tiebreak, so otherwise renderable rows
+    never disappear or trigger an unbounded ancestry walk.
+    """
+    lookup = parent_lookup if parent_lookup is not None else tree_parent_lookup(agents)
+    input_positions = {id(agent): i for i, agent in enumerate(agents)}
+    resolved: dict[int, Agent] = {}
+
+    for agent in agents:
+        if id(agent) in resolved:
+            continue
+
+        path: list[Agent] = []
+        path_positions: dict[int, int] = {}
+        current = agent
+        while True:
+            current_id = id(current)
+            cached = resolved.get(current_id)
+            if cached is not None:
+                anchor = cached
+                break
+
+            cycle_start = path_positions.get(current_id)
+            if cycle_start is not None:
+                cycle = path[cycle_start:]
+                anchor = min(
+                    cycle,
+                    key=lambda row: (
+                        agent_tree_depth(row),
+                        input_positions.get(id(row), len(agents)),
+                    ),
+                )
+                for row in cycle:
+                    resolved[id(row)] = anchor
+                break
+
+            path_positions[current_id] = len(path)
+            path.append(current)
+            parent = tree_parent(current, lookup)
+            if parent is None:
+                anchor = current
+                break
+            current = parent
+
+        for row in reversed(path):
+            resolved.setdefault(id(row), anchor)
+
+    return resolved
+
+
+def presentation_anchor(
+    agent: Agent,
+    parent_lookup: dict[str, Agent],
+    anchors: dict[int, Agent] | None = None,
+) -> Agent:
+    """Return *agent*'s outer presentation anchor from an existing tree index."""
+    if anchors is not None:
+        return anchors.get(id(agent), agent)
+    rows: list[Agent] = []
+    seen: set[int] = set()
+    for row in [*parent_lookup.values(), agent]:
+        row_id = id(row)
+        if row_id in seen:
+            continue
+        seen.add(row_id)
+        rows.append(row)
+    return presentation_anchor_lookup(rows, parent_lookup).get(id(agent), agent)
+
+
 def _reset_tree_projection(agent: Agent) -> None:
     agent.tree_parent_key = None
     agent.tree_depth = 0
@@ -255,6 +335,8 @@ __all__ = [
     "agent_parent_fold_key",
     "agent_tree_depth",
     "filter_tree_rows",
+    "presentation_anchor",
+    "presentation_anchor_lookup",
     "project_clan_tree",
     "tree_parent",
     "tree_parent_lookup",

@@ -9,7 +9,11 @@ from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
-from .._agent_tree import agent_is_tree_child, tree_parent_lookup
+from .._agent_tree import (
+    agent_is_tree_child,
+    presentation_anchor_lookup,
+    tree_parent_lookup,
+)
 from ..agent_panels import panel_key_per_agent
 from ..group_fold import GroupFoldRegistry, GroupFoldView, GroupKey
 from ._buckets import (
@@ -19,8 +23,8 @@ from ._buckets import (
     status_bucket_for,
 )
 from ._keys import (
+    GroupingKeys,
     grouping_keys_for,
-    grouping_keys_for_agents,
     panel_uses_changespec_level,
     walk_anchors,
     walk_order,
@@ -58,6 +62,64 @@ class _BannerSummary:
     running: int
     failed: int
     awaiting: int
+
+
+@dataclass(frozen=True)
+class _GroupedWalk:
+    """Anchored grouping metadata and atomic-cluster render order."""
+
+    keys_per_agent: list[GroupingKeys]
+    use_changespec_level: bool
+    indices: list[int]
+
+
+def _grouped_walk(
+    agents: list[Agent],
+    mode: GroupingMode,
+    reference: datetime,
+) -> _GroupedWalk:
+    """Build one shared anchored walk for banners and agent rows."""
+    parent_lookup = tree_parent_lookup(agents)
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    keys_per_agent = [
+        grouping_keys_for(
+            agent,
+            parent_lookup,
+            mode,
+            reference,
+            anchors=anchors,
+        )
+        for agent in agents
+    ]
+    time_anchors = walk_anchors(
+        agents,
+        parent_lookup,
+        mode,
+        anchors=anchors,
+    )
+    use_cs = panel_uses_changespec_level(
+        agents,
+        mode,
+        parent_lookup=parent_lookup,
+        anchors=anchors,
+    )
+    index_by_identity = {id(agent): i for i, agent in enumerate(agents)}
+    cluster_roots = [
+        index_by_identity.get(id(anchors.get(id(agent), agent)), i)
+        for i, agent in enumerate(agents)
+    ]
+    indices = walk_order(
+        keys_per_agent,
+        time_anchors,
+        use_changespec_level=use_cs,
+        mode=mode,
+        cluster_roots=cluster_roots,
+    )
+    return _GroupedWalk(
+        keys_per_agent=keys_per_agent,
+        use_changespec_level=use_cs,
+        indices=indices,
+    )
 
 
 def _should_emit_date_subgroup_banner(subgroup: str, count: int) -> bool:
@@ -98,16 +160,10 @@ def enumerate_group_keys(
     out: list[GroupKey] = []
     for indices in panel_to_indices.values():
         panel_agents = [agents[i] for i in indices]
-        keys_per_agent = grouping_keys_for_agents(panel_agents, mode, reference)
-        parent_lookup = tree_parent_lookup(panel_agents)
-        anchors = walk_anchors(panel_agents, parent_lookup, mode)
-        use_cs = panel_uses_changespec_level(panel_agents, mode)
-        walk = walk_order(
-            keys_per_agent,
-            anchors,
-            use_changespec_level=use_cs,
-            mode=mode,
-        )
+        grouped_walk = _grouped_walk(panel_agents, mode, reference)
+        keys_per_agent = grouped_walk.keys_per_agent
+        use_cs = grouped_walk.use_changespec_level
+        walk = grouped_walk.indices
         root_counts: dict[tuple[tuple[str, ...], str], int] = {}
         prefix_counts: dict[tuple[tuple[str, ...], str, str], int] = {}
         subgroup_counts: dict[tuple[str, str], int] = {}
@@ -195,14 +251,11 @@ def build_agent_tree(
         renderer in order.
     """
     registry = fold_registry if fold_registry is not None else GroupFoldRegistry()
-    parent_lookup = tree_parent_lookup(agents)
     reference = now if now is not None else local_now()
-    keys_per_agent = [
-        grouping_keys_for(a, parent_lookup, mode, reference) for a in agents
-    ]
-    anchors = walk_anchors(agents, parent_lookup, mode)
-    use_cs = panel_uses_changespec_level(agents, mode)
-    walk = walk_order(keys_per_agent, anchors, use_changespec_level=use_cs, mode=mode)
+    grouped_walk = _grouped_walk(agents, mode, reference)
+    keys_per_agent = grouped_walk.keys_per_agent
+    use_cs = grouped_walk.use_changespec_level
+    walk = grouped_walk.indices
 
     proj_indices: dict[str, list[int]] = {}
     cs_indices: dict[tuple[str, str], list[int]] = {}

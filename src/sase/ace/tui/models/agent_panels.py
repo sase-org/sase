@@ -14,8 +14,8 @@ order: expanded panels precede collapsed panels.  Both partitions retain the
 canonical order, so panel layout is deterministic rather than depending on
 collapse time or set iteration order.
 
-Workflow children inherit their parent's tag so they appear in the
-parent's panel even if the child has no tag of its own.
+Every structural descendant inherits its outer rendered root's effective tag,
+so grouping never splits a clan or agent-family subtree across panels.
 """
 
 from __future__ import annotations
@@ -25,7 +25,11 @@ from dataclasses import dataclass, field
 from typing import cast
 
 from .agent import Agent
-from ._agent_tree import tree_parent, tree_parent_lookup
+from ._agent_tree import (
+    presentation_anchor,
+    presentation_anchor_lookup,
+    tree_parent_lookup,
+)
 
 #: Panel key type — ``None`` for the untagged panel; a tag string otherwise.
 PanelKey = str | None
@@ -35,8 +39,12 @@ def _build_parent_lookup(agents: list[Agent]) -> dict[str, Agent]:
     return tree_parent_lookup(agents)
 
 
-def _panel_key_for_agent(agent: Agent, parent_lookup: dict[str, Agent]) -> PanelKey:
-    target = tree_parent(agent, parent_lookup) or agent
+def _panel_key_for_agent(
+    agent: Agent,
+    parent_lookup: dict[str, Agent],
+    anchors: dict[int, Agent],
+) -> PanelKey:
+    target = presentation_anchor(agent, parent_lookup, anchors)
     return target.tag if target.tag else None
 
 
@@ -64,10 +72,11 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
 
     rendered_agents = [a for a in agents if agent_is_rendered_in_agents_panel(a)]
     parent_lookup = _build_parent_lookup(agents)
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
     distinct_tags: set[str] = set()
     has_untagged = False
     for a in rendered_agents:
-        key = _panel_key_for_agent(a, parent_lookup)
+        key = _panel_key_for_agent(a, parent_lookup, anchors)
         if key is None:
             has_untagged = True
         else:
@@ -80,9 +89,10 @@ def _panel_keys_for(agents: list[Agent]) -> list[PanelKey]:
 
 
 def effective_tag_per_agent(agents: list[Agent]) -> list[PanelKey]:
-    """Return the panel key (with parent inheritance) for each agent in *agents*."""
+    """Return the root-anchored panel key for each agent in *agents*."""
     parent_lookup = _build_parent_lookup(agents)
-    return [_panel_key_for_agent(a, parent_lookup) for a in agents]
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    return [_panel_key_for_agent(a, parent_lookup, anchors) for a in agents]
 
 
 def panel_key_per_agent(
@@ -115,7 +125,10 @@ def agents_for_panel(
     if merge_tag_panels:
         return candidates
     parent_lookup = _build_parent_lookup(agents)
-    return [a for a in candidates if _panel_key_for_agent(a, parent_lookup) == key]
+    anchors = presentation_anchor_lookup(agents, parent_lookup)
+    return [
+        a for a in candidates if _panel_key_for_agent(a, parent_lookup, anchors) == key
+    ]
 
 
 @dataclass

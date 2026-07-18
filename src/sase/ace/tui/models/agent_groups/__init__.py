@@ -31,8 +31,8 @@ Tag-level grouping is not part of this tree — tags drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
 already represents a single tag bucket.
 
-Workflow children inherit grouping identity from their parent so that
-banners are never emitted between a parent and its child steps.
+Structural descendants inherit grouping identity from their outer rendered
+root so banners are never emitted inside a clan or agent-family subtree.
 
 Each group has a binary collapsed/expanded state, tracked per-key in an
 :class:`AgentGroupFoldRegistry`.  When a group is collapsed its
@@ -44,7 +44,8 @@ ChangeSpecs sort before the ``(no ChangeSpec)`` bucket; ungrouped
 agents (dotless and singleton-name-root) sort first within their
 ChangeSpec bucket so they render directly under the ChangeSpec banner,
 before any name-root banner.  Within each group, members keep their
-original input order via a stable sort.
+original projected parent/child preorder, and each rooted subtree is sorted as
+one atomic cluster.
 
 Name-root and name-prefix banners are only emitted when the group
 contains two or more entries; singleton groups render their agents

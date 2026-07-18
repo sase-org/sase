@@ -8,6 +8,8 @@ from sase.ace.tui.models._agent_tree import (
     agent_fold_key,
     agent_parent_fold_key,
     filter_tree_rows,
+    presentation_anchor,
+    presentation_anchor_lookup,
     project_clan_tree,
     tree_parent,
     tree_parent_lookup,
@@ -88,6 +90,31 @@ def test_project_clan_tree_inserts_container_and_three_depths() -> None:
     lookup = tree_parent_lookup(projected)
     assert tree_parent(family_member, lookup) is family
     assert tree_parent(family, lookup) is container
+    anchors = presentation_anchor_lookup(projected, lookup)
+    assert [anchors[id(row)] for row in projected] == [container] * 4
+
+
+def test_presentation_anchor_handles_orphans_and_cycles_deterministically() -> None:
+    orphan = _agent("orphan", "orphan", clan=None, generation=None)
+    orphan.tree_parent_key = "missing"
+    orphan.tree_depth = 2
+    shallow = _agent("cycle.shallow", "shallow", clan=None, generation=None)
+    deep = _agent("cycle.deep", "deep", clan=None, generation=None)
+    shallow.tree_parent_key = deep.raw_suffix
+    shallow.tree_depth = 1
+    deep.tree_parent_key = shallow.raw_suffix
+    deep.tree_depth = 2
+    rows = [deep, orphan, shallow]
+
+    parent_lookup = tree_parent_lookup(rows)
+    anchors = presentation_anchor_lookup(rows, parent_lookup)
+
+    assert anchors[id(orphan)] is orphan
+    assert anchors[id(shallow)] is shallow
+    assert anchors[id(deep)] is shallow
+    assert presentation_anchor(orphan, parent_lookup) is orphan
+    assert presentation_anchor(shallow, parent_lookup) is shallow
+    assert presentation_anchor(deep, parent_lookup) is shallow
 
 
 def test_project_clan_tree_keeps_generations_separate() -> None:

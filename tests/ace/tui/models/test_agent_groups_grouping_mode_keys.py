@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
+from sase.ace.tui.models.agent_groups import (
+    GroupingMode,
+    build_agent_tree,
+    enumerate_group_keys,
+)
 
-from ._agent_groups_helpers import _NOW, _agent, _kinds
+from ._agent_groups_helpers import _NOW, _agent, _anchored_clan_agents, _kinds
 
 
 def test_build_agent_tree_default_mode_matches_standard() -> None:
@@ -85,3 +89,29 @@ def test_grouping_keys_for_agents_workflow_child_inherits_bucket() -> None:
     # own status is "RUNNING".
     assert keys[0].project == "Done"
     assert keys[1].project == "Done"
+
+
+def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
+    from sase.ace.tui.models.agent_groups import _grouping_keys_for_agents
+
+    agents = _anchored_clan_agents()
+    expectations = {
+        GroupingMode.STANDARD: ("root", "", ""),
+        GroupingMode.BY_STATUS: ("Running", "", ""),
+        GroupingMode.BY_DATE: ("Today", "", "08:00"),
+    }
+
+    for mode, (l0, changespec, subgroup) in expectations.items():
+        keys = _grouping_keys_for_agents(agents, mode, _NOW)
+        assert {key.project for key in keys} == {l0}
+        assert {key.changespec for key in keys} == {changespec}
+        assert {key.name_root for key in keys} == {""}
+        assert {key.name_prefix for key in keys} == {""}
+        assert {key.date_subgroup for key in keys} == {subgroup}
+
+    assert enumerate_group_keys(agents, GroupingMode.STANDARD, _NOW) == [("root",)]
+    assert enumerate_group_keys(agents, GroupingMode.BY_STATUS, _NOW) == [("Running",)]
+    assert enumerate_group_keys(agents, GroupingMode.BY_DATE, _NOW) == [
+        ("Today",),
+        ("Today", "08:00"),
+    ]
