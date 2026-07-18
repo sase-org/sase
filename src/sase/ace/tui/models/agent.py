@@ -7,6 +7,11 @@ from typing import Any
 
 from sase.core.paths import shorten_path
 from sase.core.time import local_now
+from sase.plan_chain import (
+    PLAN_CHAIN_PLAN_SUFFIX,
+    agent_family_base,
+    canonical_plan_chain_suffix,
+)
 from sase.project_display_names import humanize_cl_name
 
 from ._agent_state import AgentState
@@ -48,6 +53,49 @@ __all__ = [
 @dataclass
 class Agent(AgentState):
     """Represents a single running agent."""
+
+    def __post_init__(self) -> None:
+        self.refresh_presented_agent_name()
+
+    @property
+    def is_family_root_entry(self) -> bool:
+        """Whether this top-level row anchors a persisted agent family."""
+        return not self.is_workflow_child and (
+            self.plan_chain_root or self.agent_family_role == "root"
+        )
+
+    @property
+    def is_plan_family_root_entry(self) -> bool:
+        """Whether this family root should present the bare family name."""
+        if not self.is_family_root_entry:
+            return False
+        if self.plan_chain_root:
+            return True
+        suffix = canonical_plan_chain_suffix(self.role_suffix)
+        return self.agent_family_role == "root" and bool(
+            suffix == PLAN_CHAIN_PLAN_SUFFIX
+            or (suffix and suffix.startswith(f"{PLAN_CHAIN_PLAN_SUFFIX}-"))
+        )
+
+    def family_reference_name(self) -> str | None:
+        """Return the family-container name used by prompt references."""
+        if not self.is_family_root_entry:
+            return self.agent_name
+        if self.agent_family:
+            return self.agent_family
+        if self.agent_name:
+            return (
+                agent_family_base(self.agent_name, include_legacy_dash=True)
+                or self.agent_name
+            )
+        return None
+
+    def refresh_presented_agent_name(self) -> None:
+        """Refresh the precomputed Agents-tab name presentation."""
+        if self.is_plan_family_root_entry:
+            self.presented_agent_name = self.family_reference_name()
+        else:
+            self.presented_agent_name = self.agent_name
 
     @property
     def effective_workspace_num(self) -> int | None:

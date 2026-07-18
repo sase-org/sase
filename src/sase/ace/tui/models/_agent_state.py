@@ -177,6 +177,15 @@ class AgentState:
     # Agent name assigned via %name directive or manual TUI naming
     agent_name: str | None = None
 
+    # Precomputed name used by the Agents-tab row annotation and detail header.
+    # Plan-family root rows present the family container name while retaining
+    # their concrete persisted member name in ``agent_name``.
+    presented_agent_name: str | None = field(
+        default=None,
+        init=False,
+        compare=False,
+    )
+
     # Names this agent is waiting for (from %wait directives)
     waiting_for: list[str] = field(default_factory=list)
 

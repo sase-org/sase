@@ -34,7 +34,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     plan = plan_fake_fanout(
         "multi",
         [
-            "%n:foo\nPlan the change.",
+            "%auto %n:foo\nPlan the change.",
             "%n(foo, reviewer)\nReview foo's plan.",
             "%n(foo, land)\nLand after review.",
         ],
@@ -94,6 +94,7 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
     assert payload["parent_workspace_dir"] == "/workspace/100"
     assert payload["parent_workspace_num"] == 100
     assert payload["parent_is_running"] is True
+    assert payload["parent_family_role_suffix"] == "--plan"
     assert requests[2].extra_env is not None
     chained_payload = json.loads(requests[2].extra_env[FAMILY_ATTACH_ENV])
     assert chained_payload["agent_name"] == "foo--land"
@@ -160,3 +161,4 @@ def test_multi_prompt_family_attach_can_reference_earlier_named_segment(
     assert payload["parent_workspace_dir"] == "/workspace/100"
     assert payload["parent_workspace_num"] == 100
     assert payload["parent_is_running"] is True
+    assert payload["parent_family_role_suffix"] == "--0"

@@ -187,6 +187,7 @@ def agent_render_key(
         agent.tree_depth,
         agent.clan_tags,
         agent.agent_name,
+        agent.presented_agent_name,
         tuple(wait_agent.waiting_for),
         wait_deps_satisfied,
         wait_agent.wait_runners,

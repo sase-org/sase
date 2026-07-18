@@ -16,7 +16,7 @@ def to_bundle_dict(agent: Agent) -> dict[str, Any]:
     """
     result: dict[str, Any] = {}
     for f in dataclasses.fields(agent):
-        if f.name in (
+        if not f.init or f.name in (
             "followup_agents",
             "runtime_children",
             "wait_display_source",
@@ -109,6 +109,8 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
         "retry_times",
     }
     for f in dataclasses.fields(Agent):
+        if not f.init:
+            continue
         if f.name in kwargs:
             continue
         if f.name not in data:

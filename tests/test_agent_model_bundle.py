@@ -24,6 +24,7 @@ def test_bundle_round_trip_basic() -> None:
         raw_suffix="20250615103000",
     )
     bundle = agent.to_bundle_dict()
+    assert "presented_agent_name" not in bundle
     restored = Agent.from_bundle_dict(bundle)
 
     assert restored.agent_type == AgentType.RUNNING

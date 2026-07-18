@@ -17,6 +17,7 @@ from sase.agent.family_attach import (
 )
 from sase.agent._family_promotion import promote_agent_to_family
 from sase.agent.launch_executor import LaunchExecutionContext
+from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
 from sase.axe.run_agent_helpers import create_followup_artifacts
 from sase.plan_chain import (
@@ -135,9 +136,9 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     assert info.name == "foo--code"
     member_meta = json.loads((member_dir / "agent_meta.json").read_text())
     promoted_parent_meta = json.loads((parent_dir / "agent_meta.json").read_text())
-    assert promoted_parent_meta["name"] == "foo--plan-0"
+    assert promoted_parent_meta["name"] == "foo--plan"
     assert promoted_parent_meta["workflow_name"] == "foo"
-    assert promoted_parent_meta["role_suffix"] == "--plan-0"
+    assert promoted_parent_meta["role_suffix"] == "--plan"
     assert promoted_parent_meta[AGENT_FAMILY_FIELD] == "foo"
     assert promoted_parent_meta[AGENT_FAMILY_ROLE_FIELD] == "root"
 
@@ -186,7 +187,7 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     assert family.root is not None
     assert family.root.timestamp == parent_ts
     assert {member.name for member in family.members} == {
-        "foo--plan-0",
+        "foo--plan",
         "foo--code",
     }
 
@@ -232,6 +233,7 @@ def test_family_attach_child_inherits_parent_clan_metadata(
     )
     prompt = "%n(research.worker, reviewer)\nReview"
     monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
         patch("sase.agent.names.ensure_historical_auto_name_migration"),
@@ -299,3 +301,31 @@ def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> Non
         )
 
     assert events == ["read:5.0", "lock", "read:0.0"]
+
+
+def test_plan_family_promotion_is_idempotent_and_plan_suffix_wins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifact_dir = tmp_path / "artifact"
+    artifact_dir.mkdir()
+    meta_path = artifact_dir / "agent_meta.json"
+    meta_path.write_text(
+        json.dumps({"name": "foo", "role_suffix": "--plan"}),
+        encoding="utf-8",
+    )
+
+    first = promote_agent_to_family(
+        artifact_dir,
+        "foo",
+        root_role_suffix="--0",
+    )
+    second = promote_agent_to_family(
+        artifact_dir,
+        "foo",
+        root_role_suffix="--0",
+    )
+
+    assert first == second == "foo--plan"
+    assert json.loads(meta_path.read_text(encoding="utf-8"))["role_suffix"] == "--plan"

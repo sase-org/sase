@@ -1448,7 +1448,7 @@ Sequential plan-family workflows have a stable family container plus member suff
 the original agent is renamed and the bare family name becomes a pure container. Generated follow-up rows and phase
 metadata use canonical double-dash suffixes. For example, if the initial agent was named `a`:
 
-1. The first attachment creates family container `a` and gives the original its persisted role suffix (`a--plan-0` for a
+1. The first attachment creates family container `a` and gives the original its persisted role suffix (`a--plan` for a
    plan proposer or `a--0` for a generic agent).
 2. The planner phase uses a canonical `--plan` role suffix.
 3. Feedback and question-continuation rounds become `a--2`, `a--3`, etc.

@@ -8,6 +8,8 @@ from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import banner_label, build_agent_tree
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 
 _PROJECT = "/repo/sase.sase"
 
@@ -160,5 +162,36 @@ def test_plan_chain_family_is_unaffected() -> None:
     _apply_status_overrides([plan_root, code_child])
 
     assert plan_root.agent_name == "foo--plan"
+    assert plan_root.presented_agent_name == "foo"
     assert code_child.agent_name == "foo--code"
+    assert code_child.presented_agent_name == "foo--code"
     assert all(agent.agent_name != "foo--0" for agent in (plan_root, code_child))
+
+    row_text, _, _ = format_agent_option(plan_root, 0, is_selected=False)
+    header, _ = build_header_text(plan_root, cheap=True)
+    assert row_text.plain.endswith(" foo")
+    assert "foo--plan" not in row_text.plain
+    assert header.plain.startswith("Name: foo\n")
+
+
+def test_legacy_plan_zero_root_presents_family_name() -> None:
+    root = _bare_root(name="foo--plan-0", status="DONE")
+    root.role_suffix = "--plan-0"
+    root.agent_family = "foo"
+    root.agent_family_role = "root"
+
+    _apply_status_overrides([root])
+
+    assert root.agent_name == "foo--plan-0"
+    assert root.presented_agent_name == "foo"
+
+
+def test_generic_root_keeps_zero_member_presentation() -> None:
+    root = _bare_root(name="foo--0")
+    root.role_suffix = "--0"
+    root.agent_family = "foo"
+    root.agent_family_role = "root"
+
+    _apply_status_overrides([root])
+
+    assert root.presented_agent_name == "foo--0"

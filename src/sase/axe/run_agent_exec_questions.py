@@ -31,6 +31,7 @@ from sase.axe.run_agent_wait import wait_for_runner_slot
 from sase.axe.runner_signals import reset_killed
 from sase.plan_chain import (
     AGENT_FAMILY_SEPARATOR,
+    PLAN_CHAIN_PLAN_SUFFIX,
     allocate_agent_family_child_suffix,
     agent_family_role_for_suffix,
     canonical_plan_chain_suffix,
@@ -127,11 +128,16 @@ def handle_questions_marker(
     base_meta = _interrupted_phase_meta(state.current_artifacts_dir, ctx.agent_meta)
     interrupted_role = _meta_family_role(base_meta)
     first_family_agent_question = state.agent_step == 1
-    interrupted_suffix = (
-        f"{AGENT_FAMILY_SEPARATOR}0"
-        if first_family_agent_question
-        else canonical_plan_chain_suffix(previous_role_suffix)
+    first_plan_agent_question = first_family_agent_question and (
+        canonical_plan_chain_suffix(previous_role_suffix) == PLAN_CHAIN_PLAN_SUFFIX
     )
+    interrupted_suffix: str | None
+    if first_plan_agent_question:
+        interrupted_suffix = PLAN_CHAIN_PLAN_SUFFIX
+    elif first_family_agent_question:
+        interrupted_suffix = f"{AGENT_FAMILY_SEPARATOR}0"
+    else:
+        interrupted_suffix = canonical_plan_chain_suffix(previous_role_suffix)
     if interrupted_suffix is None:
         interrupted_suffix = (
             canonical_plan_chain_suffix(base_meta.get("role_suffix"))
@@ -213,7 +219,9 @@ def handle_questions_marker(
             ctx.agent_name,
             role_suffix=interrupted_suffix,
         )
-    root_sequence = first_family_agent_question or is_root_question_suffix(
+    root_sequence = (
+        first_family_agent_question and not first_plan_agent_question
+    ) or is_root_question_suffix(
         interrupted_suffix,
         agent_family_role=interrupted_role,
     )

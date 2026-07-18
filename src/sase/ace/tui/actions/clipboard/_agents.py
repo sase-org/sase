@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import os
-
-from sase.plan_chain import agent_family_base
 from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ._base import ClipboardBase
@@ -45,17 +43,9 @@ class ClipboardAgentsMixin(ClipboardBase):
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        family_root = not agent.is_workflow_child and (
-            agent.plan_chain_root or agent.agent_family_role == "root"
-        )
-        if family_root and agent.agent_family:
-            name_value = agent.agent_family
-            label = "Agent Name"
-        elif family_root and agent.agent_name:
-            name_value = (
-                agent_family_base(agent.agent_name, include_legacy_dash=True)
-                or agent.agent_name
-            )
+        family_name = agent.family_reference_name()
+        if agent.is_family_root_entry and family_name:
+            name_value = family_name
             label = "Agent Name"
         elif agent.agent_name:
             name_value = agent.agent_name

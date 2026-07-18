@@ -511,6 +511,44 @@ def _output_variable_family_agents() -> list[Agent]:
     return rows
 
 
+def _renamed_plan_family_agents() -> list[Agent]:
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-family-root",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 11, 0, 0),
+        stop_time=datetime(2026, 7, 18, 11, 4, 0),
+        raw_suffix="20260718110000",
+        role_suffix="--plan",
+        agent_name="cx--plan",
+        agent_family="cx",
+        agent_family_role="root",
+        plan_chain_root=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    coder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-family-code",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 7, 18, 11, 5, 0),
+        stop_time=datetime(2026, 7, 18, 11, 10, 0),
+        raw_suffix="20260718110500",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--code",
+        agent_name="cx--code",
+        agent_family="cx",
+        agent_family_role="code",
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    rows = [root, coder]
+    _apply_status_overrides(rows)
+    return rows
+
+
 async def test_agent_plan_handoff_status_colors_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -561,6 +599,33 @@ async def test_waiting_family_child_row_png_snapshot(
             page,
             "agents_waiting_family_child_120x40",
             title="ACE agents waiting family child",
+        )
+
+
+async def test_renamed_plan_family_root_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_agents_visual_now(monkeypatch, datetime(2026, 7, 18, 11, 10, 0))
+    patch_startup_loaders(monkeypatch, agents=_renamed_plan_family_agents())
+
+    async with AcePage(query='"visual-family"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await page.press("l")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        assert page.app._agents[0].agent_name == "cx--plan"
+        assert page.app._agents[0].presented_agent_name == "cx"
+        assert_page_svg_contains(page, "cx--plan")
+        assert_page_svg_contains(page, "cx--code")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_renamed_plan_family_root_120x40",
+            title="ACE renamed plan family root",
         )
 
 

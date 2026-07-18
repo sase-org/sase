@@ -8,7 +8,6 @@ import re
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import status_bucket_for_values
-from sase.plan_chain import agent_family_base
 
 if TYPE_CHECKING:
     from sase.ace.tui.models import Agent
@@ -86,13 +85,7 @@ _WAIT_DEPENDENCY_BUCKET_RANK = {
 def agent_prompt_name(agent: Agent) -> str | None:
     """Return the prompt-referenceable name for an agent row."""
     if _is_agent_family_root(agent):
-        if agent.agent_family:
-            return agent.agent_family
-        if agent.agent_name:
-            return (
-                agent_family_base(agent.agent_name, include_legacy_dash=True)
-                or agent.agent_name
-            )
+        return agent.family_reference_name()
     return agent.agent_name
 
 
@@ -251,9 +244,7 @@ def _candidate_from_agent(
 
 
 def _is_agent_family_root(agent: Agent) -> bool:
-    return not agent.is_workflow_child and (
-        agent.plan_chain_root or agent.agent_family_role == "root"
-    )
+    return agent.is_family_root_entry
 
 
 def _model_label(agent: Agent) -> str | None:

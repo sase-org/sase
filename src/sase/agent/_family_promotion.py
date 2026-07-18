@@ -21,7 +21,7 @@ from sase.plan_chain import (
 )
 
 _GENERIC_ROOT_SUFFIX = f"{AGENT_FAMILY_SEPARATOR}0"
-_PLAN_ROOT_SUFFIX = f"{PLAN_CHAIN_PLAN_SUFFIX}-0"
+_PLAN_ROOT_SUFFIX = PLAN_CHAIN_PLAN_SUFFIX
 
 
 def family_root_role_suffix(meta: Mapping[str, object]) -> str:

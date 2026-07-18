@@ -17,6 +17,7 @@ from sase.agent.names import (
     is_agent_name_template,
     require_latest_agent_name_template,
     resolve_agent_name_template_reference,
+    resolve_resume_agent_name,
 )
 
 
@@ -156,7 +157,7 @@ def _validate_readable_transcript(source: _ForkSource) -> None:
 
 
 def _resolve_done_response_path(name: str) -> str | None:
-    agent = find_named_agent(name, only_done=True)
+    agent = resolve_resume_agent_name(name)
     if agent is None:
         return None
     return _read_json_string_field(

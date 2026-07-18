@@ -59,13 +59,14 @@ def make_submitted_planner(
     role_suffix: str = "--plan",
     write_plan_path_json: bool = True,
     promoted: bool = True,
+    agent_name: str | None = None,
 ) -> Path:
     """Create a submitted-and-waiting planner artifact (no done.json)."""
     artifact_dir = make_agent(
         base,
         "proj",
         timestamp,
-        name,
+        agent_name or name,
         workflow_name=name if promoted else None,
         agent_family=name if promoted else None,
         role_suffix=role_suffix,

@@ -38,6 +38,7 @@ def enrich_agent_from_meta(
         artifacts_dir: Path to the artifacts directory, or None.
     """
     if not artifacts_dir:
+        agent.refresh_presented_agent_name()
         return
 
     # The marker is lower priority than direct agent metadata but higher than
@@ -58,10 +59,12 @@ def enrich_agent_from_meta(
         data = load_json_cached(meta_path)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         refresh_agent_plan_path(agent)
+        agent.refresh_presented_agent_name()
         return
 
     if not isinstance(data, dict):
         refresh_agent_plan_path(agent)
+        agent.refresh_presented_agent_name()
         return
 
     if data.get("model"):
@@ -321,3 +324,5 @@ def enrich_agent_from_meta(
         )
         if plan_status is not None:
             agent.status = plan_status
+
+    agent.refresh_presented_agent_name()

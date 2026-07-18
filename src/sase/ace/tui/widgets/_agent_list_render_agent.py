@@ -372,8 +372,9 @@ def format_agent_option(
         text.append(_BEAD_GLYPH, style=_BEAD_GLYPH_STYLE)
 
     # Agent name annotation
-    if agent.agent_name and not agent.is_clan_container:
-        text.append(f" {agent.agent_name}", style=_AGENT_NAME_ANNOTATION_STYLE)
+    presented_name = agent.presented_agent_name or agent.agent_name
+    if presented_name and not agent.is_clan_container:
+        text.append(f" {presented_name}", style=_AGENT_NAME_ANNOTATION_STYLE)
 
     # Embedded workflow annotation for child steps
     if agent.embedded_workflow_name:

@@ -88,8 +88,8 @@ class TestPlanFollowupQuestions:
         assert state.current_role_suffix == "--plan-1"
         assert plan_mod.create_followup_artifacts.call_args.args[2] == "--plan-1"
 
-    def test_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
-        """Question answers follow-up exposes the rebuilt prompt as an artifact."""
+    def test_plan_question_followup_stores_full_prompt_artifact(self, tmp_path) -> None:
+        """Plan-phase questions continue in the first feedback-number slot."""
         ctx = make_ctx(tmp_path)
         state = make_state(tmp_path)
         questions = [
@@ -124,6 +124,27 @@ class TestPlanFollowupQuestions:
             state.current_prompt,
             label="Full question prompt",
         )
+        assert state.current_role_suffix == "--plan-0"
+        assert questions_mod.create_followup_artifacts.call_args.args[2] == "--plan-0"
+        assert (
+            questions_mod.create_followup_artifacts.call_args.kwargs[
+                "agent_family_role"
+            ]
+            == "feedback"
+        )
+
+    def test_generic_root_question_followup_uses_one_slot(self, tmp_path) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state(tmp_path)
+        state.current_role_suffix = None
+
+        with patch(
+            "sase.axe.run_agent_exec_questions.handle_questions_flow",
+            return_value={"answers": [], "global_note": ""},
+        ):
+            outcome = handle_questions_marker({"questions": []}, ctx, state)
+
+        assert outcome is None
         assert state.current_role_suffix == "--1"
         assert questions_mod.create_followup_artifacts.call_args.args[2] == "--1"
         assert (

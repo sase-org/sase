@@ -78,7 +78,7 @@ Phase dependency waits remain explicit; the clan container itself is not a land 
 An agent family is a strictly sequential chain. A family is created only when `%n(parent, suffix)` attaches the first
 follow-up to an existing agent. At that point SASE renames the original agent with its own `--<role>` suffix and
 reserves the bare base name as a pure family container. Generic originals become `<family>--0`; plan proposers use
-`<family>--plan-0`. Because creation requires an attachment, a family always has at least two members.
+`<family>--plan`. Because creation requires an attachment, a family always has at least two members.
 
 For example, attaching a reviewer to agent `foo` creates family `foo`, renames the original to `foo--0`, and names the
 new member `foo--reviewer`:

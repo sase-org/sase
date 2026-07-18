@@ -9,6 +9,7 @@ from sase.agent.names import (
     find_agent_family,
     find_named_agent,
     get_most_recent_agent_name,
+    resolve_resume_agent_name,
 )
 
 from tests._agent_names_fixtures import DEAD_PID as _DEAD_PID
@@ -225,3 +226,38 @@ def test_find_agent_family_includes_sequential_descendants(tmp_path: Path) -> No
         "foo--review",
         "foo--land",
     ]
+
+
+def test_resume_family_name_uses_newest_completed_renamed_member(
+    tmp_path: Path,
+) -> None:
+    _make_agent(
+        tmp_path,
+        "proj",
+        "20260718010101",
+        "foo--plan",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    newest = _make_agent(
+        tmp_path,
+        "proj",
+        "20260718010202",
+        "foo--code",
+        workflow_name="foo",
+        agent_family="foo",
+        role_suffix="--code",
+        parent_timestamp="20260718010101",
+        done=True,
+        outcome="completed",
+    )
+
+    with patch.object(Path, "home", return_value=tmp_path):
+        resolved = resolve_resume_agent_name("foo")
+
+    assert resolved is not None
+    assert resolved.name == "foo--code"
+    assert resolved.artifacts_dir == str(newest)

@@ -146,6 +146,42 @@ def test_explicit_running_agent_falls_back_to_meta_chat_path(
     assert _resolve_agent_chat_path("bravo") == str(chat)
 
 
+def test_family_name_forks_from_latest_completed_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    planner_chat = tmp_path / "planner.md"
+    coder_chat = tmp_path / "coder.md"
+    _write_agent(
+        tmp_path,
+        "20260718010101",
+        "cx--plan",
+        done={"response_path": str(planner_chat), "outcome": "completed"},
+        meta={
+            "workflow_name": "cx",
+            "agent_family": "cx",
+            "agent_family_role": "root",
+            "role_suffix": "--plan",
+        },
+    )
+    _write_agent(
+        tmp_path,
+        "20260718010202",
+        "cx--code",
+        done={"response_path": str(coder_chat), "outcome": "completed"},
+        meta={
+            "workflow_name": "cx",
+            "agent_family": "cx",
+            "agent_family_role": "code",
+            "role_suffix": "--code",
+            "parent_timestamp": "20260718010101",
+        },
+    )
+
+    assert _resolve_agent_chat_path("cx") == str(coder_chat)
+    assert _resolve_agent_chat_path("cx--plan") == str(planner_chat)
+
+
 def test_missing_chat_history_fails_clearly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

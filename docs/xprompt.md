@@ -1136,7 +1136,7 @@ agent with that name. Non-TUI launch surfaces reject `%name:!<name>` unless they
 
 The two-argument `%n(parent, suffix)` form attaches a new agent to a sequential family. On the first attachment, SASE
 renames the original agent with its own `--<role>` suffix and reserves the bare base name as a pure family container;
-generic originals become `--0`, while plan proposers become `--plan-0`. SASE then names the new member
+generic originals become `--0`, while plan proposers become `--plan`. SASE then names the new member
 `<family-base>--<suffix>`, writes the normal family metadata, and strips the directive before the model sees the prompt.
 The suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
 

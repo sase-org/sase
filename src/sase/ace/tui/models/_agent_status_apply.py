@@ -411,6 +411,9 @@ def apply_status_overrides(
                 key=lambda a: a.retry_attempt or 0,
             )
 
+    for agent in all_agents:
+        agent.refresh_presented_agent_name()
+
     if classify_diff_badges:
         classifier = diff_badge_classifier or classify_persisted_diff_badges
         classifier(all_agents)

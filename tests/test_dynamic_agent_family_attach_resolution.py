@@ -191,6 +191,28 @@ def test_family_attach_reserves_original_parent_zero_slot(
         )
 
 
+def test_family_attach_reserves_original_plan_parent_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_attach_snapshot(
+        monkeypatch,
+        [_artifact_record(name="foo", role_suffix="--plan")],
+    )
+
+    with pytest.raises(FamilyAttachError, match="reserved for the original parent"):
+        resolve_family_attach_plan(
+            FamilyAttachDirective(parent="foo", suffix="plan"),
+            project_name="sase",
+        )
+
+    plan = resolve_family_attach_plan(
+        FamilyAttachDirective(parent="foo", suffix="code"),
+        project_name="sase",
+    )
+    assert plan.parent_family_member_name == "foo--plan"
+    assert plan.parent_family_role_suffix == "--plan"
+
+
 def test_family_attach_inherits_parent_clan_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -247,8 +247,9 @@ def build_header_text(
 
     # Agent name is always the first metadata row in the details panel.
     header_text.append("Name: ", style="bold #87D7FF")
-    if agent.agent_name:
-        header_text.append(f"{agent.agent_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
+    presented_name = agent.presented_agent_name or agent.agent_name
+    if presented_name:
+        header_text.append(f"{presented_name}\n", style=_AGENT_NAME_ANNOTATION_STYLE)
         # Phase identity belongs exclusively to the deferred BEAD context lane.
         # The cold path remains memory-only and omits that lane until its typed
         # summary arrives. Non-phase compatibility rows still use only cached

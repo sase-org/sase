@@ -38,6 +38,37 @@ def test_submitted_planner_resolves_plan_row_wait(tmp_path: Path, monkeypatch) -
     assert ready == {"resolved_deps": ["planner--plan"]}
 
 
+def test_renamed_plan_root_does_not_shadow_submitted_planner_alias(
+    tmp_path: Path,
+) -> None:
+    planner_dir = make_submitted_planner(
+        tmp_path,
+        "20260718010101",
+        "planner",
+        agent_name="planner--plan",
+    )
+
+    index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+    assert dependency_resolution_status(index, ["planner--plan"]).resolved
+    assert not dependency_resolution_status(index, ["planner"]).resolved
+
+    (planner_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed"}),
+        encoding="utf-8",
+    )
+    approved_index = build_wait_dependency_index(
+        "proj",
+        projects_root=tmp_path / ".sase/projects",
+    )
+    assert dependency_resolution_status(
+        approved_index,
+        ["planner--plan"],
+    ).resolved
+
+
 def test_submitted_planner_legacy_dot_plan_alias_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:
