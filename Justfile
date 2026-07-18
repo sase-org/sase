@@ -201,6 +201,17 @@ _lint-pyscripts: _setup
 _lint-symvision *args: _setup
     BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
+        --epic-symbol 'sase-6v(apply_chop_checkpoint_update)' \
+        --epic-symbol 'sase-6v(check_and_record_chop_once_per)' \
+        --epic-symbol 'sase-6v(chop_schema_versions)' \
+        --epic-symbol 'sase-6v(derive_chop_agent_name)' \
+        --epic-symbol 'sase-6v(evaluate_chop_decision)' \
+        --epic-symbol 'sase-6v(expand_chop_targets)' \
+        --epic-symbol 'sase-6v(parse_chop_duration)' \
+        --epic-symbol 'sase-6v(parse_chop_result)' \
+        --epic-symbol 'sase-6v(validate_axe_config)' \
+        --epic-symbol 'sase-6v(validate_chop_proposal)' \
+        --epic-symbol 'sase-6v(validate_chop_result)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
