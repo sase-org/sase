@@ -102,6 +102,7 @@ def format_agent_option(
     is_unread: bool = False,
     hint_char: str | None = None,
     tag_label: str | None = None,
+    panel_tag: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -205,7 +206,11 @@ def format_agent_option(
 
     # Agent display name (workflow name for top-level workflows, ChangeSpec name otherwise)
     text.append(agent.display_name, style=name_style)
-    rendered_tags = agent.clan_tags if agent.is_clan_container else ()
+    rendered_tags = (
+        tuple(dict.fromkeys(tag for tag in agent.clan_tags if tag != panel_tag))
+        if agent.is_clan_container
+        else ()
+    )
     for clan_tag in rendered_tags:
         text.append(f" @{clan_tag}", style="bold #FFD75F")
     if tag_label and tag_label not in rendered_tags:
@@ -405,6 +410,7 @@ def cached_format_agent_option(
     is_unread: bool = False,
     hint_char: str | None = None,
     tag_label: str | None = None,
+    panel_tag: str | None = None,
     now: datetime | None = None,
     tier_styles: tuple[str, ...] = (),
     wait_deps_satisfied: bool | None = None,
@@ -427,6 +433,7 @@ def cached_format_agent_option(
         is_unread=is_unread,
         hint_char=hint_char,
         tag_label=tag_label,
+        panel_tag=panel_tag,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,
@@ -445,6 +452,7 @@ def cached_format_agent_option(
         is_unread=is_unread,
         hint_char=hint_char,
         tag_label=tag_label,
+        panel_tag=panel_tag,
         now=now,
         tier_styles=tier_styles,
         wait_deps_satisfied=wait_deps_satisfied,

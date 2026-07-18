@@ -93,6 +93,33 @@ def test_render_key_changes_when_tag_label_changes() -> None:
     assert k1 != k2
 
 
+def test_render_key_changes_when_panel_tag_changes() -> None:
+    a = _agent()
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        panel_tag="epic",
+        now=None,
+    )
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        panel_tag=None,
+        now=None,
+    )
+    assert k1 != k2
+
+
 def test_render_key_changes_when_unread_flips() -> None:
     a = _agent()
     k1 = agent_render_key(

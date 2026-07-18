@@ -176,6 +176,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     ),
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,
+                    panel_tag=key if not merge_tag_panels else None,
                 )
 
             if idx == focused_idx:
@@ -341,6 +342,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     ),
                     grouping_mode=grouping_mode,
                     tag_labels=local_tag_labels,
+                    panel_tag=key if not merge_tag_panels else None,
                 )
 
         self._apply_panel_heights(container, ordered_widgets)

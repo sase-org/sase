@@ -36,6 +36,7 @@ class _ListWidget:
         self.last_agents: list[Agent] = []
         self.last_local_idx: int | None = None
         self.last_tag_labels: list[str | None] | None = None
+        self.last_panel_tag: str | None = None
         self.last_fold_registry: object | None = None
         self.render_collapsed_calls = 0
         self._panel_collapsed = False
@@ -47,6 +48,7 @@ class _ListWidget:
         self.last_agents = agents
         self.last_local_idx = local_idx
         self.last_tag_labels = kwargs.get("tag_labels")
+        self.last_panel_tag = kwargs.get("panel_tag")
         self.last_fold_registry = kwargs.get("fold_registry")
         self._panel_collapsed = False
 
@@ -395,6 +397,27 @@ def test_grouped_mode_renders_one_panel_with_effective_tag_labels() -> None:
     assert getattr(main.border_title, "plain", "") == "All agents · 3 [R3]"
     assert main.last_agents == agents
     assert main.last_tag_labels == [None, "apple", "banana"]
+    assert main.last_panel_tag is None
+
+
+def test_split_panel_refreshes_thread_enclosing_tag_context() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[2, 2, 2], container_height=30)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+    assert [
+        main.last_panel_tag,
+        apple.last_panel_tag,
+        banana.last_panel_tag,
+    ] == [None, "apple", "banana"]
+
+    banana.last_panel_tag = None
+    assert app._refresh_affected_panel_widgets({"banana"}) is True
+    assert banana.last_panel_tag == "banana"
 
 
 def test_each_panel_widget_receives_its_scoped_fold_registry() -> None:

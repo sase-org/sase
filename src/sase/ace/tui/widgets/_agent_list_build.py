@@ -215,6 +215,7 @@ def build_list(
     current_group_key: tuple[str, ...] | None = None,
     grouping_mode: GroupingMode = GroupingMode.STANDARD,
     tag_labels: list[str | None] | None = None,
+    panel_tag: str | None = None,
     now: datetime | None = None,
 ) -> None:
     """Rebuild *widget*'s OptionList from scratch for ``agents``.
@@ -292,6 +293,7 @@ def build_list(
             is_unread=is_unread,
             hint_char=hint,
             tag_label=tag_label,
+            panel_tag=panel_tag,
             now=now,
             tier_styles=tier_styles,
             wait_deps_satisfied=wait_deps_done,
@@ -304,6 +306,7 @@ def build_list(
             "is_unread": is_unread,
             "hint_char": hint,
             "tag_label": tag_label,
+            "panel_tag": panel_tag,
             "is_selected": is_selected_agent,
             "wait_deps_satisfied": wait_deps_done,
         }
@@ -587,6 +590,7 @@ def patch_row(
         is_unread=is_unread,
         hint_char=ctx["hint_char"],
         tag_label=ctx.get("tag_label"),
+        panel_tag=ctx.get("panel_tag"),
         now=now,
         tier_styles=widget._row_tier_styles.get(agent_idx, ()),
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),

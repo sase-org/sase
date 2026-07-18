@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
 
 from ._agent_render_cache_helpers import (
@@ -99,3 +100,35 @@ async def test_patch_agent_row_reflects_unread_change() -> None:
         assert "✅" in str(prompt_unread)
         assert "✦" not in str(prompt_read)
         assert "✅" not in str(prompt_read)
+
+
+@pytest.mark.asyncio
+async def test_patch_clan_row_preserves_latest_panel_context() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        clan = _agent(cl_name="research", status="RUNNING")
+        clan.is_clan_container = True
+        clan.agent_clan = "research"
+        clan.clan_tags = ("epic",)
+
+        widget.update_list([clan], current_idx=0, panel_tag="epic")
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        assert "@epic" not in str(widget.get_option_at_index(row).prompt)
+
+        widget.update_list(
+            [clan],
+            current_idx=0,
+            grouping_mode=GroupingMode.BY_STATUS,
+            tag_labels=["epic"],
+            panel_tag=None,
+        )
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        assert str(widget.get_option_at_index(row).prompt).count("@epic") == 1
+
+        clan.status = "DONE"
+        assert widget.patch_agent_row(0) is True
+        await pilot.pause()
+        assert str(widget.get_option_at_index(row).prompt).count("@epic") == 1

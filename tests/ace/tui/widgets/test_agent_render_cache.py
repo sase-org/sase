@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets._agent_list_rendering import (
     AgentRenderCache,
     cached_format_agent_option,
+    format_agent_option,
 )
 
 from ._agent_render_cache_helpers import agent as _agent
@@ -124,6 +125,73 @@ def test_cached_clan_row_invalidates_on_projection_and_tag_changes() -> None:
     assert after_tag[0] is not after_depth[0]
     assert "@review" not in before[0].plain
     assert "@review" in after_tag[0].plain
+
+
+def test_clan_row_omits_only_the_matching_split_panel_tag() -> None:
+    clan = _agent(cl_name="research", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tags = ("epic",)
+
+    split, _, _ = format_agent_option(
+        clan,
+        0,
+        is_selected=False,
+        panel_tag="epic",
+    )
+    merged, _, _ = format_agent_option(
+        clan,
+        0,
+        is_selected=False,
+        tag_label="epic",
+    )
+
+    assert "@epic" not in split.plain
+    assert merged.plain.count("@epic") == 1
+
+
+def test_multitribe_clan_in_untagged_panel_keeps_distinct_ordered_tags() -> None:
+    clan = _agent(cl_name="research", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tags = ("epic", "review", "epic")
+
+    rendered, _, _ = format_agent_option(
+        clan,
+        0,
+        is_selected=False,
+        panel_tag=None,
+    )
+
+    assert "research @epic @review (RUNNING)" in rendered.plain
+    assert rendered.plain.count("@epic") == 1
+
+
+def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None:
+    cache = AgentRenderCache()
+    clan = _agent(status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tags = ("epic",)
+
+    split = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        panel_tag="epic",
+    )
+    unsuppressed = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        panel_tag=None,
+    )
+
+    assert split[0] is not unsuppressed[0]
+    assert "@epic" not in split[0].plain
+    assert "@epic" in unsuppressed[0].plain
 
 
 def test_invalidate_agent_drops_only_that_identity() -> None:
