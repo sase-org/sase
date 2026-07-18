@@ -31,7 +31,13 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 
 
 class _FoldApp(FoldNavigationMixin):
-    def __init__(self, *, tab: str = "agents", clan: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        tab: str = "agents",
+        clan: bool = True,
+        family: bool = False,
+    ) -> None:
         self.current_tab = tab
         self._fold_mode_active = False
         self._keymap_registry = load_keymap_registry({})
@@ -43,7 +49,10 @@ class _FoldApp(FoldNavigationMixin):
         self.timestamps_collapsed = FoldLevel.COLLAPSED
         self.deltas_collapsed = FoldLevel.COLLAPSED
         self.section_id: str | None = "errors"
-        self.selected_agent = SimpleNamespace(is_clan_container=clan)
+        self.selected_agent = SimpleNamespace(
+            is_clan_container=clan,
+            is_family_container_row=family,
+        )
         self.refresh_count = 0
         self.notifications: list[str] = []
 
@@ -129,15 +138,20 @@ def test_changespec_fold_dispatch_remains_unchanged() -> None:
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
-def test_regular_agent_fold_change_shows_scope_toast_but_clan_does_not() -> None:
+def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> None:
     regular = _FoldApp(clan=False)
     clan = _FoldApp(clan=True)
+    family = _FoldApp(clan=False, family=True)
 
     _press(regular, "z")
     _press(clan, "z")
+    _press(family, "z")
 
-    assert regular.notifications == ["Fold levels currently shape clan summaries"]
+    assert regular.notifications == [
+        "Fold levels currently shape clan and family summaries"
+    ]
     assert clan.notifications == []
+    assert family.notifications == []
 
 
 def test_agents_fold_footer_uses_nested_agent_submap() -> None:
@@ -255,6 +269,14 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
         )
         await wait_for_visual_idle(page)
         assert panel.active_section_identity == "members"
+
+        await page.press("ctrl+j")
+        await page.pause()
+        assert panel.active_section_identity == "member:sase-mounted.phase"
+
+        await page.press("ctrl+j")
+        await page.pause()
+        assert panel.active_section_identity == "member:sase-mounted.land"
 
         await page.press("ctrl+j")
         await page.pause()

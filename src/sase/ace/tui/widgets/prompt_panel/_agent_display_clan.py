@@ -111,10 +111,10 @@ def clan_disk_sections_for_fold_state(
     return frozenset(_DISK_SECTION_IDS.values())
 
 
-def clan_fold_state_from_widget(
+def panel_fold_state_from_widget(
     widget: object,
 ) -> tuple[FoldLevel, Mapping[str, FoldLevel]]:
-    """Read the generic panel fold state without coupling the renderer to App."""
+    """Read shared detail-panel fold state without coupling renderers to App."""
     try:
         app = widget.app  # type: ignore[attr-defined]
     except Exception:
@@ -126,6 +126,10 @@ def clan_fold_state_from_widget(
     snapshot = getattr(manager, "snapshot", None)
     overrides = snapshot() if callable(snapshot) else {}
     return panel_level, overrides
+
+
+# Compatibility name retained for callers and tests from the clan-only era.
+clan_fold_state_from_widget = panel_fold_state_from_widget
 
 
 def _append_fold_heading(
@@ -889,4 +893,5 @@ __all__ = [
     "build_clan_detail_text",
     "clan_disk_sections_for_fold_state",
     "clan_fold_state_from_widget",
+    "panel_fold_state_from_widget",
 ]

@@ -122,6 +122,13 @@ class AgentHintsDisplayMixin:
             self.update_display(agent)  # type: ignore[attr-defined]
             return AgentHintRender(file_hints={}, tool_call_reports={})
 
+        # Container documents own their fold-aware rendering contract.  Their
+        # compact default must not be replaced with the regular agent's full
+        # prompt/reply path merely because file-hint mode was requested.
+        if agent.is_family_container_row:
+            self.update_display(agent)  # type: ignore[attr-defined]
+            return AgentHintRender(file_hints={}, tool_call_reports={})
+
         self._agent_hint_mode_rendered = True  # type: ignore[attr-defined]
         cancel_slow_tick = getattr(self, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):

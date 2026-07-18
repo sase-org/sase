@@ -24,6 +24,7 @@ from sase.ace.tui.tools.report import (
     tool_call_report_path,
 )
 
+from ...models.fold_state import FoldLevel
 from ._agent_context_common import (
     COLOR_SUMMARY,
     COLOR_TIMESTAMP,
@@ -72,6 +73,7 @@ def append_slow_tool_calls_section(
     now: datetime,
     hint_state: HeaderHintState | None = None,
     threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    fold_level: FoldLevel | None = None,
 ) -> None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
     if not sources:
@@ -97,9 +99,23 @@ def append_slow_tool_calls_section(
         summary_parts.append(count_phrase(source_count, "agent"))
 
     append_major_section_divider(text)
-    heading = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
-    heading.append(f" \u00b7 {' · '.join(summary_parts)}", style=COLOR_SUMMARY)
-    append_section_heading(text, heading, section_id="slow-tool-calls")
+    if fold_level is None:
+        heading = Text("SLOW TOOL CALLS", style=_COLOR_HEADER)
+        heading.append(f" \u00b7 {' · '.join(summary_parts)}", style=COLOR_SUMMARY)
+        append_section_heading(text, heading, section_id="slow-tool-calls")
+    else:
+        from ._agent_display_family import append_family_fold_heading
+
+        append_family_fold_heading(
+            text,
+            "SLOW TOOL CALLS",
+            section_id="slow-tool-calls",
+            level=fold_level,
+            count=len(slow_calls),
+            style=_COLOR_HEADER,
+        )
+        if fold_level == FoldLevel.COLLAPSED:
+            return
 
     visible = _select_visible_slow_tool_calls(slow_calls)
     hint_marker_width = _hint_marker_width(visible, hint_state)

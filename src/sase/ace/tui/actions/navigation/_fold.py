@@ -186,8 +186,10 @@ class FoldNavigationMixin(NavigationMixinBase):
         agent = get_selected()
         if agent is None or getattr(agent, "is_clan_container", False):
             return
+        if getattr(agent, "is_family_container_row", False):
+            return
         self.notify(  # type: ignore[attr-defined]
-            "Fold levels currently shape clan summaries"
+            "Fold levels currently shape clan and family summaries"
         )
 
     def _all_fold_states_aligned(self) -> bool:

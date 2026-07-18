@@ -239,7 +239,7 @@ class TestAgentXPromptRendering:
         assert "#gh:widgets response" in plain
         assert "#gh:gh_acme__widgets" not in plain
 
-    def test_custom_family_reply_dividers_include_member_ids(
+    def test_custom_family_reply_summaries_include_member_ids(
         self,
         tmp_path: Path,
     ) -> None:
@@ -260,17 +260,12 @@ class TestAgentXPromptRendering:
         panel.update_display(root)
         plain = plain_of(panel.captured[-1])
 
-        assert "AGENT REPLY" in plain
-        assert "AGENT (0)" in plain
-        assert "AGENT (bar)" in plain
+        assert "▸ AGENT REPLY · 2" in plain
+        assert "AGENT (0) · ✓ DONE" in plain
+        assert "AGENT (bar) · ✓ DONE" in plain
         assert "QUESTIONS" not in plain
-        assert_rendered_section_is_compact(
-            panel.captured[-1],
-            "AGENT REPLY",
-            "─── AGENT (0)",
-        )
 
-    def test_hint_mode_custom_family_reply_dividers_include_member_ids(
+    def test_hint_mode_custom_family_reply_summaries_include_member_ids(
         self,
         tmp_path: Path,
     ) -> None:
@@ -291,15 +286,10 @@ class TestAgentXPromptRendering:
         panel.update_display_with_hints(root)
         plain = plain_of(panel.captured[-1])
 
-        assert "AGENT REPLY" in plain
-        assert "AGENT (0)" in plain
-        assert "AGENT (bar)" in plain
+        assert "▸ AGENT REPLY · 2" in plain
+        assert "AGENT (0) · ✓ DONE" in plain
+        assert "AGENT (bar) · ✓ DONE" in plain
         assert "QUESTIONS" not in plain
-        assert_logical_section_is_compact(
-            panel.captured[-1],
-            "AGENT REPLY",
-            "─── AGENT (0)",
-        )
 
     def test_running_reply_placeholders_are_compact(self, tmp_path: Path) -> None:
         panel = FakePromptPanel()

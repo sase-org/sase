@@ -12,6 +12,7 @@ from sase.ace.tui.agent_context_members import compact_role_label
 from sase.ace.tui.tools.cache import get_cache_key
 
 from ...models.agent import Agent
+from ...models.fold_state import FoldLevel
 from ._agent_context_common import (
     COLOR_ROLE,
     COLOR_SUMMARY,
@@ -33,20 +34,42 @@ class _OutputVariableContributor:
     output_variables: Mapping[str, str]
 
 
-def append_agent_output_variables_section(text: Text, agent: Agent) -> None:
+def append_agent_output_variables_section(
+    text: Text,
+    agent: Agent,
+    *,
+    fold_level: FoldLevel | None = None,
+) -> None:
     """Append output variables for the selected agent family."""
     contributors = _output_variable_contributors(agent)
     if not contributors:
         return
 
     append_major_section_divider(text)
-    heading = Text("OUTPUT VARIABLES", style=_COLOR_HEADER)
-    if len(contributors) > 1:
-        heading.append(
-            f" \u00b7 {count_phrase(len(contributors), 'agent')}",
-            style=COLOR_SUMMARY,
+    if fold_level is not None:
+        from ._agent_display_family import append_family_fold_heading
+
+        variable_count = sum(
+            len(contributor.output_variables) for contributor in contributors
         )
-    append_section_heading(text, heading, section_id="output-variables")
+        append_family_fold_heading(
+            text,
+            "OUTPUT VARIABLES",
+            section_id="output-variables",
+            level=fold_level,
+            count=variable_count,
+            style=_COLOR_HEADER,
+        )
+        if fold_level == FoldLevel.COLLAPSED:
+            return
+    else:
+        heading = Text("OUTPUT VARIABLES", style=_COLOR_HEADER)
+        if len(contributors) > 1:
+            heading.append(
+                f" \u00b7 {count_phrase(len(contributors), 'agent')}",
+                style=COLOR_SUMMARY,
+            )
+        append_section_heading(text, heading, section_id="output-variables")
 
     if len(contributors) == 1:
         _append_flat_variables(text, contributors[0].output_variables)

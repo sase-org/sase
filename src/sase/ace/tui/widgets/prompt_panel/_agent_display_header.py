@@ -28,6 +28,13 @@ from .._agent_list_styling import (
 )
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
+from ._agent_display_family import (
+    FAMILY_IDENTITY_COLOR,
+    append_family_fold_heading,
+    append_family_member_roster,
+    effective_family_fold_level,
+    fold_number,
+)
 from ._agent_plan_section import ResponsivePlanSection
 from ._file_path_hints import append_text_with_file_hints
 from ._helpers import (
@@ -225,6 +232,8 @@ def build_header_text(
     clan_snapshot: ClanSectionSnapshot | None = None,
     clan_fold_level: FoldLevel = FoldLevel.COLLAPSED,
     clan_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
+    family_fold_level: FoldLevel | None = None,
+    family_section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
@@ -266,6 +275,11 @@ def build_header_text(
         )
 
     header_text = Text()
+    family_overrides = family_section_fold_overrides or {}
+    family_fold_enabled = (
+        agent.is_family_container_row and family_fold_level is not None
+    )
+    resolved_family_fold_level = family_fold_level or FoldLevel.COLLAPSED
 
     # Agent name is always the first metadata row in the details panel.
     header_text.append("Name: ", style="bold #87D7FF")
@@ -554,20 +568,61 @@ def build_header_text(
             style="#D7D7FF",
         )
 
+    if family_fold_enabled:
+        header_text.append("Fold: ", style="bold #87D7FF")
+        header_text.append(
+            f"{fold_number(resolved_family_fold_level)}/3\n",
+            style=f"dim {FAMILY_IDENTITY_COLOR}",
+        )
+        append_family_member_roster(
+            header_text,
+            agent,
+            panel_level=resolved_family_fold_level,
+            section_fold_overrides=family_overrides,
+            member_jump_map_publisher=member_jump_map_publisher,
+        )
+
     _append_legacy_parallel_members_section(header_text, agent)
 
-    append_agent_output_variables_section(header_text, agent)
+    append_agent_output_variables_section(
+        header_text,
+        agent,
+        fold_level=(
+            effective_family_fold_level(
+                "output-variables",
+                resolved_family_fold_level,
+                family_overrides,
+            )
+            if family_fold_enabled
+            else None
+        ),
+    )
 
     # Meta fields from step output
     if meta_fields:
         append_major_section_divider(header_text)
-        append_section_heading(
-            header_text,
-            WORKFLOW_VARIABLES_SECTION_LABEL,
+        meta_level = effective_family_fold_level(
+            "workflow-variables",
+            resolved_family_fold_level,
+            family_overrides,
         )
-        for name, value in meta_fields:
-            header_text.append(f"{name}: ", style="bold #87D7FF")
-            header_text.append(f"{value}\n", style="#5FD75F")
+        if family_fold_enabled:
+            append_family_fold_heading(
+                header_text,
+                WORKFLOW_VARIABLES_SECTION_LABEL,
+                section_id="workflow-variables",
+                level=meta_level,
+                count=len(meta_fields),
+            )
+        else:
+            append_section_heading(
+                header_text,
+                WORKFLOW_VARIABLES_SECTION_LABEL,
+            )
+        if not family_fold_enabled or meta_level != FoldLevel.COLLAPSED:
+            for name, value in meta_fields:
+                header_text.append(f"{name}: ", style="bold #87D7FF")
+                header_text.append(f"{value}\n", style="#5FD75F")
 
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
@@ -592,6 +647,8 @@ def build_header_text(
             artifact_file_paths=summary.artifact_file_paths,
             hint_state=hint_state,
             responsive_ranges=responsive_ranges,
+            fold_level=(resolved_family_fold_level if family_fold_enabled else None),
+            section_fold_overrides=family_overrides,
         )
 
     if not cheap and summary is not None:
@@ -604,20 +661,45 @@ def build_header_text(
             now=DateTime.now(),
             hint_state=hint_state,
             threshold_ms=slow_tool_call_threshold_ms,
+            fold_level=(
+                effective_family_fold_level(
+                    "slow-tool-calls",
+                    resolved_family_fold_level,
+                    family_overrides,
+                )
+                if family_fold_enabled
+                else None
+            ),
         )
 
     # Failed agents always expose an ERROR section and raw-output breadcrumb.
     is_failed = agent.display_status == "FAILED"
     if agent.error_message or is_failed:
         header_text.append("\n")
-        append_section_heading(
-            header_text,
-            "ERROR",
-            style="bold #FF5F5F underline",
-            section_id="error",
+        error_level = effective_family_fold_level(
+            "error",
+            resolved_family_fold_level,
+            family_overrides,
         )
+        if family_fold_enabled:
+            append_family_fold_heading(
+                header_text,
+                "ERROR",
+                style="bold #FF5F5F underline",
+                section_id="error",
+                level=error_level,
+                count=1,
+            )
+        else:
+            append_section_heading(
+                header_text,
+                "ERROR",
+                style="bold #FF5F5F underline",
+                section_id="error",
+            )
         error_message = agent.error_message or "Runner failed without error details."
-        header_text.append(f"{error_message}\n", style="bold #FF5F5F")
+        if not family_fold_enabled or error_level != FoldLevel.COLLAPSED:
+            header_text.append(f"{error_message}\n", style="bold #FF5F5F")
     if agent.output_path and is_failed:
         header_text.append("Output: ", style="bold #87D7FF")
         header_text.append(f"{agent.output_path}\n", style="dim")

@@ -8,6 +8,10 @@ from rich.console import Group
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.agent.status_buckets import (
+    AGENT_STATUS_BUCKET_GLYPHS,
+    status_bucket_for_values,
+)
 from sase.project_display_names import (
     humanize_vcs_refs_in_text,
     project_display_name_map_signature,
@@ -33,7 +37,20 @@ from ._agent_display_content import (
 from ._agent_clan_aggregation import get_cached_clan_section_snapshot
 from ._agent_display_clan import (
     clan_disk_sections_for_fold_state,
-    clan_fold_state_from_widget,
+    panel_fold_state_from_widget,
+)
+from ._agent_display_family import (
+    FAMILY_PROMPT_SECTION_ID,
+    FAMILY_REPLY_SECTION_ID,
+    FAMILY_XPROMPT_SECTION_ID,
+    append_family_fold_heading,
+    bounded_content_preview,
+    collapsed_content_digest,
+    deferred_content_digest,
+    effective_family_fold_level,
+    family_member_rows,
+    family_phase_time,
+    reply_tail_preview,
 )
 from ._agent_display_header import AgentHeader, build_header_text
 from ._agent_display_header_summary import (
@@ -80,6 +97,13 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             xprompt_cache = getattr(self, "_agent_xprompt_highlight_cache", None)
             if xprompt_cache is not None:
                 xprompt_cache.clear()
+            family_content_cache = getattr(
+                self,
+                "_family_section_content_cache",
+                None,
+            )
+            if isinstance(family_content_cache, dict):
+                family_content_cache.clear()
             self._agent_markdown_render_cache_identity = identity
 
     def _display_raw_xprompt(self, agent: Agent, raw_xprompt: str) -> str:
@@ -159,7 +183,7 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 app = None
-            fold_level, fold_overrides = clan_fold_state_from_widget(self)
+            fold_level, fold_overrides = panel_fold_state_from_widget(self)
             set_required = getattr(
                 self,
                 "set_clan_disk_sections_required",
@@ -208,12 +232,34 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
             if agent.waiting_for
             else None
         )
+        family_fold_level, family_fold_overrides = panel_fold_state_from_widget(self)
+        try:
+            app = self.app  # type: ignore[attr-defined]
+        except Exception:
+            app = None
         header_text, error_tb_syntax = build_header_text(
             agent,
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             slow_tool_call_threshold_ms=slow_tool_call_threshold_ms_from_widget(self),
+            family_fold_level=family_fold_level,
+            family_section_fold_overrides=family_fold_overrides,
+            member_jump_map_publisher=(
+                member_jump_map_publisher_for(app)
+                if agent.is_family_container_row
+                else None
+            ),
         )
+
+        if agent.is_family_container_row:
+            self._update_family_display(
+                agent,
+                header_text,
+                error_tb_syntax,
+                panel_level=family_fold_level,
+                section_fold_overrides=family_fold_overrides,
+            )
+            return
 
         # Check if this is a bash/python workflow step - display differently
         if agent.is_workflow_child and agent.step_type in ("bash", "python"):
@@ -397,6 +443,217 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                 self.update(Group(header_text, error_tb_syntax))  # type: ignore[attr-defined]
             else:
                 self.update(header_text)  # type: ignore[attr-defined]
+
+    def _update_family_display(
+        self,
+        agent: Agent,
+        header_text: AgentHeader,
+        error_tb_syntax: Syntax | None,
+        *,
+        panel_level: object,
+        section_fold_overrides: object,
+    ) -> None:
+        """Render every family section at its effective three-level fold."""
+        from collections.abc import Mapping
+
+        from ...models.fold_state import FoldLevel
+
+        level = (
+            panel_level if isinstance(panel_level, FoldLevel) else FoldLevel.COLLAPSED
+        )
+        overrides = (
+            section_fold_overrides
+            if isinstance(section_fold_overrides, Mapping)
+            else {}
+        )
+        renderables: list[Any] = [header_text]
+
+        error_level = effective_family_fold_level("error", level, overrides)
+        if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
+            renderables.append(error_tb_syntax)
+
+        xprompt_level = effective_family_fold_level(
+            FAMILY_XPROMPT_SECTION_ID,
+            level,
+            overrides,
+        )
+        if xprompt_level == FoldLevel.COLLAPSED:
+            append_family_fold_heading(
+                header_text,
+                "AGENT XPROMPT",
+                section_id=FAMILY_XPROMPT_SECTION_ID,
+                level=xprompt_level,
+            )
+            cached_xprompt = self._cached_family_section_content(
+                agent,
+                FAMILY_XPROMPT_SECTION_ID,
+            )
+            header_text.append_text(
+                collapsed_content_digest(cached_xprompt)
+                if cached_xprompt is not None
+                else deferred_content_digest()
+            )
+        else:
+            raw_xprompt = agent.get_raw_xprompt_content()
+            append_family_fold_heading(
+                header_text,
+                "AGENT XPROMPT",
+                section_id=FAMILY_XPROMPT_SECTION_ID,
+                level=xprompt_level,
+            )
+            if raw_xprompt:
+                humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
+                self._remember_family_section_content(
+                    agent,
+                    FAMILY_XPROMPT_SECTION_ID,
+                    humanized_xprompt,
+                )
+                if xprompt_level == FoldLevel.EXPANDED:
+                    header_text.append_text(bounded_content_preview(humanized_xprompt))
+                else:
+                    header_text.append_text(
+                        self._render_xprompt(
+                            agent,
+                            raw_xprompt,
+                            humanized_xprompt,
+                        )
+                    )
+                    header_text.append("\n")
+            else:
+                header_text.append("No xprompt file found.\n", style="dim italic")
+
+        header_text.append("\n")
+        header_text.append("\u2500" * 50 + "\n", style="dim")
+        header_text.append("\n")
+        prompt_level = effective_family_fold_level(
+            FAMILY_PROMPT_SECTION_ID,
+            level,
+            overrides,
+        )
+        append_family_fold_heading(
+            header_text,
+            "AGENT PROMPT",
+            section_id=FAMILY_PROMPT_SECTION_ID,
+            level=prompt_level,
+        )
+        if prompt_level == FoldLevel.COLLAPSED:
+            cached_prompt = self._cached_family_section_content(
+                agent,
+                FAMILY_PROMPT_SECTION_ID,
+            )
+            header_text.append_text(
+                collapsed_content_digest(cached_prompt)
+                if cached_prompt is not None
+                else deferred_content_digest()
+            )
+        else:
+            prompt_content = get_prompt_content(agent)
+            if prompt_content:
+                self._remember_family_section_content(
+                    agent,
+                    FAMILY_PROMPT_SECTION_ID,
+                    self._humanize_display_text(prompt_content),
+                )
+                if prompt_level == FoldLevel.EXPANDED:
+                    header_text.append_text(
+                        bounded_content_preview(
+                            self._humanize_display_text(prompt_content)
+                        )
+                    )
+                else:
+                    renderables.append(self._render_markdown(prompt_content))
+            else:
+                header_text.append("No prompt file found.\n", style="dim italic")
+
+        reply_header = Text()
+        reply_header.append("\n")
+        reply_header.append("\u2500" * 50 + "\n", style="dim")
+        reply_header.append("\n")
+        reply_level = effective_family_fold_level(
+            FAMILY_REPLY_SECTION_ID,
+            level,
+            overrides,
+        )
+        phases = family_member_rows(agent)
+        append_family_fold_heading(
+            reply_header,
+            "AGENT REPLY",
+            section_id=FAMILY_REPLY_SECTION_ID,
+            level=reply_level,
+            count=len(phases),
+        )
+        if reply_level == FoldLevel.COLLAPSED:
+            for phase in phases:
+                bucket = status_bucket_for_values(phase.status)
+                glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
+                reply_header.append(
+                    f"{get_phase_label(phase)} · {glyph} {phase.display_status} · ",
+                    style="dim",
+                )
+                reply_header.append(f"{family_phase_time(phase)}\n", style="#D7D7FF")
+            renderables.append(reply_header)
+        elif reply_level == FoldLevel.EXPANDED:
+            renderables.append(reply_header)
+            for phase in phases:
+                renderables.append(
+                    render_phase_divider(
+                        get_phase_label(phase),
+                        phase.run_start_time or phase.start_time,
+                    )
+                )
+                renderables.append(reply_tail_preview(self._family_reply_text(phase)))
+        else:
+            renderables.append(reply_header)
+            for phase in phases:
+                renderables.append(
+                    render_phase_divider(
+                        get_phase_label(phase),
+                        phase.run_start_time or phase.start_time,
+                    )
+                )
+                renderables.extend(
+                    render_agent_reply_content(phase, self._render_markdown)
+                )
+
+        self.update(Group(*renderables))  # type: ignore[attr-defined]
+
+    @staticmethod
+    def _family_reply_text(agent: Agent) -> str:
+        """Load one phase reply for an expanded tail preview."""
+        chunks = agent.get_timestamped_reply_chunks()
+        if chunks:
+            return "\n".join(chunk for _timestamp, chunk in chunks if chunk.strip())
+        live_reply = agent.get_live_reply_content()
+        if live_reply:
+            return live_reply
+        response = agent.get_response_content()
+        if response:
+            return response
+        chat_response = agent.get_chat_response_content()
+        return chat_response or ""
+
+    def _remember_family_section_content(
+        self,
+        agent: Agent,
+        section_id: str,
+        content: str,
+    ) -> None:
+        cache = getattr(self, "_family_section_content_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._family_section_content_cache = cache
+        cache[(agent.identity, section_id)] = content
+
+    def _cached_family_section_content(
+        self,
+        agent: Agent,
+        section_id: str,
+    ) -> str | None:
+        cache = getattr(self, "_family_section_content_cache", None)
+        if not isinstance(cache, dict):
+            return None
+        content = cache.get((agent.identity, section_id))
+        return content if isinstance(content, str) else None
 
     def _update_bash_python_display(
         self,

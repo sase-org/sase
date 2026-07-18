@@ -21,7 +21,7 @@ from ._agent_clan_aggregation import (
 )
 from ._agent_display_clan import (
     clan_disk_sections_for_fold_state,
-    clan_fold_state_from_widget,
+    panel_fold_state_from_widget,
 )
 from ._agent_display_header import build_header_text
 from ._agent_display_render import AgentDisplayRenderMixin
@@ -126,7 +126,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 app = self.app  # type: ignore[attr-defined]
             except Exception:
                 app = None
-            clan_fold_level, clan_fold_overrides = clan_fold_state_from_widget(self)
+            clan_fold_level, clan_fold_overrides = panel_fold_state_from_widget(self)
             if agent.is_clan_container and app is not None:
                 self.set_clan_disk_sections_required(
                     clan_disk_sections_for_fold_state(
@@ -145,6 +145,8 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                 clan_snapshot=get_cached_clan_section_snapshot(self, agent),
                 clan_fold_level=clan_fold_level,
                 clan_section_fold_overrides=clan_fold_overrides,
+                family_fold_level=clan_fold_level,
+                family_section_fold_overrides=clan_fold_overrides,
                 member_jump_map_publisher=member_jump_map_publisher_for(app),
             )
             if error_tb_syntax is not None:
