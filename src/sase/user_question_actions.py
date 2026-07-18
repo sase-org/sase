@@ -13,7 +13,7 @@ from typing import Any
 from sase.notification_gates.entrypoints import gate_command_entrypoint
 
 QUESTION_COMMAND_PATH = "commands/submit"
-QUESTION_CHOICE_ID = "submit"
+QUESTION_OPTION_ID = "submit"
 QUESTION_CONTINUATION_MODE = "agent_question"
 QUESTION_REQUEST_FILE = "question_request.json"
 QUESTION_RESPONSE_FILE = "question_response.json"
@@ -67,7 +67,7 @@ def create_user_question_gate(
 
     return create_gate(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "kind": "question",
             "request_id": session_id,
             "producer": dict(producer or {}),
@@ -82,10 +82,12 @@ def create_user_question_gate(
                 "tags": ["question"],
                 "action_data": dict(action_data or {}),
             },
-            "choices": [
+            "query": QUESTION_OPTION_ID,
+            "options": [
                 {
-                    "id": QUESTION_CHOICE_ID,
+                    "id": QUESTION_OPTION_ID,
                     "label": "Submit answers",
+                    "icon": "✅",
                     "command": {"argv": [QUESTION_COMMAND_PATH]},
                     "input_schema": response_schema,
                     "result_schema": response_schema,
@@ -121,7 +123,7 @@ def execute_user_question_response(
         response_json = normalized
         response_file = QUESTION_RESPONSE_FILE
     else:
-        from sase.notification_gates.executor import execute_gate_choice
+        from sase.notification_gates.executor import execute_gate_selection
         from sase.notification_gates.models import GateError
         from sase.notification_gates.paths import RESPONSE_FILENAME
 
@@ -131,9 +133,9 @@ def execute_user_question_response(
                 shared_feedback = normalized.get("global_note")
             if not isinstance(shared_feedback, str) or not shared_feedback.strip():
                 shared_feedback = None
-            execution = execute_gate_choice(
+            execution = execute_gate_selection(
                 bundle.root,
-                QUESTION_CHOICE_ID,
+                [QUESTION_OPTION_ID],
                 normalized,
                 feedback=shared_feedback,
                 source=source,
@@ -152,7 +154,20 @@ def execute_user_question_response(
                 "response already exists",
             )
         response_json = execution.response
-        result = response_json.get("result")
+        option_results = response_json.get("option_results")
+        result = (
+            next(
+                (
+                    entry.get("result")
+                    for entry in option_results
+                    if isinstance(entry, Mapping)
+                    and entry.get("id") == QUESTION_OPTION_ID
+                ),
+                None,
+            )
+            if isinstance(option_results, list)
+            else None
+        )
         if not isinstance(result, dict):
             raise UserQuestionActionError(
                 "invalid_response",
@@ -522,16 +537,16 @@ def _run_question_side_effects(
         mark_already_handled(
             context.notification_id,
             source=source,
-            action=QUESTION_CHOICE_ID,
+            action=QUESTION_OPTION_ID,
         )
     except Exception:
         pass
 
 
 __all__ = [
-    "QUESTION_CHOICE_ID",
     "QUESTION_COMMAND_PATH",
     "QUESTION_CONTINUATION_MODE",
+    "QUESTION_OPTION_ID",
     "QUESTION_REQUEST_FILE",
     "QUESTION_RESPONSE_FILE",
     "UserQuestionActionContext",

@@ -13,12 +13,31 @@ from sase.plan_approval_actions import (
     _archive_plan_for_approval,
     durable_plan_file_for_context,
     execute_plan_approval_response,
+    plan_response_json_for_selection,
     resolve_plan_agent_artifacts_dir,
     run_plan_side_effects,
 )
 from sase.sdd._repository_transaction import SddRepositoryHealthError
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
+
+
+@pytest.mark.parametrize(
+    ("selected", "expected"),
+    [
+        (("approve",), {"action": "approve", "commit_plan": False, "run_coder": True}),
+        (("commit",), {"action": "approve", "commit_plan": True, "run_coder": False}),
+        (
+            ("approve", "commit"),
+            {"action": "approve", "commit_plan": True, "run_coder": True},
+        ),
+    ],
+)
+def test_runner_protocol_is_derived_from_selected_options(
+    selected: tuple[str, ...], expected: dict[str, object]
+) -> None:
+    response, _message = plan_response_json_for_selection(selected, tier="tale")
+    assert response == expected
 
 
 def test_resolve_plan_agent_artifacts_dir_from_project_file_and_timestamp(

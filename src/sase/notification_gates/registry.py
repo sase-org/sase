@@ -103,12 +103,19 @@ class GateAdapter:
                 str(bundle_path / "response.json"),
                 "plan response is missing its selected options or results",
             )
-        choice = selected[0]
+        selected_ids = tuple(selected)
+        plan_action = (
+            "epic"
+            if self.kind == "epic_plan" and selected_ids == ("approve",)
+            else "commit"
+            if selected_ids == ("commit",)
+            else selected_ids[0]
+        )
         first_result = next(
             (
                 entry.get("result")
                 for entry in option_results
-                if isinstance(entry, Mapping) and entry.get("id") == choice
+                if isinstance(entry, Mapping) and entry.get("id") == selected_ids[0]
             ),
             None,
         )
@@ -124,13 +131,13 @@ class GateAdapter:
         result.update(translated)
         run_plan_side_effects(
             context,
-            choice,
+            plan_action,
             bundle_path / "response.json",
             result,
             response_container=response if isinstance(response, dict) else None,
             source=str(response.get("source") or "plan_response"),
         )
-        if choice == "epic" and result.get("epic_launch_owner") == "host":
+        if plan_action == "epic" and result.get("epic_launch_owner") == "host":
             raw_input = response.get("input")
             mode = (
                 raw_input.get("epic_launch_mode")
@@ -454,8 +461,9 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         PLAN_EDIT_OPERATION_ID,
         PLAN_RESOURCE_PATH,
         PlanGateTier,
-        plan_gate_choice_ids,
         plan_gate_command_script,
+        plan_gate_option_ids,
+        plan_gate_query,
     )
 
     tier = "epic" if adapter.kind == "epic_plan" else "tale"
@@ -472,14 +480,44 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "plan gate payload must reference the adapter-owned plan resource",
         )
 
-    expected_choices = plan_gate_choice_ids(cast(PlanGateTier, tier))
+    typed_tier = cast(PlanGateTier, tier)
+    expected_query = plan_gate_query(typed_tier)
+    expected_branches = (
+        (("approve",), ("reject",), ("feedback",))
+        if tier == "epic"
+        else (("approve", "commit"), ("reject",), ("feedback",))
+    )
+    if spec.query != expected_query or spec.branches != expected_branches:
+        raise GateError(
+            "invalid_plan_query",
+            "query",
+            f"{tier} plan gates require query: {expected_query}",
+        )
+    expected_options = plan_gate_option_ids(typed_tier)
     actual_commands = {option.id: option.command.argv[0] for option in spec.options}
-    expected_commands = {choice: f"commands/{choice}" for choice in expected_choices}
+    expected_commands = {
+        option_id: f"commands/{option_id}" for option_id in expected_options
+    }
     if actual_commands != expected_commands:
         raise GateError(
-            "invalid_plan_choices",
+            "invalid_plan_options",
             "options",
             f"{tier} plan gate options do not match the registered adapter",
+        )
+    if tier == "tale" and (
+        len(spec.groups) != 1
+        or spec.groups[0].options != ("approve", "commit")
+        or spec.groups[0].label != "Approve"
+        or spec.groups[0].icon != "✅"
+    ):
+        raise GateError(
+            "invalid_plan_group",
+            "groups",
+            "tale plan gates require the configured Approve submit group",
+        )
+    if tier == "epic" and spec.groups:
+        raise GateError(
+            "invalid_plan_group", "groups", "epic plan gates do not define groups"
         )
     if len(spec.operations) != 1 or (
         spec.operations[0].id,
@@ -528,6 +566,14 @@ def _validate_plan_spec(spec: GateSpec, adapter: GateAdapter) -> None:
 
 def _validate_launch_spec(spec: GateSpec) -> None:
     """Keep privileged launch gates on the registered command contract."""
+    expected_query = "approve OR reject OR feedback"
+    expected_branches = (("approve",), ("reject",), ("feedback",))
+    if spec.query != expected_query or spec.branches != expected_branches:
+        raise GateError(
+            "invalid_launch_query",
+            "query",
+            f"launch gates require query: {expected_query}",
+        )
     expected_commands = {
         "approve": "commands/approve",
         "reject": "commands/reject",
@@ -536,7 +582,7 @@ def _validate_launch_spec(spec: GateSpec) -> None:
     actual_commands = {option.id: option.command.argv[0] for option in spec.options}
     if actual_commands != expected_commands:
         raise GateError(
-            "invalid_launch_choices",
+            "invalid_launch_options",
             "options",
             "launch gates require approve, reject, and feedback options",
         )
@@ -544,7 +590,7 @@ def _validate_launch_spec(spec: GateSpec) -> None:
     from sase.agent.launch_request import launch_gate_command_script
 
     resources = {resource.path: resource for resource in spec.resources}
-    for choice_id, path in expected_commands.items():
+    for option_id, path in expected_commands.items():
         resource = resources[path]
         try:
             content = (
@@ -558,7 +604,7 @@ def _validate_launch_spec(spec: GateSpec) -> None:
             raise GateError(
                 "invalid_launch_command", path, f"cannot read launch command: {exc}"
             ) from exc
-        if content != launch_gate_command_script(choice_id):
+        if content != launch_gate_command_script(option_id):
             raise GateError(
                 "invalid_launch_command",
                 path,
@@ -592,9 +638,9 @@ def _validate_launch_spec(spec: GateSpec) -> None:
 def _validate_question_spec(spec: GateSpec) -> None:
     """Keep UserQuestion gates on the registered complete-form contract."""
     from sase.user_question_actions import (
-        QUESTION_CHOICE_ID,
         QUESTION_COMMAND_PATH,
         QUESTION_CONTINUATION_MODE,
+        QUESTION_OPTION_ID,
         UserQuestionActionError,
         question_gate_command_script,
         question_response_schema,
@@ -624,18 +670,22 @@ def _validate_question_spec(spec: GateSpec) -> None:
             "payload.session_id",
             "question session id must match request id",
         )
-    if len(spec.options) != 1 or spec.branches != ((QUESTION_CHOICE_ID,),):
+    if (
+        spec.query != QUESTION_OPTION_ID
+        or len(spec.options) != 1
+        or spec.branches != ((QUESTION_OPTION_ID,),)
+    ):
         raise GateError(
-            "invalid_question_choices",
+            "invalid_question_options",
             "options",
             "question gates require one singleton submit branch",
         )
     option = spec.options[0]
-    if option.id != QUESTION_CHOICE_ID or option.command.argv != (
+    if option.id != QUESTION_OPTION_ID or option.command.argv != (
         QUESTION_COMMAND_PATH,
     ):
         raise GateError(
-            "invalid_question_choices",
+            "invalid_question_options",
             "options",
             "question gates require the registered submit option",
         )

@@ -107,12 +107,16 @@ def test_question_gate_executes_complete_form_and_marks_handled(
 
     assert result.response_file == "response.json"
     assert result.answers == _complete_response()
-    assert result.response_json["choice_id"] == "submit"
-    assert result.response_json["result"] == _complete_response()
+    assert result.response_json["selected_option_ids"] == ["submit"]
+    assert result.response_json["option_results"] == [
+        {"id": "submit", "result": _complete_response()}
+    ]
     assert result.response_json["feedback"] == "Prefer the durable path"
     envelope = json.loads(gate.request_path.read_text(encoding="utf-8"))
     assert envelope["payload"]["questions"] == _questions()
-    assert envelope["choices"][0]["command"]["argv"] == ["commands/submit"]
+    assert envelope["query"] == "submit"
+    assert envelope["options"][0]["icon"] == "✅"
+    assert envelope["options"][0]["command"]["argv"] == ["commands/submit"]
     entry = next(iter(pending_actions.read_pending_action_store()["actions"].values()))
     assert entry["state"] == "already_handled"
 
@@ -182,7 +186,7 @@ def test_auto_question_uses_first_options_without_publishing_pending_action(
 
     assert gate.notification_id is None
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
-    assert response["result"] == {
+    assert response["option_results"][0]["result"] == {
         "answers": [
             {
                 "question": "Database?",

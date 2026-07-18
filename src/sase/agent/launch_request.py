@@ -54,7 +54,7 @@ class _LaunchRequestOutcome:
     status: LaunchRequestStatus
     request_id: str
     notification_id: str
-    choice_id: str | None
+    selected_option_ids: tuple[str, ...]
     message: str
     response: dict[str, Any]
 
@@ -63,7 +63,7 @@ class _LaunchRequestOutcome:
             "status": self.status,
             "request_id": self.request_id,
             "notification_id": self.notification_id,
-            "choice_id": self.choice_id,
+            "selected_option_ids": list(self.selected_option_ids),
             "message": self.message,
             "response": self.response,
         }
@@ -218,7 +218,7 @@ def wait_for_launch_approval(
             status=status,
             request_id=request.request_id,
             notification_id=request.notification_id,
-            choice_id=None,
+            selected_option_ids=(),
             message=(
                 "Launch approval timed out"
                 if status == "timed_out"
@@ -322,7 +322,7 @@ def read_launch_request(response_dir: Path) -> dict[str, Any]:
 
 
 @gate_command_entrypoint
-def execute_launch_gate_command(choice: str) -> int:
+def execute_launch_gate_command(option_id: str) -> int:
     """Entry point used only by the hashed scripts in a launch gate bundle."""
     try:
         raw_input = json.load(sys.stdin)
@@ -333,7 +333,7 @@ def execute_launch_gate_command(choice: str) -> int:
         print("launch command input must be an object", file=sys.stderr)
         return 2
 
-    if choice == "approve":
+    if option_id == "approve":
         try:
             with redirect_stdout(sys.stderr):
                 dispatch = dispatch_approved_launch_request(Path.cwd())
@@ -349,16 +349,16 @@ def execute_launch_gate_command(choice: str) -> int:
                 "dispatch_status": "launched",
                 "launched_count": dispatch.launched_count,
             }
-    elif choice == "reject":
+    elif option_id == "reject":
         result = {"action": "reject"}
-    elif choice == "feedback":
+    elif option_id == "feedback":
         feedback = raw_input.get("feedback")
         if not isinstance(feedback, str) or not feedback.strip():
             print("feedback text is required", file=sys.stderr)
             return 2
         result = {"action": "reject", "feedback": feedback}
     else:
-        print(f"unsupported launch choice: {choice}", file=sys.stderr)
+        print(f"unsupported launch option: {option_id}", file=sys.stderr)
         return 2
     print(json.dumps(result, sort_keys=True))
     return 0
@@ -367,13 +367,34 @@ def execute_launch_gate_command(choice: str) -> int:
 def _launch_outcome_from_response(
     request: LaunchRequestCreationResult, response: dict[str, Any]
 ) -> _LaunchRequestOutcome:
-    choice_id = response.get("choice_id")
-    result = response.get("result")
-    if not isinstance(choice_id, str) or not isinstance(result, dict):
+    raw_selected = response.get("selected_option_ids")
+    option_results = response.get("option_results")
+    if (
+        not isinstance(raw_selected, list)
+        or len(raw_selected) != 1
+        or not isinstance(raw_selected[0], str)
+        or not isinstance(option_results, list)
+    ):
         raise LaunchRequestError(
             "invalid_response",
             str(request.response_path),
-            "launch response is missing choice_id or result",
+            "launch response must select exactly one option",
+        )
+    selected_option_ids = tuple(raw_selected)
+    option_id = selected_option_ids[0]
+    result = next(
+        (
+            entry.get("result")
+            for entry in option_results
+            if isinstance(entry, Mapping) and entry.get("id") == option_id
+        ),
+        None,
+    )
+    if not isinstance(result, dict):
+        raise LaunchRequestError(
+            "invalid_response",
+            str(request.response_path),
+            "launch response is missing its selected option result",
         )
     translated_response = dict(response)
     feedback = response.get("feedback")
@@ -382,7 +403,7 @@ def _launch_outcome_from_response(
         feedback = legacy_feedback if isinstance(legacy_feedback, str) else None
     if feedback:
         translated_response["feedback"] = feedback
-    if choice_id == "approve":
+    if option_id == "approve":
         if result.get("dispatch_status") == "failed":
             status: LaunchRequestStatus = "dispatch_failed"
             message = str(result.get("dispatch_error") or "Launch dispatch failed")
@@ -399,23 +420,23 @@ def _launch_outcome_from_response(
                 str(request.response_path),
                 "approved launch response has no dispatch status",
             )
-    elif choice_id == "reject":
+    elif option_id == "reject":
         status = "rejected"
         message = "Launch rejected"
-    elif choice_id == "feedback":
+    elif option_id == "feedback":
         status = "feedback"
         message = "Launch rejected with feedback"
     else:
         raise LaunchRequestError(
             "invalid_response",
             str(request.response_path),
-            f"unsupported launch response choice: {choice_id}",
+            f"unsupported launch response option: {option_id}",
         )
     return _LaunchRequestOutcome(
         status=status,
         request_id=request.request_id,
         notification_id=request.notification_id,
-        choice_id=choice_id,
+        selected_option_ids=selected_option_ids,
         message=message,
         response=translated_response,
     )
@@ -480,10 +501,11 @@ def _launch_gate_spec(
         },
         "additionalProperties": False,
     }
-    choices = [
+    options = [
         {
             "id": "approve",
             "label": "Approve",
+            "icon": "✅",
             "command": {"argv": ["commands/approve"]},
             "input_schema": empty_input_schema,
             "result_schema": approve_result_schema,
@@ -491,6 +513,7 @@ def _launch_gate_spec(
         {
             "id": "reject",
             "label": "Reject",
+            "icon": "❌",
             "command": {"argv": ["commands/reject"]},
             "input_schema": empty_input_schema,
             "result_schema": reject_result_schema,
@@ -498,6 +521,7 @@ def _launch_gate_spec(
         {
             "id": "feedback",
             "label": "Send Feedback",
+            "icon": "💬",
             "command": {"argv": ["commands/feedback"]},
             "input_schema": feedback_input_schema,
             "result_schema": feedback_result_schema,
@@ -506,11 +530,11 @@ def _launch_gate_spec(
     ]
     resources = [
         {
-            "path": f"commands/{choice}",
+            "path": f"commands/{option_id}",
             "role": "command",
-            "content": launch_gate_command_script(choice),
+            "content": launch_gate_command_script(option_id),
         }
-        for choice in ("approve", "reject", "feedback")
+        for option_id in ("approve", "reject", "feedback")
     ]
     resources.append(
         {
@@ -520,7 +544,7 @@ def _launch_gate_spec(
         }
     )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "launch",
         "request_id": str(request["request_id"]),
         "producer": dict(request.get("requester", {})),
@@ -540,18 +564,19 @@ def _launch_gate_spec(
                 "slot_count": str(slot_count),
             },
         },
-        "choices": choices,
+        "query": "approve OR reject OR feedback",
+        "options": options,
         "resources": resources,
         "auto": False,
     }
 
 
-def launch_gate_command_script(choice: str) -> str:
+def launch_gate_command_script(option_id: str) -> str:
     """Return the only command wrapper accepted by the launch adapter."""
     return (
         f"#!{sys.executable}\n"
         "from sase.agent.launch_request import execute_launch_gate_command\n"
-        f"raise SystemExit(execute_launch_gate_command({choice!r}))\n"
+        f"raise SystemExit(execute_launch_gate_command({option_id!r}))\n"
     )
 
 

@@ -718,7 +718,7 @@ def test_launch_adapter_rejects_unregistered_command_shape(gate_home: Path) -> N
     del gate_home
     with pytest.raises(GateError) as exc_info:
         create_gate(_gate_spec(kind="launch"))
-    assert exc_info.value.code == "invalid_launch_choices"
+    assert exc_info.value.code == "invalid_launch_query"
 
 
 @pytest.mark.parametrize(

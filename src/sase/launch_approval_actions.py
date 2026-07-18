@@ -133,23 +133,23 @@ def _execute_neutral_launch_approval_response(
     *,
     feedback: str | None,
 ) -> LaunchApprovalActionResult:
-    """Execute one registered launch choice through the common gate executor."""
-    from sase.notification_gates.executor import execute_gate_choice
+    """Execute one registered launch option through the common gate executor."""
+    from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.models import GateError
     from sase.notification_gates.paths import RESPONSE_FILENAME
 
-    choice_id = "feedback" if choice == "reject" and feedback else choice
+    option_id = "feedback" if choice == "reject" and feedback else choice
     input_data: dict[str, Any] = {}
-    if choice_id == "feedback":
+    if option_id == "feedback":
         if not feedback:
             raise LaunchApprovalActionError(
                 "invalid_request", "feedback", "feedback text is required"
             )
         input_data["feedback"] = feedback
     try:
-        execution = execute_gate_choice(
+        execution = execute_gate_selection(
             bundle_path,
-            choice_id,
+            [option_id],
             input_data,
             feedback=feedback,
             source="launch_response",
@@ -169,7 +169,19 @@ def _execute_neutral_launch_approval_response(
         )
 
     response_json = execution.response
-    command_result = response_json.get("result")
+    option_results = response_json.get("option_results")
+    command_result = (
+        next(
+            (
+                entry.get("result")
+                for entry in option_results
+                if isinstance(entry, dict) and entry.get("id") == option_id
+            ),
+            None,
+        )
+        if isinstance(option_results, list)
+        else None
+    )
     if not isinstance(command_result, dict):
         raise LaunchApprovalActionError(
             "invalid_response",
@@ -177,7 +189,7 @@ def _execute_neutral_launch_approval_response(
             "launch command returned no result object",
         )
     launched_count = 0
-    if choice_id == "approve":
+    if option_id == "approve":
         if command_result.get("dispatch_status") == "failed":
             raise LaunchApprovalActionError(
                 "dispatch_failed",
@@ -189,16 +201,16 @@ def _execute_neutral_launch_approval_response(
             f"Launch approved and dispatched {launched_count} agent"
             f"{'s' if launched_count != 1 else ''}"
         )
-    elif choice_id == "reject":
+    elif option_id == "reject":
         message = "Launch rejected"
-    elif choice_id == "feedback":
+    elif option_id == "feedback":
         message = "Feedback received"
     else:  # The registered executor normally rejects this first.
         raise LaunchApprovalActionError(
-            "unsupported_action", choice_id, "unsupported launch action choice"
+            "unsupported_action", option_id, "unsupported launch action option"
         )
 
-    _run_launch_side_effects(notification, choice_id)
+    _run_launch_side_effects(notification, option_id)
     return LaunchApprovalActionResult(
         notification_id=notification.id,
         response_file=RESPONSE_FILENAME,

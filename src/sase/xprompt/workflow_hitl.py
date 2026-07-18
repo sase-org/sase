@@ -1,10 +1,8 @@
 """CLI human-in-the-loop handler for workflow execution."""
 
-import json
 import os
 import subprocess
 import tempfile
-import time
 from typing import Any
 
 import yaml  # type: ignore[import-untyped]
@@ -33,8 +31,6 @@ _EXTENSION_TO_LEXER: dict[str, str] = {
     ".css": "css",
 }
 
-# Poll interval for TUI HITL handler (seconds)
-_TUI_HITL_POLL_INTERVAL = 0.5
 # Timeout for TUI HITL handler (seconds) - 1 hour
 _TUI_HITL_TIMEOUT = 3600
 
@@ -65,7 +61,7 @@ class TUIHITLHandler:
         has_output: bool = False,
         output_types: dict[str, str] | None = None,
     ) -> HITLResult:
-        """Write HITL request and block waiting for response.
+        """Create a HITL gate and block mechanically for its response.
 
         Args:
             step_name: Name of the step being reviewed.
@@ -77,72 +73,22 @@ class TUIHITLHandler:
         Returns:
             HITLResult based on the user's response from the TUI.
         """
-        request_path = os.path.join(self.artifacts_dir, "hitl_request.json")
-        response_path = os.path.join(self.artifacts_dir, "hitl_response.json")
-
-        # Clean up any stale response file
-        if os.path.exists(response_path):
-            os.unlink(response_path)
-
-        # Write the request file
-        request_data: dict[str, Any] = {
-            "step_name": step_name,
-            "step_type": step_type,
-            "output": output,
-            "has_output": has_output,
-        }
-        if output_types is not None:
-            request_data["output_types"] = output_types
-        with open(request_path, "w", encoding="utf-8") as f:
-            json.dump(request_data, f, indent=2, default=str)
-
-        from sase.notifications.senders import notify_hitl_request
-
-        notify_hitl_request(
-            step_name=step_name,
-            workflow_name=self.workflow_name,
-            artifacts_dir=self.artifacts_dir,
+        from sase.xprompt.workflow_hitl_gate import (
+            create_workflow_hitl_gate,
+            wait_for_workflow_hitl_gate,
         )
 
-        # Poll for response file
-        start_time = time.time()
-        while time.time() - start_time < _TUI_HITL_TIMEOUT:
-            if os.path.exists(response_path):
-                try:
-                    with open(response_path, encoding="utf-8") as f:
-                        response_data = json.load(f)
-
-                    # Clean up request file after reading response
-                    if os.path.exists(request_path):
-                        os.unlink(request_path)
-                    os.unlink(response_path)
-
-                    # Parse response into HITLResult
-                    action = response_data.get("action", "reject")
-                    if action == "accept":
-                        return HITLResult(action="accept", approved=True)
-                    elif action == "reject":
-                        return HITLResult(action="reject", approved=False)
-                    elif action == "edit":
-                        edited_output = response_data.get("edited_output")
-                        return HITLResult(action="edit", edited_output=edited_output)
-                    elif action == "feedback":
-                        feedback = response_data.get("feedback", "")
-                        return HITLResult(action="feedback", feedback=feedback)
-                    elif action == "rerun":
-                        return HITLResult(action="rerun")
-                    else:
-                        return HITLResult(action="reject", approved=False)
-                except (json.JSONDecodeError, OSError):
-                    # Response file exists but couldn't be read, wait and retry
-                    pass
-
-            time.sleep(_TUI_HITL_POLL_INTERVAL)
-
-        # Timeout - clean up and reject
-        if os.path.exists(request_path):
-            os.unlink(request_path)
-        return HITLResult(action="reject", approved=False)
+        gate = create_workflow_hitl_gate(
+            step_name=step_name,
+            step_type=step_type,
+            output=output,
+            workflow_name=self.workflow_name,
+            artifacts_dir=self.artifacts_dir,
+            has_output=has_output,
+            output_types=output_types,
+            timeout_seconds=_TUI_HITL_TIMEOUT,
+        )
+        return wait_for_workflow_hitl_gate(gate.bundle_path)
 
 
 class CLIHITLHandler:

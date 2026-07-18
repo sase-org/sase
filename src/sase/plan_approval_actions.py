@@ -7,7 +7,7 @@ import logging
 import os
 import re
 import shlex
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -18,6 +18,9 @@ from sase.core.agent_artifact_index_lifecycle import (
 from sase.plan_approval_choices import (
     PLAN_APPROVAL_CLI_KINDS,
     approval_choice_archives_plan,
+    plan_approval_protocol_for_selection,
+    plan_approval_response_message_for_selection,
+    plan_approval_selection_for_choice,
     require_plan_approval_choice,
 )
 from sase.sdd.plan_validate import (
@@ -248,70 +251,60 @@ def _execute_neutral_plan_approval_response(
     coder_model: str | None,
     epic_launch_mode: EpicLaunchMode,
 ) -> PlanApprovalActionResult:
-    """Execute one tier-approved choice through the shared gate executor."""
+    """Execute one selected option set through the shared gate executor."""
     if not notification.host_files:
         raise PlanApprovalActionError(
             "invalid_request", "plan_file", "plan file is missing"
         )
     resolved_choice = _resolve_plan_approval_choice(notification.host_files[0], choice)
-    choice_id = (
+    selection_choice = (
         "feedback"
         if resolved_choice == "reject" and feedback is not None
         else resolved_choice
     )
-    choice_record = require_plan_approval_choice(resolved_choice)
+    from sase.notification_gates.hashing import load_and_verify_bundle
+    from sase.notification_gates.models import GateError
+
+    try:
+        envelope, _adapter = load_and_verify_bundle(bundle_path)
+    except GateError as exc:
+        raise PlanApprovalActionError(exc.code, exc.target, str(exc)) from exc
+    tier: Literal["tale", "epic"] = (
+        "epic" if envelope.get("kind") == "epic_plan" else "tale"
+    )
+    try:
+        selected_option_ids = plan_approval_selection_for_choice(
+            selection_choice,
+            tier=tier,
+            commit_plan=commit_plan,
+            run_coder=run_coder,
+        )
+    except (KeyError, ValueError) as exc:
+        raise PlanApprovalActionError(
+            "unsupported_action",
+            selection_choice,
+            f"unsupported {tier} plan action selection",
+        ) from exc
+
     input_data: dict[str, Any] = {}
     if feedback is not None:
         input_data["feedback"] = feedback
-    if choice_record.allow_protocol_overrides:
-        if commit_plan is not None:
-            input_data["commit_plan"] = commit_plan
-        if run_coder is not None:
-            input_data["run_coder"] = run_coder
-    if choice_record.allow_coder_options:
+    if "approve" in selected_option_ids and tier == "tale":
         if coder_prompt is not None:
             input_data["coder_prompt"] = coder_prompt
         if coder_model is not None:
             input_data["coder_model"] = coder_model
-    if choice_id == "epic":
+    if tier == "epic" and selected_option_ids == ("approve",):
         input_data["epic_launch_mode"] = epic_launch_mode
 
-    selected_extra_ids: tuple[str, ...] | None = None
-    if (
-        choice_id == "approve"
-        and (commit_plan is not None or run_coder is not None)
-        and _plan_gate_has_approval_extras(bundle_path)
-    ):
-        from sase.plan_gate import (
-            PLAN_COMMIT_EXTRA_ID,
-            PLAN_RUN_CODER_EXTRA_ID,
-        )
-
-        protocol = require_plan_approval_choice("approve").protocol
-        assert protocol is not None
-        effective_commit = (
-            commit_plan if commit_plan is not None else protocol.commit_plan
-        )
-        effective_run = run_coder if run_coder is not None else protocol.run_coder
-        selected_extra_ids = tuple(
-            extra_id
-            for extra_id, selected in (
-                (PLAN_COMMIT_EXTRA_ID, effective_commit),
-                (PLAN_RUN_CODER_EXTRA_ID, effective_run),
-            )
-            if selected
-        )
-
-    from sase.notification_gates.executor import execute_gate_choice
-    from sase.notification_gates.models import GateError
+    from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.paths import RESPONSE_FILENAME
 
     try:
-        execution = execute_gate_choice(
+        execution = execute_gate_selection(
             bundle_path,
-            choice_id,
+            selected_option_ids,
             input_data,
-            selected_extra_ids=selected_extra_ids,
             feedback=feedback,
             source="plan_response",
         )
@@ -328,19 +321,12 @@ def _execute_neutral_plan_approval_response(
             notification.id,
             "response already exists",
         )
-    result = execution.response.get("result")
-    if not isinstance(result, dict):
-        raise PlanApprovalActionError(
-            "invalid_response",
-            str(bundle_path / RESPONSE_FILENAME),
-            "plan command returned no result object",
-        )
-    try:
-        message = require_plan_approval_choice(choice_id).response_message
-    except KeyError as exc:  # pragma: no cover - executor rejects first
-        raise PlanApprovalActionError(
-            "unsupported_action", choice_id, "unsupported plan action choice"
-        ) from exc
+    from sase.plan_gate import translate_plan_gate_response
+
+    translate_plan_gate_response(bundle_path, execution.response)
+    message = plan_approval_response_message_for_selection(
+        selected_option_ids, tier=tier
+    )
     return PlanApprovalActionResult(
         notification_id=notification.id,
         response_file=RESPONSE_FILENAME,
@@ -348,33 +334,6 @@ def _execute_neutral_plan_approval_response(
         response_json=execution.response,
         message=message,
     )
-
-
-def _plan_gate_has_approval_extras(bundle_path: Path) -> bool:
-    """Return whether an in-flight gate advertises the remodeled extras."""
-    try:
-        from sase.notification_gates.durability import read_json_object
-        from sase.plan_gate import plan_gate_extra_ids
-
-        envelope = read_json_object(bundle_path / "request.json")
-        choices = envelope.get("choices")
-        if not isinstance(choices, list):
-            return False
-        for choice in choices:
-            if not isinstance(choice, Mapping) or choice.get("id") != "approve":
-                continue
-            extras = choice.get("extras")
-            if not isinstance(extras, list):
-                return False
-            actual = tuple(
-                extra.get("id")
-                for extra in extras
-                if isinstance(extra, Mapping) and isinstance(extra.get("id"), str)
-            )
-            return actual == plan_gate_extra_ids("tale")
-    except Exception:
-        return False
-    return False
 
 
 def prepare_epic_launch(
@@ -627,6 +586,58 @@ def plan_response_json(
     )
 
 
+def plan_response_json_for_selection(
+    selected_option_ids: Sequence[str],
+    *,
+    tier: Literal["tale", "epic"],
+    feedback: str | None = None,
+    coder_prompt: str | None = None,
+    coder_model: str | None = None,
+    epic_launch_owner: str | None = None,
+) -> tuple[dict[str, Any], str]:
+    """Derive the runner protocol solely from a v2 selected option set."""
+    selected = tuple(selected_option_ids)
+    if selected == ("reject",):
+        response: dict[str, Any] = {"action": "reject"}
+        if feedback:
+            response["feedback"] = feedback
+        return response, plan_approval_response_message_for_selection(
+            selected, tier=tier
+        )
+    if selected == ("feedback",):
+        if not feedback:
+            raise PlanApprovalActionError(
+                "invalid_request", "feedback", "feedback text is required"
+            )
+        return {
+            "action": "reject",
+            "feedback": feedback,
+        }, plan_approval_response_message_for_selection(selected, tier=tier)
+    try:
+        protocol = plan_approval_protocol_for_selection(selected, tier=tier)
+    except ValueError as exc:
+        raise PlanApprovalActionError(
+            "unsupported_action",
+            ",".join(selected),
+            f"unsupported {tier} plan option selection",
+        ) from exc
+    message = plan_approval_response_message_for_selection(selected, tier=tier)
+    response = {
+        "action": protocol.action,
+        "commit_plan": protocol.commit_plan,
+        "run_coder": protocol.run_coder,
+    }
+    if protocol.run_coder:
+        _add_optional_coder_fields(
+            response,
+            coder_prompt=coder_prompt,
+            coder_model=coder_model,
+        )
+    if protocol.action == "epic" and epic_launch_owner == "host":
+        response["epic_launch_owner"] = "host"
+    return response, message
+
+
 def _write_json_once(
     response_path: Path,
     response_json: dict[str, Any],
@@ -695,8 +706,6 @@ def run_plan_side_effects(
         if saved_path:
             try:
                 response_json["saved_plan_path"] = saved_path
-                if response_container is not None:
-                    response_container["result"] = response_json
                 if response_container is not None:
                     from sase.notification_gates.durability import atomic_write_json
 

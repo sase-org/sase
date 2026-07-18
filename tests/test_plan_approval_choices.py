@@ -9,10 +9,13 @@ from sase.plan_approval_choices import (
     PLAN_APPROVAL_CHOICE_IDS,
     PLAN_APPROVAL_CLI_KINDS,
     PLAN_APPROVAL_MODAL_CHOICES,
-    PLAN_APPROVAL_REMOTE_CHOICES,
     PlanApprovalProtocolFields,
     approval_protocol_for_choice,
     custom_modal_choice_for_key,
+    plan_approval_consequence_for_selection,
+    plan_approval_protocol_for_selection,
+    plan_approval_selection_for_choice,
+    plan_approval_status_for_selection,
     require_plan_approval_choice,
 )
 
@@ -27,8 +30,7 @@ def test_registry_exposes_existing_local_surface_vocabularies() -> None:
     )
     assert PLAN_APPROVAL_AUTO_MODE_CHOICES == ("approve", "tale", "epic")
 
-    for choice in (*PLAN_APPROVAL_MODAL_CHOICES, *PLAN_APPROVAL_CLI_KINDS):
-        assert choice in PLAN_APPROVAL_CHOICE_IDS
+    assert PLAN_APPROVAL_CHOICE_IDS == ("approve", "commit", "reject", "feedback")
 
     assert custom_modal_choice_for_key("a") == "approve"
     assert custom_modal_choice_for_key("t") == "tale"
@@ -57,19 +59,28 @@ def test_epic_choice_delegates_archive_and_launch_to_bead_work() -> None:
     assert "background task" in record.consequence_text
 
 
-def test_external_plan_choice_snapshot_matches_registry() -> None:
-    # Cross-repo anchors this snapshot protects:
-    # - sase-core: crates/sase_core/src/notifications/mobile.rs::PlanActionChoiceWire
-    # - sase-telegram: src/sase_telegram/formatting.py PlanApproval callbacks
-    assert PLAN_APPROVAL_REMOTE_CHOICES == (
+def test_selected_option_sets_drive_protocol_status_and_consequences() -> None:
+    assert plan_approval_selection_for_choice("approve", tier="tale") == (
         "approve",
-        "run",
-        "reject",
-        "epic",
-        "feedback",
+        "commit",
     )
-    for choice in PLAN_APPROVAL_REMOTE_CHOICES:
-        assert require_plan_approval_choice(choice).id == choice
+    assert plan_approval_selection_for_choice(
+        "approve", tier="tale", commit_plan=False, run_coder=True
+    ) == ("approve",)
+    assert plan_approval_protocol_for_selection(
+        ("commit",), tier="tale"
+    ) == PlanApprovalProtocolFields("approve", True, False)
+    assert (
+        plan_approval_status_for_selection(("approve", "commit"), tier="tale")
+        == "TALE APPROVED"
+    )
+    assert (
+        plan_approval_consequence_for_selection(("approve",), tier="tale")
+        == "No SDD commit; run coder"
+    )
+    assert plan_approval_protocol_for_selection(
+        ("approve",), tier="epic"
+    ) == PlanApprovalProtocolFields("epic", True, True)
 
 
 def test_retired_choice_tables_stay_removed() -> None:

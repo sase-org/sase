@@ -8,6 +8,7 @@ import sys
 import time
 from collections.abc import Mapping
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal, cast
 
 from sase.notification_gates.entrypoints import gate_command_entrypoint
@@ -16,8 +17,10 @@ from sase.notification_gates.models import GateError
 PLAN_EDIT_OPERATION_ID = "edit_plan"
 PLAN_RESOURCE_PATH = "plan.md"
 PLAN_CONTINUATION_MODE = "agent_plan"
-PLAN_COMMIT_EXTRA_ID = "commit_plan"
-PLAN_RUN_CODER_EXTRA_ID = "run_coder"
+PLAN_APPROVE_OPTION_ID = "approve"
+PLAN_COMMIT_OPTION_ID = "commit"
+PLAN_REJECT_OPTION_ID = "reject"
+PLAN_FEEDBACK_OPTION_ID = "feedback"
 
 PlanGateTier = Literal["tale", "epic"]
 
@@ -93,10 +96,10 @@ def _build_plan_gate_spec(
         agent_runtime=agent_runtime,
         agent_vcs_tag=agent_vcs_tag,
     )
-    choices = plan_gate_choice_ids(tier)
+    option_ids = plan_gate_option_ids(tier)
     plan_name = plan_file.name
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "plan" if tier == "tale" else "epic_plan",
         "request_id": session_id,
         "producer": {
@@ -132,7 +135,21 @@ def _build_plan_gate_spec(
             "files": [PLAN_RESOURCE_PATH],
             "action_data": action_data,
         },
-        "choices": [_plan_gate_choice(choice, tier=tier) for choice in choices],
+        "query": plan_gate_query(tier),
+        "options": [
+            _plan_gate_option(option_id, tier=tier) for option_id in option_ids
+        ],
+        "groups": (
+            [
+                {
+                    "options": [PLAN_APPROVE_OPTION_ID, PLAN_COMMIT_OPTION_ID],
+                    "label": "Approve",
+                    "icon": "✅",
+                }
+            ]
+            if tier == "tale"
+            else []
+        ),
         "operations": [
             {
                 "id": PLAN_EDIT_OPERATION_ID,
@@ -148,19 +165,11 @@ def _build_plan_gate_spec(
             },
             *[
                 {
-                    "path": f"commands/{choice}",
+                    "path": f"commands/{option_id}",
                     "role": "command",
-                    "content": plan_gate_command_script(choice),
+                    "content": plan_gate_command_script(option_id),
                 }
-                for choice in choices
-            ],
-            *[
-                {
-                    "path": f"commands/{extra_id}",
-                    "role": "command",
-                    "content": plan_gate_extra_command_script(extra_id),
-                }
-                for extra_id in plan_gate_extra_ids(tier)
+                for option_id in option_ids
             ],
         ],
         "auto": {
@@ -170,28 +179,27 @@ def _build_plan_gate_spec(
     }
 
 
-def plan_gate_choice_ids(tier: PlanGateTier) -> tuple[str, ...]:
-    """Return the closed choice set for a newly-authored plan gate."""
+def plan_gate_query(tier: PlanGateTier) -> str:
+    """Return the exact option query registered for a plan tier."""
     if tier == "epic":
-        return ("epic", "reject", "feedback")
-    return ("approve", "run", "tale", "commit", "reject", "feedback")
+        return "approve OR reject OR feedback"
+    return "(approve AND commit) OR reject OR feedback"
 
 
-def plan_gate_extra_ids(tier: PlanGateTier) -> tuple[str, ...]:
-    """Return the ORable add-ons carried by the primary tale approval."""
+def plan_gate_option_ids(tier: PlanGateTier) -> tuple[str, ...]:
+    """Return the query-ordered option ids registered for a plan tier."""
     if tier == "epic":
-        return ()
-    return (PLAN_COMMIT_EXTRA_ID, PLAN_RUN_CODER_EXTRA_ID)
-
-
-def plan_gate_preset_extra_ids(choice: str) -> tuple[str, ...] | None:
-    """Map one legacy tale choice id onto the primary approval extras."""
-    return {
-        "approve": (PLAN_RUN_CODER_EXTRA_ID,),
-        "run": (PLAN_RUN_CODER_EXTRA_ID,),
-        "tale": (PLAN_COMMIT_EXTRA_ID, PLAN_RUN_CODER_EXTRA_ID),
-        "commit": (PLAN_COMMIT_EXTRA_ID,),
-    }.get(choice)
+        return (
+            PLAN_APPROVE_OPTION_ID,
+            PLAN_REJECT_OPTION_ID,
+            PLAN_FEEDBACK_OPTION_ID,
+        )
+    return (
+        PLAN_APPROVE_OPTION_ID,
+        PLAN_COMMIT_OPTION_ID,
+        PLAN_REJECT_OPTION_ID,
+        PLAN_FEEDBACK_OPTION_ID,
+    )
 
 
 def validate_plan_auto_argument(tier: PlanGateTier, argument: str | None) -> None:
@@ -209,26 +217,17 @@ def validate_plan_auto_argument(tier: PlanGateTier, argument: str | None) -> Non
         )
 
 
-def plan_gate_command_script(choice: str) -> str:
-    """Return the hashed adapter-owned command wrapper for *choice*."""
+def plan_gate_command_script(option_id: str) -> str:
+    """Return the hashed adapter-owned command wrapper for *option_id*."""
     return (
         f"#!{sys.executable}\n"
         "from sase.plan_gate import execute_plan_gate_command\n"
-        f"raise SystemExit(execute_plan_gate_command({choice!r}))\n"
-    )
-
-
-def plan_gate_extra_command_script(extra_id: str) -> str:
-    """Return the hashed adapter-owned wrapper for one plan add-on."""
-    return (
-        f"#!{sys.executable}\n"
-        "from sase.plan_gate import execute_plan_gate_extra_command\n"
-        f"raise SystemExit(execute_plan_gate_extra_command({extra_id!r}))\n"
+        f"raise SystemExit(execute_plan_gate_command({option_id!r}))\n"
     )
 
 
 @gate_command_entrypoint
-def execute_plan_gate_command(choice: str) -> int:
+def execute_plan_gate_command(option_id: str) -> int:
     """Entry point used by the command resources inside plan gate bundles."""
     try:
         raw_input = json.load(sys.stdin)
@@ -245,11 +244,10 @@ def execute_plan_gate_command(choice: str) -> int:
             raise ValueError("request envelope is not an object")
         kind = envelope.get("kind")
         tier: PlanGateTier = "epic" if kind == "epic_plan" else "tale"
-        allowed = plan_gate_choice_ids(tier)
-        if choice not in allowed:
-            raise ValueError(f"choice {choice!r} is not valid for a {tier} plan")
+        if option_id not in plan_gate_option_ids(tier):
+            raise ValueError(f"option {option_id!r} is not valid for a {tier} plan")
 
-        if choice not in {"reject", "feedback"}:
+        if option_id not in {PLAN_REJECT_OPTION_ID, PLAN_FEEDBACK_OPTION_ID}:
             from sase.plan_approval_actions import require_plan_approval_validation
 
             require_plan_approval_validation(Path.cwd() / PLAN_RESOURCE_PATH, tier)
@@ -257,15 +255,20 @@ def execute_plan_gate_command(choice: str) -> int:
         feedback = _optional_text(raw_input.get("feedback"))
         from sase.plan_approval_actions import plan_response_json
 
+        protocol_choice = (
+            "epic"
+            if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID
+            else option_id
+        )
         result, _message = plan_response_json(
-            choice,
+            protocol_choice,
             feedback=feedback,
-            commit_plan=_optional_bool(raw_input.get("commit_plan")),
-            run_coder=_optional_bool(raw_input.get("run_coder")),
+            commit_plan=None,
+            run_coder=None,
             coder_prompt=_optional_text(raw_input.get("coder_prompt")),
             coder_model=_optional_text(raw_input.get("coder_model")),
         )
-        if choice == "epic":
+        if protocol_choice == "epic":
             mode = raw_input.get("epic_launch_mode", "detached")
             if mode not in {"detached", "foreground", "skip"}:
                 raise ValueError(f"unsupported epic launch mode: {mode}")
@@ -279,30 +282,6 @@ def execute_plan_gate_command(choice: str) -> int:
         return 2
 
     print(json.dumps(result, sort_keys=True))
-    return 0
-
-
-@gate_command_entrypoint
-def execute_plan_gate_extra_command(extra_id: str) -> int:
-    """Acknowledge one verified plan-protocol add-on command."""
-    try:
-        raw_input = json.load(sys.stdin)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        print(f"invalid command input: {exc}", file=sys.stderr)
-        return 2
-    if not isinstance(raw_input, dict):
-        print("plan extra command input must be an object", file=sys.stderr)
-        return 2
-    try:
-        envelope = json.loads((Path.cwd() / "request.json").read_text(encoding="utf-8"))
-        if not isinstance(envelope, dict) or envelope.get("kind") != "plan":
-            raise ValueError("plan extras are only valid for tale plan gates")
-        if extra_id not in plan_gate_extra_ids("tale"):
-            raise ValueError(f"unknown plan approval extra: {extra_id}")
-    except Exception as exc:
-        print(str(exc), file=sys.stderr)
-        return 2
-    print(json.dumps({"selected_extra_id": extra_id}, sort_keys=True))
     return 0
 
 
@@ -346,34 +325,79 @@ def plan_context_from_envelope(bundle_path: Path, envelope: Mapping[str, Any]) -
 def translate_plan_gate_response(
     bundle_path: Path, response: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Return the legacy runner result embedded in a neutral response."""
-    result = response.get("result")
-    if not isinstance(result, Mapping):
+    """Derive the runner protocol from a v2 selected-option response."""
+    raw_selected = response.get("selected_option_ids")
+    if (
+        not isinstance(raw_selected, list)
+        or not raw_selected
+        or not all(isinstance(option_id, str) for option_id in raw_selected)
+    ):
         raise GateError(
             "invalid_response",
             str(bundle_path / "response.json"),
-            "plan gate response has no result object",
+            "plan gate response has no selected options",
         )
-    translated = dict(result)
-    if (
-        response.get("choice_id") == "approve"
-        and response.get("extras_selection_provided") is True
-    ):
-        raw_extra_ids = response.get("selected_extra_ids")
-        if not isinstance(raw_extra_ids, list) or not all(
-            isinstance(extra_id, str) for extra_id in raw_extra_ids
-        ):
-            raise GateError(
-                "invalid_response",
-                str(bundle_path / "response.json"),
-                "plan gate response has invalid selected extras",
-            )
-        selected = set(raw_extra_ids)
-        translated["commit_plan"] = PLAN_COMMIT_EXTRA_ID in selected
-        translated["run_coder"] = PLAN_RUN_CODER_EXTRA_ID in selected
+    selected = tuple(raw_selected)
+    option_results = response.get("option_results")
+    if not isinstance(option_results, list):
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "response.json"),
+            "plan gate response has no option results",
+        )
+    results_by_id = {
+        entry.get("id"): entry.get("result")
+        for entry in option_results
+        if isinstance(entry, Mapping) and isinstance(entry.get("id"), str)
+    }
+    primary_result = results_by_id.get(selected[0])
+    if not isinstance(primary_result, Mapping):
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "response.json"),
+            "plan gate response is missing its primary option result",
+        )
+
+    try:
+        envelope = json.loads(
+            (bundle_path / "request.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "request.json"),
+            "plan gate request cannot be read",
+        ) from exc
+    if not isinstance(envelope, Mapping):
+        raise GateError(
+            "invalid_response",
+            str(bundle_path / "request.json"),
+            "plan gate request is not an object",
+        )
+
     feedback = response.get("feedback")
-    if isinstance(feedback, str) and feedback:
-        translated["feedback"] = feedback
+    normalized_feedback = feedback if isinstance(feedback, str) and feedback else None
+    approve_result = results_by_id.get(PLAN_APPROVE_OPTION_ID)
+    approve_result = approve_result if isinstance(approve_result, Mapping) else {}
+    from sase.plan_approval_actions import (
+        PlanApprovalActionError,
+        plan_response_json_for_selection,
+    )
+
+    try:
+        translated, _message = plan_response_json_for_selection(
+            selected,
+            tier="epic" if envelope.get("kind") == "epic_plan" else "tale",
+            feedback=normalized_feedback,
+            coder_prompt=_optional_text(approve_result.get("coder_prompt")),
+            coder_model=_optional_text(approve_result.get("coder_model")),
+            epic_launch_owner=_optional_text(primary_result.get("epic_launch_owner")),
+        )
+    except PlanApprovalActionError as exc:
+        raise GateError(exc.code, exc.target, str(exc)) from exc
+    saved_plan_path = primary_result.get("saved_plan_path")
+    if isinstance(saved_plan_path, str) and saved_plan_path:
+        translated["saved_plan_path"] = saved_plan_path
     return translated
 
 
@@ -384,27 +408,39 @@ def execute_plan_gate_auto_choice(
     source: str = "auto_resolution",
 ) -> dict[str, Any]:
     """Resolve a previously-manual plan gate using its adapter auto policy."""
-    from sase.notification_gates.executor import execute_gate_choice
+    from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.hashing import load_and_verify_bundle
-    from sase.notification_gates.models import GateChoice
+    from sase.notification_gates.models import GateOption, GateSpec
 
     envelope, adapter = load_and_verify_bundle(bundle_path)
-    raw_choices = envelope.get("choices")
-    if not isinstance(raw_choices, list):
-        raise GateError("invalid_request", "choices", "choices are missing")
-    choices = tuple(
-        GateChoice.from_mapping(raw_choice, index)
-        for index, raw_choice in enumerate(raw_choices)
+    raw_options = envelope.get("options")
+    raw_branches = envelope.get("branches")
+    if not isinstance(raw_options, list) or not isinstance(raw_branches, list):
+        raise GateError(
+            "invalid_request", str(bundle_path / "request.json"), "options are missing"
+        )
+    options = tuple(
+        GateOption.from_mapping(raw_option, index)
+        for index, raw_option in enumerate(raw_options)
     )
-    choice = adapter.resolve_auto_choice(choices, argument)
-    input_data = (
-        {"epic_launch_mode": "detached"} if envelope.get("kind") == "epic_plan" else {}
+    branches = tuple(
+        tuple(str(option_id) for option_id in branch)
+        for branch in raw_branches
+        if isinstance(branch, list)
     )
-    return execute_gate_choice(
+    spec = cast(
+        GateSpec,
+        SimpleNamespace(
+            options=options,
+            branches=branches,
+            payload=envelope.get("payload", {}),
+        ),
+    )
+    selection = adapter.resolve_auto_selection(spec, argument)
+    return execute_gate_selection(
         bundle_path,
-        choice.id,
-        input_data,
-        selected_extra_ids=(adapter.automatic_extra_ids(choice) or None),
+        selection,
+        adapter.automatic_input(spec),
         source=source,
     ).response
 
@@ -490,38 +526,23 @@ def original_plan_file_for_resource(resource_path: Path) -> Path | None:
     return _original_plan_file_from_envelope(envelope)
 
 
-def _plan_gate_choice(choice: str, *, tier: PlanGateTier) -> dict[str, Any]:
-    input_schema = _plan_input_schema(choice)
-    gate_choice: dict[str, Any] = {
-        "id": choice,
-        "label": _choice_label(choice),
-        "command": {"argv": [f"commands/{choice}"]},
-        "input_schema": input_schema,
-        "result_schema": _plan_result_schema(choice),
-        "feedback": "required" if choice == "feedback" else "disabled",
+def _plan_gate_option(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+    return {
+        "id": option_id,
+        "label": _option_label(option_id),
+        "icon": _option_icon(option_id),
+        "default_selected": True,
+        "command": {"argv": [f"commands/{option_id}"]},
+        "input_schema": _plan_input_schema(option_id, tier=tier),
+        "result_schema": _plan_result_schema(option_id, tier=tier),
+        "feedback": (
+            "required" if option_id == PLAN_FEEDBACK_OPTION_ID else "disabled"
+        ),
     }
-    if tier == "tale" and choice == "approve":
-        gate_choice["extras"] = [
-            {
-                "id": PLAN_COMMIT_EXTRA_ID,
-                "label": "Commit plan file to the plans sidecar",
-                "icon": "💾",
-                "default_selected": True,
-                "command": {"argv": [f"commands/{PLAN_COMMIT_EXTRA_ID}"]},
-            },
-            {
-                "id": PLAN_RUN_CODER_EXTRA_ID,
-                "label": "Run coder follow-up",
-                "icon": "▶️",
-                "default_selected": True,
-                "command": {"argv": [f"commands/{PLAN_RUN_CODER_EXTRA_ID}"]},
-            },
-        ]
-    return gate_choice
 
 
-def _plan_input_schema(choice: str) -> dict[str, Any]:
-    if choice == "feedback":
+def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+    if option_id == PLAN_FEEDBACK_OPTION_ID:
         return {
             "type": "object",
             "required": ["feedback"],
@@ -529,21 +550,19 @@ def _plan_input_schema(choice: str) -> dict[str, Any]:
             "additionalProperties": False,
         }
     properties: dict[str, Any] = {}
-    if choice in {"approve", "run", "tale"}:
+    if tier == "tale" and option_id in {
+        PLAN_APPROVE_OPTION_ID,
+        PLAN_COMMIT_OPTION_ID,
+    }:
+        # Every selected option receives the same input. Both AND-group members
+        # therefore admit the coder fields even though only approve consumes them.
         properties.update(
             {
                 "coder_prompt": {"type": "string"},
                 "coder_model": {"type": "string"},
             }
         )
-    if choice == "approve":
-        properties.update(
-            {
-                "commit_plan": {"type": "boolean"},
-                "run_coder": {"type": "boolean"},
-            }
-        )
-    if choice == "epic":
+    if tier == "epic" and option_id == PLAN_APPROVE_OPTION_ID:
         properties["epic_launch_mode"] = {"enum": ["detached", "foreground", "skip"]}
     return {
         "type": "object",
@@ -552,11 +571,11 @@ def _plan_input_schema(choice: str) -> dict[str, Any]:
     }
 
 
-def _plan_result_schema(choice: str) -> dict[str, Any]:
-    if choice in {"reject", "feedback"}:
+def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
+    if option_id in {PLAN_REJECT_OPTION_ID, PLAN_FEEDBACK_OPTION_ID}:
         properties: dict[str, Any] = {"action": {"const": "reject"}}
         required = ["action"]
-        if choice == "feedback":
+        if option_id == PLAN_FEEDBACK_OPTION_ID:
             properties["feedback"] = {"type": "string", "minLength": 1}
             required.append("feedback")
         else:
@@ -567,7 +586,7 @@ def _plan_result_schema(choice: str) -> dict[str, Any]:
             "properties": properties,
             "additionalProperties": False,
         }
-    action = "epic" if choice == "epic" else "approve"
+    action = "epic" if tier == "epic" else "approve"
     return {
         "type": "object",
         "required": ["action", "commit_plan", "run_coder"],
@@ -583,36 +602,45 @@ def _plan_result_schema(choice: str) -> dict[str, Any]:
     }
 
 
-def _choice_label(choice: str) -> str:
-    return "Send Feedback" if choice == "feedback" else choice.title()
+def _option_label(option_id: str) -> str:
+    return {
+        PLAN_APPROVE_OPTION_ID: "Approve",
+        PLAN_COMMIT_OPTION_ID: "Commit plan file to the plans sidecar",
+        PLAN_REJECT_OPTION_ID: "Reject",
+        PLAN_FEEDBACK_OPTION_ID: "Send Feedback",
+    }[option_id]
+
+
+def _option_icon(option_id: str) -> str:
+    return {
+        PLAN_APPROVE_OPTION_ID: "✅",
+        PLAN_COMMIT_OPTION_ID: "💾",
+        PLAN_REJECT_OPTION_ID: "❌",
+        PLAN_FEEDBACK_OPTION_ID: "💬",
+    }[option_id]
 
 
 def _optional_text(value: object) -> str | None:
     return value.strip() or None if isinstance(value, str) else None
 
 
-def _optional_bool(value: object) -> bool | None:
-    return value if isinstance(value, bool) else None
-
-
 __all__ = [
-    "PLAN_COMMIT_EXTRA_ID",
+    "PLAN_APPROVE_OPTION_ID",
+    "PLAN_COMMIT_OPTION_ID",
     "PLAN_CONTINUATION_MODE",
     "PLAN_EDIT_OPERATION_ID",
+    "PLAN_FEEDBACK_OPTION_ID",
+    "PLAN_REJECT_OPTION_ID",
     "PLAN_RESOURCE_PATH",
-    "PLAN_RUN_CODER_EXTRA_ID",
     "create_plan_approval_gate",
     "execute_plan_gate_auto_choice",
     "execute_plan_gate_command",
-    "execute_plan_gate_extra_command",
     "original_plan_file_for_resource",
     "original_plan_file_from_bundle",
     "plan_context_from_envelope",
-    "plan_gate_choice_ids",
     "plan_gate_command_script",
-    "plan_gate_extra_command_script",
-    "plan_gate_extra_ids",
-    "plan_gate_preset_extra_ids",
+    "plan_gate_option_ids",
+    "plan_gate_query",
     "validate_plan_auto_argument",
     "translate_plan_gate_response",
 ]

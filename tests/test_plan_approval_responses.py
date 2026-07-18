@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.llm_provider._plan_utils import PlanApprovalResult, handle_plan_approval
-from sase.notification_gates.executor import execute_gate_choice
+from sase.notification_gates.executor import execute_gate_selection
 from sase.plan_gate import create_plan_approval_gate as _create_plan_approval_gate
 
 from tests.conftest import redirect_sase_home
@@ -32,9 +32,9 @@ def _respond_after_gate_creation(
             captured["request"] = json.loads(
                 gate.request_path.read_text(encoding="utf-8")
             )
-        execute_gate_choice(
+        execute_gate_selection(
             gate.bundle_path,
-            choice,
+            ["approve" if choice == "epic" else choice],
             input_data or {},
             source="test_host",
         )
@@ -167,8 +167,6 @@ def test_handle_plan_approval_approve_with_options(
         _respond_after_gate_creation(
             "approve",
             input_data={
-                "commit_plan": False,
-                "run_coder": True,
                 "coder_prompt": "  #review+  ",
             },
         ),

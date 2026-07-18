@@ -401,14 +401,15 @@ def test_create_launch_request_writes_preview_and_notification(
         "cwd": str(tmp_path),
         "prompt": "%n(foo, reviewer)\nDo work",
     }
-    assert {choice["id"] for choice in envelope["choices"]} == {
+    assert envelope["query"] == "approve OR reject OR feedback"
+    assert {option["id"] for option in envelope["options"]} == {
         "approve",
         "reject",
         "feedback",
     }
     assert all(
-        (result.response_dir / choice["command"]["argv"][0]).is_file()
-        for choice in envelope["choices"]
+        (result.response_dir / option["command"]["argv"][0]).is_file()
+        for option in envelope["options"]
     )
     assert result.request_path.name == "request.json"
     assert result.response_path.name == "response.json"
@@ -456,13 +457,19 @@ def test_neutral_launch_feedback_wait_and_cancellation_are_deterministic(
     outcome = wait_for_launch_approval(feedback_request, poll_interval=0.001)
 
     assert action.response_file == "response.json"
-    assert action.response_json["choice_id"] == "feedback"
-    assert action.response_json["result"] == {
-        "action": "reject",
-        "feedback": "Use a smaller fanout",
-    }
+    assert action.response_json["selected_option_ids"] == ["feedback"]
+    assert action.response_json["option_results"] == [
+        {
+            "id": "feedback",
+            "result": {
+                "action": "reject",
+                "feedback": "Use a smaller fanout",
+            },
+        }
+    ]
     assert action.response_json["feedback"] == "Use a smaller fanout"
     assert outcome.status == "feedback"
+    assert outcome.selected_option_ids == ("feedback",)
     assert outcome.response == action.response_json
     with pytest.raises(LaunchApprovalActionError) as duplicate:
         execute_launch_approval_response(
@@ -518,7 +525,9 @@ def test_neutral_launch_approval_dispatch_failure_is_terminal(
     outcome = wait_for_launch_approval(request, poll_interval=0.001)
     assert outcome.status == "dispatch_failed"
     assert "does not exist" in outcome.message
-    assert outcome.response["result"]["dispatch_status"] == "failed"
+    assert outcome.response["option_results"][0]["result"]["dispatch_status"] == (
+        "failed"
+    )
 
 
 def test_mobile_and_tui_resolve_neutral_launch_bundles(
@@ -543,8 +552,10 @@ def test_mobile_and_tui_resolve_neutral_launch_bundles(
     )
 
     assert mobile.response_file == "response.json"
-    assert mobile.response_json["choice_id"] == "feedback"
-    assert mobile.response_json["result"]["feedback"] == "Narrow the mobile launch"
+    assert mobile.response_json["selected_option_ids"] == ["feedback"]
+    assert mobile.response_json["option_results"][0]["result"]["feedback"] == (
+        "Narrow the mobile launch"
+    )
 
     tui_request = create_launch_approval_request(
         {
@@ -569,8 +580,10 @@ def test_mobile_and_tui_resolve_neutral_launch_bundles(
     )
 
     response = json.loads(tui_request.response_path.read_text(encoding="utf-8"))
-    assert response["choice_id"] == "reject"
-    assert response["result"] == {"action": "reject"}
+    assert response["selected_option_ids"] == ["reject"]
+    assert response["option_results"] == [
+        {"id": "reject", "result": {"action": "reject"}}
+    ]
     assert app.notifications == [
         ("Rejecting launch...", None),
         ("Launch rejected", None),
