@@ -1,31 +1,8 @@
-"""Validated filter state for the Artifacts Commits timeline."""
+"""Compatibility import for the Artifacts commits filter values."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from sase.vcs_log.models import CommitFilters
-
-
-@dataclass(frozen=True)
-class CommitLogFilterValues:
-    """Validated values shared by the commits pane and its editor modal."""
-
-    authors: tuple[str, ...] = ()
-    since_text: str = ""
-    until_text: str = ""
-    since: int | None = None
-    until: int | None = None
-    repos: tuple[str, ...] = ()
-    limit: int = 40
-
-    def backend_filters(self) -> CommitFilters:
-        """Return the provider-neutral filter record used by ``run_vcs_log``."""
-        return CommitFilters(
-            since=self.since,
-            until=self.until,
-            authors=self.authors,
-        )
+from sase.vcs_log.filter_query import CommitLogFilterValues
 
 
 __all__ = ["CommitLogFilterValues"]

@@ -1,0 +1,286 @@
+"""Coverage for the commits filter query language and in-memory matcher."""
+
+from __future__ import annotations
+
+import pytest
+from hypothesis import given, strategies as st
+
+from sase.ace.tui.widgets.artifacts.commits_rendering import commit_filter_chips
+from sase.core.vcs_log_wire import AggregatedCommitWire, VcsCommitWire
+from sase.vcs_log.dates import parse_time_bound
+from sase.vcs_log.filter_query import (
+    CommitFilterQueryError,
+    CommitLogFilterValues,
+    commit_matches,
+    compile_commit_matcher,
+    completion_context,
+    parse_commit_filter_query,
+    to_query_string,
+)
+from sase.vcs_log.models import CommitFilters
+
+
+def _entry(
+    *,
+    repo: str = "sase",
+    author_name: str = "Ada Lovelace",
+    author_email: str = "ada@example.com",
+    timestamp: int = 200,
+    subject: str = "Fix live commit timeline preview",
+) -> AggregatedCommitWire:
+    return AggregatedCommitWire(
+        repo=repo,
+        commit=VcsCommitWire(
+            full_id="a" * 40,
+            short_id="aaaaaaa",
+            author_name=author_name,
+            author_email=author_email,
+            timestamp=timestamp,
+            subject=subject,
+            body="",
+        ),
+    )
+
+
+def test_parse_empty_query_uses_defaults() -> None:
+    assert parse_commit_filter_query("  \t\n") == CommitLogFilterValues()
+
+
+def test_parse_every_token_kind_and_case_insensitive_keys() -> None:
+    values = parse_commit_filter_query(
+        'REPO:sase,sase-core repo:"SASE docs" '
+        'Author:Ada author:"Grace Hopper",@example.com '
+        "since:2026-07-01 until:2026-07-18T08:30 limit:all "
+        'fix "live preview"'
+    )
+
+    assert values.repos == ("sase", "sase-core", "SASE docs")
+    assert values.authors == ("Ada", "Grace Hopper", "@example.com")
+    assert values.since_text == "2026-07-01"
+    assert values.since == parse_time_bound("2026-07-01")
+    assert values.until_text == "2026-07-18T08:30"
+    assert values.until == parse_time_bound("2026-07-18T08:30")
+    assert values.limit == 0
+    assert values.text == ("fix", "live preview")
+
+
+def test_quoted_commas_are_values_while_unquoted_commas_are_lists() -> None:
+    values = parse_commit_filter_query(
+        'repo:one,two repo:"name,with,commas" author:Ada,Grace author:"Lovelace, Ada"'
+    )
+
+    assert values.repos == ("one", "two", "name,with,commas")
+    assert values.authors == ("Ada", "Grace", "Lovelace, Ada")
+
+
+@pytest.mark.parametrize(
+    ("query", "message", "token", "span"),
+    (
+        ("repo:", "requires a value", "repo:", (0, 5)),
+        ("repo:a,,b", "empty value", "repo:a,,b", (0, 9)),
+        ("limit:-1", "non-negative integer", "limit:-1", (0, 8)),
+        ("since:not-a-date", "Invalid DATE", "since:not-a-date", (0, 16)),
+        ("since:2026-07-18 since:7d", "only appear once", "since:7d", (17, 25)),
+        ('author:"Ada Lovelace', "Unterminated", 'author:"Ada Lovelace', (0, 20)),
+        ('""', "must not be empty", '""', (0, 2)),
+    ),
+)
+def test_parse_errors_carry_bad_token_and_exact_span(
+    query: str,
+    message: str,
+    token: str,
+    span: tuple[int, int],
+) -> None:
+    with pytest.raises(CommitFilterQueryError, match=message) as exc_info:
+        parse_commit_filter_query(query)
+
+    error = exc_info.value
+    assert error.token == token
+    assert error.bad_token == token
+    assert error.span == span
+    assert (error.start, error.end) == span
+
+
+def test_unknown_key_error_suggests_close_match() -> None:
+    with pytest.raises(CommitFilterQueryError) as exc_info:
+        parse_commit_filter_query("fix repoo:sase")
+
+    assert exc_info.value.span == (4, 14)
+    assert "did you mean 'repo:'?" in str(exc_info.value)
+
+
+def test_since_must_not_be_later_than_until() -> None:
+    with pytest.raises(CommitFilterQueryError) as exc_info:
+        parse_commit_filter_query("since:2026-07-18 until:2026-07-01")
+
+    assert exc_info.value.token == "until:2026-07-01"
+    assert exc_info.value.span == (17, 33)
+
+
+def test_quoted_key_shaped_term_remains_free_text() -> None:
+    assert parse_commit_filter_query('"repo:not-a-filter"').text == (
+        "repo:not-a-filter",
+    )
+
+
+def test_canonical_query_has_stable_order_and_omits_default_limit() -> None:
+    values = parse_commit_filter_query(
+        'preview author:"Ada Lovelace" until:2026-07-18 repo:sase since:7d timeline'
+    )
+
+    assert to_query_string(values) == (
+        'repo:sase author:"Ada Lovelace" since:7d until:2026-07-18 preview timeline'
+    )
+    assert to_query_string(CommitLogFilterValues()) == ""
+    assert to_query_string(CommitLogFilterValues(limit=0)) == "limit:all"
+
+
+_VALUE_TEXT = st.text(
+    alphabet='abcXYZ 09,:\\"-@.',
+    min_size=1,
+    max_size=18,
+)
+
+
+@given(
+    repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    authors=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    text_terms=st.lists(_VALUE_TEXT, max_size=3).map(tuple),
+    limit=st.sampled_from((0, 1, 40, 100, 999)),
+    bounds=st.sampled_from(
+        (
+            ("", ""),
+            ("2026-07-01", ""),
+            ("", "2026-07-18"),
+            ("2026-07-01", "2026-07-18T08:30"),
+        )
+    ),
+)
+def test_canonical_query_round_trip_property(
+    repos: tuple[str, ...],
+    authors: tuple[str, ...],
+    text_terms: tuple[str, ...],
+    limit: int,
+    bounds: tuple[str, str],
+) -> None:
+    since_text, until_text = bounds
+    values = CommitLogFilterValues(
+        authors=authors,
+        since_text=since_text,
+        until_text=until_text,
+        since=parse_time_bound(since_text) if since_text else None,
+        until=parse_time_bound(until_text) if until_text else None,
+        repos=repos,
+        limit=limit,
+        text=text_terms,
+    )
+
+    assert parse_commit_filter_query(to_query_string(values)) == values
+
+
+def test_backend_filters_exclude_repo_text_and_limit() -> None:
+    values = CommitLogFilterValues(
+        authors=("Ada",),
+        since=10,
+        until=20,
+        repos=("sase",),
+        limit=5,
+        text=("fix",),
+    )
+
+    assert values.backend_filters() == CommitFilters(
+        authors=("Ada",), since=10, until=20
+    )
+
+
+@pytest.mark.parametrize(
+    ("changes", "expected"),
+    (
+        ({}, True),
+        ({"repo": "other"}, False),
+        (
+            {"author_name": "Linus Torvalds", "author_email": "linus@example.com"},
+            False,
+        ),
+        ({"author_email": "ADA@EXAMPLE.COM"}, True),
+        ({"timestamp": 99}, False),
+        ({"timestamp": 301}, False),
+        ({"subject": "fix timeline only"}, False),
+        ({"subject": "LIVE preview needs a FIX"}, True),
+    ),
+)
+def test_commit_matcher_ands_kinds_and_text_but_ors_authors(
+    changes: dict[str, object], expected: bool
+) -> None:
+    entry_kwargs: dict[str, object] = {
+        "repo": "SASE",
+        "author_name": "Ada Lovelace",
+        "author_email": "ada@example.com",
+        "timestamp": 200,
+        "subject": "Fix live commit timeline preview",
+    }
+    entry_kwargs.update(changes)
+    values = CommitLogFilterValues(
+        repos=("sase", "sase-core"),
+        authors=("grace", "ADA@EXAMPLE"),
+        since=100,
+        until=300,
+        text=("fix", "preview"),
+    )
+
+    assert commit_matches(values, _entry(**entry_kwargs)) is expected  # type: ignore[arg-type]
+
+
+def test_compiled_matcher_accepts_repo_aliases_case_insensitively() -> None:
+    matcher = compile_commit_matcher(
+        CommitLogFilterValues(repos=("GH:SASE-ORG/SASE",)),
+        repo_aliases={"sase": ("gh:sase-org/sase", "sase-org/sase")},
+    )
+
+    assert matcher(_entry(repo="SASE")) is True
+    assert matcher(_entry(repo="sase-core")) is False
+
+
+def test_matcher_ignores_limit_for_caller_to_apply() -> None:
+    matcher = compile_commit_matcher(CommitLogFilterValues(limit=1))
+
+    assert all(matcher(_entry(timestamp=index)) for index in range(5))
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected"),
+    (
+        ("", 0, ("key", "")),
+        ("repo:sase ", 10, ("key", "")),
+        ("rep", 3, ("key", "rep")),
+        ("repo:", 5, ("repo", "")),
+        ("repo:sase-core", 9, ("repo", "sase")),
+        ('author:"Ada Lo', 14, ("author", "Ada Lo")),
+        ("repo:sase,co", 12, ("repo", "co")),
+        ('repo:"name,wi', 13, ("repo", "name,wi")),
+        ("since:7", 7, ("since", "7")),
+        ("until:today", 10, ("until", "toda")),
+        ("limit:al", 7, ("limit", "a")),
+        ('"fix live', 9, ("text", "fix live")),
+        ("unknown:value", 13, ("key", "unknown:value")),
+    ),
+)
+def test_completion_context_classifies_cursor_prefix(
+    text: str,
+    cursor: int,
+    expected: tuple[str, str],
+) -> None:
+    assert completion_context(text, cursor) == expected
+
+
+def test_filter_chips_use_canonical_query_tokens() -> None:
+    filters = parse_commit_filter_query(
+        'author:"Ada Lovelace" repo:sase limit:all "fix live"'
+    )
+
+    assert commit_filter_chips(filters) == (
+        "repo:sase",
+        'author:"Ada Lovelace"',
+        "limit:all",
+        '"fix live"',
+    )

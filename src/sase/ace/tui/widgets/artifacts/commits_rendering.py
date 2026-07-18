@@ -17,6 +17,7 @@ from sase.core.vcs_log_wire import AggregatedCommitWire
 from sase.repo_inventory import RepoKind
 from sase.vcs_log._style import GOLD, repo_colors
 from sase.vcs_log._tag_style import full_tag_lines
+from sase.vcs_log.filter_query import to_query_tokens
 from sase.vcs_log.models import VcsLogResult
 from sase.vcs_log.render import (
     build_commit_presence,
@@ -101,18 +102,8 @@ def build_commits_hints(registry: KeymapRegistry) -> Text:
 
 
 def commit_filter_chips(filters: CommitLogFilterValues) -> tuple[str, ...]:
-    """Return compact labels for the active backend filters."""
-    chips: list[str] = []
-    if filters.authors:
-        chips.append(f"author={','.join(filters.authors)}")
-    if filters.since_text:
-        chips.append(f"since={filters.since_text}")
-    if filters.until_text:
-        chips.append(f"until={filters.until_text}")
-    if filters.repos:
-        chips.append(f"repo={','.join(filters.repos)}")
-    chips.append(f"limit={filters.limit or 'all'}")
-    return tuple(chips)
+    """Return active filters in the same vocabulary as the query language."""
+    return to_query_tokens(filters)
 
 
 def build_commit_view_spec(
