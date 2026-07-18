@@ -1,20 +1,16 @@
 """Functions for loading and aggregating agents from all sources."""
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
-from sase.agent.status_buckets import status_bucket_for_values
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     query_agent_artifact_index,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )
-from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.agent_scan_wire import (
-    AgentArtifactIndexQueryWire,
     AgentArtifactScanOptionsWire,
     AgentArtifactScanWire,
 )
@@ -22,22 +18,29 @@ from sase.core.paths import sase_projects_dir
 
 from ...changespec import ChangeSpec, find_all_changespecs
 from ...hooks.processes import is_process_running
-from ._agent_ordering import (
-    get_status_priority as _get_status_priority,  # noqa: F401
-    sort_and_reorder as _sort_and_reorder,
+from . import _agent_loader_artifacts as _artifacts
+from ._agent_loader_artifacts import (
+    AgentLoadState,
+    artifact_delta_load_state as _artifact_delta_load_state,
+    artifact_dirs_for_normalized_timestamps as _artifact_dirs_for_timestamps,
+    artifact_snapshot_for_live_plan_load as _live_plan_artifact_snapshot,
+    artifact_snapshot_for_tui_load as _tui_artifact_snapshot,
+    normalize_timestamps as _normalize_artifact_timestamps,
+    prepare_artifact_delta_paths as _prepare_artifact_delta_paths,
+    query_artifact_index_for_loader as _query_artifact_index,
+    update_artifact_index_from_delta as _update_artifact_index_from_delta,
 )
+from ._agent_loader_normalization import (
+    mark_live_artifact_delta_runners as _mark_delta_runners_live,
+    normalize_live_plan_agents as _normalize_plan_agents,
+    normalize_loaded_agents as _normalize_agents,
+)
+from ._agent_ordering import get_status_priority as _get_status_priority  # noqa: F401
 from ._agent_status_overrides import (
     apply_status_overrides as _apply_status_overrides,
     is_coder_followup_suffix as _is_coder_followup_suffix,  # noqa: F401
     is_feedback_suffix as _is_feedback_suffix,  # noqa: F401
     is_root_plan_workflow as _is_root_plan_workflow,  # noqa: F401
-)
-from ._dedup import (
-    dedup_axe_spawned_agents,
-    dedup_by_pid,
-    dedup_running_vs_workflow,
-    dedup_workflow_entries,
-    remove_vcs_workspace_claims,
 )
 from ._loaders import (
     get_all_project_files,
@@ -62,57 +65,6 @@ from .agent import Agent
 from .workflow import WorkflowEntry
 
 
-_TUI_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
-    include_prompt_step_markers=True,
-    # The TUI reads prompt-step markers (workflow agent steps + meta_*
-    # propagation) but does not render the raw_xprompt.md snippet; skip
-    # the snippet read to keep the scan compact.
-    include_raw_prompt_snippets=False,
-)
-
-_TIER1_RECENT_COMPLETED_LIMIT = 200
-_TIER1_ACTIVE_LIMIT = 1000
-_TIER1_FALLBACK_SCAN_OPTIONS = replace(
-    _TUI_SCAN_OPTIONS,
-    max_records=_TIER1_RECENT_COMPLETED_LIMIT,
-    newest_first=True,
-)
-_PLAN_LIVE_SCAN_OPTIONS = replace(
-    _TUI_SCAN_OPTIONS,
-    include_prompt_step_markers=False,
-)
-_PLAN_LIVE_FALLBACK_SCAN_OPTIONS = replace(
-    _PLAN_LIVE_SCAN_OPTIONS,
-    max_records=_TIER1_RECENT_COMPLETED_LIMIT,
-    newest_first=True,
-)
-_LIVE_PLAN_AGENT_BUCKETS = frozenset({"Stopped", "Starting", "Running", "Waiting"})
-
-
-@dataclass(frozen=True)
-class AgentLoadState:
-    """Artifact-history completeness for one TUI agent load."""
-
-    tier: Literal["tier1", "tier2"]
-    complete_history: bool
-    artifact_source: Literal["artifact_index", "source_scan", "artifact_delta"]
-    used_artifact_index: bool
-    index_error: str | None = None
-    complete_visible_inbox: bool = True
-    repair_recommended: bool = False
-    repair_reason: str | None = None
-    truncated: bool = False
-    deleted_artifact_dirs: frozenset[str] = field(default_factory=frozenset)
-
-    @property
-    def needs_full_history_reconcile(self) -> bool:
-        """Return whether the caller should schedule a Tier 2 refresh."""
-
-        return (
-            not self.complete_visible_inbox or self.repair_recommended or self.truncated
-        )
-
-
 @dataclass(frozen=True)
 class _AgentLoadResult:
     """Agents plus metadata about the artifact-history tier used."""
@@ -134,7 +86,7 @@ def _scan_artifacts_for_loader(
     """
     return scan_agent_artifacts(
         sase_projects_dir(),
-        options or _TUI_SCAN_OPTIONS,
+        options or _artifacts._TUI_SCAN_OPTIONS,
     )
 
 
@@ -146,7 +98,7 @@ def _scan_artifact_dirs_for_loader(
     return scan_agent_artifact_dirs(
         sase_projects_dir(),
         artifact_dirs,
-        options or _TUI_SCAN_OPTIONS,
+        options or _artifacts._TUI_SCAN_OPTIONS,
     )
 
 
@@ -159,53 +111,12 @@ def _query_artifact_index_for_loader(
     full_history: bool,
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
-
-    if full_history:
-        return None
-
-    index_path = default_agent_artifact_index_path()
-    if not index_path.is_file():
-        return None
-
-    query = AgentArtifactIndexQueryWire(
-        include_active=True,
-        include_recent_completed=True,
-        include_full_history=False,
-        active_limit=_TIER1_ACTIVE_LIMIT,
-        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
-        include_hidden=False,
-    )
-    try:
-        snapshot = query_agent_artifact_index(
-            index_path,
-            _projects_root_for_loader(),
-            query=query,
-            options=_TUI_SCAN_OPTIONS,
-        )
-    except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
-        return (
-            _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
-            AgentLoadState(
-                tier="tier1",
-                complete_history=False,
-                complete_visible_inbox=False,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-                index_error=str(exc),
-                repair_recommended=True,
-                repair_reason="artifact_index_query_failed_bounded_fallback",
-            ),
-        )
-
-    return (
-        snapshot,
-        AgentLoadState(
-            tier="tier1",
-            complete_history=False,
-            complete_visible_inbox=True,
-            artifact_source="artifact_index",
-            used_artifact_index=True,
-        ),
+    return _query_artifact_index(
+        full_history=full_history,
+        default_index_path=default_agent_artifact_index_path,
+        projects_root=_projects_root_for_loader,
+        query_index=query_agent_artifact_index,
+        scan_artifacts=_scan_artifacts_for_loader,
     )
 
 
@@ -222,109 +133,30 @@ def _artifact_snapshot_for_tui_load(
     cannot keep visible history stale indefinitely.
     """
 
-    if full_history:
-        return (
-            _scan_artifacts_for_loader(),
-            AgentLoadState(
-                tier="tier2",
-                complete_history=True,
-                complete_visible_inbox=True,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-            ),
-        )
-
-    if not use_artifact_index:
-        return (
-            _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
-            AgentLoadState(
-                tier="tier1",
-                complete_history=False,
-                complete_visible_inbox=False,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-            ),
-        )
-
-    indexed = _query_artifact_index_for_loader(full_history=full_history)
-    if indexed is not None:
-        return indexed
-
-    return (
-        _scan_artifacts_for_loader(_TIER1_FALLBACK_SCAN_OPTIONS),
-        AgentLoadState(
-            tier="tier1",
-            complete_history=False,
-            complete_visible_inbox=False,
-            artifact_source="source_scan",
-            used_artifact_index=False,
-            repair_recommended=True,
-            repair_reason="artifact_index_missing_bounded_fallback",
-        ),
+    return _tui_artifact_snapshot(
+        full_history=full_history,
+        use_artifact_index=use_artifact_index,
+        scan_artifacts=_scan_artifacts_for_loader,
+        load_tier1_index=_query_artifact_index_for_loader,
     )
 
 
 def _artifact_snapshot_for_live_plan_load() -> AgentArtifactScanWire:
     """Return a bounded artifact snapshot for CLI plan notification matching."""
-
-    index_path = default_agent_artifact_index_path()
-    if index_path.is_file():
-        query = AgentArtifactIndexQueryWire(
-            include_active=True,
-            include_recent_completed=True,
-            include_full_history=False,
-            active_limit=None,
-            recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
-            include_hidden=False,
-        )
-        try:
-            return query_agent_artifact_index(
-                index_path,
-                _projects_root_for_loader(),
-                query=query,
-                options=_PLAN_LIVE_SCAN_OPTIONS,
-            )
-        except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
-            pass
-
-    return _scan_artifacts_for_loader(_PLAN_LIVE_FALLBACK_SCAN_OPTIONS)
+    return _live_plan_artifact_snapshot(
+        default_index_path=default_agent_artifact_index_path,
+        projects_root=_projects_root_for_loader,
+        query_index=query_agent_artifact_index,
+        scan_artifacts=_scan_artifacts_for_loader,
+    )
 
 
 def _normalize_timestamps(timestamps: Iterable[str]) -> set[str]:
-    normalized: set[str] = set()
-    for value in timestamps:
-        timestamp = normalize_to_14_digit(str(value).strip())
-        if timestamp:
-            normalized.add(timestamp)
-    return normalized
+    return _normalize_artifact_timestamps(timestamps)
 
 
 def _artifact_dirs_for_normalized_timestamps(normalized: set[str]) -> list[Path]:
-    if not normalized:
-        return []
-
-    projects_dir = sase_projects_dir()
-    if not projects_dir.is_dir():
-        return []
-
-    artifact_dirs: list[Path] = []
-    for project_dir in projects_dir.iterdir():
-        artifacts_dir = project_dir / "artifacts"
-        if not artifacts_dir.is_dir():
-            continue
-        for workflow_dir in artifacts_dir.iterdir():
-            if not workflow_dir.is_dir():
-                continue
-            for timestamp in normalized:
-                candidate = resolve_agent_artifact_timestamp_path(
-                    project_dir.name,
-                    workflow_dir.name,
-                    timestamp,
-                    projects_root=projects_dir,
-                )
-                if candidate.is_dir():
-                    artifact_dirs.append(candidate)
-    return artifact_dirs
+    return _artifact_dirs_for_timestamps(normalized)
 
 
 def load_all_workflows() -> list[WorkflowEntry]:
@@ -521,42 +353,15 @@ def _load_agents_with_load_state(
     )
 
 
-def _filter_dead_pids(agents: list[Agent]) -> list[Agent]:
-    """Filter out agents with dead PIDs (but keep completed agents)."""
-    verified_agents: list[Agent] = []
-    completed_statuses = ("DONE", "FAILED")
-    for agent in agents:
-        if agent.status in completed_statuses:
-            verified_agents.append(agent)
-        elif agent.pid is not None:
-            if is_process_running(agent.pid):
-                verified_agents.append(agent)
-            # Skip agents with dead PIDs
-        else:
-            # Agents without PIDs (legacy entries) - still include them
-            verified_agents.append(agent)
-    return verified_agents
-
-
 def _normalize_loaded_agents(
     agents: list[Agent],
     workflow_agent_steps: list[Agent],
 ) -> list[Agent]:
-    # Filter out agents with dead PIDs (but keep completed agents)
-    agents = _filter_dead_pids(agents)
-
-    # Deduplication pipeline
-    agents = dedup_axe_spawned_agents(agents)
-    agents = remove_vcs_workspace_claims(agents)
-    agents = dedup_workflow_entries(agents)
-    agents = dedup_running_vs_workflow(agents)
-    agents = dedup_by_pid(agents)
-
-    # Override statuses based on workflow relationships
-    _apply_status_overrides(agents, workflow_agent_steps)
-
-    # Sort and insert workflow steps
-    return _sort_and_reorder(agents, workflow_agent_steps)
+    return _normalize_agents(
+        agents,
+        workflow_agent_steps,
+        is_process_running=is_process_running,
+    )
 
 
 def _mark_live_artifact_delta_runners(agents: list[Agent]) -> None:
@@ -567,34 +372,18 @@ def _mark_live_artifact_delta_runners(agents: list[Agent]) -> None:
     worker-side operation bounded while preventing a stale retry marker from
     reviving a dead terminal row.
     """
-    liveness_by_pid: dict[int, bool] = {}
-    for agent in agents:
-        if agent.runner_is_live or agent.pid is None:
-            continue
-        live = liveness_by_pid.get(agent.pid)
-        if live is None:
-            live = is_process_running(agent.pid)
-            liveness_by_pid[agent.pid] = live
-        if live:
-            agent.runner_is_live = True
+    _mark_delta_runners_live(
+        agents,
+        is_process_running=is_process_running,
+    )
 
 
 def _normalize_live_plan_agents(agents: list[Agent]) -> list[Agent]:
     """Normalize the cheap visibility-affecting pieces for plan-list matching."""
-
-    agents = _filter_dead_pids(agents)
-    agents = dedup_axe_spawned_agents(agents)
-    agents = remove_vcs_workspace_claims(agents)
-    agents = dedup_workflow_entries(agents)
-    agents = dedup_running_vs_workflow(agents)
-    agents = dedup_by_pid(agents)
-    _apply_status_overrides(agents, classify_diff_badges=False)
-    return [agent for agent in agents if _agent_is_live_plan_candidate(agent)]
-
-
-def _agent_is_live_plan_candidate(agent: Agent) -> bool:
-    bucket = status_bucket_for_values(agent.status, agent.retried_as_timestamp)
-    return bucket in _LIVE_PLAN_AGENT_BUCKETS
+    return _normalize_plan_agents(
+        agents,
+        is_process_running=is_process_running,
+    )
 
 
 def load_live_plan_agents() -> list[Agent]:
@@ -624,7 +413,10 @@ def load_live_plan_agents_for_timestamps(timestamps: Iterable[str]) -> list[Agen
     artifact_dirs = _artifact_dirs_for_normalized_timestamps(normalized)
     if not artifact_dirs:
         return _normalize_live_plan_agents(agents)
-    snapshot = _scan_artifact_dirs_for_loader(artifact_dirs, _PLAN_LIVE_SCAN_OPTIONS)
+    snapshot = _scan_artifact_dirs_for_loader(
+        artifact_dirs,
+        _artifacts._PLAN_LIVE_SCAN_OPTIONS,
+    )
     agents.extend(_load_plan_agents_from_artifact_snapshot(snapshot))
     return _normalize_live_plan_agents(agents)
 
@@ -687,44 +479,17 @@ def load_artifact_delta_agents(
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load normalized agents from an exact set of artifact directories."""
 
-    unique_dirs: list[Path] = []
-    seen_dirs: set[str] = set()
-    for artifact_dir in artifact_dirs:
-        path = Path(artifact_dir).expanduser()
-        key = str(path)
-        if key in seen_dirs:
-            continue
-        seen_dirs.add(key)
-        unique_dirs.append(path)
-    deleted_dir_keys = {
-        str(Path(artifact_dir).expanduser()) for artifact_dir in deleted_artifact_dirs
-    }
+    unique_dirs, seen_dirs, deleted_dir_keys = _prepare_artifact_delta_paths(
+        artifact_dirs,
+        deleted_artifact_dirs,
+    )
 
     snapshot = _scan_artifact_dirs_for_loader(unique_dirs)
-    if update_index and snapshot.records:
-        from sase.core.agent_artifact_index_lifecycle import (
-            upsert_agent_artifact_index_artifacts,
-        )
-
-        upsert_agent_artifact_index_artifacts(
-            record.artifact_dir for record in snapshot.records
-        )
-
-    scanned_dirs = {
-        str(Path(record.artifact_dir).expanduser()) for record in snapshot.records
-    }
-    missing_dirs = seen_dirs - scanned_dirs
-    unexpected_missing_dirs = missing_dirs - deleted_dir_keys
-    repair_recommended = bool(unexpected_missing_dirs)
-    state = AgentLoadState(
-        tier="tier1",
-        complete_history=False,
-        artifact_source="artifact_delta",
-        used_artifact_index=False,
-        complete_visible_inbox=True,
-        repair_recommended=repair_recommended,
-        repair_reason="artifact_delta_scan_incomplete" if repair_recommended else None,
-        deleted_artifact_dirs=frozenset(deleted_dir_keys & seen_dirs),
+    _update_artifact_index_from_delta(snapshot, update_index=update_index)
+    state = _artifact_delta_load_state(
+        snapshot,
+        seen_dirs=seen_dirs,
+        deleted_dir_keys=deleted_dir_keys,
     )
     agents, workflow_agent_steps = _load_agents_from_artifact_snapshot_sources(
         snapshot,
