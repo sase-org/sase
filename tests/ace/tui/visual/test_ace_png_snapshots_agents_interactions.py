@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pytest
 from rich.text import Text
+from textual.css.scalar import Unit
 from textual.widgets import Input
 
 from sase.ace.testing import AcePage
@@ -14,6 +15,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import (
     AgentDetail,
     AgentInfoPanel,
+    AgentList,
     AgentPanelSummary,
     HintInputBar,
     KeybindingFooter,
@@ -136,6 +138,50 @@ def _panel_auto_expand_agents() -> list[Agent]:
     target.status = "DONE"
     target.stop_time = datetime(2026, 7, 15, 10, 5, 0)
     return agents
+
+
+def _overflowing_panel_agents() -> list[Agent]:
+    """Large untagged panel followed by two compact tagged panels."""
+    project_file = "/workspace/sase/visual_project.sase"
+    started = datetime(2026, 7, 18, 15, 0, 0)
+    rows = [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-overflow-agent-{idx:02d}",
+            project_file=project_file,
+            status="RUNNING",
+            start_time=started,
+            raw_suffix=f"20260718-15{idx:02d}00-overflow-{idx:02d}",
+            agent_name=f"overflow-agent-{idx:02d}",
+        )
+        for idx in range(28)
+    ]
+    rows.extend(
+        [
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name="visual-compact-apple",
+                project_file=project_file,
+                status="WAITING",
+                start_time=started,
+                raw_suffix="20260718-160000-compact-apple",
+                agent_name="compact-apple",
+                tag="apple",
+            ),
+            Agent(
+                agent_type=AgentType.RUNNING,
+                cl_name="visual-compact-banana",
+                project_file=project_file,
+                status="DONE",
+                start_time=started,
+                stop_time=datetime(2026, 7, 18, 16, 5, 0),
+                raw_suffix="20260718-160100-compact-banana",
+                agent_name="compact-banana",
+                tag="banana",
+            ),
+        ]
+    )
+    return rows
 
 
 def _assert_collapsed_panel_summary(page: AcePage) -> None:
@@ -293,6 +339,40 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._get_selected_agent() is None
         assert summary.snapshot is not None
         assert summary.snapshot.label == "(untagged)"
+
+
+async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _overflowing_panel_agents()
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", len(rows))
+        await wait_for_visual_idle(page)
+
+        container = page.app.query_one("#agent-list-container")
+        widgets = list(container.query(AgentList).results(AgentList))
+        assert page.app._panel_group.panel_keys == [None, "apple", "banana"]
+        assert len(widgets) == 3
+        untagged, apple, banana = widgets
+
+        assert untagged.styles.height.unit is Unit.FRACTION
+        assert untagged.option_count + 2 > untagged.region.height
+        for compact in (apple, banana):
+            assert compact.styles.height.unit is Unit.CELLS
+            assert compact.styles.height.value == compact.option_count + 2
+        assert banana.region.bottom == container.content_region.bottom
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_overflowing_panel_full_height_120x40",
+            title="ACE agents overflowing panel full height",
+        )
 
 
 async def test_agents_unread_highlight_png_snapshot(

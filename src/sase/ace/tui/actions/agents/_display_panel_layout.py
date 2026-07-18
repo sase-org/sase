@@ -87,20 +87,6 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             for idx, is_collapsed in enumerate(collapsed)
             if is_collapsed
         }
-        first_panel_is_untagged = (
-            not getattr(self, "_agent_panels_grouped", False)
-            and len(panel_keys) == len(widgets)
-            and bool(panel_keys)
-            and panel_keys[0] is None
-            and not collapsed[0]
-        )
-        if first_panel_is_untagged:
-            half_budget = content_budget / 2.0
-            if natural_heights[0] <= half_budget:
-                fixed_heights[0] = float(natural_heights[0])
-            else:
-                fixed_heights[0] = float(max(1, content_budget // 2))
-
         fixed_total = sum(fixed_heights.values())
         candidates = [idx for idx in range(len(widgets)) if idx not in fixed_heights]
         for idx in sorted(candidates, key=lambda i: (natural_heights[i], i)):

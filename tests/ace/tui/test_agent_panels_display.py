@@ -326,8 +326,8 @@ def test_overflow_regime_protects_small_tag_panel_before_large_panel() -> None:
 
 
 def test_overflow_regime_keeps_small_untagged_panel_natural() -> None:
-    # The untagged panel's natural height (8) is below half the content budget
-    # (18 / 2), so it remains fixed while larger tag panels scroll.
+    # The ascending-height protection pass keeps the untagged panel's natural
+    # height (8) fixed while the larger tag panels absorb cropping pressure.
     agents = _three_panel_agents()
     app = _FakeApp(agents, option_counts=[6, 20, 20], container_height=20)
 
@@ -345,11 +345,12 @@ def test_overflow_regime_keeps_small_untagged_panel_natural() -> None:
     assert banana.styles.height.value == 21.0
 
 
-def test_overflow_regime_caps_large_untagged_panel_at_half_height() -> None:
-    # The untagged panel's natural height (22) exceeds half the content budget
-    # (18 / 2), so it is capped and scrollable instead of dominating the stack.
+def test_overflow_regime_leaves_large_untagged_panel_fractional() -> None:
+    # Naturals are 24 / 3 / 3 plus two separators, so the 32-row stack barely
+    # overflows its 30-row container. The compact tag panels stay fully visible
+    # while the large untagged panel absorbs all remaining rows.
     agents = _three_panel_agents()
-    app = _FakeApp(agents, option_counts=[20, 20, 20], container_height=20)
+    app = _FakeApp(agents, option_counts=[22, 1, 1], container_height=30)
 
     app._refresh_panel_widgets(jump_hints=None)
 
@@ -357,12 +358,30 @@ def test_overflow_regime_caps_large_untagged_panel_at_half_height() -> None:
     apple = app._panel_widgets["agent-list-panel-1"]
     banana = app._panel_widgets["agent-list-panel-2"]
 
-    assert main.styles.height.unit is Unit.CELLS
-    assert main.styles.height.value == 9.0
+    assert main.styles.height.unit is Unit.FRACTION
+    assert main.styles.height.value == 23.0
+    assert apple.styles.height.unit is Unit.CELLS
+    assert apple.styles.height.value == 3.0
+    assert banana.styles.height.unit is Unit.CELLS
+    assert banana.styles.height.value == 3.0
+
+
+def test_overflow_regime_shares_multiple_large_panels_proportionally() -> None:
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, option_counts=[10, 20, 30], container_height=20)
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    main = app._panel_widgets["agent-list-panel"]
+    apple = app._panel_widgets["agent-list-panel-1"]
+    banana = app._panel_widgets["agent-list-panel-2"]
+
+    assert main.styles.height.unit is Unit.FRACTION
+    assert main.styles.height.value == 11.0
     assert apple.styles.height.unit is Unit.FRACTION
     assert apple.styles.height.value == 21.0
     assert banana.styles.height.unit is Unit.FRACTION
-    assert banana.styles.height.value == 21.0
+    assert banana.styles.height.value == 31.0
 
 
 def test_single_panel_fills_container() -> None:
