@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager, nullcontext
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from sase.ace.testing import PromptPage
+from sase.ace.tui.graphics import ArtifactFileViewerResult
 from sase.ace.tui.modals.jump_action_modal import JumpActionModal
 from sase.ace.tui.widgets._prompt_jump_target import (
     JumpError,
@@ -197,6 +200,99 @@ async def test_ctrl_bracket_with_single_action_runs_directly(
         await _wait_for(page, lambda: calls == [("editor", payload)])
 
         assert not _top_is_jump_modal(page)
+
+
+async def test_ctrl_bracket_on_image_views_it_inside_suspend_without_editor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "prompt-preview.PNG"
+    image.write_bytes(b"\x89PNG\r\n\x1a\n")
+    viewer_calls: list[str] = []
+    refocus_calls: list[None] = []
+    suspended = False
+
+    @contextmanager
+    def fake_suspend():
+        nonlocal suspended
+        suspended = True
+        try:
+            yield
+        finally:
+            suspended = False
+
+    def fake_viewer(path: str) -> ArtifactFileViewerResult:
+        assert suspended is True
+        viewer_calls.append(path)
+        return ArtifactFileViewerResult(True)
+
+    def fail_editor(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("image jump must not use an editor-backed action")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.is_tmux_session", lambda: True
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.view_artifact_file",
+        fake_viewer,
+    )
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_open_jump_target_in_this_pane",
+        fail_editor,
+    )
+    monkeypatch.setattr(
+        PromptTextArea,
+        "_open_jump_target_in_tmux_pane_async",
+        fail_editor,
+    )
+
+    prompt = f"open {image}"
+    async with PromptPage(prompt, cursor=(0, 5), size=(80, 24)) as page:
+        monkeypatch.setattr(page.ta.app, "suspend", fake_suspend)
+        monkeypatch.setattr(
+            page.ta,
+            "_refocus_if_needed",
+            lambda: refocus_calls.append(None),
+        )
+
+        await page.press("ctrl+right_square_bracket")
+        await _wait_for(page, lambda: viewer_calls == [str(image)])
+
+        assert suspended is False
+        assert refocus_calls == [None]
+        assert not _top_is_jump_modal(page)
+
+
+async def test_ctrl_bracket_on_image_surfaces_viewer_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image = tmp_path / "prompt-preview.webp"
+    image.write_bytes(b"image")
+    notifications: list[tuple[str, str | None]] = []
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_jump.view_artifact_file",
+        lambda _path: ArtifactFileViewerResult(
+            False,
+            warning="kitten is required to display images",
+        ),
+    )
+
+    prompt = f"view {image}"
+    async with PromptPage(prompt, cursor=(0, 5), size=(80, 24)) as page:
+        monkeypatch.setattr(page.ta.app, "suspend", nullcontext)
+        monkeypatch.setattr(
+            page.ta,
+            "notify",
+            lambda message, severity=None: notifications.append((message, severity)),
+        )
+
+        await page.press("ctrl+right_square_bracket")
+        await _wait_for(page, lambda: bool(notifications))
+
+        assert notifications == [("kitten is required to display images", "warning")]
 
 
 async def test_ctrl_bracket_on_plain_text_does_not_resolve(

@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sase.ace.tui.graphics import is_supported_image_path, view_artifact_file
 from sase.ace.tui.graphics._viewer_tmux_common import is_tmux_session
 from sase.ace.tui.util.external_tool import suspend_for_external_tool
 from sase.ace.tui.widgets._prompt_jump_target import (
@@ -118,6 +119,12 @@ class PromptJumpMixin(_MixinBase):
         self._jump_to_definition_under_cursor(prefer_load=True)
 
     def _present_jump_actions(self, payload: JumpTarget) -> None:
+        if payload.kind_label == "file" and is_supported_image_path(
+            payload.source_path
+        ):
+            self._view_jump_image(payload)
+            return
+
         choices = self._jump_action_choices(payload)
         if len(choices) == 1:
             self._perform_jump_action(choices[0], payload)
@@ -140,6 +147,22 @@ class PromptJumpMixin(_MixinBase):
             ),
             _on_result,
         )
+
+    def _view_jump_image(self, payload: JumpTarget) -> None:
+        """Display a resolved image target with the terminal artifact viewer."""
+        try:
+            with suspend_for_external_tool(
+                self.app,
+                action="jump_to_definition",
+                tool_kind="artifact_file_viewer",
+                path_count=1,
+                status_message="Opening image…",
+            ):
+                result = view_artifact_file(payload.source_path)
+            if result.warning is not None:
+                self.notify(result.warning, severity="warning")
+        finally:
+            self._refocus_if_needed()
 
     def _jump_action_choices(self, payload: JumpTarget) -> list[JumpChoice]:
         choices: list[JumpChoice] = []
