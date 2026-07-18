@@ -10,6 +10,13 @@
 
 - **xprompt:** preserve unknown frontmatter keys during parse/edit/serialize round trips and warn before comment loss.
 
+## [0.11.1](https://github.com/sase-org/sase/compare/v0.11.0...v0.11.1) (2026-07-18)
+
+
+### Bug Fixes
+
+* **deps:** require sase-core-rs 0.7.0 and gate published bindings ([44132ed](https://github.com/sase-org/sase/commit/44132edaa3be5fd89becade93273533b2e1471ec))
+
 ## [0.11.0](https://github.com/sase-org/sase/compare/v0.10.2...v0.11.0) (2026-07-18)
 
 
