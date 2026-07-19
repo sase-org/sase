@@ -243,6 +243,34 @@ def test_install_not_uv_tool_json(capsys: Any) -> None:
     assert "uv tool" in payload["error"]
 
 
+def test_install_ephemeral_path_json_error_shape(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: Any,
+) -> None:
+    workspace_root = tmp_path / "workspace-store"
+    plugin_path = workspace_root / "owner" / "repo" / "repo_7" / "plugin"
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(workspace_root))
+
+    code = handle_plugin_install_command(
+        _args(str(plugin_path), json=True),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+
+    assert code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "schema_version": INSTALL_JSON_SCHEMA_VERSION,
+        "error": str(
+            f"plugin 'plugin' cannot be installed from {plugin_path}: "
+            "workspace-local checkouts are ephemeral. Install from a durable "
+            "source with `sase plugin install --git plugin` or use a durable "
+            "checkout path outside the managed workspace store."
+        ),
+    }
+
+
 def test_install_catalog_error_exits_one(tmp_path: Path, capsys: Any) -> None:
     from sase.plugins.github_source import GhNotFoundError
 

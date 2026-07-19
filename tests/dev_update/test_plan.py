@@ -233,22 +233,24 @@ def test_plan_dev_update_does_not_fetch_no_upstream_or_detached_roots(
 
 def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    host = _record("sase", role="host", source_root="/repo/sase")
-    plugin = _record(
-        "sase-github", role="plugin", source_root="/repo/sase/plugins/github"
-    )
+    host_root = tmp_path / "sase"
+    plugin_root = host_root / "plugins" / "github"
+    plugin_root.mkdir(parents=True)
+    host = _record("sase", role="host", source_root=str(host_root))
+    plugin = _record("sase-github", role="plugin", source_root=str(plugin_root))
     receipt = parse_receipt(
-        """
+        f"""
         [tool]
         requirements = [
-            { name = "sase", editable = "/repo/sase" },
-            { name = "sase-github", editable = "/repo/sase/plugins/github" },
+            {{ name = "sase", editable = "{host_root}" }},
+            {{ name = "sase-github", editable = "{plugin_root}" }},
         ]
         """
     )
     monkeypatch.setattr(
-        plan_mod, "classify_git_upstream", lambda _root: _status("/repo/sase")
+        plan_mod, "classify_git_upstream", lambda _root: _status(str(host_root))
     )
     monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
 
@@ -268,15 +270,48 @@ def test_plan_dev_update_dedupes_roots_and_builds_uv_reconcile(
         "--color",
         "never",
         "--editable",
-        "/repo/sase",
+        str(host_root),
         "--with-editable",
-        "/repo/sase/plugins/github",
+        str(plugin_root),
     )
     assert command[-2] == "--overrides"
     overrides_path = Path(command[-1])
     assert overrides_path.read_text(encoding="utf-8") == (
-        "-e /repo/sase\n-e /repo/sase/plugins/github\nsase-core-rs\n"
+        f"-e {host_root}\n-e {plugin_root}\nsase-core-rs\n"
     )
+
+
+def test_plan_dev_update_marks_uv_reconcile_unavailable_for_missing_plugin_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host_root = tmp_path / "sase"
+    host_root.mkdir()
+    missing = tmp_path / "missing-plugin"
+    host = _record("sase", role="host", source_root=str(host_root))
+    receipt = parse_receipt(
+        f"""
+        [tool]
+        requirements = [
+            {{ name = "sase", editable = "{host_root}" }},
+            {{ name = "sase-github", editable = "{missing}" }},
+        ]
+        """
+    )
+    monkeypatch.setattr(
+        plan_mod, "classify_git_upstream", lambda _root: _status(str(host_root))
+    )
+    monkeypatch.setattr(plan_mod, "probe_git_metadata_at_ref", _probe)
+
+    plan = plan_dev_update([host], host_record=host, receipt=receipt)
+
+    step = plan.reconcile_steps[0]
+    assert step.kind == "uv_tool_install"
+    assert step.available is False
+    assert step.command == ()
+    assert "plugin 'sase-github'" in str(step.reason)
+    assert str(missing) in str(step.reason)
+    assert "sase plugin uninstall sase-github" in str(step.reason)
 
 
 def test_plan_dev_update_core_only_uses_rust_rebuild(

@@ -188,6 +188,62 @@ def test_plan_install_ready_git(tmp_path: Path) -> None:
     assert "git+https://github.com/sase-org/sase-github" in plan.argv
 
 
+def test_plan_install_rejects_ephemeral_local_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace_root = tmp_path / "workspace-store"
+    plugin_path = workspace_root / "owner" / "repo" / "repo_7" / "plugin"
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(workspace_root))
+
+    plan = plan_install(
+        str(plugin_path),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+
+    assert isinstance(plan, NotUvTool)
+    assert str(plugin_path) in str(plan.error)
+    assert "workspace-local checkouts are ephemeral" in str(plan.error)
+    assert "sase plugin install --git plugin" in str(plan.error)
+
+
+def test_plan_install_allows_durable_local_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "workspace-store"))
+    plugin_path = tmp_path / "durable" / "plugin"
+    plugin_path.mkdir(parents=True)
+
+    plan = plan_install(
+        str(plugin_path),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+
+    assert isinstance(plan, InstallReady)
+    assert str(plugin_path) in plan.argv
+
+
+def test_plan_install_many_skips_ephemeral_local_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace_root = tmp_path / "workspace-store"
+    plugin_path = workspace_root / "owner" / "repo" / "repo_7" / "plugin"
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(workspace_root))
+
+    plan = plan_install_many(
+        (str(plugin_path), "github"),
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path),
+    )
+
+    assert isinstance(plan, InstallManyReady)
+    assert [spec.display_name for spec in plan.specs] == ["github"]
+    assert len(plan.skipped) == 1
+    assert plan.skipped[0].query == str(plugin_path)
+    assert "workspace-local checkouts are ephemeral" in plan.skipped[0].reason
+
+
 def test_plan_install_catalog_error_propagates(tmp_path: Path) -> None:
     def _load(*, refresh: bool) -> PluginCatalog:
         raise GhNotFoundError()

@@ -118,6 +118,31 @@ requirements = [
     assert plan.display_name == "acme"
 
 
+def test_plan_uninstall_allows_removing_plugin_with_missing_local_path(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing-plugin"
+    receipt = f"""
+[tool]
+requirements = [
+    {{ name = "sase" }},
+    {{ name = "sase-acme", directory = "{missing}" }},
+    {{ name = "sase-telegram" }},
+]
+"""
+
+    plan = plan_uninstall(
+        "acme",
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, receipt),
+    )
+
+    assert isinstance(plan, UninstallReady)
+    assert str(missing) not in plan.argv
+    assert "sase-acme" not in plan.argv
+    assert "sase-telegram" in plan.argv
+
+
 def test_plan_uninstall_known_but_absent_is_noop(tmp_path: Path) -> None:
     plan = plan_uninstall(
         "jira",

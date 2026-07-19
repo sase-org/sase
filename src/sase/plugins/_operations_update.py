@@ -11,6 +11,7 @@ from sase.uv_tool.commands import build_upgrade_packages
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
 from sase.uv_tool.overrides import write_editable_overrides
+from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import Requirement, ToolReceipt, load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
@@ -112,6 +113,8 @@ def plan_update(
         targets = (resolved.name,)
 
     recon = receipt.reconstruct()
+    if (error := missing_local_requirements_error(recon)) is not None:
+        return NotUvTool(error)
     overrides_path = write_editable_overrides((recon.primary, *recon.plugins))
     argv = build_upgrade_packages(
         receipt,

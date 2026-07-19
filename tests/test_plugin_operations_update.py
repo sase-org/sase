@@ -79,12 +79,16 @@ def test_plan_update_ready_single_from_receipt(tmp_path: Path) -> None:
 def test_plan_update_ready_writes_overrides_for_editable_target_set(
     tmp_path: Path,
 ) -> None:
-    receipt = """
+    sase_root = tmp_path / "sase-source"
+    github_root = tmp_path / "github-source"
+    sase_root.mkdir()
+    github_root.mkdir()
+    receipt = f"""
 [tool]
 requirements = [
-    { name = "sase", editable = "/src/sase" },
-    { name = "sase-github", editable = "/src/sase-github" },
-    { name = "sase-telegram" },
+    {{ name = "sase", editable = "{sase_root}" }},
+    {{ name = "sase-github", editable = "{github_root}" }},
+    {{ name = "sase-telegram" }},
 ]
 """
 
@@ -99,8 +103,30 @@ requirements = [
     overrides_path = Path(plan.argv[-3])
     assert plan.argv[-2:] == ["--upgrade-package", "sase-github"]
     assert overrides_path.read_text(encoding="utf-8") == (
-        "-e /src/sase\n-e /src/sase-github\nsase-core-rs\n"
+        f"-e {sase_root}\n-e {github_root}\nsase-core-rs\n"
     )
+
+
+def test_plan_update_preflights_missing_local_plugin_path(tmp_path: Path) -> None:
+    missing = tmp_path / "missing-plugin"
+    receipt = f"""
+[tool]
+requirements = [
+    {{ name = "sase" }},
+    {{ name = "sase-github", directory = "{missing}" }},
+]
+"""
+
+    plan = plan_update(
+        "github",
+        load_fn=lambda *, refresh: _catalog(),
+        probe_fn=lambda: _install(tmp_path, receipt),
+    )
+
+    assert isinstance(plan, NotUvTool)
+    assert "plugin 'sase-github'" in str(plan.error)
+    assert str(missing) in str(plan.error)
+    assert "sase plugin uninstall sase-github" in str(plan.error)
 
 
 def test_plan_update_ready_all(tmp_path: Path) -> None:

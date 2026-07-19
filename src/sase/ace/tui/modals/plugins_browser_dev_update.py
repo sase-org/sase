@@ -17,6 +17,7 @@ from sase.main.update_routing import (
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.render_common import humanize_duration
 from sase.uv_tool.errors import UvToolError
+from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import ToolReceipt
 from sase.uv_tool.render import PlannedPackage
 from sase.version._models import VersionPackageRecord
@@ -54,6 +55,9 @@ def make_sase_dev_update_preview(
         if isinstance(route, UvToolError):
             return DevUpdatePreview(plan=None, subject="sase", error=str(route))
         if route is None:
+            error = missing_local_requirements_error(receipt.reconstruct())
+            if error is not None:
+                return DevUpdatePreview(plan=None, subject="sase", error=str(error))
             return DevUpdatePreview(plan=None, subject="sase")
         editable = route.records
         host = route.host_record
@@ -64,6 +68,10 @@ def make_sase_dev_update_preview(
             for record in records
         }
         managed_argv = tuple(managed_update_argv(receipt, route, color="never"))
+        if managed_argv:
+            error = missing_local_requirements_error(receipt.reconstruct())
+            if error is not None:
+                return DevUpdatePreview(plan=None, subject="sase", error=str(error))
         managed_packages = managed_update_packages(
             receipt,
             route,

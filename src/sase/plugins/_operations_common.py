@@ -9,7 +9,7 @@ from typing import Literal
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry, find_plugin
 from sase.plugins.installed import InstalledInfo
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
-from sase.uv_tool.errors import NotAUvToolInstallError
+from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
 from sase.version._utils import normalize_distribution_name
@@ -26,13 +26,13 @@ ClockFn = Callable[[], float]
 
 @dataclass(frozen=True)
 class NotUvTool:
-    """sase is not a managed ``uv tool install sase`` — mutations are impossible.
+    """A plugin mutation cannot proceed before invoking ``uv``.
 
-    *error* carries the precise, already-rendered actionable message (the same
-    one the ChangeSpecI prints); display it verbatim.
+    The historical name is retained for frontend compatibility. *error* carries
+    the precise, already-rendered actionable message; display it verbatim.
     """
 
-    error: NotAUvToolInstallError
+    error: UvToolError
 
 
 @dataclass(frozen=True)

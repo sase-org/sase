@@ -84,6 +84,7 @@ from sase.uv_tool.detect import (
     probe_uv_tool_install,
 )
 from sase.uv_tool.errors import NotAUvToolInstallError, ReceiptError, UvToolError
+from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import ToolReceipt, load_receipt
 from sase.uv_tool.render import (
     UpdateSummary,
@@ -300,6 +301,11 @@ def _handle_live_update(
 
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
+    if has_managed and receipt is not None:
+        if (
+            error := missing_local_requirements_error(receipt.reconstruct())
+        ) is not None:
+            return _fail(error, as_json=as_json, err=err)
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
     argv = managed_update_argv(receipt, route, color="never") if has_managed else []
     managed_packages = (
@@ -438,6 +444,11 @@ def _handle_dry_run(
 
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
+    if has_managed:
+        if (
+            error := missing_local_requirements_error(receipt.reconstruct())
+        ) is not None:
+            return _fail(error, as_json=as_json, err=err)
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
     argv = managed_update_argv(receipt, route, color="never") if has_managed else []
     packages = (

@@ -15,6 +15,7 @@ from sase.uv_tool.commands import build_install, build_install_many
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
 from sase.uv_tool.errors import NotAUvToolInstallError
 from sase.uv_tool.overrides import write_editable_overrides
+from sase.uv_tool.preflight import ephemeral_install_source_error
 from sase.uv_tool.receipt import load_receipt
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
@@ -134,6 +135,8 @@ def plan_install(
     spec = resolve_install_spec(catalog, query, git=git)
     if spec is None:
         return InstallNotFound(query, suggest_plugins(catalog, query))
+    if (error := ephemeral_install_source_error(spec.requirement)) is not None:
+        return NotUvTool(error)
 
     receipt = load_receipt(install.receipt_path)
     if receipt.is_injected(spec.normalized_name):
@@ -191,6 +194,9 @@ def plan_install_many(
             continue
         if spec.normalized_name in selected:
             skipped.append(InstallSkipped(query=query, reason="duplicate"))
+            continue
+        if (error := ephemeral_install_source_error(spec.requirement)) is not None:
+            skipped.append(InstallSkipped(query=query, reason=str(error)))
             continue
         selected.add(spec.normalized_name)
         specs.append(spec)

@@ -474,15 +474,17 @@ def test_managed_core_failure_is_not_success_and_does_not_restart(
     tmp_path: Path,
 ) -> None:
     """A published host keeps sase-core-rs on the managed leg, which can fail."""
-    mixed_receipt = """
+    github_root = tmp_path / "sase-github"
+    github_root.mkdir()
+    mixed_receipt = f"""
     [tool]
     requirements = [
-        { name = "sase" },
-        { name = "sase-github", editable = "/home/u/sase-github" },
+        {{ name = "sase" }},
+        {{ name = "sase-github", editable = "{github_root}" }},
     ]
     """
     host = _record("sase", role="host", source_root=None, install_type="wheel")
-    github = _record("sase-github", role="plugin", source_root="/home/u/sase-github")
+    github = _record("sase-github", role="plugin", source_root=str(github_root))
     core = _record(
         "sase-core-rs",
         role="core",

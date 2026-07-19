@@ -33,6 +33,7 @@ from sase.version._sources import rust_source_version
 from sase.version._utils import normalize_distribution_name
 from sase.uv_tool.commands import build_install
 from sase.uv_tool.overrides import write_editable_overrides
+from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import ToolReceipt
 
 _CORE_HEALTH_CHECK_SNIPPET = (
@@ -279,22 +280,34 @@ def _reconcile_steps(
                 )
             )
         else:
-            overrides_path = write_editable_overrides(receipt.requirements)
-            steps.append(
-                DevReconcileStep(
-                    kind="uv_tool_install",
-                    label="Reinstall uv-tool editable Python packages",
-                    command=tuple(
-                        build_install(
-                            receipt,
-                            color="never",
-                            overrides=str(overrides_path)
-                            if overrides_path is not None
-                            else None,
-                        )
-                    ),
+            recon = receipt.reconstruct()
+            error = missing_local_requirements_error(recon)
+            if error is not None:
+                steps.append(
+                    DevReconcileStep(
+                        kind="uv_tool_install",
+                        label="Reinstall uv-tool editable Python packages",
+                        command=(),
+                        reason=str(error),
+                    )
                 )
-            )
+            else:
+                overrides_path = write_editable_overrides(receipt.requirements)
+                steps.append(
+                    DevReconcileStep(
+                        kind="uv_tool_install",
+                        label="Reinstall uv-tool editable Python packages",
+                        command=tuple(
+                            build_install(
+                                receipt,
+                                color="never",
+                                overrides=str(overrides_path)
+                                if overrides_path is not None
+                                else None,
+                            )
+                        ),
+                    )
+                )
 
     if rebuild_core:
         if host_record.source_root:

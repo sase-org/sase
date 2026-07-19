@@ -154,6 +154,36 @@ def test_upgrade_command_failure_exits_one(tmp_path: Path) -> None:
     assert "No solution found" in _text(err)
 
 
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_upgrade_preflights_missing_local_plugin_path(
+    tmp_path: Path,
+    dry_run: bool,
+) -> None:
+    missing = tmp_path / "missing-plugin"
+    receipt = f"""
+[tool]
+requirements = [
+    {{ name = "sase" }},
+    {{ name = "sase-acme", directory = "{missing}" }},
+]
+"""
+    err = _console()
+
+    code = handle_update_command(
+        _args(dry_run=dry_run),
+        console=_console(),
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path, receipt),
+        run_fn=lambda _argv: pytest.fail("uv must not run after preflight failure"),
+        version_fn=_versions,
+    )
+
+    assert code == 1
+    assert "plugin 'sase-acme'" in _text(err)
+    assert str(missing) in _text(err)
+    assert "sase plugin uninstall sase-acme" in _text(err)
+
+
 def test_upgrade_tolerates_missing_receipt(tmp_path: Path) -> None:
     # Receipt missing on disk: the upgrade still succeeds; the render degrades
     # gracefully (no "already current" cross-reference) instead of crashing.

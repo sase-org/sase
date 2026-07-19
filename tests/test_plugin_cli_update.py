@@ -85,6 +85,13 @@ requirements = [
 """
 
 
+def _intact_dev_receipt(tmp_path: Path) -> str:
+    source_home = tmp_path / "sources"
+    for name in ("sase", "sase-github", "sase-telegram"):
+        (source_home / name).mkdir(parents=True)
+    return _DEV_RECEIPT.replace("/home/u", str(source_home))
+
+
 def _install(tmp_path: Path, receipt: str = _RECEIPT) -> UvToolInstall:
     sase_dir = tmp_path / "sase"
     sase_dir.mkdir(parents=True, exist_ok=True)
@@ -382,7 +389,7 @@ def test_update_all_dedupes_duplicate_dev_receipt_plugins(tmp_path: Path) -> Non
         _args(all_=True),
         console=out,
         load_fn=lambda *, refresh: _catalog(),
-        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        probe_fn=lambda: _install(tmp_path, _intact_dev_receipt(tmp_path)),
         run_fn=_run,
         version_fn=_versions,
         axe_running_fn=lambda: False,
@@ -402,7 +409,7 @@ def test_update_all_dry_run_json_dedupes_dev_receipt(
     code = handle_plugin_update_command(
         _args(all_=True, dry_run=True, json=True),
         load_fn=lambda *, refresh: _catalog(),
-        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        probe_fn=lambda: _install(tmp_path, _intact_dev_receipt(tmp_path)),
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)

@@ -115,6 +115,40 @@ requirements = [
     assert preview.managed_argv == ()
 
 
+def test_sase_preview_preflights_missing_managed_plugin_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    host = _version_record("sase", role="host")
+    inventory = RuntimeVersionInventory(
+        executable="sase",
+        python_executable="/tool/bin/python",
+        python_version="3.14",
+        packages=(host,),
+    )
+    missing = tmp_path / "missing-plugin"
+    receipt = parse_receipt(
+        f"""
+[tool]
+requirements = [
+    {{ name = "sase", editable = "/repo/sase" }},
+    {{ name = "sase-acme", directory = "{missing}" }},
+]
+"""
+    )
+    monkeypatch.setattr(
+        pbdu, "collect_runtime_version_inventory", lambda **_kw: inventory
+    )
+
+    preview = pbdu.make_sase_dev_update_preview(receipt)
+
+    assert preview.plan is None
+    assert preview.error is not None
+    assert "plugin 'sase-acme'" in preview.error
+    assert str(missing) in preview.error
+    assert "sase plugin uninstall sase-acme" in preview.error
+
+
 async def test_updates_pane_sase_update_dev_preview_and_restart(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,

@@ -201,6 +201,18 @@ def _default_state_root() -> str:
     return str(Path.home() / ".local" / "state" / "sase" / "workspaces")
 
 
+def managed_workspace_root(*, env: Mapping[str, str] | None = None) -> str:
+    """Return the base directory containing managed workspace checkouts.
+
+    ``SASE_WORKSPACE_ROOT`` takes precedence over the platform state-directory
+    default, matching :func:`_resolve_root`.  The returned path is the shared
+    base root; project keys are appended by :class:`WorkspaceStore`.
+    """
+    source = os.environ if env is None else env
+    override = source.get(WORKSPACE_ROOT_ENV, "").strip()
+    return override or _default_state_root()
+
+
 @dataclass(frozen=True)
 class _ResolvedRoot:
     policy: RootPolicy
@@ -388,4 +400,5 @@ __all__ = [
     "WORKSPACE_ROOT_ENV",
     "WorkspacePath",
     "WorkspaceStore",
+    "managed_workspace_root",
 ]
