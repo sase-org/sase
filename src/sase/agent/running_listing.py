@@ -46,6 +46,24 @@ class RunningAgentInfo:
     holds_runner_slot: bool | None = None
 
 
+class _RunningAgentListing(list[RunningAgentInfo]):
+    """Agent rows plus the artifact snapshot used to build them.
+
+    The list behavior preserves the long-standing public return contract while
+    read-only integrations can derive related catalog entries without starting
+    a second filesystem scan.
+    """
+
+    def __init__(
+        self,
+        values: list[RunningAgentInfo],
+        *,
+        artifact_snapshot: AgentArtifactScanWire,
+    ) -> None:
+        super().__init__(values)
+        self.artifact_snapshot = artifact_snapshot
+
+
 _DONE_AGENTS_CAP_PER_PROJECT = 50
 
 # Only the running/done CLI listing needs ace-run records. Skipping prompt
@@ -353,7 +371,7 @@ def list_running_agents() -> list[RunningAgentInfo]:
 
 def list_all_agents(
     *, cap_per_project: int = _DONE_AGENTS_CAP_PER_PROJECT
-) -> list[RunningAgentInfo]:
+) -> _RunningAgentListing:
     """List running agents plus recently-completed DONE/FAILED agents.
 
     Acquires one scan snapshot and computes both running and completed
@@ -368,4 +386,7 @@ def list_all_agents(
     snapshot = _scan_listing_snapshot()
     running = _running_from_snapshot(snapshot)
     done = _done_from_snapshot(snapshot, cap_per_project=cap_per_project)
-    return running + done
+    return _RunningAgentListing(
+        running + done,
+        artifact_snapshot=snapshot,
+    )
