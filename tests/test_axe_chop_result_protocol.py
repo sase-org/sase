@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.chop_agents import _record_chop_agent_launch
-from sase.axe.chop_lifecycle import finalize_launched_chop_runs
+from sase.axe.chop_lifecycle import _agent_completion, finalize_launched_chop_runs
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
 from sase.axe.state import (
@@ -317,8 +317,8 @@ def _launched_entry(run_id: str, *, pid: int) -> ChopRunEntry:
     return entry
 
 
-def _record_agent(run_id: str, *, pid: int) -> None:
-    _record_chop_agent_launch(
+def _record_agent(run_id: str, *, pid: int) -> object:
+    return _record_chop_agent_launch(
         lumberjack_name="docs",
         chop_name="docs",
         run_id=run_id,
@@ -372,3 +372,82 @@ def test_lifecycle_fails_dead_agent_without_done_marker(
     assert entry is not None
     assert entry.status == "action_failed"
     assert entry.error is not None and "without completion artifact" in entry.error
+
+
+def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = "20260718T120002_000000"
+    _launched_entry(run_id, pid=987)
+    record = _record_agent(run_id, pid=987)
+    child = SimpleNamespace(
+        raw_suffix="20260718120000",
+        is_workflow_child=True,
+        status="KILLED",
+        bundle_path="/archive/20260718120000__c0.json",
+    )
+    root = SimpleNamespace(
+        raw_suffix="20260718120000",
+        is_workflow_child=False,
+        status="DONE",
+        bundle_path="/archive/20260718120000.json",
+    )
+
+    with (
+        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
+        patch(
+            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            return_value=[child, root],
+        ) as load_summaries,
+    ):
+        completion = _agent_completion(record)
+        assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    assert completion.succeeded
+    assert "dismissed bundle /archive/20260718120000.json" in completion.detail
+    load_summaries.assert_called_with(
+        suffixes={"20260718120000"},
+        top_level_only=True,
+        limit=None,
+    )
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_succeeded"
+
+
+@pytest.mark.parametrize("status", ["FAILED", "KILLED"])
+def test_lifecycle_uses_failed_dismissed_bundle_when_done_marker_is_missing(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    run_id = f"20260718T120003_{status.lower()}"
+    _launched_entry(run_id, pid=876)
+    _record_agent(run_id, pid=876)
+    summary = SimpleNamespace(
+        raw_suffix="20260718120000",
+        is_workflow_child=False,
+        status=status,
+        bundle_path="/archive/20260718120000.json",
+    )
+
+    with (
+        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
+        patch(
+            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            return_value=[summary],
+        ),
+    ):
+        assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+
+    entry = read_chop_run("docs", "docs", run_id)
+    assert entry is not None
+    assert entry.status == "action_failed"
+    assert entry.error is not None
+    assert "dismissed bundle /archive/20260718120000.json" in entry.error
+    assert f"status {status}" in entry.error

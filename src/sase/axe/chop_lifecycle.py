@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
+from sase.ace.dismissed_agents import load_dismissed_bundle_summaries
 from sase.ace.hooks.processes import is_process_running
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.time import get_timezone
@@ -54,6 +55,43 @@ def _record_artifacts_dir(record: object) -> Path | None:
     )
 
 
+def _dismissed_bundle_completion(
+    record: object,
+    *,
+    pid: int,
+) -> _AgentCompletion | None:
+    raw_suffix = str(getattr(record, "artifacts_timestamp", "") or "").strip()
+    if not raw_suffix:
+        return None
+
+    summaries = load_dismissed_bundle_summaries(
+        suffixes={raw_suffix},
+        top_level_only=True,
+        limit=None,
+    )
+    summary = next(
+        (
+            candidate
+            for candidate in summaries
+            if getattr(candidate, "raw_suffix", None) == raw_suffix
+            and not bool(getattr(candidate, "is_workflow_child", False))
+        ),
+        None,
+    )
+    if summary is None:
+        return None
+
+    status = str(getattr(summary, "status", "") or "unknown").strip().upper()
+    bundle_path = str(getattr(summary, "bundle_path", "") or "archive")
+    return _AgentCompletion(
+        terminal=True,
+        succeeded=status == "DONE",
+        detail=(
+            f"agent pid {pid} dismissed bundle {bundle_path} reports status {status}"
+        ),
+    )
+
+
 def _agent_completion(record: object) -> _AgentCompletion:
     pid = int(getattr(record, "pid", 0) or 0)
     artifacts_dir = _record_artifacts_dir(record)
@@ -94,6 +132,9 @@ def _agent_completion(record: object) -> _AgentCompletion:
             succeeded=False,
             detail=f"agent pid {pid} is still running",
         )
+    dismissed_completion = _dismissed_bundle_completion(record, pid=pid)
+    if dismissed_completion is not None:
+        return dismissed_completion
     location = str(done_path) if done_path is not None else "an unknown artifact path"
     return _AgentCompletion(
         terminal=True,
