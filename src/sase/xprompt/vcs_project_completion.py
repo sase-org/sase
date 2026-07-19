@@ -1,23 +1,23 @@
-"""Headless foundations for the ``#+`` project/PR-completion feature.
+"""Headless foundations for the ``+`` project/PR-completion feature.
 
 This module provides the pure-logic building blocks shared by the TUI prompt
-input widget (Phase 2, consuming these helpers directly) and the Rust xprompt
-LSP (Phase 4, consuming a materialized JSON catalog built from
+input widget (consuming these helpers directly) and the Rust xprompt LSP
+(consuming a materialized JSON catalog built from
 :func:`build_vcs_project_completion_entries`).
 
 The four public helpers are:
 
 * :func:`build_vcs_project_completion_entries` -- the enabled project/PR catalog.
 * :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
-* :func:`find_vcs_project_trigger` -- detect a ``#+query`` or BOF ``+query``
-  trigger token.
+* :func:`find_vcs_project_trigger` -- detect a ``+query`` trigger token at
+  prompt offset zero or immediately after a literal ASCII space.
 * :func:`apply_vcs_project_selection` -- expand a selected project or PR into
   the prompt via the canonical VCS-tag expansion algorithm.
 
 The canonical expansion algorithm implemented by
 :func:`apply_vcs_project_selection` is the cross-language parity contract: the
-Rust port (Phase 3) must produce byte-identical output for the golden test
-vectors. Keep both sides in sync when changing it.
+Rust core must produce byte-identical output for the golden test vectors. Keep
+both sides in sync when changing it.
 """
 
 from __future__ import annotations
@@ -88,14 +88,14 @@ class VcsProjectEntry:
 
 @dataclass(frozen=True)
 class VcsProjectTrigger:
-    """A detected ``#+query`` or BOF ``+query`` completion trigger token.
+    """A detected ``+query`` completion trigger token.
 
     Attributes:
-        start: Index of the leading ``#`` (or the BOF ``+``) within the prompt.
+        start: Index of the leading ``+`` within the prompt.
         end: Index one past the end of the trigger token (the next whitespace
             boundary or end of prompt).
-        query: The filter text after the ``#+``/``+`` prefix up to the cursor
-            (empty for a bare ``#+`` or ``+``).
+        query: The filter text after the ``+`` prefix up to the cursor (empty
+            for a bare ``+``).
     """
 
     start: int
@@ -359,18 +359,13 @@ def filter_vcs_project_entries(
 
 
 def find_vcs_project_trigger(prompt: str, cursor: int) -> VcsProjectTrigger | None:
-    """Detect a ``#+query`` or BOF ``+query`` trigger at *cursor* in *prompt*.
+    """Detect a ``+query`` trigger at *cursor* in *prompt*.
 
-    Two trigger spellings are recognized:
-
-    * ``#+query`` -- fires when the token immediately preceding *cursor* starts
-      with ``#+`` and that ``#`` sits at the beginning of the prompt, at the
-      start of a line, or directly after whitespace.
-    * ``+query`` -- fires only when the token starts at the very beginning of
-      the prompt (offset ``0``). A bare ``+`` anywhere else (e.g. ``Fix +``,
-      ``\\n+``, ``word+``) is ordinary text.
-
-    A ``#+`` embedded in a word is likewise ordinary text and does not trigger.
+    The non-whitespace token immediately preceding *cursor* must start with
+    ``+``, and that plus must be at absolute prompt offset ``0`` or immediately
+    after a literal ASCII space. Newlines, tabs, other whitespace, and plus
+    signs embedded in words or operators do not trigger. ``#+`` is ordinary
+    prompt text for this feature.
 
     Args:
         prompt: The full prompt text.
@@ -384,23 +379,17 @@ def find_vcs_project_trigger(prompt: str, cursor: int) -> VcsProjectTrigger | No
         return None
 
     # Walk back through the run of non-whitespace characters before the cursor
-    # to find the token start. By construction the character before ``start``
-    # is whitespace or the start of the prompt -- i.e. the position rule.
+    # to find the token start.
     start = cursor
     while start > 0 and not prompt[start - 1].isspace():
         start -= 1
 
-    # Determine the trigger prefix length: ``#+`` anywhere a token may start, or
-    # a bare ``+`` only at the very beginning of the prompt (offset 0).
-    if prompt[start : start + 2] == "#+":
-        prefix_len = 2
-    elif start == 0 and prompt[start : start + 1] == "+":
-        prefix_len = 1
-    else:
+    follows_literal_space = start > 0 and prompt[start - 1] == " "
+    if prompt[start : start + 1] != "+" or not (start == 0 or follows_literal_space):
         return None
 
     # The cursor must sit past the prefix for the trigger to be live.
-    if cursor < start + prefix_len:
+    if cursor < start + 1:
         return None
 
     # Extend forward to the end of the token (next whitespace or end of prompt).
@@ -408,7 +397,7 @@ def find_vcs_project_trigger(prompt: str, cursor: int) -> VcsProjectTrigger | No
     while end < len(prompt) and not prompt[end].isspace():
         end += 1
 
-    query = prompt[start + prefix_len : cursor]
+    query = prompt[start + 1 : cursor]
     return VcsProjectTrigger(start=start, end=end, query=query)
 
 
@@ -454,7 +443,7 @@ def apply_vcs_project_selection(
 
     Args:
         prompt: The full prompt text.
-        trigger_span: The ``(start, end)`` span of the ``#+query`` trigger token.
+        trigger_span: The ``(start, end)`` span of the ``+query`` trigger token.
         display_tag: The selected project's VCS tag, without a trailing space
             (e.g. ``"#gh:sase"``).
 

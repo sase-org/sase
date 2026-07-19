@@ -494,9 +494,9 @@ When a plain-word `Ctrl+T` prefix has no match elsewhere in the current prompt, 
 from prompt history. Candidates retain their original spelling and appear in most-recently-used order. The cache is
 warmed off-thread and rebuilt when history shards change.
 
-The `#+query` and first-character `+query` project/ChangeSpec picker uses the same completion panel but is triggered
-directly by the `+` token; it is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/ChangeSpec completion
-works regardless of these automatic-completion settings.
+The `+query` project/ChangeSpec picker uses the same completion panel and opens when the plus is at absolute prompt
+offset zero or immediately follows a literal ASCII space. It is not disabled by `auto_xprompt_menu`. Manual `Ctrl+T`
+project/ChangeSpec completion uses the same token rule and works regardless of these automatic-completion settings.
 
 The `%model:` / `%m:` value menu is also controlled by `auto_directive_menu`. It lists inline-typable model names,
 implicit role aliases (`@default`, `@coder`, `@<provider>_coder`, `@epic_lander`, `@big_epic_lander`, `@phase_worker`),

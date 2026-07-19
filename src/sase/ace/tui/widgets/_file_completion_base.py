@@ -305,13 +305,13 @@ class FileCompletionBaseMixin(FileCompletionContextMixin):
         self._schedule_history_word_completion_load()
 
     def _warm_vcs_project_completion_catalog(self) -> None:
-        """Warm the ``#+`` project catalog off the keystroke path.
+        """Warm the ``+`` project catalog off the keystroke path.
 
         The catalog build touches disk (project enumeration + provider
         detection), so it must never run synchronously inside key handling
         (``sase/memory/tui_perf.md``). Building once in a background thread
         populates the module-level cache in
-        :mod:`sase.xprompt.vcs_project_completion`, so the first ``#+`` opens
+        :mod:`sase.xprompt.vcs_project_completion`, so the first valid ``+`` opens
         the menu instantly. Gated on the real app's completion-settings
         capability so lightweight test harnesses skip it.
         """

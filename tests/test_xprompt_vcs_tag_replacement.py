@@ -76,7 +76,7 @@ def test_replace_vcs_tags_tag_only_at_eof() -> None:
     """Replace a VCS tag that sits at end-of-input with no trailing space.
 
     A prompt consisting solely of a VCS tag (the state left behind after the
-    ``#+`` project-completion trigger is stripped from ``#gh:sase #+``) must be
+    ``+`` project-completion trigger is stripped from ``#gh:sase +``) must be
     replaced, not prepended -- otherwise the selected tag is doubled.
     """
     with _patch_vcs_replace_pattern():

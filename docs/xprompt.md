@@ -353,12 +353,14 @@ For compatibility, existing basename ProjectSpecs are reused when their `WORKSPA
 Owner/repo fallback avoids basename routing when duplicate GitHub basenames would make that ambiguous; direct
 `owner/repo` refs match the GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
-ACE and the xprompt LSP provide a project/ChangeSpec completion helper for these references. Type `#+` at a token
-boundary, or type `+` as the first character in the prompt, to open a picker of enabled launchable projects and active
-PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. Accepting a project row inserts a tag such as
-`#gh:sase`; accepting a ChangeSpec row inserts a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`,
-directory-key project name, project alias, or ChangeSpec name prefix, and it ignores system-managed `home`, disabled
-projects, sibling records, and non-launchable projects.
+ACE and the xprompt LSP provide the same project/ChangeSpec completion helper for these references. Type `+query` at
+absolute prompt offset zero or immediately after a literal ASCII space to open a picker of enabled launchable projects
+and active PR-sized ChangeSpecs in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the next whitespace
+boundary, and `#+query`, line-start `+query` without a preceding space, tab-delimited forms, and plus signs glued to
+other text are not project triggers. Accepting a project row inserts a tag such as `#gh:sase`; accepting a ChangeSpec
+row inserts a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`, directory-key project name, project
+alias, or ChangeSpec name prefix, and it ignores system-managed `home`, disabled projects, sibling records, and
+non-launchable projects.
 
 ACE and the xprompt LSP also provide token-local completion at the root of registered VCS workflow refs. Typing `:` or
 `(` after a workflow tag, such as `#gh:` or `#git(`, opens project and active PR-sized ChangeSpec rows scoped to that

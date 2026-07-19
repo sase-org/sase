@@ -254,9 +254,9 @@ class FileCompletionContextMixin(_MixinBase):
         )
 
     def _get_vcs_project_trigger(self) -> VcsProjectTrigger | None:
-        """Return the ``#+query`` trigger span at the cursor, or ``None``.
+        """Return the valid ``+query`` trigger span at the cursor, or ``None``.
 
-        Used by the ``#+`` project completion menu to detect the trigger token,
+        Used by the ``+`` project completion menu to detect the trigger token,
         narrow the candidate list as the query grows, and locate the span the
         canonical expansion transform must consume on accept.
         """

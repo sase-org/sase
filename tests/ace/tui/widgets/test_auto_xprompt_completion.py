@@ -171,7 +171,7 @@ async def test_no_matching_xprompt_does_not_show_placeholder() -> None:
         assert ta._file_completion_candidates == []
 
 
-async def test_hash_plus_still_routes_to_project_completion() -> None:
+async def test_hash_plus_does_not_route_to_project_completion() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -182,9 +182,8 @@ async def test_hash_plus_still_routes_to_project_completion() -> None:
             await pilot.press("+")
 
         assert ta.text == "#+"
-        assert ta._file_completion_active is True
-        assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
-        assert [c.insertion for c in ta._file_completion_candidates] == ["#gh:sase"]
+        assert ta._completion_kind != VCS_PROJECT_COMPLETION_KIND
+        assert ta._file_completion_active is False
 
 
 async def test_bof_plus_routes_to_project_completion() -> None:

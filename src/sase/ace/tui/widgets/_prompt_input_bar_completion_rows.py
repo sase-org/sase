@@ -172,7 +172,7 @@ def append_vcs_project_completion_row(
     is_selected: bool,
     label_width: int = 0,
 ) -> None:
-    """Append one ``#+`` project/PR completion row.
+    """Append one ``+`` project/PR completion row.
 
     Project and ChangeSpec rows use the same badges as the ProjectSelect modal.
     The empty-catalog placeholder (no :class:`VcsProjectEntry` metadata) renders

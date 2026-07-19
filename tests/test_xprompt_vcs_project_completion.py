@@ -1,8 +1,8 @@
-"""Tests for the ``#+`` VCS project completion foundations (Phase 1).
+"""Tests for the ``+`` VCS project completion foundations.
 
 Covers trigger detection, the active-project catalog builder, prefix filtering,
-and the canonical expansion algorithm -- including the cross-language golden
-test-vector table that the Rust port (Phase 3) must match byte-for-byte.
+and the canonical expansion algorithm, including the cross-language golden
+test-vector table that the Rust core must match byte-for-byte.
 """
 
 from __future__ import annotations
@@ -84,32 +84,31 @@ def _record(
 
 # --- Golden vectors (the cross-language parity contract) -------------------
 
-# ``‸`` marks the caret. The trigger token starts at the leading ``#`` and the
-# caret sits at the end of the token, matching the design's golden table.
+# ``‸`` marks the caret. The trigger token starts at ``+``; most vectors place
+# the caret at the end, while one asserts a cursor-local query inside a longer
+# whole-token replacement span.
 _CURSOR = "‸"
 
 _GOLDEN_VECTORS = [
-    ("Describe this repo. #+‸", "#gh:sase Describe this repo."),
-    ("#+‸", "#gh:sase "),
-    ("#+sa‸", "#gh:sase "),
-    ("#+s‸\n", "#gh:sase \n"),
-    ("#+s‸\nmore text", "#gh:sase \nmore text"),
-    ("#git:foo Fix bug #+‸", "#gh:sase Fix bug"),
-    ("#gh!!:foo do X #+‸", "#gh:sase do X"),
-    # Existing leading VCS tag at end-of-input (no trailing text): the trigger
-    # strip leaves the bare tag at EOF, which must still be replaced -- not
-    # doubled. Covers the `#gh:sase #+` regression.
-    ("#gh:sase #+‸", "#gh:sase "),
-    ("#gh:sase #+foo‸", "#gh:sase "),
-    ("#git:foo #+‸", "#gh:sase "),
-    ("Fix #+bug‸ here", "#gh:sase Fix here"),
-    ("Line one\n#+‸", "#gh:sase Line one\n"),
-    ("---\nname: x\n---\nBody #+‸", "---\nname: x\n---\n#gh:sase Body"),
-    ("%model:opus Body #+‸", "%model:opus #gh:sase Body"),
-    # Bare ``+`` at the very beginning of the prompt (offset 0).
+    ("Describe this repo. +‸", "#gh:sase Describe this repo."),
     ("+‸", "#gh:sase "),
     ("+sa‸", "#gh:sase "),
+    ("+s‸\n", "#gh:sase \n"),
+    ("+s‸\nmore text", "#gh:sase \nmore text"),
+    ("#git:foo Fix bug +‸", "#gh:sase Fix bug"),
+    ("#gh!!:foo do X +‸", "#gh:sase do X"),
+    # Existing leading VCS tag at end-of-input (no trailing text): the trigger
+    # strip leaves the bare tag at EOF, which must still be replaced, not
+    # doubled.
+    ("#gh:sase +‸", "#gh:sase "),
+    ("#gh:sase +foo‸", "#gh:sase "),
+    ("#git:foo +‸", "#gh:sase "),
+    ("Fix +bug‸ here", "#gh:sase Fix here"),
+    ("Line one\n +‸", "#gh:sase Line one\n"),
+    ("---\nname: x\n---\nBody +‸", "---\nname: x\n---\n#gh:sase Body"),
+    ("%model:opus Body +‸", "%model:opus #gh:sase Body"),
     ("+sa‸ Fix", "#gh:sase Fix"),
+    ("Fix +sa‸se now", "#gh:sase Fix now"),
 ]
 
 
@@ -132,95 +131,86 @@ def test_golden_vectors(marked: str, expected: str) -> None:
 
 
 def test_trigger_at_beginning_of_prompt() -> None:
-    trigger = find_vcs_project_trigger("#+", 2)
-    assert trigger is not None
-    assert trigger.span == (0, 2)
-    assert trigger.query == ""
-
-
-def test_trigger_with_query() -> None:
-    trigger = find_vcs_project_trigger("#+sa", 4)
-    assert trigger is not None
-    assert trigger.span == (0, 4)
-    assert trigger.query == "sa"
-
-
-def test_trigger_after_space() -> None:
-    trigger = find_vcs_project_trigger("Fix #+bug", 9)
-    assert trigger is not None
-    assert trigger.span == (4, 9)
-    assert trigger.query == "bug"
-
-
-def test_trigger_after_newline() -> None:
-    trigger = find_vcs_project_trigger("line\n#+x", 8)
-    assert trigger is not None
-    assert trigger.span == (5, 8)
-    assert trigger.query == "x"
-
-
-def test_trigger_token_extends_past_cursor() -> None:
-    """The span covers the whole token; the query stops at the cursor."""
-    trigger = find_vcs_project_trigger("#+abc", 3)
-    assert trigger is not None
-    assert trigger.span == (0, 5)
-    assert trigger.query == "a"
-
-
-def test_trigger_fires_after_whitespace() -> None:
-    trigger = find_vcs_project_trigger("2 #+ 2", 4)
-    assert trigger is not None
-    assert trigger.span == (2, 4)
-    assert trigger.query == ""
-
-
-def test_trigger_bare_plus_at_beginning_of_prompt() -> None:
     trigger = find_vcs_project_trigger("+", 1)
     assert trigger is not None
     assert trigger.span == (0, 1)
     assert trigger.query == ""
 
 
-def test_trigger_bare_plus_with_query() -> None:
+def test_trigger_with_query() -> None:
     trigger = find_vcs_project_trigger("+sa", 3)
     assert trigger is not None
     assert trigger.span == (0, 3)
     assert trigger.query == "sa"
 
 
-def test_trigger_bare_plus_token_extends_past_cursor() -> None:
-    """The span covers the whole token; the query stops at the cursor."""
-    trigger = find_vcs_project_trigger("+abc", 2)
+def test_trigger_after_space() -> None:
+    trigger = find_vcs_project_trigger("Fix +bug", 8)
     assert trigger is not None
-    assert trigger.span == (0, 4)
+    assert trigger.span == (4, 8)
+    assert trigger.query == "bug"
+
+
+def test_trigger_after_space_on_new_line() -> None:
+    trigger = find_vcs_project_trigger("line\n +x", 8)
+    assert trigger is not None
+    assert trigger.span == (6, 8)
+    assert trigger.query == "x"
+
+
+def test_trigger_token_extends_past_cursor() -> None:
+    """The span covers the whole token; the query stops at the cursor."""
+    trigger = find_vcs_project_trigger("Fix +abc", 6)
+    assert trigger is not None
+    assert trigger.span == (4, 8)
     assert trigger.query == "a"
 
 
-def test_no_trigger_bare_plus_outside_beginning_of_prompt() -> None:
-    """A bare ``+`` triggers only at absolute offset 0, not after text."""
-    assert find_vcs_project_trigger("Fix +", 5) is None
-    assert find_vcs_project_trigger(" +", 2) is None
-    assert find_vcs_project_trigger("\n+", 2) is None
-    assert find_vcs_project_trigger("word+", 5) is None
+def test_trigger_fires_after_literal_space() -> None:
+    trigger = find_vcs_project_trigger("2 + 2", 3)
+    assert trigger is not None
+    assert trigger.span == (2, 3)
+    assert trigger.query == ""
 
 
-def test_no_trigger_bare_plus_before_cursor_advances() -> None:
-    """The caret must sit past the bare ``+`` for the trigger to be live."""
+@pytest.mark.parametrize(
+    ("prompt", "cursor"),
+    [
+        ("#+", 2),
+        ("#+sa", 4),
+        ("Fix #+sa", 8),
+        ("line\n+", 6),
+        ("\t+", 2),
+        ("\N{NO-BREAK SPACE}+", 2),
+        ("word+", 5),
+        ("a+b", 3),
+        ("c++", 3),
+        ("c#+x", 4),
+    ],
+)
+def test_unclaimed_plus_forms(prompt: str, cursor: int) -> None:
+    assert find_vcs_project_trigger(prompt, cursor) is None
+
+
+def test_no_trigger_before_cursor_advances_past_plus() -> None:
+    """The caret must sit past ``+`` for the trigger to be live."""
     assert find_vcs_project_trigger("+", 0) is None
 
 
-def test_no_trigger_hash_without_adjacent_plus() -> None:
-    assert find_vcs_project_trigger("# +", 3) is None
+def test_hash_then_space_plus_triggers_at_plus() -> None:
+    trigger = find_vcs_project_trigger("# +", 3)
+    assert trigger is not None
+    assert trigger.span == (2, 3)
+    assert trigger.query == ""
+
+
+def test_no_trigger_hash_without_plus() -> None:
     assert find_vcs_project_trigger("#", 1) is None
 
 
-def test_no_trigger_before_full_hash_plus_token() -> None:
+def test_no_trigger_with_cursor_inside_hash_plus_token() -> None:
     assert find_vcs_project_trigger("#+", 0) is None
     assert find_vcs_project_trigger("#+", 1) is None
-
-
-def test_no_trigger_inside_word() -> None:
-    assert find_vcs_project_trigger("c#+x", 4) is None
 
 
 def test_no_trigger_without_plus() -> None:
@@ -232,8 +222,8 @@ def test_no_trigger_empty_prompt() -> None:
 
 
 def test_no_trigger_cursor_out_of_range() -> None:
-    assert find_vcs_project_trigger("#+", 5) is None
-    assert find_vcs_project_trigger("#+", -1) is None
+    assert find_vcs_project_trigger("+", 5) is None
+    assert find_vcs_project_trigger("+", -1) is None
 
 
 # --- Catalog builder -------------------------------------------------------

@@ -79,12 +79,12 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         self._update_file_completion_panel(result.prefix)
 
     def _try_vcs_project_completion(self) -> bool:
-        """Open the ``#+`` project completion menu at a ``#+token``.
+        """Open the ``+`` project completion menu at a valid ``+query`` token.
 
-        Returns ``True`` when a ``#+`` trigger is present (menu opened,
+        Returns ``True`` when a ``+`` trigger is present (menu opened,
         empty-state row shown, or query matched nothing and the menu was
         dismissed), so the caller stops dispatching other completion kinds.
-        Returns ``False`` only when there is no ``#+`` trigger or the bar is not
+        Returns ``False`` only when there is no ``+`` trigger or the bar is not
         in prompt mode.
         """
         bar = self._find_prompt_bar()
@@ -183,7 +183,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
 
         Generalizes the prior ``#``-only automatic xprompt menu to also cover
         ``%`` directives and ``/`` skills. Each branch is gated by its own
-        auto-menu setting, and the ``#+`` project trigger keeps precedence.
+        auto-menu setting, and the ``+`` project trigger keeps precedence.
         Returns ``True`` when a menu was opened.
         """
         bar = self._find_prompt_bar()
