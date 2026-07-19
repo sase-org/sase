@@ -89,6 +89,43 @@ def test_restart_records_running_before_stop_and_retries_start(tmp_path: Path) -
     assert marker.source == "restart"
 
 
+def test_restart_refreshes_heartbeat_baseline_before_retry(tmp_path: Path) -> None:
+    state_dir = tmp_path / "axe"
+    with (
+        patch("sase.axe.state.AXE_STATE_DIR", state_dir),
+        patch("sase.axe._process_restart.stop_axe_daemon_result"),
+        patch(
+            "sase.axe._process_restart.start_axe_daemon_result",
+            side_effect=[
+                AxeStartResult(status="started", pid=101, message="first"),
+                AxeStartResult(status="started", pid=202, message="second"),
+            ],
+        ),
+        patch(
+            "sase.axe._process_restart._heartbeat_snapshot",
+            side_effect=[(10, "old"), (101, "first-attempt")],
+        ) as heartbeat_snapshot,
+        patch(
+            "sase.axe._process_restart._verify_startup",
+            side_effect=[(False, "first attempt not ready"), (True, None)],
+        ) as verify,
+    ):
+        result = restart_axe_daemon_result(
+            _config(),
+            retry_delays=(),
+        )
+
+    assert result.pid == 202
+    assert result.verified is True
+    assert heartbeat_snapshot.call_count == 2
+    assert verify.call_args_list[0].kwargs["heartbeat_baseline"] == {
+        "hooks": (10, "old")
+    }
+    assert verify.call_args_list[1].kwargs["heartbeat_baseline"] == {
+        "hooks": (101, "first-attempt")
+    }
+
+
 def test_restart_failure_is_journaled_and_notified(tmp_path: Path) -> None:
     state_dir = tmp_path / "axe"
     failures = [

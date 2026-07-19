@@ -48,12 +48,16 @@ def restart_axe_daemon_result(
         return result
 
     lumberjack_names = tuple(sorted(effective_config.lumberjacks))
-    heartbeat_baseline = {name: _heartbeat_snapshot(name) for name in lumberjack_names}
-
     stop_axe_daemon_result(record_desired_state=False)
 
     attempts: list[AxeStartAttempt] = []
     for number in range(1, max(1, max_attempts) + 1):
+        # Each failed attempt can leave newer status files behind. Snapshot
+        # immediately before the next start so those stale heartbeats cannot
+        # verify a later attempt before its own lumberjacks report readiness.
+        heartbeat_baseline = {
+            name: _heartbeat_snapshot(name) for name in lumberjack_names
+        }
         try:
             started = start_axe_daemon_result(
                 effective_config,
