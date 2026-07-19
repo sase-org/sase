@@ -39,9 +39,18 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     return f"#{workflow_type}:{name} "
 
 
-def _rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
+def _rewrite_retry_prompt_name(
+    raw_prompt: str,
+    retry_name: str,
+    *,
+    current_agent_name: str | None = None,
+) -> str:
     """Replace or prepend the top-level prompt ``%id`` directive for retry."""
-    return rewrite_retry_prompt_name(raw_prompt, retry_name)
+    return rewrite_retry_prompt_name(
+        raw_prompt,
+        retry_name,
+        current_agent_name=current_agent_name,
+    )
 
 
 def _force_name_reuse_in_prompt(
@@ -82,8 +91,18 @@ class _EntryPointsBaseMixin:
     def _is_launchable_project(self, project_name: str) -> bool:
         return is_launchable_project(project_name)
 
-    def _rewrite_retry_prompt_name(self, raw_prompt: str, retry_name: str) -> str:
-        return _rewrite_retry_prompt_name(raw_prompt, retry_name)
+    def _rewrite_retry_prompt_name(
+        self,
+        raw_prompt: str,
+        retry_name: str,
+        *,
+        current_agent_name: str | None = None,
+    ) -> str:
+        return _rewrite_retry_prompt_name(
+            raw_prompt,
+            retry_name,
+            current_agent_name=current_agent_name,
+        )
 
     def _force_name_reuse_in_prompt(
         self,

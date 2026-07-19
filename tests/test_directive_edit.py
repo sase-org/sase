@@ -8,6 +8,7 @@ from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     demote_prompt_clan_declaration,
     prompt_declares_clan,
+    rewrite_prompt_clan_member_name,
     set_prompt_auto_mode,
     set_prompt_clan_tribe,
     set_prompt_name,
@@ -41,6 +42,27 @@ def test_demote_prompt_clan_declaration_rewrites_id_and_drops_tribe() -> None:
 def test_demote_prompt_clan_declaration_leaves_joiner_unchanged() -> None:
     prompt = "%id(worker, clan=research)\nDo work"
     assert demote_prompt_clan_declaration(prompt) == prompt
+
+
+def test_demote_prompt_clan_template_declaration_preserves_template() -> None:
+    prompt = "%id:research.@.lead\n%clan(research.@, tribe=review)\nDo work"
+
+    assert demote_prompt_clan_declaration(prompt) == (
+        "%id(lead, clan=research.@)\nDo work"
+    )
+
+
+def test_rewrite_prompt_clan_member_name_resolves_template() -> None:
+    prompt = "%id(worker, clan=research.@)\nDo work"
+
+    assert (
+        rewrite_prompt_clan_member_name(
+            prompt,
+            "research.2.worker.r0",
+            current_agent_name="research.2.worker",
+        )
+        == "%id(worker.r0, clan=research.2)\nDo work"
+    )
 
 
 def test_prompt_declares_clan_ignores_joiner_and_protected_examples() -> None:

@@ -75,10 +75,41 @@ def test_rewrite_retry_prompt_replaces_percent_n() -> None:
     )
 
 
+def test_rewrite_retry_prompt_bare_id_does_not_allocate_an_intermediate_name() -> None:
+    with patch(
+        "sase.agent.names.get_next_auto_name",
+        side_effect=AssertionError("retry rewrite must not allocate"),
+    ):
+        rewritten = _rewrite_retry_prompt_name("%id\nDo work", "foo.r0")
+
+    assert rewritten == "%id:foo.r0\nDo work"
+
+
 def test_rewrite_retry_prompt_replaces_template_name() -> None:
     assert (
         _rewrite_retry_prompt_name("%id:@.cld\nDo work", "0.cld.r0")
         == "%id:0.cld.r0\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_preserves_clan_joiner_membership() -> None:
+    assert (
+        _rewrite_retry_prompt_name(
+            "%id(worker, clan=root)\nDo work",
+            "root.worker.r0",
+        )
+        == "%id(worker.r0, clan=root)\nDo work"
+    )
+
+
+def test_rewrite_retry_prompt_resolves_template_clan_joiner() -> None:
+    assert (
+        _rewrite_retry_prompt_name(
+            "%id(worker, clan=research.@)\nDo work",
+            "research.2.worker.r0",
+            current_agent_name="research.2.worker",
+        )
+        == "%id(worker.r0, clan=research.2)\nDo work"
     )
 
 
@@ -258,6 +289,51 @@ def test_retry_edit_agent_demotes_clan_declaration(
 
     assert app.launched == (
         "%id(worker.r0, clan=root)\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+@patch("sase.agent.names.allocate_retry_name", return_value="root.worker.r0")
+def test_retry_edit_agent_preserves_clan_joiner_membership(
+    _mock_allocate: Mock,
+) -> None:
+    app = _App(
+        _Agent(
+            "%id(worker, clan=root)\nDo work",
+            agent_name="root.worker",
+        )
+    )
+
+    app._retry_edit_agent()
+
+    assert app.launched == (
+        "%id(worker.r0, clan=root)\nDo work",
+        "/tmp/proj/proj.sase",
+        "branch",
+        False,
+    )
+
+
+@patch(
+    "sase.agent.names.allocate_retry_name",
+    return_value="research.2.worker.r0",
+)
+def test_retry_edit_agent_resolves_template_clan_membership(
+    _mock_allocate: Mock,
+) -> None:
+    app = _App(
+        _Agent(
+            "%id:research.@.worker\n%clan(research.@, tribe=review)\nDo work",
+            agent_name="research.2.worker",
+        )
+    )
+
+    app._retry_edit_agent()
+
+    assert app.launched == (
+        "%id(worker.r0, clan=research.2)\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

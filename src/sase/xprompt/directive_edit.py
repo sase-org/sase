@@ -59,21 +59,71 @@ def demote_prompt_clan_declaration(prompt: str) -> str:
             "Cannot relaunch a clan declaration without an explicit member name."
         )
 
-    prefix = f"{directives.clan}."
-    if not directives.name.startswith(prefix) or not directives.name.removeprefix(
-        prefix
-    ):
+    return rewrite_prompt_clan_member_name(
+        prompt,
+        directives.name,
+        force_reuse=directives.name_force_reuse,
+    )
+
+
+def rewrite_prompt_clan_member_name(
+    prompt: str,
+    agent_name: str,
+    *,
+    current_agent_name: str | None = None,
+    force_reuse: bool = False,
+) -> str:
+    """Rewrite a clan member to a concrete join-form agent name.
+
+    ``current_agent_name`` resolves an ``@`` clan template from the stored
+    prompt before the replacement name is validated. Relaunch callers know
+    that concrete name even when the prompt still contains the original
+    template.
+    """
+    from sase.agent.names import (
+        is_agent_name_template,
+        match_agent_name_template,
+        render_agent_name_template,
+    )
+    from sase.xprompt.directives import extract_prompt_directives
+
+    _, directives = extract_prompt_directives(prompt)
+    if directives.clan is None or directives.name is None:
+        raise ValueError("Cannot rewrite a prompt without clan membership.")
+
+    clan_name = directives.clan
+    if is_agent_name_template(clan_name) and current_agent_name is not None:
+        token = match_agent_name_template(directives.name, current_agent_name)
+        if token is None:
+            raise ValueError(
+                f"Cannot resolve clan template '{clan_name}' from agent "
+                f"'{current_agent_name}'."
+            )
+        clan_name = render_agent_name_template(clan_name, token)
+    elif is_agent_name_template(clan_name) and not is_agent_name_template(agent_name):
+        if current_agent_name is None:
+            raise ValueError(
+                f"Cannot resolve clan template '{clan_name}' without the "
+                "current concrete agent name."
+            )
+
+    prefix = f"{clan_name}."
+    if not agent_name.startswith(prefix) or not agent_name.removeprefix(prefix):
         raise ValueError(
-            f"Cannot relaunch agent '{directives.name}' as a member of clan "
-            f"'{directives.clan}': expected the '{prefix}<suffix>' hood."
+            f"Cannot relaunch agent '{agent_name}' as a member of clan "
+            f"'{clan_name}': expected the '{prefix}<suffix>' hood."
         )
-    member_id = directives.name.removeprefix(prefix)
-    if directives.name_force_reuse:
+    member_id = agent_name.removeprefix(prefix)
+    if force_reuse:
         member_id = f"!{member_id}"
     replacement = (
-        f"%id({_format_wait_arg(member_id)}, clan={_format_wait_arg(directives.clan)})"
+        f"%id({_format_wait_arg(member_id)}, clan={_format_wait_arg(clan_name)})"
     )
-    rewritten = _set_prompt_directive(prompt, {"clan"}, None)
+    rewritten = (
+        _set_prompt_directive(prompt, {"clan"}, None)
+        if directives.clan_declared
+        else prompt
+    )
     return _set_prompt_directive(rewritten, {"id"}, replacement)
 
 

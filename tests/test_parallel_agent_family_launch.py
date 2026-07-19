@@ -9,7 +9,9 @@ import pytest
 from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+from sase.history.prompt_metadata import summarize_prompt_for_list
 from sase.xprompt._exceptions import DirectiveError
+from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.models import XPrompt
 
 
@@ -103,6 +105,51 @@ def test_template_clan_is_resolved_once_without_a_root(
     assert payloads[0] == payloads[1]
     assert payloads[0]["clan_name"] == "research.0"
     assert set(payloads[0]) == {"clan_name", "generation"}
+
+
+def test_research_swarm_style_launch_resolves_names_waits_and_tribe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    calls = _launch_with_captured_spawns(
+        [
+            "%clan(research.@, tribe=research)\n%id:research.@.lead\nLead",
+            "%id(worker, clan=research.@)\n%wait:research.@.lead\nInvestigate",
+            "%id(final, clan=research.@)\n%wait:research.@.worker\nSynthesize",
+        ],
+        template_groups=[
+            "xprompt:research:0",
+            "xprompt:research:0",
+            "xprompt:research:0",
+        ],
+    )
+
+    envs = [call["extra_env"] for call in calls]
+    assert all(isinstance(env, dict) for env in envs)
+    assert [str(env["SASE_AGENT_PLANNED_NAME"]) for env in envs] == [  # type: ignore[index]
+        "research.0.lead",
+        "research.0.worker",
+        "research.0.final",
+    ]
+    payloads = [
+        json.loads(str(env[CLAN_MEMBERSHIP_ENV]))  # type: ignore[index]
+        for env in envs
+    ]
+    assert payloads[0] == payloads[1] == payloads[2]
+    assert payloads[0]["clan_name"] == "research.0"
+    assert payloads[0]["generation"]
+
+    prompts = [str(call["prompt"]) for call in calls]
+    assert "%wait:research.0.lead" in prompts[1]
+    assert "%wait:research.0.worker" in prompts[2]
+    parsed = [extract_prompt_directives(prompt)[1] for prompt in prompts]
+    assert [directive.clan_tribe for directive in parsed] == [
+        "research",
+        None,
+        None,
+    ]
+    assert [directive.clan_declared for directive in parsed] == [True, False, False]
 
 
 def test_clan_membership_is_execution_neutral(
@@ -231,6 +278,43 @@ def test_joiners_only_create_then_reuse_clan_generation(
         str(second[0]["extra_env"][CLAN_MEMBERSHIP_ENV])  # type: ignore[index]
     )
     assert first_payloads[0] == first_payloads[1] == second_payload
+    prompts = [*(str(call["prompt"]) for call in first), str(second[0]["prompt"])]
+    assert all(
+        extract_prompt_directives(prompt)[1].clan_tribe is None for prompt in prompts
+    )
+
+
+@pytest.mark.parametrize(
+    ("prompt", "message"),
+    [
+        (
+            "%id(worker, clan=root)\n%tribe:review\nWork",
+            r"joining a clan joins its tribe.*Put tribe= on the clan's %clan",
+        ),
+        (
+            "%id(worker, clan=root)\n%clan:root\nWork",
+            r"Cannot combine %clan with %id\(\.\.\., clan=\.\.\.\)",
+        ),
+        (
+            "%id(parent, worker, clan=root)\nWork",
+            "Cannot combine family attachment with clan membership",
+        ),
+        (
+            "%id(clan=root)\nWork",
+            "requires exactly one positional member id",
+        ),
+    ],
+)
+def test_prompt_local_clan_errors_surface_through_launch_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prompt: str,
+    message: str,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with pytest.raises(DirectiveError, match=message):
+        _launch_with_captured_spawns([prompt])
 
 
 def test_declaration_rejects_existing_clan_but_joiner_succeeds(
@@ -249,6 +333,24 @@ def test_declaration_rejects_existing_clan_but_joiner_succeeds(
 
     calls = _launch_with_captured_spawns(["%id(three, clan=root)\nThree"])
     assert len(calls) == 1
+
+
+def test_deprecated_name_fails_launch_but_remains_display_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    prompt = "%name:legacy\nReview the parser"
+
+    with pytest.raises(
+        DirectiveError,
+        match=r"renamed; use %id/%i.*%id\(<id>, clan=<clan>\)",
+    ):
+        _launch_with_captured_spawns([prompt])
+
+    summary = summarize_prompt_for_list(prompt)
+    assert summary.directive_token == "%n"
+    assert summary.clean_preview == "Review the parser"
 
 
 def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(

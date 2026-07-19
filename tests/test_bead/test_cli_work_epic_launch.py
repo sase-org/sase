@@ -216,6 +216,56 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
         assert f"%id({suffix}, clan={epic_id})" in launched[0]
 
 
+def test_work_relaunch_after_failure_joins_existing_epic_clan(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An incomplete first launch re-works every phase without redeclaring."""
+    from sase.agent.names import AgentNameWipeResult
+
+    epic_id, phase_ids = seed_diamond(project_dir)
+    reserved_clans: set[str] = set()
+    launched: list[str] = []
+
+    monkeypatch.setattr(
+        "sase.agent.names.get_reserved_clan_names",
+        lambda: set(reserved_clans),
+    )
+    monkeypatch.setattr(
+        "sase.agent.names.wipe_agent_name_for_reuse",
+        lambda name: AgentNameWipeResult(target_name=name, found=False),
+    )
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        launched.append(query)
+        reserved_clans.add(epic_id)
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+    monkeypatch.setattr(
+        "sase.bead.sync.commit_bead_work_launch",
+        lambda *args, **kwargs: True,
+    )
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+    # No phases close: this simulates the launched clan failing before it can
+    # make progress, while its registered clan identity remains durable.
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True))
+
+    assert len(launched) == 2
+    declaration = f"%clan({epic_id}, tribe=epic)"
+    assert launched[0].count(declaration) == 1
+    assert "%clan" not in launched[1]
+    for phase_id in phase_ids:
+        suffix = phase_id.removeprefix(f"{epic_id}.")
+        assert f"%id({suffix}, clan={epic_id})" in launched[1]
+    assert f"%id(land, clan={epic_id})" in launched[1]
+
+
 @pytest.mark.parametrize(
     ("conflict_target", "container_kind"),
     [

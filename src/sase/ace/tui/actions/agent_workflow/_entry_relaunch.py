@@ -25,7 +25,11 @@ class EntryRelaunchMixin:
     if TYPE_CHECKING:
 
         def _rewrite_retry_prompt_name(
-            self, raw_prompt: str, retry_name: str
+            self,
+            raw_prompt: str,
+            retry_name: str,
+            *,
+            current_agent_name: str | None = None,
         ) -> str: ...
 
     def _retry_edit_agent(self) -> None:
@@ -51,7 +55,11 @@ class EntryRelaunchMixin:
                 from sase.agent.names import allocate_retry_name
 
                 retry_name = allocate_retry_name(agent.agent_name)
-                raw_prompt = self._rewrite_retry_prompt_name(raw_prompt, retry_name)
+                raw_prompt = self._rewrite_retry_prompt_name(
+                    raw_prompt,
+                    retry_name,
+                    current_agent_name=agent.agent_name,
+                )
             except Exception:
                 self.notify(  # type: ignore[attr-defined]
                     "Could not allocate retry name; using original prompt",
