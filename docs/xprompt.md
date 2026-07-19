@@ -1001,7 +1001,7 @@ the prompt before further processing.
 | --------- | ----- | --------------------------------------------------------------------- |
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
-| `%id`     | `%i`  | Assign an agent name or attach a member to an existing family         |
+| `%id`     | `%i`  | Assign an id, join a clan, or attach a member to an existing family   |
 | `%clan`   | `%c`  | Join a named, rootless parallel agent clan                            |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
@@ -1032,6 +1032,8 @@ Directives use the same argument syntax as xprompt references:
 %i:reviewer                  # Same, using alias
 %i(parent, reviewer)         # Attach parent--reviewer to parent's family
 %i(parent, @)                # Attach the next free feedback/Q&A suffix
+%id(worker, clan=research)   # Derive research.worker and join clan research
+%id(!worker, clan=research)  # Same derived name, with forced reuse
 %id                        # Bare — auto-generates a unique name
 %id:!reviewer              # Force reuse by wiping the previous owner
 %clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
@@ -1072,16 +1074,15 @@ Directives use the same argument syntax as xprompt references:
 Model names containing spaces or parentheses must use the quoted parenthesis form (for example,
 `%m("provider/Model Name (Variant)")`); colon syntax cannot express those values.
 
-The `%clan` directive declares execution-neutral membership in a rootless parallel agent clan. Adding it does not change
-the member's planned name, model, waits, fan-out, spawn order, VCS/project context, or workspace behavior; it only adds
-clan metadata and strips the directive before model execution. The clan name is a reserved container, never an agent,
-and each member name must start with `<clan>.`. Every segment carries its own `%clan` declaration. Use the colon form
-for membership alone, or `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the whole clan generation;
-do not combine a separate `%tribe` directive with `%clan`, and repeat the same `tribe=` value in every member segment.
-If persisted values disagree, the latest-launched member with an explicit declaration wins. Member roles are not part of
-the clan directive. A member segment may fan out, and identical raw clan templates in one batch resolve to the same
-generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup
-contract.
+The `%clan` directive and the `clan=` keyword on `%id` declare execution-neutral membership in a rootless parallel agent
+clan. Adding membership does not change the model, waits, fan-out, spawn order, VCS/project context, or workspace
+behavior; it only adds clan metadata and strips the directive before model execution. The clan name is a reserved
+container, never an agent. `%clan` requires an explicitly hood-qualified member name, while `%id(<id>, clan=<clan>)`
+derives `<clan>.<id>` automatically. Use `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the whole
+clan generation. A joining `%id(..., clan=...)` cannot be combined with `%clan` or a separate `%tribe` in the same
+prompt; joining a clan also joins its tribe. A member segment may fan out, and identical raw clan templates in one batch
+resolve to the same generation. See [Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait,
+display, and cleanup contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
@@ -1124,15 +1125,19 @@ split off the clean model and behaves exactly like a standalone `%effort` direct
 [Effort Directive](#effort-directive) below.
 
 The `%id` and `%wait` directives can be used without arguments. Bare `%id` auto-generates a permanent unique name for
-the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+the agent. `%id(<id>, clan=<clan>)` derives the full `<clan>.<id>` name and requests membership in that clan. Dotted ids
+are allowed, and a leading `!` forces reuse of the derived name. This form takes exactly one positional id and cannot be
+combined with the two-positional family-attachment form. Bare `%wait` resolves to the most recently named agent (raises
+an error if no previous agent exists).
 
 Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
 from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,
 `%id:@.cld` renders as `0.cld`, `%id:build-@` renders as `build-0`, and `%id:research.@.final` renders as
-`research.0.final`. The older terminal `-@` form still works, but new allocations now start at token `0` and use the
-alphanumeric sequence instead of positive integers. Later `%wait`, `#fork`, and `#resume` references can use the same
-template text; in one multi-agent launch, SASE rewrites those references to the concrete name already planned for that
-template before spawning dependent agents.
+`research.0.final`; `%id(cld, clan=research.@)` derives that same `research.@.cld` template before allocation. The older
+terminal `-@` form still works, but new allocations now start at token `0` and use the alphanumeric sequence instead of
+positive integers. Later `%wait`, `#fork`, and `#resume` references can use the same template text; in one multi-agent
+launch, SASE rewrites those references to the concrete name already planned for that template before spawning dependent
+agents.
 
 Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal `%id:<name>`
 launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests the lowest free

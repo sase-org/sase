@@ -83,6 +83,8 @@ def extract_directive_arg_token_around_cursor(
     if marker == "(":
         if directive_name == "clan":
             return _extract_clan_paren_arg_token(line, col, name_end)
+        if directive_name == "id":
+            return _extract_id_paren_arg_token(line, col, name_end)
         if directive_name == "wait":
             return _extract_wait_paren_arg_token(line, col, name_end)
         if directive_name == "model":
@@ -252,6 +254,40 @@ def _extract_clan_paren_arg_token(
         fragment_start,
         fragment_end,
         "clan_keyword",
+        line[fragment_start:fragment_end],
+    )
+
+
+def _extract_id_paren_arg_token(
+    line: str,
+    col: int,
+    open_index: int,
+) -> tuple[int, int, str, str] | None:
+    """Extract the keyword fragment after an ``%id(<id>, ...)`` comma."""
+    value_start = open_index + 1
+    prefix = line[value_start:col]
+    if ")" in prefix:
+        return None
+    comma_index = line.rfind(",", value_start, col)
+    if comma_index < value_start:
+        return None
+    fragment_start = comma_index + 1
+    while fragment_start < col and line[fragment_start].isspace():
+        fragment_start += 1
+    fragment = line[fragment_start:col]
+    if "=" in fragment or any(
+        not _is_directive_argument_identifier(char) for char in fragment
+    ):
+        return None
+    fragment_end = col
+    while fragment_end < len(line) and _is_directive_argument_identifier(
+        line[fragment_end]
+    ):
+        fragment_end += 1
+    return (
+        fragment_start,
+        fragment_end,
+        "id_keyword",
         line[fragment_start:fragment_end],
     )
 

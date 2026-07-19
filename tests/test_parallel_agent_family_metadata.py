@@ -104,6 +104,27 @@ def test_runner_writes_rootless_clan_metadata(
     assert two.wait_identity_deps == []
 
 
+def test_runner_writes_id_keyword_clan_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    plan = ClanMembershipPlan(clan_name="root", generation="20260716010101")
+
+    info = _extract_runner_metadata(
+        "%id(worker, clan=root)\nWork",
+        artifacts_dir=sase_home / "projects/sase/artifacts/ace-run/20260716010101",
+        env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
+    )
+
+    assert info.name == "root.worker"
+    assert info.meta["name"] == "root.worker"
+    assert info.meta[AGENT_CLAN_FIELD] == "root"
+    assert info.meta[AGENT_CLAN_GENERATION_FIELD] == "20260716010101"
+    assert "clan_tribe" not in info.meta
+
+
 def test_runner_fallback_joins_existing_clan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

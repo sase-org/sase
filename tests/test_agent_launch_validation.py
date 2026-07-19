@@ -49,10 +49,24 @@ def test_extracts_forced_reuse_name_request() -> None:
     assert names == ["foo"]
 
 
+def test_extracts_forced_reuse_clan_member_name_request() -> None:
+    names = force_reuse_owner_names(["%id(!worker, clan=research)\nDo work"])
+
+    assert names == ["research.worker"]
+
+
 def test_rewrites_forced_reuse_to_normal_name_directive() -> None:
     prompt = "%id:!foo\nDo work"
 
     assert rewrite_force_reuse_name_directives(prompt) == "%id:foo\nDo work"
+
+
+def test_rewrites_forced_reuse_clan_member_without_losing_membership() -> None:
+    prompt = "%id(!worker, clan=research)\nDo work"
+
+    assert rewrite_force_reuse_name_directives(prompt) == (
+        "%id(worker, clan=research)\nDo work"
+    )
 
 
 def test_collision_validation_uses_registry_suggestion(tmp_path: Path) -> None:
@@ -139,6 +153,18 @@ def test_name_directive_allows_hyphenated_name_before_launch() -> None:
 def test_name_directive_rejects_reserved_family_separator_before_launch() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
         validate_launch_name_requests(["%id:foo--bar\nDo work"])
+
+
+def test_id_clan_keyword_validates_derived_name_before_launch() -> None:
+    validate_launch_name_requests(["%id(worker, clan=research)\nDo work"])
+
+    with pytest.raises(AgentNameSyntaxError, match="research.foo--bar"):
+        validate_launch_name_requests(["%id(foo--bar, clan=research)\nDo work"])
+
+
+def test_id_clan_keyword_validates_derived_template_before_launch() -> None:
+    with pytest.raises(RuntimeError, match="exactly one '@' marker"):
+        validate_launch_name_requests(["%id(@, clan=research.@)\nDo work"])
 
 
 def test_name_directive_allows_template_before_launch(tmp_path: Path) -> None:

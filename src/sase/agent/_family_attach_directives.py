@@ -19,12 +19,41 @@ def parse_name_directive_args(
 ) -> _types.ParsedNameDirective:
     """Classify ``%id`` / ``%i`` arguments as plain naming or family attach."""
 
-    if named_args:
-        keys = ", ".join(f"{key}=" for key in sorted(named_args))
+    unknown_keys = sorted(key for key in named_args if key != "clan")
+    if unknown_keys:
+        keys = ", ".join(f"{key}=" for key in unknown_keys)
         raise ValueError(
-            f"Unsupported keyword on {source}: {keys}. "
-            "Use %i(parent, suffix) for family attach; keyword arguments "
-            "are not supported."
+            f"Unsupported keyword on {source}: {keys}. Only clan= is supported."
+        )
+    clan = named_args.get("clan")
+    if clan is not None:
+        if len(positional_args) != 1:
+            if len(positional_args) == 2:
+                raise ValueError(
+                    f"Cannot combine family attachment with clan membership on "
+                    f"{source}; use %i(parent, suffix) or "
+                    "%id(<id>, clan=<clan>)."
+                )
+            raise ValueError(
+                f"The clan= keyword on {source} requires exactly one positional "
+                "member id, e.g. %id(worker, clan=research)."
+            )
+        member_id = positional_args[0].strip()
+        force_reuse = member_id.startswith("!")
+        if force_reuse:
+            member_id = member_id[1:]
+        if not member_id:
+            raise ValueError(
+                f"The clan= keyword on {source} requires a non-empty member id."
+            )
+        if not clan.strip():
+            raise ValueError(
+                f"The clan= keyword on {source} requires a non-empty clan name."
+            )
+        return _types.ParsedNameDirective(
+            plain_name=member_id,
+            clan=clan,
+            force_reuse=force_reuse,
         )
     if len(positional_args) > 2:
         raise ValueError(
@@ -41,7 +70,7 @@ def parse_name_directive_args(
             family_suffix=suffix,
         )
     return _types.ParsedNameDirective(
-        plain_name=positional_args[0] if positional_args else ""
+        plain_name=positional_args[0] if positional_args else "",
     )
 
 

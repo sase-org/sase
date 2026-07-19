@@ -177,7 +177,20 @@ def extract_directives_and_write_meta(
     if clan_membership_plan is None and directives.clan is not None:
         clan_membership_plan = resolve_existing_clan_membership(directives.clan)
     elif clan_membership_plan is not None and directives.clan is None:
-        raise ClanMembershipError("Clan membership payload requires a %clan directive")
+        raise ClanMembershipError(
+            "Clan membership payload requires a %clan directive or "
+            "%id(..., clan=...) keyword"
+        )
+    if (
+        directives.tag is not None
+        and directives.clan is not None
+        and not directives.clan_declared
+    ):
+        raise ClanMembershipError(
+            "Cannot use %tribe when joining a clan with %id(..., clan=...); "
+            "joining a clan joins its tribe. Put tribe= on the clan's %clan "
+            "declaration instead."
+        )
     if (
         directives.tag is not None
         and family_attach_plan is not None

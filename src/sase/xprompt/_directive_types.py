@@ -98,8 +98,11 @@ class PromptDirectives:
             the stored/threaded field is ``reasoning_effort`` everywhere.
         name: Agent name assigned via the %id directive, or None. The field
             remains ``name`` because it stores the resulting full agent name.
-        clan: Clan name or name template requested via ``%clan``/``%c``, or
-            None when no clan membership was declared.
+        clan: Clan name or name template requested via ``%clan``/``%c`` or
+            the ``clan=`` keyword on ``%id``, or None when no clan membership
+            was requested.
+        clan_declared: Whether clan membership came from an explicit
+            ``%clan`` declaration rather than the ``clan=`` join form.
         clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.
         wait: List of agent names to wait for via positional %wait arguments.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
@@ -126,6 +129,7 @@ class PromptDirectives:
     name_explicit: bool = False
     name_force_reuse: bool = False
     clan: str | None = None
+    clan_declared: bool = False
     clan_tribe: str | None = None
     family_attach_parent: str | None = None
     family_attach_suffix: str | None = None

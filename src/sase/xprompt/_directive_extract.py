@@ -59,7 +59,7 @@ def extract_prompt_directives(
     name_explicit = collected.name_family_args is None and bool(
         collected.seen.get("id")
     )
-    name_force_reuse = False
+    name_force_reuse = collected.name_force_reuse
     if name_explicit and collected.seen.get("id", "").startswith("!"):
         name_force_reuse = True
         collected.seen["id"] = collected.seen["id"][1:]
@@ -94,6 +94,18 @@ def extract_prompt_directives(
         process_references=process_references,
     )
 
+    joined_clan: str | None = None
+    if collected.name_clan_arg is not None:
+        expanded_join = expand_single_directive_args(
+            {"clan": collected.name_clan_arg},
+            literal_directives=set(),
+            model_had_alias_prefix=False,
+            process_references=process_references,
+        )
+        joined_clan = resolve_clan_membership(expanded_join)
+        assert joined_clan is not None
+        expanded_args["id"] = f"{joined_clan}.{expanded_args['id']}"
+
     name_info = resolve_name_template(
         expanded_args.get("id"),
         force_reuse=name_force_reuse,
@@ -102,7 +114,8 @@ def extract_prompt_directives(
 
     repeat_count = parse_repeat_count(expanded_args)
     parsed_tag = parse_tribe_tag(expanded_args)
-    clan = resolve_clan_membership(expanded_args)
+    declared_clan = resolve_clan_membership(expanded_args)
+    clan = joined_clan or declared_clan
     clan_tribe = resolve_clan_tribe(
         collected.clan_tribe_arg,
         present=collected.clan_tribe_present,
@@ -132,6 +145,7 @@ def extract_prompt_directives(
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
         clan=clan,
+        clan_declared=declared_clan is not None,
         clan_tribe=clan_tribe,
         family_attach_parent=(
             collected.name_family_args[0]

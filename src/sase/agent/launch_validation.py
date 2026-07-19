@@ -266,10 +266,9 @@ def rewrite_force_reuse_name_directives(prompt: str) -> str:
             positional_args, _ = parse_args(inner)
             if not positional_args or not positional_args[0].startswith("!"):
                 continue
-            name = positional_args[0][1:]
-            replacements.append(
-                (match.start(), paren_end + 1, f"%{raw_directive}:{name}")
-            )
+            bang_index = protected.find("!", paren_start + 1, paren_end)
+            if bang_index >= 0:
+                replacements.append((bang_index, bang_index + 1, ""))
         elif match.group(3) is not None:
             raw_arg = match.group(3)
             if raw_arg.startswith("`") and raw_arg.endswith("`"):
@@ -325,7 +324,6 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
     from sase.xprompt._disabled_regions import protect_disabled_regions
     from sase.xprompt._fenced_blocks import protect_fenced_blocks
     from sase.xprompt._parsing import find_matching_paren_for_args, parse_args
-    from sase.agent.names import is_agent_name_template
 
     fenced: list[str] = []
     protected = protect_fenced_blocks(prompt, fenced)
@@ -357,6 +355,11 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
                 if parsed.family_parent is not None:
                     return None
                 value = parsed.plain_name or ""
+                if parsed.clan is not None:
+                    value = f"{parsed.clan}.{value}"
+                force_reuse = parsed.force_reuse or value.startswith("!")
+            else:
+                force_reuse = False
         elif match.group(3) is not None:
             colon_arg = match.group(3)
             value = (
@@ -364,14 +367,18 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
                 if colon_arg.startswith("`") and colon_arg.endswith("`")
                 else colon_arg
             )
+            force_reuse = value.startswith("!")
+        else:
+            force_reuse = False
 
         if not value:
             return None
-        force_reuse = value.startswith("!")
-        name = value[1:] if force_reuse else value
+        if value.startswith("!"):
+            value = value[1:]
+        name = value
         if "#" in name or not name:
             return None
-        return name, force_reuse, is_agent_name_template(name)
+        return name, force_reuse, "@" in name
     return None
 
 

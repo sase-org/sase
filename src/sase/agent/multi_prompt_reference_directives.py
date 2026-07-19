@@ -6,10 +6,11 @@ import re
 
 @dataclass(frozen=True)
 class StaticClanDirective:
-    """Top-level clan declaration visible before xprompt expansion."""
+    """Top-level clan membership visible before xprompt expansion."""
 
     name: str
     tribe: str | None = None
+    declared: bool = True
 
 
 def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
@@ -30,16 +31,26 @@ def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
     collected = collect_prompt_directive_matches(protected)
-    if "clan" not in collected.seen:
+    declared = "clan" in collected.seen
+    raw_clan = collected.seen.get("clan") if declared else collected.name_clan_arg
+    if raw_clan is None:
         return None
-    clan = resolve_clan_membership(collected.seen)
+    clan = resolve_clan_membership({"clan": raw_clan})
     assert clan is not None
-    clan_tribe = resolve_clan_tribe(
-        collected.clan_tribe_arg,
-        present=collected.clan_tribe_present,
-        process_references=lambda value: value,
+    clan_tribe = (
+        resolve_clan_tribe(
+            collected.clan_tribe_arg,
+            present=collected.clan_tribe_present,
+            process_references=lambda value: value,
+        )
+        if declared
+        else None
     )
-    return StaticClanDirective(name=clan, tribe=clan_tribe)
+    return StaticClanDirective(
+        name=clan,
+        tribe=clan_tribe,
+        declared=declared,
+    )
 
 
 def extract_static_name_directive(prompt: str) -> str | None:
@@ -79,6 +90,8 @@ def extract_static_name_directive(prompt: str) -> str | None:
                 if parsed.family_parent is not None:
                     return None
                 value = parsed.plain_name or ""
+                if parsed.clan is not None:
+                    value = f"{parsed.clan}.{value}"
         elif match.group(3) is not None:
             colon_arg = match.group(3)
             value = (

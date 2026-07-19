@@ -84,10 +84,10 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
     assert directive_metadata(agent_id).description == (
-        "assign an agent id or attach a member to an existing family"
+        "assign an agent id, join a clan, or attach to a family"
     )
     assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id or (parent, suffix)"
+        ":agent-id, (id, clan=clan), or (parent, suffix)"
     )
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
@@ -151,6 +151,23 @@ def test_clan_parenthesized_completion_advertises_tribe_keyword() -> None:
 
     assert shared == ""
     assert [candidate.insertion for candidate in candidates] == ["tribe="]
+
+
+def test_id_parenthesized_completion_advertises_clan_keyword() -> None:
+    context = extract_directive_arg_token_around_cursor(
+        "%id(worker, cl)",
+        len("%id(worker, cl"),
+    )
+    assert context is not None
+    _, _, directive_name, partial = context
+
+    candidates, shared = build_directive_arg_completion_candidates(
+        directive_name,
+        partial,
+    )
+
+    assert shared == ""
+    assert [candidate.insertion for candidate in candidates] == ["clan="]
 
 
 def test_all_directive_completion_candidates_have_descriptions() -> None:

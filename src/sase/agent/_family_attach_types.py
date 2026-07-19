@@ -10,6 +10,8 @@ FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 @dataclass(frozen=True)
 class ParsedNameDirective:
     plain_name: str | None = None
+    clan: str | None = None
+    force_reuse: bool = False
     family_parent: str | None = None
     family_suffix: str | None = None
 

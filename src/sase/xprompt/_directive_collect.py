@@ -34,6 +34,8 @@ class _CollectedDirectives:
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
     clan_tribe_present: bool = False
+    name_clan_arg: str | None = None
+    name_force_reuse: bool = False
     name_family_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
@@ -65,7 +67,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                 try:
                     positional_args, named_args = parse_args(
                         paren_content,
-                        reject_duplicate_named_args=name in {"clan", "model", "wait"},
+                        reject_duplicate_named_args=name
+                        in {"clan", "id", "model", "wait"},
                     )
                 except ValueError as exc:
                     raise DirectiveError(str(exc)) from exc
@@ -183,6 +186,18 @@ def _collect_clan_paren_args(
 
 def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
     """Reject directive combinations that would create two clan axes."""
+    if collected.name_clan_arg is not None and "clan" in collected.seen:
+        raise DirectiveError(
+            "Cannot combine %clan with %id(..., clan=...); a declaring prompt "
+            "uses %clan(<clan>, tribe=<tribe>) with a full %id:<clan>.<id>, "
+            "while a joining prompt uses only %id(<id>, clan=<clan>)."
+        )
+    if collected.name_clan_arg is not None and "tribe" in collected.seen:
+        raise DirectiveError(
+            "Cannot combine %tribe with %id(..., clan=...); joining a clan "
+            "joins its tribe. Put tribe= on the clan's %clan declaration "
+            "instead."
+        )
     if "clan" in collected.seen and "tribe" in collected.seen:
         raise DirectiveError(
             "Cannot combine %tribe with %clan; use "
@@ -239,6 +254,10 @@ def _collect_name_paren_args(
         )
     except ValueError as exc:
         raise DirectiveError(str(exc)) from exc
+    if parsed_name.clan is not None:
+        collected.name_clan_arg = parsed_name.clan
+    if parsed_name.force_reuse:
+        collected.name_force_reuse = True
     if parsed_name.family_parent is not None and parsed_name.family_suffix is not None:
         collected.name_family_args = (
             parsed_name.family_parent,

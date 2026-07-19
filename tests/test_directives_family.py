@@ -21,6 +21,7 @@ def test_clan_directive_parses_colon_name(source: str, clan: str) -> None:
 
     assert cleaned == "Do work"
     assert directives.clan == clan
+    assert directives.clan_declared is True
     assert directives.clan_tribe is None
 
 
@@ -32,6 +33,7 @@ def test_clan_directive_parses_parenthesized_tribe(directive: str) -> None:
 
     assert cleaned == "Do work"
     assert directives.clan == "research.@"
+    assert directives.clan_declared is True
     assert directives.clan_tribe == "research"
     assert directives.tag is None
 
@@ -43,6 +45,108 @@ def test_clan_directive_allows_plain_name_directive() -> None:
 
     assert directives.name == "research.worker"
     assert directives.clan == "research"
+
+
+@pytest.mark.parametrize(
+    ("source", "name", "clan"),
+    [
+        ("%id(worker, clan=research)", "research.worker", "research"),
+        ("%i(a.b, clan=review)", "review.a.b", "review"),
+    ],
+)
+def test_id_clan_keyword_derives_member_name(
+    source: str,
+    name: str,
+    clan: str,
+) -> None:
+    cleaned, directives = extract_prompt_directives(f"{source}\nDo work")
+
+    assert cleaned == "Do work"
+    assert directives.name == name
+    assert directives.name_explicit is True
+    assert directives.name_force_reuse is False
+    assert directives.clan == clan
+    assert directives.clan_declared is False
+    assert directives.clan_tribe is None
+
+
+def test_id_clan_keyword_preserves_force_reuse() -> None:
+    _, directives = extract_prompt_directives("%id(!worker, clan=research)\nDo work")
+
+    assert directives.name == "research.worker"
+    assert directives.name_force_reuse is True
+    assert directives.clan == "research"
+
+
+def test_id_clan_keyword_derives_template_metadata() -> None:
+    _, directives = extract_prompt_directives("%id(cld, clan=research.@)\nDo work")
+
+    assert directives.name == "research.@.cld"
+    assert directives.clan == "research.@"
+    assert directives.name_template == "research.@.cld"
+    assert directives.name_template_base == "research.cld"
+    assert directives.name_indexed_template is True
+    assert directives.name_indexed_base == "research.cld"
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("%id(clan=research)", "requires exactly one positional member id"),
+        ("%id(!, clan=research)", "requires a non-empty member id"),
+        ("%id(worker, clan=)", "requires a non-empty clan name"),
+        (
+            "%id(parent, reviewer, clan=research)",
+            "Cannot combine family attachment with clan membership",
+        ),
+        (
+            "%id(worker, clan=research, clan=other)",
+            "Duplicate keyword argument 'clan'",
+        ),
+        ("%id(worker, tribe=research)", "Unsupported keyword on %id: tribe="),
+    ],
+)
+def test_id_clan_keyword_rejects_invalid_argument_shapes(
+    source: str,
+    message: str,
+) -> None:
+    with pytest.raises(DirectiveError, match=message):
+        extract_prompt_directives(f"{source}\nDo work")
+
+
+def test_id_clan_keyword_rejects_multiple_template_markers() -> None:
+    with pytest.raises(DirectiveError, match="exactly one '@' marker"):
+        extract_prompt_directives("%id(@, clan=research.@)\nDo work")
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "%id(worker, clan=research)\n%tribe:review\nDo work",
+        "%tribe:review\n%i(worker, clan=research)\nDo work",
+    ],
+)
+def test_id_clan_keyword_conflicts_with_tribe(prompt: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"joining a clan joins its tribe.*Put tribe= on the clan's %clan",
+    ):
+        extract_prompt_directives(prompt)
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "%id(worker, clan=research)\n%clan:research\nDo work",
+        "%clan:research\n%i(worker, clan=research)\nDo work",
+    ],
+)
+def test_id_clan_keyword_conflicts_with_clan_declaration(prompt: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"Cannot combine %clan with %id\(\.\.\., clan=\.\.\.\)",
+    ):
+        extract_prompt_directives(prompt)
 
 
 @pytest.mark.parametrize("source", ["%clan", "%clan:"])

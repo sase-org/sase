@@ -56,7 +56,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
-    "id": ":agent-id or (parent, suffix)",
+    "id": ":agent-id, (id, clan=clan), or (parent, suffix)",
     "repeat": ":count",
     "tribe": ":name",
     "wait": ":agent or (agent, time=5m, runners=1)",
@@ -70,7 +70,7 @@ _DIRECTIVE_DESCRIPTIONS: dict[str, str] = {
     "effort": "set the reasoning-effort level for this prompt",
     "hide": "hide the agent from the default Agents tab",
     "model": "choose a model and optional launch-family alias overrides",
-    "id": "assign an agent id or attach a member to an existing family",
+    "id": "assign an agent id, join a clan, or attach to a family",
     "repeat": "run the prompt multiple serial iterations",
     "tribe": "assign a user-managed agent tribe",
     "wait": "defer launch for agents, a time floor, or a runner threshold",
@@ -109,6 +109,10 @@ _WAIT_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
 
 _CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
     ("tribe=", "assign one tribe to the entire clan"),
+)
+
+_ID_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
+    ("clan=", "derive the full name and join this agent clan"),
 )
 
 _TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")
@@ -166,6 +170,12 @@ def build_directive_arg_completion_candidates(
             partial,
             directive_name="clan",
             keywords=_CLAN_KEYWORD_ARGUMENTS,
+        )
+    if directive_name == "id_keyword":
+        return _build_keyword_completion_candidates(
+            partial,
+            directive_name="id",
+            keywords=_ID_KEYWORD_ARGUMENTS,
         )
     if directive_name == "model_or_alias_key":
         models, _ = _build_model_arg_completion_candidates(partial)

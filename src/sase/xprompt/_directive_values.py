@@ -227,15 +227,15 @@ def resolve_name_template(
     if not raw_name:
         return _NameTemplateInfo()
 
+    if "@" not in raw_name:
+        return _NameTemplateInfo()
+
     from sase.agent.names import (
         AgentNameTemplateError,
         agent_name_template_base,
-        is_agent_name_template,
         parse_agent_name_template,
     )
 
-    if not is_agent_name_template(raw_name):
-        return _NameTemplateInfo()
     if force_reuse:
         raise DirectiveError(
             "Cannot combine forced name reuse with an agent name template"
