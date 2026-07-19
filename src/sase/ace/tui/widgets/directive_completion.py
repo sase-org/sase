@@ -56,7 +56,7 @@ _DIRECTIVE_ARGUMENT_HINTS: dict[str, str] = {
     "effort": ":level",
     "hide": "flag",
     "model": ":model or (model, alias=model)",
-    "id": ":agent-id, (id, clan=clan), or (parent, suffix)",
+    "id": ":agent-id, (id, clan=clan), or (suffix, family=family)",
     "repeat": ":count",
     "tribe": ":name",
     "wait": ":agent or (agent, time=5m, runners=1)",
@@ -113,6 +113,7 @@ _CLAN_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
 
 _ID_KEYWORD_ARGUMENTS: tuple[tuple[str, str], ...] = (
     ("clan=", "derive the full name and join this agent clan"),
+    ("family=", "attach this suffix to an existing agent family"),
 )
 
 _TARGET_KIND_ORDER = ("tribe", "clan", "family", "agent")

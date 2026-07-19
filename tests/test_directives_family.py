@@ -97,13 +97,13 @@ def test_id_clan_keyword_derives_template_metadata() -> None:
         ("%id(worker, clan=)", "requires a non-empty clan name"),
         (
             "%id(parent, reviewer, clan=research)",
-            "Cannot combine family attachment with clan membership",
+            "positional family form",
         ),
         (
             "%id(worker, clan=research, clan=other)",
             "Duplicate keyword argument 'clan'",
         ),
-        ("%id(worker, tribe=research)", "Unsupported keyword on %id: tribe="),
+        ("%id(worker, tribe=research)", "tribe= keyword.*not supported yet"),
     ],
 )
 def test_id_clan_keyword_rejects_invalid_argument_shapes(
@@ -218,9 +218,12 @@ def test_clan_directive_rejects_duplicate_alias_occurrence() -> None:
 
 
 def test_clan_directive_conflicts_with_serial_family_attach() -> None:
-    prompt = "%i(parent, reviewer)\n%clan:parent\nDo work"
+    prompt = "%i(reviewer, family=parent)\n%clan:parent\nDo work"
 
-    with pytest.raises(DirectiveError, match="Cannot combine %clan with %i"):
+    with pytest.raises(
+        DirectiveError,
+        match=r"Cannot combine %clan with %id\(\.\.\., family=\.\.\.\)",
+    ):
         extract_prompt_directives(prompt)
 
 

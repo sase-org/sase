@@ -35,8 +35,8 @@ def test_execute_launch_plan_attaches_to_prior_in_batch_named_slot(
         "multi",
         [
             "%auto %i:foo\nPlan the change.",
-            "%i(foo, reviewer)\nReview foo's plan.",
-            "%i(foo, land)\nLand after review.",
+            "%i(reviewer, family=foo)\nReview foo's plan.",
+            "%i(land, family=foo)\nLand after review.",
         ],
     )
     plan = replace(
@@ -136,7 +136,7 @@ def test_multi_prompt_family_attach_can_reference_earlier_named_segment(
         results = launch_multi_prompt_agents(
             segments=[
                 "%i:foo\nPlan the change.",
-                "%i(foo, reviewer)\nReview foo's plan.",
+                "%i(reviewer, family=foo)\nReview foo's plan.",
             ],
             local_xprompts={},
             cl_name="feature",

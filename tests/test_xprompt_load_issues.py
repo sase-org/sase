@@ -48,7 +48,7 @@ def test_removed_agent_family_kind_raises_migration_error(tmp_path: Path) -> Non
 
     with pytest.raises(
         WorkflowValidationError,
-        match=r"no longer supported.*%i\(parent, suffix\).*LaunchApproval",
+        match=r"no longer supported.*%i\(suffix, family=parent\).*LaunchApproval",
     ):
         _load_workflow_from_file(definition)
 

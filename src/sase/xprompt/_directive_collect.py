@@ -205,7 +205,7 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
         )
     if "clan" in collected.seen and collected.name_family_args is not None:
         raise DirectiveError(
-            "Cannot combine %clan with %i(parent, suffix); choose clan "
+            "Cannot combine %clan with %id(..., family=...); choose clan "
             "membership or serial family attachment."
         )
 

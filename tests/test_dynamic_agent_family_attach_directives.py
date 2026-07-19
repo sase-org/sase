@@ -22,7 +22,7 @@ from sase.xprompt.directives import extract_prompt_directives
 
 
 def test_name_directive_family_attach_form_parses_and_strips() -> None:
-    cleaned, directives = extract_prompt_directives("%i(foo, reviewer)\nDo work")
+    cleaned, directives = extract_prompt_directives("%i(reviewer, family=foo)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.name is None
@@ -38,31 +38,72 @@ def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
     assert directives.family_attach_parent is None
 
 
-def test_name_directive_rejects_extra_positionals_and_keywords() -> None:
-    with pytest.raises(DirectiveError, match="at most two positional"):
+def test_name_directive_rejects_positional_family_form_and_unknown_keywords() -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"positional family form.*%id\(<suffix>, family=<parent>\)",
+    ):
+        extract_prompt_directives("%i(foo, reviewer)\nDo work")
+
+    with pytest.raises(DirectiveError, match="positional family form"):
         extract_prompt_directives("%i(foo, reviewer, extra)\nDo work")
 
-    with pytest.raises(DirectiveError, match="Unsupported keyword"):
+    with pytest.raises(
+        DirectiveError,
+        match=r"Only clan=, family=, and tribe= are supported",
+    ):
         extract_prompt_directives("%i(foo, run_status=DONE)\nDo work")
+
+
+def test_name_directive_family_keyword_requires_suffix_and_parent() -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"family=.*requires exactly one positional suffix.*%id\(@, family=",
+    ):
+        extract_prompt_directives("%id(family=foo)\nDo work")
+
+    with pytest.raises(DirectiveError, match="requires a non-empty family name"):
+        extract_prompt_directives("%id(reviewer, family=)\nDo work")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "%id(worker, clan=research, family=foo)",
+        "%id(worker, clan=research, tribe=review)",
+        "%id(worker, family=foo, tribe=review)",
+    ],
+)
+def test_name_directive_identity_keywords_are_mutually_exclusive(source: str) -> None:
+    with pytest.raises(
+        DirectiveError,
+        match=r"clan=, family=, and tribe=.*mutually exclusive",
+    ):
+        extract_prompt_directives(f"{source}\nDo work")
+
+
+def test_name_directive_tribe_keyword_is_reserved_for_followup_phase() -> None:
+    with pytest.raises(DirectiveError, match=r"tribe=.*not supported yet"):
+        extract_prompt_directives("%id(worker, tribe=research)\nDo work")
 
 
 def test_name_directive_rejects_legacy_family_suffix_spellings() -> None:
     with pytest.raises(DirectiveError, match="without a family separator"):
-        extract_prompt_directives("%i(foo, .reviewer)\nDo work")
+        extract_prompt_directives("%i(.reviewer, family=foo)\nDo work")
 
     with pytest.raises(DirectiveError, match="without a family separator"):
-        extract_prompt_directives("%i(foo, -reviewer)\nDo work")
+        extract_prompt_directives("%i(-reviewer, family=foo)\nDo work")
 
 
 def test_prelaunch_name_helpers_ignore_family_attach_form() -> None:
-    prompt = "%i(foo, reviewer)\nDo work"
+    prompt = "%i(reviewer, family=foo)\nDo work"
 
     assert extract_static_name_directive(prompt) is None
     validate_launch_name_requests([prompt])
 
 
 def test_extract_family_attach_directive() -> None:
-    directive = extract_family_attach_directive("%model:codex/gpt-5\n%i(foo, @)")
+    directive = extract_family_attach_directive("%model:codex/gpt-5\n%i(@, family=foo)")
 
     assert directive == FamilyAttachDirective(parent="foo", suffix="@")
 
@@ -73,7 +114,7 @@ def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
     default_with_feedback_parent_from_family_attach(
         "with_feedback",
         args,
-        prompt="%i(foo, @) #with_feedback:: tighten tests",
+        prompt="%i(@, family=foo) #with_feedback:: tighten tests",
     )
 
     assert args["parent"] == "foo"
@@ -107,7 +148,7 @@ def test_family_attach_collision_message_suggests_auto_suffix() -> None:
     from sase.agent._family_attach_resolution import _ensure_family_name_available
 
     with patch("sase.agent.names.get_reserved_agent_names", return_value={"foo--bar"}):
-        with pytest.raises(FamilyAttachError, match=r"%i\(foo, @\)"):
+        with pytest.raises(FamilyAttachError, match=r"%i\(@, family=foo\)"):
             _ensure_family_name_available(
                 "foo--bar",
                 FamilyAttachDirective(parent="foo", suffix="bar"),

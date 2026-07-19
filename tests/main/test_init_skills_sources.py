@@ -146,7 +146,7 @@ from tests.main.init_skills_handler_helpers import make_args
                 '"status": "approved"',
                 '"selected_option_ids": ["approve"]',
                 "do not poll request files yourself",
-                "%i(parent, reviewer)",
+                "%i(reviewer, family=parent)",
                 "Do not run `sase run`",
                 "#git:home",
                 "%w(",

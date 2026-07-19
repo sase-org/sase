@@ -39,7 +39,8 @@ log = logging.getLogger(__name__)
 
 _REMOVED_AGENT_FAMILY_KIND_ERROR = (
     "kind: agent_family is no longer supported; attach family members manually "
-    "with %i(parent, suffix). Agent-initiated family launches use LaunchApproval."
+    "with %i(suffix, family=parent). Agent-initiated family launches use "
+    "LaunchApproval."
 )
 
 

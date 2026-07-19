@@ -361,7 +361,7 @@ def test_with_feedback_xprompt_defaults_parent_from_family_attach(
     )
 
     expanded, workflows = expand_embedded_workflows_in_query(
-        "%i(parent_agent, @) #with_feedback:: Add failure handling"
+        "%i(@, family=parent_agent) #with_feedback:: Add failure handling"
     )
     cleaned, directives = extract_prompt_directives(expanded)
     expected, _ = extract_prompt_directives(
@@ -402,9 +402,9 @@ def test_with_feedback_parent_default_is_multi_prompt_segment_local(
     )
 
     expanded, workflows = expand_embedded_workflows_in_query(
-        "%i(parent_one, @) unrelated segment\n"
+        "%i(@, family=parent_one) unrelated segment\n"
         "---\n"
-        "%i(parent_two, @) #with_feedback:: Add launch-prep coverage"
+        "%i(@, family=parent_two) #with_feedback:: Add launch-prep coverage"
     )
 
     assert "Original parent two prompt" in expanded
@@ -427,7 +427,7 @@ def test_with_q_and_a_xprompt_composes_with_family_attach_directive(
     qa_file.write_text(json.dumps(payload), encoding="utf-8")
 
     expanded, workflows = expand_embedded_workflows_in_query(
-        f"%i(parent_agent, @) #with_q_and_a(qa_file={qa_file}):: Base prompt"
+        f"%i(@, family=parent_agent) #with_q_and_a(qa_file={qa_file}):: Base prompt"
     )
     cleaned, directives = extract_prompt_directives(expanded)
     expected, _ = extract_prompt_directives(

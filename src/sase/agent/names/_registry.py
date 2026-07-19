@@ -432,7 +432,7 @@ def _raise_container_name_collision(name: str, entry: dict[str, Any]) -> None:
         )
     raise NameCollisionError(
         f"agent name '{name}' is reserved for agent family '{name}'; "
-        "attach a member with %i(parent, suffix) instead"
+        "attach a member with %i(suffix, family=parent) instead"
     )
 
 

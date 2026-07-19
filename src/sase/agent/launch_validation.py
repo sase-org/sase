@@ -65,7 +65,7 @@ class _AgentNameFamilyCollisionError(_LaunchNameValidationError):
         self.name = name
         super().__init__(
             f"Agent name '{name}' is reserved for agent family '{name}'. "
-            "Attach a member with %i(parent, suffix) instead."
+            "Attach a member with %i(suffix, family=parent) instead."
         )
 
 

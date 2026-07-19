@@ -16,7 +16,7 @@ Write a JSON request file:
 ```json
 {
   "schema_version": 1,
-  "prompt": "%i(parent, reviewer)\nReview the proposed implementation and report issues.",
+  "prompt": "%i(reviewer, family=parent)\nReview the proposed implementation and report issues.",
   "reason": "Need a reviewer family member before continuing.",
   "approval": "required",
   "max_slots": 1
@@ -52,8 +52,8 @@ Prompts that are not family attachments should normally start with a VCS workspa
 - `<ref>` is usually a project name (`#gh:sase`). Use a ChangeSpec name (`#gh:my_change`) only when the agent must
   continue that existing PR branch, or `#gh:@agent` to target the ChangeSpec created by the named agent.
 - A prompt with no workspace reference defaults to `#git:home`, which is usually wrong for repo work.
-- Family-attach launches (`%i(parent, suffix)`) inherit the parent's workspace and ChangeSpec; do not add a workspace
-  reference to them.
+- Family-attach launches (`%i(suffix, family=parent)`) inherit the parent's workspace and ChangeSpec; do not add a
+  workspace reference to them.
 
 ### Wait Directive
 
@@ -100,12 +100,12 @@ you intended.
 To attach the approved launch to an existing family, put the family directive in the requested prompt:
 
 ```text
-%i(parent, reviewer)
+%i(reviewer, family=parent)
 Review the current result and report whether it is ready.
 ```
 
-Use `%i(parent, @)` only when the next free feedback suffix is acceptable. Use a concrete suffix such as
-`%i(parent, tester)` when the role matters.
+Use `%i(@, family=parent)` only when the next free feedback suffix is acceptable. Use a concrete suffix such as
+`%i(tester, family=parent)` when the role matters.
 
 ## Parallel Clan Members
 

@@ -125,7 +125,7 @@ def _write_tui_launch_request(
     launch_cwd: Path,
     *,
     request_id: str = "launch-dispatch",
-    prompt: str = "%i(foo, reviewer)\nDo work",
+    prompt: str = "%i(reviewer, family=foo)\nDo work",
 ) -> None:
     response_dir.mkdir()
     launch_cwd.mkdir()
@@ -399,7 +399,7 @@ def test_create_launch_request_writes_preview_and_notification(
     result = create_launch_approval_request(
         {
             "schema_version": 1,
-            "prompt": "%i(foo, reviewer)\nDo work",
+            "prompt": "%i(reviewer, family=foo)\nDo work",
             "reason": "Need reviewer follow-up",
             "approval": "required",
             "max_slots": 1,
@@ -416,7 +416,7 @@ def test_create_launch_request_writes_preview_and_notification(
     assert written["launch_request"]["reason"] == "Need reviewer follow-up"
     assert written["dispatch"] == {
         "cwd": str(tmp_path),
-        "prompt": "%i(foo, reviewer)\nDo work",
+        "prompt": "%i(reviewer, family=foo)\nDo work",
     }
     assert envelope["query"] == "approve OR reject OR feedback"
     assert envelope["primary_branch"] == ["approve"]
@@ -622,7 +622,7 @@ def test_approve_launch_response_dispatches_stored_request(
                 "request_id": "launch-dispatch",
                 "dispatch": {
                     "cwd": str(launch_cwd),
-                    "prompt": "%i(foo, reviewer)\nDo work",
+                    "prompt": "%i(reviewer, family=foo)\nDo work",
                 },
             }
         ),
@@ -652,7 +652,7 @@ def test_approve_launch_response_dispatches_stored_request(
         result = execute_launch_approval_response(context, "approve")
 
     assert seen == {
-        "prompt": "%i(foo, reviewer)\nDo work",
+        "prompt": "%i(reviewer, family=foo)\nDo work",
         "cwd": launch_cwd,
     }
     assert result.launched_count == 1
@@ -707,7 +707,7 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
         )
 
     assert seen == {
-        "prompt": "%i(foo, reviewer)\nDo work",
+        "prompt": "%i(reviewer, family=foo)\nDo work",
         "cwd": launch_cwd,
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {

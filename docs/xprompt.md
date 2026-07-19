@@ -893,20 +893,21 @@ SASE ships two embeddable follow-up prompt workflows for manual family rounds:
 | `#with_feedback` | `feedback`, optional `parent` | Append plan feedback using the same replan prompt renderer as the runner |
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
-Both xprompts only assemble prompt text; `%i(parent, suffix)` is the launch directive that attaches the new agent to the
-family. See [Agent Clans, Families, and Tribes](agent_families.md) for the full attachment and launch-approval model.
+Both xprompts only assemble prompt text; `%i(suffix, family=parent)` is the launch directive that attaches the new agent
+to the family. See [Agent Clans, Families, and Tribes](agent_families.md) for the full attachment and launch-approval
+model.
 
-For feedback, pass `parent=` explicitly or combine it with `%i(parent, suffix)` and let SASE infer the parent:
+For feedback, pass `parent=` explicitly or combine it with `%i(suffix, family=parent)` and let SASE infer the parent:
 
 ```text
-%i(planner, @) #with_feedback:: Add failure handling before coding.
-%i(planner, reviewer) #with_feedback(parent=planner):: Re-check the API shape.
+%i(@, family=planner) #with_feedback:: Add failure handling before coding.
+%i(reviewer, family=planner) #with_feedback(parent=planner):: Re-check the API shape.
 ```
 
 For Q&A, provide a JSON file containing one or more answered question rounds:
 
 ```text
-%i(planner, @) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+%i(@, family=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
 ```
 
 The Q&A file should use the same structured request/response shape SASE writes for user questions: `questions` plus a
@@ -1034,8 +1035,8 @@ Directives use the same argument syntax as xprompt references:
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %id:reviewer               # Short-form
 %i:reviewer                  # Same, using alias
-%i(parent, reviewer)         # Attach parent--reviewer to parent's family
-%i(parent, @)                # Attach the next free feedback/Q&A suffix
+%i(reviewer, family=parent)  # Attach parent--reviewer to parent's family
+%i(@, family=parent)         # Attach the next free feedback/Q&A suffix
 %id(worker, clan=research)   # Derive research.worker and join clan research
 %id(!worker, clan=research)  # Same derived name, with forced reuse
 %id                        # Bare — auto-generates a unique name
@@ -1113,10 +1114,10 @@ without `@`; values may be concrete models, `provider/model` targets, quoted tar
 alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
-carries it through its plan/coder follow-up path. An explicit `%id(parent, suffix)` attachment inherits the parent's map
-when its prompt supplies no alias keywords; a prompt with its own keywords uses that new map. Ordinary nested launches
-do not inherit the map. This lineage often overlaps an [Agent Family](agent_families.md), but the terms are not
-interchangeable.
+carries it through its plan/coder follow-up path. An explicit `%id(suffix, family=parent)` attachment inherits the
+parent's map when its prompt supplies no alias keywords; a prompt with its own keywords uses that new map. Ordinary
+nested launches do not inherit the map. This lineage often overlaps an [Agent Family](agent_families.md), but the terms
+are not interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and the configured or implicit alias
 value. A generic `coder` entry also controls a provider-specific alias such as `claude_coder` unless the map contains
@@ -1132,9 +1133,8 @@ split off the clean model and behaves exactly like a standalone `%effort` direct
 
 The `%id` and `%wait` directives can be used without arguments. Bare `%id` auto-generates a permanent unique name for
 the agent. `%id(<id>, clan=<clan>)` derives the full `<clan>.<id>` name and requests membership in that clan. Dotted ids
-are allowed, and a leading `!` forces reuse of the derived name. This form takes exactly one positional id and cannot be
-combined with the two-positional family-attachment form. Bare `%wait` resolves to the most recently named agent (raises
-an error if no previous agent exists).
+are allowed, and a leading `!` forces reuse of the derived name. The `clan=` and `family=` keywords are mutually
+exclusive. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
 Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
 from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,
@@ -1151,11 +1151,11 @@ numeric suffix such as `<name>1`. To deliberately reuse a name, use `%id:!<name>
 explicit confirmation to wipe the previous owner and its persisted system state before launching the new agent with that
 name. Non-TUI launch surfaces reject `%id:!<name>` unless they provide an explicit confirmation path.
 
-The two-argument `%i(parent, suffix)` form attaches a new agent to a sequential family. On the first attachment, SASE
+The `%i(<suffix>, family=<parent>)` form attaches a new agent to a sequential family. On the first attachment, SASE
 renames the original agent with its own `--<role>` suffix and reserves the bare base name as a pure family container;
 generic originals become `--0`, while plan proposers become `--plan`. SASE then names the new member
 `<family-base>--<suffix>`, writes the normal family metadata, and strips the directive before the model sees the prompt.
-The suffix argument is a bare token: write `%i(foo, reviewer)`, not `%i(foo, --reviewer)`.
+The positional suffix is a bare token: write `%i(reviewer, family=foo)`, not `%i(--reviewer, family=foo)`.
 
 Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family roles and status labels. Numeric
 suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric suffixes such as
@@ -1167,14 +1167,14 @@ If the parent is still running, the new family member appears immediately as a W
 parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued member is cancelled to
 `STOPPED` and SASE sends a completion notification explaining the failed dependency. If the parent is absent, ambiguous,
 dismissed, or the composed child name already exists, launch preparation fails before spawning the child; collision
-errors suggest `%i(parent, @)`.
+errors suggest `%i(@, family=parent)`.
 
 The family-attach form works from every normal user launch surface because the constraint check runs in shared launch
-preparation. In a multi-agent prompt, `%i(parent, suffix)` may reference a parent explicitly named in an earlier `---`
-segment of the same prompt, such as `%i:foo` followed by `%i(foo, reviewer)`. The in-batch parent is treated as a
-running parent: the member queues as a WAITING child and starts when that exact parent artifact completes successfully.
-This same-prompt lookup is limited to earlier static names; template-named and auto-named parents still require the
-parent artifact to exist before they can be used as `%i(parent, suffix)` targets.
+preparation. In a multi-agent prompt, `%i(suffix, family=parent)` may reference a parent explicitly named in an earlier
+`---` segment of the same prompt, such as `%i:foo` followed by `%i(reviewer, family=foo)`. The in-batch parent is
+treated as a running parent: the member queues as a WAITING child and starts when that exact parent artifact completes
+successfully. This same-prompt lookup is limited to earlier static names; template-named and auto-named parents still
+require the parent artifact to exist before they can be used as `%i(suffix, family=parent)` targets.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a clan name, every member of its newest generation must complete successfully; for a family or multi-agent workflow

@@ -87,7 +87,7 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
         ],
     )
 
-    prompt = "%i(foo, code)\nDo work"
+    prompt = "%i(code, family=foo)\nDo work"
     prepared_context, env = prepare_family_attach_launch(
         prompt,
         LaunchExecutionContext(
@@ -231,7 +231,7 @@ def test_family_attach_child_inherits_parent_clan_metadata(
         parent_agent_clan="research",
         parent_agent_clan_generation="20260701010000",
     )
-    prompt = "%i(research.worker, reviewer)\nReview"
+    prompt = "%i(reviewer, family=research.worker)\nReview"
     monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
@@ -270,7 +270,7 @@ def test_family_attach_child_inherits_parent_clan_metadata(
 
     conflict_dir = tmp_path / "conflict-child"
     conflict_dir.mkdir()
-    conflict_prompt = "%i(research.worker, reviewer)\n%tribe:solo\nReview"
+    conflict_prompt = "%i(reviewer, family=research.worker)\n%tribe:solo\nReview"
     with (
         patch("sase.agent.names.ensure_historical_auto_name_migration"),
         patch(

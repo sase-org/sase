@@ -261,15 +261,13 @@ def _extract_id_paren_arg_token(
     col: int,
     open_index: int,
 ) -> tuple[int, int, str, str] | None:
-    """Extract the keyword fragment after an ``%id(<id>, ...)`` comma."""
+    """Extract an ``%id(...)`` keyword fragment in any argument slot."""
     value_start = open_index + 1
     prefix = line[value_start:col]
     if ")" in prefix:
         return None
     comma_index = line.rfind(",", value_start, col)
-    if comma_index < value_start:
-        return None
-    fragment_start = comma_index + 1
+    fragment_start = comma_index + 1 if comma_index >= value_start else value_start
     while fragment_start < col and line[fragment_start].isspace():
         fragment_start += 1
     fragment = line[fragment_start:col]

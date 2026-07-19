@@ -2016,8 +2016,8 @@ Epic:
   selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
-commit location and follow-up behavior. Additional family members are launched explicitly with `%i(parent, suffix)`;
-they are not selected at the plan gate.
+commit location and follow-up behavior. Additional family members are launched explicitly with
+`%i(suffix, family=parent)`; they are not selected at the plan gate.
 
 ## Launch Approval
 

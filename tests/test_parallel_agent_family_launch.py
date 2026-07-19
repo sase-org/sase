@@ -297,7 +297,7 @@ def test_joiners_only_create_then_reuse_clan_generation(
         ),
         (
             "%id(parent, worker, clan=root)\nWork",
-            "Cannot combine family attachment with clan membership",
+            "positional family form",
         ),
         (
             "%id(clan=root)\nWork",

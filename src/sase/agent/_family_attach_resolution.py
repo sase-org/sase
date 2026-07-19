@@ -115,7 +115,8 @@ def resolve_family_attach_plan(
     if agent_name == parent_family_member_name:
         raise _types.FamilyAttachError(
             f"Agent family member '{agent_name}' is reserved for the original "
-            f"parent. Use %i({directive.parent}, @) to allocate the next free suffix."
+            f"parent. Use %i(@, family={directive.parent}) to allocate the next "
+            "free suffix."
         )
     _ensure_family_name_available(
         agent_name,
@@ -256,7 +257,7 @@ def _ensure_family_name_available(
     if agent_name in known_names:
         raise _types.FamilyAttachError(
             f"Agent {member_kind} '{agent_name}' already exists. "
-            f"Use %i({directive.parent}, @) to allocate the next free suffix."
+            f"Use %i(@, family={directive.parent}) to allocate the next free suffix."
         )
 
 

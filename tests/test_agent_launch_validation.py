@@ -107,7 +107,7 @@ def test_collision_validation_preserves_family_container(tmp_path: Path) -> None
         convert_registered_agent_to_family("review", "review--0", artifacts_dir)
         with pytest.raises(
             AgentNameFamilyCollisionError,
-            match=r"Attach a member with %i\(parent, suffix\)",
+            match=r"Attach a member with %i\(suffix, family=parent\)",
         ):
             validate_launch_name_requests(["%id:review\nDo work"])
         with pytest.raises(

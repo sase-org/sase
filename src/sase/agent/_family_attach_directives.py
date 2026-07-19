@@ -1,4 +1,4 @@
-"""Directive parsing helpers for ``%i(parent, suffix)`` family attach."""
+"""Directive parsing helpers for ``%id(suffix, family=parent)`` attach."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from sase.agent import _family_attach_types as _types
 from sase.plan_chain import AGENT_FAMILY_SEPARATOR
 
 _SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
+_NAME_DIRECTIVE_KEYWORDS = frozenset({"clan", "family", "tribe"})
 
 
 def parse_name_directive_args(
@@ -19,21 +20,32 @@ def parse_name_directive_args(
 ) -> _types.ParsedNameDirective:
     """Classify ``%id`` / ``%i`` arguments as plain naming or family attach."""
 
-    unknown_keys = sorted(key for key in named_args if key != "clan")
+    unknown_keys = sorted(
+        key for key in named_args if key not in _NAME_DIRECTIVE_KEYWORDS
+    )
     if unknown_keys:
         keys = ", ".join(f"{key}=" for key in unknown_keys)
         raise ValueError(
-            f"Unsupported keyword on {source}: {keys}. Only clan= is supported."
+            f"Unsupported keyword on {source}: {keys}. Only clan=, family=, "
+            "and tribe= are supported."
         )
+    selected_keywords = sorted(
+        key for key in _NAME_DIRECTIVE_KEYWORDS if key in named_args
+    )
+    if len(selected_keywords) > 1:
+        raise ValueError(
+            "The clan=, family=, and tribe= keywords on %id are mutually "
+            "exclusive; set at most one."
+        )
+    if len(positional_args) > 1:
+        raise ValueError(
+            "The positional family form on %id is no longer supported; use "
+            "%id(<suffix>, family=<parent>) instead."
+        )
+
     clan = named_args.get("clan")
     if clan is not None:
         if len(positional_args) != 1:
-            if len(positional_args) == 2:
-                raise ValueError(
-                    f"Cannot combine family attachment with clan membership on "
-                    f"{source}; use %i(parent, suffix) or "
-                    "%id(<id>, clan=<clan>)."
-                )
             raise ValueError(
                 f"The clan= keyword on {source} requires exactly one positional "
                 "member id, e.g. %id(worker, clan=research)."
@@ -55,20 +67,34 @@ def parse_name_directive_args(
             clan=clan,
             force_reuse=force_reuse,
         )
-    if len(positional_args) > 2:
-        raise ValueError(
-            f"{source} accepts at most two positional arguments. "
-            "Use %i(parent, suffix) for family attach."
-        )
-    if len(positional_args) == 2:
-        parent, suffix = (arg.strip() for arg in positional_args)
-        if not parent or not suffix:
-            raise ValueError("%i(parent, suffix) requires both parent and suffix.")
+
+    family = named_args.get("family")
+    if family is not None:
+        if len(positional_args) != 1:
+            raise ValueError(
+                f"The family= keyword on {source} requires exactly one positional "
+                "suffix; use %id(<suffix>, family=<family>) or "
+                "%id(@, family=<family>)."
+            )
+        parent = family.strip()
+        suffix = positional_args[0].strip()
+        if not parent:
+            raise ValueError(
+                f"The family= keyword on {source} requires a non-empty family name."
+            )
+        if not suffix:
+            raise ValueError(
+                f"The family= keyword on {source} requires a non-empty suffix."
+            )
         normalize_family_suffix_arg(suffix)
         return _types.ParsedNameDirective(
             family_parent=parent,
             family_suffix=suffix,
         )
+
+    if "tribe" in named_args:
+        raise ValueError(f"The tribe= keyword on {source} is not supported yet.")
+
     return _types.ParsedNameDirective(
         plain_name=positional_args[0] if positional_args else "",
     )
@@ -117,7 +143,7 @@ def extract_family_attach_directive(
 
 
 def _family_attach_parent_from_prompt(prompt: str) -> str | None:
-    """Return the parent named by a top-level ``%i(parent, suffix)`` directive."""
+    """Return the parent named by a top-level ``%id(suffix, family=parent)``."""
     directive = extract_family_attach_directive(prompt)
     return None if directive is None else directive.parent
 
@@ -174,7 +200,7 @@ def normalize_family_suffix_arg(suffix: str) -> str:
     if suffix.startswith((".", "-")) or AGENT_FAMILY_SEPARATOR in suffix:
         raise ValueError(
             f"Invalid %i family suffix '{suffix}'. Pass the bare suffix "
-            "without a family separator, e.g. %i(parent, reviewer)."
+            "without a family separator, e.g. %i(reviewer, family=parent)."
         )
     if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
         raise ValueError(

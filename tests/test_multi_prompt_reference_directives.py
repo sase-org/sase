@@ -27,6 +27,10 @@ def test_static_name_extraction_derives_clan_member_name(
     assert extract_static_name_directive(f"{source}\nDo work") == expected
 
 
+def test_static_name_extraction_ignores_family_keyword_form() -> None:
+    assert extract_static_name_directive("%id(reviewer, family=foo)\nDo work") is None
+
+
 def test_static_clan_extraction_marks_id_keyword_as_joiner() -> None:
     directive = extract_static_clan_directive("%id(worker, clan=research)\nDo work")
 

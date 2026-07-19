@@ -5,7 +5,7 @@ SASE uses three different kinds of agent grouping:
 | Concept          | Directive or naming form                  | Purpose                                                              |
 | ---------------- | ----------------------------------------- | -------------------------------------------------------------------- |
 | **Agent clan**   | `%clan:<name>` / `%id(<id>, clan=<name>)` | Declare or join a named, rootless container for parallel agents      |
-| **Agent family** | `%i(parent, suffix)`                      | A strictly sequential chain named `<family>--<suffix>`               |
+| **Agent family** | `%i(<suffix>, family=<parent>)`           | A strictly sequential chain named `<family>--<suffix>`               |
 | **Agent tribe**  | `%tribe:<name>` / `%t:<name>`             | A user-managed label displayed with an `@` prefix, such as `@review` |
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. A deeper name
@@ -39,9 +39,9 @@ id, allows dotted ids, and accepts a leading `!` for forced reuse. Static names 
 `%id(cld, clan=research.@)` work; the derived `research.@.cld` name flows through normal template allocation.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose a workspace or model, or
-otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The two-positional
-family-attachment form `%i(parent, suffix)` cannot include `clan=`, and a joining `%id(..., clan=...)` cannot be
-combined with `%clan` or `%tribe` in the same segment.
+otherwise rewrite launch behavior. Use `%wait` explicitly wherever ordering is required. The `family=` keyword and
+`clan=` keyword on `%id` are mutually exclusive, and a joining `%id(..., clan=...)` cannot be combined with `%clan` or
+`%tribe` in the same segment.
 
 The clan name is permanently reserved as a container name and cannot also belong to an agent. Each member must be named
 `<clan>.<suffix>`; launch planning rejects an out-of-hood name before spawning it. A clan may contain ordinary agents,
@@ -113,8 +113,8 @@ the epic clan already exists during a re-work, every phase and land segment uses
 
 ## Sequential Agent Families
 
-An agent family is a strictly sequential chain. A family is created only when `%i(parent, suffix)` attaches the first
-follow-up to an existing agent. At that point SASE renames the original agent with its own `--<role>` suffix and
+An agent family is a strictly sequential chain. A family is created only when `%i(suffix, family=parent)` attaches the
+first follow-up to an existing agent. At that point SASE renames the original agent with its own `--<role>` suffix and
 reserves the bare base name as a pure family container. Generic originals become `<family>--0`; plan proposers use
 `<family>--plan`. Because creation requires an attachment, a family always has at least two members.
 
@@ -122,13 +122,13 @@ For example, attaching a reviewer to agent `foo` creates family `foo`, renames t
 new member `foo--reviewer`:
 
 ```text
-%i(foo, reviewer) Review the diff produced by this family.
-%i(foo, tester) Run the focused tests and report any failures.
-%i(planner, @) #with_feedback:: Add failure handling before coding.
+%i(reviewer, family=foo) Review the diff produced by this family.
+%i(tester, family=foo) Run the focused tests and report any failures.
+%i(@, family=planner) #with_feedback:: Add failure handling before coding.
 ```
 
-The suffix is a bare token: write `%i(foo, reviewer)`, not `%i(foo, --reviewer)`. `%i(foo, @)` allocates the next free
-numeric suffix.
+The positional suffix is a bare token: write `%i(reviewer, family=foo)`, not `%i(--reviewer, family=foo)`.
+`%i(@, family=foo)` allocates the next free numeric suffix.
 
 Every family member has an `agent_family_role` derived from its suffix:
 
@@ -148,9 +148,9 @@ successfully. If the parent fails, stops, or is killed, the queued member become
 notification.
 
 If the parent is missing, ambiguous, or dismissed, or the composed member name already exists, launch preparation fails
-before spawning the member. Collision errors suggest `%i(parent, @)`. `%wait:<family>` and `#fork` references to the
-bare family name resolve through the family container; an exact `--<suffix>` name targets one member. A member attached
-to an agent already inside a clan inherits that clan membership.
+before spawning the member. Collision errors suggest `%i(@, family=parent)`. `%wait:<family>` and `#fork` references to
+the bare family name resolve through the family container; an exact `--<suffix>` name targets one member. A member
+attached to an agent already inside a clan inherits that clan membership.
 
 ### Family detail folding
 
@@ -170,8 +170,8 @@ sections are omitted, while reply rows for members that have not responded yet r
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%i` performs the attachment:
 
 ```text
-%i(planner, @) #with_feedback:: Add failure handling before coding.
-%i(planner, @) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+%i(@, family=planner) #with_feedback:: Add failure handling before coding.
+%i(@, family=planner) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
 ```
 
 The full directive grammar is documented under [XPrompt directives](xprompt.md#supported-directives).
@@ -183,7 +183,7 @@ A later segment can attach to a statically named parent from an earlier segment:
 ```text
 %i:foo Plan the change.
 ---
-%i(foo, reviewer) Review foo's plan.
+%i(reviewer, family=foo) Review foo's plan.
 ```
 
 The attached member waits for the in-batch parent to complete successfully. This lookup supports earlier static names
@@ -290,7 +290,7 @@ prefix; they do not pin the eventual clan or tribe fork source. See
 ## Agent-Initiated Family Launches
 
 User-initiated launches are direct: prompts submitted through normal launch surfaces, including prompts containing
-`%i(parent, suffix)`, do not require launch approval.
+`%i(suffix, family=parent)`, do not require launch approval.
 
 When a **running agent** requests another launch, SASE creates a typed `LaunchApproval` request and spawns nothing until
 a human approves it. Agents use the generated `/sase_run` skill and submit a structured request:
@@ -299,10 +299,10 @@ a human approves it. Agents use the generated `/sase_run` skill and submit a str
 sase launch request -f launch_request.json -o json
 ```
 
-The request may contain `%i(parent, suffix)` in its prompt, so the approved launch joins an existing family with any
-valid suffix. `launch_preview.md` shows the resolved launch plan before approval. Inside an agent, the request command
-waits mechanically and returns one JSON outcome for approval, rejection, feedback, dispatch failure, cancellation, or
-timeout; the agent does not poll response files.
+The request may contain `%i(suffix, family=parent)` in its prompt, so the approved launch joins an existing family with
+any valid suffix. `launch_preview.md` shows the resolved launch plan before approval. Inside an agent, the request
+command waits mechanically and returns one JSON outcome for approval, rejection, feedback, dispatch failure,
+cancellation, or timeout; the agent does not poll response files.
 
 Approve or reject from ACE, or use:
 
