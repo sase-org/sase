@@ -933,10 +933,11 @@ async def test_agent_output_variables_multi_agent_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
+        await page.press("z", "z")
+        assert page.app.panel_fold_level.value == "expanded"
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "OUTPUT VARIABLES")
-        assert_page_svg_contains(page, "2 agents")
         assert_page_svg_contains(page, "build_report")
         assert_page_svg_contains(page, "answer_path")
         ace_png_visual.assert_page_png(

@@ -72,6 +72,20 @@ async def test_epic_clan_panel_png_snapshots(
             title="ACE epic clan panel fold level 3",
         )
 
+        container_identity = page.app._agents[page.app.current_idx].identity
+        await page.press("1")
+        await page.wait_for(
+            lambda _state: (
+                page.app._agents[page.app.current_idx].agent_name == "sase-6n.phase-tui"
+            )
+        )
+        await page.press("apostrophe", "apostrophe")
+        await page.wait_for(
+            lambda _state: (
+                page.app._agents[page.app.current_idx].identity == container_identity
+            )
+        )
+
 
 async def test_swarm_clan_panel_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
