@@ -9,6 +9,7 @@ from .chop_env import ChopEnvValue
 
 DEFAULT_LUMBERJACK_LOG_MAX_BYTES = 50 * 1024 * 1024
 DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS = 5 * 60
+DEFAULT_LUMBERJACK_RESTART_BACKOFF_MAX_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,9 @@ class AxeConfig:
     lumberjack_log_max_bytes: int = DEFAULT_LUMBERJACK_LOG_MAX_BYTES
     lumberjack_log_temp_max_age_seconds: int = (
         DEFAULT_LUMBERJACK_LOG_TEMP_MAX_AGE_SECONDS
+    )
+    lumberjack_restart_backoff_max_seconds: int = (
+        DEFAULT_LUMBERJACK_RESTART_BACKOFF_MAX_SECONDS
     )
     verbose_lumberjack_diagnostics: bool = False
     query: str = ""

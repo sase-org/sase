@@ -167,16 +167,17 @@ configuration reference.
 
 ### Global Settings
 
-| Setting                               | Default  | Description                                               |
-| ------------------------------------- | -------- | --------------------------------------------------------- |
-| `max_hook_runners`                    | 3        | Concurrent hook runners allowed globally                  |
-| `max_agent_runners`                   | 3        | Concurrent agent runners allowed globally                 |
-| `zombie_timeout_seconds`              | 7200     | Timeout for marking jobs as zombie                        |
-| `query`                               | `""`     | Optional query filter for all changespecs                 |
-| `chop_script_dirs`                    | `[]`     | Directories to search for chop scripts                    |
-| `lumberjack_log_max_bytes`            | 52428800 | Maximum bytes retained for each bounded lumberjack log    |
-| `lumberjack_log_temp_max_age_seconds` | 300      | Age before orphaned log-rotation temp files may be reaped |
-| `verbose_lumberjack_diagnostics`      | false    | Include verbose diagnostics in chop script context JSON   |
+| Setting                                  | Default  | Description                                               |
+| ---------------------------------------- | -------- | --------------------------------------------------------- |
+| `max_hook_runners`                       | 3        | Concurrent hook runners allowed globally                  |
+| `max_agent_runners`                      | 3        | Concurrent agent runners allowed globally                 |
+| `zombie_timeout_seconds`                 | 7200     | Timeout for marking jobs as zombie                        |
+| `query`                                  | `""`     | Optional query filter for all changespecs                 |
+| `chop_script_dirs`                       | `[]`     | Directories to search for chop scripts                    |
+| `lumberjack_log_max_bytes`               | 52428800 | Maximum bytes retained for each bounded lumberjack log    |
+| `lumberjack_log_temp_max_age_seconds`    | 300      | Age before orphaned log-rotation temp files may be reaped |
+| `lumberjack_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing lumberjack   |
+| `verbose_lumberjack_diagnostics`         | false    | Include verbose diagnostics in chop script context JSON   |
 
 The `query` setting uses the same ChangeSpec query language as ACE. CLI flags on `sase axe start` and
 `sase axe lumberjack run` override the configured query, runner limits, and zombie timeout for that process.

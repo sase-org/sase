@@ -1,8 +1,10 @@
 """Tests for the Orchestrator class."""
 
 import io
+import os
 import signal
 import subprocess
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -93,6 +95,144 @@ def test_stream_child_output_caps_legacy_log(
     data = log_file.read_bytes()
     assert len(data) <= 128
     assert b"newest\n" in data
+
+
+def test_stream_child_output_flushes_available_pipe_bytes(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    """A partial pipe chunk is logged without waiting for EOF or 64 KiB."""
+    orch = Orchestrator(axe_config)
+    read_fd, write_fd = os.pipe()
+    stream = os.fdopen(read_fd, "rb", buffering=64 * 1024)
+    appended = threading.Event()
+    chunks: list[bytes] = []
+
+    def capture_append(
+        _path: Path,
+        data: bytes,
+        *,
+        max_bytes: int,
+        temp_max_age_seconds: int,
+    ) -> None:
+        del max_bytes, temp_max_age_seconds
+        chunks.append(data)
+        appended.set()
+
+    with patch(
+        "sase.axe.orchestrator.append_bounded_log",
+        side_effect=capture_append,
+    ):
+        thread = threading.Thread(
+            target=orch._stream_child_output,
+            args=("hooks", stream),
+        )
+        thread.start()
+        os.write(write_fd, b"startup ready\n")
+        flushed_before_eof = appended.wait(timeout=1)
+        os.close(write_fd)
+        thread.join(timeout=1)
+
+    assert flushed_before_eof
+    assert not thread.is_alive()
+    assert chunks == [b"startup ready\n"]
+
+
+# --- Crash-loop Restart Tests ---
+
+
+def test_lumberjack_restart_uses_capped_exponential_backoff(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    axe_config.lumberjack_restart_backoff_max_seconds = 4
+    orch = Orchestrator(axe_config)
+    proc = MagicMock()
+    proc.poll.return_value = 1
+    orch._record_lumberjack_started("hooks", proc, now=0)
+
+    orch._poll_lumberjack("hooks", now=0)
+    state = orch._restart_state("hooks")
+    assert state.restart_at == 1
+
+    restarted = MagicMock()
+    restarted.poll.return_value = 1
+    with patch.object(orch, "_spawn_lumberjack", return_value=restarted) as spawn:
+        orch._poll_lumberjack("hooks", now=0.9)
+        spawn.assert_not_called()
+        orch._poll_lumberjack("hooks", now=1)
+        spawn.assert_called_once_with("hooks")
+
+    orch._poll_lumberjack("hooks", now=1.1)
+    assert state.restart_at == pytest.approx(3.1)
+    assert state.backoff_seconds == 2
+
+    orch._schedule_lumberjack_restart("hooks", now=4, exit_code=1)
+    assert state.backoff_seconds == 4
+    orch._schedule_lumberjack_restart("hooks", now=9, exit_code=1)
+    assert state.backoff_seconds == 4
+
+
+def test_lumberjack_restart_backoff_resets_after_healthy_run(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    orch = Orchestrator(axe_config)
+    state = orch._restart_state("hooks")
+    state.backoff_seconds = 60
+    state.consecutive_failures = 8
+    state.recent_failures.extend([1, 2, 3])
+    state.alert_sent = True
+
+    proc = MagicMock()
+    proc.poll.return_value = 7
+    orch._record_lumberjack_started("hooks", proc, now=0)
+    orch._poll_lumberjack("hooks", now=301)
+
+    assert state.backoff_seconds == 1
+    assert state.restart_at == 302
+    assert state.consecutive_failures == 1
+    assert list(state.recent_failures) == [301]
+    assert state.alert_sent is False
+
+
+def test_crash_loop_writes_error_and_notification_once(
+    temp_state_dir: Path,
+    axe_config: AxeConfig,
+) -> None:
+    log_file = temp_state_dir / "logs" / "lumberjack-hooks.log"
+    log_file.parent.mkdir(parents=True)
+    log_file.write_text("startup\nboom traceback\n")
+    orch = Orchestrator(axe_config)
+
+    with (
+        patch("sase.axe.orchestrator.append_error") as append_error,
+        patch(
+            "sase.notifications.senders.notify_workflow_complete"
+        ) as notify_workflow_complete,
+    ):
+        for now in (0.0, 10.0, 20.0, 30.0):
+            orch._schedule_lumberjack_restart(
+                "hooks",
+                now=now,
+                exit_code=17,
+            )
+
+    append_error.assert_called_once()
+    error = append_error.call_args.args[0]
+    assert error["lumberjack"] == "hooks"
+    assert "3 failures within 60s" in error["error"]
+    assert "exit code 17" in error["error"]
+    assert "boom traceback" in error["traceback"]
+
+    notify_workflow_complete.assert_called_once()
+    notification = notify_workflow_complete.call_args.kwargs
+    assert notification["sender"] == "axe"
+    assert "Lumberjack 'hooks'" in notification["notes"][0]
+    assert "exit code 17" in notification["notes"][0]
+    assert "boom traceback" in notification["notes"][1]
+    assert "extra_files" not in notification
+    assert notification["tags"] == ["axe", "crash-loop"]
 
 
 # --- PID File Tests ---

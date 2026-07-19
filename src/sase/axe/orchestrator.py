@@ -13,6 +13,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
 
@@ -28,11 +30,33 @@ from .lock import acquire_axe_lifetime_lock, read_lock_holder_pid
 from .state import (
     AXE_STATE_DIR,
     append_bounded_log,
+    append_error,
+    get_timestamp,
     reap_stale_log_rotation_temps,
 )
 
 # Orchestrator PID file (separate from per-lumberjack PIDs)
 ORCHESTRATOR_PID_FILE = AXE_STATE_DIR / "orchestrator.pid"
+
+_RESTART_BACKOFF_INITIAL_SECONDS = 1.0
+_RESTART_HEALTHY_RUN_SECONDS = 5 * 60.0
+_CRASH_LOOP_WINDOW_SECONDS = 60.0
+_CRASH_LOOP_FAILURE_THRESHOLD = 3
+_CRASH_LOOP_TAIL_LINES = 20
+_CRASH_LOOP_TAIL_MAX_BYTES = 8 * 1024
+
+
+@dataclass
+class _LumberjackRestartState:
+    """Per-lumberjack restart history and pending retry state."""
+
+    started_at: float | None = None
+    restart_at: float | None = None
+    backoff_seconds: float = 0.0
+    consecutive_failures: int = 0
+    recent_failures: deque[float] = field(default_factory=deque)
+    last_exit_code: int | None = None
+    alert_sent: bool = False
 
 
 class Orchestrator:
@@ -42,6 +66,9 @@ class Orchestrator:
         self.config = config
         self._children: dict[str, subprocess.Popen[bytes]] = {}
         self._log_threads: dict[str, threading.Thread] = {}
+        self._restart_states = {
+            name: _LumberjackRestartState() for name in config.lumberjacks
+        }
         self._running = True
 
     def _find_sase_executable(self) -> str:
@@ -102,9 +129,13 @@ class Orchestrator:
 
     def _stream_child_output(self, name: str, stream: BinaryIO) -> None:
         log_file = AXE_STATE_DIR / "logs" / f"lumberjack-{name}.log"
+        # BufferedReader.read() waits for the requested byte count or EOF on a
+        # pipe. read1() returns bytes already available from one raw read, so
+        # quiet lumberjacks reach the aggregate log promptly.
+        read_chunk = getattr(stream, "read1", stream.read)
         try:
             while True:
-                chunk = stream.read(64 * 1024)
+                chunk = read_chunk(64 * 1024)
                 if not chunk:
                     break
                 append_bounded_log(
@@ -117,6 +148,189 @@ class Orchestrator:
                 )
         finally:
             stream.close()
+
+    def _restart_state(self, name: str) -> _LumberjackRestartState:
+        return self._restart_states.setdefault(name, _LumberjackRestartState())
+
+    def _record_lumberjack_started(
+        self,
+        name: str,
+        proc: subprocess.Popen[bytes],
+        *,
+        now: float,
+    ) -> None:
+        self._children[name] = proc
+        state = self._restart_state(name)
+        state.started_at = now
+        state.restart_at = None
+        state.last_exit_code = None
+
+    def _schedule_lumberjack_restart(
+        self,
+        name: str,
+        *,
+        now: float,
+        exit_code: int | None,
+        spawn_error: OSError | None = None,
+    ) -> float:
+        """Record a failure and schedule the next bounded-backoff retry."""
+        state = self._restart_state(name)
+        healthy_run = (
+            state.started_at is not None
+            and now - state.started_at >= _RESTART_HEALTHY_RUN_SECONDS
+        )
+        if healthy_run:
+            state.backoff_seconds = 0.0
+            state.consecutive_failures = 0
+            state.recent_failures.clear()
+            state.alert_sent = False
+
+        state.started_at = None
+        state.consecutive_failures += 1
+        if state.backoff_seconds == 0:
+            state.backoff_seconds = _RESTART_BACKOFF_INITIAL_SECONDS
+        else:
+            state.backoff_seconds *= 2
+        state.backoff_seconds = min(
+            state.backoff_seconds,
+            float(self.config.lumberjack_restart_backoff_max_seconds),
+        )
+        state.restart_at = now + state.backoff_seconds
+        state.last_exit_code = exit_code
+
+        cutoff = now - _CRASH_LOOP_WINDOW_SECONDS
+        while state.recent_failures and state.recent_failures[0] < cutoff:
+            state.recent_failures.popleft()
+        state.recent_failures.append(now)
+
+        if spawn_error is None:
+            detail = f"exited (code {exit_code})"
+        else:
+            detail = f"failed to start ({spawn_error})"
+        print(
+            f"Lumberjack '{name}' {detail}; retrying in {state.backoff_seconds:g}s...",
+            file=sys.stderr,
+        )
+
+        if (
+            len(state.recent_failures) >= _CRASH_LOOP_FAILURE_THRESHOLD
+            and not state.alert_sent
+        ):
+            state.alert_sent = True
+            self._surface_crash_loop(
+                name,
+                exit_code=exit_code,
+                failure_count=len(state.recent_failures),
+                spawn_error=spawn_error,
+            )
+
+        return state.backoff_seconds
+
+    def _surface_crash_loop(
+        self,
+        name: str,
+        *,
+        exit_code: int | None,
+        failure_count: int,
+        spawn_error: OSError | None,
+    ) -> None:
+        """Persist and notify one loud alert for a crash-loop episode."""
+        thread = self._log_threads.get(name)
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=0.2)
+
+        log_file = AXE_STATE_DIR / "logs" / f"lumberjack-{name}.log"
+        output_tail = self._read_recent_output_tail(log_file)
+        if exit_code is not None:
+            latest_failure = f"latest exit code {exit_code}"
+        else:
+            latest_failure = f"latest start failure: {spawn_error}"
+        summary = (
+            f"Lumberjack '{name}' is crash-looping: {failure_count} failures "
+            f"within {int(_CRASH_LOOP_WINDOW_SECONDS)}s; {latest_failure}"
+        )
+        error_info = {
+            "timestamp": get_timestamp(),
+            "lumberjack": name,
+            "job": "orchestrator_restart",
+            "error": summary,
+            "traceback": output_tail or "[no recent lumberjack output]",
+        }
+        try:
+            append_error(error_info)
+        except Exception as exc:
+            print(
+                f"Failed to record crash loop for lumberjack '{name}': {exc}",
+                file=sys.stderr,
+            )
+
+        try:
+            from sase.notifications.senders import notify_workflow_complete
+
+            notify_workflow_complete(
+                sender="axe",
+                cl_name=None,
+                success=False,
+                notes=[
+                    summary,
+                    f"Recent output:\n{output_tail or '[no recent lumberjack output]'}",
+                ],
+                tags=["axe", "crash-loop"],
+            )
+        except Exception as exc:
+            print(
+                f"Failed to notify about crash loop for lumberjack '{name}': {exc}",
+                file=sys.stderr,
+            )
+
+        AXE_ERRORS.labels(error_type="crash_loop").inc()
+
+    @staticmethod
+    def _read_recent_output_tail(log_file: Path) -> str:
+        """Read a bounded output tail suitable for errors and notifications."""
+        try:
+            with log_file.open("rb") as stream:
+                stream.seek(0, os.SEEK_END)
+                size = stream.tell()
+                stream.seek(max(0, size - _CRASH_LOOP_TAIL_MAX_BYTES))
+                data = stream.read()
+        except OSError:
+            return ""
+        text = data.decode("utf-8", errors="replace")
+        return "\n".join(text.splitlines()[-_CRASH_LOOP_TAIL_LINES:]).strip()
+
+    def _poll_lumberjack(self, name: str, *, now: float) -> None:
+        """Observe one lumberjack and perform its retry when due."""
+        state = self._restart_state(name)
+        proc = self._children.get(name)
+        if proc is not None and state.restart_at is None:
+            ret = proc.poll()
+            if ret is None:
+                return
+            self._schedule_lumberjack_restart(
+                name,
+                now=now,
+                exit_code=ret,
+            )
+            return
+
+        if state.restart_at is None or now < state.restart_at:
+            return
+
+        try:
+            new_proc = self._spawn_lumberjack(name)
+        except (FileNotFoundError, OSError) as exc:
+            AXE_ERRORS.labels(error_type="spawn").inc()
+            self._schedule_lumberjack_restart(
+                name,
+                now=now,
+                exit_code=None,
+                spawn_error=exc,
+            )
+            return
+
+        self._record_lumberjack_started(name, new_proc, now=now)
+        AXE_LUMBERJACK_RESTARTS.inc()
 
     def _write_pid(self) -> None:
         AXE_STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -206,10 +420,19 @@ class Orchestrator:
             for name in self.config.lumberjacks:
                 try:
                     proc = self._spawn_lumberjack(name)
-                    self._children[name] = proc
+                    self._record_lumberjack_started(
+                        name,
+                        proc,
+                        now=time.monotonic(),
+                    )
                 except (FileNotFoundError, OSError) as e:
                     AXE_ERRORS.labels(error_type="spawn").inc()
-                    print(f"Failed to spawn lumberjack '{name}': {e}", file=sys.stderr)
+                    self._schedule_lumberjack_restart(
+                        name,
+                        now=time.monotonic(),
+                        exit_code=None,
+                        spawn_error=e,
+                    )
 
             try:
                 while self._running:
@@ -217,25 +440,13 @@ class Orchestrator:
                     active = sum(1 for p in self._children.values() if p.poll() is None)
                     AXE_LUMBERJACKS_ACTIVE.set(active)
 
-                    # Check children and restart any that exited unexpectedly
-                    for name, proc in list(self._children.items()):
-                        ret = proc.poll()
-                        if ret is not None and self._running:
-                            # Child exited unexpectedly — restart
-                            print(
-                                f"Lumberjack '{name}' exited (code {ret}), restarting...",
-                                file=sys.stderr,
-                            )
-                            try:
-                                new_proc = self._spawn_lumberjack(name)
-                                self._children[name] = new_proc
-                                AXE_LUMBERJACK_RESTARTS.inc()
-                            except (FileNotFoundError, OSError) as e:
-                                AXE_ERRORS.labels(error_type="spawn").inc()
-                                print(
-                                    f"Failed to restart lumberjack '{name}': {e}",
-                                    file=sys.stderr,
-                                )
+                    # Check children and restart failures once their per-jack
+                    # backoff deadline arrives. One crash loop cannot block
+                    # monitoring of the other lumberjacks.
+                    now = time.monotonic()
+                    for name in self.config.lumberjacks:
+                        if self._running:
+                            self._poll_lumberjack(name, now=now)
                     time.sleep(1)
             except KeyboardInterrupt:
                 self._running = False

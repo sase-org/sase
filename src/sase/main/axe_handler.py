@@ -169,6 +169,9 @@ def _handle_start(args: argparse.Namespace) -> None:
         lumberjack_log_temp_max_age_seconds=(
             config.lumberjack_log_temp_max_age_seconds
         ),
+        lumberjack_restart_backoff_max_seconds=(
+            config.lumberjack_restart_backoff_max_seconds
+        ),
         verbose_lumberjack_diagnostics=config.verbose_lumberjack_diagnostics,
         query=query,
         chop_script_dirs=config.chop_script_dirs,

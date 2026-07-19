@@ -340,6 +340,7 @@ axe:
   zombie_timeout_seconds: 7200
   lumberjack_log_max_bytes: 52428800
   lumberjack_log_temp_max_age_seconds: 300
+  lumberjack_restart_backoff_max_seconds: 60
   verbose_lumberjack_diagnostics: false
   query: ""
   chop_script_dirs: []

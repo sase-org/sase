@@ -716,6 +716,12 @@
           "default": 300,
           "minimum": 1
         },
+        "lumberjack_restart_backoff_max_seconds": {
+          "type": "integer",
+          "description": "Maximum delay between retries for a crashing lumberjack.",
+          "default": 60,
+          "minimum": 1
+        },
         "verbose_lumberjack_diagnostics": {
           "type": "boolean",
           "description": "Include verbose lumberjack diagnostics in chop script contexts.",
