@@ -105,3 +105,25 @@ def test_container_unread_is_attributed_once_to_projected_member() -> None:
     assert container_only.done == 1
     assert container_and_member.unread == 1
     assert container_and_member.done == 0
+
+
+def test_duplicate_container_projection_does_not_invent_unread_state() -> None:
+    member = _agent("research.worker", "DONE", role="code", clan="research")
+    container = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="research",
+        project_file="/tmp/family.sase",
+        status="DONE",
+        start_time=_STARTED,
+        raw_suffix=None,
+        agent_clan="research",
+        agent_clan_generation="gen-1",
+        is_clan_container=True,
+    )
+    container.runtime_children = [member]
+
+    counts = agent_summary_status_counts((member, container), ())
+
+    assert counts.total == 1
+    assert counts.unread == 0
+    assert counts.done == 1

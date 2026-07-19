@@ -314,7 +314,7 @@ def _dedupe_summary_projections(
                     existing.projected_from_container
                     or projection.projected_from_container
                 ),
-                is_unread=True,
+                is_unread=existing.is_unread or projection.is_unread,
             )
     return tuple(ordered)
 

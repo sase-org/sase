@@ -458,10 +458,23 @@ def test_lifecycle_fails_dead_agent_without_done_marker(
     assert entry.error is not None and "without completion artifact" in entry.error
 
 
-def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
+@pytest.mark.parametrize(
+    "status",
+    [
+        "DONE",
+        "PLAN COMMITTED",
+        "PLAN DONE",
+        "TALE DONE",
+        "PLAN REJECTED",
+        "EPIC CREATED",
+        "STOPPED",
+    ],
+)
+def test_lifecycle_uses_successful_dismissed_bundle_when_done_marker_is_missing(
     temp_state_dir: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    status: str,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     run_id = "20260718T120002_000000"
@@ -476,8 +489,11 @@ def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
     root = SimpleNamespace(
         raw_suffix="20260718120000",
         is_workflow_child=False,
-        status="DONE",
+        status=status,
         bundle_path="/archive/20260718120000.json",
+        project_file="/projects/sase/sase.sase",
+        cl_name="sase",
+        retried_as_timestamp=None,
     )
 
     with (
@@ -494,6 +510,7 @@ def test_lifecycle_uses_done_dismissed_bundle_when_done_marker_is_missing(
     assert "dismissed bundle /archive/20260718120000.json" in completion.detail
     load_summaries.assert_called_with(
         suffixes={"20260718120000"},
+        cl_name="sase",
         top_level_only=True,
         limit=None,
     )
@@ -518,6 +535,9 @@ def test_lifecycle_uses_failed_dismissed_bundle_when_done_marker_is_missing(
         is_workflow_child=False,
         status=status,
         bundle_path="/archive/20260718120000.json",
+        project_file="/projects/sase/sase.sase",
+        cl_name="sase",
+        retried_as_timestamp=None,
     )
 
     with (
@@ -535,3 +555,63 @@ def test_lifecycle_uses_failed_dismissed_bundle_when_done_marker_is_missing(
     assert entry.error is not None
     assert "dismissed bundle /archive/20260718120000.json" in entry.error
     assert f"status {status}" in entry.error
+
+
+def test_lifecycle_accepts_dismissed_retried_parent_without_done_marker(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    record = _record_agent("retried-parent", pid=765)
+    summary = SimpleNamespace(
+        raw_suffix="20260718120000",
+        is_workflow_child=False,
+        status="FAILED (RETRIED)",
+        bundle_path="/archive/20260718120000.json",
+        project_file="/projects/sase/sase.sase",
+        cl_name="sase",
+        retried_as_timestamp="20260718120100",
+    )
+
+    with (
+        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
+        patch(
+            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            return_value=[summary],
+        ),
+    ):
+        completion = _agent_completion(record)
+
+    assert completion.succeeded
+    assert "status FAILED (RETRIED)" in completion.detail
+
+
+def test_lifecycle_rejects_dismissed_bundle_from_another_agent(
+    temp_state_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    record = _record_agent("colliding-suffix", pid=654)
+    unrelated = SimpleNamespace(
+        raw_suffix="20260718120000",
+        is_workflow_child=False,
+        status="DONE",
+        bundle_path="/archive/20260718120000.json",
+        project_file="/projects/other/other.sase",
+        cl_name="other",
+        retried_as_timestamp=None,
+    )
+
+    with (
+        patch("sase.axe.chop_lifecycle.is_process_running", return_value=False),
+        patch(
+            "sase.axe.chop_lifecycle.load_dismissed_bundle_summaries",
+            return_value=[unrelated],
+        ),
+    ):
+        completion = _agent_completion(record)
+
+    assert not completion.succeeded
+    assert "without completion artifact" in completion.detail

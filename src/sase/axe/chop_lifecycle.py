@@ -10,6 +10,7 @@ from typing import Literal
 
 from sase.ace.dismissed_agents import load_dismissed_bundle_summaries
 from sase.ace.hooks.processes import is_process_running
+from sase.core.agent_cleanup_wire import DISMISSABLE_STATUSES
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
 from sase.core.time import get_timezone
 
@@ -34,6 +35,7 @@ _SUCCESS_DONE_OUTCOMES = {
     "plan_committed",
     "plan_rejected",
 }
+_SUCCESS_DISMISSED_STATUSES = DISMISSABLE_STATUSES - {"FAILED"}
 
 
 @dataclass(frozen=True)
@@ -61,11 +63,14 @@ def _dismissed_bundle_completion(
     pid: int,
 ) -> _AgentCompletion | None:
     raw_suffix = str(getattr(record, "artifacts_timestamp", "") or "").strip()
-    if not raw_suffix:
+    cl_name = str(getattr(record, "cl_name", "") or "").strip()
+    project_file = str(getattr(record, "project_file", "") or "").strip()
+    if not raw_suffix or not cl_name or not project_file:
         return None
 
     summaries = load_dismissed_bundle_summaries(
         suffixes={raw_suffix},
+        cl_name=cl_name or None,
         top_level_only=True,
         limit=None,
     )
@@ -75,6 +80,9 @@ def _dismissed_bundle_completion(
             for candidate in summaries
             if getattr(candidate, "raw_suffix", None) == raw_suffix
             and not bool(getattr(candidate, "is_workflow_child", False))
+            and str(getattr(candidate, "cl_name", "") or "").strip() == cl_name
+            and str(getattr(candidate, "project_file", "") or "").strip()
+            == project_file
         ),
         None,
     )
@@ -83,9 +91,13 @@ def _dismissed_bundle_completion(
 
     status = str(getattr(summary, "status", "") or "unknown").strip().upper()
     bundle_path = str(getattr(summary, "bundle_path", "") or "archive")
+    retried_as_timestamp = str(
+        getattr(summary, "retried_as_timestamp", "") or ""
+    ).strip()
+    succeeded = status in _SUCCESS_DISMISSED_STATUSES or bool(retried_as_timestamp)
     return _AgentCompletion(
         terminal=True,
-        succeeded=status == "DONE",
+        succeeded=succeeded,
         detail=(
             f"agent pid {pid} dismissed bundle {bundle_path} reports status {status}"
         ),
