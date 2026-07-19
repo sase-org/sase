@@ -1,10 +1,85 @@
-"""Pure in-memory projection of concrete sequential family members."""
+"""Pure in-memory projection of concrete agents and sequential families."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
-from .agent import Agent
+from sase.agent.status_buckets import (
+    APPROVED_PLAN_STATUSES,
+    status_bucket_for_values,
+)
+from .agent import Agent, AgentType
+
+
+@dataclass(frozen=True, slots=True)
+class ConcreteAgentStatus:
+    """One concrete agent row and its presentation-side status bucket."""
+
+    agent: Agent
+    bucket: str
+
+
+def is_sequential_family_container(agent: Agent) -> bool:
+    """Return whether ``agent`` represents a loaded sequential family.
+
+    The second branch preserves compatibility with clan projections whose
+    direct family root may predate the explicit ``agent_family_role`` marker
+    but still owns loaded, serial family-member children.
+    """
+    if agent.agent_family_parallel:
+        return False
+    if agent.is_family_container_row:
+        return True
+    return bool(
+        agent.agent_family
+        and any(
+            child.is_family_member_child and not child.agent_family_parallel
+            for child in (*agent.runtime_children, *agent.followup_agents)
+        )
+    )
+
+
+def is_workflow_aggregate_row(agent: Agent) -> bool:
+    """Return whether ``agent`` owns workflow-step presentation rows."""
+    if agent.is_workflow_child:
+        return False
+    return agent.agent_type == AgentType.WORKFLOW or any(
+        child.is_workflow_step_child
+        for child in (*agent.runtime_children, *agent.followup_agents)
+    )
+
+
+def _concrete_agent_rows(agent: Agent) -> tuple[Agent, ...]:
+    """Return concrete agents represented by one non-container row.
+
+    A loaded workflow aggregate is represented by its real agent-type steps.
+    Python/bash steps never count as agents.  When no agent step is loaded,
+    the aggregate row remains the compatibility fallback and counts once.
+    """
+    if agent.is_workflow_step_child:
+        if (
+            agent.step_type == "agent"
+            and not agent.is_synthetic_planner
+            and not agent.agent_family_parallel
+        ):
+            return (agent,)
+        return ()
+
+    if is_workflow_aggregate_row(agent):
+        agent_steps = _dedupe_rows(
+            tuple(
+                child
+                for child in (*agent.runtime_children, *agent.followup_agents)
+                if child.is_workflow_step_child
+                and child.step_type == "agent"
+                and not child.is_synthetic_planner
+                and not child.agent_family_parallel
+            )
+        )
+        if agent_steps:
+            return agent_steps
+    return (agent,)
 
 
 def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
@@ -25,6 +100,38 @@ def concrete_family_member_rows(agent: Agent) -> tuple[Agent, ...]:
     candidates.extend(_concrete_continuations(agent.runtime_children, planner))
     candidates.extend(_concrete_continuations(agent.followup_agents, planner))
     return _dedupe_rows(candidates)
+
+
+def family_member_status_buckets(
+    members: Sequence[Agent],
+) -> tuple[str, ...]:
+    """Return effective buckets for an ordered sequential family.
+
+    An approved planner/tale member with a successor has handed the work off
+    and is therefore settled.  The final member keeps the global bucket so a
+    planner-only family that is still mid-handoff continues to read Running.
+    """
+    final_index = len(members) - 1
+    return tuple(
+        "Done"
+        if index < final_index and member.status in APPROVED_PLAN_STATUSES
+        else status_bucket_for_values(member.status)
+        for index, member in enumerate(members)
+    )
+
+
+def concrete_agent_statuses(agent: Agent) -> tuple[ConcreteAgentStatus, ...]:
+    """Project one non-clan unit into concrete rows and effective buckets."""
+    if is_sequential_family_container(agent):
+        rows = concrete_family_member_rows(agent)
+        buckets = family_member_status_buckets(rows)
+    else:
+        rows = _concrete_agent_rows(agent)
+        buckets = tuple(status_bucket_for_values(row.status) for row in rows)
+    return tuple(
+        ConcreteAgentStatus(agent=row, bucket=bucket)
+        for row, bucket in zip(rows, buckets, strict=True)
+    )
 
 
 def _concrete_planner_child(agent: Agent) -> Agent | None:
@@ -79,4 +186,11 @@ def _dedupe_rows(rows: Sequence[Agent]) -> tuple[Agent, ...]:
     return tuple(ordered)
 
 
-__all__ = ["concrete_family_member_rows"]
+__all__ = [
+    "ConcreteAgentStatus",
+    "concrete_agent_statuses",
+    "concrete_family_member_rows",
+    "family_member_status_buckets",
+    "is_sequential_family_container",
+    "is_workflow_aggregate_row",
+]

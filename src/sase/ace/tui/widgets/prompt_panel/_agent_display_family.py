@@ -14,6 +14,7 @@ from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import Agent
 from ...models.agent_family_members import (
     concrete_family_member_rows as family_member_rows,
+    family_member_status_buckets,
 )
 from ...models.agent_time import compute_row_runtime
 from ...models.fold_state import FoldLevel
@@ -91,8 +92,10 @@ def _family_roster_entries(
 ) -> tuple[MemberRosterEntry, ...]:
     """Adapt a family chain into shared numbered roster entries."""
     family_name = agent.agent_family or agent.family_reference_name() or ""
+    members = family_member_rows(agent)
+    buckets = family_member_status_buckets(members)
     entries: list[MemberRosterEntry] = []
-    for member in family_member_rows(agent):
+    for member, bucket in zip(members, buckets, strict=True):
         phase_label = get_phase_label(member)
         kind = "agent" if phase_label == "AGENT" else phase_label
         entries.append(
@@ -107,6 +110,7 @@ def _family_roster_entries(
                 label=_family_member_label(member, family_name),
                 kind=kind,
                 status=member.display_status,
+                effective_bucket=bucket,
                 model=member.model or "default",
                 duration=_member_duration(member, now=now),
                 digest=_family_member_digest(member),

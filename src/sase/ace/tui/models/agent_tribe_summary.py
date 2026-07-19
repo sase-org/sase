@@ -8,7 +8,11 @@ from datetime import datetime
 from typing import Literal
 
 from sase.agent.status_buckets import status_bucket_for_values
-from ._agent_clan import agent_summary_status_counts, aggregate_clan_status
+from ._agent_clan import (
+    agent_status_projections,
+    agent_summary_status_counts,
+    aggregate_clan_status,
+)
 from ._agent_clan_sections import (
     ClanErrorEntry,
     ClanMemberDigest,
@@ -22,7 +26,10 @@ from ._agent_clan_sections import (
 )
 from ._agent_tree import agent_is_tree_child
 from .agent import Agent, AgentType, compute_row_runtime
-from .agent_family_members import concrete_family_member_rows
+from .agent_family_members import (
+    concrete_family_member_rows,
+    is_sequential_family_container,
+)
 from .agent_panels import PanelKey
 from . import agent_time
 
@@ -71,6 +78,7 @@ class _TribeUnitChild:
     label: str
     kind: str
     status: str
+    effective_bucket: str | None
     model: str
     duration: str
     digest: ClanMemberDigest
@@ -150,7 +158,7 @@ def _row_name(agent: Agent) -> str:
 def _unit_kind(agent: Agent) -> str:
     if agent.is_clan_container:
         return "clan"
-    if agent.is_family_container_row:
+    if is_sequential_family_container(agent):
         return "family"
     if agent.agent_type == AgentType.WORKFLOW and not agent.is_workflow_child:
         return "workflow"
@@ -186,7 +194,7 @@ def tribe_unit_real_rows(unit: Agent) -> tuple[Agent, ...]:
     """Return the real rows represented by one top-level tribe unit."""
     if unit.is_clan_container:
         return clan_section_member_rows(unit)
-    if unit.is_family_container_row:
+    if is_sequential_family_container(unit):
         return concrete_family_member_rows(unit)
     return _dedupe_rows((unit, *_descendant_rows(unit)))
 
@@ -257,12 +265,17 @@ def _unit_snapshot(
 ) -> _TribeUnitSnapshot:
     rows = tribe_unit_real_rows(unit)
     nested_rows = tuple(row for row in rows if row.identity != unit.identity)
+    effective_bucket_by_identity = {
+        projection.agent.identity: projection.bucket
+        for projection in agent_status_projections((unit,))
+    }
     children = tuple(
         _TribeUnitChild(
             identity=row.identity,
             label=_relative_child_label(unit, row),
             kind=_member_kind(row),
             status=row.display_status,
+            effective_bucket=effective_bucket_by_identity.get(row.identity),
             model=row.model or "default",
             duration=_duration(row, now=now),
             digest=build_agent_member_digest(
@@ -291,8 +304,8 @@ def _unit_snapshot(
         model=_model_label(rows or (unit,)),
         duration=_duration(unit, now=now),
         status_counts=(
-            _status_counts(rows, unread_ids)
-            if unit.is_clan_container or unit.is_family_container_row
+            _status_counts((unit,), unread_ids)
+            if unit.is_clan_container or is_sequential_family_container(unit)
             else None
         ),
         digest=root_digest,
@@ -353,6 +366,7 @@ def build_agent_tribe_summary_snapshot(
     real_rows = _dedupe_rows(
         tuple(row for root in roots for row in tribe_unit_real_rows(root))
     )
+    concrete_statuses = agent_status_projections(roots)
     labels = {row.identity: _row_name(row) for row in real_rows}
     attention = tuple(
         TribeAttentionEntry(
@@ -369,10 +383,20 @@ def build_agent_tribe_summary_snapshot(
     )
     status = aggregate_clan_status(row.status for row in real_rows) or "EMPTY"
     family_identities = {
-        row.identity for row in real_rows if row.is_family_container_row
+        row.identity for row in real_rows if is_sequential_family_container(row)
     }
     family_identities.update(unit.identity for unit in units if unit.kind == "family")
-    nested_count = sum(len(unit.children) for unit in units)
+    nested_count = sum(
+        len(agent_status_projections((root,)))
+        if root.is_clan_container
+        else sum(
+            projection.agent.identity != root.identity
+            for projection in agent_status_projections((root,))
+        )
+        if is_sequential_family_container(root)
+        else 0
+        for root in roots
+    )
     return AgentTribeSummarySnapshot(
         panel_key=panel_key,
         container_identity=_tribe_panel_identity(panel_key),
@@ -382,7 +406,7 @@ def build_agent_tribe_summary_snapshot(
         counts=_status_counts(roots, unread_ids),
         clan_count=sum(unit.kind == "clan" for unit in units),
         family_count=len(family_identities),
-        agent_count=len(real_rows),
+        agent_count=len(concrete_statuses),
         nested_count=nested_count,
         runtime_span=_runtime_span(real_rows, now=reference),
         units=units,

@@ -8,6 +8,7 @@ from datetime import datetime
 from ...models._agent_clan import aggregate_clan_status, clan_members
 from ...models._agent_clan_sections import ClanMemberDigest
 from ...models.agent import Agent, AgentType, compute_row_runtime
+from ...models.agent_family_members import family_member_status_buckets
 from ._member_roster import MemberRosterChild, MemberRosterEntry
 
 
@@ -177,11 +178,13 @@ def clan_roster_entries(
         family_status = (
             aggregate_clan_status(row.status for row in rows) or member.display_status
         )
+        family_buckets = family_member_status_buckets(rows)
         roster_children = tuple(
             MemberRosterChild(
                 label=_nested_family_suffix(family_member, member, clan_name),
                 kind=_member_kind(family_member),
                 status=family_member.display_status,
+                effective_bucket=bucket,
                 model=family_member.model or "default",
                 duration=duration_label(
                     _leaf_for_runtime(family_member),
@@ -189,7 +192,7 @@ def clan_roster_entries(
                 ),
                 digest=digest_by_identity.get(family_member.identity),
             )
-            for family_member in rows
+            for family_member, bucket in zip(rows, family_buckets, strict=True)
         )
         entries.append(
             MemberRosterEntry(

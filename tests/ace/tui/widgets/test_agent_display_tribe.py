@@ -115,7 +115,7 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     ).plain
 
     assert pulse.startswith(
-        "TRIBE\nName: @epic\nStatus: FAILED [R1 F1]\n"
+        "TRIBE\nName: @epic\nStatus: FAILED [R1 W1 F1]\n"
         "Composition: 1 family · 3 agents · 1 nested\n"
         "Runtime: 1h\nFold: 1/4\n"
     )
@@ -149,6 +149,52 @@ def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -
     assert "ws 8" in forensics
     assert "ValueError: broken" in forensics
     assert pulse != roster != members != forensics
+
+
+def test_tribe_family_children_use_effective_status_glyphs() -> None:
+    root = _agent(
+        "build--plan",
+        "WORKING TALE",
+        suffix="root",
+        family="build",
+        role="plan",
+    )
+    planner = _agent(
+        "build--plan-step",
+        "TALE APPROVED",
+        suffix="planner",
+        family="build",
+        role="plan",
+        parent="root",
+    )
+    planner.agent_family_role = "plan"
+    planner.parent_workflow = "ace-run"
+    planner.step_type = "agent"
+    coder = _agent(
+        "build--code",
+        "WORKING TALE",
+        suffix="coder",
+        family="build",
+        role="code",
+        parent="root",
+    )
+    root.runtime_children = [planner, coder]
+    root.followup_agents = [coder]
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [root, planner, coder],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    detail = build_tribe_detail_text(
+        snapshot,
+        fold_level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    assert "[R1 D1]" in detail.plain
+    assert "--plan-step · step · ✓ TALE APPROVED" in detail.plain
+    assert "--code · agent · ▶ WORKING TALE" in detail.plain
 
 
 def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:

@@ -232,6 +232,7 @@ def _roster_entries(
                         label=child.label,
                         kind=child.kind,
                         status=child.status,
+                        effective_bucket=child.effective_bucket,
                         model=child.model,
                         duration=child.duration,
                         digest=child.digest,

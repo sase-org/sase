@@ -17,6 +17,11 @@ if TYPE_CHECKING:
     from .agent_types import AgentType
 
 from .agent_status import DISMISSABLE_STATUSES
+from .agent_family_members import (
+    ConcreteAgentStatus,
+    concrete_agent_statuses,
+    is_sequential_family_container,
+)
 
 _QUESTION_STATUSES = frozenset({"QUESTION", "WAITING INPUT"})
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
@@ -50,6 +55,15 @@ class _AgentSummaryStatusCounts:
     failed: int = 0
     unread: int = 0
     done: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectedSummaryAgent:
+    """Concrete status projection plus summary-only counting context."""
+
+    status: ConcreteAgentStatus
+    projected_from_container: bool
+    is_unread: bool
 
 
 def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
@@ -161,36 +175,34 @@ def agent_summary_status_counts(
     agents: Iterable[Agent],
     unread_ids: Collection[tuple[AgentType, str, str | None]],
 ) -> _AgentSummaryStatusCounts:
-    """Project clan containers into the status counts used by summaries."""
+    """Project containers into concrete-agent status counts for summaries."""
     total = stopped = running = waiting = failed = unread = done = 0
-    seen: set[tuple[AgentType, str, str | None]] = set()
-    for agent in agents:
-        members = clan_members(agent)
-        projected_agents = members or (agent,)
-        for projected_agent in projected_agents:
-            if projected_agent.identity in seen:
-                continue
-            seen.add(projected_agent.identity)
-            total += 1
-            bucket = status_bucket_for_values(projected_agent.status)
-            is_unread = projected_agent.identity in unread_ids
-            if is_unread:
-                unread += 1
-            if agent_is_asking(projected_agent.status):
-                stopped += 1
-            elif bucket == "Failed":
-                failed += 1
-            elif bucket == "Waiting":
-                waiting += 1
-            elif bucket == "Done":
-                if not is_unread:
-                    done += 1
-            elif bucket == "Running" and (
-                projected_agent.status not in DISMISSABLE_STATUSES
-            ):
-                running += 1
-            elif bucket == "Starting" and members:
-                running += 1
+    projected = _dedupe_summary_projections(
+        projection
+        for agent in agents
+        for projection in _summary_projections(agent, unread_ids)
+    )
+    for projection in projected:
+        projected_agent = projection.status.agent
+        bucket = projection.status.bucket
+        total += 1
+        if projection.is_unread:
+            unread += 1
+        if agent_is_asking(projected_agent.status):
+            stopped += 1
+        elif bucket == "Failed":
+            failed += 1
+        elif bucket == "Waiting":
+            waiting += 1
+        elif bucket == "Done":
+            if not projection.is_unread:
+                done += 1
+        elif bucket == "Running" and (
+            projected_agent.status not in DISMISSABLE_STATUSES
+        ):
+            running += 1
+        elif bucket == "Starting" and projection.projected_from_container:
+            running += 1
     return _AgentSummaryStatusCounts(
         total=total,
         stopped=stopped,
@@ -202,8 +214,114 @@ def agent_summary_status_counts(
     )
 
 
+def agent_status_projections(
+    agents: Iterable[Agent],
+) -> tuple[ConcreteAgentStatus, ...]:
+    """Return deduped concrete rows and effective buckets for summaries."""
+    projected = _dedupe_summary_projections(
+        projection for agent in agents for projection in _summary_projections(agent, ())
+    )
+    return tuple(projection.status for projection in projected)
+
+
+def _summary_projections(
+    agent: Agent,
+    unread_ids: Collection[tuple[AgentType, str, str | None]],
+) -> tuple[_ProjectedSummaryAgent, ...]:
+    members = (
+        clan_members(agent)
+        if agent.is_clan_container or agent.agent_family_parallel
+        else ()
+    )
+    if members:
+        if agent.is_clan_container:
+            projected = tuple(
+                projection
+                for member in members
+                for projection in _summary_projections(member, unread_ids)
+            )
+        else:
+            # Preserve the legacy parallel-family projection: only the loaded
+            # parallel members replace their compatibility aggregate root.
+            projected = tuple(
+                _ProjectedSummaryAgent(
+                    status=status,
+                    projected_from_container=True,
+                    is_unread=status.agent.identity in unread_ids,
+                )
+                for member in members
+                for status in concrete_agent_statuses(member)
+            )
+        projected = tuple(
+            _ProjectedSummaryAgent(
+                status=item.status,
+                projected_from_container=True,
+                is_unread=item.is_unread,
+            )
+            for item in projected
+        )
+    else:
+        statuses = concrete_agent_statuses(agent)
+        projected_from_container = is_sequential_family_container(agent) or any(
+            status.agent.identity != agent.identity for status in statuses
+        )
+        projected = tuple(
+            _ProjectedSummaryAgent(
+                status=status,
+                projected_from_container=projected_from_container,
+                is_unread=status.agent.identity in unread_ids,
+            )
+            for status in statuses
+        )
+
+    if (
+        projected
+        and agent.identity in unread_ids
+        and not any(item.is_unread for item in projected)
+    ):
+        last = projected[-1]
+        projected = (
+            *projected[:-1],
+            _ProjectedSummaryAgent(
+                status=last.status,
+                projected_from_container=last.projected_from_container,
+                is_unread=True,
+            ),
+        )
+    return projected
+
+
+def _dedupe_summary_projections(
+    projections: Iterable[_ProjectedSummaryAgent],
+) -> tuple[_ProjectedSummaryAgent, ...]:
+    ordered: list[_ProjectedSummaryAgent] = []
+    position_by_identity: dict[tuple[AgentType, str, str | None], int] = {}
+    for projection in projections:
+        identity = projection.status.agent.identity
+        existing_position = position_by_identity.get(identity)
+        if existing_position is None:
+            position_by_identity[identity] = len(ordered)
+            ordered.append(projection)
+            continue
+        existing = ordered[existing_position]
+        if (projection.is_unread and not existing.is_unread) or (
+            projection.projected_from_container
+            and not existing.projected_from_container
+        ):
+            ordered[existing_position] = _ProjectedSummaryAgent(
+                status=existing.status,
+                projected_from_container=(
+                    existing.projected_from_container
+                    or projection.projected_from_container
+                ),
+                is_unread=True,
+            )
+    return tuple(ordered)
+
+
 __all__ = [
     "ClanStatusCounts",
+    "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",
     "clan_member_status_priority",

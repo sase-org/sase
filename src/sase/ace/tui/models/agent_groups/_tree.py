@@ -9,6 +9,7 @@ from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
 from ..agent import Agent
+from .._agent_clan import agent_status_projections
 from .._agent_tree import (
     agent_is_tree_child,
     presentation_anchor_lookup,
@@ -20,7 +21,6 @@ from ._buckets import (
     NO_CHANGESPEC_LABEL,
     NO_HOUR_LABEL,
     GroupingMode,
-    status_bucket_for,
 )
 from ._keys import (
     GroupingKeys,
@@ -446,34 +446,32 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
 
     Only non-workflow-child agents are counted so the summary mirrors
     the user's mental model of "agents in this group".  Counts are
-    derived from :func:`status_bucket_for` so the chip line can never
-    disagree with the banner it sits on.
+    derived from the shared concrete-agent projection so family handoffs and
+    container counts agree with the other summary surfaces.
     """
     count = 0
     running = 0
     failed = 0
     awaiting = 0
-    projected: list[Agent] = []
+    roots: list[Agent] = []
     for idx in group.agent_indices:
         if idx < 0 or idx >= len(agents):
             continue
         agent = agents[idx]
         if agent_is_tree_child(agent):
             continue
-        candidates = (
-            tuple(agent.runtime_children) if agent.is_clan_container else (agent,)
-        )
-        projected.extend(candidates)
+        roots.append(agent)
 
-    for agent in projected:
-        count += 1
-        bucket = status_bucket_for(agent)
-        if bucket == "Running":
-            running += 1
-        elif bucket == "Failed":
-            failed += 1
-        elif bucket == "Stopped":
-            awaiting += 1
+    for root in roots:
+        for projection in agent_status_projections((root,)):
+            count += 1
+            bucket = projection.bucket
+            if bucket == "Running":
+                running += 1
+            elif bucket == "Failed":
+                failed += 1
+            elif bucket == "Stopped":
+                awaiting += 1
     return _BannerSummary(
         count=count, running=running, failed=failed, awaiting=awaiting
     )

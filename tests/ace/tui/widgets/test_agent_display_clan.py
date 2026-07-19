@@ -571,6 +571,30 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     ) == (("0", planner.identity, "family"),)
 
 
+def test_clan_family_roster_renders_settled_planner_as_done() -> None:
+    family_name = "research.writer"
+    planner = _agent(
+        f"{family_name}--plan",
+        status="TALE APPROVED",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        family=family_name,
+    )
+    coder = _agent(
+        f"{family_name}--code",
+        status="WORKING TALE",
+        start=datetime(2026, 7, 17, 12, 2, 0),
+        parent_timestamp=planner.raw_suffix,
+        family=family_name,
+    )
+    planner.runtime_children = [coder]
+    container = project_clan_tree([planner, coder])[0]
+
+    detail = build_clan_detail_text(container)
+
+    assert "--plan · agent · ✓ TALE APPROVED" in detail.plain
+    assert "--code · agent · ▶ WORKING TALE" in detail.plain
+
+
 def test_clan_roster_launch_order_is_stable_while_statuses_churn() -> None:
     first = _agent(
         "research.first",

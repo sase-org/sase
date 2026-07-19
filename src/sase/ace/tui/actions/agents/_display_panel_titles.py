@@ -13,8 +13,19 @@ from ...agent_count_chip import (
     AGENT_COUNT_CHIP_NEUTRAL_STYLE,
     format_agent_count_chip,
 )
-from ...models._agent_clan import agent_summary_status_counts
-from ...models._agent_tree import agent_is_tree_child
+from ...models._agent_clan import (
+    agent_status_projections,
+    agent_summary_status_counts,
+)
+from ...models._agent_tree import (
+    agent_is_tree_child,
+    presentation_anchor_lookup,
+    tree_parent_lookup,
+)
+from ...models.agent_family_members import (
+    is_sequential_family_container,
+    is_workflow_aggregate_row,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -66,21 +77,7 @@ def agent_panel_counts(
         visible_top_level_agents,
         unread_ids,
     )
-    # Ordinary panels retain their rendered-row count (including expanded
-    # workflow/family children). A clan substitutes its direct real members
-    # for the synthetic row and suppresses its presentation descendants so
-    # the panel total remains stable across clan fold levels.
-    if any(agent.is_clan_container for agent in agents):
-        total = sum(
-            len(agent.runtime_children)
-            if agent.is_clan_container
-            else 0
-            if agent.tree_parent_key
-            else 1
-            for agent in agents
-        )
-    else:
-        total = len(agents)
+    total = _panel_concrete_agent_total(agents, visible_top_level_agents)
     return AgentPanelCounts(
         total=total,
         asking=projected.stopped,
@@ -90,6 +87,33 @@ def agent_panel_counts(
         unread=projected.unread,
         read=projected.done,
     )
+
+
+def _panel_concrete_agent_total(
+    agents: list[Agent],
+    roots: list[Agent],
+) -> int:
+    """Count container roots concretely while preserving ordinary row totals."""
+    if not roots:
+        return 0
+    anchors = presentation_anchor_lookup(agents, tree_parent_lookup(agents))
+    row_count_by_anchor: dict[int, int] = {}
+    for agent in agents:
+        anchor = anchors.get(id(agent), agent)
+        row_count_by_anchor[id(anchor)] = row_count_by_anchor.get(id(anchor), 0) + 1
+
+    total = 0
+    for root in roots:
+        project_concretely = (
+            root.is_clan_container
+            or is_sequential_family_container(root)
+            or (not root.agent_family_parallel and is_workflow_aggregate_row(root))
+        )
+        if project_concretely:
+            total += len(agent_status_projections((root,)))
+        else:
+            total += row_count_by_anchor.get(id(root), 1)
+    return total
 
 
 def agent_panel_border_title(

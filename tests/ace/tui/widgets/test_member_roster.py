@@ -107,6 +107,31 @@ def test_empty_roster_omits_heading_and_publishes_no_targets() -> None:
     assert jump_map.targets == ()
 
 
+def test_effective_bucket_overrides_raw_status_glyph() -> None:
+    entry = MemberRosterEntry(
+        identity=_identity(0),
+        presented_name="research.member-0",
+        label=".member-0",
+        kind="agent",
+        status="TALE APPROVED",
+        effective_bucket="Done",
+        model="gpt-5",
+        duration="1m",
+    )
+    text = Text()
+
+    append_member_roster(
+        text,
+        container_identity=(AgentType.RUNNING, "clan:research", "generation"),
+        entries=(entry,),
+        title="CLAN MEMBERS",
+        accent=_ACCENT,
+        panel_level=FoldLevel.COLLAPSED,
+    )
+
+    assert "✓ TALE APPROVED" in text.plain
+
+
 def test_member_override_inherits_roster_then_overrides_it() -> None:
     digest = ClanMemberDigest(
         identity=_identity(0),

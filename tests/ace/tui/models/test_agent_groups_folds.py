@@ -303,6 +303,40 @@ def test_compute_banner_summary_excludes_workflow_children() -> None:
     assert summary.running == 1
 
 
+def test_compute_banner_summary_projects_sequential_family_members() -> None:
+    agents: list[Agent] = []
+    for family in ("alpha", "beta"):
+        planner = _agent(
+            cl_name=f"{family}-plan",
+            agent_name=f"{family}--plan",
+            raw_suffix=f"{family}-plan",
+            status="TALE APPROVED",
+            role_suffix="--plan",
+            agent_family=family,
+            agent_family_role="root",
+        )
+        coder = _agent(
+            cl_name=f"{family}-code",
+            agent_name=f"{family}--code",
+            raw_suffix=f"{family}-code",
+            parent_timestamp=planner.raw_suffix,
+            status="WORKING TALE",
+            role_suffix="--code",
+            agent_family=family,
+            agent_family_role="code",
+        )
+        planner.followup_agents = [coder]
+        agents.extend((planner, coder))
+
+    group = GroupRow(level=0, group_key=("proj",), agent_indices=(0, 1, 2, 3))
+    summary = compute_banner_summary(group, agents)
+
+    assert summary.count == 4
+    assert summary.running == 2
+    assert summary.failed == 0
+    assert summary.awaiting == 0
+
+
 def test_banner_summary_text_renders_chips_separated_by_dots() -> None:
     agents = [
         _agent(cl_name="a", status="RUNNING"),

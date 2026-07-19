@@ -197,7 +197,138 @@ def test_family_unit_counts_and_children_use_concrete_planner_projection() -> No
         "codex/gpt-5",
     ]
     assert family.status_counts is not None
-    assert family.status_counts.running == 2
-    assert family.status_counts.done == 0
+    assert family.status_counts.running == 1
+    assert family.status_counts.done == 1
+    assert [child.effective_bucket for child in family.children] == [
+        "Done",
+        "Running",
+    ]
     assert snapshot.agent_count == 2
     assert snapshot.nested_count == 2
+
+
+def test_workflow_unit_counts_agent_steps_once_and_never_as_nested() -> None:
+    root = _agent("workflow", "DONE", start_minute=0)
+    root.agent_type = AgentType.WORKFLOW
+    root.workflow = "demo"
+    main = _agent("workflow-main", "DONE", start_minute=1)
+    main.parent_timestamp = root.raw_suffix
+    main.parent_workflow = "demo"
+    main.step_type = "agent"
+    python_step = _agent("workflow-python", "DONE", start_minute=2)
+    python_step.parent_timestamp = root.raw_suffix
+    python_step.parent_workflow = "demo"
+    python_step.step_type = "python"
+    root.runtime_children = [main, python_step]
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [root, main, python_step],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert snapshot.agent_count == 1
+    assert snapshot.nested_count == 0
+    assert snapshot.counts.done == 1
+    assert [child.identity for child in snapshot.units[0].children] == [
+        main.identity,
+        python_step.identity,
+    ]
+
+
+def test_finished_family_projects_all_members_to_done() -> None:
+    planner = _agent(
+        "build--plan",
+        "TALE APPROVED",
+        start_minute=0,
+        family="build",
+        role="plan",
+    )
+    coder = _agent(
+        "build--code",
+        "TALE DONE",
+        start_minute=10,
+        family="build",
+        role="code",
+        parent=planner.raw_suffix,
+    )
+    planner.followup_agents = [coder]
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [planner, coder],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    family = snapshot.units[0]
+    assert family.status_counts is not None
+    assert family.status_counts.running == 0
+    assert family.status_counts.done == 2
+    assert snapshot.counts.running == 0
+    assert snapshot.counts.done == 2
+    assert snapshot.agent_count == 2
+    assert snapshot.nested_count == 1
+
+
+def test_reference_tribe_counts_ten_concrete_agents_and_eight_nested() -> None:
+    agents: list[Agent] = []
+    for index in range(4):
+        root = _agent(
+            f"family-{index}--plan",
+            "WORKING TALE" if index < 2 else "TALE DONE",
+            start_minute=index * 5,
+            family=f"family-{index}",
+            role="plan",
+        )
+        planner = _agent(
+            f"family-{index}--plan-step",
+            "TALE APPROVED",
+            start_minute=index * 5,
+            family=f"family-{index}",
+            role="plan",
+            parent=root.raw_suffix,
+        )
+        planner.agent_family_role = "plan"
+        planner.parent_workflow = "ace-run"
+        planner.step_type = "agent"
+        coder = _agent(
+            f"family-{index}--code",
+            "WORKING TALE" if index < 2 else "TALE DONE",
+            start_minute=index * 5 + 1,
+            family=f"family-{index}",
+            role="code",
+            parent=root.raw_suffix,
+        )
+        root.runtime_children = [planner, coder]
+        root.followup_agents = [coder]
+        agents.extend((root, planner, coder))
+
+    for index in range(2):
+        root = _agent(f"workflow-{index}", "DONE", start_minute=30 + index * 2)
+        root.agent_type = AgentType.WORKFLOW
+        root.workflow = f"workflow-{index}"
+        main = _agent(
+            f"workflow-{index}-main",
+            "DONE",
+            start_minute=31 + index * 2,
+        )
+        main.parent_timestamp = root.raw_suffix
+        main.parent_workflow = root.workflow
+        main.step_type = "agent"
+        root.runtime_children = [main]
+        agents.extend((root, main))
+
+    snapshot = build_agent_tribe_summary_snapshot(
+        None,
+        agents,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+
+    assert snapshot.family_count == 4
+    assert snapshot.agent_count == 10
+    assert snapshot.nested_count == 8
+    assert snapshot.counts.running == 2
+    assert snapshot.counts.done == 8

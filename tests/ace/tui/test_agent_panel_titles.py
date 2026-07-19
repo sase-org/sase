@@ -491,6 +491,35 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
     )
 
 
+def test_panel_title_projects_sequential_family_members_concretely() -> None:
+    planner = _agent(
+        name="build--plan",
+        tag="apple",
+        suffix="build-plan",
+        status="TALE APPROVED",
+    )
+    planner.agent_family = "build"
+    planner.agent_family_role = "root"
+    planner.role_suffix = "--plan"
+    coder = _agent(
+        name="build--code",
+        suffix="build-code",
+        status="WORKING TALE",
+        parent_timestamp=planner.raw_suffix,
+    )
+    coder.agent_family = "build"
+    coder.agent_family_role = "code"
+    coder.role_suffix = "--code"
+    planner.followup_agents = [coder]
+    app = _FakeApp([planner, coder])
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
+        "@apple · 2 [R1 D1]"
+    )
+
+
 def test_grouped_panel_title_uses_all_agents_label_with_counts() -> None:
     agents = [
         _agent(name="untagged", suffix="u1", status="RUNNING"),

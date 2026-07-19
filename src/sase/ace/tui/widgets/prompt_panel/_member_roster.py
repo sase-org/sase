@@ -86,6 +86,7 @@ class MemberRosterChild:
     status: str
     model: str
     duration: str
+    effective_bucket: str | None = None
     digest: _MemberRosterDigest | None = None
     is_marked: bool = False
     is_unread: bool = False
@@ -114,6 +115,7 @@ class MemberRosterEntry:
     status: str
     model: str
     duration: str
+    effective_bucket: str | None = None
     digest: _MemberRosterDigest | None = None
     children: tuple[MemberRosterChild, ...] = ()
     status_counts: MemberRosterStatusCounts | None = None
@@ -273,6 +275,7 @@ def _append_numbered_entry(
         label=entry.label,
         kind=entry.kind,
         status=entry.status,
+        effective_bucket=entry.effective_bucket,
         model=entry.model,
         duration=entry.duration,
         annotations=_member_annotations(
@@ -299,6 +302,7 @@ def _append_numbered_entry(
             label=child.label,
             kind=child.kind,
             status=child.status,
+            effective_bucket=child.effective_bucket,
             model=child.model,
             duration=child.duration,
             annotations=_member_annotations(
@@ -319,6 +323,7 @@ def _append_member_fields(
     label: str,
     kind: str,
     status: str,
+    effective_bucket: str | None,
     model: str,
     duration: str,
     annotations: Sequence[str],
@@ -326,7 +331,7 @@ def _append_member_fields(
     is_marked: bool,
     is_unread: bool,
 ) -> None:
-    bucket = status_bucket_for_values(status)
+    bucket = effective_bucket or status_bucket_for_values(status)
     glyph = AGENT_STATUS_BUCKET_GLYPHS[bucket]
     if is_marked:
         text.append("[✓] ", style="bold #00D700")

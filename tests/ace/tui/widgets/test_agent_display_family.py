@@ -227,6 +227,7 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
         "TALE APPROVED",
         "WORKING TALE",
     ]
+    assert [entry.effective_bucket for entry in entries] == ["Done", "Running"]
     assert [entry.model for entry in entries] == [
         "claude/opus",
         "codex/gpt-5",
@@ -246,6 +247,8 @@ def test_loaded_plan_family_roster_uses_concrete_member_state_and_content(
     assert "implementing the approved tale" in header.plain
     assert "ws 21" in header.plain
     assert "ws 22" in header.plain
+    assert "✓ TALE APPROVED" in header.plain
+    assert "▶ WORKING TALE" in header.plain
 
     panel = FakePromptPanel()
     panel._update_family_display(
