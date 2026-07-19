@@ -10,6 +10,13 @@ import pytest
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 
 
+@pytest.fixture(autouse=True)
+def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep an outer chop runner from overriding each test context."""
+
+    monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
+
+
 def _write_context(tmp_path: Path, result_path: Path) -> Path:
     context_path = tmp_path / "context.json"
     write_chop_context(

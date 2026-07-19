@@ -7,6 +7,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 import sase.chops.builtin as builtin_registry
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import (
@@ -21,6 +23,13 @@ from sase.chops.sdk import (
     parse_chop_arguments,
     parse_summary,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep an outer chop runner from overriding each test context."""
+
+    monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
 
 
 def _context(tmp_path: Path, *, result_file: Path) -> Path:
