@@ -80,6 +80,38 @@ class _RuntimeRow:
 
 
 @dataclass(frozen=True, slots=True)
+class _ChangeSpecWorkRow:
+    project: str
+    name: str
+    status: str
+    has_pr: bool
+    runs: int
+    distinct_agents: int
+    commits: int
+    total_runtime_seconds: float
+    first_run_ts: float
+    last_run_ts: float
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectWorkRow:
+    project: str
+    runs: int
+    completed: int
+    failed: int
+    other_terminal: int
+    in_progress: int
+    waiting: int
+    success_rate: float
+    commits: int
+    distinct_changespecs: int
+    unattributed_runs: int
+    total_runtime_seconds: float
+    last_run_ts: float
+    changespecs: tuple[_ChangeSpecWorkRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _OverviewView:
     agents_run: int
     completed: int
@@ -97,6 +129,7 @@ class _OverviewView:
     buckets: tuple[_RunBucket, ...]
     top_providers: tuple[_CountRow, ...]
     top_skills: tuple[_ActivityRow, ...]
+    top_projects: tuple[_ProjectWorkRow, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +145,17 @@ class _RunsView:
     average_commits_per_committing_agent: float
     commit_distribution: tuple[_DistributionRow, ...]
     top_repos: tuple[_CountRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _ProjectsView:
+    projects: tuple[_ProjectWorkRow, ...]
+    changespecs: tuple[_ChangeSpecWorkRow, ...]
+    project_count: int
+    changespec_count: int
+    unattributed_runs: int
+    truncated_changespec_rows: int
+    malformed_spec_files_skipped: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,13 +195,14 @@ class _PlansQuestionsView:
 
 @dataclass(frozen=True, slots=True)
 class StatisticsViews:
-    """All six views built from one run and one activity response."""
+    """All seven views built from one run and one activity response."""
 
     start_ts: int
     end_ts: int
     empty: bool
     overview: _OverviewView
     runs: _RunsView
+    projects: _ProjectsView
     providers: _ProvidersView
     runtime: _RuntimeView
     activity: _ActivityView
@@ -173,6 +218,7 @@ def build_statistics_views(
 ) -> StatisticsViews:
     """Build every Statistics view without performing I/O."""
     totals = _mapping(run_payload.get("totals"))
+    projects = _build_projects_view(run_payload)
     return StatisticsViews(
         start_ts=_integer(run_payload.get("start_ts")),
         end_ts=_integer(run_payload.get("end_ts")),
@@ -182,8 +228,10 @@ def build_statistics_views(
             activity_payload,
             previous_run_payload=previous_run_payload,
             timezone=timezone,
+            projects=projects,
         ),
         runs=_build_runs_view(run_payload),
+        projects=projects,
         providers=_build_providers_view(run_payload),
         runtime=_build_runtime_view(run_payload),
         activity=_build_activity_view(run_payload, activity_payload),
@@ -197,6 +245,7 @@ def _build_overview_view(
     *,
     previous_run_payload: Payload | None = None,
     timezone: tzinfo | None = None,
+    projects: _ProjectsView,
 ) -> _OverviewView:
     totals = _mapping(run_payload.get("totals"))
     commits = _mapping(run_payload.get("commits"))
@@ -256,6 +305,7 @@ def _build_overview_view(
         ),
         top_providers=providers,
         top_skills=_activity_rows(_rows(activity_payload, "skills")),
+        top_projects=projects.projects[:5],
     )
 
 
@@ -298,6 +348,62 @@ def _build_runs_view(run_payload: Payload) -> _RunsView:
     )
 
 
+def _build_projects_view(run_payload: Payload) -> _ProjectsView:
+    work = _mapping(run_payload.get("work"))
+    changespecs = tuple(
+        _ChangeSpecWorkRow(
+            project=_text(row.get("project"), "unknown"),
+            name=_text(row.get("name"), "unknown"),
+            status=_text(row.get("status"), "unknown"),
+            has_pr=_boolean(row.get("has_pr")),
+            runs=_integer(row.get("runs")),
+            distinct_agents=_integer(row.get("distinct_agents")),
+            commits=_integer(row.get("commits")),
+            total_runtime_seconds=_number(row.get("total_runtime_seconds")),
+            first_run_ts=_number(row.get("first_run_ts")),
+            last_run_ts=_number(row.get("last_run_ts")),
+        )
+        for row in _rows(work, "changespecs")
+    )
+    changespecs_by_project: defaultdict[str, list[_ChangeSpecWorkRow]] = defaultdict(
+        list
+    )
+    for changespec in changespecs:
+        changespecs_by_project[changespec.project].append(changespec)
+
+    projects = tuple(
+        _ProjectWorkRow(
+            project=_text(row.get("project"), "unknown"),
+            runs=_integer(row.get("runs")),
+            completed=_integer(row.get("completed")),
+            failed=_integer(row.get("failed")),
+            other_terminal=_integer(row.get("other_terminal")),
+            in_progress=_integer(row.get("in_progress")),
+            waiting=_integer(row.get("waiting")),
+            success_rate=_number(row.get("success_rate")),
+            commits=_integer(row.get("commits")),
+            distinct_changespecs=_integer(row.get("distinct_changespecs")),
+            unattributed_runs=_integer(row.get("unattributed_runs")),
+            total_runtime_seconds=_number(row.get("total_runtime_seconds")),
+            last_run_ts=_number(row.get("last_run_ts")),
+            changespecs=tuple(
+                changespecs_by_project[_text(row.get("project"), "unknown")]
+            ),
+        )
+        for row in _rows(work, "projects")
+    )
+    truncated = _integer(work.get("truncated_changespec_rows"))
+    return _ProjectsView(
+        projects=projects,
+        changespecs=changespecs,
+        project_count=len(projects),
+        changespec_count=len(changespecs) + truncated,
+        unattributed_runs=_integer(work.get("unattributed_runs")),
+        truncated_changespec_rows=truncated,
+        malformed_spec_files_skipped=_integer(work.get("malformed_spec_files_skipped")),
+    )
+
+
 def _build_providers_view(run_payload: Payload) -> _ProvidersView:
     total_runs = _integer(_mapping(run_payload.get("totals")).get("runs"))
     return _ProvidersView(
@@ -321,7 +427,17 @@ def _build_runtime_view(run_payload: Payload) -> _RuntimeView:
     rows = _rows(run_payload, "runtime_groups")
     total_seconds = sum(_number(row.get("total_seconds")) for row in rows)
     raw_group = _text(run_payload.get("runtime_group_by"), "agent")
-    valid_groups = {"tribe", "clan", "family", "agent", "provider", "model", "workflow"}
+    valid_groups = {
+        "tribe",
+        "clan",
+        "family",
+        "agent",
+        "provider",
+        "model",
+        "workflow",
+        "project",
+        "changespec",
+    }
     group_by = cast(RuntimeGroupBy, raw_group if raw_group in valid_groups else "agent")
     return _RuntimeView(
         group_by=group_by,
@@ -427,6 +543,10 @@ def _integer(value: object, default: int = 0) -> int:
     if isinstance(value, bool):
         return default
     return int(value) if isinstance(value, (int, float)) else default
+
+
+def _boolean(value: object, default: bool = False) -> bool:
+    return value if isinstance(value, bool) else default
 
 
 def _number(value: object, default: float = 0.0) -> float:

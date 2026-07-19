@@ -91,6 +91,69 @@ def _run_payload() -> dict[str, object]:
                 "max_seconds": 500.0,
             },
         ],
+        "work": {
+            "projects": [
+                {
+                    "project": "sase",
+                    "runs": 4,
+                    "completed": 3,
+                    "failed": 1,
+                    "other_terminal": 0,
+                    "in_progress": 0,
+                    "waiting": 0,
+                    "success_rate": 0.75,
+                    "commits": 5,
+                    "distinct_changespecs": 2,
+                    "unattributed_runs": 1,
+                    "total_runtime_seconds": 1_200.0,
+                    "last_run_ts": 7_000.0,
+                },
+                {
+                    "project": "core",
+                    "runs": 2,
+                    "completed": 0,
+                    "failed": 0,
+                    "other_terminal": 1,
+                    "in_progress": 1,
+                    "waiting": 0,
+                    "success_rate": 0.0,
+                    "commits": 2,
+                    "distinct_changespecs": 1,
+                    "unattributed_runs": 0,
+                    "total_runtime_seconds": 300.0,
+                    "last_run_ts": 6_000.0,
+                },
+            ],
+            "changespecs": [
+                {
+                    "project": "sase",
+                    "name": "stats-view",
+                    "status": "Ready",
+                    "has_pr": True,
+                    "runs": 2,
+                    "distinct_agents": 2,
+                    "commits": 3,
+                    "total_runtime_seconds": 700.0,
+                    "first_run_ts": 1_000.0,
+                    "last_run_ts": 7_000.0,
+                },
+                {
+                    "project": "core",
+                    "name": "wire-work",
+                    "status": "unknown",
+                    "has_pr": False,
+                    "runs": 2,
+                    "distinct_agents": 1,
+                    "commits": 2,
+                    "total_runtime_seconds": 300.0,
+                    "first_run_ts": 2_000.0,
+                    "last_run_ts": 6_000.0,
+                },
+            ],
+            "unattributed_runs": 1,
+            "truncated_changespec_rows": 1,
+            "malformed_spec_files_skipped": 2,
+        },
     }
 
 
@@ -147,9 +210,19 @@ def test_builds_all_presentation_views_from_binding_payloads() -> None:
     assert views.overview.question_sessions == 2
     assert views.overview.top_providers[0].label == "codex"
     assert views.overview.top_providers[0].count == 5
+    assert views.overview.top_projects[0].project == "sase"
+    assert views.overview.top_projects[0].success_rate == 0.75
     assert views.overview.buckets[1].label == "Thu 01:00"
     assert views.runs.outcomes[0].share == 0.6
     assert views.runs.commit_distribution[-1].label == "3+"
+    assert views.projects.project_count == 2
+    assert views.projects.changespec_count == 3
+    assert views.projects.unattributed_runs == 1
+    assert views.projects.truncated_changespec_rows == 1
+    assert views.projects.malformed_spec_files_skipped == 2
+    assert views.projects.projects[0].changespecs[0].name == "stats-view"
+    assert views.projects.projects[1].changespecs[0].status == "unknown"
+    assert views.projects.changespecs[0].has_pr is True
     assert views.providers.rows[0].share == pytest.approx(4 / 6)
     assert views.providers.rows[-1].mean_runtime_seconds is None
     assert views.runtime.rows[0].share == pytest.approx(2 / 3)
@@ -175,7 +248,48 @@ def test_empty_and_partial_payloads_are_safe() -> None:
     assert views.overview.success_rate == 0.0
     assert views.overview.runs_delta is None
     assert views.runs.outcomes == ()
+    assert views.projects.projects == ()
+    assert views.projects.changespecs == ()
+    assert views.projects.project_count == 0
+    assert views.projects.changespec_count == 0
+    assert views.overview.top_projects == ()
     assert views.providers.rows == ()
     assert views.runtime.group_by == "agent"
     assert views.activity.skills == ()
     assert views.plans_questions.questions == 0
+
+
+@pytest.mark.parametrize("group_by", ["project", "changespec"])
+def test_runtime_work_group_literals_round_trip(group_by: str) -> None:
+    payload = _run_payload()
+    payload["runtime_group_by"] = group_by
+
+    views = build_statistics_views(payload, _activity_payload())
+
+    assert views.runtime.group_by == group_by
+
+
+def test_work_rows_tolerate_partial_and_invalid_values() -> None:
+    views = build_statistics_views(
+        {
+            "work": {
+                "projects": [{"project": "sase", "runs": True}],
+                "changespecs": [
+                    {
+                        "project": "sase",
+                        "name": "orphan",
+                        "status": "",
+                        "has_pr": "yes",
+                    }
+                ],
+                "truncated_changespec_rows": 2,
+            }
+        },
+        {},
+    )
+
+    assert views.projects.project_count == 1
+    assert views.projects.changespec_count == 3
+    assert views.projects.projects[0].runs == 0
+    assert views.projects.projects[0].changespecs[0].status == "unknown"
+    assert views.projects.projects[0].changespecs[0].has_pr is False

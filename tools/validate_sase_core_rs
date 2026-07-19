@@ -20,6 +20,9 @@ REQUIRED_BINDINGS = (
     "update_commit_footer",
     "scan_agent_artifacts",
     "scan_agent_artifact_dirs",
+    "rebuild_agent_artifact_index",
+    "agent_stats_query_runs",
+    "agent_stats_query_activity",
     "plan_agent_cleanup",
     "save_dismissed_agents_index",
     "save_dismissed_bundle",
@@ -77,9 +80,7 @@ def _load_extension() -> ModuleType | None:
 
 def _validate_bindings(module: ModuleType) -> bool:
     missing = [
-        name
-        for name in REQUIRED_BINDINGS
-        if not callable(getattr(module, name, None))
+        name for name in REQUIRED_BINDINGS if not callable(getattr(module, name, None))
     ]
     if missing:
         _error("missing required binding(s): " + ", ".join(missing))
@@ -159,6 +160,53 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
         )
         return False
 
+    return True
+
+
+def _validate_agent_stats_work_schema(module: ModuleType) -> bool:
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-stats-probe-") as tmp:
+        root = Path(tmp)
+        projects_root = root / "projects"
+        projects_root.mkdir()
+        index_path = root / "agent_artifact_index.sqlite"
+        try:
+            module.rebuild_agent_artifact_index(
+                str(index_path),
+                str(projects_root),
+                _scan_probe_options(),
+            )
+            payload = module.agent_stats_query_runs(
+                str(index_path),
+                {
+                    "start_ts": 0,
+                    "end_ts": 1,
+                    "runtime_group_by": "project",
+                    "project": None,
+                    "work_top_n": 1,
+                },
+            )
+        except Exception as exc:
+            _error(f"agent statistics work-schema probe failed: {exc}")
+            return False
+
+    if not isinstance(payload, dict):
+        _error("agent statistics work-schema probe returned a non-dict payload")
+        return False
+    if payload.get("schema_version") != 2:
+        _error(
+            "agent statistics work-schema probe requires schema version 2: "
+            f"got {payload.get('schema_version')!r}"
+        )
+        return False
+    work = payload.get("work")
+    if not isinstance(work, dict):
+        _error("agent statistics work-schema probe payload has no work dict")
+        return False
+    if not isinstance(work.get("projects"), list) or not isinstance(
+        work.get("changespecs"), list
+    ):
+        _error("agent statistics work-schema probe payload has invalid work rows")
+        return False
     return True
 
 
@@ -299,9 +347,7 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
         _error("project lifecycle record probe returned a non-list payload")
         return False
     project_names = [
-        record.get("project_name")
-        for record in records
-        if isinstance(record, dict)
+        record.get("project_name") for record in records if isinstance(record, dict)
     ]
     if project_names != ["enabled"]:
         _error(
@@ -313,8 +359,7 @@ def _validate_project_lifecycle_contract(module: ModuleType) -> bool:
     aliases = first_record.get("aliases") if isinstance(first_record, dict) else None
     if aliases != ["bob", "docs"]:
         _error(
-            "project lifecycle record probe did not preserve aliases: "
-            f"got {aliases!r}"
+            f"project lifecycle record probe did not preserve aliases: got {aliases!r}"
         )
         return False
     if first_record.get("is_project") is not True:
@@ -337,6 +382,8 @@ def main() -> int:
     if not _validate_bindings(module):
         return 1
     if not _validate_scalar_plan_timestamp(module):
+        return 1
+    if not _validate_agent_stats_work_schema(module):
         return 1
     if not _validate_saved_group_wire_fields(module):
         return 1

@@ -66,3 +66,43 @@ def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
         assert not validator._validate_bindings(
             _module_with_required_bindings(validator, missing={binding})
         )
+
+
+def test_validate_sase_core_rs_requires_agent_stats_work_bindings() -> None:
+    validator = _load_validate_sase_core_rs()
+    stats_bindings = {
+        "rebuild_agent_artifact_index",
+        "agent_stats_query_runs",
+        "agent_stats_query_activity",
+    }
+
+    assert stats_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in stats_bindings:
+        assert not validator._validate_bindings(
+            _module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_requires_agent_stats_schema_v2() -> None:
+    validator = _load_validate_sase_core_rs()
+
+    def module_with_payload(payload: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            rebuild_agent_artifact_index=lambda *_args: {},
+            agent_stats_query_runs=lambda *_args: payload,
+        )
+
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload({"schema_version": 1})
+    )
+    assert not validator._validate_agent_stats_work_schema(
+        module_with_payload({"schema_version": 2})
+    )
+    assert validator._validate_agent_stats_work_schema(
+        module_with_payload(
+            {
+                "schema_version": 2,
+                "work": {"projects": [], "changespecs": []},
+            }
+        )
+    )

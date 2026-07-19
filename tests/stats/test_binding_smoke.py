@@ -66,4 +66,8 @@ def test_statistics_facade_smoke_through_real_bindings(tmp_path: Path) -> None:
 
     assert runs["totals"]["runs"] == 1
     assert runs["providers"][0]["effort"] == "high"
+    if "work" not in runs:
+        pytest.skip("installed sase_core_rs predates work statistics schema v2")
+    assert runs["work"]["projects"][0]["project"] == "proj"
+    assert runs["work"]["unattributed_runs"] == 1
     assert activity["skills"] == [{"name": "review", "count": 1, "distinct_agents": 1}]
