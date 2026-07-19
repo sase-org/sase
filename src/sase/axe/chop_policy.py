@@ -386,6 +386,7 @@ def _git_snapshot(
     if cursor:
         try:
             _run_git(repo, "cat-file", "-e", f"{cursor}^{{commit}}")
+            _run_git(repo, "merge-base", "--is-ancestor", cursor, head)
             count = int(_run_git(repo, "rev-list", "--count", f"{cursor}..HEAD"))
             checkpoint_found = True
         except (RuntimeError, ValueError):

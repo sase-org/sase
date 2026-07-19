@@ -238,6 +238,54 @@ def test_git_commits_since_uses_runner_checkpoint_and_accumulates(
     assert ready.decision["checkpoint_cursor"] == latest_head
 
 
+def test_git_commits_since_treats_non_ancestor_checkpoint_as_missing(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    checkpoint_head = _commit(repo, "checkpoint")
+    chop = ChopConfig(
+        name="audit",
+        description="",
+        trigger={
+            "provider": "git.commits_since",
+            "project": "demo",
+            "threshold": 2,
+            "checkpoint_policy": "on_observation",
+        },
+    )
+
+    with patch(
+        "sase.axe.chop_policy.list_project_records",
+        return_value=[_project_record("demo", repo)],
+    ):
+        first = evaluate_chop_preflight(
+            lumberjack_name="docs",
+            chop=chop,
+            context_file=None,
+            scheduled=True,
+        )
+        record_chop_checkpoint_event("docs", "audit", first, "observed")
+
+        _git(repo, "checkout", "--orphan", "rewritten")
+        rewritten_head = _commit(repo, "rewritten")
+        assert checkpoint_head != rewritten_head
+
+        after_rewrite = evaluate_chop_preflight(
+            lumberjack_name="docs",
+            chop=chop,
+            context_file=None,
+            scheduled=True,
+        )
+
+    assert after_rewrite.outcome == "fire"
+    assert "no prior checkpoint" in after_rewrite.reason
+    assert after_rewrite.decision is not None
+    assert after_rewrite.decision["checkpoint_cursor"] == rewritten_head
+
+
 def test_on_action_success_checkpoint_commits_only_after_success(
     temp_state_dir: Path,
 ) -> None:
