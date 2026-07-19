@@ -43,8 +43,8 @@ _TIME_XPROMPT_RE = re.compile(
 
 
 def set_prompt_name(prompt: str, name: str) -> str:
-    """Return *prompt* with a canonical ``%name:<name>`` directive."""
-    return _set_prompt_directive(prompt, {"name"}, f"%name:{name}")
+    """Return *prompt* with a canonical ``%id:<name>`` directive."""
+    return _set_prompt_directive(prompt, {"id"}, f"%id:{name}")
 
 
 def set_prompt_tribe(prompt: str, tribe: str | None) -> str:

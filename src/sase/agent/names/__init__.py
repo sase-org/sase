@@ -1,7 +1,7 @@
 """Agent name resolution utility for wait coordination.
 
 Scans artifact directories across all projects to find agents by their
-assigned name (via %name directive or manual TUI naming).
+assigned name (via %id directive or manual TUI naming).
 
 This package was split out from a single ``names.py`` module. The submodules
 group related concerns; the public API re-exported here is unchanged. Two

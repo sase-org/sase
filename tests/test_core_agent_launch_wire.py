@@ -383,7 +383,7 @@ def test_plan_agent_launch_fanout_rust_rejects_repeated_models() -> None:
         match=r"use %\{%m:opus \| %m:sonnet\} instead",
     ):
         plan_agent_launch_fanout(
-            "%n:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview",
+            "%i:foo\n%model:opus\n%model:sonnet %alt(x,y)\nReview",
             launch_kind="model",
         )
 
@@ -392,7 +392,7 @@ def test_plan_agent_launch_fanout_rust_model_branches_and_alt() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "%n:foo\n%{%model:opus | %model:sonnet} %alt(x,y)\nReview",
+        "%i:foo\n%{%model:opus | %model:sonnet} %alt(x,y)\nReview",
         launch_kind="model",
     )
 
@@ -400,17 +400,17 @@ def test_plan_agent_launch_fanout_rust_model_branches_and_alt() -> None:
     assert len(plan.slots) == 4
     assert plan.slots[0].model == "opus"
     assert plan.slots[0].alt_id == "1.1"
-    assert plan.slots[0].prompt == "%n:foo\n%model:opus x\nReview"
+    assert plan.slots[0].prompt == "%i:foo\n%model:opus x\nReview"
     assert plan.slots[3].model == "sonnet"
     assert plan.slots[3].alt_id == "2.2"
-    assert plan.slots[3].prompt == "%n:foo\n%model:sonnet y\nReview"
+    assert plan.slots[3].prompt == "%i:foo\n%model:sonnet y\nReview"
 
 
 def test_plan_agent_launch_fanout_rust_strips_model_effort_suffix() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "%n:foo\n%{%m:opus@xhigh | %m:sonnet@low} %alt(x,y)\nReview",
+        "%i:foo\n%{%m:opus@xhigh | %m:sonnet@low} %alt(x,y)\nReview",
         launch_kind="model",
     )
 
@@ -499,7 +499,7 @@ def test_plan_agent_launch_fanout_rust_repeat() -> None:
     pytest.importorskip("sase_core_rs")
 
     plan = plan_agent_launch_fanout(
-        "%r:3 %n:task %model:opus do work",
+        "%r:3 %i:task %model:opus do work",
         launch_kind="repeat",
     )
 

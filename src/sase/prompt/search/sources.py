@@ -203,7 +203,7 @@ def _body_tags(text: str) -> tuple[str, ...]:
     """Return sigil-stripped ``#xprompt`` chip names embedded in *text*.
 
     Only embedded xprompt chips count as tags. The fixed set of runner-control
-    ``%directive`` tokens (``%model``, ``%name``, ``%tribe`` …) are execution
+    ``%directive`` tokens (``%model``, ``%id``, ``%tribe`` …) are execution
     mechanics rather than content tags, so they are deliberately excluded to
     keep the tag space high-signal.
     """

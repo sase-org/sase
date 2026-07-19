@@ -103,12 +103,12 @@ def testsplit_prompt_for_alternatives_named_shorthand_mixes_numeric_ids() -> Non
 
 def testsplit_prompt_for_alternatives_nested_directives() -> None:
     """Nested directives in args (e.g., %m:opus) are preserved."""
-    prompt = "%alt(%m:opus %name:reviewer,%m:sonnet %name:coder)\nDo work"
+    prompt = "%alt(%m:opus %id:reviewer,%m:sonnet %id:coder)\nDo work"
     result = split_prompt_for_alternatives(prompt)
     assert result is not None
     assert len(result) == 2
-    assert result[0] == "%m:opus %name:reviewer\nDo work"
-    assert result[1] == "%m:sonnet %name:coder\nDo work"
+    assert result[0] == "%m:opus %id:reviewer\nDo work"
+    assert result[1] == "%m:sonnet %id:coder\nDo work"
 
 
 def testsplit_prompt_for_alternatives_multiple_alt_cartesian() -> None:
@@ -245,11 +245,11 @@ def testsplit_prompt_for_alternatives_brace_nested_pipes_do_not_split() -> None:
 def testsplit_prompt_for_alternatives_brace_nested_directives() -> None:
     """Nested directives inside brace branches are preserved."""
     result = split_prompt_for_alternatives(
-        "%{%m:opus %name:reviewer | %m:sonnet %name:coder}\nDo work"
+        "%{%m:opus %id:reviewer | %m:sonnet %id:coder}\nDo work"
     )
     assert result == [
-        "%m:opus %name:reviewer\nDo work",
-        "%m:sonnet %name:coder\nDo work",
+        "%m:opus %id:reviewer\nDo work",
+        "%m:sonnet %id:coder\nDo work",
     ]
 
 

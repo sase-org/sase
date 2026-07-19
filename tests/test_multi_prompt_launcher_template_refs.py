@@ -36,7 +36,7 @@ def test_launch_multi_prompt_resolves_template_wait_to_planned_predecessor(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%n:build-@\nBuild", "%w:build-@\nReview"],
+            segments=["%i:build-@\nBuild", "%w:build-@\nReview"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -47,7 +47,7 @@ def test_launch_multi_prompt_resolves_template_wait_to_planned_predecessor(
 
     calls = mock_spawn.call_args_list
     assert [result.agent_name for result in results] == ["build-0", "build-0.w0"]
-    assert calls[0].kwargs["prompt"] == "%n:build-@\nBuild"
+    assert calls[0].kwargs["prompt"] == "%i:build-@\nBuild"
     assert calls[1].kwargs["prompt"] == "%w:build-0\nReview"
     assert calls[0].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0"
     assert calls[1].kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0.w0"
@@ -81,7 +81,7 @@ def test_launch_multi_prompt_allocates_distinct_template_names_per_segment(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%n:build-@\nFirst", "%n:build-@\nSecond"],
+            segments=["%i:build-@\nFirst", "%i:build-@\nSecond"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -125,7 +125,7 @@ def test_launch_multi_prompt_allocates_distinct_suffix_shape_template_names(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%n:@.cld\nFirst", "%n:@.cld\nSecond"],
+            segments=["%i:@.cld\nFirst", "%i:@.cld\nSecond"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -172,7 +172,7 @@ def test_launch_multi_prompt_resolves_template_resume_to_planned_predecessor(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=[
-                "%n:build-@\nBuild",
+                "%i:build-@\nBuild",
                 "#fork:build-@\n#resume:build-@\nReview",
             ],
             local_xprompts={},
@@ -223,7 +223,7 @@ def test_launch_multi_prompt_resolves_middle_template_wait_to_planned_name(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=[
-                "%n:research.@.final\nFinal",
+                "%i:research.@.final\nFinal",
                 "%w:research.@.final\nReview",
             ],
             local_xprompts={},
@@ -274,7 +274,7 @@ def test_launch_multi_prompt_template_refs_prefer_planned_over_existing_latest(
 
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
-            segments=["%n:build-@\nBuild", "%w:build-@\nReview"],
+            segments=["%i:build-@\nBuild", "%w:build-@\nReview"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -310,7 +310,7 @@ def test_launch_multi_prompt_same_segment_template_wait_uses_existing_latest(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%w:build-@\n%n:build-@\nDo work"],
+            segments=["%w:build-@\n%i:build-@\nDo work"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -320,7 +320,7 @@ def test_launch_multi_prompt_same_segment_template_wait_uses_existing_latest(
         )
 
     assert [result.agent_name for result in results] == ["build-0"]
-    assert mock_spawn.call_args.kwargs["prompt"] == "%w:build-1\n%n:build-@\nDo work"
+    assert mock_spawn.call_args.kwargs["prompt"] == "%w:build-1\n%i:build-@\nDo work"
     assert (
         mock_spawn.call_args.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"] == "build-0"
     )

@@ -67,7 +67,7 @@ def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
         }
     )
 
-    assert captured == ["%name:mobile.demo\n%model:codex/gpt-5.6-sol\n#gh:sase Fix it"]
+    assert captured == ["%id:mobile.demo\n%model:codex/gpt-5.6-sol\n#gh:sase Fix it"]
     assert payload["primary"] == payload["slots"][0]
     assert payload["primary"]["name"] == "mobile.demo"
     assert [slot["status"] for slot in payload["slots"]] == ["launched", "launched"]
@@ -179,7 +179,7 @@ def test_launch_mobile_text_dry_run_validates_prompt_name() -> None:
         _launch_mobile_text_agents(
             {
                 "schema_version": 1,
-                "prompt": "%name:dry--run\nDo work",
+                "prompt": "%id:dry--run\nDo work",
                 "dry_run": True,
             }
         )
@@ -192,7 +192,7 @@ def test_launch_mobile_text_dry_run_does_not_spawn(monkeypatch) -> None:
     monkeypatch.setattr(mobile_agents, "launch_agents_from_cwd", fail_launch)
 
     payload = _launch_mobile_text_agents(
-        {"schema_version": 1, "prompt": "%name:dry\nDo work", "dry_run": True}
+        {"schema_version": 1, "prompt": "%id:dry\nDo work", "dry_run": True}
     )
 
     assert payload["primary"] == {
@@ -215,7 +215,7 @@ def test_launch_mobile_text_dry_run_returns_concrete_indexed_name(
     )
 
     payload = _launch_mobile_text_agents(
-        {"schema_version": 1, "prompt": "%name:build-@\nDo work", "dry_run": True}
+        {"schema_version": 1, "prompt": "%id:build-@\nDo work", "dry_run": True}
     )
 
     assert payload["primary"]["name"] == "build-0"

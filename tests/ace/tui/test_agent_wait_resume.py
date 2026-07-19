@@ -393,9 +393,7 @@ def test_apply_wait_with_time_relaunches_with_replacement_directive(
 
 
 def test_apply_wait_running_relaunches_with_canonical_wait(tmp_path: Path) -> None:
-    (tmp_path / "raw_xprompt.md").write_text(
-        "%name:kept do the thing", encoding="utf-8"
-    )
+    (tmp_path / "raw_xprompt.md").write_text("%id:kept do the thing", encoding="utf-8")
     agent = _make_waiting_agent(
         status="RUNNING",
         artifacts_dir=str(tmp_path),
@@ -411,7 +409,7 @@ def test_apply_wait_running_relaunches_with_canonical_wait(tmp_path: Path) -> No
     callback(True)
 
     assert app.killed_agents == [agent]
-    assert app.launch_prompts == ["%wait(dep)\n%name:kept do the thing"]
+    assert app.launch_prompts == ["%wait(dep)\n%id:kept do the thing"]
 
 
 def test_apply_wait_running_run_now_is_noop() -> None:

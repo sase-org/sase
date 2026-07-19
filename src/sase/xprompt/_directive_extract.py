@@ -39,7 +39,7 @@ def extract_prompt_directives(
     strip_disabled_markers: bool = True,
     process_references: Callable[[str], str],
 ) -> tuple[str, PromptDirectives]:
-    """Extract ``%name`` directives from a prompt."""
+    """Extract ``%id`` directives from a prompt."""
     if "%" not in prompt:
         return prompt, PromptDirectives()
 
@@ -57,21 +57,21 @@ def extract_prompt_directives(
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
     name_explicit = collected.name_family_args is None and bool(
-        collected.seen.get("name")
+        collected.seen.get("id")
     )
     name_force_reuse = False
-    if name_explicit and collected.seen.get("name", "").startswith("!"):
+    if name_explicit and collected.seen.get("id", "").startswith("!"):
         name_force_reuse = True
-        collected.seen["name"] = collected.seen["name"][1:]
+        collected.seen["id"] = collected.seen["id"][1:]
 
     if (
         collected.name_family_args is None
-        and "name" in collected.seen
-        and not collected.seen["name"]
+        and "id" in collected.seen
+        and not collected.seen["id"]
     ):
         from sase.agent.names import get_next_auto_name
 
-        collected.seen["name"] = get_next_auto_name()
+        collected.seen["id"] = get_next_auto_name()
 
     resolve_wait_agent_args(collected.seen_multi)
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
@@ -95,7 +95,7 @@ def extract_prompt_directives(
     )
 
     name_info = resolve_name_template(
-        expanded_args.get("name"),
+        expanded_args.get("id"),
         force_reuse=name_force_reuse,
     )
     resolve_wait_templates(expanded_multi)
@@ -128,7 +128,7 @@ def extract_prompt_directives(
         model=expanded_args.get("model") or None,
         model_alias_overrides=model_alias_overrides,
         reasoning_effort=reasoning_effort,
-        name=expanded_args.get("name") or None,
+        name=expanded_args.get("id") or None,
         name_explicit=name_explicit,
         name_force_reuse=name_force_reuse,
         clan=clan,

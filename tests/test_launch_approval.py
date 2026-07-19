@@ -125,7 +125,7 @@ def _write_tui_launch_request(
     launch_cwd: Path,
     *,
     request_id: str = "launch-dispatch",
-    prompt: str = "%n(foo, reviewer)\nDo work",
+    prompt: str = "%i(foo, reviewer)\nDo work",
 ) -> None:
     response_dir.mkdir()
     launch_cwd.mkdir()
@@ -213,7 +213,7 @@ def test_launch_preview_request_covers_batch(tmp_path: Path) -> None:
 def test_launch_preview_markdown_renders_full_prompt(tmp_path: Path) -> None:
     full_prompt = "\n".join(
         [
-            "%n:demo-review",
+            "%i:demo-review",
             "Keep the line structure intact.",
             "x" * 540,
             "#plan",
@@ -332,9 +332,9 @@ def test_launch_preview_annotates_rootless_clan_members(tmp_path: Path) -> None:
         plan=plan_fake_fanout(
             "multi_prompt",
             [
-                "%name:demo.phase-a\n%clan:demo\nImplement",
-                "%name:demo.land\n%clan:demo\nLand the clan",
-                "%name:demo.review\n%clan:demo\nReview",
+                "%id:demo.phase-a\n%clan:demo\nImplement",
+                "%id:demo.land\n%clan:demo\nLand the clan",
+                "%id:demo.review\n%clan:demo\nReview",
             ],
         ),
         context=_context(tmp_path),
@@ -353,7 +353,7 @@ def test_launch_preview_annotates_clan_tribe(tmp_path: Path) -> None:
     request = build_launch_preview_request(
         plan=plan_fake_fanout(
             "multi_prompt",
-            ["%name:demo.phase\n%clan(demo, tribe=quality)\nImplement"],
+            ["%id:demo.phase\n%clan(demo, tribe=quality)\nImplement"],
         ),
         context=_context(tmp_path),
         source_surface="agent_skill",
@@ -399,7 +399,7 @@ def test_create_launch_request_writes_preview_and_notification(
     result = create_launch_approval_request(
         {
             "schema_version": 1,
-            "prompt": "%n(foo, reviewer)\nDo work",
+            "prompt": "%i(foo, reviewer)\nDo work",
             "reason": "Need reviewer follow-up",
             "approval": "required",
             "max_slots": 1,
@@ -416,7 +416,7 @@ def test_create_launch_request_writes_preview_and_notification(
     assert written["launch_request"]["reason"] == "Need reviewer follow-up"
     assert written["dispatch"] == {
         "cwd": str(tmp_path),
-        "prompt": "%n(foo, reviewer)\nDo work",
+        "prompt": "%i(foo, reviewer)\nDo work",
     }
     assert envelope["query"] == "approve OR reject OR feedback"
     assert envelope["primary_branch"] == ["approve"]
@@ -622,7 +622,7 @@ def test_approve_launch_response_dispatches_stored_request(
                 "request_id": "launch-dispatch",
                 "dispatch": {
                     "cwd": str(launch_cwd),
-                    "prompt": "%n(foo, reviewer)\nDo work",
+                    "prompt": "%i(foo, reviewer)\nDo work",
                 },
             }
         ),
@@ -652,7 +652,7 @@ def test_approve_launch_response_dispatches_stored_request(
         result = execute_launch_approval_response(context, "approve")
 
     assert seen == {
-        "prompt": "%n(foo, reviewer)\nDo work",
+        "prompt": "%i(foo, reviewer)\nDo work",
         "cwd": launch_cwd,
     }
     assert result.launched_count == 1
@@ -707,7 +707,7 @@ def test_tui_launch_approval_approve_dispatches_stored_request(
         )
 
     assert seen == {
-        "prompt": "%n(foo, reviewer)\nDo work",
+        "prompt": "%i(foo, reviewer)\nDo work",
         "cwd": launch_cwd,
     }
     assert json.loads((response_dir / "launch_response.json").read_text()) == {

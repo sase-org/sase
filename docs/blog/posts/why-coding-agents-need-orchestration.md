@@ -216,15 +216,15 @@ input:
     type: str
     description: What to improve.
 ---
-%n:plan
+%i:plan
 Plan a safe change for {{ target }}.
 ---
-%n:code
+%i:code
 %w:plan
 #fork:plan
 Implement the approved safe change for {{ target }}.
 ---
-%n:review
+%i:review
 %w:code
 Review the diff and call out risks.
 ```
@@ -241,39 +241,39 @@ That is an xprompt swarm. It is readable. It does not need a workflow engine. It
 Directives are `%` tags that change launch behavior. They are extracted from the prompt before the agent sees it. The
 full reference is in [XPrompts: Directives](../../xprompt.md#directives); this is the practical tour.
 
-| Directive | Alias | What it does                                                                                                                         | Example                                                            |
-| --------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `%model`  | `%m`  | Select a provider/model. Model branches can fan out into one agent per model.                                                        | `%m:claude/opus audit this API`                                    |
-| `%effort` | `%e`  | Set the provider reasoning-effort level for this prompt.                                                                             | `%e:xhigh investigate the race`                                    |
-| `%name`   | `%n`  | Give an agent a stable name. Bare `%name` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%n:reviewer`, `%n:build-@`, `%n:!reviewer`                        |
-| `%clan`   | `%c`  | Join a named, rootless parallel clan; the member name must be inside the clan's hood.                                                | `%n:release.test %clan:release`                                    |
-| `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.              | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
-| `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                   | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                       | `%h %n:background-log-checker inspect logs`                        |
-| `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                           | `%a #!sync` or `%auto:epic %n:checkout plan the rewrite`           |
-| `%repeat` | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.             | `%r:5 %n:flaky-repro try to reproduce the flaky test once`         |
-| `%tribe`  | `%t`  | Assign the agent's user-managed tribe for ACE grouping and filtering.                                                                | `%t:review review the latest ChangeSpec`                           |
-| `%alt`    | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product.     | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
+| Directive | Alias | What it does                                                                                                                       | Example                                                            |
+| --------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `%model`  | `%m`  | Select a provider/model. Model branches can fan out into one agent per model.                                                      | `%m:claude/opus audit this API`                                    |
+| `%effort` | `%e`  | Set the provider reasoning-effort level for this prompt.                                                                           | `%e:xhigh investigate the race`                                    |
+| `%id`     | `%i`  | Give an agent a stable name. Bare `%id` auto-names; `@` templates allocate suffixes; `!` force-reuses from confirmed TUI launches. | `%i:reviewer`, `%i:build-@`, `%i:!reviewer`                        |
+| `%clan`   | `%c`  | Join a named, rootless parallel clan; the member name must be inside the clan's hood.                                              | `%i:release.test %clan:release`                                    |
+| `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.            | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
+| `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.                 | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                     | `%h %i:background-log-checker inspect logs`                        |
+| `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                         | `%a #!sync` or `%auto:epic %i:checkout plan the rewrite`           |
+| `%repeat` | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.           | `%r:5 %i:flaky-repro try to reproduce the flaky test once`         |
+| `%tribe`  | `%t`  | Assign the agent's user-managed tribe for ACE grouping and filtering.                                                              | `%t:review review the latest ChangeSpec`                           |
+| `%alt`    | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product.   | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
 
 Directives compose. This launches two named model variants, assigns tribe `@review`, and keeps them hidden unless you
 toggle hidden agents:
 
 ```bash
-sase run '%n:api-review %t:review %h %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} review the API boundary'
+sase run '%i:api-review %t:review %h %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} review the API boundary'
 ```
 
 And this chains a planner, coder, and reviewer without inventing a YAML workflow:
 
 ```text
-%n:planner
+%i:planner
 Plan a safe docs refresh.
 ---
-%n:coder
+%i:coder
 %w:planner
 #fork:planner
 Implement the plan.
 ---
-%n:reviewer
+%i:reviewer
 %w:coder
 Review the diff and list follow-ups.
 ```
@@ -288,8 +288,8 @@ part of "continue this agent" without making every workflow depend on one mutabl
 plays nicely with `%wait`: wait for the prior agent to finish, then fork from it.
 
 ```bash
-sase run '%n:design propose a small architecture improvement'
-sase run '%n:implement %w:design #fork:design implement the approved part only'
+sase run '%i:design propose a small architecture improvement'
+sase run '%i:implement %w:design #fork:design implement the approved part only'
 ```
 
 The forked agent gets a new record and a new workspace. You still have lineage, but the unit of work stays inspectable.
@@ -511,7 +511,7 @@ somewhere sensible."
 The same idea appears in prompts:
 
 ```bash
-sase run '%n:api-audit %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} audit the API boundary and compare findings'
+sase run '%i:api-audit %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} audit the API boundary and compare findings'
 ```
 
 That launches a model fan-out. Sometimes the right answer is not trusting one model harder. Sometimes it is asking two

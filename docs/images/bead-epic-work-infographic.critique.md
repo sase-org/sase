@@ -61,7 +61,7 @@ status/dependency model.
    bead in the plan (`status=in_progress`, `assignee=<phase_bead_id>`) _before_ dispatching the multi-prompt; this is
    not a wave-1 property. The caption should describe a global pre-launch step, not a wave-band property.
 2. **"one agent per phase" caption attached to wave 3 only — incorrect.** This is true of every wave. Each
-   `PhaseAssignment` becomes one segment with `%name:!<phase_bead_id>` plus a `#work_phase_bead:<bead_id>` reference
+   `PhaseAssignment` becomes one segment with `%id:!<phase_bead_id>` plus a `#work_phase_bead:<bead_id>` reference
    (`work.py:338`–`345`). It is not a wave-3-specific behavior.
 3. **"dependency arrows" caption attached to wave 2 only — vacuous.** Dependency arrows are how the Kahn schedule is
    _built_; they are not a property of any one wave. The label adds nothing where it sits and would be better used to

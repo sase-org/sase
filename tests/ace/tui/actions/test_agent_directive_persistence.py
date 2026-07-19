@@ -35,8 +35,8 @@ def test_persist_agent_directive_update_rewrites_prompt_artifacts_and_history(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    old_prompt = "%name:old\nDo work"
-    new_prompt = "%name:new\nDo work"
+    old_prompt = "%id:old\nDo work"
+    new_prompt = "%id:new\nDo work"
     (artifacts / "raw_xprompt.md").write_text(old_prompt, encoding="utf-8")
     (artifacts / "submitted_xprompt.md").write_text(old_prompt, encoding="utf-8")
     history_file = tmp_path / "prompt_history.json"
@@ -67,7 +67,7 @@ def test_persist_agent_directive_update_leaves_diverged_submitted_prompt(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    (artifacts / "raw_xprompt.md").write_text("%name:old\nDo work", encoding="utf-8")
+    (artifacts / "raw_xprompt.md").write_text("%id:old\nDo work", encoding="utf-8")
     (artifacts / "submitted_xprompt.md").write_text("historical", encoding="utf-8")
 
     result = persist_agent_directive_update(
@@ -88,8 +88,8 @@ def test_persist_agent_directive_update_finishes_when_history_is_corrupt(
 ) -> None:
     artifacts = tmp_path / "artifacts"
     artifacts.mkdir()
-    old_prompt = "%name:old\nDo work"
-    new_prompt = "%name:new\nDo work"
+    old_prompt = "%id:old\nDo work"
+    new_prompt = "%id:new\nDo work"
     (artifacts / "raw_xprompt.md").write_text(old_prompt, encoding="utf-8")
     history_file = tmp_path / "prompt_history.json"
     history_dir = tmp_path / "prompt_history"

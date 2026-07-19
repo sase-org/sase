@@ -19,20 +19,20 @@ from sase.xprompt._exceptions import DirectiveError
 
 class TestExtractRepeatAndName:
     def test_parses_repeat_and_name(self) -> None:
-        count, base, cleaned = extract_repeat_and_name("%r:4 %n:sase-z do X")
+        count, base, cleaned = extract_repeat_and_name("%r:4 %i:sase-z do X")
         assert count == 4
         assert base == "sase-z"
         assert "%r" not in cleaned
-        assert "%n" not in cleaned
+        assert "%i" not in cleaned
         assert "do X" in cleaned
 
     def test_parses_canonical_names(self) -> None:
-        count, base, cleaned = extract_repeat_and_name("%repeat:2 %name:foo body")
+        count, base, cleaned = extract_repeat_and_name("%repeat:2 %id:foo body")
         assert count == 2
         assert base == "foo"
         assert "body" in cleaned
         assert "%repeat" not in cleaned
-        assert "%name" not in cleaned
+        assert "%id" not in cleaned
 
     def test_returns_none_when_no_repeat(self) -> None:
         count, base, cleaned = extract_repeat_and_name("do X")
@@ -54,9 +54,9 @@ class TestExtractRepeatAndName:
         assert cleaned == "%r:1 do X"
 
     def test_strips_bare_name(self) -> None:
-        count, base, cleaned = extract_repeat_and_name("%r:3 %n do X")
+        count, base, cleaned = extract_repeat_and_name("%r:3 %i do X")
         assert count == 3
-        assert base is None  # bare %n means auto-gen
+        assert base is None  # bare %i means auto-gen
         assert "do X" in cleaned
 
     def test_preserves_other_directives(self) -> None:
@@ -95,7 +95,7 @@ class TestSpawnRepeatBatch:
         calls: list[RepeatAgentSpec] = []
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:3 %n:zz do X",
+                "%r:3 %i:zz do X",
                 base_spawn_fn=calls.append,
                 sleep_between=0.0,
             )
@@ -108,12 +108,12 @@ class TestSpawnRepeatBatch:
     def test_specs_have_n_injected(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:2 %n:aa do Y",
+                "%r:2 %i:aa do Y",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert specs[0].prompt.startswith("%n:aa.1")
-        assert specs[1].prompt.startswith("%n:aa.2")
+        assert specs[0].prompt.startswith("%i:aa.1")
+        assert specs[1].prompt.startswith("%i:aa.2")
         assert "do Y" in specs[0].prompt
         assert "do Y" in specs[1].prompt
 
@@ -126,7 +126,7 @@ class TestSpawnRepeatBatch:
             pytest.raises(DirectiveError, match="agent name template"),
         ):
             spawn_repeat_batch(
-                f"%r:2 %n:{template} do Y",
+                f"%r:2 %i:{template} do Y",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -139,7 +139,7 @@ class TestSpawnRepeatBatch:
             pytest.raises(DirectiveError, match="agent name template"),
         ):
             spawn_repeat_batch(
-                "%n:@.cld %r:2 do Y",
+                "%i:@.cld %r:2 do Y",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -161,7 +161,7 @@ class TestSpawnRepeatBatch:
         calls: list[RepeatAgentSpec] = []
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:4 %n:qq do X",
+                "%r:4 %i:qq do X",
                 base_spawn_fn=calls.append,
                 sleep_between=0.25,
             )
@@ -171,7 +171,7 @@ class TestSpawnRepeatBatch:
     def test_timestamps_are_attached_to_repeat_specs(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:3 %n:qq do X",
+                "%r:3 %i:qq do X",
                 base_spawn_fn=lambda _s: None,
                 timestamps=["260501_120000", "260501_120001", "260501_120002"],
             )
@@ -184,30 +184,30 @@ class TestSpawnRepeatBatch:
     def test_first_iteration_has_no_wait(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:3 %n:ww do X",
+                "%r:3 %i:ww do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert specs[0].prompt.startswith("%n:ww.1\n")
+        assert specs[0].prompt.startswith("%i:ww.1\n")
         assert "%wait:ww" not in specs[0].prompt
 
     def test_later_iterations_wait_on_predecessor(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:4 %n:ww do X",
+                "%r:4 %i:ww do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
-        assert specs[1].prompt.startswith("%n:ww.2\n%wait:ww.1\n")
-        assert specs[2].prompt.startswith("%n:ww.3\n%wait:ww.2\n")
-        assert specs[3].prompt.startswith("%n:ww.4\n%wait:ww.3\n")
+        assert specs[1].prompt.startswith("%i:ww.2\n%wait:ww.1\n")
+        assert specs[2].prompt.startswith("%i:ww.3\n%wait:ww.2\n")
+        assert specs[3].prompt.startswith("%i:ww.4\n%wait:ww.3\n")
 
     def test_prev_name_is_none_for_first_slot_and_predecessor_for_later(
         self, tmp_path: Path
     ) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:4 %n:ww do X",
+                "%r:4 %i:ww do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -247,7 +247,7 @@ class TestSpawnRepeatBatch:
     def test_preexisting_user_wait_is_preserved(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:2 %n:ww %wait:other do X",
+                "%r:2 %i:ww %wait:other do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -265,9 +265,9 @@ class TestSpawnRepeatBatch:
                 sleep_between=0.0,
             )
         assert [s.name for s in specs] == ["foo.f0", "foo.f1", "foo.f2"]
-        assert specs[0].prompt.startswith("%n:foo.f0\n")
-        assert specs[1].prompt.startswith("%n:foo.f1\n%wait:foo.f0\n")
-        assert specs[2].prompt.startswith("%n:foo.f2\n%wait:foo.f1\n")
+        assert specs[0].prompt.startswith("%i:foo.f0\n")
+        assert specs[1].prompt.startswith("%i:foo.f1\n%wait:foo.f0\n")
+        assert specs[2].prompt.startswith("%i:foo.f2\n%wait:foo.f1\n")
 
     def test_multi_parent_resume_prompt_uses_neutral_repeat_names(
         self, tmp_path: Path
@@ -290,8 +290,8 @@ class TestSpawnRepeatBatch:
                 sleep_between=0.0,
             )
         assert [s.name for s in specs] == ["foo.f0", "foo.f1"]
-        assert specs[0].prompt.startswith("%n:foo.f0\n")
-        assert specs[1].prompt.startswith("%n:foo.f1\n%wait:foo.f0\n")
+        assert specs[0].prompt.startswith("%i:foo.f0\n")
+        assert specs[1].prompt.startswith("%i:foo.f1\n%wait:foo.f0\n")
 
     def test_resume_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
         taken = (
@@ -317,9 +317,9 @@ class TestSpawnRepeatBatch:
                 sleep_between=0.0,
             )
         assert [s.name for s in specs] == ["foo.w0", "foo.w1", "foo.w2"]
-        assert specs[0].prompt.startswith("%n:foo.w0\n")
-        assert specs[1].prompt.startswith("%n:foo.w1\n%wait:foo.w0\n")
-        assert specs[2].prompt.startswith("%n:foo.w2\n%wait:foo.w1\n")
+        assert specs[0].prompt.startswith("%i:foo.w0\n")
+        assert specs[1].prompt.startswith("%i:foo.w1\n%wait:foo.w0\n")
+        assert specs[2].prompt.startswith("%i:foo.w2\n%wait:foo.w1\n")
 
     def test_wait_repeat_fills_available_gaps(self, tmp_path: Path) -> None:
         taken = (
@@ -340,7 +340,7 @@ class TestSpawnRepeatBatch:
     def test_explicit_repeat_base_wins_over_resume(self, tmp_path: Path) -> None:
         with patch.object(Path, "home", return_value=tmp_path):
             specs = spawn_repeat_batch(
-                "%r:2 %n:bar #fork:foo do X",
+                "%r:2 %i:bar #fork:foo do X",
                 base_spawn_fn=lambda _s: None,
                 sleep_between=0.0,
             )
@@ -359,7 +359,7 @@ class TestSpawnRepeatBatch:
         with patch.object(Path, "home", return_value=tmp_path):
             with pytest.raises(NameCollisionError):
                 spawn_repeat_batch(
-                    "%r:4 %n:sase-z do X",
+                    "%r:4 %i:sase-z do X",
                     base_spawn_fn=lambda _s: None,
                     sleep_between=0.0,
                 )

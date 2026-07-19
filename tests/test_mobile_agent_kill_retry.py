@@ -177,9 +177,7 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
     monkeypatch.setattr(mobile_agents, "list_all_agents", lambda: [])
     artifact_dir = tmp_path / "projects" / "sase" / "artifacts" / "ace-run" / "ts1"
     artifact_dir.mkdir(parents=True)
-    (artifact_dir / "raw_xprompt.md").write_text(
-        "%name:alpha\nDo work", encoding="utf-8"
-    )
+    (artifact_dir / "raw_xprompt.md").write_text("%id:alpha\nDo work", encoding="utf-8")
     store = tmp_path / "mobile_gateway" / "agent_launch_contexts.jsonl"
     store.parent.mkdir(parents=True)
     store.write_text(
@@ -218,7 +216,7 @@ def test_retry_mobile_agent_prefers_artifact_prompt_and_allocates_name(
         {"schema_version": 1, "name": "alpha", "request_id": "req-retry-1"}
     )
 
-    assert captured == ["%name:alpha.r0\nDo work"]
+    assert captured == ["%id:alpha.r0\nDo work"]
     assert payload["source_agent"] == "alpha"
     assert payload["launch"]["primary"]["name"] == "alpha.r0"
     contexts = store.read_text(encoding="utf-8")
@@ -270,7 +268,7 @@ def test_retry_mobile_agent_falls_back_to_mobile_kill_context(
 
     payload = _retry_mobile_agent({"schema_version": 1, "name": "killed"})
 
-    assert captured == ["%name:killed.r0\nDo killed work"]
+    assert captured == ["%id:killed.r0\nDo killed work"]
     assert payload["source_agent"] == "killed"
 
 

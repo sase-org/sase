@@ -159,9 +159,9 @@ def test_model_xprompts_skips_multi_segment_agent_prompts(
         "research_swarm": XPrompt(
             name="research_swarm",
             content=(
-                "%name:research.cdx %model:codex/gpt-5.6-sol\n"
+                "%id:research.cdx %model:codex/gpt-5.6-sol\n"
                 "---\n"
-                "%name:research.cld %model:claude/opus"
+                "%id:research.cld %model:claude/opus"
             ),
         ),
     }

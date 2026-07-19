@@ -62,7 +62,7 @@ def preprocess_prompt_early(
     Steps:
         1. Render Jinja2 with *context* dict (for workflow variables).
         2. Expand ``#name`` xprompt references.
-        3. Extract ``%name`` prompt directives (after xprompt expansion so
+        3. Extract ``%id`` prompt directives (after xprompt expansion so
            directives embedded in xprompts are also discovered).
 
     Args:

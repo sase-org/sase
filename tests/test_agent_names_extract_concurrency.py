@@ -89,7 +89,7 @@ def test_concurrent_explicit_extract_rejects_collision(tmp_path: Path) -> None:
         artifacts.mkdir(parents=True)
         try:
             info = extract_directives_and_write_meta(
-                "%name:dupe do stuff",
+                "%id:dupe do stuff",
                 str(workspace),
                 str(artifacts),
                 cl_name="feature-branch",
@@ -132,7 +132,7 @@ def test_generated_name_marker_env_is_consumed(tmp_path: Path) -> None:
     """The generated-name marker applies to this launch only.
 
     If it lingers in the environment, nested launches spawned by this agent
-    inherit it and treat their own explicit %name directives as generated,
+    inherit it and treat their own explicit %id directives as generated,
     silently skipping name collision checks.
     """
     from sase.axe.run_agent_phases import extract_directives_and_write_meta
@@ -159,11 +159,11 @@ def test_generated_name_marker_env_is_consumed(tmp_path: Path) -> None:
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
     ):
         extract_directives_and_write_meta(
-            "%name:genx\nDo work",
+            "%id:genx\nDo work",
             workspace,
             artifacts,
             cl_name="test_cl",
-            raw_resolved_prompt="%name:genx\nDo work",
+            raw_resolved_prompt="%id:genx\nDo work",
         )
 
         assert "SASE_AGENT_GENERATED_NAME" not in os.environ

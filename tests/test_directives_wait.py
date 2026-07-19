@@ -18,7 +18,7 @@ def test_wait_directive_multiple() -> None:
 
 def test_wait_bare_resolves_to_previous_agent() -> None:
     """Bare %wait resolves to the most recently named previous agent."""
-    prompt = "%name:foo\n%wait\nDo work"
+    prompt = "%id:foo\n%wait\nDo work"
     with patch(
         "sase.agent.names.get_most_recent_agent_name",
         return_value="prev",
@@ -30,8 +30,8 @@ def test_wait_bare_resolves_to_previous_agent() -> None:
 
 
 def test_wait_bare_with_bare_name_does_not_self_wait() -> None:
-    """Bare %wait + bare %name does NOT wait for itself."""
-    prompt = "%name\n%wait\nDo work"
+    """Bare %wait + bare %id does NOT wait for itself."""
+    prompt = "%id\n%wait\nDo work"
     with (
         patch(
             "sase.agent.names.get_next_auto_name",
@@ -61,7 +61,7 @@ def test_wait_bare_no_previous_agent_raises() -> None:
 
 def test_wait_mixed_bare_and_explicit() -> None:
     """Mix of bare and explicit %wait works."""
-    prompt = "%name:foo\n%wait:bar\n%wait\nDo work"
+    prompt = "%id:foo\n%wait:bar\n%wait\nDo work"
     with patch(
         "sase.agent.names.get_most_recent_agent_name",
         return_value="prev",

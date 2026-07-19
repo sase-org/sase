@@ -95,7 +95,7 @@ def launch_planned_bead_work_agents(
 
     # Bead work renders deterministic single-agent segments. Assert no segment
     # carries a parent-side fan-out directive so the preplanned one-slot plans
-    # below are guaranteed correct, and assert the rendered %name directives
+    # below are guaranteed correct, and assert the rendered %id directives
     # match the planned names so a render bug cannot launch agents under the
     # wrong deterministic names.
     try:

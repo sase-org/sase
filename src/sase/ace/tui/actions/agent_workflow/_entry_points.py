@@ -40,7 +40,7 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
 
 
 def _rewrite_retry_prompt_name(raw_prompt: str, retry_name: str) -> str:
-    """Replace or prepend the top-level prompt name directive for retry."""
+    """Replace or prepend the top-level prompt ``%id`` directive for retry."""
     return rewrite_retry_prompt_name(raw_prompt, retry_name)
 
 
@@ -48,7 +48,7 @@ def _force_name_reuse_in_prompt(
     raw_prompt: str,
     replacement_name: str | None = None,
 ) -> str:
-    """Mark an explicit top-level prompt name directive for forced reuse."""
+    """Mark an explicit top-level prompt ``%id`` directive for forced reuse."""
     return force_name_reuse_in_prompt(raw_prompt, replacement_name=replacement_name)
 
 

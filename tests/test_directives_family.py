@@ -38,7 +38,7 @@ def test_clan_directive_parses_parenthesized_tribe(directive: str) -> None:
 
 def test_clan_directive_allows_plain_name_directive() -> None:
     _, directives = extract_prompt_directives(
-        "%n:research.worker\n%clan:research\nDo work"
+        "%i:research.worker\n%clan:research\nDo work"
     )
 
     assert directives.name == "research.worker"
@@ -114,9 +114,9 @@ def test_clan_directive_rejects_duplicate_alias_occurrence() -> None:
 
 
 def test_clan_directive_conflicts_with_serial_family_attach() -> None:
-    prompt = "%n(parent, reviewer)\n%clan:parent\nDo work"
+    prompt = "%i(parent, reviewer)\n%clan:parent\nDo work"
 
-    with pytest.raises(DirectiveError, match="Cannot combine %clan with %n"):
+    with pytest.raises(DirectiveError, match="Cannot combine %clan with %i"):
         extract_prompt_directives(prompt)
 
 

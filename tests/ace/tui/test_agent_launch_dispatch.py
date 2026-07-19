@@ -105,7 +105,7 @@ def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
 
     _run_launch_body_with_common_patches(
         app,
-        "%n:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
+        "%i:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
     )
 
     assert app.launched == []
@@ -115,14 +115,14 @@ def test_run_agent_launch_body_dispatches_pure_alt_fanout() -> None:
     assert len(fanout_calls) == 1
     _, args = fanout_calls[0]
     assert args[0] == [
-        "%n:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
+        "%i:ag\n%alt(sec=security pass,perf=performance pass)\nReview",
     ]
     assert args[4] == "alternatives"
     assert args[5] == {}
     fanout_plan = args[7]
     assert [slot.prompt for slot in fanout_plan.slots] == [
-        "%name:ag.sec\nsecurity pass\nReview",
-        "%name:ag.perf\nperformance pass\nReview",
+        "%id:ag.sec\nsecurity pass\nReview",
+        "%id:ag.perf\nperformance pass\nReview",
     ]
 
 
@@ -135,7 +135,7 @@ def test_run_agent_launch_body_forwards_local_xprompts_to_fanout_worker() -> Non
         "xprompts:\n"
         '  _flash: "gemini-3-flash-preview"\n'
         "---\n"
-        "%n:ag\n"
+        "%i:ag\n"
         "%{%model:#_flash | %model:sonnet}\n"
         "Review",
     )

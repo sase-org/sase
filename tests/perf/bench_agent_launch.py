@@ -210,7 +210,7 @@ def _scenario_functions(
         "repeat_fanout": lambda host: _run_plan(
             host,
             launch_kind="repeat",
-            prompts=["%n:bench.1 do it", "%n:bench.2 do it", "%n:bench.3 do it"],
+            prompts=["%i:bench.1 do it", "%i:bench.2 do it", "%i:bench.3 do it"],
             include_sleeps=include_sleeps,
             fanout_sleep_seconds=1.0,
         ),

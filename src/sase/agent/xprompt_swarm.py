@@ -502,7 +502,7 @@ def expand_xprompt_swarms_with_metadata(
           :func:`extract_top_level_xprompt_reference`) to an xprompt whose body
           contains ``---`` separators, substitute the call's args into the
           xprompt body and split the result on ``---``.  The call site's
-          leading directives (e.g. ``%name:custom``) attach to the *first*
+          leading directives (e.g. ``%id:custom``) attach to the *first*
           sub-segment only.
         * If the segment contains multiple xprompt swarm references, each
           reference fans out in document order.  Leading prose attaches to the

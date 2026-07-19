@@ -221,14 +221,14 @@ def resolution_error_message(
     candidates = [dict(candidate) for candidate in result.get("candidates", [])]
     if kind == "absent":
         return (
-            f"Cannot attach family member with %n({directive.parent}, "
+            f"Cannot attach family member with %i({directive.parent}, "
             f"{directive.suffix}): parent agent '{directive.parent}' was not "
             f"found in project '{project_name}'."
         )
     if kind == "dismissed":
         return (
             f"Cannot attach family member to dismissed parent '{directive.parent}'. "
-            "Revive the parent from the Agents tab before using %n(parent, suffix)."
+            "Revive the parent from the Agents tab before using %i(parent, suffix)."
         )
     if kind == "ambiguous":
         labels = ", ".join(_candidate_label(candidate) for candidate in candidates[:5])

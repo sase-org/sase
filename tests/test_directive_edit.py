@@ -16,16 +16,16 @@ from sase.xprompt.directives import extract_prompt_directives
 
 
 def test_set_prompt_name_inserts_when_absent() -> None:
-    assert set_prompt_name("Do work", "reviewer") == "%name:reviewer\nDo work"
+    assert set_prompt_name("Do work", "reviewer") == "%id:reviewer\nDo work"
 
 
 def test_set_prompt_name_replaces_long_form() -> None:
-    assert set_prompt_name("%name:old\nDo work", "new") == "%name:new\nDo work"
+    assert set_prompt_name("%id:old\nDo work", "new") == "%id:new\nDo work"
 
 
 def test_set_prompt_name_replaces_alias_without_touching_tribe() -> None:
-    prompt = "%t:batch\n%n:old\nDo work"
-    assert set_prompt_name(prompt, "new") == "%name:new\n%t:batch\nDo work"
+    prompt = "%t:batch\n%i:old\nDo work"
+    assert set_prompt_name(prompt, "new") == "%id:new\n%t:batch\nDo work"
 
 
 def test_set_prompt_tribe_set_and_unset_alias() -> None:
@@ -134,14 +134,14 @@ def test_set_prompt_wait_round_trips_tribe_reference() -> None:
 def test_insert_after_frontmatter() -> None:
     prompt = "---\ntitle: demo\n---\nDo work"
     assert set_prompt_name(prompt, "agent") == (
-        "---\ntitle: demo\n---\n%name:agent\nDo work"
+        "---\ntitle: demo\n---\n%id:agent\nDo work"
     )
 
 
 def test_fenced_directives_are_not_rewritten() -> None:
-    prompt = "Before\n```text\n%name:example\n```\nDo work"
+    prompt = "Before\n```text\n%id:example\n```\nDo work"
     assert set_prompt_name(prompt, "real") == (
-        "%name:real\nBefore\n```text\n%name:example\n```\nDo work"
+        "%id:real\nBefore\n```text\n%id:example\n```\nDo work"
     )
 
 
@@ -157,7 +157,5 @@ def test_disabled_region_directives_are_not_rewritten() -> None:
 
 
 def test_alt_branch_directives_are_not_rewritten() -> None:
-    prompt = "%alt(%name:a | %name:b)\nDo work"
-    assert set_prompt_name(prompt, "real") == (
-        "%name:real\n%alt(%name:a | %name:b)\nDo work"
-    )
+    prompt = "%alt(%id:a | %id:b)\nDo work"
+    assert set_prompt_name(prompt, "real") == ("%id:real\n%alt(%id:a | %id:b)\nDo work")

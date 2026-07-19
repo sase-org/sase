@@ -251,7 +251,7 @@ def extract_directives_and_write_meta(
     planned_name = os.environ.get("SASE_AGENT_PLANNED_NAME")
     # Pop: the marker describes this launch only. Leaving it in the
     # environment makes nested launches from this agent treat their own
-    # explicit %name directives as generated, silently skipping name
+    # explicit %id directives as generated, silently skipping name
     # collision checks.
     generated_name = os.environ.pop("SASE_AGENT_GENERATED_NAME", None) == "1"
     name_user_explicit = (

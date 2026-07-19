@@ -196,10 +196,10 @@ def test_second_prepend_press_continues_from_previous_index() -> None:
 
 
 def test_prepend_inserts_after_frontmatter_whitespace_and_directives() -> None:
-    text = "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
+    text = "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
     edit = _cycle(text)
-    assert edit.text == "---\nxprompts: {}\n---\n  %n:a %wait #git:foo Fix it"
-    assert edit.start_offset == len("---\nxprompts: {}\n---\n  %n:a %wait ")
+    assert edit.text == "---\nxprompts: {}\n---\n  %i:a %wait #git:foo Fix it"
+    assert edit.start_offset == len("---\nxprompts: {}\n---\n  %i:a %wait ")
 
 
 def test_cursor_before_replaced_span_is_unchanged() -> None:
@@ -302,8 +302,8 @@ def test_deletes_tag_at_start_and_trailing_space() -> None:
 
 
 def test_deletes_tag_after_directive_prefix() -> None:
-    edit = _delete("%n:a #git:foo fix")
-    assert edit.text == "%n:a fix"
+    edit = _delete("%i:a #git:foo fix")
+    assert edit.text == "%i:a fix"
 
 
 def test_deletes_trailing_tag_with_leading_space() -> None:
@@ -333,9 +333,9 @@ def test_deletes_only_first_tag() -> None:
 
 
 def test_deletes_tag_after_frontmatter_and_directives() -> None:
-    text = "---\nxprompts: {}\n---\n  %n:a %wait #git:foo Fix it"
+    text = "---\nxprompts: {}\n---\n  %i:a %wait #git:foo Fix it"
     edit = _delete(text)
-    assert edit.text == "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
+    assert edit.text == "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
 
 
 def test_tag_only_prompt_deletes_to_empty() -> None:

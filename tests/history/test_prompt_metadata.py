@@ -35,13 +35,13 @@ def _workflow_names(monkeypatch: pytest.MonkeyPatch):
 
 def test_summarize_prompt_for_list_extracts_columns_and_clean_preview() -> None:
     summary = summarize_prompt_for_list(
-        "%name\n%m:opus #gh:steveyegge/beads #fork:agent #research Fix parser"
+        "%id\n%m:opus #gh:steveyegge/beads #fork:agent #research Fix parser"
     )
 
     assert summary.project_prefix == "gh:"
     assert summary.project_ref_display == "beads"
     assert summary.xprompts == ("#fork", "#research")
-    assert summary.directive_token == "%mn"
+    assert summary.directive_token == "%mi"
     assert summary.clean_preview == "Fix parser"
 
 
@@ -64,17 +64,27 @@ def test_summarize_prompt_for_list_uses_underscore_vcs_basename() -> None:
 
 
 def test_clean_prompt_preview_ignores_control_tokens_inside_fences() -> None:
-    prompt = "Show this:\n```\n#fork %name\n```\nThen #fork %name"
+    prompt = "Show this:\n```\n#fork %id\n```\nThen #fork %id"
 
     summary = summarize_prompt_for_list(prompt)
 
     assert summary.xprompts == ("#fork",)
-    assert summary.directive_token == "%n"
+    assert summary.directive_token == "%i"
     assert summary.clean_preview == "Show this:"
 
 
 def test_clean_prompt_preview_returns_empty_for_control_only_prompt() -> None:
-    assert clean_prompt_preview("#gh:sase #fork %name") == ""
+    assert clean_prompt_preview("#gh:sase #fork %id") == ""
+
+
+@pytest.mark.parametrize("directive", ["%name:legacy", "%n:legacy"])
+def test_history_metadata_tolerates_deprecated_name_directives(
+    directive: str,
+) -> None:
+    summary = summarize_prompt_for_list(f"{directive} #gh:sase Fix parser")
+
+    assert summary.directive_token == "%n"
+    assert summary.clean_preview == "Fix parser"
 
 
 def test_summarize_prompt_for_preview_preserves_verbose_metadata() -> None:

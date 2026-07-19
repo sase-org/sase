@@ -88,7 +88,7 @@ def test_multi_model_dispatch_snapshots_xprompts_without_broad_refresh() -> None
 def test_multi_model_xprompt_alternatives_are_passed_as_planned_segments() -> None:
     app = _MultiModelApp()
     ctx = _ctx()
-    segments = ["%name:ag.1\n#plan\nDo", "%name:ag.2\n#epic\nDo"]
+    segments = ["%id:ag.1\n#plan\nDo", "%id:ag.2\n#epic\nDo"]
 
     with patch(
         "sase.agent.multi_prompt_launcher.launch_multi_prompt_agents",
@@ -123,7 +123,7 @@ def test_multi_model_failure_records_toast_and_persistent_notification() -> None
         patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
     ):
         outcome = app._run_multi_model_launch(
-            ["%name:ag.1\n#plan", "%name:ag.2\n#epic"],
+            ["%id:ag.1\n#plan", "%id:ag.2\n#epic"],
             ctx,
             ("git", "proj"),
             has_wait=True,

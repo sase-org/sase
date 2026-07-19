@@ -58,7 +58,7 @@ def test_tokenize_all_invocation_argument_forms() -> None:
 def test_tokenize_known_directives_aliases_and_arguments_only() -> None:
     text = (
         "%wait:x %w %model(opus) %m:sonnet %clan:root "
-        "%c(root, tribe=research) %auto %notadirective"
+        "%c(root, tribe=research) %auto %iotadirective"
     )
 
     assert _source_by_kind(text, "directive") == [

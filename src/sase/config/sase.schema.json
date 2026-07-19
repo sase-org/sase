@@ -532,7 +532,7 @@
             },
             "auto_directive_menu": {
               "type": "boolean",
-              "description": "Whether matching %name tokens automatically open the directive completion menu while typing",
+              "description": "Whether matching %id tokens automatically open the directive completion menu while typing",
               "default": true
             },
             "max_auto_rows": {

@@ -60,7 +60,7 @@ def test_changed_identity_reexecs_original_argv(
     old = "a" * 40
     new = "b" * 40
     prompt_file = tmp_path / "submitted-prompt.md"
-    submitted_xprompt = "%n(fix)\nKeep this exact prompt\n"
+    submitted_xprompt = "%i(fix)\nKeep this exact prompt\n"
 
     def assert_exec_handoff(*_args: object) -> None:
         assert prompt_file.read_text(encoding="utf-8") == submitted_xprompt

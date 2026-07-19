@@ -78,7 +78,7 @@ def test_highlights_reference_forms_and_arguments() -> None:
 
 def test_highlights_known_directives_aliases_and_arguments_only() -> None:
     highlighted = highlight_prompt_text(
-        "%wait:x %w %model(opus) %m:sonnet %auto %notadirective"
+        "%wait:x %w %model(opus) %m:sonnet %auto %iotadirective"
     )
 
     for token in ("%wait", "%w", "%model", "%m", "%auto"):
@@ -86,7 +86,7 @@ def test_highlights_known_directives_aliases_and_arguments_only() -> None:
     for token in (":x", "(opus)", ":sonnet"):
         assert XPROMPT_TOKEN_STYLES["directive_arg"] in _styles_at(highlighted, token)
     assert XPROMPT_TOKEN_STYLES["directive"] not in _styles_at(
-        highlighted, "%notadirective"
+        highlighted, "%iotadirective"
     )
 
 

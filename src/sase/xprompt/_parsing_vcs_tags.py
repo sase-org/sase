@@ -46,7 +46,7 @@ def extract_vcs_workflow_tag(prompt: str) -> str | None:
 
     Skips leading ``%directive`` tokens before checking for a VCS tag.
     Handles directives on the same line as the VCS tag (e.g. from
-    Telegram-originated prompts like ``%n:a #gh_sase Fix the bug``).
+    Telegram-originated prompts like ``%i:a #gh_sase Fix the bug``).
     Returns the matched tag (e.g., ``"#gh:sase "``) or ``None``.
     """
     m = _DIRECTIVE_PREFIX_RE.match(prompt)

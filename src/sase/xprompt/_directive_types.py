@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-# Pattern to match directive references: %name, %name(, %name:arg, %name:`arg`, %name+
+# Pattern to match directive references: %id, %id(, %id:arg, %id:`arg`, %id+
 # Mirrors _XPROMPT_PATTERN from processor.py but with % prefix.
 # The colon-arg character class is expanded to include # (for xprompt refs in args).
 _DIRECTIVE_PATTERN = (
@@ -26,7 +26,7 @@ _KNOWN_DIRECTIVES = frozenset(
         "effort",
         "hide",
         "model",
-        "name",
+        "id",
         "repeat",
         "tribe",
         "wait",
@@ -49,6 +49,10 @@ AUTO_COMPATIBILITY_ARGUMENT_SUGGESTIONS: tuple[str, ...] = (
 # marker; see ``strip_editor_review_markers``. ``%e`` is no longer an ``%edit``
 # alias — it now resolves to ``%effort`` (see ``_DIRECTIVE_ALIASES`` below).
 _DEPRECATED_DIRECTIVE_MESSAGES: dict[str, str] = {
+    "name": (
+        "The '%name'/'%n' directive has been renamed; use %id/%i, and "
+        "%id(<id>, clan=<clan>) to join a clan."
+    ),
     "time": (
         "The '%time' directive has been removed; use #t:<time> "
         "or %wait(time=<time>) instead."
@@ -71,6 +75,7 @@ _DIRECTIVE_ALIASES: dict[str, str] = {
     "c": "clan",
     "e": "effort",
     "h": "hide",
+    "i": "id",
     "m": "model",
     "n": "name",
     "r": "repeat",
@@ -91,7 +96,8 @@ class PromptDirectives:
             directive or a ``%model:<model>@<effort>`` suffix, or None when
             none was given. The public directive/suffix spell it ``effort``;
             the stored/threaded field is ``reasoning_effort`` everywhere.
-        name: Agent name assigned via %name directive, or None.
+        name: Agent name assigned via the %id directive, or None. The field
+            remains ``name`` because it stores the resulting full agent name.
         clan: Clan name or name template requested via ``%clan``/``%c``, or
             None when no clan membership was declared.
         clan_tribe: Tribe declared through ``%clan(..., tribe=...)``, or None.

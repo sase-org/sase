@@ -313,7 +313,7 @@ def _mask_inert_regions(text: str) -> str:
 
 
 def _alt_jinja_overlap_ranges(text: str) -> list[tuple[int, int]]:
-    """Mask false ``{%`` markers formed by adjacent ``%{`` and ``%name``."""
+    """Mask false ``{%`` markers formed by adjacent ``%{`` and ``%id``."""
     ranges: list[tuple[int, int]] = []
     if "%{%" not in text:
         return ranges

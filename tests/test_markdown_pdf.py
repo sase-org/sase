@@ -637,7 +637,7 @@ def test_render_launch_preview_pdf_smoke_when_tools_available(tmp_path):
                 "## Agent 1 of 2 · demo",
                 "",
                 "```sase",
-                "%n:demo",
+                "%i:demo",
                 "#plan",
                 "`actstat --repo sase`",
                 "---",

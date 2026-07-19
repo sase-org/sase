@@ -226,7 +226,7 @@ def test_finish_agent_launch_schedules_async_body_not_inline_call() -> None:
 def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_rewrites() -> (
     None
 ):
-    """``%name:!`` cleanup runs in the tracked launch task, not during submit."""
+    """``%id:!`` cleanup runs in the tracked launch task, not during submit."""
     app = _SubmitLaunchBodyApp()
 
     with ExitStack() as stack:
@@ -247,7 +247,7 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
             patch("sase.history.prompt.add_or_update_prompt")
         )
 
-        app._finish_agent_launch("%name:!foo\nDo work")
+        app._finish_agent_launch("%id:!foo\nDo work")
 
         wipe_names.assert_not_called()
         validate_names.assert_not_called()
@@ -267,21 +267,21 @@ def test_finish_agent_launch_force_reuse_schedules_original_prompt_and_worker_re
 
     wipe_names.assert_called_once_with(["foo"])
     for call in validate_names.call_args_list:
-        assert call.args == (["%name:foo\nDo work"],)
-    save_history.assert_called_once_with("%name:foo\nDo work")
-    assert app.launched[0]["prompt"] == "%name:foo\nDo work"
+        assert call.args == (["%id:foo\nDo work"],)
+    save_history.assert_called_once_with("%id:foo\nDo work")
+    assert app.launched[0]["prompt"] == "%id:foo\nDo work"
     assert outcome.success is True
 
 
 def test_finish_agent_launch_force_reuse_wipes_every_multi_prompt_name() -> None:
     """The worker wipes and rewrites forced names in every submitted segment."""
     app = _SubmitLaunchBodyApp()
-    prompt = "%name:!foo\nFirst\n---\n%n:!bar\nSecond\n---\n%name:!baz\nThird"
-    rewritten = "%name:foo\nFirst\n---\n%n:bar\nSecond\n---\n%name:baz\nThird"
+    prompt = "%id:!foo\nFirst\n---\n%i:!bar\nSecond\n---\n%id:!baz\nThird"
+    rewritten = "%id:foo\nFirst\n---\n%i:bar\nSecond\n---\n%id:baz\nThird"
     rewritten_segments = [
-        "%name:foo\nFirst",
-        "%n:bar\nSecond",
-        "%name:baz\nThird",
+        "%id:foo\nFirst",
+        "%i:bar\nSecond",
+        "%id:baz\nThird",
     ]
 
     with ExitStack() as stack:
@@ -324,8 +324,8 @@ def test_finish_agent_launch_force_reuse_split_protects_fenced_separator() -> No
     """A separator inside a fenced block does not create a cleanup segment."""
     app = _SubmitLaunchBodyApp()
     prompt = (
-        "%name:!foo\nFirst\n```text\ninside\n---\nstill inside\n```\n"
-        "---\n%name:!bar\nSecond"
+        "%id:!foo\nFirst\n```text\ninside\n---\nstill inside\n```\n"
+        "---\n%id:!bar\nSecond"
     )
 
     with ExitStack() as stack:
@@ -356,7 +356,7 @@ def test_finish_agent_launch_force_reuse_early_parse_failure_falls_back() -> Non
     app = _SubmitLaunchBodyApp()
     prompt = (
         "---\nxprompts:\n  badname: content\n---\n"
-        "%name:!foo\nFirst\n---\n%name:!bar\nSecond"
+        "%id:!foo\nFirst\n---\n%id:!bar\nSecond"
     )
 
     with (
@@ -390,7 +390,7 @@ def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> 
         ) as wipe_names,
         patch("sase.history.prompt.record_failed_launch_prompt") as record_failed,
     ):
-        app._finish_agent_launch("%name:!foo\nDo work")
+        app._finish_agent_launch("%id:!foo\nDo work")
 
         wipe_names.assert_not_called()
         assert len(app.launch_tasks) == 1
@@ -400,7 +400,7 @@ def test_finish_agent_launch_force_reuse_wipe_failure_returns_worker_error() -> 
         outcome = app.launch_tasks[0]["task_callable"]()
 
     wipe_names.assert_called_once_with(["foo"])
-    record_failed.assert_called_once_with("%name:!foo\nDo work")
+    record_failed.assert_called_once_with("%id:!foo\nDo work")
     assert app.launched == []
     assert outcome.message == (
         "Agent name reuse failed - see Logs in SASE Admin Center (#)"

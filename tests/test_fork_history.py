@@ -39,7 +39,7 @@ def test_clan_block_contains_prompts_and_stats_but_no_reply_text(
     early_chat = tmp_path / "early.md"
     early_chat.write_text(
         "## Prompt\n\n"
-        f"%name:review.alpha #fork_by_chat:`{ancestor_chat}`\nImplement the change\n\n"
+        f"%id:review.alpha #fork_by_chat:`{ancestor_chat}`\nImplement the change\n\n"
         "## Response\n\nEARLY_SECRET_REPLY has four words\n",
         encoding="utf-8",
     )
@@ -86,7 +86,7 @@ def test_clan_block_contains_prompts_and_stats_but_no_reply_text(
     assert "Ancestor request" in rendered
     assert "Implement the change" in rendered
     assert "Review the change" in rendered
-    assert "%name" not in rendered
+    assert "%id" not in rendered
     assert "%wait" not in rendered
     assert "#fork_by_chat" not in rendered
     assert "ANCESTOR_SECRET_REPLY" not in rendered

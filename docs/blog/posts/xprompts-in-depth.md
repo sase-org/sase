@@ -75,7 +75,7 @@ stripped before the prompt reaches the model. The ones worth knowing on day one:
 | Directive | What it does                                                                                              |
 | --------- | --------------------------------------------------------------------------------------------------------- |
 | `%model`  | Override the LLM model for this run                                                                       |
-| `%name`   | Assign a permanent agent name (or auto-generate one)                                                      |
+| `%id`     | Assign a permanent agent name (or auto-generate one)                                                      |
 | `%wait`   | Wait for another named agent to complete successfully                                                     |
 | `#t`      | Defer launch by a duration or until an absolute wall-clock time (`%wait(time=...)` long form)             |
 | `%auto`   | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic` |
@@ -83,7 +83,7 @@ stripped before the prompt reaches the model. The ones worth knowing on day one:
 | `%alt`    | Split the prompt into variants with different text                                                        |
 
 Directives compose. `%wait(planner, time=5m)` waits for the `planner` agent to land, then adds a five-minute floor
-before launching. `%name:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful
+before launching. `%id:!reviewer` forces reuse of an existing name by wiping the previous owner from the TUI — useful
 when retrying a flow that already claimed the name. The
 [full directive reference](../../xprompt.md#supported-directives) lists every directive, alias, and form.
 
@@ -104,15 +104,15 @@ input: target: word
 
 ---
 
-%name:plan Draft a plan for {{ target }}.
+%id:plan Draft a plan for {{ target }}.
 
 ---
 
-%name:code %wait:plan Implement {{ target }} following the plan.
+%id:code %wait:plan Implement {{ target }} following the plan.
 
 ---
 
-%name:review %wait:code Review the {{ target }} implementation and propose follow-ups.
+%id:review %wait:code Review the {{ target }} implementation and propose follow-ups.
 ```
 
 Run it with `sase run '#three_phase(login)'`. SASE dispatches three agents named `plan`, `code`, and `review`, each

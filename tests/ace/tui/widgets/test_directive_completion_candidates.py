@@ -31,7 +31,9 @@ def test_directive_completion_lists_canonical_directives() -> None:
     assert "%alt" in insertions
     assert "%auto" in insertions
     assert "%model" in insertions
+    assert "%id" in insertions
     assert "%wait" in insertions
+    assert "%name" not in insertions
     assert "%plan" not in insertions
     assert "%tale" not in insertions
     assert "%epic" not in insertions
@@ -62,9 +64,17 @@ def test_removed_auto_approval_directives_are_absent_from_completion() -> None:
     assert epic_candidates == []
 
 
+def test_deprecated_name_spellings_are_absent_from_completion() -> None:
+    name_candidates, _ = build_directive_completion_candidates("%name")
+    n_candidates, _ = build_directive_completion_candidates("%n")
+
+    assert name_candidates == []
+    assert n_candidates == []
+
+
 def test_directive_completion_includes_representative_descriptions() -> None:
     model, _ = single_directive_candidate("%mo")
-    name, _ = single_directive_candidate("%n")
+    agent_id, _ = single_directive_candidate("%i")
     wait, _ = single_directive_candidate("%w")
     alt, _ = single_directive_candidate("%al")
     auto, _ = single_directive_candidate("%au")
@@ -73,10 +83,12 @@ def test_directive_completion_includes_representative_descriptions() -> None:
         "choose a model and optional launch-family alias overrides"
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
-    assert directive_metadata(name).description == (
-        "assign an agent name or attach a member to an existing family"
+    assert directive_metadata(agent_id).description == (
+        "assign an agent id or attach a member to an existing family"
     )
-    assert directive_metadata(name).argument_hint == ":agent or (parent, suffix)"
+    assert directive_metadata(agent_id).argument_hint == (
+        ":agent-id or (parent, suffix)"
+    )
     assert directive_metadata(wait).description == (
         "defer launch for agents, a time floor, or a runner threshold"
     )
@@ -160,10 +172,13 @@ def test_directive_completion_filters_partial_name() -> None:
 
 
 def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
+    agent_id, _ = single_directive_candidate("%i")
     model, _ = single_directive_candidate("%m")
     repeat, _ = single_directive_candidate("%r")
     wait, _ = single_directive_candidate("%w")
 
+    assert agent_id.insertion == "%id"
+    assert directive_metadata(agent_id).aliases == ("i",)
     assert model.insertion == "%model"
     assert repeat.insertion == "%repeat"
     assert wait.insertion == "%wait"

@@ -41,28 +41,28 @@ xprompts:
       surveys, papers with readable HTML, or long-form posts over short announcements.
 ---
 
-%name:reads.@.agy
+%id:reads.@.agy
 %model("agy/Gemini 3.5 Flash (High)")
 %g:read
 #_article_search_agent
 
 ---
 
-%name:reads.@.cld
+%id:reads.@.cld
 %model:claude/opus
 %g:read
 #_article_search_agent
 
 ---
 
-%name:reads.@.cdx
+%id:reads.@.cdx
 %model:codex/gpt-5.6-sol
 %g:read
 #_article_search_agent
 
 ---
 
-%name:reads.@.final
+%id:reads.@.final
 %wait:reads.@.agy
 %wait:reads.@.cld
 %wait:reads.@.cdx

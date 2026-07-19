@@ -51,9 +51,7 @@ def test_tribe_wait_is_not_rewritten_as_template(tmp_path: Path) -> None:
     allocator = PlannedNameAllocator()
 
     with patch.object(Path, "home", return_value=tmp_path):
-        assert allocator.planned_name_for_prompt("%name:build-@\nBuild")[0] == (
-            "build-0"
-        )
+        assert allocator.planned_name_for_prompt("%id:build-@\nBuild")[0] == ("build-0")
         rewritten = allocator.rewrite_template_references(
             "%wait:@epic,build-@\nContinue"
         )
@@ -74,10 +72,8 @@ def test_multi_parent_fork_rewrites_every_planned_template_reference(
     allocator = PlannedNameAllocator()
 
     with patch.object(Path, "home", return_value=tmp_path):
-        assert allocator.planned_name_for_prompt("%name:build-@\nBuild")[0] == (
-            "build-0"
-        )
-        assert allocator.planned_name_for_prompt("%name:review-@\nReview")[0] == (
+        assert allocator.planned_name_for_prompt("%id:build-@\nBuild")[0] == ("build-0")
+        assert allocator.planned_name_for_prompt("%id:review-@\nReview")[0] == (
             "review-0"
         )
         rewritten = allocator.rewrite_template_references(prompt)
@@ -165,7 +161,7 @@ def test_template_group_allows_later_sibling_under_owned_namespace(
             template_group="xprompt:research:0",
         )
         second, _ = allocator.planned_name_for_prompt(
-            "%name:research.@.final\nFinal",
+            "%id:research.@.final\nFinal",
             artifacts_dir=artifacts_root / "260501120002",
             template_group="xprompt:research:0",
         )
@@ -214,8 +210,8 @@ def test_concurrent_multi_prompt_batches_reserve_distinct_template_names(
         barrier.wait()
         results = launch_multi_prompt_agents(
             segments=[
-                "%name:research.@.cdx\nCDX",
-                "%wait:research.@.cdx\n%name:research.@.final\nFinal",
+                "%id:research.@.cdx\nCDX",
+                "%wait:research.@.cdx\n%id:research.@.final\nFinal",
                 "#fork:research.@.final\nFollow up",
             ],
             local_xprompts={},
@@ -307,7 +303,7 @@ def test_unstarted_template_reservations_are_released_on_later_spawn_failure(
         pytest.raises(RuntimeError, match="boom"),
     ):
         launch_multi_prompt_agents(
-            segments=["%name:build-@\nFirst", "%name:build-@\nSecond"],
+            segments=["%id:build-@\nFirst", "%id:build-@\nSecond"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -377,11 +373,11 @@ def test_planned_template_names_reserve_namespaces_from_stale_snapshots(
     with patch.object(Path, "home", return_value=tmp_path):
         fresh_allocator = PlannedNameAllocator()
         first_name, first_env = fresh_allocator.planned_name_for_prompt(
-            "%name:@.cdx\nfirst prompt",
+            "%id:@.cdx\nfirst prompt",
             artifacts_dir=first_artifacts,
         )
         second_name, second_env = stale_allocator.planned_name_for_prompt(
-            "%name:@.cld\nsecond prompt",
+            "%id:@.cld\nsecond prompt",
             artifacts_dir=second_artifacts,
         )
 

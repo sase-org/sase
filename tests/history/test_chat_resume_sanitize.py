@@ -19,14 +19,14 @@ def _write_chat_file(tmpdir: str, name: str, content: str) -> str:
 def test_sanitize_strips_directives_refs_and_jinja() -> None:
     """Directives, #/#! references, and Jinja markers are all removed."""
     prompt = (
-        "%name:@.cld %wait:research.cdx-32 %t:research\n\n"
+        "%id:@.cld %wait:research.cdx-32 %t:research\n\n"
         "#git:home The two independent research agents have finished.\n\n"
         "{{ wait_chats }}\n\n"
         "Read both chat transcripts first."
     )
     result = _sanitize_resume_prompt(prompt)
 
-    assert "%name" not in result
+    assert "%id" not in result
     assert "%wait" not in result
     assert "%t:" not in result
     assert "#git:home" not in result
@@ -44,12 +44,20 @@ def test_sanitize_strips_tribe_fork_reference() -> None:
     assert result == "Continue from the result."
 
 
+def test_sanitize_strips_deprecated_name_directives() -> None:
+    result = _sanitize_resume_prompt("%name:legacy %n:older Continue the work.")
+
+    assert "%name" not in result
+    assert "%n" not in result
+    assert result == "Continue the work."
+
+
 def test_sanitize_preserves_fenced_code() -> None:
     """%, #, and {{ }} inside fenced code blocks are preserved verbatim."""
     prompt = (
         "Look at this example:\n\n"
         "```\n"
-        "%name:foo\n"
+        "%id:foo\n"
         "#git:home\n"
         "{{ wait_chats }}\n"
         "```\n\n"
@@ -57,7 +65,7 @@ def test_sanitize_preserves_fenced_code() -> None:
     )
     result = _sanitize_resume_prompt(prompt)
 
-    assert "%name:foo" in result
+    assert "%id:foo" in result
     assert "#git:home" in result
     assert "{{ wait_chats }}" in result
     assert "%auto" not in result
@@ -74,7 +82,7 @@ def test_sanitize_preserves_markdown_heading() -> None:
 
 def test_sanitize_is_idempotent() -> None:
     """Sanitizing already-clean text changes nothing."""
-    prompt = "%name:foo #git:home Just do the work."
+    prompt = "%id:foo #git:home Just do the work."
     once = _sanitize_resume_prompt(prompt)
     assert _sanitize_resume_prompt(once) == once
 
@@ -91,11 +99,11 @@ def test_resume_user_block_is_sanitized() -> None:
             tmpdir,
             "chat.md",
             "## Prompt\n\n"
-            "%name:foo %wait:bar %t:research\n\n"
+            "%id:foo %wait:bar %t:research\n\n"
             "#git:home Continue the work.\n\n"
             "{{ wait_chats }}\n\n"
             "## Response\n\n"
-            "I used %name and #git internally; this stays.\n",
+            "I used %id and #git internally; this stays.\n",
         )
 
         result = load_chat_for_resume(chat)
@@ -103,12 +111,12 @@ def test_resume_user_block_is_sanitized() -> None:
     turns = _parse_flat_turns(result)
     assert len(turns) == 1
     prompt, response = turns[0]
-    assert "%name" not in prompt
+    assert "%id" not in prompt
     assert "#git:home" not in prompt
     assert "{{ wait_chats }}" not in prompt
     assert "Continue the work." in prompt
     # Assistant response is left untouched even though it mentions the lingo.
-    assert "%name" in response
+    assert "%id" in response
     assert "#git" in response
 
 
@@ -118,19 +126,19 @@ def test_fork_of_a_fork_is_fully_clean() -> None:
         older = _write_chat_file(
             tmpdir,
             "older.md",
-            "## Prompt\n\n%name:a #git:home Earlier task.\n\n"
+            "## Prompt\n\n%id:a #git:home Earlier task.\n\n"
             "## Response\n\nEarlier reply.\n",
         )
         newer = _write_chat_file(
             tmpdir,
             "newer.md",
-            f"## Prompt\n\n%name:b %wait:a #fork_by_chat:{older} "
+            f"## Prompt\n\n%id:b %wait:a #fork_by_chat:{older} "
             f"Later task.\n\n## Response\n\nLater reply.\n",
         )
 
         result = load_chat_for_resume(newer)
 
-    assert "%name" not in result
+    assert "%id" not in result
     assert "%wait" not in result
     assert "#git:home" not in result
     assert "#fork_by_chat" not in result

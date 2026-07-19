@@ -146,7 +146,7 @@ from tests.main.init_skills_handler_helpers import make_args
                 '"status": "approved"',
                 '"selected_option_ids": ["approve"]',
                 "do not poll request files yourself",
-                "%n(parent, reviewer)",
+                "%i(parent, reviewer)",
                 "Do not run `sase run`",
                 "#git:home",
                 "%w(",
@@ -161,7 +161,7 @@ from tests.main.init_skills_handler_helpers import make_args
             "sase_var",
             (
                 "sase var set KEY=VALUE",
-                "%name:build-@",
+                "%id:build-@",
                 '{{ agents["build"].result_path }}',
                 "Telegram completion message",
                 "sase var set STOP=1",

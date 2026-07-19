@@ -1,4 +1,4 @@
-"""Directive parsing helpers for ``%n(parent, suffix)`` family attach."""
+"""Directive parsing helpers for ``%i(parent, suffix)`` family attach."""
 
 from __future__ import annotations
 
@@ -17,24 +17,24 @@ def parse_name_directive_args(
     *,
     source: str,
 ) -> _types.ParsedNameDirective:
-    """Classify ``%name`` / ``%n`` arguments as plain naming or family attach."""
+    """Classify ``%id`` / ``%i`` arguments as plain naming or family attach."""
 
     if named_args:
         keys = ", ".join(f"{key}=" for key in sorted(named_args))
         raise ValueError(
             f"Unsupported keyword on {source}: {keys}. "
-            "Use %n(parent, suffix) for family attach; keyword arguments "
+            "Use %i(parent, suffix) for family attach; keyword arguments "
             "are not supported."
         )
     if len(positional_args) > 2:
         raise ValueError(
             f"{source} accepts at most two positional arguments. "
-            "Use %n(parent, suffix) for family attach."
+            "Use %i(parent, suffix) for family attach."
         )
     if len(positional_args) == 2:
         parent, suffix = (arg.strip() for arg in positional_args)
         if not parent or not suffix:
-            raise ValueError("%n(parent, suffix) requires both parent and suffix.")
+            raise ValueError("%i(parent, suffix) requires both parent and suffix.")
         normalize_family_suffix_arg(suffix)
         return _types.ParsedNameDirective(
             family_parent=parent,
@@ -65,7 +65,7 @@ def extract_family_attach_directive(
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
         if match.group(2) is None:
             continue
@@ -88,7 +88,7 @@ def extract_family_attach_directive(
 
 
 def _family_attach_parent_from_prompt(prompt: str) -> str | None:
-    """Return the parent named by a top-level ``%n(parent, suffix)`` directive."""
+    """Return the parent named by a top-level ``%i(parent, suffix)`` directive."""
     directive = extract_family_attach_directive(prompt)
     return None if directive is None else directive.parent
 
@@ -144,12 +144,12 @@ def normalize_family_suffix_arg(suffix: str) -> str:
         return f"{AGENT_FAMILY_SEPARATOR}@"
     if suffix.startswith((".", "-")) or AGENT_FAMILY_SEPARATOR in suffix:
         raise ValueError(
-            f"Invalid %n family suffix '{suffix}'. Pass the bare suffix "
-            "without a family separator, e.g. %n(parent, reviewer)."
+            f"Invalid %i family suffix '{suffix}'. Pass the bare suffix "
+            "without a family separator, e.g. %i(parent, reviewer)."
         )
     if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
         raise ValueError(
-            f"Invalid %n family suffix '{suffix}'. Use letters, numbers, "
+            f"Invalid %i family suffix '{suffix}'. Use letters, numbers, "
             "and underscores only, or @ to allocate the next free suffix."
         )
     return f"{AGENT_FAMILY_SEPARATOR}{suffix}"

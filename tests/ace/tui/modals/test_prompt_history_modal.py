@@ -145,17 +145,17 @@ def test_prompt_history_label_renders_project_tags_and_clean_preview(
 ) -> None:
     label = _create_prompt_history_label(
         _item(
-            text="#gh:steveyegge/beads #fork %name Fix the parser",
+            text="#gh:steveyegge/beads #fork %id Fix the parser",
         )
     )
 
     assert "gh:beads" in label.plain
     assert "#fork" in label.plain
-    assert "%n" in label.plain
+    assert "%i" in label.plain
     assert "Fix the parser" in label.plain
     assert "steveyegge/" not in label.plain
     assert "#gh:steveyegge/beads" not in label.plain
-    assert "%name" not in label.plain
+    assert "%id" not in label.plain
     assert any("cyan" in str(span.style) for span in label.spans)
     assert any("green" in str(span.style) for span in label.spans)
     assert any("yellow" in str(span.style) for span in label.spans)
@@ -180,7 +180,7 @@ def test_prompt_history_label_uses_fixed_grid_for_prompt_column(
         _item(text="Plain prompt without control tokens"),
     )
     with_tags = _create_prompt_history_label(
-        _item(text="#gh:steveyegge/beads #fork %name Tagged prompt"),
+        _item(text="#gh:steveyegge/beads #fork %id Tagged prompt"),
     )
 
     assert without_tags.plain.index("Plain prompt") == _PROMPT_COL_START

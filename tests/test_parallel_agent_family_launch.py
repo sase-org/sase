@@ -58,8 +58,8 @@ def test_template_clan_is_resolved_once_without_a_root(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     calls = _launch_with_captured_spawns(
         [
-            "%name:research.@.worker\n%clan:research.@\nWork",
-            "%name:research.@.final\n%clan:research.@\nLead",
+            "%id:research.@.worker\n%clan:research.@\nWork",
+            "%id:research.@.final\n%clan:research.@\nLead",
         ],
         template_groups=["xprompt:research:0", "xprompt:research:0"],
     )
@@ -83,9 +83,9 @@ def test_clan_membership_is_execution_neutral(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     baseline_segments = [
-        "%name:research.@.final\n%model:opus\nLead",
-        "%name:research.@.worker\n%model:sonnet\n%wait:research.@.final\nWork",
-        "%name:review\n%wait\nReview",
+        "%id:research.@.final\n%model:opus\nLead",
+        "%id:research.@.worker\n%model:sonnet\n%wait:research.@.final\nWork",
+        "%id:review\n%wait\nReview",
     ]
     clan_segments = [
         baseline_segments[0].replace(
@@ -138,7 +138,7 @@ def test_clan_member_fanout_variants_share_generation(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     calls = _launch_with_captured_spawns(
-        ["%name:root.worker\n%clan:root\n%{First | Second}"]
+        ["%id:root.worker\n%clan:root\n%{First | Second}"]
     )
 
     assert len(calls) == 2
@@ -157,8 +157,8 @@ def test_same_clan_segments_with_different_tribes_share_generation(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     calls = _launch_with_captured_spawns(
         [
-            "%name:root.one\n%clan(root, tribe=alpha)\nOne",
-            "%name:root.two\n%clan(root, tribe=beta)\nTwo",
+            "%id:root.one\n%clan(root, tribe=alpha)\nOne",
+            "%id:root.two\n%clan(root, tribe=beta)\nTwo",
         ]
     )
 
@@ -184,7 +184,7 @@ def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
         ),
     ):
         launch_multi_prompt_agents(
-            segments=["%name:root.one\n%tribe:research\n#_join"],
+            segments=["%id:root.one\n%tribe:research\n#_join"],
             local_xprompts={
                 "_join": XPrompt(
                     name="_join",
@@ -203,11 +203,11 @@ def test_xprompt_introduced_clan_tribe_conflict_spawns_nothing(
 @pytest.mark.parametrize(
     "segments",
     [
-        ["%name:outsider\n%clan:root\nWork"],
-        ["%name:root\n%clan:root\nWork"],
+        ["%id:outsider\n%clan:root\nWork"],
+        ["%id:root\n%clan:root\nWork"],
         [
-            "%name:root.one\n%clan:root\nWork",
-            "%name:other.two\n%clan:root\nReview",
+            "%id:root.one\n%clan:root\nWork",
+            "%id:other.two\n%clan:root\nReview",
         ],
     ],
 )

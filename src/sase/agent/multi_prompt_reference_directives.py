@@ -43,7 +43,7 @@ def extract_static_clan_directive(prompt: str) -> StaticClanDirective | None:
 
 
 def extract_static_name_directive(prompt: str) -> str | None:
-    """Return an explicit top-level ``%name`` value that is safe to reuse."""
+    """Return an explicit top-level ``%id`` value that is safe to reuse."""
     if "%" not in prompt:
         return None
 
@@ -59,7 +59,7 @@ def extract_static_name_directive(prompt: str) -> str | None:
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
 
         value = ""

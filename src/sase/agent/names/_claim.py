@@ -17,7 +17,7 @@ def claim_agent_name(
 ) -> None:
     """Record *name* for *claiming_dir*.
 
-    Explicit ``%name:<name>`` claims reject existing owners instead of
+    Explicit ``%id:<name>`` claims reject existing owners instead of
     renaming them. Auto/retry/resume/repeat callers are expected to allocate a
     free new name before claiming; this function no longer strips or rewrites
     prior artifact metadata on their behalf.

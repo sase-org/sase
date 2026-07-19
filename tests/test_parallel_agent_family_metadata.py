@@ -83,12 +83,12 @@ def test_runner_writes_rootless_clan_metadata(
     plan = ClanMembershipPlan(clan_name="root", generation="20260716010101")
 
     one = _extract_runner_metadata(
-        "%name:root.one\n%clan:root\nWork",
+        "%id:root.one\n%clan:root\nWork",
         artifacts_dir=sase_home / "projects/sase/artifacts/ace-run/20260716010101",
         env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
     two = _extract_runner_metadata(
-        "%name:root.two\n%clan:root\nReview",
+        "%id:root.two\n%clan:root\nReview",
         artifacts_dir=sase_home / "projects/sase/artifacts/ace-run/20260716010202",
         env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
@@ -122,7 +122,7 @@ def test_runner_fallback_joins_existing_clan(
     )
 
     info = _extract_runner_metadata(
-        "%name:existing.late\n%clan:existing\nWork",
+        "%id:existing.late\n%clan:existing\nWork",
         artifacts_dir=(sase_home / "projects/sase/artifacts/ace-run/20260716020202"),
     )
 
@@ -177,7 +177,7 @@ def test_runner_rejects_member_outside_clan_hood(
     plan = ClanMembershipPlan(clan_name="root", generation="20260716040000")
     with pytest.raises(ClanMembershipError, match="clan members must use"):
         _extract_runner_metadata(
-            f"%name:{agent_name}\n%clan:root\nWork",
+            f"%id:{agent_name}\n%clan:root\nWork",
             artifacts_dir=tmp_path / "run",
             env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
         )
@@ -192,13 +192,13 @@ def test_clan_membership_survives_runner_reexec(
     artifacts_dir = sase_home / "projects/sase/artifacts/ace-run/20260716040101"
     plan = ClanMembershipPlan(clan_name="reexec", generation="20260716040000")
     _extract_runner_metadata(
-        "%name:reexec.member\n%clan:reexec\nWork",
+        "%id:reexec.member\n%clan:reexec\nWork",
         artifacts_dir=artifacts_dir,
         env={CLAN_MEMBERSHIP_ENV: encode_clan_membership_plan(plan)},
     )
 
     second = _extract_runner_metadata(
-        "%name:reexec.member\nWork",
+        "%id:reexec.member\nWork",
         artifacts_dir=artifacts_dir,
     )
     assert second.meta[AGENT_CLAN_FIELD] == "reexec"

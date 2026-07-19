@@ -75,7 +75,7 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         positional_args,
                         named_args,
                     )
-                if name == "name":
+                if name == "id":
                     (
                         raw_args,
                         handled,
@@ -190,7 +190,7 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
         )
     if "clan" in collected.seen and collected.name_family_args is not None:
         raise DirectiveError(
-            "Cannot combine %clan with %n(parent, suffix); choose clan "
+            "Cannot combine %clan with %i(parent, suffix); choose clan "
             "membership or serial family attachment."
         )
 
@@ -245,10 +245,10 @@ def _collect_name_paren_args(
             parsed_name.family_suffix,
         )
         match_end = paren_end + 1
-        if "name" in collected.seen:
-            raise DirectiveError("Duplicate directive '%name' in prompt")
-        collected.seen["name"] = ""
-        collected.seen_source["name"] = prompt[match.start() : match_end]
+        if "id" in collected.seen:
+            raise DirectiveError("Duplicate directive '%id' in prompt")
+        collected.seen["id"] = ""
+        collected.seen_source["id"] = prompt[match.start() : match_end]
         collected.regions_to_remove.append((match.start(), match_end))
         return [""], True
     return (

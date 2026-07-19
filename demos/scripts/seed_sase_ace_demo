@@ -500,7 +500,7 @@ cat >"$sase_home/prompt_history/2607.json" <<'JSON'
       "cancelled": true
     },
     {
-      "text": "%name nova-renderer-audit #git:nova Review renderer summary output in @src/nova/renderers/summary.py for stable release wording.",
+      "text": "%id nova-renderer-audit #git:nova Review renderer summary output in @src/nova/renderers/summary.py for stable release wording.",
       "timestamp": "260706_104000",
       "last_used": "260706_104000",
       "cancelled": false
@@ -604,7 +604,7 @@ EOF
 }
 EOF
   cat >"$dir/raw_xprompt.md" <<EOF
-%name $name
+%id $name
 
 $summary
 EOF

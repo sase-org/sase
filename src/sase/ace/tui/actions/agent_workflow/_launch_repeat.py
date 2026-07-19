@@ -34,12 +34,12 @@ class RepeatLaunchMixin:
 
         Each iteration becomes its own top-level subprocess with name
         ``<base>.<k>``, its own workspace, and its own ``agent_meta.json``.
-        The ``%r`` / ``%n`` tokens are stripped from the per-agent prompt
-        by :func:`spawn_repeat_batch` and each spec re-injects ``%n:<name>``
+        The ``%r`` / ``%i`` tokens are stripped from the per-agent prompt
+        by :func:`spawn_repeat_batch` and each spec re-injects ``%i:<name>``
         so the runner assigns the per-slot name correctly.
 
         Args:
-            prompt: Raw prompt containing ``%r:N`` (optionally with ``%n``).
+            prompt: Raw prompt containing ``%r:N`` (optionally with ``%i``).
             ctx: The prompt context with project/workspace info.
             vcs_ref: Resolved VCS reference, if any.
             has_wait: Whether the prompt has ``%wait`` directives.

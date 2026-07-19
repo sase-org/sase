@@ -49,14 +49,14 @@ def test_extract_vcs_workflow_tag_git_paren() -> None:
 def test_extract_vcs_workflow_tag_with_directives() -> None:
     """Test that %directive lines are skipped before VCS tag."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%name\n#gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%id\n#gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
 def test_extract_vcs_workflow_tag_multiple_directives() -> None:
     """Test skipping multiple %directive lines."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%name\n%model:opus\n#gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%id\n%model:opus\n#gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
@@ -90,7 +90,7 @@ def test_extract_vcs_workflow_tag_no_tag() -> None:
 def test_extract_vcs_workflow_tag_directive_only() -> None:
     """Test returns None when prompt is only a directive with no newline."""
     with _patch_vcs_pattern():
-        assert extract_vcs_workflow_tag("%name") is None
+        assert extract_vcs_workflow_tag("%id") is None
 
 
 def test_extract_vcs_workflow_tag_empty() -> None:
@@ -114,21 +114,21 @@ def test_extract_vcs_workflow_tag_underscore_git() -> None:
 def test_extract_vcs_workflow_tag_directive_same_line() -> None:
     """Test extracting VCS tag when %directive is on the same line."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%n:a #gh_sase Fix the bug")
+        result = extract_vcs_workflow_tag("%i:a #gh_sase Fix the bug")
         assert result == "#gh_sase "
 
 
 def test_extract_vcs_workflow_tag_multiple_directives_same_line() -> None:
     """Test extracting VCS tag with multiple %directives on the same line."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%n:a %model:opus #gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%i:a %model:opus #gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
 def test_extract_vcs_workflow_tag_directive_mixed_lines() -> None:
     """Test extracting VCS tag with directives on separate lines and same line."""
     with _patch_vcs_pattern():
-        result = extract_vcs_workflow_tag("%model:opus\n%n:a #gh:sase Fix the bug")
+        result = extract_vcs_workflow_tag("%model:opus\n%i:a #gh:sase Fix the bug")
         assert result == "#gh:sase "
 
 
@@ -238,9 +238,9 @@ def test_find_vcs_workflow_tag_span_returns_none_when_only_fenced() -> None:
 
 
 def test_prepend_offset_preserves_frontmatter_directives() -> None:
-    prompt = "---\nxprompts: {}\n---\n  %n:a %wait Fix it"
+    prompt = "---\nxprompts: {}\n---\n  %i:a %wait Fix it"
     assert find_vcs_workflow_tag_prepend_offset(prompt) == len(
-        "---\nxprompts: {}\n---\n  %n:a %wait "
+        "---\nxprompts: {}\n---\n  %i:a %wait "
     )
 
 
@@ -347,8 +347,8 @@ def test_normalize_launch_xprompt_at_refs_scoped_to_workflows() -> None:
     with _patch_workflow_names({"gh", "git", "cd"}):
         assert normalize_launch_xprompt_at_refs("#gh@sase Fix") == "#gh:sase Fix"
         assert (
-            normalize_launch_xprompt_at_refs("%n:a #git@repo Fix")
-            == "%n:a #git:repo Fix"
+            normalize_launch_xprompt_at_refs("%i:a #git@repo Fix")
+            == "%i:a #git:repo Fix"
         )
         assert normalize_launch_xprompt_at_refs("#topic@sase") == "#topic@sase"
 

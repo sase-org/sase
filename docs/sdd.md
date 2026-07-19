@@ -57,7 +57,7 @@ current month directory; SASE does not write research files automatically.
 When a submitted plan is accepted, SDD generates a prompt snapshot by:
 
 1. Expanding all `#xprompt` references in the original prompt
-2. Stripping `%directives` (`%model`, `%name`, `%wait`, etc.)
+2. Stripping `%directives` (`%model`, `%id`, `%wait`, etc.)
 3. Dry-expanding embedded workflow `prompt_part` content (renders templates without executing pre/post steps)
 
 The result is a clean, self-contained document showing exactly what the agent was asked to do.

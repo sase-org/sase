@@ -94,7 +94,7 @@ def test_work_retry_force_reuses_live_phase_owner_and_launches(
     # The live phase-name owner is force-reused instead of blocking launch.
     assert phase_ids[0] in wiped
     assert len(launch_calls) == 1
-    assert "%name:!" not in launch_calls[0]
+    assert "%id:!" not in launch_calls[0]
 
     with BeadProject(project_dir) as proj:
         epic = proj.show(epic_id)
@@ -155,7 +155,7 @@ def test_work_force_reuses_legacy_land_owner_and_launches(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     # The legacy ``<epic_id>`` owner is an extra cleanup target even though
-    # it is not rendered as a %name:! directive in the new prompt.
+    # it is not rendered as a %id:! directive in the new prompt.
     assert epic_id in wiped
     assert len(launch_calls) == 1
 
@@ -251,7 +251,7 @@ def test_work_force_reuses_workflow_name_only_owner(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     assert len(launch_calls) == 1
-    assert "%name:!" not in launch_calls[0]
+    assert "%id:!" not in launch_calls[0]
     # The workflow_name-only owner is gone after the forced-reuse cleanup.
     assert not is_name_reserved(f"{epic_id}.land")
     assert not artifact_dir.exists()

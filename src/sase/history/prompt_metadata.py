@@ -8,6 +8,7 @@ import re
 
 from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 from sase.xprompt._directive_types import (
+    _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
     _DIRECTIVE_PATTERN,
     _KNOWN_DIRECTIVES,
@@ -59,7 +60,8 @@ _ALIAS_BY_DIRECTIVE = {
     directive: alias for alias, directive in _DIRECTIVE_ALIASES.items()
 }
 _DIRECTIVE_SUMMARY_ALIAS_SORT_KEYS = {
-    # Keep auto-approval after model/name in compact list summaries.
+    # Keep model/id/auto in their familiar compact-summary order.
+    "i": "n",
     "a": "p",
 }
 
@@ -141,7 +143,7 @@ def _scan_known_directives(protected: str) -> tuple[_DirectiveToken, ...]:
     for match in _DIRECTIVE_RE.finditer(protected):
         raw_name = match.group(1)
         name = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-        if name not in _KNOWN_DIRECTIVES:
+        if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
 
         end = match.end()

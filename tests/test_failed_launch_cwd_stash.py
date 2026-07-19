@@ -93,11 +93,11 @@ def test_planned_bead_work_stashes_on_validation_failure(
 
     from sase.agent.launch_cwd_bead_work import launch_planned_bead_work_agents
 
-    # Rendered name (%name:actual) does not match the planned expected name, so
+    # Rendered name (%id:actual) does not match the planned expected name, so
     # pre-launch validation raises before the existing launch catch blocks.
     with pytest.raises(ValueError):
         launch_planned_bead_work_agents(
-            segments=["%name:actual finish the bead work"],
+            segments=["%id:actual finish the bead work"],
             segment_extra_env=[{}],
             expected_names={"expected"},
             project_name="proj",

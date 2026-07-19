@@ -154,12 +154,12 @@ prompt:
 
 ```text
 %model:`claude-sonnet-4-20250514`
-%name:code-reviewer
+%id:code-reviewer
 %wait:planner
 Review the code changes and provide feedback.
 ```
 
-`%model` selects a provider/model. `%name` gives the run a durable name. `%wait` waits for another named agent or a time
+`%model` selects a provider/model. `%id` gives the run a durable name. `%wait` waits for another named agent or a time
 floor. `%effort` sets reasoning effort where the provider supports it. `%auto` requests adapter-owned gate resolution.
 `%hide` hides noisy helper runs from the default Agents view. `%repeat` repeats a prompt, and `%tribe` assigns a
 user-visible tribe. Those controls live in the same Markdown as the prompt, which keeps the common case out of YAML.
@@ -188,13 +188,13 @@ xprompts:
   _common: "Follow the project coding conventions."
 ---
 
-%name:step1
+%id:step1
 #_common
 Implement the new feature.
 
 ---
 
-%name:step2
+%id:step2
 %wait:step1
 #_common
 Write tests for the new feature.

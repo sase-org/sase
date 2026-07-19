@@ -12,10 +12,10 @@ import pytest
 
 def _bead_segments() -> tuple[list[str], list[dict[str, str]], set[str]]:
     segments = [
-        "#git:proj\n%name:proj-epic.1\n"
+        "#git:proj\n%id:proj-epic.1\n"
         "%family(proj-epic, role=phase)\n%model:@worker\n"
         "%auto\n#bd/work_phase_bead:proj-epic.1",
-        "#git:proj\n%name:proj-epic\n%auto\n%w:proj-epic.1\n#bd/land_epic:proj-epic",
+        "#git:proj\n%id:proj-epic\n%auto\n%w:proj-epic.1\n#bd/land_epic:proj-epic",
     ]
     envs = [
         {"SASE_BEAD_ID": "proj-epic.1", "SASE_INTERNAL_AGENT_NAME_BYPASS": "1"},
@@ -159,7 +159,7 @@ def test_routing_uses_adapter_when_launch_context_present(
         lambda *a, **k: pytest.fail("adapter path must not call launch_agent_from_cwd"),
     )
 
-    query = "#git:proj\n%name:a\n#x:1\n---\n#git:proj\n%name:b\n#y:2"
+    query = "#git:proj\n%id:a\n#x:1\n---\n#git:proj\n%id:b\n#y:2"
     envs = ({"SASE_BEAD_ID": "1"}, {"SASE_BEAD_ID": "2"})
 
     results = cli_work._launch_bead_work_agents(
@@ -238,8 +238,8 @@ def test_preplanned_one_slot_plans_spawn_each_segment_verbatim(
     from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 
     segments = [
-        "%name:phase\n%family(land, role=phase)\nwork one",
-        "%name:land\nwork two",
+        "%id:phase\n%family(land, role=phase)\nwork one",
+        "%id:land\nwork two",
     ]
     plans = [plan_fake_fanout("multi_prompt", [segment]) for segment in segments]
 

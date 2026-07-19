@@ -40,7 +40,7 @@ def test_launch_multi_prompt_passes_scoped_output_variable_upstreams(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=[
-                "%n:build-@\nBuild",
+                "%i:build-@\nBuild",
                 '%w:build-@\nUse {{ agents["build"].path }}',
             ],
             local_xprompts={},
@@ -108,7 +108,7 @@ def test_launch_multi_prompt_passes_digit_leading_fanout_output_variable_upstrea
 
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
-            segments=["%name:0n.cld\nClaude work", "%name:0n.cdx\nCodex work"],
+            segments=["%id:0n.cld\nClaude work", "%id:0n.cdx\nCodex work"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -264,7 +264,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     mock_wait.return_value = "alpha"
 
     launch_multi_prompt_agents(
-        segments=["%name:first\nseg1", "%wait\nseg2"],
+        segments=["%id:first\nseg1", "%wait\nseg2"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -279,7 +279,7 @@ def test_launch_multi_prompt_merges_segment_extra_env(
     )
 
     # Parent-side name planning adds SASE_AGENT_PLANNED_NAME per slot:
-    # explicit %name:first for segment 1, then a wait-derived child name.
+    # explicit %id:first for segment 1, then a wait-derived child name.
     assert mock_spawn.call_args_list[0].kwargs["extra_env"] == {
         "SASE_SHARED": "yes",
         "SASE_BEAD_ID": "sase-x.1",

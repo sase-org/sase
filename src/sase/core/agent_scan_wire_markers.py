@@ -35,7 +35,7 @@ class DoneMarkerWire:
         model: Last LLM model recorded.
         llm_provider: Last LLM provider recorded.
         vcs_provider: VCS provider recorded.
-        name: Agent name set via ``%name`` or TUI rename.
+        name: Agent name set via ``%id`` or TUI rename.
         plan_path: Path to a plan written by the agent (if any).
         diff_path: Path to a diff produced by the agent (if any).
         markdown_pdf_paths: Generated PDFs for Markdown files added or modified

@@ -89,7 +89,7 @@ def test_extract_directives_persists_epic_work_role_metadata(
         patch("sase.agent.names.claim_agent_name"),
     ):
         info = extract_directives_and_write_meta(
-            f"%name:!{expected_name}\nDo work",
+            f"%id:!{expected_name}\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )
@@ -143,7 +143,7 @@ def test_extract_directives_preserves_epic_work_metadata_on_reexec(
         patch("sase.agent.names.claim_agent_name"),
     ):
         info = extract_directives_and_write_meta(
-            "%name:!sase-7.2\nDo work",
+            "%id:!sase-7.2\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )
@@ -178,7 +178,7 @@ def test_extract_directives_persists_tag_with_atomic_helper(
         patch("sase.ace.agent_tags.update_agent_tag") as update_agent_tag,
     ):
         info = extract_directives_and_write_meta(
-            "%name:taggy\n%tribe:sase-26\nDo work",
+            "%id:taggy\n%tribe:sase-26\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
             cl_name="sample-cl",
@@ -252,7 +252,7 @@ def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> Non
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
-        "%name:foo.child\n%tribe:bar\nDo work",
+        "%id:foo.child\n%tribe:bar\nDo work",
         seed_tags={existing: "foo"},
     )
 
@@ -274,7 +274,7 @@ def test_clan_tribe_uses_metadata_without_agent_tag_store(
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
-        "%name:research.worker\n%clan(research, tribe=research)\nDo work",
+        "%id:research.worker\n%clan(research, tribe=research)\nDo work",
         seed_tags={existing: "legacy"},
     )
 
@@ -291,7 +291,7 @@ def test_named_agent_does_not_inherit_existing_tribe(tmp_path: Path) -> None:
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
-        "%name:foo.child\nDo work",
+        "%id:foo.child\nDo work",
         seed_tags={existing: "foo"},
     )
 
@@ -344,7 +344,7 @@ def test_planned_template_name_does_not_inherit_nested_existing_tribe(
 
     info, meta, tags = _extract_with_agent_tags(
         tmp_path,
-        "%name:sase-42.3.@\nDo work",
+        "%id:sase-42.3.@\nDo work",
         seed_tags={
             parent: "sase-42",
             child: "sase-42.3",
@@ -381,7 +381,7 @@ def _extract_phase_worker_model_meta(tmp_path: Path) -> dict[str, object]:
         patch("sase.agent.names.claim_agent_name"),
     ):
         extract_directives_and_write_meta(
-            "%name:phase-worker\n%model:@phase_worker\nDo work",
+            "%id:phase-worker\n%model:@phase_worker\nDo work",
             str(workspace_dir),
             str(artifacts_dir),
         )

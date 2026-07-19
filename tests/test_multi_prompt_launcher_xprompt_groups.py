@@ -36,7 +36,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
     catalog = {
         "ix": XPrompt(
             name="ix",
-            content="%n:flow-@\nBuild\n---\n%w:flow-@\nReview",
+            content="%i:flow-@\nBuild\n---\n%w:flow-@\nReview",
         )
     }
 
@@ -60,7 +60,7 @@ def test_launch_agents_from_cwd_resolves_template_refs_after_multi_xprompt_expan
 
     assert [result.agent_name for result in results] == ["flow-0", None]
     assert [call.kwargs["prompt"] for call in mock_spawn.call_args_list] == [
-        "%n:flow-@\n#git:home Build",
+        "%i:flow-@\n#git:home Build",
         "%w:flow-0\n#git:home Review",
     ]
     assert mock_wait.call_count == 0
@@ -107,13 +107,13 @@ def test_launch_agents_from_cwd_groups_xprompt_template_names_by_invocation(
         "swarm": XPrompt(
             name="swarm",
             content=(
-                "%name:research.@.cdx\nCDX\n"
+                "%id:research.@.cdx\nCDX\n"
                 "---\n"
-                "%name:research.@.cld\nCLD\n"
+                "%id:research.@.cld\nCLD\n"
                 "---\n"
-                "%name:research.@.final\nFinal\n"
+                "%id:research.@.final\nFinal\n"
                 "---\n"
-                "%name:research.@.image\nImage"
+                "%id:research.@.image\nImage"
             ),
         )
     }
@@ -168,7 +168,7 @@ def test_launch_agents_from_cwd_segment_extra_env_shares_xprompt_group_counter(
     catalog = {
         "swarm": XPrompt(
             name="swarm",
-            content="%name:research.@.cdx\nCDX\n---\n%name:research.@.cld\nCLD",
+            content="%id:research.@.cdx\nCDX\n---\n%id:research.@.cld\nCLD",
         )
     }
 
@@ -237,10 +237,10 @@ def test_launch_multi_prompt_distinguishes_two_xprompt_template_groups(
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
             segments=[
-                "%name:research.@.cdx\nA",
-                "%name:research.@.cld\nB",
-                "%name:research.@.cdx\nC",
-                "%name:research.@.cld\nD",
+                "%id:research.@.cdx\nA",
+                "%id:research.@.cld\nB",
+                "%id:research.@.cdx\nC",
+                "%id:research.@.cld\nD",
             ],
             segment_template_groups=[
                 "xprompt:swarm:0",
@@ -315,10 +315,10 @@ def test_launch_multi_prompt_text_alt_model_alt_uses_distinct_generated_template
         "0.2.cdx",
     ]
     assert [call.kwargs["prompt"] for call in mock_spawn.call_args_list] == [
-        "%name:@.1.cld\nDescribe repo. %m:opus",
-        "%name:@.1.cdx\nDescribe repo. %m:#codex",
-        "%name:@.2.cld\nExplain repo. %m:opus",
-        "%name:@.2.cdx\nExplain repo. %m:#codex",
+        "%id:@.1.cld\nDescribe repo. %m:opus",
+        "%id:@.1.cdx\nDescribe repo. %m:#codex",
+        "%id:@.2.cld\nExplain repo. %m:opus",
+        "%id:@.2.cdx\nExplain repo. %m:#codex",
     ]
     assert mock_wait.call_count == 0
     assert mock_create_artifacts.call_count == 0

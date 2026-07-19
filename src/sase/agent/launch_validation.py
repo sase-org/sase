@@ -65,12 +65,12 @@ class _AgentNameFamilyCollisionError(_LaunchNameValidationError):
         self.name = name
         super().__init__(
             f"Agent name '{name}' is reserved for agent family '{name}'. "
-            "Attach a member with %n(parent, suffix) instead."
+            "Attach a member with %i(parent, suffix) instead."
         )
 
 
 class AgentNameReuseConfirmationRequiredError(_LaunchNameValidationError):
-    """Raised when a non-TUI surface submits ``%name:!<name>``."""
+    """Raised when a non-TUI surface submits ``%id:!<name>``."""
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -100,14 +100,14 @@ class AgentNameSyntaxError(_LaunchNameValidationError):
 
 
 class _AgentNameDirectiveSyntaxError(_LaunchNameValidationError):
-    """Raised when a ``%name``/``%n`` directive has invalid arguments."""
+    """Raised when a ``%id``/``%i`` directive has invalid arguments."""
 
 
 def validate_user_agent_name(name: str) -> None:
     """Validate a new user-specified agent name.
 
     Historical artifact names are read separately; this is only for explicit
-    user entry points such as ``%name``, mobile launch names, and TUI naming.
+    user entry points such as ``%id``, mobile launch names, and TUI naming.
     """
     if AGENT_FAMILY_SEPARATOR in name:
         raise AgentNameSyntaxError(name)
@@ -123,10 +123,10 @@ def internal_agent_name_bypass_enabled(
 
 
 def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameRequest]:
-    """Return explicit ``%name`` requests from already-split launch segments.
+    """Return explicit ``%id`` requests from already-split launch segments.
 
     Each input must be one per-segment, already-expanded prompt. Only the first
-    ``%name``/``%n`` directive in each element is considered.
+    ``%id``/``%i`` directive in each element is considered.
     """
     requests: list[_LaunchNameRequest] = []
     for i, prompt in enumerate(prompts):
@@ -231,8 +231,8 @@ def validate_launch_name_requests(
 
 
 def rewrite_force_reuse_name_directives(prompt: str) -> str:
-    """Rewrite ``%name:!foo``/``%name(!foo)`` to normal ``%name:foo`` forms."""
-    if "%n" not in prompt and "%name" not in prompt:
+    """Rewrite ``%id:!foo``/``%id(!foo)`` to normal ``%id:foo`` forms."""
+    if "%i" not in prompt:
         return prompt
 
     from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
@@ -254,7 +254,7 @@ def rewrite_force_reuse_name_directives(prompt: str) -> str:
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_directive = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_directive, raw_directive) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_directive, raw_directive) != "id":
             continue
 
         if match.group(2) is not None:
@@ -293,7 +293,7 @@ def rewrite_force_reuse_name_directives(prompt: str) -> str:
 def force_reuse_owner_names(prompts: list[str]) -> list[str]:
     """Return force-reuse owner names from already-split launch segments.
 
-    Each input must be one per-segment prompt. Only the first ``%name``/``%n``
+    Each input must be one per-segment prompt. Only the first ``%id``/``%i``
     directive in each element is considered.
     """
     names: list[str] = []
@@ -334,7 +334,7 @@ def _extract_explicit_name(prompt: str) -> tuple[str, bool, bool] | None:
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
 
         value = ""

@@ -183,7 +183,7 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
     running = _FakeAgent(
         cl_name="run",
         raw_suffix="20240101120000",
-        raw_prompt="%n:run\nWork run",
+        raw_prompt="%i:run\nWork run",
         agent_name="run",
         status="RUNNING",
         pid=111,
@@ -191,7 +191,7 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
     done = _FakeAgent(
         cl_name="done",
         raw_suffix="20240101130000",
-        raw_prompt="%name:done\nWork done",
+        raw_prompt="%id:done\nWork done",
         agent_name="done",
         status="DONE",
         pid=None,
@@ -213,8 +213,8 @@ def test_bulk_kill_and_edit_mounts_panes_in_mark_order() -> None:
     # One pane per killed agent, in mark order, with forced name reuse applied.
     assert len(app.edit_calls) == 1
     assert app.edit_calls[0]["prompts"] == [
-        "%name:!done\nWork done",
-        "%n:!run\nWork run",
+        "%id:!done\nWork done",
+        "%i:!run\nWork run",
     ]
 
 
@@ -225,14 +225,14 @@ async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
         tmp_path / "literal",
         cl_name="literal",
         timestamp="20260714100000",
-        prompt="%n:literal.wait\nWork literal",
+        prompt="%i:literal.wait\nWork literal",
         concrete_name="literal.wait",
     )
     templated = _artifact_waiting_agent(
         tmp_path / "templated",
         cl_name="templated",
         timestamp="20260714100100",
-        prompt="%name:@.cld\nWork templated",
+        prompt="%id:@.cld\nWork templated",
         concrete_name="0.cld",
     )
     app = _MountedBulkEditApp([literal, templated])
@@ -257,8 +257,8 @@ async def test_bulk_waiting_agents_mount_forced_artifact_prompts(
             bar = app.query_one(PromptInputBar)
             assert len(bar._stack) == 2
             assert bar.all_prompt_texts() == [
-                "%name:!0.cld\nWork templated",
-                "%n:!literal.wait\nWork literal",
+                "%id:!0.cld\nWork templated",
+                "%i:!literal.wait\nWork literal",
             ]
 
     assert len(app.bulk_kill_calls) == 1

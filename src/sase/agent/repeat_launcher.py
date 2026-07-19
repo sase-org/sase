@@ -5,9 +5,9 @@ This module is the shared entry point for both the TUI launch path
 containing a ``%repeat:N`` (or ``%r:N``) directive, :func:`spawn_repeat_batch`
 resolves a unique name base, constructs one :class:`RepeatAgentSpec` per
 iteration, and invokes a caller-supplied ``base_spawn_fn`` to spawn each
-agent independently.  The ``%r`` and ``%n`` tokens are stripped from each
+agent independently.  The ``%r`` and ``%i`` tokens are stripped from each
 per-agent prompt — callers are expected to re-emit the per-slot name via
-env vars and/or an injected ``%n:<base>.<k>`` line.
+env vars and/or an injected ``%i:<base>.<k>`` line.
 """
 
 from __future__ import annotations
@@ -73,9 +73,9 @@ class RepeatAgentSpec:
 def extract_repeat_and_name(
     prompt: str,
 ) -> tuple[int | None, str | None, str]:
-    """Return ``(repeat_count, explicit_base_name, prompt_without_r_or_n)``.
+    """Return ``(repeat_count, explicit_base_name, prompt_without_r_or_i)``.
 
-    Parses and strips ``%r``/``%repeat`` and ``%n``/``%name`` directives
+    Parses and strips ``%r``/``%repeat`` and ``%i``/``%id`` directives
     from *prompt* (in either canonical or short-alias form) while leaving
     every other directive intact.  Fenced code blocks and disabled regions
     are preserved.
@@ -87,10 +87,24 @@ def extract_repeat_and_name(
     """
     from sase.core.agent_launch_facade import plan_agent_launch_fanout
 
+    _validate_repeat_prompt_directives(prompt)
     plan = plan_agent_launch_fanout(prompt, launch_kind="repeat")
     if not plan.slots:
         return None, None, prompt
     return len(plan.slots), plan.slots[0].repeat_name, plan.slots[0].prompt
+
+
+def _validate_repeat_prompt_directives(prompt: str) -> None:
+    """Surface Python directive migrations before the Rust repeat prepass."""
+    from sase.xprompt._directive_collect import collect_prompt_directive_matches
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+    collect_prompt_directive_matches(protected)
 
 
 def spawn_repeat_batch(
@@ -128,7 +142,7 @@ def spawn_repeat_batch(
     if template_base is not None:
         raise DirectiveError(
             "Cannot combine %repeat with agent name template "
-            f"'%name:{template_base}'; choose a concrete repeat base name "
+            f"'%id:{template_base}'; choose a concrete repeat base name "
             "or remove %repeat."
         )
 
@@ -159,9 +173,9 @@ def spawn_repeat_batch(
             iteration=k,
             total=count,
             prompt=(
-                f"%n:{names[k - 1]}\n{prompt_stripped}"
+                f"%i:{names[k - 1]}\n{prompt_stripped}"
                 if k == 1
-                else f"%n:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
+                else f"%i:{names[k - 1]}\n%wait:{names[k - 2]}\n{prompt_stripped}"
             ),
             timestamp=None if timestamps is None else timestamps[k - 1],
             prev_name=None if k == 1 else names[k - 2],
@@ -187,7 +201,7 @@ def spawn_repeat_batch(
 
 
 def _agent_name_template_in_prompt(prompt: str) -> str | None:
-    if "%n" not in prompt and "%name" not in prompt:
+    if "%i" not in prompt:
         return None
 
     from sase.agent.multi_prompt_references import extract_static_name_directive

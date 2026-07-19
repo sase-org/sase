@@ -10,9 +10,9 @@ def rewrite_retry_prompt_name(
     raw_prompt: str,
     retry_name: str,
     *,
-    directive_alias: Literal["name", "n"] = "name",
+    directive_alias: Literal["id", "i"] = "id",
 ) -> str:
-    """Replace or prepend the top-level prompt name directive for retry."""
+    """Replace or prepend the top-level prompt ``%id`` directive for retry."""
     from sase.xprompt._directive_types import (
         _DIRECTIVE_ALIASES,
         _DIRECTIVE_PATTERN,
@@ -35,7 +35,7 @@ def rewrite_retry_prompt_name(
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
 
         match_end = match.end()
@@ -61,8 +61,8 @@ def force_name_reuse_in_prompt(
     *,
     replacement_name: str | None = None,
 ) -> str:
-    """Mark the first explicit top-level name directive for forced reuse."""
-    if "%n" not in raw_prompt and "%name" not in raw_prompt:
+    """Mark the first explicit top-level ``%id`` directive for forced reuse."""
+    if "%i" not in raw_prompt:
         return raw_prompt
 
     from sase.agent.names import is_agent_name_template
@@ -87,7 +87,7 @@ def force_name_reuse_in_prompt(
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
-        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "name":
+        if _DIRECTIVE_ALIASES.get(raw_name, raw_name) != "id":
             continue
 
         insertion_index: int | None = None

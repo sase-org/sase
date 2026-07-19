@@ -259,20 +259,20 @@ def test_preview_directive_tokens_summarize_e_alias_as_effort() -> None:
 
 def test_fanout_same_runtime_strips_effort_from_names() -> None:
     """Per-branch effort keeps clean fan-out names; bodies preserve the suffix."""
-    result = split_prompt_for_models("%n:foo\n%{%m:opus@xhigh | %m:sonnet@low}\nReview")
+    result = split_prompt_for_models("%i:foo\n%{%m:opus@xhigh | %m:sonnet@low}\nReview")
     assert result == [
-        "%name:foo.cld_opus\n%m:opus@xhigh\nReview",
-        "%name:foo.cld_sonnet\n%m:sonnet@low\nReview",
+        "%id:foo.cld_opus\n%m:opus@xhigh\nReview",
+        "%id:foo.cld_sonnet\n%m:sonnet@low\nReview",
     ]
 
 
 def test_fanout_distinct_runtime_strips_effort_from_names() -> None:
     result = split_prompt_for_models(
-        "%n:foo\n%{%m:opus@xhigh | %m:gpt-5.6-sol@low}\nReview"
+        "%i:foo\n%{%m:opus@xhigh | %m:gpt-5.6-sol@low}\nReview"
     )
     assert result == [
-        "%name:foo.cld\n%m:opus@xhigh\nReview",
-        "%name:foo.cdx\n%m:gpt-5.6-sol@low\nReview",
+        "%id:foo.cld\n%m:opus@xhigh\nReview",
+        "%id:foo.cdx\n%m:gpt-5.6-sol@low\nReview",
     ]
 
 
@@ -290,14 +290,14 @@ def test_fanout_branch_bodies_round_trip_to_effort() -> None:
 def test_effort_value_fanout_round_trips_to_effort() -> None:
     """%effort:%{...} fans out before per-slot directive extraction."""
     result = split_prompt_for_models(
-        "%n:foo\n%m:opus %effort:%{medium | high | xhigh}\nReview"
+        "%i:foo\n%m:opus %effort:%{medium | high | xhigh}\nReview"
     )
 
     assert result is not None
     assert [variant.splitlines()[0] for variant in result] == [
-        "%name:foo.1",
-        "%name:foo.2",
-        "%name:foo.3",
+        "%id:foo.1",
+        "%id:foo.2",
+        "%id:foo.3",
     ]
     efforts = []
     for body in result:

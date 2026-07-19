@@ -707,10 +707,10 @@ munging, so dotted, hyphenated, and digit-leading names work via bracket access:
 
 | Producer name or template | Referenced as                                |
 | ------------------------- | -------------------------------------------- |
-| `%name:build-agent`       | `{{ agents["build-agent"].report_path }}`    |
-| `%name:build-@`           | `{{ agents["build"].report_path }}`          |
-| `%name:research.@.final`  | `{{ agents["research.final"].report_path }}` |
-| `%name:0n.cld`            | `{{ agents["0n.cld"].report_path }}`         |
+| `%id:build-agent`         | `{{ agents["build-agent"].report_path }}`    |
+| `%id:build-@`             | `{{ agents["build"].report_path }}`          |
+| `%id:research.@.final`    | `{{ agents["research.final"].report_path }}` |
+| `%id:0n.cld`              | `{{ agents["0n.cld"].report_path }}`         |
 
 Identifier-safe keys also support attribute access such as `{{ agents.build.report_path }}`.
 

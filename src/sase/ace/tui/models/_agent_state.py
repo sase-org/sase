@@ -174,7 +174,7 @@ class AgentState:
         compare=False,
     )
 
-    # Agent name assigned via %name directive or manual TUI naming
+    # Agent name assigned via %id directive or manual TUI naming
     agent_name: str | None = None
 
     # Precomputed name used by the Agents-tab row annotation and detail header.

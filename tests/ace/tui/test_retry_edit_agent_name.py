@@ -59,124 +59,119 @@ class _App(EntryPointsMixin):
 
 
 def test_rewrite_retry_prompt_prepends_name_when_missing() -> None:
-    assert _rewrite_retry_prompt_name("Do work", "foo.r0") == "%name:foo.r0\nDo work"
+    assert _rewrite_retry_prompt_name("Do work", "foo.r0") == "%id:foo.r0\nDo work"
 
 
 def test_rewrite_retry_prompt_replaces_percent_name() -> None:
     assert (
-        _rewrite_retry_prompt_name("%name:foo\nDo work", "foo.r0")
-        == "%name:foo.r0\nDo work"
+        _rewrite_retry_prompt_name("%id:foo\nDo work", "foo.r0")
+        == "%id:foo.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_replaces_percent_n() -> None:
     assert (
-        _rewrite_retry_prompt_name("%n:foo\nDo work", "foo.r0")
-        == "%name:foo.r0\nDo work"
+        _rewrite_retry_prompt_name("%i:foo\nDo work", "foo.r0") == "%id:foo.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_replaces_template_name() -> None:
     assert (
-        _rewrite_retry_prompt_name("%name:@.cld\nDo work", "0.cld.r0")
-        == "%name:0.cld.r0\nDo work"
+        _rewrite_retry_prompt_name("%id:@.cld\nDo work", "0.cld.r0")
+        == "%id:0.cld.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_ignores_fenced_and_disabled_name_directives() -> None:
     prompt = (
-        "```\n%name:fenced\n```\n"
+        "```\n%id:fenced\n```\n"
         "%xprompts_enabled:false\n"
-        "%n:disabled\n"
+        "%i:disabled\n"
         "%xprompts_enabled:true\n"
         "Do work"
     )
-    assert _rewrite_retry_prompt_name(prompt, "foo.r0") == f"%name:foo.r0\n{prompt}"
+    assert _rewrite_retry_prompt_name(prompt, "foo.r0") == f"%id:foo.r0\n{prompt}"
 
 
 def test_rewrite_retry_prompt_can_prepend_n_alias() -> None:
     assert (
-        rewrite_retry_prompt_name("Do work", "foo.r0", directive_alias="n")
-        == "%n:foo.r0\nDo work"
+        rewrite_retry_prompt_name("Do work", "foo.r0", directive_alias="i")
+        == "%i:foo.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_can_replace_percent_name_with_n_alias() -> None:
     assert (
         rewrite_retry_prompt_name(
-            "%name:foo\nDo work",
+            "%id:foo\nDo work",
             "foo.r0",
-            directive_alias="n",
+            directive_alias="i",
         )
-        == "%n:foo.r0\nDo work"
+        == "%i:foo.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_can_replace_percent_n_with_n_alias() -> None:
     assert (
-        rewrite_retry_prompt_name("%n:foo\nDo work", "foo.r0", directive_alias="n")
-        == "%n:foo.r0\nDo work"
+        rewrite_retry_prompt_name("%i:foo\nDo work", "foo.r0", directive_alias="i")
+        == "%i:foo.r0\nDo work"
     )
 
 
 def test_rewrite_retry_prompt_n_alias_ignores_fenced_and_disabled_directives() -> None:
     prompt = (
-        "```\n%name:fenced\n```\n"
+        "```\n%id:fenced\n```\n"
         "%xprompts_enabled:false\n"
-        "%n:disabled\n"
+        "%i:disabled\n"
         "%xprompts_enabled:true\n"
         "Do work"
     )
     assert (
-        rewrite_retry_prompt_name(prompt, "foo.r0", directive_alias="n")
-        == f"%n:foo.r0\n{prompt}"
+        rewrite_retry_prompt_name(prompt, "foo.r0", directive_alias="i")
+        == f"%i:foo.r0\n{prompt}"
     )
 
 
 def test_force_name_reuse_rewrites_colon_name_directive() -> None:
-    assert _force_name_reuse_in_prompt("%name:foo\nDo work") == "%name:!foo\nDo work"
+    assert _force_name_reuse_in_prompt("%id:foo\nDo work") == "%id:!foo\nDo work"
 
 
 def test_force_name_reuse_rewrites_colon_alias_directive() -> None:
-    assert _force_name_reuse_in_prompt("%n:foo\nDo work") == "%n:!foo\nDo work"
+    assert _force_name_reuse_in_prompt("%i:foo\nDo work") == "%i:!foo\nDo work"
 
 
 def test_force_name_reuse_rewrites_parenthesized_name_directive() -> None:
-    assert _force_name_reuse_in_prompt("%name(foo)\nDo work") == "%name(!foo)\nDo work"
+    assert _force_name_reuse_in_prompt("%id(foo)\nDo work") == "%id(!foo)\nDo work"
 
 
 def test_force_name_reuse_rewrites_backtick_name_directive() -> None:
-    assert (
-        _force_name_reuse_in_prompt("%name:`foo`\nDo work") == "%name:`!foo`\nDo work"
-    )
+    assert _force_name_reuse_in_prompt("%id:`foo`\nDo work") == "%id:`!foo`\nDo work"
 
 
 def test_force_name_reuse_leaves_already_forced_name_directive() -> None:
-    assert _force_name_reuse_in_prompt("%name:!foo\nDo work") == "%name:!foo\nDo work"
+    assert _force_name_reuse_in_prompt("%id:!foo\nDo work") == "%id:!foo\nDo work"
 
 
 def test_force_name_reuse_leaves_template_without_replacement() -> None:
-    assert _force_name_reuse_in_prompt("%name:@.cld\nDo work") == (
-        "%name:@.cld\nDo work"
-    )
+    assert _force_name_reuse_in_prompt("%id:@.cld\nDo work") == ("%id:@.cld\nDo work")
 
 
 def test_force_name_reuse_replaces_template_with_concrete_name() -> None:
-    assert _force_name_reuse_in_prompt("%name:@.cld\nDo work", "0.cld") == (
-        "%name:!0.cld\nDo work"
+    assert _force_name_reuse_in_prompt("%id:@.cld\nDo work", "0.cld") == (
+        "%id:!0.cld\nDo work"
     )
 
 
 def test_force_name_reuse_leaves_bare_and_missing_name_directives() -> None:
-    assert _force_name_reuse_in_prompt("%name\nDo work") == "%name\nDo work"
+    assert _force_name_reuse_in_prompt("%id\nDo work") == "%id\nDo work"
     assert _force_name_reuse_in_prompt("Do work") == "Do work"
 
 
 def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
     prompt = (
-        "```\n%name:fenced\n```\n"
+        "```\n%id:fenced\n```\n"
         "%xprompts_enabled:false\n"
-        "%n:disabled\n"
+        "%i:disabled\n"
         "%xprompts_enabled:true\n"
         "Do work"
     )
@@ -186,10 +181,10 @@ def test_force_name_reuse_ignores_fenced_and_disabled_name_directives() -> None:
 @pytest.mark.parametrize(
     ("raw_prompt", "agent_name", "expected"),
     [
-        ("%n:foo\nDo work", "foo", "%n:!foo\nDo work"),
-        ("%name:foo\nDo work", "foo", "%name:!foo\nDo work"),
-        ("%name:@.cld\nDo work", "0.cld", "%name:!0.cld\nDo work"),
-        ("%name:!foo\nDo work", "foo", "%name:!foo\nDo work"),
+        ("%i:foo\nDo work", "foo", "%i:!foo\nDo work"),
+        ("%id:foo\nDo work", "foo", "%id:!foo\nDo work"),
+        ("%id:@.cld\nDo work", "0.cld", "%id:!0.cld\nDo work"),
+        ("%id:!foo\nDo work", "foo", "%id:!foo\nDo work"),
         ("Do work", None, "Do work"),
     ],
 )
@@ -210,7 +205,7 @@ def test_retry_edit_agent_prepends_allocated_retry_name(
     app._retry_edit_agent()
 
     assert app.launched == (
-        "%name:foo.r0\nDo work",
+        "%id:foo.r0\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -235,12 +230,12 @@ def test_retry_edit_agent_preserves_unnamed_agent_prompt(
 def test_retry_edit_agent_replaces_name_without_force_reuse(
     _mock_allocate: Mock,
 ) -> None:
-    app = _App(_Agent("%name:foo\nDo work", agent_name="foo"))
+    app = _App(_Agent("%id:foo\nDo work", agent_name="foo"))
 
     app._retry_edit_agent()
 
     assert app.launched == (
-        "%name:foo.r0\nDo work",
+        "%id:foo.r0\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -249,12 +244,12 @@ def test_retry_edit_agent_replaces_name_without_force_reuse(
 
 
 def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
-    app = _App(_Agent("%n:foo\nDo work", agent_name="foo"))
+    app = _App(_Agent("%i:foo\nDo work", agent_name="foo"))
 
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%n:!foo\nDo work",
+        "%i:!foo\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,
@@ -263,12 +258,12 @@ def test_kill_and_edit_agent_forces_name_reuse_for_done_agent() -> None:
 
 
 def test_kill_and_edit_agent_replaces_template_with_concrete_name() -> None:
-    app = _App(_Agent("%name:@.cld\nDo work", agent_name="0.cld"))
+    app = _App(_Agent("%id:@.cld\nDo work", agent_name="0.cld"))
 
     app._kill_and_edit_agent()
 
     assert app.launched == (
-        "%name:!0.cld\nDo work",
+        "%id:!0.cld\nDo work",
         "/tmp/proj/proj.sase",
         "branch",
         False,

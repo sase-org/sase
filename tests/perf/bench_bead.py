@@ -465,7 +465,7 @@ def _bench_name_validation(
                     with _temp_sase_home(Path(td)):
                         _seed_name_registry(registry_size)
                         prompts = [
-                            f"%name:benchval{i}\nDo work" for i in range(name_count)
+                            f"%id:benchval{i}\nDo work" for i in range(name_count)
                         ]
                         # Warm the registry cache the way a launch process would.
                         validate_launch_name_requests(prompts)

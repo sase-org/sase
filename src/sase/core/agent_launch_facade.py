@@ -142,7 +142,62 @@ def plan_agent_launch_fanout(
 
     binding = require_rust_binding("plan_agent_launch_fanout")
     payload = binding(prompt, launch_kind)
-    return launch_fanout_plan_from_dict(dict(payload))
+    plan = launch_fanout_plan_from_dict(dict(payload))
+    if launch_kind == "repeat" and any(
+        _contains_effective_id_directive(slot.prompt) for slot in plan.slots
+    ):
+        # The current Rust repeat planner still recognizes the pre-rename
+        # spelling. Keep that version bridge at the binding boundary; a future
+        # core that consumes %id strips it on the first pass and skips this.
+        payload = binding(_rewrite_id_for_legacy_repeat_planner(prompt), launch_kind)
+        plan = launch_fanout_plan_from_dict(dict(payload))
+    return plan
+
+
+def _contains_effective_id_directive(prompt: str) -> bool:
+    import re
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import protect_disabled_regions
+    from sase.xprompt._fenced_blocks import protect_fenced_blocks
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+    return any(
+        _DIRECTIVE_ALIASES.get(match.group(1), match.group(1)) == "id"
+        for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE)
+    )
+
+
+def _rewrite_id_for_legacy_repeat_planner(prompt: str) -> str:
+    """Translate canonical id tokens for the older Rust repeat prepass."""
+    import re
+
+    from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
+    from sase.xprompt._disabled_regions import (
+        protect_disabled_regions,
+        unprotect_disabled_regions,
+    )
+    from sase.xprompt._fenced_blocks import (
+        protect_fenced_blocks,
+        unprotect_fenced_blocks,
+    )
+
+    fenced: list[str] = []
+    protected = protect_fenced_blocks(prompt, fenced)
+    disabled: list[str] = []
+    protected = protect_disabled_regions(protected, disabled)
+    replacements = [
+        (match.start(1), match.end(1), "name")
+        for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE)
+        if _DIRECTIVE_ALIASES.get(match.group(1), match.group(1)) == "id"
+    ]
+    for start, end, replacement in reversed(replacements):
+        protected = protected[:start] + replacement + protected[end:]
+    protected = unprotect_disabled_regions(protected, disabled)
+    return unprotect_fenced_blocks(protected, fenced)
 
 
 class LaunchTimestampBatchAllocator:

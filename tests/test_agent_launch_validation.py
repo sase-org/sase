@@ -44,15 +44,15 @@ def _make_agent(home: Path, name: str, suffix: str = "run-old") -> Path:
 
 
 def test_extracts_forced_reuse_name_request() -> None:
-    names = force_reuse_owner_names(["%name:!foo\nDo work"])
+    names = force_reuse_owner_names(["%id:!foo\nDo work"])
 
     assert names == ["foo"]
 
 
 def test_rewrites_forced_reuse_to_normal_name_directive() -> None:
-    prompt = "%name:!foo\nDo work"
+    prompt = "%id:!foo\nDo work"
 
-    assert rewrite_force_reuse_name_directives(prompt) == "%name:foo\nDo work"
+    assert rewrite_force_reuse_name_directives(prompt) == "%id:foo\nDo work"
 
 
 def test_collision_validation_uses_registry_suggestion(tmp_path: Path) -> None:
@@ -60,7 +60,7 @@ def test_collision_validation_uses_registry_suggestion(tmp_path: Path) -> None:
 
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameLaunchCollisionError, match="Try 'sasefoo1'"):
-            validate_launch_name_requests(["%name:sasefoo\nDo work"])
+            validate_launch_name_requests(["%id:sasefoo\nDo work"])
 
 
 def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
@@ -73,10 +73,10 @@ def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
             AgentNameClanCollisionError,
             match=r"inside the clan hood.*research\.member",
         ):
-            validate_launch_name_requests(["%name:research\nDo work"])
+            validate_launch_name_requests(["%id:research\nDo work"])
         with pytest.raises(AgentNameClanCollisionError, match="reserved for clan"):
             validate_launch_name_requests(
-                ["%name:!research\nDo work"], allow_force_reuse=True
+                ["%id:!research\nDo work"], allow_force_reuse=True
             )
 
 
@@ -93,20 +93,20 @@ def test_collision_validation_preserves_family_container(tmp_path: Path) -> None
         convert_registered_agent_to_family("review", "review--0", artifacts_dir)
         with pytest.raises(
             AgentNameFamilyCollisionError,
-            match=r"Attach a member with %n\(parent, suffix\)",
+            match=r"Attach a member with %i\(parent, suffix\)",
         ):
-            validate_launch_name_requests(["%name:review\nDo work"])
+            validate_launch_name_requests(["%id:review\nDo work"])
         with pytest.raises(
             AgentNameFamilyCollisionError, match="reserved for agent family"
         ):
             validate_launch_name_requests(
-                ["%name:!review\nDo work"], allow_force_reuse=True
+                ["%id:!review\nDo work"], allow_force_reuse=True
             )
 
 
 def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
     with pytest.raises(AgentNameReuseConfirmationRequiredError, match="confirmation"):
-        validate_launch_name_requests(["%name:!foo\nDo work"])
+        validate_launch_name_requests(["%id:!foo\nDo work"])
 
 
 def test_validation_loads_reserved_name_set_once_for_many_names(
@@ -121,7 +121,7 @@ def test_validation_loads_reserved_name_set_once_for_many_names(
 
     monkeypatch.setattr("sase.agent.names.get_reserved_agent_names", counting_reserved)
 
-    validate_launch_name_requests([f"%name:agent{i}\nDo work" for i in range(8)])
+    validate_launch_name_requests([f"%id:agent{i}\nDo work" for i in range(8)])
 
     assert calls["count"] == 1
 
@@ -133,49 +133,49 @@ def test_user_agent_names_cannot_contain_reserved_family_separator() -> None:
 
 
 def test_name_directive_allows_hyphenated_name_before_launch() -> None:
-    validate_launch_name_requests(["%name:foo-bar\nDo work"])
+    validate_launch_name_requests(["%id:foo-bar\nDo work"])
 
 
 def test_name_directive_rejects_reserved_family_separator_before_launch() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
-        validate_launch_name_requests(["%name:foo--bar\nDo work"])
+        validate_launch_name_requests(["%id:foo--bar\nDo work"])
 
 
 def test_name_directive_allows_template_before_launch(tmp_path: Path) -> None:
     _make_agent(tmp_path, "foo-1")
 
     with patch.object(Path, "home", return_value=tmp_path):
-        validate_launch_name_requests(["%name:foo-@\nDo work"])
-        validate_launch_name_requests(["%name:@.cld\nDo work"])
+        validate_launch_name_requests(["%id:foo-@\nDo work"])
+        validate_launch_name_requests(["%id:@.cld\nDo work"])
 
 
 def test_duplicate_indexed_templates_are_not_exact_name_collisions(
     tmp_path: Path,
 ) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
-        validate_launch_name_requests(["%name:foo-@\nFirst", "%name:foo-@\nSecond"])
+        validate_launch_name_requests(["%id:foo-@\nFirst", "%id:foo-@\nSecond"])
 
 
 def test_direct_generated_family_name_remains_invalid() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--1"):
-        validate_launch_name_requests(["%name:foo--1\nDo work"])
+        validate_launch_name_requests(["%id:foo--1\nDo work"])
 
 
 def test_template_rendering_rejects_reserved_family_separator() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--0"):
-        validate_launch_name_requests(["%name:foo--@\nDo work"])
+        validate_launch_name_requests(["%id:foo--@\nDo work"])
 
 
 def test_forced_reuse_template_is_rejected() -> None:
     with pytest.raises(RuntimeError, match="forced reuse"):
-        validate_launch_name_requests(["%name:!foo-@\nDo work"])
+        validate_launch_name_requests(["%id:!foo-@\nDo work"])
     with pytest.raises(RuntimeError, match="forced reuse"):
-        validate_launch_name_requests(["%name:!@.cld\nDo work"])
+        validate_launch_name_requests(["%id:!@.cld\nDo work"])
 
 
 def test_force_reuse_owner_names_ignores_templates() -> None:
     names = force_reuse_owner_names(
-        ["%name:!foo-@\nDo work", "%name:!@.cld\nMore", "%name:!bar\nMore"]
+        ["%id:!foo-@\nDo work", "%id:!@.cld\nMore", "%id:!bar\nMore"]
     )
 
     assert names == ["bar"]
@@ -183,7 +183,7 @@ def test_force_reuse_owner_names_ignores_templates() -> None:
 
 def test_forced_reuse_name_directive_rejects_separator_after_bang_strip() -> None:
     with pytest.raises(AgentNameSyntaxError, match="foo--bar"):
-        validate_launch_name_requests(["%name:!foo--bar\nDo work"])
+        validate_launch_name_requests(["%id:!foo--bar\nDo work"])
 
 
 def test_internal_bypass_allows_reserved_family_separator_system_names(
@@ -191,7 +191,7 @@ def test_internal_bypass_allows_reserved_family_separator_system_names(
 ) -> None:
     with patch.object(Path, "home", return_value=tmp_path):
         validate_launch_name_requests(
-            ["%name:sase--42.3\nDo work"],
+            ["%id:sase--42.3\nDo work"],
             allow_reserved_family_separator_names=True,
         )
     assert internal_agent_name_bypass_enabled({INTERNAL_AGENT_NAME_BYPASS_ENV: "1"})
@@ -368,7 +368,7 @@ def test_launch_agents_from_cwd_cancels_history_and_skips_spawn(
 
     from sase.agent.launcher import launch_agents_from_cwd
 
-    prompt = "%name:bad--name\n#git:home Do work"
+    prompt = "%id:bad--name\n#git:home Do work"
     with patch.object(Path, "home", return_value=tmp_path):
         with pytest.raises(AgentNameSyntaxError):
             launch_agents_from_cwd(prompt)

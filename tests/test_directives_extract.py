@@ -322,7 +322,7 @@ def test_model_alias_prefix_strips_before_xprompt_expansion(
 
 
 def test_unknown_directive_left_in_prompt() -> None:
-    """Unknown %name patterns are left in the prompt unchanged."""
+    """Unknown %id patterns are left in the prompt unchanged."""
     prompt = "%unknown:foo\nRest of prompt"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "%unknown:foo\nRest of prompt"

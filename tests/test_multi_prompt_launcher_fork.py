@@ -37,7 +37,7 @@ def test_launch_multi_prompt_rewrites_bare_resume_to_explicit_previous_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%name:builder\nBuild", "#fork\nReview"],
+        segments=["%id:builder\nBuild", "#fork\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -169,7 +169,7 @@ def test_launch_multi_prompt_leaves_first_segment_bare_resume_unrewritten(
         return_value="#fork\nContinue",
     ):
         launch_multi_prompt_agents(
-            segments=["#fork\nContinue", "%name:next\nNext"],
+            segments=["#fork\nContinue", "%id:next\nNext"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -229,7 +229,7 @@ def test_launch_multi_prompt_resume_uses_last_alt_generated_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%n:ag\n%alt(sec=Build security,perf=Build perf)", "#fork\nReview"],
+        segments=["%i:ag\n%alt(sec=Build security,perf=Build perf)", "#fork\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -269,7 +269,7 @@ def test_launch_multi_prompt_bare_wait_and_resume_plan_fork_name(
     with patch.object(Path, "home", return_value=tmp_path):
         launch_multi_prompt_agents(
             segments=[
-                "%name:builder\nBuild",
+                "%id:builder\nBuild",
                 "%w\n#fork\nReview",
                 "#fork\nFollow up",
             ],

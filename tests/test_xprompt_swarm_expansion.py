@@ -268,12 +268,12 @@ def test_expand_inline_same_line_directive_inherits_vcs_to_followups() -> None:
         )
     }
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["%n:abq #gh:sase #swarm:: review the changes"])
+        out = expand_xprompt_swarms(["%i:abq #gh:sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
     assert normalized == [
-        "%n:abq #gh:sase Plan review the changes",
+        "%i:abq #gh:sase Plan review the changes",
         "%w #gh:sase #fork #research/more %m:opus",
         "%w #gh:sase #fork #research/image",
     ]
@@ -289,13 +289,13 @@ def test_expand_inline_multiple_same_line_directives_inherit_vcs() -> None:
     }
     with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_xprompt_swarms(
-            ["%n:abq %model:opus #gh:sase #swarm:: review the changes"]
+            ["%i:abq %model:opus #gh:sase #swarm:: review the changes"]
         )
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
     assert normalized == [
-        "%n:abq %model:opus #gh:sase Plan review the changes",
+        "%i:abq %model:opus #gh:sase Plan review the changes",
         "%w #gh:sase #fork #research/more",
     ]
 
@@ -321,12 +321,12 @@ def test_expand_inline_same_line_directive_inherits_known_project_underscore_ref
             return_value={"sase": Path("/work/sase")},
         ),
     ):
-        out = expand_xprompt_swarms(["%n:abq #gh_sase #swarm:: review the changes"])
+        out = expand_xprompt_swarms(["%i:abq #gh_sase #swarm:: review the changes"])
         normalized = [
             normalize_default_vcs_workflow_segment(segment) for segment in out
         ]
     assert normalized == [
-        "%n:abq #gh_sase Plan review the changes",
+        "%i:abq #gh_sase Plan review the changes",
         "%w #gh_sase #fork #research/more",
     ]
 
@@ -480,8 +480,8 @@ def test_expand_separator_inside_fenced_block_in_body() -> None:
 def test_expand_leading_directives_attach_to_first_subsegment() -> None:
     catalog = {"x": xp("x", "a\n---\nb\n---\nc")}
     with patch_catalog(catalog):
-        out = expand_xprompt_swarms(["%name:custom\n#!x"])
-    assert out[0] == "%name:custom\na"
+        out = expand_xprompt_swarms(["%id:custom\n#!x"])
+    assert out[0] == "%id:custom\na"
     assert out[1] == "b"
     assert out[2] == "c"
 
@@ -510,19 +510,19 @@ def test_expand_known_project_vcs_prefix_without_registered_provider() -> None:
 def test_expand_vcs_prefix_with_directives_keeps_directives_on_first_segment() -> None:
     catalog = {"three": xp("three", "Plan\n---\nImplement\n---\nVerify")}
     with patch_catalog(catalog), patch_vcs_patterns():
-        out = expand_xprompt_swarms(["%name:custom\n#gh:sase #!three"])
+        out = expand_xprompt_swarms(["%id:custom\n#gh:sase #!three"])
     assert out == [
-        "%name:custom\n#gh:sase Plan",
+        "%id:custom\n#gh:sase Plan",
         "#gh:sase Implement",
         "#gh:sase Verify",
     ]
 
 
 def test_expand_vcs_prefix_preserves_generated_directives() -> None:
-    catalog = {"three": xp("three", "%name:plan\nPlan\n---\nImplement")}
+    catalog = {"three": xp("three", "%id:plan\nPlan\n---\nImplement")}
     with patch_catalog(catalog), patch_vcs_patterns():
         out = expand_xprompt_swarms(["#gh:sase #!three"])
-    assert out == ["%name:plan\n#gh:sase Plan", "#gh:sase Implement"]
+    assert out == ["%id:plan\n#gh:sase Plan", "#gh:sase Implement"]
 
 
 def test_expand_vcs_prefix_does_not_override_segment_local_vcs_ref() -> None:

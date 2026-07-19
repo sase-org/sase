@@ -1,4 +1,4 @@
-"""User-facing ``%n(parent, suffix)`` family attach support."""
+"""User-facing ``%i(parent, suffix)`` family attach support."""
 
 from __future__ import annotations
 

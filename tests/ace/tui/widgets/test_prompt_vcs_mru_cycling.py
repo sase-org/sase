@@ -258,11 +258,11 @@ async def test_ctrl_n_at_most_recent_entry_deletes_first_vcs_tag() -> None:
 
 async def test_ctrl_n_preserves_directives_when_deleting_tag() -> None:
     text, _cursor = await _press(
-        "%n:a #git:foo fix",
+        "%i:a #git:foo fix",
         "ctrl+n",
         mru=["#git:foo", "#git:bar"],
     )
-    assert text == "%n:a fix"
+    assert text == "%i:a fix"
 
 
 async def test_ctrl_n_cycles_backward_to_newer_entry() -> None:
@@ -358,11 +358,11 @@ async def test_second_prepend_cycle_replaces_prepended_tag() -> None:
 
 async def test_ctrl_p_preserves_directives_when_replacing_tag() -> None:
     text, _cursor = await _press(
-        "%n:a #git:foo fix",
+        "%i:a #git:foo fix",
         "ctrl+p",
         mru=["#git:foo", "#git:bar"],
     )
-    assert text == "%n:a #git:bar fix"
+    assert text == "%i:a #git:bar fix"
 
 
 async def test_ctrl_p_replaces_later_line_first_tag_only() -> None:

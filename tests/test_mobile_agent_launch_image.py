@@ -51,7 +51,7 @@ def test_launch_mobile_image_agents_stores_upload_and_launches(
     assert stored_files[0].read_bytes() == _PNG_BYTES
     assert "The image has been saved to:" in captured[0]
     assert str(stored_files[0]) in captured[0]
-    assert "%name:mobile.image" in captured[0]
+    assert "%id:mobile.image" in captured[0]
     contexts = (tmp_path / "mobile_gateway" / "agent_launch_contexts.jsonl").read_text(
         encoding="utf-8"
     )

@@ -141,7 +141,7 @@ def test_family_attach_inherits_parent_model_alias_overrides(
         project_name="sase",
     )
     _, env = prepare_family_attach_launch(
-        "%n(foo, reviewer)\nReview",
+        "%i(foo, reviewer)\nReview",
         LaunchExecutionContext(
             cl_name="feature",
             project_file="/tmp/sase.sase",
@@ -322,7 +322,7 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
     assert second.role_suffix == "--2"
     assert second.parent_name == "foo--1"
     assert second.parent_timestamp == "20260701010303"
-    with pytest.raises(FamilyAttachError, match=r"%n\(foo, @\)"):
+    with pytest.raises(FamilyAttachError, match=r"%i\(foo, @\)"):
         resolve_family_attach_plan(
             FamilyAttachDirective(parent="foo", suffix="1"),
             project_name="sase",
@@ -377,7 +377,7 @@ def test_family_attach_sase_plan_env_only_for_code_with_parent_plan(
         [_artifact_record(name="foo", sdd_plan_path=parent_plan_path)],
     )
     _, env = prepare_family_attach_launch(
-        f"%n(foo, {suffix})\nDo work",
+        f"%i(foo, {suffix})\nDo work",
         LaunchExecutionContext(
             cl_name="launcher",
             project_file="/tmp/sase.sase",

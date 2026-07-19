@@ -15,7 +15,7 @@ def test_strips_known_directives_colon_and_plus() -> None:
     Whitespace cleanup is intentionally not this helper's job (the resume
     sanitizer tidies), so we compare after stripping.
     """
-    text = "%name:foo %wait:bar %t:research %auto Do the thing"
+    text = "%id:foo %wait:bar %t:research %auto Do the thing"
     result = strip_known_directives(text)
     assert "%" not in result
     assert result.strip() == "Do the thing"
@@ -41,7 +41,7 @@ def test_strips_clan_directive_and_alias() -> None:
 
 
 def test_unknown_directive_preserved() -> None:
-    """Unknown %name tokens are left untouched."""
+    """Unknown %id tokens are left untouched."""
     text = "%unknown:value stays"
     assert strip_known_directives(text) == text
 
@@ -66,35 +66,44 @@ def test_deprecated_time_directive_stripped_for_history_cleanup() -> None:
     assert result.strip() == "Do the thing"
 
 
+def test_deprecated_name_spellings_stripped_for_history_cleanup() -> None:
+    """Historical %name/%n prompts remain safe for display sanitization."""
+    text = "%name:legacy %n:older Do the thing"
+    result = strip_known_directives(text)
+    assert "%name" not in result
+    assert "%n" not in result
+    assert result.strip() == "Do the thing"
+
+
 def test_duplicate_directives_do_not_raise() -> None:
     """Duplicate non-multi directives are stripped without raising."""
     # extract_prompt_directives would raise DirectiveError here.
-    text = "%name:a %name:b content"
+    text = "%id:a %id:b content"
     result = strip_known_directives(text)
-    assert "%name" not in result
+    assert "%id" not in result
     assert result.strip() == "content"
 
 
 def test_bare_name_does_not_allocate() -> None:
-    """Bare %name is stripped without allocating an auto-name."""
+    """Bare %id is stripped without allocating an auto-name."""
     # If this allocated a name it would hit sase.agent.names; it must not.
-    text = "%name content here"
+    text = "%id content here"
     result = strip_known_directives(text)
-    assert "%name" not in result
+    assert "%id" not in result
     assert result.strip() == "content here"
 
 
 def test_fenced_directives_preserved() -> None:
     """Directives inside fenced code blocks are preserved."""
-    text = "Example:\n\n```\n%name:foo\n%wait:bar\n```\n\nDone"
+    text = "Example:\n\n```\n%id:foo\n%wait:bar\n```\n\nDone"
     result = strip_known_directives(text)
-    assert "%name:foo" in result
+    assert "%id:foo" in result
     assert "%wait:bar" in result
     assert "Done" in result
 
 
 def test_idempotent() -> None:
     """Sanitizing already-clean text is a no-op."""
-    text = "%name:foo Do the thing"
+    text = "%id:foo Do the thing"
     once = strip_known_directives(text)
     assert strip_known_directives(once) == once

@@ -1,4 +1,4 @@
-"""Prompt directive parsing (%name tag system).
+"""Prompt directive parsing (%id tag system).
 
 Directives are in-prompt tags with a ``%`` prefix that modify runner behavior.
 They are extracted and stripped from the prompt before further preprocessing.
@@ -66,11 +66,11 @@ __all__ = [
 def extract_prompt_directives(
     prompt: str, *, strip_disabled_markers: bool = True
 ) -> tuple[str, PromptDirectives]:
-    """Extract ``%name`` directives from a prompt.
+    """Extract ``%id`` directives from a prompt.
 
-    Finds all ``%name`` patterns in the prompt. Known directives are parsed,
+    Finds all ``%id`` patterns in the prompt. Known directives are parsed,
     their xprompt references expanded, and they are stripped from the prompt.
-    Unknown ``%name`` patterns are left in the prompt unchanged.
+    Unknown ``%id`` patterns are left in the prompt unchanged.
 
     Args:
         prompt: The raw prompt text.

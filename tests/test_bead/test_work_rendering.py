@@ -123,9 +123,9 @@ class TestRenderEdgeCases:
 
         assert "%family" not in rendered
         assert "%clan(sase-42.3, tribe=epic)" in phase_segment
-        assert "%name:!sase-42.3.1" in phase_segment
+        assert "%id:!sase-42.3.1" in phase_segment
         assert "#bd/work_phase_bead:sase-42.3.1" in phase_segment
-        assert "%name:!sase-42.3.land" in land_segment
+        assert "%id:!sase-42.3.land" in land_segment
         assert "%clan(sase-42.3, tribe=epic)" in land_segment
         assert "%w:sase-42.3.1" in land_segment
         assert "#bd/land_epic:sase-42.3" in land_segment
@@ -180,14 +180,14 @@ class TestChangeSpecRendering:
 
         expected = (
             "#git:sase #pr:feature_epic\n"
-            "%name:!p1\n"
+            "%id:!p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
             "#git:feature_epic\n"
-            "%name:!e1.land\n"
+            "%id:!e1.land\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@epic_lander\n"
             "%auto\n"
@@ -218,14 +218,14 @@ class TestChangeSpecRendering:
 
         expected = (
             "#gh:sase #pr:feature_epic\n"
-            "%name:!p1\n"
+            "%id:!p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
             "#custom/work:p1\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:!p2\n"
+            "%id:!p2\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
@@ -233,7 +233,7 @@ class TestChangeSpecRendering:
             "#custom/work:p2\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:!p3\n"
+            "%id:!p3\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@phase_worker\n"
             "%auto\n"
@@ -241,7 +241,7 @@ class TestChangeSpecRendering:
             "#custom/work:p3\n"
             "---\n"
             "#gh:feature_epic\n"
-            "%name:!e1.land\n"
+            "%id:!e1.land\n"
             "%clan(e1, tribe=epic)\n"
             "%model:@epic_lander\n"
             "%auto\n"
@@ -270,9 +270,9 @@ class TestChangeSpecRendering:
 
         assert rendered.count("#pr:feature_epic") == 1
         membership = "%clan(e1, tribe=epic)"
-        assert f"#git:sase #pr:feature_epic\n%name:!p1\n{membership}" in rendered
-        assert f"#git:feature_epic\n%name:!p2\n{membership}" in rendered
-        assert f"#git:feature_epic\n%name:!e1.land\n{membership}" in rendered
+        assert f"#git:sase #pr:feature_epic\n%id:!p1\n{membership}" in rendered
+        assert f"#git:feature_epic\n%id:!p2\n{membership}" in rendered
+        assert f"#git:feature_epic\n%id:!e1.land\n{membership}" in rendered
         assert rendered.count("%clan(e1, tribe=epic)") == 3
         assert "%family" not in rendered
         assert "%group:" not in rendered
@@ -443,7 +443,7 @@ class TestModelDirective:
         phase_segment, land_segment = rendered.split("\n---\n")
         _assert_bare_auto_directives(rendered)
         assert phase_segment == (
-            "%name:!p1\n"
+            "%id:!p1\n"
             "%clan(e1, tribe=epic)\n"
             "%model:claude/opus\n"
             "%auto\n"
@@ -490,9 +490,9 @@ class TestModelDirective:
         )
 
         segments = rendered.split("\n---\n")
-        p1_seg = next(s for s in segments if "%name:!p1\n" in s)
-        p2_seg = next(s for s in segments if "%name:!p2\n" in s)
-        p3_seg = next(s for s in segments if "%name:!p3\n" in s)
+        p1_seg = next(s for s in segments if "%id:!p1\n" in s)
+        p2_seg = next(s for s in segments if "%id:!p2\n" in s)
+        p3_seg = next(s for s in segments if "%id:!p3\n" in s)
         land_seg = segments[-1]
         assert "%model:codex/gpt-5.6-sol" in p1_seg
         assert "%model:@phase_worker" in p2_seg
@@ -517,7 +517,7 @@ class TestModelDirective:
         assert "%model:@phase_worker" in phase_segment
         # An explicit per-epic land model still wins over the epic-lander alias.
         assert land_segment == (
-            "%name:!e1.land\n"
+            "%id:!e1.land\n"
             "%clan(e1, tribe=epic)\n"
             "%model:claude/opus\n"
             "%auto\n"
@@ -546,17 +546,17 @@ class TestModelDirective:
         )
 
         pre_model_baseline = (
-            "%name:!p1\n"
+            "%id:!p1\n"
             "%clan(e1, tribe=epic)\n"
             "%auto\n"
             "#bd/work_phase_bead:p1\n"
             "---\n"
-            "%name:!p2\n"
+            "%id:!p2\n"
             "%clan(e1, tribe=epic)\n"
             "%auto\n"
             "#bd/work_phase_bead:p2\n"
             "---\n"
-            "%name:!e1.land\n"
+            "%id:!e1.land\n"
             "%clan(e1, tribe=epic)\n"
             "%auto\n"
             "%w:p1,p2\n"

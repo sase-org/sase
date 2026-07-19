@@ -14,7 +14,7 @@ class TestExtractDirectivesTemplates:
         make_agent(tmp_path, "proj", "run1", "build-0")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            result = run_extract(tmp_path, prompt="%name:build-@\nDo work")
+            result = run_extract(tmp_path, prompt="%id:build-@\nDo work")
 
         assert result["info"].name == "build-1"
         assert result["meta"]["name"] == "build-1"
@@ -27,7 +27,7 @@ class TestExtractDirectivesTemplates:
             result = run_extract(
                 tmp_path,
                 planned_name="build-7",
-                prompt="%name:build-@\nDo work",
+                prompt="%id:build-@\nDo work",
             )
 
         assert result["info"].name == "build-7"
@@ -41,7 +41,7 @@ class TestExtractDirectivesTemplates:
             result = run_extract(
                 tmp_path,
                 planned_name="other-1",
-                prompt="%name:build-@\nDo work",
+                prompt="%id:build-@\nDo work",
             )
 
         assert result["info"].name == "build-0"
@@ -54,7 +54,7 @@ class TestExtractDirectivesTemplates:
             result = run_extract(
                 tmp_path,
                 planned_name="7.cld",
-                prompt="%name:@.cld\nDo work",
+                prompt="%id:@.cld\nDo work",
             )
 
         assert result["info"].name == "7.cld"
@@ -72,7 +72,7 @@ class TestExtractDirectivesTemplates:
                 tmp_path,
                 planned_name="7.cld",
                 generated_name=True,
-                prompt="%name:@.cld\nDo work",
+                prompt="%id:@.cld\nDo work",
             )
 
         assert result["info"].name == "7.cld"
@@ -86,7 +86,7 @@ class TestExtractDirectivesTemplates:
         make_agent(tmp_path, "proj", "run1", "0.cld")
 
         with patch.object(Path, "home", return_value=tmp_path):
-            result = run_extract(tmp_path, prompt="%name:@.cld\nDo work")
+            result = run_extract(tmp_path, prompt="%id:@.cld\nDo work")
 
         assert result["info"].name == "1.cld"
         assert result["meta"]["name"] == "1.cld"
@@ -126,7 +126,7 @@ class TestExtractDirectivesTemplates:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(
                 tmp_path,
-                prompt="%wait:build-@\n%name:build-@\nDo work",
+                prompt="%wait:build-@\n%id:build-@\nDo work",
             )
 
         assert result["info"].wait_names == ["build-0"]

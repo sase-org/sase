@@ -248,7 +248,7 @@ def render_multi_prompt(
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
-    Each phase becomes a segment with ``%name``,
+    Each phase becomes a segment with ``%id``,
     ``%clan(<epic_id>, tribe=epic)``, optional ``%w``, and a
     ``#<work_phase_xprompt.name>:<bead_id>`` reference. The final land segment
     joins the same clan and tribe, invokes
@@ -256,8 +256,8 @@ def render_multi_prompt(
     agent. Tag-resolved xprompt names are substituted into the ``#...``
     references so user overrides flow through unchanged.
 
-    The emitted ``%name`` directives use the force-reuse prefix
-    (``%name:!<name>``) so re-running ``sase bead work`` after a prior failed
+    The emitted ``%id`` directives use the force-reuse prefix
+    (``%id:!<name>``) so re-running ``sase bead work`` after a prior failed
     or killed launch wipes stale owner records before relaunching. Callers
     are responsible for the wipe/rewrite handshake before passing the rendered
     prompt to the launcher.
@@ -282,7 +282,7 @@ def render_multi_prompt(
         for assignment in wave:
             lines = _segment_prefix(launch_context, is_first_phase)
             is_first_phase = False
-            lines.append(f"%name:!{assignment.agent_name}")
+            lines.append(f"%id:!{assignment.agent_name}")
             lines.append(f"%clan({plan.epic_id}, tribe=epic)")
             if assignment.model:
                 model_value = format_model_directive_value(assignment.model)
@@ -297,7 +297,7 @@ def render_multi_prompt(
             segments.append("\n".join(lines))
 
     land_lines = _segment_prefix(launch_context, is_first_phase=False)
-    land_lines.append(f"%name:!{plan.land_agent_name}")
+    land_lines.append(f"%id:!{plan.land_agent_name}")
     land_lines.append(f"%clan({plan.epic_id}, tribe=epic)")
     land_model = epic_land_model_directive_value(
         plan.land_model,

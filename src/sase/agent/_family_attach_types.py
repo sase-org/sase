@@ -65,7 +65,7 @@ class FamilyAttachSibling:
 
 
 class FamilyAttachError(RuntimeError):
-    """Raised when a ``%n(parent, suffix)`` launch cannot be prepared."""
+    """Raised when a ``%i(parent, suffix)`` launch cannot be prepared."""
 
 
 __all__ = [

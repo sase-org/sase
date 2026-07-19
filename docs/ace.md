@@ -1400,7 +1400,7 @@ When more than 3 notifications arrive in the same poll tick, per-notification to
 toast per severity bucket (e.g., `2 warnings: 1 plan, 1 question`). Ordering is urgency-first: errors, then warnings,
 then information. Silent notifications are excluded from this pipeline entirely.
 
-Agent completion and failure toasts include the `%name`-set agent name with an `@` prefix when present (e.g.,
+Agent completion and failure toasts include the `%id`-set agent name with an `@` prefix when present (e.g.,
 `CLAUDE(opus) @sase-q.land completed: ace(run)-...`); anonymous agents (no `agent_name`) keep the prior format.
 
 ## XPrompt Browser
@@ -1553,15 +1553,15 @@ guardrails, and current preview behavior.
 
 ## Agent Auto-Naming
 
-Prompts with no `%name` directive, or with a bare `%name`, use the plain auto-name template `@`. SASE reserves the
-lowest available token from the sequence `0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...; with no reserved names,
-plain auto-naming yields concrete names such as `0`, then `1`.
+Prompts with no `%id` directive, or with a bare `%id`, use the plain auto-name template `@`. SASE reserves the lowest
+available token from the sequence `0`, `1`, ..., `9`, `a`, ..., `z`, `00`, `01`, ...; with no reserved names, plain
+auto-naming yields concrete names such as `0`, then `1`.
 
-An explicit `%name` value containing exactly one `@` marker is an agent-name template. SASE substitutes the same token
-sequence into the marker, so the first allocation for `%name:@.cld` becomes `0.cld`, `%name:build-@` becomes `build-0`,
-and `%name:research.@.final` becomes `research.0.final`. Later `%wait`, `#fork`, and `#resume` references can use the
-same template text; within a multi-agent launch, SASE rewrites those references to the concrete name already planned for
-that template.
+An explicit `%id` value containing exactly one `@` marker is an agent-name template. SASE substitutes the same token
+sequence into the marker, so the first allocation for `%id:@.cld` becomes `0.cld`, `%id:build-@` becomes `build-0`, and
+`%id:research.@.final` becomes `research.0.final`. Later `%wait`, `#fork`, and `#resume` references can use the same
+template text; within a multi-agent launch, SASE rewrites those references to the concrete name already planned for that
+template.
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until that agent is explicitly wiped
 or deleted. This enables the fork-by-name workflow: press `f` on a running named agent to queue a follow-up that waits
@@ -1578,10 +1578,10 @@ for `gpt-5.6-sol`; see [Model Short Aliases](llms.md#model-short-aliases)) and a
 so the suffix stays compact regardless of how the model was spelled in the prompt or config. Single-runtime spawns omit
 the suffix.
 
-An explicit `%name:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
+An explicit `%id:<name>` launch fails before spawning if `<name>` is already reserved. The prompt is saved as a
 cancelled history entry and the error suggests the lowest free numeric suffix, such as `<name>1`. To deliberately reuse
-a reserved name from the TUI, launch with `%name:!<name>`; the `!` form confirms that SASE should wipe the previous
-owner and then claim the name for the new agent. Reviving and dismissing agents preserve their stored names.
+a reserved name from the TUI, launch with `%id:!<name>`; the `!` form confirms that SASE should wipe the previous owner
+and then claim the name for the new agent. Reviving and dismissing agents preserve their stored names.
 
 The durable registry lives at `~/.sase/agent_name_registry.json` and is rebuilt from visible artifacts plus dismissed
 bundles when missing or stale. Use `sase agent names migrate-auto` to run the historical auto-name migration that moves
@@ -1988,7 +1988,7 @@ Epic:
   selection).
 
 The custom approval dialog no longer exposes separate commit/run switches because the selected outcome determines the
-commit location and follow-up behavior. Additional family members are launched explicitly with `%n(parent, suffix)`;
+commit location and follow-up behavior. Additional family members are launched explicitly with `%i(parent, suffix)`;
 they are not selected at the plan gate.
 
 ## Launch Approval
@@ -2237,7 +2237,7 @@ In prompt NORMAL mode, pressing `g` opens a small hint row for the prompt-local 
 
 Submitting one pane at a time re-attaches prompt-level frontmatter to the launched pane so local xprompts and metadata
 continue to resolve. Empty selected panes are dropped without launching. Whole-stack submission joins panes in
-top-to-bottom order and then uses the usual multi-agent launch path, including `%wait`, `%name`, `%model`, and other
+top-to-bottom order and then uses the usual multi-agent launch path, including `%wait`, `%id`, `%model`, and other
 segment-local directives. Segment order alone does not make later agents wait; add `%wait` to the later pane when it
 must start after an earlier agent succeeds.
 
@@ -2354,7 +2354,7 @@ completion is disabled by default because it can scan the filesystem while typin
 `ace.prompt_completion.auto_file_paths: true`. The xprompt/skill menu also opens automatically while typing matching
 `#name`, `#!name`, or `/skill` tokens; disable that xprompt auto-open behavior with
 `ace.prompt_completion.auto_xprompt_menu: false`. The directive menu likewise opens automatically while typing matching
-`%name` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
+`%id` tokens; disable it with `ace.prompt_completion.auto_directive_menu: false`. Both auto-menus open only once at
 least one identifier character follows the marker (bare `#`, `/`, and `%` stay quiet) and never auto-accept a single
 match. The project/ChangeSpec picker opens when `+` completes a token at prompt offset zero or immediately after a
 literal ASCII space and is also available through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes

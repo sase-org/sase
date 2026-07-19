@@ -82,7 +82,7 @@ def test_xprompt_swarm_expands_local_helpers_before_splitting() -> None:
     catalog = {
         "reads": XPrompt(
             name="reads",
-            content="%name:a\n#_article\n---\n%name:b\n#_article",
+            content="%id:a\n#_article\n---\n%id:b\n#_article",
             inputs=[InputArg(name="topic", type=InputType.TEXT)],
             local_xprompts={
                 "_article": XPrompt(
@@ -96,8 +96,8 @@ def test_xprompt_swarm_expands_local_helpers_before_splitting() -> None:
         out = expand_xprompt_swarms(["#reads(episodic memory)"])
 
     assert out == [
-        "%name:a\nFind long articles about episodic memory.",
-        "%name:b\nFind long articles about episodic memory.",
+        "%id:a\nFind long articles about episodic memory.",
+        "%id:b\nFind long articles about episodic memory.",
     ]
 
 

@@ -134,7 +134,7 @@ class TestLaunchRepeatAgents:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
             app._launch_repeat_agents(
-                prompt="%r:3 %n:foo body",
+                prompt="%r:3 %i:foo body",
                 ctx=_fake_context(),
                 vcs_ref=None,
                 has_wait=False,
@@ -158,7 +158,7 @@ class TestLaunchRepeatAgents:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
             app._launch_repeat_agents(
-                prompt="%r:3 %n:foo body",
+                prompt="%r:3 %i:foo body",
                 ctx=_fake_context(),
                 vcs_ref=None,
                 has_wait=False,
@@ -175,7 +175,7 @@ class TestLaunchRepeatAgents:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
             app._launch_repeat_agents(
-                prompt="%r:2 %n:bar do Y",
+                prompt="%r:2 %i:bar do Y",
                 ctx=_fake_context(),
                 vcs_ref=None,
                 has_wait=False,
@@ -185,7 +185,7 @@ class TestLaunchRepeatAgents:
         for idx, call in enumerate(app.launched, start=1):
             prompt = call["prompt"]
             assert "%r:2" not in prompt  # type: ignore[operator]
-            assert f"%n:bar.{idx}" in prompt  # type: ignore[operator]
+            assert f"%i:bar.{idx}" in prompt  # type: ignore[operator]
             assert "do Y" in prompt  # type: ignore[operator]
 
     def test_forwards_workspace_claim_transfer_pid(self, tmp_path: Path) -> None:
@@ -205,7 +205,7 @@ class TestLaunchRepeatAgents:
             ),
         ):
             app._launch_repeat_agents(
-                prompt="%r:2 %n:foo body",
+                prompt="%r:2 %i:foo body",
                 ctx=ctx,
                 vcs_ref=None,
                 has_wait=False,
@@ -243,7 +243,7 @@ class TestLaunchRepeatAgents:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
             app._launch_repeat_agents(
-                prompt="%r:3 %n:zz body",
+                prompt="%r:3 %i:zz body",
                 ctx=_fake_context(),
                 vcs_ref=None,
                 has_wait=False,
@@ -273,7 +273,7 @@ class TestLaunchRepeatAgents:
         app = _FakeApp()
         with patch.object(Path, "home", return_value=tmp_path):
             app._launch_repeat_agents(
-                prompt="%r:3 %n:zz body",
+                prompt="%r:3 %i:zz body",
                 ctx=_fake_context(),
                 vcs_ref=None,
                 has_wait=False,

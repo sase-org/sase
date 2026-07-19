@@ -30,7 +30,7 @@ def test_launch_multi_prompt_rewrites_bare_wait_to_explicit_previous_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%name:builder\nBuild", "%wait\nReview"],
+        segments=["%id:builder\nBuild", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",

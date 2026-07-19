@@ -138,7 +138,7 @@ def test_extract_directives_handles_frontmatter(_xp, _al, tmp_path) -> None:
     from sase.agent.multi_prompt import parse_multi_prompt
 
     prompt = (
-        '---\nxprompts:\n  _ctx: "extra context"\n---\n%name:test_agent\nDo work. #_ctx'
+        '---\nxprompts:\n  _ctx: "extra context"\n---\n%id:test_agent\nDo work. #_ctx'
     )
     multi = parse_multi_prompt(prompt)
     body = "\n---\n".join(multi.segments)

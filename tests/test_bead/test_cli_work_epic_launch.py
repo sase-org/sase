@@ -74,9 +74,9 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert "%group:" not in query
     for pid in phase_ids:
         assert f"#bd/work_phase_bead:{pid}" in query
-        assert f"%name:{pid}\n{membership}" in query
+        assert f"%id:{pid}\n{membership}" in query
     land_segment = query.split("\n---\n")[-1]
-    assert f"%name:{epic_id}.land\n{membership}" in land_segment
+    assert f"%id:{epic_id}.land\n{membership}" in land_segment
     assert f"#bd/land_epic:{epic_id}" in query
     assert captured["extra_env"] is None
     assert captured["segment_extra_env"] == tuple(
@@ -148,11 +148,11 @@ def test_work_stale_owner_round_trip_wipes_and_rewrites(
     bead_cli.handle_bead_work(make_args(epic_id, yes=True))
 
     query = captured["query"]
-    # Launcher receives the rewritten prompt: ordinary %name:<n> (no '!').
-    assert "%name:!" not in query
+    # Launcher receives the rewritten prompt: ordinary %id:<n> (no '!').
+    assert "%id:!" not in query
     for pid in phase_ids:
-        assert f"%name:{pid}\n" in query
-    assert f"%name:{epic_id}.land\n" in query
+        assert f"%id:{pid}\n" in query
+    assert f"%id:{epic_id}.land\n" in query
 
     # Every planned phase and land name is force-reused before launch, plus the
     # legacy ``<epic_id>`` owner the new prompt no longer names.
@@ -196,7 +196,7 @@ def test_work_retry_allows_legacy_epic_clan_container_skip(
 
     assert epic_id in wiped
     assert len(launched) == 1
-    assert "%name:!" not in launched[0]
+    assert "%id:!" not in launched[0]
     assert f"#bd/work_phase_bead:{phase_ids[0]}" not in launched[0]
     for phase_id in phase_ids[1:]:
         assert f"#bd/work_phase_bead:{phase_id}" in launched[0]
@@ -388,11 +388,11 @@ def test_work_dry_run_renders_model_directives(
 
     out = capsys.readouterr().out
     membership = f"%clan({epic_id}, tribe=epic)"
-    assert f"%name:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto\n" in out
+    assert f"%id:!{p1_id}\n{membership}\n%model:codex/gpt-5.6-sol\n%auto\n" in out
     # Phase without an explicit model defaults to the phase-worker role alias.
-    assert f"%name:!{p2_id}\n{membership}\n%model:@phase_worker\n%auto\n" in out
+    assert f"%id:!{p2_id}\n{membership}\n%model:@phase_worker\n%auto\n" in out
     # The epic's explicit land model still wins over the epic-lander alias.
-    assert f"%name:!{epic_id}.land\n{membership}\n%model:claude/opus\n%auto\n" in out
+    assert f"%id:!{epic_id}.land\n{membership}\n%model:claude/opus\n%auto\n" in out
     assert out.count(f"%clan({epic_id}, tribe=epic)") == 3
     assert "%family" not in out
     assert "%group:" not in out
@@ -420,7 +420,7 @@ def test_work_dry_run_uses_custom_big_epic_threshold(
 
     out = capsys.readouterr().out
     land_segment = out.split("\n---\n")[-1]
-    assert f"%name:!{epic.id}.land" in land_segment
+    assert f"%id:!{epic.id}.land" in land_segment
     assert "%model:@big_epic_lander" in land_segment
 
 
@@ -462,9 +462,9 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     out = capsys.readouterr().out
     membership = f"%clan({epic_id}, tribe=epic)"
     for pid in phase_ids:
-        assert f"#git:sase\n%name:!{pid}\n{membership}" in out
+        assert f"#git:sase\n%id:!{pid}\n{membership}" in out
         assert f"#bd/work_phase_bead:{pid}" in out
-    assert f"#git:sase\n%name:!{epic_id}.land\n{membership}" in out
+    assert f"#git:sase\n%id:!{epic_id}.land\n{membership}" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(f"%clan({epic_id}, tribe=epic)") == len(phase_ids) + 1
     assert "%family" not in out
@@ -518,10 +518,10 @@ def test_work_dry_run_renders_changespec_launch_wrappers(
     assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
         f"#git:sase #pr(name=feature_epic, bug_id=12345)\n"
-        f"%name:!{phase_ids[0]}\n{membership}" in out
+        f"%id:!{phase_ids[0]}\n{membership}" in out
     )
-    assert f"#git:feature_epic\n%name:!{phase_ids[1]}\n{membership}" in out
-    assert f"#git:feature_epic\n%name:!{epic_id}.land\n{membership}" in out
+    assert f"#git:feature_epic\n%id:!{phase_ids[1]}\n{membership}" in out
+    assert f"#git:feature_epic\n%id:!{epic_id}.land\n{membership}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(f"%clan({epic_id}, tribe=epic)") == len(phase_ids) + 1

@@ -231,7 +231,7 @@ def launch_agents_from_cwd_impl(
 
     # --- Repeat fan-out ---
     # When %r:N is present, spawn N independent agents before any further
-    # dispatch.  Each spec's prompt has %r / %n stripped and %n:<base>.<k>
+    # dispatch.  Each spec's prompt has %r / %i stripped and %i:<base>.<k>
     # re-injected, so the recursive call resolves through the single-agent
     # path without re-triggering this branch.
     from sase.agent.repeat_launcher import (

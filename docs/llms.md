@@ -686,7 +686,7 @@ The positional value, when present, selects the current agent's model. Without o
 normal default and resolves that alias chain through the map. Thus `default=...` changes it directly, while an unrelated
 role keyword normally affects only a later delegated launch. Keyword keys are bare known alias names, and values may be
 concrete model targets or `@other_alias` references. The map is stored in agent metadata and inherited by SASE-created
-plan/coder follow-ups. An explicit `%name(parent, suffix)` attachment inherits it only when the attached prompt supplies
+plan/coder follow-ups. An explicit `%id(parent, suffix)` attachment inherits it only when the attached prompt supplies
 no alias keywords. Ordinary nested launches do not inherit it. This is a propagation rule, not a change to `sase.yml` or
 `~/.sase/llm_override.json`.
 

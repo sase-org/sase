@@ -200,8 +200,8 @@ def test_repeat_one_is_valid() -> None:
 
 
 def test_repeat_with_other_directives() -> None:
-    """%repeat combined with %model and %name works."""
-    prompt = "%repeat:3\n%model:opus\n%name:foo\nDo the work"
+    """%repeat combined with %model and %id works."""
+    prompt = "%repeat:3\n%model:opus\n%id:foo\nDo the work"
     cleaned, directives = extract_prompt_directives(prompt)
     assert cleaned == "Do the work"
     assert directives.repeat_count == 3

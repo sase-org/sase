@@ -190,7 +190,7 @@ def test_launch_multi_prompt_waits_on_last_multi_model_generated_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%n:ag\n%{%model:opus | %model:sonnet}\nBuild", "%wait\nReview"],
+        segments=["%i:ag\n%{%model:opus | %model:sonnet}\nBuild", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -247,8 +247,8 @@ def test_launch_multi_prompt_generated_model_fanout_allocates_grouped_names(
     ]
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
     assert prompts == [
-        "%name:@.cld\n%model:opus\nBuild",
-        "%name:@.cdx\n%model:gpt-5.6-sol\nBuild",
+        "%id:@.cld\n%model:opus\nBuild",
+        "%id:@.cdx\n%model:gpt-5.6-sol\nBuild",
         "%wait:0.cdx\nReview",
     ]
     envs = [c.kwargs["extra_env"] for c in mock_spawn.call_args_list]
@@ -327,7 +327,7 @@ def test_launch_multi_prompt_explicit_template_model_fanout_groups_token(
 
     with patch.object(Path, "home", return_value=tmp_path):
         results = launch_multi_prompt_agents(
-            segments=["%name:review-@\n%{%model:opus | %model:gpt-5.6-sol}\nBuild"],
+            segments=["%id:review-@\n%{%model:opus | %model:gpt-5.6-sol}\nBuild"],
             local_xprompts={},
             cl_name="test",
             project_file="/test.sase",
@@ -342,8 +342,8 @@ def test_launch_multi_prompt_explicit_template_model_fanout_groups_token(
     ]
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
     assert prompts == [
-        "%name:review-@.cld\n%model:opus\nBuild",
-        "%name:review-@.cdx\n%model:gpt-5.6-sol\nBuild",
+        "%id:review-@.cld\n%model:opus\nBuild",
+        "%id:review-@.cdx\n%model:gpt-5.6-sol\nBuild",
     ]
     assert [
         c.kwargs["extra_env"]["SASE_AGENT_PLANNED_NAME"]
@@ -378,7 +378,7 @@ def test_launch_multi_prompt_waits_on_last_alt_generated_name(
     mock_spawn.return_value = MagicMock(pid=1)
 
     launch_multi_prompt_agents(
-        segments=["%n:ag\n%alt(sec=Build security,perf=Build perf)", "%wait\nReview"],
+        segments=["%i:ag\n%alt(sec=Build security,perf=Build perf)", "%wait\nReview"],
         local_xprompts={},
         cl_name="test",
         project_file="/test.sase",
@@ -391,8 +391,8 @@ def test_launch_multi_prompt_waits_on_last_alt_generated_name(
     assert mock_create_artifacts.call_count == 0
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
     assert prompts == [
-        "%name:ag.sec\nBuild security",
-        "%name:ag.perf\nBuild perf",
+        "%id:ag.sec\nBuild security",
+        "%id:ag.perf\nBuild perf",
         "%wait:ag.perf\nReview",
     ]
 
@@ -423,7 +423,7 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
     }
 
     results = launch_multi_prompt_agents(
-        segments=["%n:ag\n%{%model:#_flash | %model:gpt-5.3-codex}\nReview"],
+        segments=["%i:ag\n%{%model:#_flash | %model:gpt-5.3-codex}\nReview"],
         local_xprompts=xprompts,
         cl_name="test",
         project_file="/test.sase",
@@ -434,8 +434,8 @@ def test_launch_multi_prompt_model_shorthand_uses_local_xprompt_for_naming(
 
     assert len(results) == 2
     prompts = [c.kwargs["prompt"] for c in mock_spawn.call_args_list]
-    assert prompts[0] == "%name:ag.cdx_gpt56sol\n%model:#_flash\nReview"
-    assert prompts[1] == "%name:ag.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
+    assert prompts[0] == "%id:ag.cdx_gpt56sol\n%model:#_flash\nReview"
+    assert prompts[1] == "%id:ag.cdx_gpt53\n%model:gpt-5.3-codex\nReview"
 
     local_xprompt_files = [
         c.kwargs["local_xprompts_file"] for c in mock_spawn.call_args_list

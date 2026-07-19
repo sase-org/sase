@@ -116,7 +116,7 @@ def prepare_bead_work_force_reuse(
 
     Bead work is a trusted, confirmed relaunch surface: it deliberately reuses
     the deterministic phase/land names it just computed. This parses the
-    ``%name:!<n>`` directives out of *query*, verifies they match the plan's
+    ``%id:!<n>`` directives out of *query*, verifies they match the plan's
     *expected_names*, then wipes each owner (plus any *extra_cleanup_names* such
     as a legacy land owner that the new prompt no longer names). Old owners are
     replaced regardless of state — completed, dismissed, or still live (the wipe
@@ -128,7 +128,7 @@ def prepare_bead_work_force_reuse(
     mutation: it raises :class:`ForcedReuseCleanupError` when a wipe raises, when
     an :class:`AgentNameWipeResult` reports errors, or when the registry still
     reports an owner for a force-reused name after the rebuild. On success it
-    rewrites ``%name:!<n>`` to ordinary ``%name:<n>`` so
+    rewrites ``%id:!<n>`` to ordinary ``%id:<n>`` so
     ``validate_launch_name_requests`` accepts the prompt.
     """
     from sase.agent.launch_validation import (

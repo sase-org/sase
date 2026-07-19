@@ -37,8 +37,8 @@ class TestExtractDirectivesNaming:
             result = run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
-                prompt="%name:merged expanded prompt",
-                raw_resolved_prompt="%name:merged #fork:planner,coder do stuff",
+                prompt="%id:merged expanded prompt",
+                raw_resolved_prompt="%id:merged #fork:planner,coder do stuff",
             )
         assert result["info"].name == "merged"
         assert result["meta"].get("name") == "merged"
@@ -74,8 +74,8 @@ class TestExtractDirectivesNaming:
             result = run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
-                prompt="%name:bar expanded prompt",
-                raw_resolved_prompt="%name:bar #fork:foo do stuff",
+                prompt="%id:bar expanded prompt",
+                raw_resolved_prompt="%id:bar #fork:foo do stuff",
             )
         assert result["info"].name == "bar"
         assert result["meta"].get("name") == "bar"
@@ -85,8 +85,8 @@ class TestExtractDirectivesNaming:
             result = run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
-                prompt="%name expanded prompt",
-                raw_resolved_prompt="%name #fork:foo do stuff",
+                prompt="%id expanded prompt",
+                raw_resolved_prompt="%id #fork:foo do stuff",
             )
         assert result["info"].name == "foo.f0"
         assert result["meta"].get("name") == "foo.f0"
@@ -165,7 +165,7 @@ class TestExtractDirectivesNaming:
             result = run_extract(
                 tmp_path,
                 env_auto_dismiss=False,
-                prompt="%name:bar\n%wait:foo do stuff",
+                prompt="%id:bar\n%wait:foo do stuff",
             )
         assert result["info"].name == "bar"
         assert result["meta"].get("name") == "bar"

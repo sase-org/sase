@@ -29,7 +29,7 @@ def test_family_attach_prep_failure_prevents_spawn(
 
     with pytest.raises(FamilyAttachError, match="Cannot attach family member"):
         execute_launch_plan(
-            plan_fake_fanout("single", ["%n(missing, reviewer)\nDo work"]),
+            plan_fake_fanout("single", ["%i(missing, reviewer)\nDo work"]),
             LaunchExecutionContext(
                 cl_name="sase",
                 project_file="/tmp/sase.sase",

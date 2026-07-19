@@ -354,7 +354,7 @@ Once an epic bead exists, the shared launch path:
    under `llm_provider.model_aliases.builtin`. Each phase segment and the final land-epic segment carries bare `%auto`,
    so submitted implementation and landing plans are auto-approved. An agent may author a tale or an epic as needed; the
    plan's authored `tier` selects the corresponding automatic follow-up path. Each segment uses the force-reuse
-   `%name:!<agent_name>` form so re-running `sase bead work` after a killed or failed run wipes the stale name owners
+   `%id:!<agent_name>` form so re-running `sase bead work` after a killed or failed run wipes the stale name owners
    before the relaunch — the command is safe to retry.
 
 | Flag            | Description                                                                              |

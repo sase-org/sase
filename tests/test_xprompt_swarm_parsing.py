@@ -56,20 +56,20 @@ def test_extract_with_named_args() -> None:
 
 
 def test_extract_with_leading_directives() -> None:
-    call = _extract_top_level_xprompt_reference("%name:custom\n%wait\n#foo", {"foo"})
+    call = _extract_top_level_xprompt_reference("%id:custom\n%wait\n#foo", {"foo"})
     assert call is not None
     assert call.name == "foo"
-    assert call.leading_directives == ["%name:custom", "%wait"]
+    assert call.leading_directives == ["%id:custom", "%wait"]
 
 
 def test_extract_with_same_line_directives_before_vcs_ref() -> None:
     with patch_vcs_patterns():
         call = _extract_top_level_xprompt_reference(
-            "%n:custom %model:opus #gh:sase #!foo", {"foo"}
+            "%i:custom %model:opus #gh:sase #!foo", {"foo"}
         )
     assert call is not None
     assert call.name == "foo"
-    assert call.leading_directives == ["%n:custom", "%model:opus"]
+    assert call.leading_directives == ["%i:custom", "%model:opus"]
     assert call.leading_vcs_ref_text == "#gh:sase"
 
 

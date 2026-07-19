@@ -79,7 +79,7 @@ def _extract_first_model_value(prompt: str) -> str | None:
 def _extract_and_strip_name_directive(
     prompt: str,
 ) -> tuple[str, str | None, bool]:
-    """Strip the first ``%name`` / ``%n`` directive from *prompt*.
+    """Strip the first ``%id`` / ``%i`` directive from *prompt*.
 
     Returns ``(prompt_without_name, raw_value, was_bare)``.  ``raw_value``
     is ``None`` if no directive existed, an empty string if the directive
@@ -100,7 +100,7 @@ def _extract_and_strip_name_directive(
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         raw_name = match.group(1)
         resolved = _DIRECTIVE_ALIASES.get(raw_name, raw_name)
-        if resolved != "name":
+        if resolved != "id":
             continue
 
         match_end = match.end()
@@ -192,8 +192,8 @@ def _model_suffix_value(model: str) -> str:
 
 
 def _inject_name_directive(prompt: str, name: str) -> str:
-    """Prepend a ``%name:<name>`` line to *prompt*."""
-    return f"%name:{name}\n{prompt}"
+    """Prepend a ``%id:<name>`` line to *prompt*."""
+    return f"%id:{name}\n{prompt}"
 
 
 def apply_fanout_naming(
@@ -216,9 +216,9 @@ def apply_fanout_naming_with_metadata(
     *,
     extra_xprompts: dict[str, XPrompt] | None = None,
 ) -> list[_NamedFanoutPrompt]:
-    """Add ``%name:<base>.<id>`` to each named child of a fan-out plan.
+    """Add ``%id:<base>.<id>`` to each named child of a fan-out plan.
 
-    The base name is taken from the first explicit ``%name`` directive found
+    The base name is taken from the first explicit ``%id`` directive found
     across the slots; if none, a resume-derived or auto name is generated once
     and shared.  Multi-model fan-outs preserve the existing runtime/model
     suffixes unless a named ``%alt`` branch supplies the slot identity.

@@ -2,7 +2,7 @@
 
 These tests cover the contract that ``launch_agents_from_cwd()`` returns
 results whose ``agent_name`` is populated synchronously when the name is
-knowable in the parent (explicit ``%name:`` or unambiguous auto-name),
+knowable in the parent (explicit ``%id:`` or unambiguous auto-name),
 without polling ``agent_meta.json``.
 """
 
@@ -109,7 +109,7 @@ def test_single_prompt_launch_result_uses_durable_reserved_names(
 def test_single_prompt_launch_result_carries_explicit_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A ``%name:foo`` prompt makes the launch result carry ``foo``."""
+    """A ``%id:foo`` prompt makes the launch result carry ``foo``."""
     patch_no_workspace_metadata(monkeypatch)
     from sase.agent.launcher import launch_agents_from_cwd
 
@@ -129,7 +129,7 @@ def test_single_prompt_launch_result_carries_explicit_name(
         patch("sase.running_field.get_first_available_axe_workspace"),
         patch("sase.running_field.get_workspace_directory_for_num"),
     ):
-        results = launch_agents_from_cwd("%name:foo\ndo work")
+        results = launch_agents_from_cwd("%id:foo\ndo work")
 
     assert len(results) == 1
     assert results[0].agent_name == "foo"

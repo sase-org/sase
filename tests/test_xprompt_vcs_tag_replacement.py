@@ -45,24 +45,24 @@ def test_replace_vcs_tags_cross_vcs() -> None:
 def test_replace_vcs_tags_with_directive_same_line() -> None:
     """Preserve %directive prefix when replacing VCS tag."""
     with _patch_vcs_replace_pattern():
-        result = replace_vcs_workflow_tags("%n:a #gh:sase Fix bug", "#gh:other")
-        assert result == "%n:a #gh:other Fix bug"
+        result = replace_vcs_workflow_tags("%i:a #gh:sase Fix bug", "#gh:other")
+        assert result == "%i:a #gh:other Fix bug"
 
 
 def test_replace_vcs_tags_with_directives_multi_line() -> None:
     """Preserve multi-line directives before VCS tag."""
-    prompt = "%model:opus\n%n:a #gh:sase Fix bug"
+    prompt = "%model:opus\n%i:a #gh:sase Fix bug"
     with _patch_vcs_replace_pattern():
         result = replace_vcs_workflow_tags(prompt, "#gh:other")
-        assert result == "%model:opus\n%n:a #gh:other Fix bug"
+        assert result == "%model:opus\n%i:a #gh:other Fix bug"
 
 
 def test_replace_vcs_tags_multi_prompt_with_directives() -> None:
     """Replace VCS tags in multi-prompt where segments have directives."""
-    prompt = "%n:a #gh:sase Fix A\n---\n%n:b #gh:sase Fix B"
+    prompt = "%i:a #gh:sase Fix A\n---\n%i:b #gh:sase Fix B"
     with _patch_vcs_replace_pattern():
         result = replace_vcs_workflow_tags(prompt, "#gh:other")
-        assert result == "%n:a #gh:other Fix A\n---\n%n:b #gh:other Fix B"
+        assert result == "%i:a #gh:other Fix A\n---\n%i:b #gh:other Fix B"
 
 
 def test_replace_vcs_tags_no_existing_tag() -> None:

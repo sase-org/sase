@@ -22,7 +22,7 @@ from sase.xprompt.directives import extract_prompt_directives
 
 
 def test_name_directive_family_attach_form_parses_and_strips() -> None:
-    cleaned, directives = extract_prompt_directives("%n(foo, reviewer)\nDo work")
+    cleaned, directives = extract_prompt_directives("%i(foo, reviewer)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.name is None
@@ -31,7 +31,7 @@ def test_name_directive_family_attach_form_parses_and_strips() -> None:
 
 
 def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
-    cleaned, directives = extract_prompt_directives("%n(foo)\nDo work")
+    cleaned, directives = extract_prompt_directives("%i(foo)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.name == "foo"
@@ -40,29 +40,29 @@ def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
 
 def test_name_directive_rejects_extra_positionals_and_keywords() -> None:
     with pytest.raises(DirectiveError, match="at most two positional"):
-        extract_prompt_directives("%n(foo, reviewer, extra)\nDo work")
+        extract_prompt_directives("%i(foo, reviewer, extra)\nDo work")
 
     with pytest.raises(DirectiveError, match="Unsupported keyword"):
-        extract_prompt_directives("%n(foo, run_status=DONE)\nDo work")
+        extract_prompt_directives("%i(foo, run_status=DONE)\nDo work")
 
 
 def test_name_directive_rejects_legacy_family_suffix_spellings() -> None:
     with pytest.raises(DirectiveError, match="without a family separator"):
-        extract_prompt_directives("%n(foo, .reviewer)\nDo work")
+        extract_prompt_directives("%i(foo, .reviewer)\nDo work")
 
     with pytest.raises(DirectiveError, match="without a family separator"):
-        extract_prompt_directives("%n(foo, -reviewer)\nDo work")
+        extract_prompt_directives("%i(foo, -reviewer)\nDo work")
 
 
 def test_prelaunch_name_helpers_ignore_family_attach_form() -> None:
-    prompt = "%n(foo, reviewer)\nDo work"
+    prompt = "%i(foo, reviewer)\nDo work"
 
     assert extract_static_name_directive(prompt) is None
     validate_launch_name_requests([prompt])
 
 
 def test_extract_family_attach_directive() -> None:
-    directive = extract_family_attach_directive("%model:codex/gpt-5\n%n(foo, @)")
+    directive = extract_family_attach_directive("%model:codex/gpt-5\n%i(foo, @)")
 
     assert directive == FamilyAttachDirective(parent="foo", suffix="@")
 
@@ -73,7 +73,7 @@ def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
     default_with_feedback_parent_from_family_attach(
         "with_feedback",
         args,
-        prompt="%n(foo, @) #with_feedback:: tighten tests",
+        prompt="%i(foo, @) #with_feedback:: tighten tests",
     )
 
     assert args["parent"] == "foo"
@@ -107,7 +107,7 @@ def test_family_attach_collision_message_suggests_auto_suffix() -> None:
     from sase.agent._family_attach_resolution import _ensure_family_name_available
 
     with patch("sase.agent.names.get_reserved_agent_names", return_value={"foo--bar"}):
-        with pytest.raises(FamilyAttachError, match=r"%n\(foo, @\)"):
+        with pytest.raises(FamilyAttachError, match=r"%i\(foo, @\)"):
             _ensure_family_name_available(
                 "foo--bar",
                 FamilyAttachDirective(parent="foo", suffix="bar"),

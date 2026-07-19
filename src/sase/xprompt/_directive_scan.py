@@ -14,13 +14,13 @@ from ._parsing import find_matching_paren_for_args
 
 
 def strip_known_directives(prompt: str) -> str:
-    """Remove known ``%name`` directive spans from *prompt* without side effects.
+    """Remove known ``%id`` directive spans from *prompt* without side effects.
 
     Side-effect-free counterpart to ``extract_prompt_directives``: it strips
     the same known/directive-migration spans (colon, paren, backtick, and plus
     argument forms, plus short aliases) but never allocates auto-names, resolves
     ``%wait`` arguments, or raises on duplicate or bare directives. Unknown
-    ``%name`` tokens and directives inside fenced code blocks are left
+    Unknown ``%directive`` tokens and directives inside fenced code blocks are left
     untouched.
     """
     if "%" not in prompt:

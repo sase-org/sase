@@ -104,7 +104,7 @@ class TestExtractDirectivesMetadata:
         with patch.object(Path, "home", return_value=tmp_path):
             result = run_extract(
                 tmp_path,
-                prompt="%name:alpha do stuff",
+                prompt="%id:alpha do stuff",
                 cl_name="feature-branch",
             )
 

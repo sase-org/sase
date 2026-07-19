@@ -26,7 +26,7 @@ def legacy_epic_cleanup_names(plan: EpicWorkPlan) -> frozenset[str]:
 
     Epic land agents now use ``<epic_id>.land``; older runs used ``<epic_id>``.
     The legacy name is not rendered in the new prompt, so it is an extra wipe
-    target rather than an expected ``%name:!`` directive.
+    target rather than an expected ``%id:!`` directive.
     """
     legacy = _legacy_land_agent_name(plan)
     return frozenset({legacy}) if legacy else frozenset()

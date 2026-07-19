@@ -149,7 +149,7 @@ def test_single_segment_with_frontmatter_does_not_split(tmp_path: Path) -> None:
 
 
 def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
-    """Test that segments with directives (%wait, %name) are preserved as-is."""
+    """Test that segments with directives (%wait, %id) are preserved as-is."""
     test_file = tmp_path / "prompt_history.json"
     with (
         patch("sase.history.prompt_store._PROMPT_HISTORY_FILE", test_file),
@@ -158,19 +158,19 @@ def test_multi_prompt_segments_preserve_directives(tmp_path: Path) -> None:
         ),
     ):
         add_or_update_prompt(
-            "%name builder Fix the bug\n---\n%wait\n%name reviewer Review the fix"
+            "%id builder Fix the bug\n---\n%wait\n%id reviewer Review the fix"
         )
         result = load_prompt_history()
         texts = {e.text for e in result}
-        assert "%name builder Fix the bug" in texts
-        assert "%wait\n%name reviewer Review the fix" in texts
+        assert "%id builder Fix the bug" in texts
+        assert "%wait\n%id reviewer Review the fix" in texts
 
 
 def test_prompt_history_preserves_raw_alt_prompt(tmp_path: Path) -> None:
     """Fan-out name injection is spawn-time only; history keeps user input."""
     test_file = tmp_path / "prompt_history.json"
     prompt = (
-        "%name review\n"
+        "%id review\n"
         "%alt(sec=[[security pass]],perf=[[perf pass]])\n"
         "Audit this feature carefully"
     )
@@ -184,7 +184,7 @@ def test_prompt_history_preserves_raw_alt_prompt(tmp_path: Path) -> None:
         entries = load_prompt_history()
 
     assert [entry.text for entry in entries] == [prompt]
-    assert all("%name:review.sec" not in entry.text for entry in entries)
+    assert all("%id:review.sec" not in entry.text for entry in entries)
 
 
 def test_multi_prompt_skips_short_segments(tmp_path: Path) -> None:

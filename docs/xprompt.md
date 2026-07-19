@@ -867,7 +867,7 @@ defaults. Common entries include:
 | `#bd/review/prompt`   | Prompt-review helper for an epic plan                                                             |
 
 When `#fork` / `#fork_by_chat` injects a `# Previous Conversation` block, the prior **user prompts** in that block are
-sanitized first: sase directives (`%name`, `%wait`, `%tribe`, ...), `#`/`#!` xprompt and workspace references, and any
+sanitized first: sase directives (`%id`, `%wait`, `%tribe`, ...), `#`/`#!` xprompt and workspace references, and any
 unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked agent sees clean natural-language text.
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
@@ -893,20 +893,20 @@ SASE ships two embeddable follow-up prompt workflows for manual family rounds:
 | `#with_feedback` | `feedback`, optional `parent` | Append plan feedback using the same replan prompt renderer as the runner |
 | `#with_q_and_a`  | `prompt`, `qa_file`           | Append answered SASE questions using the same Q&A renderer as the runner |
 
-Both xprompts only assemble prompt text; `%n(parent, suffix)` is the launch directive that attaches the new agent to the
+Both xprompts only assemble prompt text; `%i(parent, suffix)` is the launch directive that attaches the new agent to the
 family. See [Agent Clans, Families, and Tribes](agent_families.md) for the full attachment and launch-approval model.
 
-For feedback, pass `parent=` explicitly or combine it with `%n(parent, suffix)` and let SASE infer the parent:
+For feedback, pass `parent=` explicitly or combine it with `%i(parent, suffix)` and let SASE infer the parent:
 
 ```text
-%n(planner, @) #with_feedback:: Add failure handling before coding.
-%n(planner, reviewer) #with_feedback(parent=planner):: Re-check the API shape.
+%i(planner, @) #with_feedback:: Add failure handling before coding.
+%i(planner, reviewer) #with_feedback(parent=planner):: Re-check the API shape.
 ```
 
 For Q&A, provide a JSON file containing one or more answered question rounds:
 
 ```text
-%n(planner, @) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
+%i(planner, @) #with_q_and_a(qa_file=/tmp/qa_rounds.json):: Continue with the base prompt.
 ```
 
 The Q&A file should use the same structured request/response shape SASE writes for user questions: `questions` plus a
@@ -1001,7 +1001,7 @@ the prompt before further processing.
 | --------- | ----- | --------------------------------------------------------------------- |
 | `%model`  | `%m`  | Override the LLM model for this prompt                                |
 | `%effort` | `%e`  | Set the reasoning-effort level (e.g. `%effort:xhigh`)                 |
-| `%name`   | `%n`  | Assign an agent name or attach a member to an existing family         |
+| `%id`     | `%i`  | Assign an agent name or attach a member to an existing family         |
 | `%clan`   | `%c`  | Join a named, rootless parallel agent clan                            |
 | `%wait`   | `%w`  | Wait for dependencies, a time floor, and/or a runner threshold        |
 | `%hide`   | `%h`  | Hide the agent from the default Agents tab display                    |
@@ -1028,12 +1028,12 @@ Directives use the same argument syntax as xprompt references:
 %effort:%{medium | high | xhigh} # Fan out directive values
 %model:opus@xhigh            # Model + reasoning-effort suffix (alias: %m:opus@xhigh)
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
-%name:reviewer               # Short-form
-%n:reviewer                  # Same, using alias
-%n(parent, reviewer)         # Attach parent--reviewer to parent's family
-%n(parent, @)                # Attach the next free feedback/Q&A suffix
-%name                        # Bare — auto-generates a unique name
-%name:!reviewer              # Force reuse by wiping the previous owner
+%id:reviewer               # Short-form
+%i:reviewer                  # Same, using alias
+%i(parent, reviewer)         # Attach parent--reviewer to parent's family
+%i(parent, @)                # Attach the next free feedback/Q&A suffix
+%id                        # Bare — auto-generates a unique name
+%id:!reviewer              # Force reuse by wiping the previous owner
 %clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
 %c:research.@                # Same, using alias
 %clan(research, tribe=review) # Declare @review for this clan member's generation
@@ -1106,9 +1106,9 @@ without `@`; values may be concrete models, `provider/model` targets, quoted tar
 alias with `@`. Per-alias reasoning-effort suffixes are not supported.
 
 "Launch-scoped" describes persistence, not every subprocess the agent starts. SASE records the map in agent metadata and
-carries it through its plan/coder follow-up path. An explicit `%name(parent, suffix)` attachment inherits the parent's
-map when its prompt supplies no alias keywords; a prompt with its own keywords uses that new map. Ordinary nested
-launches do not inherit the map. This lineage often overlaps an [Agent Family](agent_families.md), but the terms are not
+carries it through its plan/coder follow-up path. An explicit `%id(parent, suffix)` attachment inherits the parent's map
+when its prompt supplies no alias keywords; a prompt with its own keywords uses that new map. Ordinary nested launches
+do not inherit the map. This lineage often overlaps an [Agent Family](agent_families.md), but the terms are not
 interchangeable.
 
 At each alias hop a launch-scoped value wins over a machine-wide temporary override and the configured or implicit alias
@@ -1123,28 +1123,28 @@ A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g. 
 split off the clean model and behaves exactly like a standalone `%effort` directive. See the
 [Effort Directive](#effort-directive) below.
 
-The `%name` and `%wait` directives can be used without arguments. Bare `%name` auto-generates a permanent unique name
-for the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
+The `%id` and `%wait` directives can be used without arguments. Bare `%id` auto-generates a permanent unique name for
+the agent. Bare `%wait` resolves to the most recently named agent (raises an error if no previous agent exists).
 
 Agent-name templates contain exactly one `@` marker. The marker is not a wildcard; SASE replaces it with the next token
 from the shared auto-name sequence (`0`, `1`, ..., `9`, `a`, ..., `z`, `00`, ...). For example, with no reserved names,
-`%name:@.cld` renders as `0.cld`, `%name:build-@` renders as `build-0`, and `%name:research.@.final` renders as
+`%id:@.cld` renders as `0.cld`, `%id:build-@` renders as `build-0`, and `%id:research.@.final` renders as
 `research.0.final`. The older terminal `-@` form still works, but new allocations now start at token `0` and use the
 alphanumeric sequence instead of positive integers. Later `%wait`, `#fork`, and `#resume` references can use the same
 template text; in one multi-agent launch, SASE rewrites those references to the concrete name already planned for that
 template before spawning dependent agents.
 
-Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal
-`%name:<name>` launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests
-the lowest free numeric suffix such as `<name>1`. To deliberately reuse a name, use `%name:!<name>` from the TUI; the
-`!` form is the explicit confirmation to wipe the previous owner and its persisted system state before launching the new
-agent with that name. Non-TUI launch surfaces reject `%name:!<name>` unless they provide an explicit confirmation path.
+Agent names are permanent IDs. A name that belongs to any existing agent state cannot be reused by a normal `%id:<name>`
+launch; SASE cancels the launch before spawning an agent, records the prompt as cancelled, and suggests the lowest free
+numeric suffix such as `<name>1`. To deliberately reuse a name, use `%id:!<name>` from the TUI; the `!` form is the
+explicit confirmation to wipe the previous owner and its persisted system state before launching the new agent with that
+name. Non-TUI launch surfaces reject `%id:!<name>` unless they provide an explicit confirmation path.
 
-The two-argument `%n(parent, suffix)` form attaches a new agent to a sequential family. On the first attachment, SASE
+The two-argument `%i(parent, suffix)` form attaches a new agent to a sequential family. On the first attachment, SASE
 renames the original agent with its own `--<role>` suffix and reserves the bare base name as a pure family container;
 generic originals become `--0`, while plan proposers become `--plan`. SASE then names the new member
 `<family-base>--<suffix>`, writes the normal family metadata, and strips the directive before the model sees the prompt.
-The suffix argument is a bare token: write `%n(foo, reviewer)`, not `%n(foo, --reviewer)`.
+The suffix argument is a bare token: write `%i(foo, reviewer)`, not `%i(foo, --reviewer)`.
 
 Reserved suffixes (`plan`, `q`, `code`, `epic`, `commit`) select their built-in family roles and status labels. Numeric
 suffixes and `@` are feedback/Q&A rounds; `@` allocates the next free suffix. Other alphanumeric suffixes such as
@@ -1156,14 +1156,14 @@ If the parent is still running, the new family member appears immediately as a W
 parent artifact completes successfully. If the parent fails, is stopped, or is killed, the queued member is cancelled to
 `STOPPED` and SASE sends a completion notification explaining the failed dependency. If the parent is absent, ambiguous,
 dismissed, or the composed child name already exists, launch preparation fails before spawning the child; collision
-errors suggest `%n(parent, @)`.
+errors suggest `%i(parent, @)`.
 
 The family-attach form works from every normal user launch surface because the constraint check runs in shared launch
-preparation. In a multi-agent prompt, `%n(parent, suffix)` may reference a parent explicitly named in an earlier `---`
-segment of the same prompt, such as `%n:foo` followed by `%n(foo, reviewer)`. The in-batch parent is treated as a
+preparation. In a multi-agent prompt, `%i(parent, suffix)` may reference a parent explicitly named in an earlier `---`
+segment of the same prompt, such as `%i:foo` followed by `%i(foo, reviewer)`. The in-batch parent is treated as a
 running parent: the member queues as a WAITING child and starts when that exact parent artifact completes successfully.
 This same-prompt lookup is limited to earlier static names; template-named and auto-named parents still require the
-parent artifact to exist before they can be used as `%n(parent, suffix)` targets.
+parent artifact to exist before they can be used as `%i(parent, suffix)` targets.
 
 Named `%wait` dependencies unblock only after the newest matching agent run has a `done.json` outcome of `"completed"`.
 For a clan name, every member of its newest generation must complete successfully; for a family or multi-agent workflow
@@ -1186,8 +1186,8 @@ while the plan is still in review. This targets the planner row only: a `%wait:<
 stays parked until the whole plan chain actually completes, so a submitted plan alone never makes the chain look
 finished.
 
-When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
-name before spawning the waiting agent: `<name>.w0`, `<name>.w1`, and so on, using the first free template token. After
+When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%id`, SASE can allocate a derived name
+before spawning the waiting agent: `<name>.w0`, `<name>.w1`, and so on, using the first free template token. After
 `<name>.w9`, letter-leading IDs gain a separator (`<name>.w-a`, `<name>.w-b`, and so on) to keep the name readable.
 Multi-value waits, tribe targets, bare `%wait`, and prompts whose name depends on unresolved xprompt expansion do not
 get a parent-side derived name. Repeat launches reuse this rule, then chain later repeat slots with
@@ -1253,7 +1253,7 @@ defaults to plan mode when bare and accepts `:plan`, `:tale`, or `:epic`.
 
 ```
 %model:`claude-sonnet-4-20250514`
-%name:code-reviewer
+%id:code-reviewer
 %wait:planner
 Review the code changes and provide feedback.
 ```
@@ -1271,7 +1271,7 @@ argument" error as bare `%effort`.
 ```
 %effort:xhigh
 %e:xhigh         # same, using alias
-%name:reviewer
+%id:reviewer
 Audit this module for subtle concurrency bugs.
 ```
 
@@ -1321,7 +1321,7 @@ monitoring:
 
 ```
 %hide
-%name:background-checker
+%id:background-checker
 Run periodic health checks.
 ```
 
@@ -1338,7 +1338,7 @@ reject automatic resolution and must be answered explicitly.
 
 ```
 %auto
-%name:auto-fixer
+%id:auto-fixer
 Fix the lint errors in the codebase.
 ```
 
@@ -1356,7 +1356,7 @@ in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar:
 
 ```
 %auto:tale
-%name:cleanup-tale
+%id:cleanup-tale
 Tidy up the logging module.
 ```
 
@@ -1423,7 +1423,7 @@ unrelated questions.
 
 ```
 %auto:epic
-%name:billing-epic
+%id:billing-epic
 Plan the billing dashboard epic.
 ```
 
@@ -1434,14 +1434,14 @@ count:
 
 ```
 %repeat:3
-%name:linter
+%id:linter
 Run lint checks on the codebase.
 ```
 
 This launches 3 independent agents — each spawned with its own process, workspace, and `agent_meta.json`, appearing as
 its own top-level entry in the Agents tab. Fan-out happens at launch time: the directive is consumed when the agents are
 spawned, so there is no outer loop or TUI affordance ticking through iterations. The slot numbers are appended to the
-`%name` base (`linter.1`, `linter.2`, `linter.3`); when `%name` is omitted the auto-assigned base is used (e.g. `a.1`,
+`%id` base (`linter.1`, `linter.2`, `linter.3`); when `%id` is omitted the auto-assigned base is used (e.g. `a.1`,
 `a.2`, `a.3`).
 
 Iterations run **sequentially**: all N agents are spawned up front and register immediately in the TUI, but iteration
@@ -1519,7 +1519,7 @@ migration; it may be removed in a future release.
 #### Named Branches
 
 Branches can be named with `id=value`. The `value` is inserted into the spawned prompt and the `id` becomes the child
-agent suffix. For example, `%name:review %{sec=[[security]] | perf=[[performance]]}` launches `review.sec` and
+agent suffix. For example, `%id:review %{sec=[[security]] | perf=[[performance]]}` launches `review.sec` and
 `review.perf`. Unnamed branches use numeric suffixes while skipping any numeric ids already provided by named branches,
 so `%{2=[[named]] | [[first]] | [[second]]}` launches suffixes `2`, `1`, and `3`.
 
@@ -1530,7 +1530,7 @@ only spaces and tabs are collapsed, newlines and indentation are preserved, and 
 example:
 
 ```
-%name:repo %{a=Describe | b=Explain} how this repo works %{a=in detail}.
+%id:repo %{a=Describe | b=Explain} how this repo works %{a=in detail}.
 ```
 
 This launches `repo.a` with "Describe how this repo works in detail." and `repo.b` with "Explain how this repo works.".
@@ -1581,17 +1581,17 @@ longer supported; use `%{%m:opus | %m:sonnet}` instead. Colon syntax (`%m:opus`)
 (`%m(opus)`) launch a single agent.
 
 When a prompt fans out to multiple models, the spawned agents share a single base name and carry a runtime suffix so
-they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.6-sol} %n:foo`, the two agents are named `foo.cld` and
+they can be told apart at a glance. Given `%{%m:opus | %m:gpt-5.6-sol} %i:foo`, the two agents are named `foo.cld` and
 `foo.cdx`. The runtime suffix is a short alias declared by the provider plugin (via the `llm_provider_short_name` hook)
 — `cld`, `cdx`, `agy`, `qwn`, `opc` for the built-in providers — falling back to the full provider name for plugins that
-don't declare one. If `%name` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`)
-rather than each agent picking its own letter independently. Single-model prompts retain their plain `%name` value
+don't declare one. If `%id` is omitted, a single auto-generated base is allocated and shared (e.g. `a.cld` / `a.cdx`)
+rather than each agent picking its own letter independently. Single-model prompts retain their plain `%id` value
 unchanged. When two models share a runtime (e.g. `%{%m:opus | %m:sonnet}` — both `claude`), the model name disambiguates
 the suffix: `foo.cld-opus` and `foo.cld-sonnet`. Long model names (e.g. `Gemini 3.5 Flash (High)`) are replaced with a
 short alias (`flash35h`) declared by the provider plugin, so a same-runtime agy fan-out reads as `foo.agy-flash35h` /
 `foo.agy-flash35l` rather than echoing the full model string. Model arguments used for naming are first resolved through
 xprompt shorthand expansion, while the launched prompt keeps the original `%model` value. For example,
-`%n:ag %{%m:#flash | %m:#pro}` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
+`%i:ag %{%m:#flash | %m:#pro}` can launch agents named `ag.agy-flash35h` and `ag.agy-pro31h`.
 
 ### Multi-Value Directives
 
@@ -1801,11 +1801,11 @@ launches as a separate agent:
 xprompts:
   _common: "Follow the project coding conventions."
 ---
-%name:step1
+%id:step1
 #_common
 Implement the new feature.
 ---
-%name:step2
+%id:step2
 %wait:step1
 #_common
 Write tests for the new feature.
@@ -1822,11 +1822,11 @@ producer a stable name and make the consumer wait before referencing the produce
 variables live under a single reserved `agents` dictionary keyed by agent name:
 
 ```
-%name:build-@
+%id:build-@
 Build the report, then run:
 sase var set report_path=dist/report.md status=ok
 ---
-%name:review
+%id:review
 %wait:build-@
 Review {{ agents["build"].report_path }} after the build status is {{ agents["build"].status }}.
 ```
@@ -1836,10 +1836,10 @@ The review prompt is rendered after the `build-@` dependency completes, so `{{ a
 started will not see later writes.
 
 The `agents` key is a stable Jinja namespace for the producer, not always the producer's concrete runtime name.
-Agent-name templates use the template base, so a producer that launches as `build-0` from `%name:build-@` is read as
+Agent-name templates use the template base, so a producer that launches as `build-0` from `%id:build-@` is read as
 `{{ agents["build"].report_path }}`, not `agents["build-0"]`. The key is otherwise the raw agent name with no identifier
-munging, so dotted, hyphenated, and digit-leading names all work via bracket access: `%name:research.@.final` →
-`{{ agents["research.final"].report_path }}`, and `%name:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
+munging, so dotted, hyphenated, and digit-leading names all work via bracket access: `%id:research.@.final` →
+`{{ agents["research.final"].report_path }}`, and `%id:0n.cld` → `{{ agents["0n.cld"].report_path }}`. Identifier-safe
 keys also support attribute access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
 name; a workflow input named `agents` collides and fails clearly. Output variables are persisted in the producer's
 `agent_meta.json` and also appear in ACE's Agents-tab `OUTPUT VARIABLES` metadata section and Telegram agent-completion
@@ -1856,10 +1856,10 @@ multi-agent prompt reads it under the producer's stable key, and an explicit `%w
 the canonical `<base>--plan` key:
 
 ```
-%name:planner
+%id:planner
 Propose a plan for the feature.
 ---
-%name:coder
+%id:coder
 %wait:planner--plan
 Implement the plan at {{ agents["planner--plan"].plan_file }}.
 ```
@@ -1901,14 +1901,14 @@ form is still recognized for xprompt swarms for compatibility, but new prompts s
 input:
   target: word
 ---
-%name:plan
+%id:plan
 Draft a plan for {{ target }}.
 ---
-%name:code
+%id:code
 %wait:plan
 Implement {{ target }} following the plan.
 ---
-%name:review
+%id:review
 %wait:code
 Review the {{ target }} implementation and propose follow-ups.
 ```
@@ -1935,8 +1935,8 @@ sase run '#gh:sase Review this first: #three_phase(login)'
 When the call site starts with a VCS workspace reference such as `#gh:sase`, `#git:feature`, a plugin-provided ref, or a
 known-project underscore form such as `#gh_sase`, that workspace reference is inherited by every generated follow-up
 segment unless the generated segment already declares its own VCS reference. Leading launch directives stay before the
-inherited workspace reference, so a prompt like `%name:abq #gh:sase #three_phase(login)` keeps `%name:abq` attached to
-the first generated segment and prefixes `#gh:sase` onto follow-ups.
+inherited workspace reference, so a prompt like `%id:abq #gh:sase #three_phase(login)` keeps `%id:abq` attached to the
+first generated segment and prefixes `#gh:sase` onto follow-ups.
 
 #### Rules and Limitations
 

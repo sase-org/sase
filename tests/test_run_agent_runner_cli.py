@@ -16,7 +16,7 @@ def test_read_prompt_file_falls_back_to_persisted_refreshed_prompt(
 ) -> None:
     prompt_file = tmp_path / "consumed-prompt.md"
     fallback_file = tmp_path / "submitted_xprompt.md"
-    submitted_xprompt = "%n(fix)\nKeep this exact prompt\n"
+    submitted_xprompt = "%i(fix)\nKeep this exact prompt\n"
     fallback_file.write_text(submitted_xprompt, encoding="utf-8")
     monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
 

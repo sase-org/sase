@@ -55,7 +55,7 @@ def plan_single_agent_name(
     """Allocate a parent-side agent name for a single-prompt launch.
 
     Returns ``extra_env`` augmented with ``SASE_AGENT_PLANNED_NAME`` when the
-    name is safely knowable in the parent (explicit ``%name:`` or
+    name is safely knowable in the parent (explicit ``%id:`` or
     unambiguous auto-allocation). Leaves *extra_env* unchanged when the
     caller already chose a name, or when the prompt's name depends on
     xprompt expansion that only the child can perform.
