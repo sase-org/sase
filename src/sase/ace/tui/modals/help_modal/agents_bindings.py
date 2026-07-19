@@ -83,7 +83,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.toggle_mark), "Mark/unmark current agent or focused group"),
                 (d(a.toggle_agent_unread), "Toggle unread marker"),
                 (d(a.clear_marks), "Clear all agent marks"),
-                (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
+                (d(a.open_agent_cleanup_panel), "Open cleanup panel (C: clan)"),
                 (d(a.edit_spec), "Edit chat(s) in editor"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (d(a.view_files), "View file/tool-call hints"),

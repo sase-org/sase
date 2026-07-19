@@ -79,6 +79,19 @@ def test_agent_cleanup_modal_clan_row_context_and_availability() -> None:
     assert next(row for row in disabled._rows if row.action == "clan").enabled is False
 
 
+async def test_agent_cleanup_modal_hints_include_final_clan_key_set() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = AgentCleanupModal(_state())
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        hints = modal.query_one("#agent-cleanup-hints", Static)
+        assert str(hints.content) == (
+            "d/D dismiss completed  k/K kill running + dismiss completed  "
+            "m marked  g group  t tag  C clan  c custom  q close"
+        )
+
+
 def test_agent_cleanup_modal_selected_result(monkeypatch: Any) -> None:
     modal = AgentCleanupModal(_state())
     dismissed: list[AgentCleanupResult | None] = []

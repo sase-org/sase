@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.modals import AgentCleanupClanModal
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
 )
@@ -19,6 +24,66 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+
+def _cleanup_clan_member(
+    name: str,
+    suffix: str,
+    *,
+    clan: str,
+    status: str,
+    pid: int | None,
+) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=name,
+        project_file="/workspace/sase/visual_project.sase",
+        status=status,
+        start_time=datetime(2026, 7, 6, 11, 15, 0),
+        run_start_time=datetime(2026, 7, 6, 11, 15, 0),
+        stop_time=(datetime(2026, 7, 6, 11, 45, 0) if status != "RUNNING" else None),
+        raw_suffix=suffix,
+        agent_name=name,
+        tag="epic",
+        pid=pid,
+        agent_clan=clan,
+        agent_clan_generation=f"{clan}-generation",
+    )
+
+
+def _cleanup_clan_modal() -> AgentCleanupClanModal:
+    members = [
+        _cleanup_clan_member(
+            "sase-74.plan",
+            "sase-74-plan",
+            clan="sase-74",
+            status="RUNNING",
+            pid=101,
+        ),
+        _cleanup_clan_member(
+            "sase-74.polish",
+            "sase-74-polish",
+            clan="sase-74",
+            status="DONE",
+            pid=None,
+        ),
+        _cleanup_clan_member(
+            "sase-72.verify",
+            "sase-72-verify",
+            clan="sase-72",
+            status="FAILED",
+            pid=None,
+        ),
+    ]
+    rows = project_clan_tree(members)
+    clans = [row for row in rows if row.is_clan_container]
+    targets = [row for row in rows if not row.is_clan_container]
+    return AgentCleanupClanModal(
+        clans=clans,
+        targets=targets,
+        focused_panel_label="@epic",
+        initial_clan=("sase-74", "sase-74-generation"),
+    )
 
 
 def _workspace_tmux_choices() -> list:
@@ -188,4 +253,36 @@ async def test_wait_modal_png_snapshot(
             page,
             "wait_modal_100x32",
             title="ACE wait modal",
+        )
+
+
+async def test_agent_cleanup_clan_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
+
+    async with AcePage(
+        query='"visual"', changespecs=changespecs(), size=(100, 32)
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+
+        page.app.push_screen(_cleanup_clan_modal())
+        await page.expect_modal("AgentCleanupClanModal")
+        await page.press("l", "j", "space")
+        await wait_for_svg_contains(page, "Selected:")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Clan Cleanup")
+        assert_page_svg_contains(page, "sase-74")
+        assert_page_svg_contains(page, "Selected:")
+        assert_page_svg_contains(page, "1 member")
+        assert_page_svg_contains(page, "kill 1")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_cleanup_clan_modal_partial_100x32",
+            title="ACE clan cleanup chooser with partial selection",
         )

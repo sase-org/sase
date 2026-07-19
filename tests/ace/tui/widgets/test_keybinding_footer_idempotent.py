@@ -129,3 +129,21 @@ async def test_numbered_member_binding_is_conditional_on_container_rows() -> Non
             clan,
             group_focused=True,
         )
+
+
+def test_clan_footer_keeps_row_cleanup_and_panel_chooser_labels() -> None:
+    footer = KeybindingFooter()
+    clan = SimpleNamespace(
+        status="RUNNING",
+        pid=None,
+        agent_name="alpha",
+        workspace_num=None,
+        attempt_history=[],
+        is_clan_container=True,
+        is_family_container_row=False,
+    )
+
+    bindings = set(footer._compute_agent_bindings(clan, completed_count=2))
+
+    assert ("x", "kill/dismiss clan") in bindings
+    assert ("X", "cleanup (2 done)") in bindings

@@ -183,6 +183,17 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     assert ("S", "Bulk status change (marked PRs)") in cls_pairs
 
 
+def test_agents_help_advertises_clan_cleanup_chooser() -> None:
+    reg = load_keymap_registry({})
+    agent_pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+
+    assert ("X", "Open cleanup panel (C: clan)") in agent_pairs
+
+
 def test_help_modal_lists_prompt_pane_focus_and_reorder() -> None:
     """The Prompt Input section documents prompt-local g-prefix pane actions."""
     reg = load_keymap_registry({})
