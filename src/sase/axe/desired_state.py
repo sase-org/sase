@@ -21,7 +21,7 @@ class AxeDesiredState:
     timestamp: str
 
 
-def desired_state_path() -> Path:
+def _desired_state_path() -> Path:
     """Return the desired-state marker path."""
     return _state.AXE_STATE_DIR / "desired_state.json"
 
@@ -38,13 +38,13 @@ def write_desired_state(
         source=source,
         timestamp=timestamp or _state.get_timestamp(),
     )
-    _state.atomic_write_json(desired_state_path(), asdict(marker))
+    _state.atomic_write_json(_desired_state_path(), asdict(marker))
     return marker
 
 
 def read_desired_state() -> AxeDesiredState | None:
     """Read and validate the desired-state marker, if one exists."""
-    data = _state.read_json(desired_state_path())
+    data = _state.read_json(_desired_state_path())
     if not isinstance(data, dict):
         return None
     state = data.get("state")
@@ -62,7 +62,6 @@ def read_desired_state() -> AxeDesiredState | None:
 __all__ = [
     "AxeDesiredState",
     "AxeDesiredStateValue",
-    "desired_state_path",
     "read_desired_state",
     "write_desired_state",
 ]
