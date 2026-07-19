@@ -2,87 +2,35 @@
 
 from __future__ import annotations
 
-import logging
 import shlex
-import subprocess
-from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
-from sase.bead.cli_common import (
-    find_beads_location,
-    init_beads,
-    resolve_beads_location,
+from sase.bead.cli_work_from_plan_render import (
+    render_created_beads as _render_created_beads,
+    render_final as _render_final,
+    render_plan_preview as _render_plan_preview,
+    render_validation_failure as _render_validation_failure,
+)
+from sase.bead.cli_work_from_plan_store import (
+    commit_plan_file as _commit_plan_file,
+    push_store_after_launch as _push_store_after_launch,
+    require_epic_launch_store_health,
+    require_plan_store_health as _require_plan_store_health,
+    resolve_plan_file_context as _resolve_context,
+)
+from sase.bead.cli_work_from_plan_types import (
+    PlanFileWorkError,
+    PlanFileWorkResult as _PlanFileWorkResult,
 )
 from sase.bead.model import BeadTier, IssueType
-from sase.bead.project import BEADS_DIRNAME, BeadProject
-from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
+from sase.bead.project import BeadProject
+from sase.sdd.store import SddStore
 
 if TYPE_CHECKING:
     from sase.bead.work import EpicWorkPlan
-    from sase.sdd.plan_validate import PlanValidationResult
-
-_logger = logging.getLogger(__name__)
-
-
-class PlanFileWorkError(RuntimeError):
-    """A recoverable plan-file launch failure with an optional resume command."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        resume_command: str | None = None,
-        validation: PlanValidationResult | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.resume_command = resume_command
-        self.validation = validation
-
-
-@dataclass(frozen=True)
-class _PlanFileWorkResult:
-    """Stable result envelope for human and JSON callers."""
-
-    archived_plan_path: Path
-    authored_phase_ids: tuple[str, ...]
-    dry_run: bool
-    epic_id: str | None = None
-    phase_bead_ids: tuple[str, ...] = ()
-    launched_agent_names: tuple[str, ...] = ()
-    launched: bool = False
-    resumed: bool = False
-    waves: tuple[tuple[str, ...], ...] = ()
-
-    def to_json(self) -> dict[str, object]:
-        return {
-            "ok": True,
-            "mode": "plan_file",
-            "dry_run": self.dry_run,
-            "epic_id": self.epic_id,
-            "phase_bead_ids": list(self.phase_bead_ids),
-            "authored_phase_ids": list(self.authored_phase_ids),
-            "archived_plan_path": str(self.archived_plan_path),
-            "launched_agent_names": list(self.launched_agent_names),
-            "launched": self.launched,
-            "resumed": self.resumed,
-            "waves": [list(wave) for wave in self.waves],
-        }
-
-
-@dataclass(frozen=True)
-class _FallbackBeadsLocation:
-    """Legacy location used only when store discovery has no project context."""
-
-    root: Path
-    beads_dirname: str
-    store: None = None
-
-    @property
-    def beads_dir(self) -> Path:
-        return self.root / self.beads_dirname
 
 
 def is_plan_file_target(target: str) -> bool:
@@ -313,108 +261,6 @@ def work_from_plan_file(
     return result
 
 
-def _resolve_context(*, dry_run: bool) -> tuple[Any, SddStore, Path]:
-    cwd = Path.cwd().expanduser().resolve()
-    location: Any = resolve_beads_location(cwd, materialize=not dry_run)
-    if location is None:
-        if dry_run:
-            location = _FallbackBeadsLocation(
-                root=cwd,
-                beads_dirname=BEADS_DIRNAME,
-            )
-        else:
-            root, beads_dirname = find_beads_location(materialize=True)
-            location = _FallbackBeadsLocation(
-                root=root,
-                beads_dirname=beads_dirname,
-            )
-
-    if not dry_run and not location.beads_dir.is_dir():
-        init_beads(location.root, location.beads_dirname)
-
-    store = location.store
-    if store is None:
-        store = SddStore(
-            storage=SDD_STORAGE_IN_TREE,
-            sdd_dir=location.root / "sdd",
-            repo_root=location.root,
-        )
-    workspace_dir = location.root if store.is_in_tree else cwd
-    return location, store, workspace_dir
-
-
-def _require_plan_store_health(store: SddStore) -> None:
-    """Fail before archive or bead mutations when the plans repo is poisoned."""
-    repo_root = store.repo_root
-    if not (repo_root / ".git").exists():
-        return
-    from sase.sdd._git_contention import store_git_write_lock
-    from sase.sdd._repository_transaction import (
-        SddRepositoryHealthError,
-        require_sdd_repository_health,
-    )
-
-    with store_git_write_lock(repo_root) as acquired:
-        if not acquired:
-            raise SddRepositoryHealthError(
-                f"SDD repository {repo_root.resolve()} could not acquire its store "
-                "write lock; no plan or bead files were changed"
-            )
-        require_sdd_repository_health(repo_root)
-
-
-def require_epic_launch_store_health(cwd: Path) -> None:
-    """Preflight a host-owned launch before detaching its canonical command."""
-    location = resolve_beads_location(cwd, materialize=True)
-    if location is not None and location.store is not None:
-        _require_plan_store_health(location.store)
-
-
-def _commit_plan_file(
-    store: SddStore,
-    *,
-    workspace_dir: Path,
-    plan_path: Path,
-    no_push: bool,
-    push_after_commit: bool | Literal["async"] | None,
-    message: str,
-) -> bool:
-    effective_push = False if no_push else push_after_commit
-    if store.is_in_tree and effective_push is not False:
-        from sase.axe.run_agent_exec_plan_sdd import commit_sdd_files_for_exec_plan
-
-        return commit_sdd_files_for_exec_plan(
-            str(workspace_dir),
-            plan_path.stem,
-            plan_tier="epic",
-            logger=_logger,
-            subprocess_run=subprocess.run,
-        )
-
-    from sase.sdd.files import commit_sdd_store_files
-
-    commit_store = store
-    if store.is_in_tree:
-        commit_store = replace(store, repo_root=workspace_dir)
-    return commit_sdd_store_files(
-        commit_store,
-        message,
-        paths=[plan_path],
-        push_after_commit=effective_push,
-    )
-
-
-def _push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
-    if no_push:
-        return
-    from sase.sdd._commit_store import push_sdd_store_after_commit
-
-    try:
-        push_sdd_store_after_commit(store, push_after_commit="async")
-    except Exception:
-        _logger.warning("Failed to start deferred SDD store push", exc_info=True)
-
-
 def _linked_bead_id_if_present(plan_path: Path) -> str | None:
     if not plan_path.is_file():
         return None
@@ -611,70 +457,6 @@ def _preview_waves(plan: Any) -> tuple[tuple[str, ...], ...]:
         for phase_id in wave:
             del remaining[phase_id]
     return tuple(waves)
-
-
-def _render_validation_failure(
-    plan_path: Path,
-    validation: PlanValidationResult,
-) -> None:
-    from sase.main.plan_validate_render import render_validation_human
-    from sase.sdd.plan_validate import plan_frontmatter_schema
-
-    render_validation_human(
-        validation,
-        tier="epic",
-        path=str(plan_path),
-        schema=plan_frontmatter_schema("epic"),
-        console=Console(stderr=True),
-    )
-
-
-def _render_plan_preview(
-    plan: Any,
-    waves: tuple[tuple[str, ...], ...],
-) -> None:
-    from sase.bead.work import epic_land_model_directive_value
-
-    title_by_id = {phase.id: phase.title for phase in plan.phases}
-    for index, wave in enumerate(waves, start=1):
-        entries = " · ".join(f"{phase_id} {title_by_id[phase_id]}" for phase_id in wave)
-        Console().print(f"  [bold]Wave {index}[/bold]  {entries}")
-    land_model = epic_land_model_directive_value(
-        plan.model,
-        total_phase_count=len(plan.phases),
-    )
-    Console().print(f"  [bold]Land[/bold]    {land_model}")
-
-
-def _render_created_beads(
-    issue: Any,
-    phases: list[Any],
-    work_plan: EpicWorkPlan,
-    archived_path: Path,
-) -> None:
-    Console().print(f"[green]✓[/green] Epic bead       {issue.id} — {issue.title}")
-    phase_text = " · ".join(f"{phase.id} {phase.title}" for phase in phases)
-    Console().print(f"[green]✓[/green] Phase beads     {phase_text}")
-    dependency_count = sum(len(phase.dependencies) for phase in phases)
-    Console().print(
-        f"[green]✓[/green] Dependencies    {dependency_count} edges · "
-        f"{len(work_plan.waves)} waves"
-    )
-    Console().print(
-        f"[green]✓[/green] Plan linked     bead_id: {issue.id} · {archived_path}"
-    )
-
-
-def _render_final(result: _PlanFileWorkResult) -> None:
-    assert result.epic_id is not None
-    if result.launched:
-        Console().print(
-            f"\nEpic {result.epic_id} is underway — track it on the Agents tab, "
-            f"or run:\n  sase bead show {result.epic_id}"
-        )
-    else:
-        Console().print(f"\nEpic {result.epic_id} launch was not started.")
-    print(f"Epic: {result.epic_id}")
 
 
 def _error_with_resume(
