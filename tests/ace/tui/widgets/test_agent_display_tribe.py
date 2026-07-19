@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
+from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tribe_summary import (
     build_agent_tribe_summary_snapshot,
@@ -16,6 +19,8 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
 from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     TribeRuntimeStatistics,
     TribeSectionSnapshot,
+    TribeTextEntry,
+    _TribeDiskSnapshot,
 )
 from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
@@ -86,7 +91,7 @@ def _snapshot():  # type: ignore[no-untyped-def]
     )
 
 
-def test_tribe_levels_have_distinct_pulse_roster_members_and_forensics_jobs() -> None:
+def test_tribe_levels_have_distinct_glance_triage_inspect_and_forensics_jobs() -> None:
     snapshot = _snapshot()
     published: list[MemberJumpMap] = []
 
@@ -111,13 +116,14 @@ def test_tribe_levels_have_distinct_pulse_roster_members_and_forensics_jobs() ->
 
     assert pulse.startswith(
         "TRIBE\nName: @epic\nStatus: FAILED [R1 F1]\n"
-        "Composition: 0 clans · 1 family · 3 agents · 1 nested\n"
-        "Runtime: 1h\nPanel: collapsed\nFold: 1/4\n"
+        "Composition: 1 family · 3 agents · 1 nested\n"
+        "Runtime: 1h\nFold: 1/4\n"
     )
     assert "▸ NEEDS ATTENTION · 1\n• failed · FAILED · Build failed" in pulse
     assert "▸ ❖ TRIBE MEMBERS · 2\n" in pulse
-    assert " 0  build" not in pulse
-    assert published[0].targets == ()
+    assert " 0  [✓] build · family" in pulse
+    assert " 1  failed · agent" in pulse
+    assert published[0].targets
 
     assert "Fold: 2/4\n" in roster
     assert " 0  [✓] build · family" in roster
@@ -134,14 +140,15 @@ def test_tribe_levels_have_distinct_pulse_roster_members_and_forensics_jobs() ->
     assert "└─ [✓] --code" in members
     assert "writing tests" in members
     assert "ws 8" not in members
-    assert "Second error detail" not in members
+    assert "Second error detail" in members
+    assert "ValueError: broken" not in members
+    assert "full report detail" in members
+    assert "release detail" in members
 
     assert "Fold: 4/4\n" in forensics
     assert "ws 8" in forensics
-    assert "Second error detail" in forensics
     assert "ValueError: broken" in forensics
-    assert "full report detail" in forensics
-    assert "release detail" in forensics
+    assert pulse != roster != members != forensics
 
 
 def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:
@@ -171,8 +178,6 @@ def test_tribe_section_overrides_are_scoped_and_publish_anchors() -> None:
         "tribe:errors",
         "tribe:output-variables",
         "tribe:workflow-variables",
-        "tribe:replies",
-        "tribe:slow-tool-calls",
     ]
 
 
@@ -188,9 +193,13 @@ def test_cheap_tribe_paint_is_header_only() -> None:
     assert "TRIBE MEMBERS" not in detail
 
 
-def test_pulse_and_roster_do_not_request_disk_or_statistics() -> None:
-    assert tribe_enrichment_sections_for_fold_state(FoldLevel.COLLAPSED) == frozenset()
-    assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXPANDED) == frozenset()
+def test_every_level_requests_disk_presence_and_forensics_adds_statistics() -> None:
+    assert tribe_enrichment_sections_for_fold_state(FoldLevel.COLLAPSED) == frozenset(
+        {"replies", "slow-tool-calls"}
+    )
+    assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXPANDED) == frozenset(
+        {"replies", "slow-tool-calls"}
+    )
     assert tribe_enrichment_sections_for_fold_state(
         FoldLevel.FULLY_EXPANDED
     ) == frozenset({"replies", "slow-tool-calls"})
@@ -199,7 +208,9 @@ def test_pulse_and_roster_do_not_request_disk_or_statistics() -> None:
     )
 
 
-def test_members_render_loading_states_without_render_path_io() -> None:
+def test_unknown_sections_render_one_scanning_tail_without_placeholder_headings() -> (
+    None
+):
     snapshot = _snapshot()
     sections = TribeSectionSnapshot(
         panel_identity=snapshot.container_identity,
@@ -218,13 +229,103 @@ def test_members_render_loading_states_without_render_path_io() -> None:
         fold_level=FoldLevel.FULLY_EXPANDED,
     ).plain
 
-    assert "▸ REPLIES · loading…" in pulse
-    assert "▸ SLOW TOOL CALLS · loading…" in pulse
-    assert "▼ REPLIES · loading…\n  loading…" in members
-    assert "▼ SLOW TOOL CALLS · loading…\n  loading…" in members
+    for rendered in (pulse, members):
+        assert "REPLIES" not in rendered
+        assert "SLOW TOOL CALLS" not in rendered
+        assert "loading…" not in rendered
+        assert rendered.count("⋯ scanning member data…") == 1
 
 
-def test_forensics_runtime_statistics_render_values_and_no_runs_dash() -> None:
+def test_empty_sections_are_omitted_at_every_level() -> None:
+    snapshot = build_agent_tribe_summary_snapshot(
+        "empty",
+        [],
+        panel_collapsed=True,
+        now=_NOW,
+    )
+    sections = TribeSectionSnapshot(
+        panel_identity=snapshot.container_identity,
+        source_signature=(),
+        disk=_TribeDiskSnapshot(
+            loaded_sections=frozenset({"replies", "slow-tool-calls"}),
+            replies=(),
+            slow_tool_calls=(),
+        ),
+        runtime_statistics_loaded=True,
+    )
+
+    for level in FoldLevel:
+        rendered = build_tribe_detail_text(
+            snapshot,
+            section_snapshot=sections,
+            fold_level=level,
+        ).plain
+
+        assert "Composition: 0 agents" in rendered
+        assert "NEEDS ATTENTION" not in rendered
+        assert "TRIBE MEMBERS" not in rendered
+        assert "ERRORS" not in rendered
+        assert "OUTPUT VARIABLES" not in rendered
+        assert "WORKFLOW VARIABLES" not in rendered
+        assert "REPLIES" not in rendered
+        assert "SLOW TOOL CALLS" not in rendered
+        assert "RUNTIME STATISTICS" not in rendered
+        assert "⋯ scanning member data…" not in rendered
+
+
+def test_loaded_replies_follow_the_four_level_content_ladder() -> None:
+    snapshot = _snapshot()
+    unit = snapshot.units[0]
+    replies = tuple(
+        TribeTextEntry(
+            unit_identity=unit.identity,
+            unit_label=unit.label,
+            entry=ClanTextEntry(
+                member_identity=unit.identity,
+                member_label=f"member-{index}",
+                kind="response",
+                preview=f"preview-{index}",
+                body=f"preview-{index}\nfull-{index}",
+            ),
+        )
+        for index in range(9)
+    )
+    sections = TribeSectionSnapshot(
+        panel_identity=snapshot.container_identity,
+        source_signature=(),
+        disk=_TribeDiskSnapshot(
+            loaded_sections=frozenset({"replies", "slow-tool-calls"}),
+            replies=replies,
+            slow_tool_calls=(),
+        ),
+        runtime_statistics_loaded=True,
+    )
+    rendered = {
+        level: build_tribe_detail_text(
+            snapshot,
+            section_snapshot=sections,
+            fold_level=level,
+        ).plain
+        for level in FoldLevel
+    }
+
+    glance = rendered[FoldLevel.COLLAPSED]
+    triage = rendered[FoldLevel.EXPANDED]
+    inspect = rendered[FoldLevel.FULLY_EXPANDED]
+    forensics = rendered[FoldLevel.EXHAUSTIVE]
+    assert "▸ REPLIES · 9" in glance
+    assert "preview-0" not in glance
+    assert "preview-0" in triage and "preview-7" in triage
+    assert "preview-8" not in triage and "  +1 more" in triage
+    assert "full-0" not in triage
+    assert f"{unit.label}\n  member-0" in inspect
+    assert "full-0" in inspect and "full-8" not in inspect
+    assert "  +1 more" in inspect
+    assert "full-8" in forensics
+    assert "  +1 more" not in forensics
+
+
+def test_forensics_runtime_statistics_render_values_and_omit_no_runs() -> None:
     snapshot = _snapshot()
     populated = TribeSectionSnapshot(
         panel_identity=snapshot.container_identity,
@@ -261,4 +362,4 @@ def test_forensics_runtime_statistics_render_values_and_no_runs_dash() -> None:
     assert "Runs: 4 · Share: 25.0%" in rendered
     assert "Total: 10m00s · Mean: 2m30s · p50: 2m00s" in rendered
     assert "p95: 4m20s · Max: 5m00s" in rendered
-    assert "◆ RUNTIME STATISTICS\n  —" in no_runs
+    assert "RUNTIME STATISTICS" not in no_runs

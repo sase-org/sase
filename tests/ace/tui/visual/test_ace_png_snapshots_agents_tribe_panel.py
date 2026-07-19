@@ -118,6 +118,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert_page_svg_contains(page, "TRIBE")
         assert_page_svg_contains(page, "@epic")
         assert_page_svg_contains(page, "NEEDS ATTENTION")
+        assert page.app._member_jump_maps[("panel", "epic")].targets
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_level_1_120x40",

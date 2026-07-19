@@ -23,9 +23,8 @@ from ...models.agent_tribe_summary import (
     TribeAttentionEntry,
     TribeStatusCounts,
 )
-from ...models.fold_scale import TRIBE_FOLD_SCALE, fold_scale_position
+from ...models.fold_scale import TRIBE_FOLD_SCALE
 from ...models.fold_state import FoldLevel
-from ._helpers import append_major_section_divider, append_section_heading
 from ._agent_tribe_aggregation import (
     TribeEnrichmentSection,
     TribeRuntimeStatistics,
@@ -33,6 +32,13 @@ from ._agent_tribe_aggregation import (
     TribeSlowToolEntry,
     TribeTextEntry,
 )
+from ._fold_language import (
+    append_fold_glyph,
+    append_fold_header_line,
+    append_scanning_tail,
+    fold_count_style,
+)
+from ._helpers import append_major_section_divider, append_section_heading
 from ._member_roster import (
     MemberJumpMap,
     MemberRosterChild,
@@ -48,18 +54,6 @@ _TRIBE_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _SECTION_HEADING_STYLE = f"bold {TRIBE_IDENTITY_COLOR} underline"
 _BODY_STYLE = "#D7D7FF"
 _TRIAGE_LIMIT = 8
-_FOLD_CHARS: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "▸",
-    FoldLevel.EXPANDED: "▾",
-    FoldLevel.FULLY_EXPANDED: "▼",
-    FoldLevel.EXHAUSTIVE: "◆",
-}
-_FOLD_STYLES: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "#5F5F5F",
-    FoldLevel.EXPANDED: "#00D7AF",
-    FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
-    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
-}
 _STATUS_STYLES: dict[str, str] = {
     "Stopped": "bold #FFAF5F",
     "Starting": "bold #87D7FF",
@@ -105,16 +99,13 @@ def _append_fold_heading(
     section_id: str,
     level: FoldLevel,
     count: int | None,
-    unknown_label: str | None = None,
 ) -> None:
     append_major_section_divider(text)
     heading = Text()
-    heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
+    append_fold_glyph(heading, level)
     heading.append(title, style=_SECTION_HEADING_STYLE)
     if count is not None:
-        heading.append(f" · {count}", style="dim")
-    elif unknown_label:
-        heading.append(f" · {unknown_label}", style="dim italic")
+        heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(text, heading, section_id=section_id)
 
 
@@ -124,17 +115,7 @@ def tribe_enrichment_sections_for_fold_state(
 ) -> frozenset[TribeEnrichmentSection]:
     """Return off-thread sections needed by the effective tribe folds."""
     fold_overrides = overrides or {}
-    required: set[TribeEnrichmentSection] = set()
-    if _effective_level(_SECTIONS.replies, panel_level, fold_overrides) in {
-        FoldLevel.FULLY_EXPANDED,
-        FoldLevel.EXHAUSTIVE,
-    }:
-        required.add("replies")
-    if _effective_level(_SECTIONS.slow_tool_calls, panel_level, fold_overrides) in {
-        FoldLevel.FULLY_EXPANDED,
-        FoldLevel.EXHAUSTIVE,
-    }:
-        required.add("slow-tool-calls")
+    required: set[TribeEnrichmentSection] = {"replies", "slow-tool-calls"}
     if (
         _effective_level(
             _SECTIONS.runtime_statistics,
@@ -179,25 +160,25 @@ def _append_header(
     text.append("\n")
 
     text.append("Composition: ", style=_FIELD_LABEL_STYLE)
-    text.append(
-        f"{snapshot.clan_count} clan{'s' if snapshot.clan_count != 1 else ''}"
-        f" · {snapshot.family_count} "
-        f"famil{'ies' if snapshot.family_count != 1 else 'y'}"
-        f" · {snapshot.agent_count} "
-        f"agent{'s' if snapshot.agent_count != 1 else ''}"
-        f" · {snapshot.nested_count} nested\n",
-        style=_BODY_STYLE,
+    composition: list[str] = []
+    if snapshot.clan_count:
+        composition.append(
+            f"{snapshot.clan_count} clan{'s' if snapshot.clan_count != 1 else ''}"
+        )
+    if snapshot.family_count:
+        composition.append(
+            f"{snapshot.family_count} "
+            f"famil{'ies' if snapshot.family_count != 1 else 'y'}"
+        )
+    composition.append(
+        f"{snapshot.agent_count} agent{'s' if snapshot.agent_count != 1 else ''}"
     )
+    if snapshot.nested_count:
+        composition.append(f"{snapshot.nested_count} nested")
+    text.append(" · ".join(composition) + "\n", style=_BODY_STYLE)
     text.append("Runtime: ", style=_FIELD_LABEL_STYLE)
     text.append(f"{snapshot.runtime_span}\n", style="bold #BCBCBC")
-    text.append("Panel: ", style=_FIELD_LABEL_STYLE)
-    text.append(
-        "collapsed\n" if snapshot.panel_collapsed else "expanded\n",
-        style=f"bold {TRIBE_IDENTITY_COLOR}",
-    )
-    position, size = fold_scale_position(fold_level, TRIBE_FOLD_SCALE)
-    text.append("Fold: ", style=_FIELD_LABEL_STYLE)
-    text.append(f"{position}/{size}\n", style="dim #D75FFF")
+    append_fold_header_line(text, level=fold_level, scale=TRIBE_FOLD_SCALE)
 
 
 def _append_attention(
@@ -206,6 +187,8 @@ def _append_attention(
     *,
     level: FoldLevel,
 ) -> None:
+    if not entries:
+        return
     _append_fold_heading(
         text,
         title="NEEDS ATTENTION",
@@ -214,9 +197,6 @@ def _append_attention(
         count=len(entries),
     )
     shown = entries if level is FoldLevel.EXHAUSTIVE else entries[:_TRIAGE_LIMIT]
-    if not shown:
-        text.append("  No failed, stopped, or waiting units.\n", style="dim italic")
-        return
     for entry in shown:
         text.append("• ", style=_STATUS_STYLES.get(entry.status_bucket, "dim"))
         text.append(entry.unit_label, style=f"bold {TRIBE_IDENTITY_COLOR}")
@@ -285,6 +265,8 @@ def _append_errors(
     *,
     level: FoldLevel,
 ) -> None:
+    if not entries:
+        return
     _append_fold_heading(
         text,
         title="ERRORS",
@@ -294,17 +276,23 @@ def _append_errors(
     )
     if level is FoldLevel.COLLAPSED:
         return
-    if level is not FoldLevel.EXHAUSTIVE:
+    if level is FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_LIMIT]:
             _append_triage_line(text, entry.member_label, entry.preview)
         _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
         return
-    for entry in entries:
-        text.append(f"{entry.member_label}\n", style="bold #D75FFF")
-        _append_full_body(text, entry.message, style="#FF8787")
-        if entry.traceback:
-            text.append("  traceback\n", style="bold #FF5F5F")
-            _append_traceback(text, entry.traceback)
+    shown = entries if level is FoldLevel.EXHAUSTIVE else entries[:_TRIAGE_LIMIT]
+    grouped: dict[str, list[ClanErrorEntry]] = defaultdict(list)
+    for entry in shown:
+        grouped[entry.member_label].append(entry)
+    for member_label, member_entries in grouped.items():
+        text.append(f"{member_label}\n", style="bold #D75FFF")
+        for entry in member_entries:
+            _append_full_body(text, entry.message, style="#FF8787")
+            if level is FoldLevel.EXHAUSTIVE and entry.traceback:
+                text.append("  traceback\n", style="bold #FF5F5F")
+                _append_traceback(text, entry.traceback)
+    _append_more_tail(text, len(entries), len(shown))
 
 
 def _append_variables(
@@ -315,6 +303,8 @@ def _append_variables(
     section_id: str,
     level: FoldLevel,
 ) -> None:
+    if not entries:
+        return
     _append_fold_heading(
         text,
         title=title,
@@ -324,7 +314,7 @@ def _append_variables(
     )
     if level is FoldLevel.COLLAPSED:
         return
-    if level is not FoldLevel.EXHAUSTIVE:
+    if level is FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_LIMIT]:
             preview = first_meaningful_line(entry.value, max_chars=96) or "—"
             _append_triage_line(
@@ -335,14 +325,16 @@ def _append_variables(
             )
         _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
         return
+    shown = entries if level is FoldLevel.EXHAUSTIVE else entries[:_TRIAGE_LIMIT]
     grouped: dict[str, list[ClanVariableEntry]] = defaultdict(list)
-    for entry in entries:
+    for entry in shown:
         grouped[entry.member_label].append(entry)
     for member_label, member_entries in grouped.items():
         text.append(f"{member_label}\n", style="bold #D75FFF")
         for entry in member_entries:
             text.append(f"  {entry.name}\n", style="bold #87D7FF")
             _append_full_body(text, entry.value, indent="    ")
+    _append_more_tail(text, len(entries), len(shown))
 
 
 def _append_replies(
@@ -350,31 +342,22 @@ def _append_replies(
     snapshot: TribeSectionSnapshot | None,
     *,
     level: FoldLevel,
-    required: frozenset[TribeEnrichmentSection],
 ) -> None:
     disk = snapshot.disk if snapshot is not None else None
     loaded = disk is not None and "replies" in disk.loaded_sections
     entries = disk.replies if loaded and disk is not None else ()
-    loading = (snapshot is not None and "replies" in snapshot.loading_sections) or (
-        "replies" in required and not loaded
-    )
+    if not loaded or not entries:
+        return
     _append_fold_heading(
         text,
         title="REPLIES",
         section_id=_SECTIONS.replies,
         level=level,
-        count=len(entries) if loaded else None,
-        unknown_label="loading…" if loading else "—",
+        count=len(entries),
     )
-    if level in {FoldLevel.COLLAPSED, FoldLevel.EXPANDED}:
+    if level is FoldLevel.COLLAPSED:
         return
-    if not loaded:
-        _append_loading(text)
-        return
-    if not entries:
-        _append_empty(text)
-        return
-    if level is FoldLevel.FULLY_EXPANDED:
+    if level is FoldLevel.EXPANDED:
         for item in entries[:_TRIAGE_LIMIT]:
             _append_triage_line(
                 text,
@@ -383,8 +366,9 @@ def _append_replies(
             )
         _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
         return
+    shown = entries if level is FoldLevel.EXHAUSTIVE else entries[:_TRIAGE_LIMIT]
     grouped: dict[str, list[TribeTextEntry]] = defaultdict(list)
-    for item in entries:
+    for item in shown:
         grouped[item.unit_label].append(item)
     for unit_label, unit_entries in grouped.items():
         text.append(f"{unit_label}\n", style=f"bold {TRIBE_IDENTITY_COLOR}")
@@ -396,6 +380,7 @@ def _append_replies(
             for item in member_entries:
                 text.append(f"    {item.entry.kind}\n", style="bold #87D7FF")
                 _append_full_body(text, item.entry.body, indent="      ")
+    _append_more_tail(text, len(entries), len(shown))
 
 
 def _append_slow_tool_calls(
@@ -403,42 +388,35 @@ def _append_slow_tool_calls(
     snapshot: TribeSectionSnapshot | None,
     *,
     level: FoldLevel,
-    required: frozenset[TribeEnrichmentSection],
 ) -> None:
     disk = snapshot.disk if snapshot is not None else None
     loaded = disk is not None and "slow-tool-calls" in disk.loaded_sections
     entries = disk.slow_tool_calls if loaded and disk is not None else ()
-    loading = (
-        snapshot is not None and "slow-tool-calls" in snapshot.loading_sections
-    ) or ("slow-tool-calls" in required and not loaded)
+    if not loaded or not entries:
+        return
     _append_fold_heading(
         text,
         title="SLOW TOOL CALLS",
         section_id=_SECTIONS.slow_tool_calls,
         level=level,
-        count=len(entries) if loaded else None,
-        unknown_label="loading…" if loading else "—",
+        count=len(entries),
     )
-    if level in {FoldLevel.COLLAPSED, FoldLevel.EXPANDED}:
+    if level is FoldLevel.COLLAPSED:
         return
-    if not loaded:
-        _append_loading(text)
-        return
-    if not entries:
-        _append_empty(text)
-        return
-    if level is FoldLevel.FULLY_EXPANDED:
+    if level is FoldLevel.EXPANDED:
         for item in entries[:_TRIAGE_LIMIT]:
             _append_tribe_slow_tool_line(text, item)
         _append_more_tail(text, len(entries), _TRIAGE_LIMIT)
         return
+    shown = entries if level is FoldLevel.EXHAUSTIVE else entries[:_TRIAGE_LIMIT]
     grouped: dict[str, list[TribeSlowToolEntry]] = defaultdict(list)
-    for item in entries:
+    for item in shown:
         grouped[item.unit_label].append(item)
     for unit_label, unit_entries in grouped.items():
         text.append(f"{unit_label}\n", style=f"bold {TRIBE_IDENTITY_COLOR}")
         for item in unit_entries:
             _append_tribe_slow_tool_line(text, item, indent="  ")
+    _append_more_tail(text, len(entries), len(shown))
 
 
 def _append_runtime_statistics(
@@ -446,29 +424,20 @@ def _append_runtime_statistics(
     snapshot: TribeSectionSnapshot | None,
     *,
     level: FoldLevel,
-    required: frozenset[TribeEnrichmentSection],
 ) -> None:
     if level is not FoldLevel.EXHAUSTIVE:
         return
     loaded = snapshot is not None and snapshot.runtime_statistics_loaded
-    loading = (
-        snapshot is not None and "runtime-statistics" in snapshot.loading_sections
-    ) or ("runtime-statistics" in required and not loaded)
+    stats = snapshot.runtime_statistics if snapshot is not None else None
+    if not loaded or stats is None:
+        return
     _append_fold_heading(
         text,
         title="RUNTIME STATISTICS",
         section_id=_SECTIONS.runtime_statistics,
         level=level,
         count=None,
-        unknown_label="loading…" if loading else None,
     )
-    if not loaded:
-        _append_loading(text)
-        return
-    stats = snapshot.runtime_statistics if snapshot is not None else None
-    if stats is None:
-        _append_empty(text)
-        return
     _append_runtime_statistics_body(text, stats)
 
 
@@ -534,14 +503,6 @@ def _tribe_member_label(unit_label: str, member_label: str) -> str:
     return f"{unit_label} › {member_label}"
 
 
-def _append_loading(text: Text) -> None:
-    text.append("  loading…\n", style="dim italic")
-
-
-def _append_empty(text: Text) -> None:
-    text.append("  —\n", style="dim")
-
-
 def _append_triage_line(
     text: Text,
     label: str,
@@ -588,6 +549,20 @@ def _append_more_tail(text: Text, total: int, shown: int) -> None:
         text.append(f"  +{hidden} more\n", style="dim italic")
 
 
+def _has_pending_enrichment(
+    snapshot: TribeSectionSnapshot | None,
+    required: frozenset[TribeEnrichmentSection],
+) -> bool:
+    disk = snapshot.disk if snapshot is not None else None
+    for section in required:
+        if section == "runtime-statistics":
+            if snapshot is None or not snapshot.runtime_statistics_loaded:
+                return True
+        elif disk is None or section not in disk.loaded_sections:
+            return True
+    return False
+
+
 def build_tribe_detail_text(
     snapshot: AgentTribeSummarySnapshot,
     *,
@@ -621,8 +596,6 @@ def build_tribe_detail_text(
         fold_scale=TRIBE_FOLD_SCALE,
         section_id=_SECTIONS.members,
         member_anchor_prefix="tribe:member:",
-        heading_only_when_collapsed=True,
-        show_empty_heading=True,
         children_from_level=FoldLevel.FULLY_EXPANDED,
         full_annotations_from_level=FoldLevel.EXHAUSTIVE,
     )
@@ -652,13 +625,11 @@ def build_tribe_detail_text(
         text,
         section_snapshot,
         level=_effective_level(_SECTIONS.replies, fold_level, overrides),
-        required=required,
     )
     _append_slow_tool_calls(
         text,
         section_snapshot,
         level=_effective_level(_SECTIONS.slow_tool_calls, fold_level, overrides),
-        required=required,
     )
     _append_runtime_statistics(
         text,
@@ -668,8 +639,9 @@ def build_tribe_detail_text(
             fold_level,
             overrides,
         ),
-        required=required,
     )
+    if _has_pending_enrichment(section_snapshot, required):
+        append_scanning_tail(text)
     return text
 
 

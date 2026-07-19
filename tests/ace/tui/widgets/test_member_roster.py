@@ -100,6 +100,13 @@ def test_roster_truncates_after_one_hundred_numbered_members() -> None:
     assert "… +50 more members (not numbered)\n" in text.plain
 
 
+def test_empty_roster_omits_heading_and_publishes_no_targets() -> None:
+    text, jump_map = _render(0)
+
+    assert text.plain == ""
+    assert jump_map.targets == ()
+
+
 def test_member_override_inherits_roster_then_overrides_it() -> None:
     digest = ClanMemberDigest(
         identity=_identity(0),

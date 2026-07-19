@@ -17,15 +17,16 @@ from sase.agent.status_buckets import (
 from ...models._agent_clan_sections import first_meaningful_line
 from ...models.agent import AgentType
 from ...models.agent_panels import PanelKey
-from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
     CLAN_FOLD_SCALE,
     FoldScale,
     TRIBE_FOLD_SCALE,
     effective_fold_level,
 )
+from ...models.fold_state import FoldLevel
 from ...agent_count_chip import format_agent_count_chip
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_section_heading
 
 type MemberIdentity = tuple[AgentType, str, str | None]
@@ -45,18 +46,6 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Waiting": "bold #AF87FF",
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
-}
-_FOLD_CHARS: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "▸",
-    FoldLevel.EXPANDED: "▾",
-    FoldLevel.FULLY_EXPANDED: "▼",
-    FoldLevel.EXHAUSTIVE: "◆",
-}
-_FOLD_STYLES: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "#5F5F5F",
-    FoldLevel.EXPANDED: "#00D7AF",
-    FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
-    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
 }
 
 
@@ -161,14 +150,12 @@ def append_member_roster(
     fold_scale: FoldScale = CLAN_FOLD_SCALE,
     section_id: str = MEMBER_ROSTER_SECTION_ID,
     member_anchor_prefix: str = "member:",
-    heading_only_when_collapsed: bool = False,
-    show_empty_heading: bool = False,
     children_from_level: FoldLevel | None = None,
     full_annotations_from_level: FoldLevel = FoldLevel.FULLY_EXPANDED,
 ) -> MemberJumpMap:
     """Append a numbered roster and return the jump map rendered from it."""
     ordered_entries = tuple(entries)
-    if not ordered_entries and not show_empty_heading:
+    if not ordered_entries:
         return MemberJumpMap(container_identity=container_identity, targets=())
     overrides = section_fold_overrides or {}
     roster_level = effective_fold_level(
@@ -183,11 +170,6 @@ def append_member_roster(
         accent=accent,
         section_id=section_id,
     )
-    if not ordered_entries or (
-        heading_only_when_collapsed and roster_level == FoldLevel.COLLAPSED
-    ):
-        return MemberJumpMap(container_identity=container_identity, targets=())
-
     number_width = 1 if len(ordered_entries) <= 10 else 2
     targets: list[_MemberJumpTarget] = []
     for index, entry in enumerate(ordered_entries[:MEMBER_ROSTER_LIMIT]):
@@ -261,10 +243,10 @@ def _append_roster_heading(
     text.append("\n")
     text.append(_ROSTER_RULE + "\n", style=f"bold {accent}")
     heading = Text()
-    heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
+    append_fold_glyph(heading, level)
     heading.append("❖ ", style=f"bold {accent}")
     heading.append(title, style=f"bold {accent} underline")
-    heading.append(f" · {count}", style="dim")
+    heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(
         text,
         heading,

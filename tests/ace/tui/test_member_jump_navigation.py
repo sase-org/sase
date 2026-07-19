@@ -18,7 +18,7 @@ from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_tribe_summary import (
     CollapsedAgentPanelFocus,
-    _tribe_panel_identity,
+    build_agent_tribe_summary_snapshot,
 )
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
@@ -30,6 +30,9 @@ from sase.ace.tui.models.fold_state import FoldLevel, FoldStateManager
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MemberJumpMap,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
+    build_tribe_detail_text,
 )
 
 
@@ -491,27 +494,20 @@ def test_tribe_member_jump_expands_panel_and_selects_numbered_unit() -> None:
         focused_key="epic",
         collapsed_panel_keys=app._collapsed_panel_keys,
     )
-    app._member_jump_maps[_tribe_panel_identity("epic")] = MemberJumpMap(
-        container_identity=_tribe_panel_identity("epic"),
-        targets=(
-            cast(
-                Any,
-                SimpleNamespace(
-                    number="0",
-                    member_identity=first.identity,
-                    kind="agent",
-                ),
-            ),
-            cast(
-                Any,
-                SimpleNamespace(
-                    number="1",
-                    member_identity=second.identity,
-                    kind="agent",
-                ),
-            ),
+    snapshot = build_agent_tribe_summary_snapshot(
+        "epic",
+        [first, second],
+        panel_collapsed=True,
+    )
+    build_tribe_detail_text(
+        snapshot,
+        fold_level=FoldLevel.COLLAPSED,
+        member_jump_map_publisher=lambda jump_map: app._member_jump_maps.__setitem__(
+            jump_map.container_identity,
+            jump_map,
         ),
     )
+    assert app._member_jump_maps[snapshot.container_identity].targets
 
     assert app._handle_member_jump_key("1") is True
 

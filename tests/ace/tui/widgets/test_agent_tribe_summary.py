@@ -65,7 +65,7 @@ async def test_tribe_document_invalidates_agent_render_and_uses_prompt_scroll() 
         )
         prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert "TRIBE\nName: @focus" in prompt.content.plain
-        assert "summary_agent" not in prompt.content.plain  # Pulse is count-only.
+        assert "summary_agent" in prompt.content.plain
         route_owner = SimpleNamespace(query_one=lambda *_args: detail)
         assert (
             BasicNavigationMixin._get_agent_detail_scroll_id(route_owner)
@@ -103,5 +103,6 @@ async def test_cheap_then_full_tribe_paint_preserves_one_prompt_surface() -> Non
         await pilot.pause()
         rendered = prompt.content.plain
         assert "TRIBE MEMBERS · 12" in rendered
-        assert "tribe-agent-0" not in rendered  # Pulse roster remains count-only.
+        assert "tribe-agent-0" in rendered
+        assert "tribe-agent-11" in rendered
         assert len(list(detail.query("#agent-prompt-panel"))) == 1
