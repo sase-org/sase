@@ -17,6 +17,7 @@ from ._unread_jump_candidates import (
     TimedAgentJumpCandidate,
 )
 from ._unread_state import AgentUnreadStateMixin
+from ._panel_fold_intent import panel_is_collapsed
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -131,9 +132,8 @@ class AgentUnreadNavigationMixin(
         visible_panel_indices = self._visible_agent_panel_indices(  # type: ignore[attr-defined]
             include_collapsed_panels=True
         )
-        focused_panel_is_collapsed = (
-            panel_group is not None
-            and panel_group.focused_key in getattr(self, "_collapsed_panel_keys", set())
+        focused_panel_is_collapsed = panel_group is not None and panel_is_collapsed(
+            self, panel_group.focused_key
         )
         resolve_focused_panel = getattr(self, "_resolve_focused_panel", None)
         focused_panel = (
@@ -172,8 +172,8 @@ class AgentUnreadNavigationMixin(
         old_idx = self.current_idx
         old_panel_key = panel_group.focused_key if panel_group is not None else None
         old_group_key = self._current_group_key
-        panel_was_collapsed = panel_group is not None and target_panel_key in getattr(
-            self, "_collapsed_panel_keys", set()
+        panel_was_collapsed = panel_group is not None and panel_is_collapsed(
+            self, target_panel_key
         )
         focus_will_change = (
             old_idx != target_idx
@@ -296,7 +296,7 @@ class AgentUnreadNavigationMixin(
         panel_expanded_after_refilter = False
         if (
             panel_group is not None
-            and target_panel_key in getattr(self, "_collapsed_panel_keys", set())
+            and panel_is_collapsed(self, target_panel_key)
             and callable(expand_panel)
         ):
             panel_expanded_after_refilter = bool(expand_panel(target_panel_key))

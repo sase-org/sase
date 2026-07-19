@@ -61,6 +61,7 @@ class AgentFoldPersistenceMixin:
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
     _collapsed_panel_keys: set[PanelKey]
+    _expanded_panel_keys: set[PanelKey]
     _current_group_key: GroupKey | None
     _agents_first_load_done: bool
 
@@ -82,6 +83,7 @@ class AgentFoldPersistenceMixin:
         from ...models.agent_fold_persistence import AgentsFoldStateSnapshot
 
         defaults: tuple[tuple[str, object], ...] = (
+            ("_expanded_panel_keys", set()),
             ("_agents_fold_state_load_started", False),
             ("_agents_fold_state_load_resolved", False),
             ("_agents_fold_state_loaded_snapshot", None),
@@ -184,6 +186,7 @@ class AgentFoldPersistenceMixin:
                 group_folds.append(AgentGroupingFoldSnapshot(mode, scopes))
         return AgentsFoldStateSnapshot(
             collapsed_panels=frozenset(getattr(self, "_collapsed_panel_keys", set())),
+            expanded_panels=frozenset(getattr(self, "_expanded_panel_keys", set())),
             group_folds=tuple(group_folds),
         )
 
@@ -195,14 +198,18 @@ class AgentFoldPersistenceMixin:
         )
 
         if isinstance(intent, _AgentPanelFoldsClearIntent):
-            self._collapsed_panel_keys.clear()  # type: ignore[attr-defined]
+            from ._panel_fold_intent import clear_panel_fold_intents
+
+            clear_panel_fold_intents(self)
             return
         if isinstance(intent, _AgentPanelFoldIntent):
-            collapsed = self._collapsed_panel_keys  # type: ignore[attr-defined]
-            if intent.collapsed:
-                collapsed.add(intent.panel_key)
-            else:
-                collapsed.discard(intent.panel_key)
+            from ._panel_fold_intent import set_panel_fold_intent
+
+            set_panel_fold_intent(
+                self,
+                intent.panel_key,
+                collapsed=intent.collapsed,
+            )
             return
 
         registries = self._group_fold_registries  # type: ignore[attr-defined]
@@ -249,6 +256,7 @@ class AgentFoldPersistenceMixin:
             # an established full Agents repaint.
             disarm_isolation(refresh=False)
         self._collapsed_panel_keys = set(snapshot.collapsed_panels)  # type: ignore[attr-defined]
+        self._expanded_panel_keys = set(snapshot.expanded_panels)  # type: ignore[attr-defined]
 
         journal: list[AgentFoldIntent] = list(
             self._agents_fold_state_intents  # type: ignore[attr-defined]

@@ -6,6 +6,8 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ._panel_fold_intent import effective_panel_collapses
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -208,7 +210,7 @@ def prospective_clan_projection(
     panel_group = AgentPanelGroup.from_agents(
         projected,
         merge_tribe_panels=merged,
-        collapsed_panel_keys=getattr(owner, "_collapsed_panel_keys", ()),
+        collapsed_panel_keys=effective_panel_collapses(owner),
     )
     dismissed = set(getattr(owner, "_dismissed_agents", set()))
     rendered: dict[AgentIdentity, ProspectiveClanMember] = {}

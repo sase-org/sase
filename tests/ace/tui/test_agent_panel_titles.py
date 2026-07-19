@@ -143,6 +143,26 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
     assert title.plain == "▸ @chop · 3 [R1 W2]"
 
 
+def test_panel_title_places_icon_before_tribe_label() -> None:
+    title = agent_panel_border_title(
+        "chop",
+        3,
+        collapsed=True,
+        selected=True,
+        icon="†",
+    )
+
+    assert title.plain == "❖ ▸ † @chop · 3"
+
+    merged = agent_panel_border_title(
+        None,
+        3,
+        merge_tribe_panels=True,
+        icon="⌂",
+    )
+    assert merged.plain == "All agents · 3"
+
+
 def test_selected_expanded_panel_title_has_focus_marker() -> None:
     title = agent_panel_border_title(
         "chop",
@@ -338,9 +358,9 @@ def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
 
     main = app._panel_widgets["agent-list-panel"]
     main_title = _title_text(main)
-    assert main_title.plain == "@default · 2 [R2]"
+    assert main_title.plain == "⌂ @default · 2 [R2]"
     _assert_title_span(
-        main_title, start=0, end=8, style="bold #FFD75F", text="@default"
+        main_title, start=2, end=10, style="bold #FFD75F", text="@default"
     )
 
     # Tribe panels follow in alphabetical order: apple (idx 1), banana (idx 2).
@@ -399,7 +419,7 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@default · 1 [W1]"
+        "⌂ @default · 1 [W1]"
     )
     assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
         "@apple · 2 [S1 R1]"
@@ -412,8 +432,8 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
     banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
     _assert_title_metric_styles(
         no_tribe_title,
-        neutral_ranges=[(8, 15), (16, 17)],
-        metric_digits=[(15, "waiting")],
+        neutral_ranges=[(10, 17), (18, 19)],
+        metric_digits=[(17, "waiting")],
     )
     _assert_title_metric_styles(
         apple_title,

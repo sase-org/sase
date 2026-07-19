@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..agents._panel_fold_intent import panel_is_collapsed
 from ._entry_jump_mode import EntryJumpModeMixin
 from .jump_hints import JumpHintMatchOutcome, match_jump_hint
 
@@ -170,10 +171,8 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
             panel_group = getattr(self, "_panel_group", None)
             resolve_panel = getattr(self, "_resolve_focused_panel", None)
             old_panel_focus = resolve_panel() if callable(resolve_panel) else None
-            old_panel_collapsed = (
-                panel_group is not None
-                and panel_group.focused_key
-                in getattr(self, "_collapsed_panel_keys", set())
+            old_panel_collapsed = panel_group is not None and panel_is_collapsed(
+                self, panel_group.focused_key
             )
             old_agent = (
                 self._agents[old_idx]
@@ -211,9 +210,7 @@ class EntryJumpDispatchMixin(EntryJumpModeMixin):
                         arm_manual(old_agent)
                 if target_panel_idx != self._panel_group.focused_idx:
                     self._panel_group.focused_idx = target_panel_idx
-                self._expanded_panel_focus = panel_key not in getattr(
-                    self, "_collapsed_panel_keys", set()
-                )
+                self._expanded_panel_focus = not panel_is_collapsed(self, panel_key)
                 self._current_group_key = None
                 self.current_attempt_number = None
                 keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]

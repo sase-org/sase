@@ -142,6 +142,14 @@ def _tribe_panel_identity(panel_key: PanelKey) -> TribePanelIdentity:
     return ("panel", panel_key)
 
 
+def _panel_label(panel_key: PanelKey) -> str:
+    from .tribe_display import tribe_display_for
+
+    label = agent_panel_label(panel_key)
+    icon = tribe_display_for(panel_key).icon
+    return f"{icon} {label}" if icon else label
+
+
 def _row_name(agent: Agent) -> str:
     return (
         agent.presented_agent_name
@@ -396,7 +404,7 @@ def build_agent_tribe_summary_snapshot(
     return AgentTribeSummarySnapshot(
         panel_key=panel_key,
         container_identity=_tribe_panel_identity(panel_key),
-        label=agent_panel_label(panel_key),
+        label=_panel_label(panel_key),
         panel_collapsed=panel_collapsed,
         status=status,
         counts=_status_counts(roots, unread_ids),

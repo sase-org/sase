@@ -68,12 +68,18 @@ def reconcile_panel_fold_registries(
     registry_owner = getattr(owner, "_group_fold_registry", None)
     merged = bool(getattr(owner, "_agent_panels_grouped", False))
     panel_state_changed = False
-    collapsed_panels = getattr(owner, "_collapsed_panel_keys", None)
-    if not merged and collapsed_panels is not None:
+    panel_intents = (
+        getattr(owner, "_collapsed_panel_keys", None),
+        getattr(owner, "_expanded_panel_keys", None),
+    )
+    if not merged:
         known_panels = {scope.panel_key for scope in known_by_scope if not scope.merged}
-        before = len(collapsed_panels)
-        collapsed_panels.intersection_update(known_panels)
-        panel_state_changed = len(collapsed_panels) != before
+        for intent_keys in panel_intents:
+            if intent_keys is None:
+                continue
+            before = len(intent_keys)
+            intent_keys.intersection_update(known_panels)
+            panel_state_changed |= len(intent_keys) != before
     if isinstance(registry_owner, AgentGroupFoldRegistry):
         group_state_changed = registry_owner.reconcile_layout(
             known_by_scope, merged=merged

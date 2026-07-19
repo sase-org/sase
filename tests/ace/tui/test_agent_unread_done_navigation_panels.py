@@ -27,7 +27,7 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
         name="target",
         status="PLAN DONE",
         raw_suffix="target",
-        tribe="chop",
+        tribe="alpha",
         stop_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     app = UnreadJumpApp(
@@ -36,7 +36,7 @@ def test_jump_to_next_unread_done_agent_finds_non_focused_panel_row() -> None:
         with_panels=True,
         focused_key=None,
     )
-    assert app._panel_group.panel_keys == [None, "chop"]
+    assert app._panel_group.panel_keys == [None, "alpha"]
     assert app._panel_group.focused_idx == 0
     app._unread_completed_agent_ids.add(target.identity)
 

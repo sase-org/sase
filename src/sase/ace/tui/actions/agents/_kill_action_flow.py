@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ._panel_fold_intent import panel_is_collapsed
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -117,8 +119,8 @@ class AgentKillActionFlowMixin:
             return collapsed_focus
 
         panel_group = getattr(self, "_panel_group", None)
-        if panel_group is not None and panel_group.focused_key in getattr(
-            self, "_collapsed_panel_keys", set()
+        if panel_group is not None and panel_is_collapsed(
+            self, panel_group.focused_key
         ):
             return None
         resolver = getattr(self, "_resolve_focused_panel", None)

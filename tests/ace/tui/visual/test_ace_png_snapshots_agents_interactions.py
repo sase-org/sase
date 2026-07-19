@@ -10,6 +10,9 @@ from textual.css.scalar import Unit
 from textual.widgets import Input
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._panel_fold_intent import (
+    effective_panel_collapses,
+)
 from sase.ace.tui.modals import ConfirmDismissAllModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets import (
@@ -253,10 +256,10 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert page.app._get_selected_agent() is None
     snapshot = page.app._focused_tribe_summary()
     assert snapshot is not None
-    assert snapshot.label == "@chop"
+    assert snapshot.label == "† @chop"
     rendered = prompt.content.plain
     assert "TRIBE\n" in rendered
-    assert "Name: @chop" in rendered
+    assert "Name: † @chop" in rendered
     assert "Panel:" not in rendered
     assert "Fold: 1/4" in rendered
     assert "[R1 W1]" in rendered
@@ -283,15 +286,13 @@ async def test_agents_collapsed_panel_png_snapshot(
         await wait_for_visual_idle(page)
 
         container = page.app.query_one("#agent-list-container")
-        expanded_width = container.size.width
+        assert "chop" not in page.app._collapsed_panel_keys
+        assert "chop" not in page.app._expanded_panel_keys
+        await page.press("J")
         await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
-        await page.press("h")
-        await page.wait_for(
-            lambda _screen: page.app._resolve_focused_panel() is not None
-        )
-        await page.press("h")
-        await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
+        panel_focus = page.app._resolve_focused_panel()
+        assert panel_focus is not None and panel_focus.collapsed
         await wait_for_svg_contains(page, "▸ ")
         await wait_for_visual_idle(page)
 
@@ -300,13 +301,9 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert collapsed_widget.option_count == 0
         assert collapsed_widget.styles.height is not None
         assert collapsed_widget.styles.height.value == 2.0
-        requested_widths = [
-            widget._requested_width for widget in container.query("AgentList")
-        ]
-        assert container.size.width < expanded_width, requested_widths
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == "▸ @chop · 2 [R1 W1]"
+            == "▸ † @chop · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
         assert_page_svg_contains(page, "▸ ")
@@ -346,7 +343,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert collapsed_widget._requested_width == normal_width + 4
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == f"[{collapsed_jump_hint}] ▸ @chop · 2 [R1 W1]"
+            == f"[{collapsed_jump_hint}] ▸ † @chop · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
 
@@ -376,7 +373,10 @@ async def test_agents_collapsed_panel_png_snapshot(
         for panel_idx, panel_key in enumerate(page.app._panel_group.panel_keys):
             hint = fold_hints[("panel", panel_key)]
             collapsed_marker = (
-                "▸ " if panel_key in page.app._collapsed_panel_keys else ""
+                "▸ "
+                if panel_key
+                in effective_panel_collapses(page.app, page.app._panel_group.panel_keys)
+                else ""
             )
             assert panel_titles[panel_idx].startswith(f"[{hint}] {collapsed_marker}")
         await wait_for_svg_contains(page, "Folds:")
@@ -410,8 +410,8 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._get_selected_agent() is None
         snapshot = page.app._focused_tribe_summary()
         assert snapshot is not None
-        assert snapshot.label == "@default"
-        assert "Name: @default" in prompt.content.plain
+        assert snapshot.label == "⌂ @default"
+        assert "Name: ⌂ @default" in prompt.content.plain
 
 
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
@@ -496,7 +496,17 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
         await page.expect_state("agent_count", 4)
 
         await page.press("J")
+        await page.press("J")
         assert page.app._panel_group.focused_key == "chop"
+        await page.press("l")
+        await page.wait_for(
+            lambda _screen: (
+                not effective_panel_collapses(
+                    page.app, page.app._panel_group.panel_keys
+                )
+            )
+        )
+        await page.press("l")
         await page.press("j")
         assert page.app._agents[page.app.current_idx].identity == target.identity
         await page.press("h")

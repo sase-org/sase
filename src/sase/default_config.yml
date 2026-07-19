@@ -49,6 +49,24 @@ mobile_gateway:
 ace:
   repro_output_dir: ""
   snippets: {}
+  # Per-tribe Agents-tab panel display. Keys are bare tribe names (no "@").
+  # The special "default" entry styles the untagged panel.
+  # Empty icon strings disable an inherited default icon. Explicit user panel
+  # folds always take precedence over initially_expanded.
+  tribes:
+    default:
+      icon: "⌂"
+    epic:
+      icon: "▲"
+    research:
+      icon: "∴"
+    chop:
+      icon: "†"
+      initially_expanded: false
+    pinned:
+      icon: "◆"
+    review:
+      icon: "◉"
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:

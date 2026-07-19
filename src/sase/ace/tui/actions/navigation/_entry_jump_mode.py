@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..agents._panel_fold_intent import effective_panel_collapses
 from ._entry_jump_agents import EntryJumpAgentHistoryMixin
 from .jump_hints import (
     BannerJumpTarget,
@@ -178,7 +179,7 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         panel_group = getattr(self, "_panel_group", None)
         panel_keys = panel_group.panel_keys if panel_group is not None else [None]
-        collapsed_keys: set[str | None] = getattr(self, "_collapsed_panel_keys", set())
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
         split_panels = not getattr(self, "_agent_panels_grouped", False)
         targets: list[JumpTarget] = []
         for panel_idx, key in enumerate(panel_keys):

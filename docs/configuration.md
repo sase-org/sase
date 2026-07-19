@@ -301,6 +301,12 @@ Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_conf
 
 ```yaml
 ace:
+  tribes:
+    default:
+      icon: "⌂"
+    chop:
+      icon: "†"
+      initially_expanded: false
   updates:
     startup_toast: true # show update-available toast on startup
     post_update_toast: true # confirm the version transition after self-update restart
@@ -364,7 +370,26 @@ ace:
 | `prompt_completion` | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
 | `repro_output_dir`  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippets`          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
+| `tribes`            | dict         | see below | Per-tribe Agents-tab panel icons and initial expansion.                                                                                                    |
 | `updates`           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+
+#### `ace.tribes`
+
+`ace.tribes` is keyed by bare tribe name (without `@`). The special `default` key configures the reserved `@default`
+panel. Each entry accepts these optional fields:
+
+| Field                | Type | Default | Description                                                                                     |
+| -------------------- | ---- | ------- | ----------------------------------------------------------------------------------------------- |
+| `icon`               | str  | `""`    | Short glyph rendered before the panel name. Set `""` to remove an icon inherited from defaults. |
+| `initially_expanded` | bool | `true`  | Initial state the first time the panel appears.                                                 |
+
+The bundled defaults use ⌂ for `default`, ▲ for `epic`, ∴ for `research`, † for `chop`, ◆ for `pinned`, and ◉ for
+`review`; `chop` starts collapsed. Once a user explicitly expands or collapses a panel, that durable choice takes
+precedence over `initially_expanded`, including after ACE restarts. Changing the config still affects panels the user
+has not folded explicitly.
+
+ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and user overlays), not project-local
+`sase/sase.yml`.
 
 #### `ace.updates`
 

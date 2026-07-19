@@ -13,6 +13,7 @@ from ..navigation._agent_reveal import (
 )
 from ._fold_scope import panel_fold_registry, panel_fold_version_signature
 from ._navigation_order import rendered_panel_slice
+from ._panel_fold_intent import effective_panel_collapses
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -95,7 +96,9 @@ class AgentNeighborMixin:
             frozenset(getattr(self, "_dismissed_agents", set())),
         )
         panel_collapse_signature = frozenset(
-            getattr(self, "_collapsed_panel_keys", set())
+            effective_panel_collapses(
+                self, getattr(self._panel_group, "panel_keys", ())
+            )
         )
 
         cached = getattr(self, "_agent_neighbor_index_cache", None)

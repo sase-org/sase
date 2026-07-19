@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+from ..agents._panel_fold_intent import panel_is_collapsed
 from ._entry_jump_generic import EntryJumpGenericHistoryMixin
 from .jump_hints import AgentJumpAnchor
 
@@ -59,8 +60,7 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         panel_group = getattr(self, "_panel_group", None)
         if panel_focus is not None or (
-            panel_group is not None
-            and panel_key in getattr(self, "_collapsed_panel_keys", set())
+            panel_group is not None and panel_is_collapsed(self, panel_key)
         ):
             return ("panel", panel_key)
 
@@ -275,9 +275,7 @@ class EntryJumpAgentHistoryMixin(EntryJumpGenericHistoryMixin):
             _, panel_key = anchor
             if not self._focus_agents_jump_anchor_panel(panel_key):
                 return
-            self._expanded_panel_focus = panel_key not in getattr(
-                self, "_collapsed_panel_keys", set()
-            )
+            self._expanded_panel_focus = not panel_is_collapsed(self, panel_key)
             self._current_group_key = None
             self.current_attempt_number = None
             keys_per_agent = self._panel_keys_per_agent()  # type: ignore[attr-defined]

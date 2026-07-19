@@ -361,6 +361,31 @@
             "type": "string"
           }
         },
+        "tribes": {
+          "type": "object",
+          "description": "Per-tribe Agents-tab panel display settings, keyed by bare tribe name",
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "icon": {
+                "type": "string",
+                "maxLength": 16,
+                "description": "Short glyph shown before the tribe name; an empty string disables an inherited icon",
+                "default": ""
+              },
+              "initially_expanded": {
+                "type": "boolean",
+                "description": "Whether the panel starts expanded until the user explicitly folds it",
+                "default": true
+              }
+            }
+          },
+          "default": {}
+        },
         "tool_calls": {
           "type": "object",
           "description": "Tool-call presentation settings for the ACE TUI",

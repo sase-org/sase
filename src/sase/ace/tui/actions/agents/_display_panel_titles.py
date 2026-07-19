@@ -129,6 +129,7 @@ def agent_panel_border_title(
     isolation_restore_marked: bool = False,
     jump_hint: str | None = None,
     selection_hint: int | None = None,
+    icon: str = "",
 ) -> Text:
     """Build a styled panel title while preserving its plain-text label."""
     title = Text()
@@ -142,6 +143,8 @@ def agent_panel_border_title(
     if merge_tribe_panels:
         title.append("All agents", style="bold #AFFFFF")
     else:
+        if icon:
+            title.append(f"{icon} ", style=_PANEL_TRIBE_STYLE)
         title.append(agent_panel_label(key), style=_PANEL_TRIBE_STYLE)
     if isolation_restore_marked:
         title.append(" ", style=_PANEL_COUNT_STYLE)

@@ -251,9 +251,9 @@ class AgentPanelNavigationMixin:
             disarm_isolation(refresh=False)
         self._agent_panels_grouped = not getattr(self, "_agent_panels_grouped", False)
         self._expanded_panel_focus = False
-        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
-        if collapsed_keys is not None:
-            collapsed_keys.clear()
+        from ._panel_fold_intent import clear_panel_fold_intents
+
+        clear_panel_fold_intents(self)
         self._current_group_key = None  # type: ignore[attr-defined]
         self.current_attempt_number = None  # type: ignore[attr-defined]
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]

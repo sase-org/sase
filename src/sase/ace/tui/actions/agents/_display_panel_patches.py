@@ -144,8 +144,10 @@ class PanelPatchMixin:
             target_widget = widget
 
         if target_widget is None:
-            collapsed_keys: set[str | None] = getattr(
-                self, "_collapsed_panel_keys", set()
+            from ._panel_fold_intent import effective_panel_collapses
+
+            collapsed_keys = effective_panel_collapses(
+                self, getattr(self._panel_group, "panel_keys", ())
             )
             panel_index_fn = getattr(self, "_agent_panel_index", None)
             if collapsed_keys and callable(panel_index_fn):

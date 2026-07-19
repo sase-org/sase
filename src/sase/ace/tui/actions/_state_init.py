@@ -512,6 +512,7 @@ class StateInitMixin:
         # as they were. The fields below drive a one-shot post-first-paint load,
         # pre-load mutation journal, and latest-generation off-thread writer.
         self._collapsed_panel_keys: set[PanelKey] = set()
+        self._expanded_panel_keys: set[PanelKey] = set()
         # ``H`` remembers one pre-isolation split-panel layout in memory. The
         # record is intentionally session-local and never enters fold-state
         # persistence.

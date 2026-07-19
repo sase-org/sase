@@ -6,6 +6,11 @@ from typing import TYPE_CHECKING, Literal
 
 from ...models.agent_panels import PanelIsolationRevert
 from ._navigation_order import rendered_panel_slice
+from ._panel_fold_intent import (
+    effective_panel_collapses,
+    panel_is_collapsed,
+    set_panel_fold_intent,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -23,6 +28,7 @@ class AgentPanelFoldingMixin:
     _agents: list[Agent]
     _current_group_key: tuple[str, ...] | None
     _collapsed_panel_keys: set[PanelKey]
+    _expanded_panel_keys: set[PanelKey]
     _panel_isolation_revert: PanelIsolationRevert | None
 
     def _persist_panel_fold_change(
@@ -51,7 +57,7 @@ class AgentPanelFoldingMixin:
     ) -> set[PanelKey]:
         """Return live panels whose fold state the remembered layout changes."""
         live_keys = self._live_panel_keys()
-        collapsed = set(getattr(self, "_collapsed_panel_keys", set()))
+        collapsed = effective_panel_collapses(self, live_keys)
         return (collapsed ^ set(revert.collapsed_before)) & live_keys
 
     def _panel_isolation_revert_record(
@@ -107,12 +113,7 @@ class AgentPanelFoldingMixin:
         desired_collapsed: set[PanelKey],
     ) -> list[PanelKey]:
         """Apply and persist one complete live-panel fold layout."""
-        collapsed_keys: set[PanelKey] | None = getattr(
-            self, "_collapsed_panel_keys", None
-        )
-        if collapsed_keys is None:
-            collapsed_keys = set()
-            self._collapsed_panel_keys = collapsed_keys
+        collapsed_keys = effective_panel_collapses(self, live_keys)
         changed_keys = [
             panel_key
             for panel_key in live_keys
@@ -121,9 +122,12 @@ class AgentPanelFoldingMixin:
         if not changed_keys:
             return []
 
-        collapsed_keys.difference_update(live_keys)
-        collapsed_keys.update(desired_collapsed)
         for panel_key in changed_keys:
+            set_panel_fold_intent(
+                self,
+                panel_key,
+                collapsed=panel_key in desired_collapsed,
+            )
             self._persist_panel_fold_change(
                 panel_key,
                 collapsed=panel_key in desired_collapsed,
@@ -192,8 +196,7 @@ class AgentPanelFoldingMixin:
             )
             return True
 
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
-        collapsed_before = frozenset(collapsed_keys)
+        collapsed_before = frozenset(effective_panel_collapses(self, live_keys))
         desired_collapsed = set(live_keys)
         desired_collapsed.discard(selected_key)
 
@@ -226,17 +229,11 @@ class AgentPanelFoldingMixin:
         ):
             return
 
-        collapsed_keys: set[PanelKey] | None = getattr(
-            self, "_collapsed_panel_keys", None
-        )
-        if collapsed_keys is None:
-            collapsed_keys = set()
-            self._collapsed_panel_keys = collapsed_keys
         focused_key = panel_group.focused_key
-        if focused_key in collapsed_keys:
+        if panel_is_collapsed(self, focused_key):
             return
 
-        collapsed_keys.add(focused_key)
+        set_panel_fold_intent(self, focused_key, collapsed=True)
         self._expanded_panel_focus = False
         self._current_group_key = None
         self.current_attempt_number = None
@@ -250,16 +247,15 @@ class AgentPanelFoldingMixin:
     def _expand_agent_panel(self, panel_key: PanelKey) -> bool:
         """Expand one whole panel without selecting or refreshing it."""
         panel_group = getattr(self, "_panel_group", None)
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
         if (
             panel_group is None
             or getattr(self, "_agent_panels_grouped", False)
             or panel_key not in panel_group.panel_keys
-            or panel_key not in collapsed_keys
+            or not panel_is_collapsed(self, panel_key)
         ):
             return False
 
-        collapsed_keys.discard(panel_key)
+        set_panel_fold_intent(self, panel_key, collapsed=False)
         self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
         self._persist_panel_fold_change(panel_key, collapsed=False)
         return True

@@ -638,13 +638,15 @@ The Agents tab is laid out as a series of vertically-stacked side panels, one pe
 without a stored tribe live in the reserved `@default` panel; an explicit `default` assignment converges on the same
 panel, so the UI never creates a duplicate default bucket. `@default` is derived for presentation and is not backfilled
 into `agent_meta.json` or `agent_tribes.json`; clearing a user-managed tribe returns the agent to this panel. Every
-tribe renders as `@<tribe>` with an agent count in the panel title. Each panel title can also show compact scoped
-metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to start, `F`
-is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. On the
-selected whole panel, the title marker, total, brackets, and metric letters use the focus accent; each numeric metric
-count retains its semantic status color. Panel heights are sized to their content and separated by a one-row gap. When
-the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned to their natural
-height; when the panels overflow, space is weighted by each panel's rendered row count.
+tribe renders as `@<tribe>` with an agent count in the panel title. Per-tribe icons and initial expansion are
+configurable through [`ace.tribes`](configuration.md#acetribes); the special `default` entry styles the reserved panel,
+and explicit panel folds are remembered and override the configured initial state. Each panel title can also show
+compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting
+to start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are
+omitted. On the selected whole panel, the title marker, total, brackets, and metric letters use the focus accent; each
+numeric metric count retains its semantic status color. Panel heights are sized to their content and separated by a
+one-row gap. When the panels fit, the first panel grows to absorb leftover vertical space while later panels stay pinned
+to their natural height; when the panels overflow, space is weighted by each panel's rendered row count.
 
 Use `J` / `K` to move across panels (forward / reverse) and enter the first or last selectable row in the destination;
 collapsed grouping banners count as rows. Whole-panel focus is available only in the split layout. When at least two

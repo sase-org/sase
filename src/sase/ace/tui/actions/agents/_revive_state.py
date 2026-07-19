@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._panel_fold_intent import effective_panel_collapses
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
@@ -64,7 +66,7 @@ class AgentReviveStateMixin:
                 self._agents,
                 target_panel_key,
                 merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
-                collapsed_panel_keys=getattr(self, "_collapsed_panel_keys", ()),
+                collapsed_panel_keys=effective_panel_collapses(self),
             )
         except Exception:
             pass

@@ -9,6 +9,7 @@ from ...util.trace import tui_trace
 from ._display_helpers import panel_widget_id
 from ._display_panel_state import PanelRefreshStateMixin
 from ._fold_scope import panel_fold_registry
+from ._panel_fold_intent import effective_panel_collapses
 
 if TYPE_CHECKING:
     from ...models.agent import AgentType
@@ -93,7 +94,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         current_group_key = self._current_group_key
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)
@@ -283,7 +284,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         current_group_key = self._current_group_key
         global_idx = self.current_idx
         grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         marked_keys_fn = getattr(self, "_panel_isolation_marked_keys", None)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ._fold_scope import focused_panel_fold_registry, panel_fold_registry
+from ._panel_fold_intent import effective_panel_collapses, panel_is_collapsed
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -80,7 +81,7 @@ class AgentNavigationOrderMixin:
                 if entry.kind == "agent" and entry.agent_idx is not None
             ]
         focused_key = panel_group.focused_key
-        if focused_key in getattr(self, "_collapsed_panel_keys", set()):
+        if panel_is_collapsed(self, focused_key):
             return []
         registry = panel_fold_registry(self, focused_key)
         global_indices, panel_agents = rendered_panel_slice(self, focused_key)
@@ -132,8 +133,8 @@ class AgentNavigationOrderMixin:
         panel_group = getattr(self, "_panel_group", None)
         registry = focused_panel_fold_registry(self)
         focused_key = panel_group.focused_key if panel_group is not None else None
-        focused_panel_collapsed = panel_group is not None and focused_key in getattr(
-            self, "_collapsed_panel_keys", set()
+        focused_panel_collapsed = panel_group is not None and panel_is_collapsed(
+            self, focused_key
         )
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         whole_panel_focused = focused_panel_collapsed or (
@@ -341,7 +342,7 @@ class AgentNavigationOrderMixin:
 
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         visible: dict[int, int | None] = {}
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        collapsed_keys = effective_panel_collapses(self, panel_group.panel_keys)
 
         for key in panel_group.panel_keys:
             if key in collapsed_keys and not include_collapsed_panels:

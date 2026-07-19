@@ -8,6 +8,7 @@ from ._display_helpers import panel_widget_id
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._navigation_order import rendered_panel_slice
+from ._panel_fold_intent import effective_panel_collapses
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -28,12 +29,12 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
 
         prev_focused = self._panel_group.focused_key
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        collapsed_keys = getattr(self, "_collapsed_panel_keys", None)
+        collapsed_keys = effective_panel_collapses(self)
         self._panel_group = AgentPanelGroup.from_agents(
             self._agents,
             prev_focused,
             merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_keys or (),
+            collapsed_panel_keys=collapsed_keys,
         )
         known_keys = set(self._panel_group.panel_keys)
         if (
@@ -46,13 +47,18 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         if selection_memory is not None:
             for stale_key in set(selection_memory) - known_keys:
                 selection_memory.pop(stale_key, None)
-        if collapsed_keys is not None:
-            before = len(collapsed_keys)
-            collapsed_keys.intersection_update(self._panel_group.panel_keys)
-            if len(collapsed_keys) != before:
-                schedule = getattr(self, "_agents_fold_state_changed", None)
-                if callable(schedule):
-                    schedule()
+        panel_intent_changed = False
+        for field in ("_collapsed_panel_keys", "_expanded_panel_keys"):
+            intent_keys = getattr(self, field, None)
+            if intent_keys is None:
+                continue
+            before = len(intent_keys)
+            intent_keys.intersection_update(self._panel_group.panel_keys)
+            panel_intent_changed |= len(intent_keys) != before
+        if panel_intent_changed:
+            schedule = getattr(self, "_agents_fold_state_changed", None)
+            if callable(schedule):
+                schedule()
 
         keys_per_agent = self._panel_keys_per_agent()
         focused_key = self._panel_group.focused_key
@@ -99,7 +105,9 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         unread: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
-        collapsed_keys: set[PanelKey] = getattr(self, "_collapsed_panel_keys", set())
+        collapsed_keys = effective_panel_collapses(
+            self, getattr(self._panel_group, "panel_keys", ())
+        )
         panel_collapsed = key in collapsed_keys
         resolve_panel = getattr(self, "_resolve_focused_panel", None)
         panel_focus = resolve_panel() if callable(resolve_panel) else None
@@ -114,6 +122,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 ("panel", key)
             )
         counts = agent_panel_counts(panel_agents, unread)
+        from ...models.tribe_display import tribe_display_for
+
         return agent_panel_border_title(
             key,
             counts.total,
@@ -126,6 +136,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 panel_jump_hints.get(("panel", key)) if panel_jump_hints else None
             ),
             selection_hint=selection_hint,
+            icon=tribe_display_for(key).icon,
         )
 
     @staticmethod

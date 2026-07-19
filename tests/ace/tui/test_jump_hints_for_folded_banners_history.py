@@ -2,6 +2,7 @@
 
 import pytest
 
+from sase.ace.tui.actions.agents._panel_fold_intent import set_panel_fold_intent
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests.ace.tui._jump_hints_for_folded_banners_helpers import _agent, _StubApp
 
@@ -203,7 +204,7 @@ def test_panel_anchor_restores_expanded_focus_but_discards_removed_panel() -> No
     ]
     app = _StubApp(agents, collapsed_panels={"chop"})
     app._entry_jump_agents_anchor_stack = [("panel", "chop")]
-    app._collapsed_panel_keys.clear()
+    set_panel_fold_intent(app, "chop", collapsed=False)
 
     assert app._restore_agents_jump_anchor() is True
     assert app._entry_jump_agents_anchor_stack == []

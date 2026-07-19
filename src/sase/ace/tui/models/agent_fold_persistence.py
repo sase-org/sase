@@ -24,7 +24,8 @@ from .group_fold import GroupKey
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+_PREVIOUS_SCHEMA_VERSION = 2
 _LEGACY_SCHEMA_VERSION = 1
 FILENAME = "ace_agents_fold_state.json"
 MAX_FILE_BYTES = 256 * 1024
@@ -65,6 +66,7 @@ class AgentsFoldStateSnapshot:
     """Complete persisted Agents-tab collapse intent."""
 
     collapsed_panels: frozenset[PanelKey] = frozenset()
+    expanded_panels: frozenset[PanelKey] = frozenset()
     group_folds: tuple[AgentGroupingFoldSnapshot, ...] = ()
 
     def __post_init__(self) -> None:
@@ -102,7 +104,7 @@ def _decode_panel_key(raw: Any, *, schema_version: int) -> PanelKey:
                 and len(legacy_tag) <= MAX_STRING_LENGTH
             ):
                 return legacy_tag
-    elif schema_version == SCHEMA_VERSION:
+    elif schema_version in {_PREVIOUS_SCHEMA_VERSION, SCHEMA_VERSION}:
         if kind == "no_tribe" and set(raw) == {"kind"}:
             return None
         if kind == "tribe" and set(raw) == {"kind", "tribe"}:
@@ -140,10 +142,14 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
     schema_version = raw.get("schema_version")
     if type(schema_version) is not int or schema_version not in {
         _LEGACY_SCHEMA_VERSION,
+        _PREVIOUS_SCHEMA_VERSION,
         SCHEMA_VERSION,
     }:
         raise _AgentsFoldStateDecodeError("unknown schema version")
-    if not set(raw).issubset({"schema_version", "collapsed_panels", "group_folds"}):
+    allowed_fields = {"schema_version", "collapsed_panels", "group_folds"}
+    if schema_version == SCHEMA_VERSION:
+        allowed_fields.add("expanded_panels")
+    if not set(raw).issubset(allowed_fields):
         raise _AgentsFoldStateDecodeError("unknown root field")
 
     raw_panels = raw.get("collapsed_panels", [])
@@ -155,6 +161,21 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
         if panel_key in collapsed_panels:
             raise _AgentsFoldStateDecodeError("duplicate collapsed panel")
         collapsed_panels.add(panel_key)
+
+    raw_expanded_panels = raw.get("expanded_panels", [])
+    if (
+        not isinstance(raw_expanded_panels, list)
+        or len(raw_expanded_panels) > MAX_COLLAPSED_PANELS
+    ):
+        raise _AgentsFoldStateDecodeError("invalid expanded-panels collection")
+    expanded_panels: set[PanelKey] = set()
+    for raw_panel in raw_expanded_panels:
+        panel_key = _decode_panel_key(raw_panel, schema_version=schema_version)
+        if panel_key in expanded_panels:
+            raise _AgentsFoldStateDecodeError("duplicate expanded panel")
+        expanded_panels.add(panel_key)
+    if collapsed_panels & expanded_panels:
+        raise _AgentsFoldStateDecodeError("panel has conflicting fold intent")
 
     raw_group_folds = raw.get("group_folds", [])
     if (
@@ -226,6 +247,7 @@ def _decode_agents_fold_state(raw: Any) -> AgentsFoldStateSnapshot:
 
     return AgentsFoldStateSnapshot(
         collapsed_panels=frozenset(collapsed_panels),
+        expanded_panels=frozenset(expanded_panels),
         group_folds=tuple(group_folds),
     )
 
@@ -241,6 +263,11 @@ def _encode_agents_fold_state(snapshot: AgentsFoldStateSnapshot) -> dict[str, An
         payload["collapsed_panels"] = [
             _encode_panel_key(key)
             for key in sorted(snapshot.collapsed_panels, key=_panel_sort_key)
+        ]
+    if snapshot.expanded_panels:
+        payload["expanded_panels"] = [
+            _encode_panel_key(key)
+            for key in sorted(snapshot.expanded_panels, key=_panel_sort_key)
         ]
 
     group_folds: list[dict[str, Any]] = []

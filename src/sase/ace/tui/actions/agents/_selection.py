@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from ._panel_fold_intent import panel_is_collapsed
+
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_panels import PanelKey
@@ -46,7 +48,7 @@ class AgentSelectionMixin:
         if panel_keys is None or not (0 <= focused_idx < len(panel_keys)):
             return None
         panel_key = panel_keys[focused_idx]
-        collapsed = panel_key in getattr(self, "_collapsed_panel_keys", set())
+        collapsed = panel_is_collapsed(self, panel_key)
         if not collapsed and not getattr(self, "_expanded_panel_focus", False):
             return None
 

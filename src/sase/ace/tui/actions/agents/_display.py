@@ -36,6 +36,7 @@ from ._display_detail import DetailMixin
 from ._display_helpers import _MAIN_PANEL_ID, TabName, panel_widget_id
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
+from ._panel_fold_intent import effective_panel_collapses
 from ._refresh_trace import (
     AgentRefreshDisplayCost,
     AgentRefreshFallbackReason,
@@ -255,7 +256,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             return False
 
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        collapsed_panel_keys = getattr(self, "_collapsed_panel_keys", ())
+        collapsed_panel_keys = effective_panel_collapses(self)
         if not self._agent_display_widgets_have_previous_rows(previous_agents):
             return False
 

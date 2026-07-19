@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ....hints import parse_numeric_hint_selection
+from ._panel_fold_intent import (
+    effective_panel_collapses,
+    panel_is_collapsed,
+    set_panel_fold_intent,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -32,6 +37,7 @@ class AgentPanelHintFoldingMixin:
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
     _collapsed_panel_keys: set[PanelKey]
+    _expanded_panel_keys: set[PanelKey]
     _current_group_key: tuple[str, ...] | None
     _hint_mode_active: bool
     _hint_mode_hints_for: str | None
@@ -100,14 +106,14 @@ class AgentPanelHintFoldingMixin:
             self._agents,
             focused_key,
             merge_tribe_panels=bool(getattr(self, "_agent_panels_grouped", False)),
-            collapsed_panel_keys=getattr(self, "_collapsed_panel_keys", set()),
+            collapsed_panel_keys=effective_panel_collapses(self),
         )
         panel_keys = tuple(live_panel_group.panel_keys)
         if not panel_keys:
             return ()
 
         merged = bool(getattr(self, "_agent_panels_grouped", False))
-        collapsed_keys = set(getattr(self, "_collapsed_panel_keys", set()))
+        collapsed_keys = effective_panel_collapses(self, panel_keys)
         fold_counts = getattr(self, "_fold_counts", {})
         mode: GroupingMode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
         targets: list[FoldHintTarget] = []
@@ -266,12 +272,12 @@ class AgentPanelHintFoldingMixin:
         for target in selected_targets:
             if target[0] == "panel":
                 panel_key = target[1]
-                if panel_key in self._collapsed_panel_keys:
-                    self._collapsed_panel_keys.discard(panel_key)
+                if panel_is_collapsed(self, panel_key):
+                    set_panel_fold_intent(self, panel_key, collapsed=False)
                     expanded += 1
                     new_collapsed = False
                 else:
-                    self._collapsed_panel_keys.add(panel_key)
+                    set_panel_fold_intent(self, panel_key, collapsed=True)
                     collapsed += 1
                     new_collapsed = True
                 focused_panel_toggled |= panel_key == focused_key
@@ -316,14 +322,14 @@ class AgentPanelHintFoldingMixin:
         if focused_panel_toggled:
             self.current_attempt_number = None
             self._current_group_key = None
-            focused_now_collapsed = focused_key in self._collapsed_panel_keys
+            focused_now_collapsed = panel_is_collapsed(self, focused_key)
             self._expanded_panel_focus = False
             if focused_now_collapsed:
                 global_indices, _panel_agents = rendered_panel_slice(self, focused_key)
                 if global_indices:
                     self.current_idx = global_indices[0]
 
-        if group_changed and focused_key not in self._collapsed_panel_keys:
+        if group_changed and not panel_is_collapsed(self, focused_key):
             snap_group_focus = getattr(
                 self, "_snap_focus_after_group_fold_change", None
             )

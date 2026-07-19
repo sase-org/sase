@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ...util.trace import tui_trace
 from ._display_helpers import panel_widget_id
 from ._display_panel_state import PanelRefreshStateMixin
+from ._panel_fold_intent import effective_panel_collapses, panel_is_collapsed
 
 if TYPE_CHECKING:
     from ...models.agent_panels import PanelKey
@@ -30,9 +31,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         option_counts = [max(0, int(getattr(w, "option_count", 0))) for w in widgets]
         panel_keys = getattr(self._panel_group, "panel_keys", [])
         if len(panel_keys) == len(widgets):
-            collapsed_keys: set[PanelKey] = getattr(
-                self, "_collapsed_panel_keys", set()
-            )
+            collapsed_keys = effective_panel_collapses(self, panel_keys)
             collapsed = [key in collapsed_keys for key in panel_keys]
         else:
             collapsed = [
@@ -186,7 +185,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                     local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
                 if selected_expanded:
                     widget.clear_highlight()
-                elif focused_key not in getattr(self, "_collapsed_panel_keys", set()):
+                elif not panel_is_collapsed(self, focused_key):
                     widget.update_highlight(
                         local_idx,
                         self.current_attempt_number,

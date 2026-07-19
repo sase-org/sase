@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual import events
 
 from ..widgets import AgentList, BgCmdList, ChangeSpecList, TabBar
+from .agents._panel_fold_intent import panel_is_collapsed
 from ._event_base import EventHandlersBase
 
 
@@ -41,7 +42,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             return
         panel_key = panel_keys[panel_idx]
         if (
-            panel_key not in getattr(self, "_collapsed_panel_keys", set())
+            not panel_is_collapsed(self, panel_key)
             or panel_idx == panel_group.focused_idx
         ):
             return

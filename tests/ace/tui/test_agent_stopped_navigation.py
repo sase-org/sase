@@ -185,7 +185,7 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
         name="target",
         status="PLAN",
         raw_suffix="target",
-        tribe="chop",
+        tribe="alpha",
         start_time=datetime(2026, 5, 7, 12, 0, 0),
     )
     target.plan_times = [datetime(2026, 5, 7, 12, 0, 0)]
@@ -195,7 +195,7 @@ def test_jump_to_next_stopped_agent_finds_non_focused_panel_row() -> None:
         with_panels=True,
         focused_key=None,
     )
-    assert app._panel_group.panel_keys == [None, "chop"]
+    assert app._panel_group.panel_keys == [None, "alpha"]
     assert app._panel_group.focused_idx == 0
 
     assert app._jump_to_next_stopped_agent()

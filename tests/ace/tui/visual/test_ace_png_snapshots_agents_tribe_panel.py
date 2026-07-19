@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -90,6 +91,75 @@ def _tribe_agents() -> list[Agent]:
         agent_name="visual-home",
     )
     return [home, family_root, family_child, failed]
+
+
+def _tribe_display_agents() -> list[Agent]:
+    started = datetime(2026, 7, 18, 14, 0, 0)
+    return [
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name=f"visual-{name}",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=started,
+            run_start_time=started,
+            raw_suffix=f"visual-{name}",
+            agent_name=f"visual-{name}",
+            tribe=tribe,
+        )
+        for name, tribe in (
+            ("default", None),
+            ("epic", "epic"),
+            ("research", "research"),
+            ("chop", "chop"),
+            ("pinned", "pinned"),
+            ("review", "review"),
+        )
+    ]
+
+
+async def test_tribe_panel_display_config_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_tribe_display_agents())
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 6)
+        await wait_for_visual_idle(page)
+
+        assert page.app._panel_group.panel_keys == [
+            None,
+            "epic",
+            "pinned",
+            "research",
+            "review",
+            "chop",
+        ]
+        assert page.app._collapsed_panel_keys == set()
+        assert page.app._expanded_panel_keys == set()
+        titles = [
+            Text.from_markup(widget.border_title).plain
+            for widget in page.app.query("AgentList")
+        ]
+        for label in (
+            "⌂ @default",
+            "▲ @epic",
+            "◆ @pinned",
+            "∴ @research",
+            "◉ @review",
+            "▸ † @chop",
+        ):
+            assert any(label in title for title in titles)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_tribe_panel_display_config_120x40",
+            title="ACE per-tribe panel display config",
+        )
 
 
 async def test_tribe_panel_four_level_png_snapshots(
@@ -203,7 +273,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert focus.panel_key == "epic"
         assert focus.collapsed is False
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "❖ @epic")
+        assert_page_svg_contains(page, "❖ ▲ @epic")
         ace_png_visual.assert_page_png(
             page,
             "agents_tribe_panel_selected_expanded_120x40",

@@ -101,7 +101,7 @@ def test_snapshot_preserves_mixed_unit_order_and_aggregates_loaded_rows() -> Non
     )
 
     assert snapshot.container_identity == _tribe_panel_identity("epic")
-    assert snapshot.label == "@epic"
+    assert snapshot.label == "▲ @epic"
     assert snapshot.panel_collapsed is True
     assert [unit.kind for unit in snapshot.units] == ["clan", "family", "agent"]
     assert [unit.label for unit in snapshot.units] == [
@@ -134,7 +134,7 @@ def test_attention_digest_and_default_identity_use_unit_statuses() -> None:
         now=_NOW,
     )
 
-    assert snapshot.label == "@default"
+    assert snapshot.label == "⌂ @default"
     assert snapshot.container_identity == ("panel", None)
     assert snapshot.panel_collapsed is False
     assert [(entry.unit_label, entry.preview) for entry in snapshot.attention] == [

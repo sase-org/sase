@@ -299,7 +299,7 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
     monkeypatch: Any,
 ) -> None:
     home = _agent("home", "home", tribe=None, status="DONE", pid=None)
-    chop = _agent("chop", "chop", status="DONE", pid=None)
+    chop = _agent("chop", "chop", tribe="alpha", status="DONE", pid=None)
     keep = _agent("keep", "keep", tribe="keep", status="DONE", pid=None)
     patch_startup_loaders(monkeypatch, agents=[home, chop, keep])
     persistence_submissions: list[tuple[Any, ...]] = []
@@ -314,13 +314,13 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.press("J")
-        assert page.app._panel_group.focused_key == "chop"
+        assert page.app._panel_group.focused_key == "alpha"
         await page.press("h")
         await page.wait_for(
             lambda _screen: page.app._resolve_focused_panel() is not None
         )
         await page.press("h")
-        await page.wait_for(lambda _screen: "chop" in page.app._collapsed_panel_keys)
+        await page.wait_for(lambda _screen: "alpha" in page.app._collapsed_panel_keys)
 
         await page.press("x")
         await page.expect_modal("ConfirmDismissAllModal")
@@ -328,14 +328,14 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
         await page.expect_no_modal()
         assert chop.identity not in {agent.identity for agent in page.app._agents}
         await page.wait_for(
-            lambda _screen: "chop" not in page.app._panel_group.panel_keys
+            lambda _screen: "alpha" not in page.app._panel_group.panel_keys
         )
 
         assert {agent.identity for agent in page.app._agents} == {
             home.identity,
             keep.identity,
         }
-        assert "chop" not in page.app._collapsed_panel_keys
+        assert "alpha" not in page.app._collapsed_panel_keys
         assert page.app._panel_group.focused_key in {None, "keep"}
         selected = page.app._get_selected_agent()
         assert selected is not None
