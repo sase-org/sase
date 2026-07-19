@@ -279,7 +279,9 @@ def test_runner_launches_proposals_in_order_with_wait_directive(
 def test_launch_failure_releases_only_unlaunched_once_per_keys(
     temp_state_dir: Path,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     _result_script(
         tmp_path,
         "docs",
@@ -329,6 +331,8 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
     assert outcome.run_id is not None
     entry = read_chop_run("docs", "docs", outcome.run_id)
     assert entry is not None
+    assert entry.status == "launched"
+    assert entry.finished_at is None
     assert entry.launches == list(outcome.launches)
     assert entry.launches[0]["dedupe_key"] == "docs:refresh"
     assert entry.launches[0]["artifacts_timestamp"] == "20260718120000"
@@ -359,6 +363,30 @@ def test_launch_failure_releases_only_unlaunched_once_per_keys(
     assert once_per.accepted_indices == (1,)
     assert once_per.decisions[0]["outcome"] == "duplicate"
     assert once_per.decisions[1]["outcome"] == "accept"
+
+    _record_agent(outcome.run_id, pid=100, timestamp="260718_120000")
+    failed_artifacts = resolve_agent_artifact_timestamp_path(
+        "sase", "ace-run", "20260718120000"
+    )
+    failed_artifacts.mkdir(parents=True)
+    (failed_artifacts / "done.json").write_text(
+        json.dumps({"outcome": "failed"}), encoding="utf-8"
+    )
+
+    assert finalize_launched_chop_runs("docs", ["docs"]) == 1
+    finalized = read_chop_run("docs", "docs", outcome.run_id)
+    assert finalized is not None
+    assert finalized.status == "action_failed"
+    assert finalized.error is not None
+    assert "proposal launch failed: launcher unavailable" in finalized.error
+
+    retried = apply_chop_once_per(
+        lumberjack_name="docs",
+        chop=chop,
+        proposals=reproposed,
+        persist=False,
+    )
+    assert retried.accepted_indices == (0, 1)
 
 
 def test_runner_launches_with_wait_relinked_across_duplicate(

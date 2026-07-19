@@ -289,11 +289,12 @@ def finalize_launched_chop_runs(
                     launches=list(entry.launches),
                 )
 
-            failures = [
+            failures = [f"proposal launch failed: {entry.error}"] if entry.error else []
+            failures.extend(
                 completion.detail
                 for completion in completions
                 if not completion.succeeded
-            ]
+            )
             checkpoint_event: Literal["action_succeeded", "action_failed"] = (
                 "action_failed" if failures else "action_succeeded"
             )
@@ -330,7 +331,7 @@ def finalize_launched_chop_runs(
                 exit_code=entry.exit_code,
                 agent_pid=entry.agent_pid,
                 error=detail if failures else None,
-                traceback=None,
+                traceback=entry.traceback,
             )
             remove_chop_agent_records(
                 lumberjack_name,
