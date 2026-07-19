@@ -104,6 +104,7 @@ def test_extract_step_output_surfaces_commit_results_list(
                     "message": "fix: primary",
                     "result": "abc123",
                     "cwd": "/workspace/sase_7",
+                    "changespec_name": "sase-primary",
                     "diff_path": "/tmp/primary.diff",
                     "entry_id": "1",
                 },
@@ -112,8 +113,14 @@ def test_extract_step_output_surfaces_commit_results_list(
                     "result": "def456",
                     "cwd": "/workspace/sase-core_7",
                     "repo_name": "sase-core",
+                    "commit_changespec_name": "sase-linked",
                     "commit_diff_path": "/tmp/linked.diff",
                     "entry_id": "2",
+                },
+                {
+                    "message": "chore: unattributed",
+                    "result": "789abc",
+                    "cwd": "/workspace/tools_7",
                 },
             ]
         )
@@ -131,6 +138,7 @@ def test_extract_step_output_surfaces_commit_results_list(
             "message": "fix: primary",
             "sha": "abc123",
             "cwd": "/workspace/sase_7",
+            "changespec_name": "sase-primary",
             "diff_path": "/tmp/primary.diff",
         },
         {
@@ -138,7 +146,13 @@ def test_extract_step_output_surfaces_commit_results_list(
             "sha": "def456",
             "cwd": "/workspace/sase-core_7",
             "repo_name": "sase-core",
+            "changespec_name": "sase-linked",
             "diff_path": "/tmp/linked.diff",
+        },
+        {
+            "message": "chore: unattributed",
+            "sha": "789abc",
+            "cwd": "/workspace/tools_7",
         },
     ]
     assert diff_path == "/tmp/linked.diff"

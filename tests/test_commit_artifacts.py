@@ -161,7 +161,9 @@ class TestWriteResultMarker:
             assert data["run_id"] == "20260522112233"
             assert data["cwd"] == os.getcwd()
 
-    def test_persists_commit_diff_path_without_graph_relationships(self) -> None:
+    def test_persists_primary_commit_metadata_without_graph_relationships(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"
             meta_path.write_text(json.dumps({"name": "agent-alpha"}))
@@ -187,10 +189,10 @@ class TestWriteResultMarker:
             assert meta == {
                 "name": "agent-alpha",
                 "commit_diff_path": diff_path,
+                "commit_changespec_name": "proj_feat_1",
             }
             assert "commit_entry_id" not in meta
             assert "commit_result" not in meta
-            assert "commit_changespec_name" not in meta
             update_index.assert_called_once_with(tmpdir)
 
     @pytest.mark.parametrize("existing_diff", [None, "/tmp/primary.diff"])
@@ -205,7 +207,11 @@ class TestWriteResultMarker:
         artifacts_dir.mkdir()
         (primary / ".git").mkdir(parents=True)
         (sidecar / ".git").mkdir(parents=True)
-        meta = {"name": "agent-alpha", "workspace_dir": str(primary)}
+        meta = {
+            "name": "agent-alpha",
+            "workspace_dir": str(primary),
+            "commit_changespec_name": "primary_spec",
+        }
         if existing_diff is not None:
             meta["commit_diff_path"] = existing_diff
         meta_path = artifacts_dir / "agent_meta.json"
@@ -224,11 +230,12 @@ class TestWriteResultMarker:
                 {"message": "docs: sidecar"},
                 "/tmp/sidecar.diff",
                 "def456",
-                None,
+                "sidecar_spec",
             )
 
         persisted = json.loads(meta_path.read_text(encoding="utf-8"))
         assert persisted.get("commit_diff_path") == existing_diff
+        assert persisted["commit_changespec_name"] == "primary_spec"
         results = json.loads(
             (artifacts_dir / "commit_results.json").read_text(encoding="utf-8")
         )
@@ -261,11 +268,12 @@ class TestWriteResultMarker:
                 {"message": "fix: primary"},
                 "/tmp/primary.diff",
                 "abc123",
-                None,
+                "primary_spec",
             )
 
         persisted = json.loads(meta_path.read_text(encoding="utf-8"))
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
+        assert persisted["commit_changespec_name"] == "primary_spec"
 
     def test_sidecar_commit_records_store_repo_name(
         self,
@@ -345,6 +353,7 @@ class TestWriteResultMarker:
                 {
                     "workspace_dir": str(primary),
                     "commit_diff_path": "/tmp/primary.diff",
+                    "commit_changespec_name": "primary_spec",
                 }
             ),
             encoding="utf-8",
@@ -364,7 +373,7 @@ class TestWriteResultMarker:
                 {"message": "fix: external"},
                 diff_path,
                 "def456",
-                None,
+                "external_spec",
             )
 
         results = json.loads(
@@ -375,8 +384,9 @@ class TestWriteResultMarker:
         assert Path(diff_path).read_text(encoding="utf-8").startswith("diff --git")
         persisted = json.loads(meta_path.read_text(encoding="utf-8"))
         assert persisted["commit_diff_path"] == "/tmp/primary.diff"
+        assert persisted["commit_changespec_name"] == "primary_spec"
 
-    def test_does_not_update_agent_meta_without_diff_path(self) -> None:
+    def test_persists_changespec_without_diff_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             meta_path = Path(tmpdir) / "agent_meta.json"
             meta_path.write_text(json.dumps({"name": "agent-alpha"}))
@@ -398,7 +408,64 @@ class TestWriteResultMarker:
                 )
 
             meta = json.loads(meta_path.read_text())
-            assert meta == {"name": "agent-alpha"}
+            assert meta == {
+                "name": "agent-alpha",
+                "commit_changespec_name": "proj_feat_1",
+            }
+            update_index.assert_called_once_with(tmpdir)
+
+    def test_primary_commit_metadata_skips_noop_rewrite(self, tmp_path: Path) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        primary = tmp_path / "sase_7"
+        artifacts_dir.mkdir()
+        (primary / ".git").mkdir(parents=True)
+        meta = {
+            "workspace_dir": str(primary),
+            "commit_diff_path": "/tmp/primary.diff",
+            "commit_changespec_name": "primary_spec",
+        }
+        meta_path = artifacts_dir / "agent_meta.json"
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        with (
+            patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": str(artifacts_dir)}),
+            patch("os.getcwd", return_value=str(primary)),
+            patch(
+                "sase.workflows.commit.commit_tracking."
+                "update_agent_artifact_index_for_marker_mutation"
+            ) as update_index,
+        ):
+            write_result_marker(
+                "create_commit",
+                {"message": "fix: primary"},
+                "/tmp/primary.diff",
+                "abc123",
+                "primary_spec",
+            )
+
+        assert json.loads(meta_path.read_text(encoding="utf-8")) == meta
+        update_index.assert_not_called()
+
+    def test_does_not_update_agent_meta_without_commit_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            meta_path = Path(tmpdir) / "agent_meta.json"
+            meta_path.write_text(json.dumps({"name": "agent-alpha"}))
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.workflows.commit.commit_tracking."
+                    "update_agent_artifact_index_for_marker_mutation"
+                ) as update_index,
+            ):
+                write_result_marker(
+                    "create_commit",
+                    {"message": "fix: bug"},
+                    None,
+                    "abc123",
+                    None,
+                )
+
+            assert json.loads(meta_path.read_text()) == {"name": "agent-alpha"}
             update_index.assert_not_called()
 
     def test_skips_when_no_artifacts_dir(self) -> None:

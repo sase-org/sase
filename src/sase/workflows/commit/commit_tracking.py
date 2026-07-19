@@ -281,26 +281,29 @@ def _repository_root(path: object) -> str | None:
     return None
 
 
-def _persist_commit_diff_path(
+def _persist_primary_commit_metadata(
     artifacts_dir: str,
     diff_path: str | None,
+    changespec_name: str | None,
     *,
     commit_cwd: str | None = None,
 ) -> None:
-    """Persist the generic primary-repository commit diff fallback.
+    """Persist generic primary-repository commit metadata fallbacks.
 
     ``commit_results.json`` records every commit with its repository-aware
-    metadata.  ``agent_meta.json["commit_diff_path"]`` has a narrower
-    contract: it is the fallback diff for the agent's primary workspace.  Do
-    not let a linked, external, sidecar, or temporary repository replace that
-    value.
+    metadata.  The corresponding ``agent_meta.json`` fields have a narrower
+    contract: they describe commits in the agent's primary workspace.  Do not
+    let a linked, external, sidecar, or temporary repository replace them.
 
     Historical agents may lack ``workspace_dir`` or use an unrecognized VCS
     layout.  In those cases repository identity cannot be proven, so retain
-    the previous conservative behavior and publish the diff rather than
-    silently dropping the only persisted artifact.
+    the previous conservative behavior and publish the metadata rather than
+    silently dropping the only persisted attribution.
     """
-    if not diff_path:
+    normalized_changespec_name = (
+        changespec_name.strip() if changespec_name and changespec_name.strip() else None
+    )
+    if not diff_path and not normalized_changespec_name:
         return
 
     meta_path = os.path.join(artifacts_dir, "agent_meta.json")
@@ -317,9 +320,18 @@ def _persist_commit_diff_path(
             and primary_root != commit_root
         ):
             return
-        if meta.get("commit_diff_path") == diff_path:
+        changed = False
+        if diff_path and meta.get("commit_diff_path") != diff_path:
+            meta["commit_diff_path"] = diff_path
+            changed = True
+        if (
+            normalized_changespec_name
+            and meta.get("commit_changespec_name") != normalized_changespec_name
+        ):
+            meta["commit_changespec_name"] = normalized_changespec_name
+            changed = True
+        if not changed:
             return
-        meta["commit_diff_path"] = diff_path
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f, indent=2)
         update_agent_artifact_index_for_marker_mutation(artifacts_dir)
@@ -528,7 +540,12 @@ def write_result_marker(
     with open(marker_path, "w", encoding="utf-8") as f:
         json.dump(marker, f)
     _upsert_commit_results_marker(artifacts_dir, marker)
-    _persist_commit_diff_path(artifacts_dir, diff_path, commit_cwd=commit_cwd)
+    _persist_primary_commit_metadata(
+        artifacts_dir,
+        diff_path,
+        changespec_name,
+        commit_cwd=commit_cwd,
+    )
 
 
 def create_changespec(
