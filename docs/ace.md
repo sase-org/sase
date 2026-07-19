@@ -2182,12 +2182,13 @@ instead converts the active pane through a prefilled frontmatter ghost row and r
 helper.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens the same picker from the main ACE
-tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a
-single-prompt row to restore and remove from the stash, `d` marks any row for deletion, `a` toggles all selectable
-single-prompt rows for restore-and-remove, and `Enter` confirms the marked set. With no explicit marks, `Enter` restores
-the highlighted row; pinned rows stay stashed when restored, while unpinned rows are popped. Number keys `1`-`9` and `0`
-restore rows 1-10 directly with the same pin-aware behavior. A small top-bar badge shows how many restorable drafts are
-currently stashed.
+tabs even when the prompt bar is not active. In the picker, `space` toggles a row's persistent pin, `Tab` marks a row to
+restore and remove from the stash, `d` marks one row for deletion, `D` marks every row for deletion, `a` toggles all
+rows for restore-and-remove, and `Enter` confirms the marked set. Delete marks are staged until confirmation, replace
+restore marks for the same rows, and do not alter pin state; `Escape` or `q` cancels without deleting anything. With no
+explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed when restored, while unpinned rows are
+popped. Number keys `1`-`9` and `0` restore rows 1-10 directly with the same pin-aware behavior. A small top-bar badge
+shows how many restorable drafts are currently stashed.
 
 ### Completion
 

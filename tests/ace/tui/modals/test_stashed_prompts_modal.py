@@ -4,9 +4,9 @@ Covers the pure row helpers (preview truncation, project chip, marker styling,
 and shortcut gutter) and the modal's selection model: digit keys restore a
 numbered row, ``space`` toggles a persistent pin intent, ``tab`` marks
 rows for restore, ``a`` toggles all rows, ``d`` marks a row for deletion,
-``enter`` confirms (the marked set, or the highlighted row when nothing is
-marked), and ``esc`` cancels. Pinned restores stay stashed; unpinned restores
-are popped.
+``D`` marks every row for deletion, ``enter`` confirms (the marked set, or the
+highlighted row when nothing is marked), and ``esc`` cancels. Pinned restores
+stay stashed; unpinned restores are popped.
 """
 
 from __future__ import annotations
@@ -593,6 +593,63 @@ async def test_delete_wins_over_prior_pop_selection() -> None:
     assert app.result.delete_ids == ["a"]
 
 
+async def test_delete_all_replaces_restore_marks_and_preserves_pins() -> None:
+    app = _ModalHost(
+        [
+            _entry("restore", created_at="2026-06-16T12:00:00"),
+            _entry(
+                "pinned",
+                pinned=True,
+                created_at="2026-06-16T11:00:00",
+            ),
+            _entry(
+                "bundle",
+                "one\n---\ntwo",
+                created_at="2026-06-16T10:00:00",
+            ),
+        ]
+    )
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+
+        await pilot.press("tab")  # mark "restore" for restore-and-pop
+        await pilot.press("D")
+        await pilot.pause()
+
+        assert modal._pop == set()
+        assert modal._deleted == {"restore", "pinned", "bundle"}
+        assert modal._pinned == {"pinned"}
+        assert all(
+            isinstance(option.prompt, Text) and option.prompt.plain[4:].startswith("✗")
+            for option in modal._build_options()
+        )
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert isinstance(app.result, StashRestoreResult)
+    assert app.result.pop_ids == []
+    assert app.result.keep_ids == []
+    assert set(app.result.delete_ids) == {"restore", "pinned", "bundle"}
+
+
+async def test_single_delete_can_unmark_a_delete_all_row() -> None:
+    app = _ModalHost([_entry("a"), _entry("b")])
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
+
+        await pilot.press("D")
+        await pilot.press("d")
+        await pilot.pause()
+
+        assert modal._deleted == {"b"}
+        assert modal._pop == set()
+
+
 async def test_delete_mark_can_delete_bundle_row() -> None:
     app = _ModalHost([_entry("bundle", "one\n---\ntwo")])
     async with app.run_test(size=(100, 30)) as pilot:
@@ -623,9 +680,9 @@ async def test_title_and_hints_describe_unified_panel() -> None:
         assert isinstance(modal, StashedPromptsModal)
         assert modal._title_text() == "Stashed prompts (1)"
         hints = modal._hint_text()
-        assert "1-9" in hints
-        assert "restore row" in hints
-        assert "tab ✓ restore" in hints
+        assert "1-9/0 restore" in hints
+        assert "tab ✓" in hints
         assert "pin" in hints
         assert "📌" in hints
-        assert "delete" in hints
+        assert "d delete row" in hints
+        assert "D delete all" in hints

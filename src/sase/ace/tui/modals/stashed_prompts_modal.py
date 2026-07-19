@@ -4,10 +4,11 @@ Lists stashed prompts newest-first with numbered restore keycaps, a relative
 age, an originating-project chip, bundle marker, persistent pin marker, and a
 one-line preview. ``1``-``9`` restore rows 1-9, ``0`` restores row 10, ``space``
 toggles any row's pin and posts an intent message for the app layer to persist
-immediately, ``tab`` marks it to restore, ``d`` marks any row for deletion, and
-``enter`` confirms. Pinned rows are restored while staying stashed; unpinned
-rows are restored and popped. The modal never touches the store directly;
-restore/delete decisions are returned as :class:`StashRestoreResult`.
+immediately, ``tab`` marks it to restore, ``d`` marks one row for deletion,
+``D`` marks every row for deletion, and ``enter`` confirms. Pinned rows are
+restored while staying stashed; unpinned rows are restored and popped. The
+modal never touches the store directly; restore/delete decisions are returned
+as :class:`StashRestoreResult`.
 """
 
 from __future__ import annotations
@@ -80,6 +81,7 @@ class StashedPromptsModal(
         ("space", "toggle_pin", "Pin"),
         ("a", "toggle_all", "All"),
         ("d", "mark_delete", "Delete"),
+        ("D", "mark_delete_all", "Delete All"),
         Binding("ctrl+d", "scroll_preview_down", "Preview Down", priority=True),
         Binding("ctrl+u", "scroll_preview_up", "Preview Up", priority=True),
         *[
@@ -149,8 +151,8 @@ class StashedPromptsModal(
 
     def _hint_text(self) -> str:
         return (
-            "1-9 0 restore row · j/k navigate · enter confirm · esc/q cancel\n"
-            f"space {PIN_GLYPH} pin · tab ✓ restore · d ✗ delete · a all · ^d/^u preview"
+            "1-9/0 restore · a all · j/k move · enter · esc/q · ^d/u\n"
+            f"space {PIN_GLYPH} pin · tab ✓ · d delete row · D delete all"
         )
 
     def _build_options(self, *, preview_width: int | None = None) -> list[Option]:
@@ -334,6 +336,14 @@ class StashedPromptsModal(
         else:
             self._deleted.add(entry.id)
             self._pop.discard(entry.id)
+        self._refresh_rows()
+
+    def action_mark_delete_all(self) -> None:
+        entry_ids = {entry.id for entry in self._entries}
+        if not entry_ids:
+            return
+        self._deleted.update(entry_ids)
+        self._pop.difference_update(entry_ids)
         self._refresh_rows()
 
     def _single_restore_result(self, entry: PromptStashEntryWire) -> StashRestoreResult:
