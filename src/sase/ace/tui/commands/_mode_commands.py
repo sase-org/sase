@@ -37,7 +37,7 @@ _FOLD_LABELS: dict[str, str] = {
 
 _AGENT_FOLD_LABELS: dict[str, str] = {
     "cycle_level": "Cycle metadata panel fold level",
-    "cycle_level_back": "Cycle metadata panel fold level backward",
+    "toggle_all": "Toggle all metadata folds",
     "cycle_section": "Cycle current metadata section fold",
     "toggle_section": "Toggle current metadata section fold",
     "set_level_1": "Set metadata panel fold level 1",

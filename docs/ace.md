@@ -421,22 +421,22 @@ scale: family level 1 is expanded and level 2 is fully expanded.
 
 The default fold chords are:
 
-| Key       | Action                                                                   |
-| --------- | ------------------------------------------------------------------------ |
-| `zz`      | Cycle the whole metadata panel forward: 1 → 2 → 3 → 1                    |
-| `zZ`      | Cycle the whole metadata panel backward                                  |
-| `za`      | Cycle the section or numbered member at the top of the metadata viewport |
-| `zA`      | Toggle that section or member between collapsed and fully expanded       |
-| `z1`-`z2` | Set a family directly to level 1 or 2                                    |
-| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3          |
-| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                   |
+| Key       | Action                                                                                  |
+| --------- | --------------------------------------------------------------------------------------- |
+| `zz`      | Cycle the whole metadata panel forward through its active scale                         |
+| `zZ`      | Open every fold to the active maximum; at that maximum, close every fold to the minimum |
+| `za`      | Cycle the section or numbered member at the top of the metadata viewport                |
+| `zA`      | Toggle that section or member between collapsed and fully expanded                      |
+| `z1`-`z2` | Set a family directly to level 1 or 2                                                   |
+| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                         |
+| `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                  |
 
 The `Fold: N/M` header field reports the position within the active scale, while the heading glyphs show effective
-per-section levels. A valid panel-level cycle or direct selection clears per-section overrides. Fold state is shared by
-the Agents metadata panel: ordinary agents do not fold their sections, but using a chord on one records the three-level
-session scope that the next selected clan or family container will use. A selected whole tribe panel adds level 4 for
-exhaustive detail. These keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for the
-grouping model.
+per-section levels. A valid panel-level cycle, extreme toggle, or direct selection clears per-section overrides. Fold
+state is shared by the Agents metadata panel: ordinary agents do not fold their sections, but using a chord on one
+records the three-level session scope that the next selected clan or family container will use. A selected whole tribe
+panel adds level 4 for exhaustive detail. These keys are configurable; see
+[Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
 `SASE CONTEXT`. The section ranks intent and inputs before outputs: `PLAN`, the audited `MEMORY`, `SKILLS`, and
@@ -619,7 +619,7 @@ custom selector. Whole-clan selections are planned by clan name and generation; 
 explicit agent identities. Both paths continue through the shared bulk-cleanup confirmation and execution flow.
 
 The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`, `zZ`, `za`, and `zA` chords used for
-clan and family detail:
+clan and family detail. From levels 1-3, `zZ` opens every fold to level 4; at level 4, it closes every fold to level 1:
 
 | Level | Tribe summary content                                                                                                   |
 | ----- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -632,7 +632,7 @@ Replies and slow-call details load when their effective section level reaches 3 
 request them before the whole document reaches that level. All-time tribe runtime statistics load when the runtime
 section reaches level 4. A `loading…` row means that enrichment is running off-thread. Number keys jump from the roster
 to one of the top-level units, expanding the required panel and ancestor folds first. Section-level overrides inherit
-from the panel level and are cleared by a valid panel-level cycle or direct `z1`-`z4` selection.
+from the panel level and are cleared by a valid panel-level cycle, `zZ` extreme toggle, or direct `z1`-`z4` selection.
 
 Tribes are set or cleared with `N` (see [Agent Actions](#agent-actions)). When opening the modal on an agent without a
 tribe the input is pre-seeded with `pinned` so a single Enter promotes the agent into the standard "pinned" panel; that

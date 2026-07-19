@@ -78,11 +78,12 @@ The summary has three session-only fold levels:
 | 2     | Bounded triage digests, such as one-line error and reply previews, variable values, and context-lane summaries |
 | 3     | Full section bodies grouped by member for detailed investigation                                               |
 
-Press `zz` to cycle levels 1 → 2 → 3 → 1, `zZ` to cycle backward, or `z1`-`z3` to select an exact level. `za` cycles
-only the section at the top of the metadata viewport; `zA` toggles that section between collapsed and fully expanded. A
-valid panel-level cycle or direct selection clears these per-section overrides. The `Fold: N/3` field in the `CLAN`
-header always shows the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level.
-Disk-backed content may briefly show `loading…` when a section first opens.
+Press `zz` to cycle levels 1 → 2 → 3 → 1. Press `zZ` below level 3 to open every fold to level 3, or press it at level 3
+to close every fold to level 1. Use `z1`-`z3` to select an exact level. `za` cycles only the section at the top of the
+metadata viewport; `zA` toggles that section between collapsed and fully expanded. A valid panel-level cycle, extreme
+toggle, or direct selection clears these per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows
+the current panel level, while the `▸`/`▾`/`▼` heading glyph shows each section's effective level. Disk-backed content
+may briefly show `loading…` when a section first opens.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
 lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
@@ -156,10 +157,11 @@ scaffolding are not. The same `zz`, `zZ`, `za`, and `zA` chords used by clan sum
 root's output variables, workflow variables, SASE context, slow calls, errors, xprompt, prompt, and consolidated reply.
 
 Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry, context, and prompt/reply
-previews; level 2 adds full available content and member workspace, timestamp, and attempt annotations. Press `z1` or
-`z2` to select either level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and
-section overrides untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn
-inherits the panel level.
+previews; level 2 adds full available content and member workspace, timestamp, and attempt annotations. Press `zZ` at
+level 1 to open every fold to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select either
+level directly. `z3` and `z4` are invalid in a family context and leave both the panel level and section overrides
+untouched. A member-specific override inherits from the `FAMILY MEMBERS` section, which in turn inherits the panel
+level.
 
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%n` performs the attachment:
 
@@ -228,11 +230,12 @@ but a lone panel cannot be collapsed.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four `zz` metadata detail levels
 progress from an operational pulse, to a numbered top-level roster, to nested member and disk-backed reply/slow-call
-detail, and finally to full forensics with runtime percentiles. `zZ` cycles backward; `za` and `zA` adjust the section
-or member at the top of the metadata viewport. Replies and slow calls load off-thread when their effective section level
-reaches 3; all-time runtime statistics load when the runtime section reaches level 4. A section override can therefore
-request enrichment before the whole document reaches that level. The roster's number keys jump to top-level clans,
-families, workflows, or agents and expand only the required ancestors.
+detail, and finally to full forensics with runtime percentiles. From levels 1-3, `zZ` opens every fold to level 4; at
+level 4, it closes every fold to level 1. `za` and `zA` adjust the section or member at the top of the metadata
+viewport. Replies and slow calls load off-thread when their effective section level reaches 3; all-time runtime
+statistics load when the runtime section reaches level 4. A section override can therefore request enrichment before the
+whole document reaches that level. The roster's number keys jump to top-level clans, families, workflows, or agents and
+expand only the required ancestors.
 
 Use `z1`-`z3` to select the collapsed, expanded, or fully expanded view directly; `z4` selects the exhaustive view,
 including unbounded roster annotations and runtime statistics. Direct numeric fold chords remain inside fold mode and do

@@ -1,16 +1,6 @@
 """Tests for metadata-panel fold levels and per-section overrides."""
 
-from sase.ace.tui.models.fold_state import (
-    FoldLevel,
-    SectionFoldStateManager,
-    cycle_backward,
-)
-
-
-def test_cycle_backward_wraps_all_three_levels() -> None:
-    assert cycle_backward(FoldLevel.COLLAPSED) is FoldLevel.FULLY_EXPANDED
-    assert cycle_backward(FoldLevel.FULLY_EXPANDED) is FoldLevel.EXPANDED
-    assert cycle_backward(FoldLevel.EXPANDED) is FoldLevel.COLLAPSED
+from sase.ace.tui.models.fold_state import FoldLevel, SectionFoldStateManager
 
 
 def test_section_overrides_inherit_cycle_toggle_and_clear() -> None:

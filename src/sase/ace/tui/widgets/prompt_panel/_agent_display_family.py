@@ -83,6 +83,7 @@ def append_family_fold_heading(
         heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(text, heading, section_id=section_id)
 
+
 def _family_roster_entries(
     agent: Agent,
     *,

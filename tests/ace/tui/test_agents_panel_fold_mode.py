@@ -91,7 +91,7 @@ def _press(app: _FoldApp, key: str) -> None:
     assert app._fold_mode_active is False
 
 
-def test_agents_panel_level_cycles_forward_backward_and_clears_overrides() -> None:
+def test_agents_panel_level_cycles_forward_and_toggles_extremes() -> None:
     app = _FoldApp()
     app._panel_fold_overrides.set("errors", FoldLevel.FULLY_EXPANDED)
 
@@ -107,8 +107,6 @@ def test_agents_panel_level_cycles_forward_backward_and_clears_overrides() -> No
     _press(app, "Z")
     assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
     _press(app, "Z")
-    assert app.panel_fold_level is FoldLevel.EXPANDED
-    _press(app, "Z")
     assert app.panel_fold_level is FoldLevel.COLLAPSED
 
 
@@ -121,6 +119,8 @@ def test_family_panel_level_cycles_within_two_level_scale() -> None:
     assert app.panel_fold_level is FoldLevel.EXPANDED
     _press(app, "Z")
     assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
+    _press(app, "Z")
+    assert app.panel_fold_level is FoldLevel.EXPANDED
 
 
 def test_whole_panel_focus_cycles_within_four_level_tribe_scale() -> None:
@@ -139,11 +139,69 @@ def test_whole_panel_focus_cycles_within_four_level_tribe_scale() -> None:
     assert app.panel_fold_level is FoldLevel.EXHAUSTIVE
 
     _press(app, "Z")
-    assert app.panel_fold_level is FoldLevel.FULLY_EXPANDED
-    _press(app, "Z")
-    assert app.panel_fold_level is FoldLevel.EXPANDED
-    _press(app, "Z")
     assert app.panel_fold_level is FoldLevel.COLLAPSED
+
+
+@pytest.mark.parametrize(
+    ("app", "level", "expected"),
+    [
+        (
+            _FoldApp(clan=False, family=True),
+            FoldLevel.COLLAPSED,
+            FoldLevel.FULLY_EXPANDED,
+        ),
+        (
+            _FoldApp(clan=False, family=True),
+            FoldLevel.EXPANDED,
+            FoldLevel.FULLY_EXPANDED,
+        ),
+        (
+            _FoldApp(clan=False, family=True),
+            FoldLevel.FULLY_EXPANDED,
+            FoldLevel.EXPANDED,
+        ),
+        (_FoldApp(clan=False, family=True), FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
+        (_FoldApp(), FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(), FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
+        (_FoldApp(), FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED),
+        (_FoldApp(), FoldLevel.EXHAUSTIVE, FoldLevel.COLLAPSED),
+        (_FoldApp(panel_focused=True), FoldLevel.COLLAPSED, FoldLevel.EXHAUSTIVE),
+        (_FoldApp(panel_focused=True), FoldLevel.EXPANDED, FoldLevel.EXHAUSTIVE),
+        (
+            _FoldApp(panel_focused=True),
+            FoldLevel.FULLY_EXPANDED,
+            FoldLevel.EXHAUSTIVE,
+        ),
+        (_FoldApp(panel_focused=True), FoldLevel.EXHAUSTIVE, FoldLevel.COLLAPSED),
+    ],
+)
+def test_agents_toggle_all_uses_active_scale_extremes(
+    app: _FoldApp,
+    level: FoldLevel,
+    expected: FoldLevel,
+) -> None:
+    app.panel_fold_level = level
+    app._panel_fold_overrides.set("errors", FoldLevel.EXPANDED)
+    changespec_folds = (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    )
+
+    _press(app, "Z")
+
+    assert app.panel_fold_level is expected
+    assert app._panel_fold_overrides.snapshot() == {}
+    assert app.refresh_count == 1
+    assert (
+        app.commits_collapsed,
+        app.hooks_collapsed,
+        app.mentors_collapsed,
+        app.timestamps_collapsed,
+        app.deltas_collapsed,
+    ) == changespec_folds
 
 
 @pytest.mark.parametrize(
@@ -366,9 +424,9 @@ def test_regular_agent_fold_change_shows_scope_toast_but_containers_do_not() -> 
     clan = _FoldApp(clan=True)
     family = _FoldApp(clan=False, family=True)
 
-    _press(regular, "z")
-    _press(clan, "z")
-    _press(family, "z")
+    _press(regular, "Z")
+    _press(clan, "Z")
+    _press(family, "Z")
 
     assert regular.notifications == [
         "Fold levels currently shape clan and family summaries"
@@ -393,7 +451,7 @@ def test_agents_fold_footer_uses_nested_agent_submap() -> None:
             ("2", "level 2"),
             ("3", "level 3"),
             ("z", "level forward"),
-            ("Z", "level back"),
+            ("Z", "toggle all"),
             ("a", "section forward"),
             ("A", "toggle section"),
         ],
@@ -544,6 +602,8 @@ async def test_mounted_clan_fold_chords_zoom_and_changespec_isolation(
 
         await page.press("z", "z")
         assert page.app.panel_fold_level is FoldLevel.EXPANDED
+        await page.press("z", "Z")
+        assert page.app.panel_fold_level is FoldLevel.FULLY_EXPANDED
         await page.press("z", "Z")
         assert page.app.panel_fold_level is FoldLevel.COLLAPSED
 

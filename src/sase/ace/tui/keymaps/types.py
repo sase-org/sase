@@ -512,7 +512,7 @@ class FoldModeKeymaps(ModeKeymaps):
             "set_level_3": "3",
             "agents": {
                 "cycle_level": "z",
-                "cycle_level_back": "Z",
+                "toggle_all": "Z",
                 "cycle_section": "a",
                 "toggle_section": "A",
                 "set_level_1": "1",

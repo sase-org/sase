@@ -268,7 +268,7 @@ def test_fold_mode_agent_defaults_and_nested_override() -> None:
     assert isinstance(agent_keys, dict)
     assert agent_keys == {
         "cycle_level": "z",
-        "cycle_level_back": "Z",
+        "toggle_all": "Z",
         "cycle_section": "s",
         "toggle_section": "A",
         "set_level_1": "1",
@@ -277,6 +277,58 @@ def test_fold_mode_agent_defaults_and_nested_override() -> None:
         "set_level_4": "4",
     }
     assert reg.fold_mode.keys["cycle_commits"] == "c"
+
+
+def test_legacy_agents_reverse_cycle_override_migrates_to_toggle_all(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "fold_mode": {
+                            "keys": {
+                                "agents": {
+                                    "cycle_level_back": "v",
+                                    "toggle_all": "Z",
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
+
+    agent_keys = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_keys, dict)
+    assert agent_keys["toggle_all"] == "v"
+    assert "cycle_level_back" not in agent_keys
+    assert "deprecated" in caplog.text
+
+
+def test_agents_toggle_all_override_wins_over_legacy_alias() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "fold_mode": {
+                        "keys": {
+                            "agents": {
+                                "cycle_level_back": "v",
+                                "toggle_all": "x",
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+    agent_keys = reg.fold_mode.keys["agents"]
+    assert isinstance(agent_keys, dict)
+    assert agent_keys["toggle_all"] == "x"
+    assert "cycle_level_back" not in agent_keys
 
 
 def test_stale_kill_marked_and_edit_override_is_dropped() -> None:

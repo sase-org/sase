@@ -27,15 +27,6 @@ def cycle_forward(level: FoldLevel) -> FoldLevel:
     return FoldLevel.COLLAPSED
 
 
-def cycle_backward(level: FoldLevel) -> FoldLevel:
-    """Cycle the legacy three-level ChangeSpec/axe fold ladder backward."""
-    if level == FoldLevel.COLLAPSED:
-        return FoldLevel.FULLY_EXPANDED
-    if level == FoldLevel.FULLY_EXPANDED:
-        return FoldLevel.EXPANDED
-    return FoldLevel.COLLAPSED
-
-
 def cycle_deltas_fold_level(level: FoldLevel) -> FoldLevel:
     """Cycle DELTAS forward through summary, files, and line details."""
     return cycle_forward(level)

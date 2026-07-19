@@ -13,10 +13,10 @@ from ...models.fold_scale import (
     CLAN_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
     FoldScale,
-    cycle_fold_level_backward,
     cycle_fold_level_forward,
     fold_level_at_position,
     resolve_summary_fold_scale,
+    toggle_fold_scale_extreme,
 )
 from ._types import NavigationMixinBase
 
@@ -175,8 +175,8 @@ class FoldNavigationMixin(NavigationMixinBase):
             )
             self._panel_fold_overrides.clear()
             changed = True
-        elif key == agent_keys["cycle_level_back"]:
-            self.panel_fold_level = cycle_fold_level_backward(
+        elif key == agent_keys["toggle_all"]:
+            self.panel_fold_level = toggle_fold_scale_extreme(
                 self.panel_fold_level,
                 scale,
             )

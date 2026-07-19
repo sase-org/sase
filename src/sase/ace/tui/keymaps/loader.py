@@ -328,6 +328,49 @@ def _canonicalize_mode_keys(
     return result
 
 
+def _migrate_agent_fold_toggle_alias(
+    keys: dict[str, str | dict[str, str]],
+    defaults: dict[str, str | dict[str, str]],
+) -> dict[str, str | dict[str, str]]:
+    """Migrate the retired Agents reverse-cycle action to ``toggle_all``."""
+    raw_agent_keys = keys.get("agents")
+    if not isinstance(raw_agent_keys, dict) or "cycle_level_back" not in raw_agent_keys:
+        return keys
+
+    migrated_agent_keys = dict(raw_agent_keys)
+    legacy_binding = migrated_agent_keys.pop("cycle_level_back")
+    default_agent_keys = defaults.get("agents")
+    default_toggle = (
+        default_agent_keys.get("toggle_all")
+        if isinstance(default_agent_keys, dict)
+        else None
+    )
+    toggle_is_customized = (
+        "toggle_all" in migrated_agent_keys
+        and migrated_agent_keys["toggle_all"] != default_toggle
+    )
+    if not toggle_is_customized and isinstance(legacy_binding, str):
+        migrated_agent_keys["toggle_all"] = legacy_binding
+        log.warning(
+            "Agents fold keymap action 'cycle_level_back' is deprecated; "
+            "treating it as 'toggle_all'"
+        )
+    elif toggle_is_customized:
+        log.warning(
+            "Agents fold keymap action 'cycle_level_back' is deprecated and "
+            "ignored because 'toggle_all' is configured"
+        )
+    else:
+        log.warning(
+            "Agents fold keymap action 'cycle_level_back' is deprecated and "
+            "ignored because its binding is invalid"
+        )
+
+    migrated = dict(keys)
+    migrated["agents"] = migrated_agent_keys
+    return migrated
+
+
 def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     """Build a ``KeymapRegistry`` from the ``ace`` config section.
 
@@ -458,6 +501,11 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         keys_overrides = mode_overrides.get("keys", {})
         if not isinstance(keys_overrides, dict):
             keys_overrides = {}
+        elif mode_name == "fold_mode":
+            keys_overrides = _migrate_agent_fold_toggle_alias(
+                keys_overrides,
+                mode_defaults.keys,
+            )
 
         merged_keys = _deep_merge_keys(mode_defaults.keys, keys_overrides)
         merged_keys = _canonicalize_mode_keys(merged_keys)

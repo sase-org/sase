@@ -159,8 +159,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle panel fold level forward",
                 ),
                 (
-                    key_sequence_display(fm.prefix, ag_fold["cycle_level_back"]),
-                    "Cycle panel fold level backward",
+                    key_sequence_display(fm.prefix, ag_fold["toggle_all"]),
+                    "Toggle all metadata folds",
                 ),
                 (
                     key_sequence_display(fm.prefix, ag_fold["cycle_section"]),

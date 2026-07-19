@@ -6,12 +6,12 @@ from sase.ace.tui.models.fold_scale import (
     CLAN_FOLD_SCALE,
     FAMILY_FOLD_SCALE,
     TRIBE_FOLD_SCALE,
-    cycle_fold_level_backward,
     cycle_fold_level_forward,
     effective_fold_level,
     fold_level_at_position,
     fold_scale_position,
     resolve_summary_fold_scale,
+    toggle_fold_scale_extreme,
     toggle_fold_level,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
@@ -45,10 +45,6 @@ def test_family_scale_cycles_and_positions_relative_to_two_levels() -> None:
         is FoldLevel.EXPANDED
     )
     assert (
-        cycle_fold_level_backward(FoldLevel.EXPANDED, FAMILY_FOLD_SCALE)
-        is FoldLevel.FULLY_EXPANDED
-    )
-    assert (
         toggle_fold_level(FoldLevel.EXPANDED, FAMILY_FOLD_SCALE)
         is FoldLevel.FULLY_EXPANDED
     )
@@ -66,10 +62,31 @@ def test_tribe_scale_cycles_all_four_levels_in_both_directions() -> None:
         FoldLevel.EXHAUSTIVE,
         FoldLevel.COLLAPSED,
     ]
-    assert (
-        cycle_fold_level_backward(FoldLevel.COLLAPSED, TRIBE_FOLD_SCALE)
-        is FoldLevel.EXHAUSTIVE
-    )
+
+
+@pytest.mark.parametrize(
+    ("scale", "level", "expected"),
+    [
+        (FAMILY_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
+        (FAMILY_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
+        (FAMILY_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.EXPANDED),
+        (FAMILY_FOLD_SCALE, FoldLevel.EXHAUSTIVE, FoldLevel.EXPANDED),
+        (CLAN_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.FULLY_EXPANDED),
+        (CLAN_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.FULLY_EXPANDED),
+        (CLAN_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.COLLAPSED),
+        (CLAN_FOLD_SCALE, FoldLevel.EXHAUSTIVE, FoldLevel.COLLAPSED),
+        (TRIBE_FOLD_SCALE, FoldLevel.COLLAPSED, FoldLevel.EXHAUSTIVE),
+        (TRIBE_FOLD_SCALE, FoldLevel.EXPANDED, FoldLevel.EXHAUSTIVE),
+        (TRIBE_FOLD_SCALE, FoldLevel.FULLY_EXPANDED, FoldLevel.EXHAUSTIVE),
+        (TRIBE_FOLD_SCALE, FoldLevel.EXHAUSTIVE, FoldLevel.COLLAPSED),
+    ],
+)
+def test_toggle_fold_scale_extreme_uses_effective_active_scale_level(
+    scale: tuple[FoldLevel, ...],
+    level: FoldLevel,
+    expected: FoldLevel,
+) -> None:
+    assert toggle_fold_scale_extreme(level, scale) is expected
 
 
 def test_empty_fold_scale_is_rejected() -> None:

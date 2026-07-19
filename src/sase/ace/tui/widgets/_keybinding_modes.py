@@ -165,7 +165,7 @@ class KeybindingModesMixin:
             bindings.extend(
                 [
                     (d(agent_keys["cycle_level"]), "level forward"),
-                    (d(agent_keys["cycle_level_back"]), "level back"),
+                    (d(agent_keys["toggle_all"]), "toggle all"),
                     (d(agent_keys["cycle_section"]), "section forward"),
                     (d(agent_keys["toggle_section"]), "toggle section"),
                 ]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .fold_state import FoldLevel, cycle_backward
+from .fold_state import FoldLevel
 
 type FoldScale = tuple[FoldLevel, ...]
 
@@ -96,12 +96,10 @@ def cycle_fold_level_forward(level: FoldLevel, scale: FoldScale) -> FoldLevel:
     return scale[(scale.index(effective) + 1) % len(scale)]
 
 
-def cycle_fold_level_backward(level: FoldLevel, scale: FoldScale) -> FoldLevel:
-    """Cycle backward from ``level`` within ``scale``, wrapping at the start."""
+def toggle_fold_scale_extreme(level: FoldLevel, scale: FoldScale) -> FoldLevel:
+    """Open to ``scale``'s maximum, or close its effective maximum."""
     effective = effective_fold_level(level, scale)
-    if scale == CLAN_FOLD_SCALE:
-        return cycle_backward(effective)
-    return scale[(scale.index(effective) - 1) % len(scale)]
+    return scale[0] if effective == scale[-1] else scale[-1]
 
 
 def toggle_fold_level(level: FoldLevel, scale: FoldScale) -> FoldLevel:
@@ -115,11 +113,11 @@ __all__ = [
     "FAMILY_FOLD_SCALE",
     "TRIBE_FOLD_SCALE",
     "FoldScale",
-    "cycle_fold_level_backward",
     "cycle_fold_level_forward",
     "effective_fold_level",
     "fold_level_at_position",
     "fold_scale_position",
     "resolve_summary_fold_scale",
+    "toggle_fold_scale_extreme",
     "toggle_fold_level",
 ]

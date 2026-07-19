@@ -55,7 +55,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     assert reg.app.zoom_panel == "Z"
     assert agent_fold == {
         "cycle_level": "z",
-        "cycle_level_back": "Z",
+        "toggle_all": "Z",
         "cycle_section": "a",
         "toggle_section": "A",
         "set_level_1": "1",
@@ -71,7 +71,7 @@ def test_zoom_and_agents_fold_defaults_are_in_sync_with_help() -> None:
     }
     assert ("Z", "Zoom largest panel popup") in agent_pairs
     assert ("zz", "Cycle panel fold level forward") in agent_pairs
-    assert ("zZ", "Cycle panel fold level backward") in agent_pairs
+    assert ("zZ", "Toggle all metadata folds") in agent_pairs
     assert ("za", "Cycle section/member forward") in agent_pairs
     assert ("zA", "Toggle section/member full") in agent_pairs
     assert ("z1 / z2", "Set family level 1-2") in agent_pairs
@@ -93,7 +93,7 @@ def test_fold_mode_direct_level_overrides_and_prefix_reach_help() -> None:
                         "prefix": "f",
                         "keys": {
                             "set_level_2": "w",
-                            "agents": {"set_level_4": "x"},
+                            "agents": {"set_level_4": "x", "toggle_all": "v"},
                         },
                     }
                 }
@@ -108,6 +108,7 @@ def test_fold_mode_direct_level_overrides_and_prefix_reach_help() -> None:
     assert reg.fold_mode.keys["set_level_2"] == "w"
     assert agent_keys["set_level_1"] == "1"
     assert agent_keys["set_level_4"] == "x"
+    assert agent_keys["toggle_all"] == "v"
 
     agent_pairs = {
         (key, label)
@@ -120,6 +121,7 @@ def test_fold_mode_direct_level_overrides_and_prefix_reach_help() -> None:
         for key, label in bindings
     }
     assert ("f1 / f2 / f3 / fx", "Set selected tribe level 1-4") in agent_pairs
+    assert ("fv", "Toggle all metadata folds") in agent_pairs
     assert ("f1 / fw / f3", "Set all folds to level 1-3") in changespec_pairs
 
 
