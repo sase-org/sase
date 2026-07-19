@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
@@ -13,6 +12,7 @@ from textual.widgets import Static
 
 from sase.notification_gates.debug import GateDebugContext
 
+from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
 
 
@@ -63,12 +63,7 @@ class LaunchApprovalModal(
             yield Static(self._title_markup(), id="launch-approval-title")
 
             with VerticalScroll(id="launch-approval-scroll"):
-                syntax = Syntax(
-                    self._read_preview(),
-                    "markdown",
-                    theme="monokai",
-                    word_wrap=True,
-                )
+                syntax = markdown_document_syntax(self._read_preview())
                 yield Static(syntax, id="launch-approval-content")
 
             yield Static(hints, id="launch-approval-footer")

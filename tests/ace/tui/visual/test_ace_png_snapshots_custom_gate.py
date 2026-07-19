@@ -53,7 +53,24 @@ def _data(
     branches: tuple[tuple[str, ...], ...],
     groups: tuple[GateGroup, ...] = (),
     preview: bool = True,
+    frontmatter: bool = False,
 ) -> CustomGateModalData:
+    preview_text = (
+        "# Production deployment\n\n"
+        "- Version: `0.10.2`\n"
+        "- Region: `us-east-1`\n"
+        "- Health checks: passing\n"
+    )
+    if frontmatter:
+        preview_text = (
+            "---\n"
+            "owner: release-guardian\n"
+            "environment: production\n"
+            "goal: >\n"
+            "  Verify the signed build is healthy before deployment.\n"
+            "---\n\n"
+            f"{preview_text}"
+        )
     return CustomGateModalData(
         request_id="deploy-production-42",
         sender="release-guardian",
@@ -64,16 +81,7 @@ def _data(
         ),
         attachments=("release-preview.md", "deployment-manifest.json"),
         preview_name="release-preview.md" if preview else None,
-        preview_text=(
-            (
-                "# Production deployment\n\n"
-                "- Version: `0.10.2`\n"
-                "- Region: `us-east-1`\n"
-                "- Health checks: passing\n"
-            )
-            if preview
-            else None
-        ),
+        preview_text=preview_text if preview else None,
         gate=GateBranchData(
             query="visual query",
             options=options,
@@ -188,6 +196,27 @@ async def test_custom_gate_no_preview_png_snapshot(
     )
 
 
+async def test_custom_gate_frontmatter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("approve", "Approve deployment", icon="✅"),
+        _option("cancel", "Cancel release", icon="🛑"),
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("approve",), ("cancel",)),
+            frontmatter=True,
+        ),
+        snapshot_name="custom_gate_frontmatter_120x40",
+        title="ACE custom gate frontmatter highlighting",
+    )
+
+
 async def test_tale_plan_gate_five_controls_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -211,6 +240,40 @@ async def test_tale_plan_gate_five_controls_png_snapshot(
             page,
             "plan_gate_tale_five_controls_120x40",
             title="ACE tale plan gate five controls",
+        )
+
+
+async def test_tale_plan_gate_frontmatter_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "frontmatter-plan.md"
+    plan.write_text(
+        "---\n"
+        "tier: tale\n"
+        "title: Frontmatter syntax highlighting in gate review documents\n"
+        "goal: >\n"
+        "  Make plan metadata clear and readable without changing document layout.\n"
+        "---\n\n"
+        "# Frontmatter highlighting\n\n"
+        "Render YAML metadata before the Markdown plan body.\n",
+        encoding="utf-8",
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    async with AcePage(
+        query='"visual"',
+        size=(120, 40),
+        changespecs=changespecs(),
+    ) as page:
+        await wait_for_startup(page)
+        page.app.push_screen(PlanApprovalModal(str(plan), default_choice="tale"))
+        await page.expect_modal("PlanApprovalModal")
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "plan_gate_frontmatter_120x40",
+            title="ACE tale plan gate frontmatter highlighting",
         )
 
 

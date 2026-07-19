@@ -22,6 +22,11 @@ from rich.segment import Segment
 from rich.syntax import Syntax
 from rich.text import Text
 
+from .frontmatter_syntax import (
+    FRONTMATTER_MARKDOWN_LEXER,
+    FrontmatterMarkdownLexer,
+)
+
 SYNTAX_HIGHLIGHT_MAX_BYTES = 64_000
 SYNTAX_HIGHLIGHT_MAX_LINES = 1_500
 MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES = 24_000
@@ -54,6 +59,13 @@ def _content_digest(content: str) -> str:
     return blake2b(
         content.encode("utf-8", errors="replace"), digest_size=16
     ).hexdigest()
+
+
+def _effective_lexer(lexer: str) -> FrontmatterMarkdownLexer | str:
+    """Resolve Markdown to the shared frontmatter-aware composite lexer."""
+    if lexer == "markdown":
+        return FRONTMATTER_MARKDOWN_LEXER
+    return lexer
 
 
 def _render_options_key(options: object) -> tuple[object, ...]:
@@ -163,7 +175,7 @@ class LazySyntaxRenderCache:
         renderable = _CachedRenderable(
             Syntax(
                 content,
-                lexer,
+                _effective_lexer(lexer),
                 theme=theme,
                 word_wrap=word_wrap,
                 line_numbers=line_numbers,
@@ -367,7 +379,7 @@ def lazy_renderable(
             )
         return Syntax(
             content,
-            lexer,
+            _effective_lexer(lexer),
             theme=theme,
             word_wrap=word_wrap,
             line_numbers=line_numbers,

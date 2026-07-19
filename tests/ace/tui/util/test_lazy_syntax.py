@@ -6,6 +6,9 @@ from rich.console import Console, Group
 from rich.syntax import Syntax
 from rich.text import Text
 
+from sase.ace.tui.util.frontmatter_syntax import (
+    FRONTMATTER_MARKDOWN_LEXER,
+)
 from sase.ace.tui.util.lazy_syntax import (
     FILE_PANEL_MAX_RENDER_LINES,
     MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES,
@@ -24,6 +27,20 @@ from sase.ace.tui.util.lazy_syntax import (
 def test_lazy_renderable_under_cap_returns_syntax() -> None:
     out = lazy_renderable("# hello\n", "markdown")
     assert isinstance(out, Syntax)
+
+
+def test_lazy_renderable_markdown_uses_frontmatter_lexer() -> None:
+    out = lazy_renderable("---\ntier: tale\n---\n# hello\n", "markdown")
+
+    assert isinstance(out, Syntax)
+    assert out.lexer is FRONTMATTER_MARKDOWN_LEXER
+
+
+def test_lazy_renderable_non_markdown_lexer_is_unchanged() -> None:
+    out = lazy_renderable("print('hello')\n", "python")
+
+    assert isinstance(out, Syntax)
+    assert vars(out)["_lexer"] == "python"
 
 
 def test_lazy_renderable_over_byte_cap_returns_plain_group() -> None:
@@ -161,6 +178,18 @@ def test_cached_lazy_renderable_reuses_renderable_for_same_content() -> None:
     second = lazy_renderable("# hello\n", "markdown", render_cache=cache)
 
     assert first is second
+
+
+def test_cached_markdown_renderable_uses_frontmatter_lexer() -> None:
+    cache = LazySyntaxRenderCache(max_entries=1)
+    out = lazy_renderable(
+        "---\ntier: tale\n---\n# hello\n", "markdown", render_cache=cache
+    )
+
+    syntax = vars(out)["_renderable"]
+    assert isinstance(syntax, Syntax)
+    assert syntax.lexer is FRONTMATTER_MARKDOWN_LEXER
+    assert cache.misses == 1
 
 
 def test_file_panel_plain_render_cap_adds_editor_notice() -> None:

@@ -7,7 +7,6 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from rich.syntax import Syntax
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -26,12 +25,13 @@ from sase.xprompt.reference_display import (
 )
 from sase.xprompt.workflow_models import Workflow
 
-from .base import OptionListNavigationMixin
-from .xprompt_browser_helpers import append_input_args, resolve_source_to_file_path
+from ..util.frontmatter_syntax import markdown_document_syntax
 from ..widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
     xprompt_assist_entry_from_workflow,
 )
+from .base import OptionListNavigationMixin
+from .xprompt_browser_helpers import append_input_args, resolve_source_to_file_path
 
 # ``Ctrl+I`` inline-expansion handler supplied by the prompt-bar request layer.
 # Called with the selected ``(name, workflow)``; returns ``None`` on success
@@ -503,7 +503,7 @@ class XPromptSelectModal(
             else:
                 content = ""
             # Show raw content with markdown syntax highlighting
-            syntax = Syntax(content, "markdown", theme="monokai", word_wrap=True)
+            syntax = markdown_document_syntax(content)
             preview.update(syntax)
         except Exception:
             pass

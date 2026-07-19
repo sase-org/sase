@@ -3,7 +3,6 @@
 import os
 from dataclasses import dataclass
 
-from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
@@ -33,6 +32,7 @@ from ..keymaps import (
     key_display_name,
     load_builtin_gate_defaults,
 )
+from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
 from .gate_branch_controls import GateBranchControls, GateBranchData
 from .gate_primary_footer import primary_action_badge
@@ -304,12 +304,7 @@ class PlanApprovalModal(
                         if self._plan_content is not None
                         else self._read_plan_file()
                     )
-                    syntax = Syntax(
-                        content,
-                        "markdown",
-                        theme="monokai",
-                        word_wrap=True,
-                    )
+                    syntax = markdown_document_syntax(content)
                     yield Static(syntax, id="plan-approval-content")
 
             yield Static(

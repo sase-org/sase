@@ -8,13 +8,19 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 
-def parse_frontmatter(content: str) -> tuple[dict[str, Any], str, bool]:
-    """Return ``(frontmatter, body, had_frontmatter)`` for markdown content."""
+def frontmatter_span(content: str) -> int | None:
+    """Return the closing-fence index for leading YAML frontmatter, if any."""
     if not content.startswith("---\n"):
-        return {}, content, False
+        return None
 
     end = content.find("\n---\n", 4)
-    if end == -1:
+    return None if end == -1 else end
+
+
+def parse_frontmatter(content: str) -> tuple[dict[str, Any], str, bool]:
+    """Return ``(frontmatter, body, had_frontmatter)`` for markdown content."""
+    end = frontmatter_span(content)
+    if end is None:
         return {}, content, False
 
     raw = content[4:end]

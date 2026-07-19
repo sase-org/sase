@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from rich.markup import escape
-from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import BindingsMap
@@ -21,6 +20,7 @@ from ..keymaps import (
     key_display_name,
     load_builtin_gate_defaults,
 )
+from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
 from .gate_branch_controls import GateBranchControls, GateBranchData
 from .gate_primary_footer import primary_action_badge
@@ -122,12 +122,7 @@ class CustomGateModal(
                     review_scroll.border_title = Text(preview_name)
                     with review_scroll:
                         yield Static(
-                            Syntax(
-                                self._data.preview_text,
-                                "markdown",
-                                theme="monokai",
-                                word_wrap=True,
-                            ),
+                            markdown_document_syntax(self._data.preview_text),
                             id="custom-gate-preview",
                         )
 

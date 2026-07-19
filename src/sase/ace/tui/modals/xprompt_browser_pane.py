@@ -10,7 +10,6 @@ now belongs to the host modal.
 
 from __future__ import annotations
 
-from rich.syntax import Syntax
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Input, Label, OptionList, Static
@@ -19,6 +18,7 @@ from textual.widgets.option_list import Option
 from sase.xprompt import get_all_prompts
 from sase.xprompt.workflow_models import Workflow
 
+from ..util.frontmatter_syntax import markdown_document_syntax
 from .xprompt_browser_actions import XPromptBrowserActionsMixin
 from .xprompt_browser_catalog import (
     flatten_grouped_items,
@@ -332,12 +332,7 @@ class XPromptBrowserPane(XPromptBrowserActionsMixin, Vertical):
         except Exception:
             return
 
-        syntax = Syntax(
-            create_preview_content(item.workflow),
-            "markdown",
-            theme="monokai",
-            word_wrap=True,
-        )
+        syntax = markdown_document_syntax(create_preview_content(item.workflow))
         preview.update(syntax)
         meta.update(create_meta_text(item))
 
