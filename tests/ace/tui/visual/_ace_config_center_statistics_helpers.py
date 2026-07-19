@@ -22,6 +22,7 @@ def _populated_statistics_view(
     view: str = "overview",
     selected_range: StatsRange = _STATISTICS_RANGE,
     runtime_group_by: str = "tribe",
+    project_filter: str | None = None,
 ) -> StatisticsViewData:
     run_payload = {
         "start_ts": selected_range.start_ts,
@@ -118,6 +119,115 @@ def _populated_statistics_view(
                 "max_seconds": 650.0,
             },
         ],
+        "work": {
+            "projects": [
+                {
+                    "project": "sase",
+                    "runs": 18,
+                    "completed": 15,
+                    "failed": 2,
+                    "other_terminal": 0,
+                    "in_progress": 1,
+                    "waiting": 0,
+                    "success_rate": 15 / 17,
+                    "commits": 26,
+                    "distinct_changespecs": 3,
+                    "unattributed_runs": 6,
+                    "total_runtime_seconds": 9_480.0,
+                    "last_run_ts": _STATISTICS_NOW - 320,
+                },
+                {
+                    "project": "sase-core",
+                    "runs": 9,
+                    "completed": 7,
+                    "failed": 1,
+                    "other_terminal": 0,
+                    "in_progress": 1,
+                    "waiting": 0,
+                    "success_rate": 0.875,
+                    "commits": 11,
+                    "distinct_changespecs": 2,
+                    "unattributed_runs": 4,
+                    "total_runtime_seconds": 4_860.0,
+                    "last_run_ts": _STATISTICS_NOW - 1_800,
+                },
+                {
+                    "project": "sase-github",
+                    "runs": 5,
+                    "completed": 3,
+                    "failed": 1,
+                    "other_terminal": 1,
+                    "in_progress": 0,
+                    "waiting": 0,
+                    "success_rate": 0.6,
+                    "commits": 4,
+                    "distinct_changespecs": 1,
+                    "unattributed_runs": 2,
+                    "total_runtime_seconds": 1_670.0,
+                    "last_run_ts": _STATISTICS_NOW - 7_200,
+                },
+            ],
+            "changespecs": [
+                {
+                    "project": "sase",
+                    "name": "statistics-project-views",
+                    "status": "Ready",
+                    "has_pr": False,
+                    "runs": 6,
+                    "distinct_agents": 4,
+                    "commits": 10,
+                    "total_runtime_seconds": 3_840.0,
+                    "last_run_ts": _STATISTICS_NOW - 320,
+                },
+                {
+                    "project": "sase",
+                    "name": "agent-artifact-index",
+                    "status": "Submitted",
+                    "has_pr": True,
+                    "runs": 4,
+                    "distinct_agents": 3,
+                    "commits": 9,
+                    "total_runtime_seconds": 2_520.0,
+                    "last_run_ts": _STATISTICS_NOW - 3_600,
+                },
+                {
+                    "project": "sase-core",
+                    "name": "work-statistics-wire",
+                    "status": "Mailed",
+                    "has_pr": True,
+                    "runs": 3,
+                    "distinct_agents": 2,
+                    "commits": 7,
+                    "total_runtime_seconds": 1_920.0,
+                    "last_run_ts": _STATISTICS_NOW - 1_800,
+                },
+                {
+                    "project": "sase-core",
+                    "name": "runtime-groups",
+                    "status": "Archived",
+                    "has_pr": False,
+                    "runs": 2,
+                    "distinct_agents": 2,
+                    "commits": 4,
+                    "total_runtime_seconds": 1_140.0,
+                    "last_run_ts": _STATISTICS_NOW - 14_400,
+                },
+                {
+                    "project": "sase-github",
+                    "name": "provider-rollups",
+                    "status": "unknown",
+                    "has_pr": False,
+                    "runs": 3,
+                    "distinct_agents": 2,
+                    "commits": 4,
+                    "total_runtime_seconds": 980.0,
+                    "last_run_ts": _STATISTICS_NOW - 7_200,
+                },
+            ],
+            "unattributed_runs": 12,
+            "truncated_changespec_rows": 0,
+            "malformed_spec_files_skipped": 0,
+        },
     }
     activity_payload = {
         "skills": [
@@ -166,6 +276,7 @@ def _populated_statistics_view(
             activity_payload,
             previous_run_payload={"totals": {"runs": 24}},
         ),
+        project_filter=project_filter,
     )
 
 
@@ -174,8 +285,13 @@ def _patch_statistics_populated(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, runtime_group_by: _populated_statistics_view(
-            view, selected_range, runtime_group_by
+        lambda view, selected_range, runtime_group_by, project_filter=None: (
+            _populated_statistics_view(
+                view,
+                selected_range,
+                runtime_group_by,
+                project_filter,
+            )
         ),
     )
 
@@ -185,12 +301,15 @@ def _patch_statistics_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sp,
         "load_statistics_view",
-        lambda view, selected_range, runtime_group_by: StatisticsViewData(
-            view=view,
-            selected_range=selected_range,
-            runtime_group_by=runtime_group_by,
-            generated_at=_STATISTICS_NOW,
-            views=build_statistics_views({}, {}),
+        lambda view, selected_range, runtime_group_by, project_filter=None: (
+            StatisticsViewData(
+                view=view,
+                selected_range=selected_range,
+                runtime_group_by=runtime_group_by,
+                generated_at=_STATISTICS_NOW,
+                views=build_statistics_views({}, {}),
+                project_filter=project_filter,
+            )
         ),
     )
 

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from textual.widgets import Input, Static
+from textual.worker import WorkerState
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.keymaps import load_keymap_registry, statistics_help_bindings
@@ -91,6 +93,61 @@ def _run_payload(selected_range: StatsRange, group_by: RuntimeGroupBy) -> dict:
                 "max_seconds": 300.0,
             }
         ],
+        "work": {
+            "projects": [
+                {
+                    "project": "sase",
+                    "runs": 4,
+                    "completed": 3,
+                    "failed": 1,
+                    "success_rate": 0.75,
+                    "commits": 5,
+                    "distinct_changespecs": 1,
+                    "unattributed_runs": 1,
+                    "total_runtime_seconds": 500.0,
+                    "last_run_ts": _NOW,
+                },
+                {
+                    "project": "core",
+                    "runs": 2,
+                    "completed": 1,
+                    "failed": 0,
+                    "success_rate": 1.0,
+                    "commits": 2,
+                    "distinct_changespecs": 1,
+                    "unattributed_runs": 0,
+                    "total_runtime_seconds": 100.0,
+                    "last_run_ts": _NOW - 60,
+                },
+            ],
+            "changespecs": [
+                {
+                    "project": "sase",
+                    "name": "statistics-projects",
+                    "status": "Ready",
+                    "has_pr": True,
+                    "runs": 3,
+                    "distinct_agents": 2,
+                    "commits": 5,
+                    "total_runtime_seconds": 420.0,
+                    "last_run_ts": _NOW,
+                },
+                {
+                    "project": "core",
+                    "name": "stats-wire",
+                    "status": "Submitted",
+                    "has_pr": True,
+                    "runs": 2,
+                    "distinct_agents": 1,
+                    "commits": 2,
+                    "total_runtime_seconds": 100.0,
+                    "last_run_ts": _NOW - 60,
+                },
+            ],
+            "unattributed_runs": 1,
+            "truncated_changespec_rows": 0,
+            "malformed_spec_files_skipped": 0,
+        },
     }
 
 
@@ -128,6 +185,7 @@ def _result(
     group_by: RuntimeGroupBy,
     *,
     empty: bool = False,
+    project_filter: str | None = None,
 ) -> StatisticsViewData:
     run_payload = {} if empty else _run_payload(selected_range, group_by)
     activity_payload = {} if empty else _activity_payload()
@@ -137,12 +195,13 @@ def _result(
         runtime_group_by=group_by,
         generated_at=_NOW,
         views=build_statistics_views(run_payload, activity_payload),
+        project_filter=project_filter,
     )
 
 
 def _patch_center(
     monkeypatch: pytest.MonkeyPatch,
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]],
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]],
 ) -> None:
     _patch_other_panes(monkeypatch)
     _patch_catalog(monkeypatch, catalog=_catalog())
@@ -151,9 +210,15 @@ def _patch_center(
         view: StatisticsView,
         selected_range: StatsRange,
         group_by: RuntimeGroupBy,
+        project_filter: str | None = None,
     ) -> StatisticsViewData:
-        calls.append((view, selected_range, group_by))
-        return _result(view, selected_range, group_by)
+        calls.append((view, selected_range, group_by, project_filter))
+        return _result(
+            view,
+            selected_range,
+            group_by,
+            project_filter=project_filter,
+        )
 
     monkeypatch.setattr(sp, "load_statistics_view", load)
 
@@ -173,7 +238,7 @@ async def _open_statistics(
 async def test_statistics_loads_only_after_its_tab_becomes_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -198,11 +263,12 @@ async def test_statistics_loads_only_after_its_tab_becomes_active(
 async def test_range_and_group_switches_coalesce_to_latest_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
+        pane._set_view("runtime")
         pane.action_cycle_range()
         pane.action_cycle_range()
         pane.action_cycle_group()
@@ -217,44 +283,147 @@ async def test_range_and_group_switches_coalesce_to_latest_selection(
         )
 
         assert len(calls) == 2
+        assert calls[-1][0] == "runtime"
         assert calls[-1][1].label == pane._range.label
         assert pane._preset_key == "90d"
         assert pane._runtime_group_by == "clan"
 
 
+async def test_group_cycle_is_view_sensitive_and_projects_reuses_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+        pane._set_view("projects")
+        pane.action_cycle_group()
+        await page.pause()
+
+        assert pane._projects_group_by == "changespec"
+        assert pane._runtime_group_by == "tribe"
+        assert len(calls) == 1
+        assert (
+            "By ChangeSpec"
+            in pane.query_one("#statistics-title", Static).render().plain
+        )
+        assert (
+            "group: by changespec"
+            in pane.query_one("#statistics-hints", Static).render().plain
+        )
+
+        pane._set_view("runs")
+        pane.action_cycle_group()
+        await page.pause()
+        assert pane._projects_group_by == "changespec"
+        assert pane._runtime_group_by == "tribe"
+        assert len(calls) == 1
+
+
+async def test_project_filter_cycles_ranked_projects_and_survives_range_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
+    _patch_center(monkeypatch, calls)
+
+    async with AcePage() as page:
+        _, pane = await _open_statistics(page)
+
+        pane.action_cycle_project_filter()
+        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert pane._project_filter == "sase"
+        assert calls[-1][3] == "sase"
+        assert "sase" in pane.query_one("#statistics-title", Static).render().plain
+
+        pane.action_cycle_range()
+        await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
+        assert calls[-1][1].label == pane._range.label
+        assert calls[-1][3] == "sase"
+
+        pane.action_cycle_project_filter()
+        await page.wait_for(lambda _state: len(calls) == 4 and not pane._loading)
+        assert pane._project_filter == "core"
+        assert calls[-1][3] == "core"
+
+        pane.action_cycle_project_filter()
+        await page.wait_for(lambda _state: len(calls) == 5 and not pane._loading)
+        assert pane._project_filter is None
+        assert calls[-1][3] is None
+
+
+def test_stale_project_filter_result_is_discarded_and_rescheduled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._project_filter = "core"
+    result = _result(
+        pane._view,
+        pane._range,
+        pane._runtime_group_by,
+        project_filter="sase",
+    )
+    worker = SimpleNamespace(result=result, error=None)
+    pane._worker = worker  # type: ignore[assignment]
+    scheduled: list[bool] = []
+    monkeypatch.setattr(pane, "_schedule_load", lambda: scheduled.append(True))
+
+    pane.on_worker_state_changed(
+        SimpleNamespace(worker=worker, state=WorkerState.SUCCESS)  # type: ignore[arg-type]
+    )
+
+    assert scheduled == [True]
+    assert pane._last_result is None
+
+
+def test_project_filter_marks_unscoped_plan_and_question_tables() -> None:
+    pane = StatisticsPane(auto_load=False)
+    pane._project_filter = "sase"
+    view = _result(pane._view, pane._range, pane._runtime_group_by).views
+
+    columns = pane._plans_questions_renderable(view.plans_questions)
+
+    assert [panel.title for panel in columns.renderables] == [
+        "Plans (all projects)",
+        "Questions (all projects)",
+    ]
+
+
 async def test_view_cycle_reuses_composite_result_and_updates_strip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         _, pane = await _open_statistics(page)
         await page.press("right_square_bracket", "right_square_bracket")
-        await page.wait_for(lambda _state: pane._view == "providers")
+        await page.wait_for(lambda _state: pane._view == "projects")
 
         assert len(calls) == 1
 
+        await page.press("right_square_bracket")
+        await page.wait_for(lambda _state: pane._view == "providers")
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _state: pane._view == "runs")
+        await page.wait_for(lambda _state: pane._view == "projects")
         assert len(calls) == 1
 
 
 async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
         modal, pane = await _open_statistics(page)
-        pane.action_next_view()
+        pane._set_view("runtime")
         pane.action_cycle_group()
         await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
         await page.press("r")
         await page.wait_for(lambda _state: len(calls) == 3 and not pane._loading)
 
-        assert calls[-1][0] == "runs"
+        assert calls[-1][0] == "runtime"
         assert calls[-1][2] == "clan"
         modal._switch_to("config")
         pane._on_refresh_tick()
@@ -267,7 +436,7 @@ async def test_refresh_preserves_selection_and_hidden_tick_is_inert(
 async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -297,7 +466,7 @@ async def test_custom_range_accepts_valid_input_and_rejects_invalid_input(
 async def test_configured_bindings_dispatch_and_render_effective_help(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry(
         {
@@ -308,7 +477,8 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
                     "cycle_range": "f10",
                     "custom_range": "f9",
                     "cycle_group": "f8",
-                    "refresh": "f7",
+                    "cycle_project_filter": "f7",
+                    "refresh": "f6",
                 }
             }
         }
@@ -320,7 +490,8 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         ("f10", "Time Range"),
         ("f9", "Custom Range"),
         ("f8", "Group By"),
-        ("f7", "Refresh"),
+        ("f7", "Project Filter"),
+        ("f6", "Refresh"),
     ]
 
     async with AcePage() as page:
@@ -330,19 +501,21 @@ async def test_configured_bindings_dispatch_and_render_effective_help(
         hints = pane.query_one("#statistics-hints", Static).render().plain
         assert hints == (
             "f12 / f11 views   f10 time range   f9 custom range   "
-            "f8 group by   f7 refresh"
+            "f8 group by   f7 project filter   f6 refresh"
         )
-        await page.press("f11", "f8")
+        await page.press("f11", "f11", "f8")
         await page.wait_for(
-            lambda _state: pane._view == "runs" and pane._runtime_group_by == "clan"
+            lambda _state: (
+                pane._view == "projects" and pane._projects_group_by == "changespec"
+            )
         )
-        await page.wait_for(lambda _state: len(calls) == 2 and not pane._loading)
+        assert len(calls) == 1
 
 
 async def test_statistics_bindings_are_inactive_on_other_admin_center_tabs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
     registry = load_keymap_registry({"keymaps": {"statistics": {"cycle_group": "f12"}}})
 
@@ -375,7 +548,7 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
     monkeypatch.setenv("SASE_TUI_PUMP_STALL_POLL_INTERVAL", "0.02")
     monkeypatch.setattr(sp, "_REFRESH_INTERVAL_SECONDS", 0.2)
 
-    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy]] = []
+    calls: list[tuple[StatisticsView, StatsRange, RuntimeGroupBy, str | None]] = []
     _patch_center(monkeypatch, calls)
 
     async with AcePage() as page:
@@ -392,15 +565,29 @@ async def test_auto_refresh_soak_keeps_event_loop_and_message_pump_responsive(
 def test_loader_queries_current_activity_and_previous_equal_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, int, int]] = []
+    calls: list[tuple[str, int, int, str | None]] = []
     selected_range = StatsRange(10, 20, "absolute")
 
-    def run_query(**kwargs: int | str) -> dict:
-        calls.append(("runs", int(kwargs["start_ts"]), int(kwargs["end_ts"])))
+    def run_query(**kwargs: int | str | None) -> dict:
+        calls.append(
+            (
+                "runs",
+                int(kwargs["start_ts"]),  # type: ignore[arg-type]
+                int(kwargs["end_ts"]),  # type: ignore[arg-type]
+                kwargs.get("project"),  # type: ignore[arg-type]
+            )
+        )
         return _run_payload(selected_range, "tribe")
 
-    def activity_query(**kwargs: int | str) -> dict:
-        calls.append(("activity", int(kwargs["start_ts"]), int(kwargs["end_ts"])))
+    def activity_query(**kwargs: int | str | None) -> dict:
+        calls.append(
+            (
+                "activity",
+                int(kwargs["start_ts"]),  # type: ignore[arg-type]
+                int(kwargs["end_ts"]),  # type: ignore[arg-type]
+                kwargs.get("project"),  # type: ignore[arg-type]
+            )
+        )
         return _activity_payload()
 
     monkeypatch.setattr(
@@ -411,11 +598,12 @@ def test_loader_queries_current_activity_and_previous_equal_window(
         activity_query,
     )
 
-    result = sp.load_statistics_view("overview", selected_range, "tribe")
+    result = sp.load_statistics_view("overview", selected_range, "tribe", "sase")
 
     assert calls == [
-        ("runs", 10, 20),
-        ("activity", 10, 20),
-        ("runs", 0, 10),
+        ("runs", 10, 20, "sase"),
+        ("activity", 10, 20, "sase"),
+        ("runs", 0, 10, "sase"),
     ]
     assert result.views.overview.agents_run == 6
+    assert result.project_filter == "sase"

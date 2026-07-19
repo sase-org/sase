@@ -615,7 +615,11 @@
                 },
                 "cycle_group": {
                   "type": "string",
-                  "description": "Cycle the runtime group-by dimension"
+                  "description": "Cycle the active statistics grouping strategy"
+                },
+                "cycle_project_filter": {
+                  "type": "string",
+                  "description": "Cycle the global statistics project filter"
                 },
                 "refresh": {
                   "type": "string",

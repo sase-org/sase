@@ -39,13 +39,16 @@ from sase.stats.ranges import (
 from sase.telemetry.render import format_duration, render_stat_tile
 
 from .statistics_pane_data import (
+    PROJECTS_GROUP_ORDER,
     RUNTIME_GROUP_ORDER,
     VIEW_LABELS,
     VIEW_ORDER,
+    ProjectsGroupBy,
     StatisticsView,
     StatisticsViewData,
     load_statistics_view,
 )
+from .statistics_pane_projects import StatisticsProjectsRenderingMixin
 
 _ACCENT = "#FF87D7"
 _CYAN = "#87D7FF"
@@ -53,6 +56,11 @@ _GOLD = "#FFD700"
 _GREEN = "#5FD75F"
 _RED = "#FF5F5F"
 _REFRESH_INTERVAL_SECONDS = 30.0
+_PROJECTS_GROUP_LABELS: dict[ProjectsGroupBy, str] = {
+    "project": "By Project",
+    "changespec": "By ChangeSpec",
+    "drilldown": "Project → ChangeSpec",
+}
 _VIEW_TABS: tuple[PanelTab, ...] = tuple(
     PanelTab(view, VIEW_LABELS[view], _ACCENT) for view in VIEW_ORDER
 )
@@ -77,8 +85,8 @@ class _CustomRangeInput(Input):
         return None
 
 
-class StatisticsPane(Vertical):
-    """Six numeric Statistics views backed by durable agent activity."""
+class StatisticsPane(StatisticsProjectsRenderingMixin, Vertical):
+    """Seven numeric Statistics views backed by durable agent activity."""
 
     can_focus = True
     BINDINGS = []
@@ -98,6 +106,9 @@ class StatisticsPane(Vertical):
         self._custom_range_value: str | None = None
         self._range = resolve_preset(DEFAULT_PRESET)
         self._runtime_group_by: RuntimeGroupBy = "tribe"
+        self._projects_group_by: ProjectsGroupBy = "project"
+        self._project_filter: str | None = None
+        self._project_filter_options: tuple[str, ...] = ()
         self._auto_load = auto_load
         self._loading = False
         self._loaded_once = False
@@ -196,11 +207,35 @@ class StatisticsPane(Vertical):
         custom_input.focus()
 
     def action_cycle_group(self) -> None:
-        """Cycle the Runtime view's group-by dimension."""
-        index = RUNTIME_GROUP_ORDER.index(self._runtime_group_by)
-        self._runtime_group_by = RUNTIME_GROUP_ORDER[
-            (index + 1) % len(RUNTIME_GROUP_ORDER)
-        ]
+        """Cycle the active view's grouping strategy when it supports one."""
+        if self._view == "runtime":
+            index = RUNTIME_GROUP_ORDER.index(self._runtime_group_by)
+            self._runtime_group_by = RUNTIME_GROUP_ORDER[
+                (index + 1) % len(RUNTIME_GROUP_ORDER)
+            ]
+            self._selection_changed(reload=True)
+        elif self._view == "projects":
+            index = PROJECTS_GROUP_ORDER.index(self._projects_group_by)
+            self._projects_group_by = PROJECTS_GROUP_ORDER[
+                (index + 1) % len(PROJECTS_GROUP_ORDER)
+            ]
+            self._selection_changed(reload=False)
+
+    def action_cycle_project_filter(self) -> None:
+        """Cycle All → ranked projects in range → All."""
+        options = self._project_filter_options
+        if not options and self._last_result is not None:
+            options = tuple(
+                row.project for row in self._last_result.views.projects.projects
+            )
+        if not options:
+            return
+        cycle: tuple[str | None, ...] = (None, *options)
+        try:
+            index = cycle.index(self._project_filter)
+        except ValueError:
+            index = 0
+        self._project_filter = cycle[(index + 1) % len(cycle)]
         self._selection_changed(reload=True)
 
     def action_refresh(self) -> None:
@@ -250,6 +285,7 @@ class StatisticsPane(Vertical):
     def _selection_changed(self, *, reload: bool) -> None:
         self._last_error = ""
         self._update_heading()
+        self._update_hints()
         if reload:
             self._schedule_load()
         else:
@@ -286,6 +322,7 @@ class StatisticsPane(Vertical):
         view = self._view
         selected_range = self._range
         runtime_group_by = self._runtime_group_by
+        project_filter = self._project_filter
         self._loading = True
         self._last_error = ""
         self._update_heading()
@@ -293,7 +330,12 @@ class StatisticsPane(Vertical):
             self._paint_loading()
 
         def task() -> StatisticsViewData:
-            return load_statistics_view(view, selected_range, runtime_group_by)
+            return load_statistics_view(
+                view,
+                selected_range,
+                runtime_group_by,
+                project_filter,
+            )
 
         self._worker = self.run_worker(
             task,
@@ -313,12 +355,18 @@ class StatisticsPane(Vertical):
                 self._paint_error("statistics worker returned no result")
                 return
             if (
-                result.selected_range != self._range
+                result.view != self._view
+                or result.selected_range != self._range
                 or result.runtime_group_by != self._runtime_group_by
+                or result.project_filter != self._project_filter
             ):
                 self._schedule_load()
                 return
             self._last_result = result
+            if result.project_filter is None:
+                self._project_filter_options = tuple(
+                    row.project for row in result.views.projects.projects
+                )
             self._paint_current_view()
         elif event.state == WorkerState.ERROR:
             self._loading = False
@@ -432,6 +480,8 @@ class StatisticsPane(Vertical):
             return self._overview_renderable(views.overview)
         if self._view == "runs":
             return self._runs_renderable(views.runs)
+        if self._view == "projects":
+            return self._projects_renderable(views.projects)
         if self._view == "providers":
             return self._providers_renderable(views.providers)
         if self._view == "runtime":
@@ -461,15 +511,28 @@ class StatisticsPane(Vertical):
         skills.add_column("Agents", justify="right")
         for row in overview.top_skills:
             skills.add_row(row.label, str(row.count), str(row.distinct_agents))
+        projects = Table(box=box.SIMPLE, expand=True)
+        projects.add_column("Project", style="bold", ratio=1)
+        projects.add_column("Runs", justify="right", style=_CYAN)
+        projects.add_column("Success", justify="right", style=_GREEN)
+        for row in overview.top_projects:
+            projects.add_row(
+                self._project_cell(row.project),
+                str(row.runs),
+                self._percent(row.success_rate),
+            )
+        mini_table_width = max(24, (max(60, int(self.size.width or 100)) - 4) // 3)
         return Group(
             Panel(buckets, title="Runs over time", border_style=_ACCENT),
             Columns(
                 (
                     Panel(providers, title="Top providers", border_style=_CYAN),
                     Panel(skills, title="Top skills", border_style=_GOLD),
+                    Panel(projects, title="Top projects", border_style=_GREEN),
                 ),
                 equal=True,
                 expand=True,
+                width=mini_table_width,
             ),
         )
 
@@ -585,6 +648,7 @@ class StatisticsPane(Vertical):
         )
 
     def _plans_questions_renderable(self, view: Any) -> Columns:
+        unscoped_suffix = " (all projects)" if self._project_filter else ""
         plans_summary = Text(
             f"Proposed  {view.plans_proposed}  ·  Approved  {view.plans_approved}  ·  "
             f"Rejected  {view.plans_rejected}  ·  Pending  {view.plans_pending}"
@@ -610,7 +674,7 @@ class StatisticsPane(Vertical):
                         ),
                         phases,
                     ),
-                    title="Plans",
+                    title=f"Plans{unscoped_suffix}",
                     border_style=_ACCENT,
                 ),
                 Panel(
@@ -623,7 +687,7 @@ class StatisticsPane(Vertical):
                         ),
                         question_sizes,
                     ),
-                    title="Questions",
+                    title=f"Questions{unscoped_suffix}",
                     border_style=_CYAN,
                 ),
             ),
@@ -705,8 +769,12 @@ class StatisticsPane(Vertical):
         view_label = VIEW_LABELS[self._view]
         if self._view == "runtime":
             view_label += f" by {self._runtime_group_by.title()}"
+        elif self._view == "projects":
+            view_label += f" · {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
         heading.append(view_label, style="bold")
         heading.append(f"  ·  {self._range.label}", style=f"bold {_CYAN}")
+        if self._project_filter is not None:
+            heading.append(f"  ·  {self._project_filter}", style=f"bold {_GOLD}")
         if self._loading:
             heading.append("  ·  refreshing…", style="dim italic")
         elif self._last_error:
@@ -728,8 +796,14 @@ class StatisticsPane(Vertical):
                 f"{bindings[0][0]} / {bindings[1][0]}", style=f"bold {_ACCENT}"
             )
             hints.append(" views")
-        styles = (_CYAN, _GOLD, _GREEN, _ACCENT)
+        styles = (_CYAN, _GOLD, _GREEN, _ACCENT, _CYAN)
         for (key, description), color in zip(bindings[2:], styles, strict=False):
+            if description == "Group By" and self._view == "runtime":
+                description = f"Group: {self._runtime_group_by.title()}"
+            elif description == "Group By" and self._view == "projects":
+                description = (
+                    f"Group: {_PROJECTS_GROUP_LABELS[self._projects_group_by]}"
+                )
             hints.append("   ")
             hints.append(key, style=f"bold {color}")
             hints.append(f" {description.lower()}")
@@ -737,6 +811,9 @@ class StatisticsPane(Vertical):
 
     def _update_heading(self) -> None:
         self._update_static("#statistics-title", self._heading_text())
+
+    def _update_hints(self) -> None:
+        self._update_static("#statistics-hints", self._hints_text())
 
     def _set_tiles_visible(self, visible: bool) -> None:
         try:

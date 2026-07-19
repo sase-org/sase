@@ -53,6 +53,7 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.statistics.cycle_range == "t"
     assert reg.statistics.custom_range == "c"
     assert reg.statistics.cycle_group == "g"
+    assert reg.statistics.cycle_project_filter == "p"
     assert reg.statistics.refresh == "r"
 
 
@@ -66,7 +67,8 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
                     "cycle_range": "f10",
                     "custom_range": "f9",
                     "cycle_group": "f8",
-                    "refresh": "f7",
+                    "cycle_project_filter": "f7",
+                    "refresh": "f6",
                 }
             }
         }
@@ -77,7 +79,8 @@ def test_statistics_pane_keys_can_be_overridden_independently() -> None:
     assert reg.statistics.cycle_range == "f10"
     assert reg.statistics.custom_range == "f9"
     assert reg.statistics.cycle_group == "f8"
-    assert reg.statistics.refresh == "f7"
+    assert reg.statistics.cycle_project_filter == "f7"
+    assert reg.statistics.refresh == "f6"
 
 
 def test_gate_modal_keys_can_be_overridden_independently() -> None:

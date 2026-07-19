@@ -95,6 +95,7 @@ ace:
       cycle_range: "t"
       custom_range: "c"
       cycle_group: "g"
+      cycle_project_filter: "p"
       refresh: "r"
     app:
       # Navigation

@@ -71,6 +71,48 @@ async def test_config_center_statistics_runtime_png_snapshot(
         )
 
 
+async def test_config_center_statistics_projects_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("projects")
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_projects_120x40",
+            title="ACE SASE Admin Center — Statistics projects",
+        )
+
+
+async def test_config_center_statistics_projects_drilldown_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_siblings(monkeypatch)
+    _patch_statistics_populated(monkeypatch)
+
+    async with AcePage(query='"visual"', changespecs=changespecs()) as page:
+        await wait_for_startup(page)
+        _, pane = await _open_statistics_modal(page)
+        pane._set_view("projects")
+        pane.action_cycle_group()
+        pane.action_cycle_group()
+        await page.pause()
+
+        ace_png_visual.assert_page_png(
+            page,
+            "config_center_statistics_projects_drilldown_120x40",
+            title="ACE SASE Admin Center — Statistics projects drill-down",
+        )
+
+
 async def test_config_center_statistics_empty_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

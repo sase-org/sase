@@ -319,6 +319,7 @@ def test_default_config_covers_all_statistics_keymaps() -> None:
         "cycle_range": "t",
         "custom_range": "c",
         "cycle_group": "g",
+        "cycle_project_filter": "p",
         "refresh": "r",
     }
     assert field_names == set(defaults)

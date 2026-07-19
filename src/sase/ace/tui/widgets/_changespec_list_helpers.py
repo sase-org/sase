@@ -15,6 +15,7 @@ from textual.widgets.option_list import Option
 
 from sase.project_display_names import humanize_cl_name
 
+from ..changespec_status import changespec_status_glyph
 from ...changespec import (
     ChangeSpec,
     get_base_status,
@@ -193,32 +194,6 @@ def calculate_entry_display_width(
     return text.cell_len
 
 
-def _get_status_letter_and_color(status: str) -> tuple[str, str]:
-    """Map a status string to its letter and natural color.
-
-    Args:
-        status: The ChangeSpec status string
-
-    Returns:
-        Tuple of (letter, color)
-    """
-    if "..." in status:
-        return "~", "#87AFFF"
-    elif status.startswith("Draft"):
-        return "D", "#FFD700"
-    elif status.startswith("Ready"):
-        return "R", "#87D700"
-    elif status.startswith("Mailed"):
-        return "M", "#00D787"
-    elif status.startswith("Submitted"):
-        return "S", "#00AF00"
-    elif status.startswith("Reverted"):
-        return "X", "#808080"
-    elif status.startswith("Archived"):
-        return "A", "#606060"
-    return "W", "#87CEEB"
-
-
 def get_status_indicator(changespec: ChangeSpec) -> tuple[str, str]:
     """Get a status indicator symbol and letter color for a ChangeSpec.
 
@@ -229,7 +204,7 @@ def get_status_indicator(changespec: ChangeSpec) -> tuple[str, str]:
     has_running = has_any_running_agent(changespec)
     has_process = has_any_running_process(changespec)
     has_error = has_any_error_suffix(changespec)
-    letter, letter_color = _get_status_letter_and_color(status)
+    letter, letter_color = changespec_status_glyph(status)
 
     # Build prefix components
     error_prefix = "!" if has_error else ""
