@@ -8,8 +8,10 @@ SASE uses three different kinds of agent grouping:
 | **Agent family** | `%n(parent, suffix)`                            | A strictly sequential chain named `<family>--<suffix>`               |
 | **Agent tribe**  | `%tribe:<name>` / `%t:<name>`                   | A user-managed label displayed with an `@` prefix, such as `@review` |
 
-Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. Clans use that
-namespace rule deliberately, while dotted names alone do not create clan or family membership.
+Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors in hood `foo`. A deeper name
+belongs to every hood along its dotted path, so ACE can group `foo.bar.worker` with peers under `foo.bar` and cousins
+under `foo`. Clans use that namespace rule deliberately, while dotted names alone do not create clan or family
+membership.
 
 ## Parallel Agent Clans
 
@@ -53,14 +55,17 @@ orchid `<name>` after its rolled-up status counts; its `@tribe` labels follow th
 ends with an azure `<name>`, while plain agent annotations and a lone plan proposer with only its display-only planner
 child remain gold. Press `l` once to reveal direct members and a second time to reveal hidden workflow steps and members
 of nested families; `h` collapses one level. Selecting the clan row shows an aggregate `CLAN` header and a navigable
-summary of every section represented across its members. The runtime is the union of member run intervals, with
-human-wait windows excluded, so concurrent members are not double-counted.
+summary of every section represented across its members. Direct members sort by status priority — Failed, Stopped,
+Running/Starting, Waiting, Done — and then by launch recency within a bucket. The runtime is the union of member run
+intervals, with human-wait windows excluded, so concurrent members are not double-counted.
 
 ### Clan summary folding
 
 Clan summaries collect member errors, output and workflow variables, replies, SASE context, slow tool calls, and prompts
-beneath the `MEMBERS` table. Empty section kinds are omitted. Use `Ctrl+J` and `Ctrl+K` to move between the visible
-section headings.
+beneath the `MEMBERS` table. Empty section kinds are omitted. Each direct member receives a fixed jump number: `0`–`9`
+for rosters with at most ten entries, or `00`–`99` for larger rosters. Press that number while the clan is selected to
+expand only the member's ancestor chain and jump to its row; `Esc` cancels a pending first digit. Use `Ctrl+J` and
+`Ctrl+K` to move between the visible section headings.
 
 The summary has three session-only fold levels:
 
@@ -77,9 +82,9 @@ per-section overrides. The `Fold: N/3` field in the `CLAN` header always shows t
 section first opens.
 
 The fold prefix is available only while the Agents tab is active. Press uppercase `Z` to zoom the largest panel; the
-lowercase `z` key now starts fold mode. Fold state is panel-wide, but currently changes only clan summaries; using a
-fold chord on a regular agent updates the session state for the next clan selection without changing that agent's
-sections.
+lowercase `z` key starts fold mode. Fold state is panel-wide and applies when a clan or multi-member family container is
+selected. Using a fold chord on a regular agent updates the session state for the next container selection without
+changing that agent's sections.
 
 ### Epic bead-work example
 
@@ -140,6 +145,18 @@ before spawning the member. Collision errors suggest `%n(parent, @)`. `%wait:<fa
 bare family name resolve through the family container; an exact `--<suffix>` name targets one member. A member attached
 to an agent already inside a clan inherits that clan membership.
 
+### Family detail folding
+
+Selecting a real multi-member family root in ACE adds a numbered `FAMILY MEMBERS` roster in stable chain order. The
+original member and each follow-up are direct jump targets; synthetic planner projections and legacy parallel-family
+scaffolding are not. The same `zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and the
+root's output variables, workflow variables, SASE context, slow calls, errors, xprompt, prompt, and consolidated reply.
+
+At level 1, member rows show their core label, kind, status, model, and duration while disk-backed content stays
+deferred. Level 2 adds bounded activity, wait/retry, context, and prompt/reply previews. Level 3 adds full available
+content and member workspace, timestamp, and attempt annotations. A member-specific override inherits from the
+`FAMILY MEMBERS` section, which in turn inherits the panel level.
+
 Two bundled xprompts help assemble common follow-up prompt bodies. They build text only; `%n` performs the attachment:
 
 ```text
@@ -172,8 +189,13 @@ An agent tribe is a user-facing label for related agents across clans and famili
 %n:api-review %t:review Review the API boundary.
 ```
 
-ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. A synthetic
-clan row displays the distinct tribes carried by its members. Manage an existing agent's tribe with:
+ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as `@review` and `@epic`. A modern
+clan declaration assigns one authoritative tribe to the whole generation. Older clan generations without an explicit
+`clan_tribe` declaration fall back to the distinct post-hoc member tags they carry.
+
+Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For a clan member, ACE rewrites the
+member's `%clan(<clan>, tribe=<tribe>)` declaration and generation metadata; the synthetic clan row itself is not an
+editable agent. The CLI manages post-hoc tags for named standalone agents:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -181,8 +203,30 @@ sase agent tribe unset -n <agent>
 sase agent tribe list [-n <agent>]
 ```
 
-The persisted metadata field and store are still named `tag` internally for compatibility; the directive, CLI, and
-display terminology are tribe.
+Standalone post-hoc assignments retain the internal `tag` field and `agent_tags.json` store for compatibility. Clan-wide
+assignments use the separate `clan_tribe` metadata field. The prompt language, CLI, and display terminology are all
+tribe.
+
+### Tribe wait and fork targets
+
+Use an `@<tribe>` reference where `%wait` or `#fork` normally accepts an agent name:
+
+```text
+%wait:@review
+#fork:@review
+```
+
+This is a next-entity target, not a request to wait for every historical member of the tribe. `%wait:@review` selects
+the earliest successfully completed `@review` entity launched after the waiting agent: either one standalone agent or
+one complete clan generation. Older entities, the waiting agent itself, failed agents, and incomplete clans do not
+satisfy the dependency. A tagged member of a clan enrolls the whole generation, so that candidate becomes eligible only
+after every member required by the normal clan wait succeeds.
+
+`#fork:@review` implies the same wait, then resumes from the selected entity. A standalone match contributes one
+conversation; a clan match contributes every member conversation in launch order. Tribe targets can be mixed with
+explicit agent or clan parents in a multi-parent fork, and ACE prompt completion offers visible `@tribe` values for both
+`%wait` and `#fork`. Because the eventual parent is unknown at launch planning time, tribe waits and forks use neutral
+auto-names rather than derived `.w*` or `.f*` names.
 
 ## Agent-Initiated Family Launches
 

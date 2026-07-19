@@ -810,23 +810,27 @@ provider can have multiple filesystem targets. Built-in targets are:
 
 The following skills ship in `src/sase/xprompts/skills/` and are deployed by `sase skill init`. They are packaged with
 sase, included in `sase xprompt list`, and available to prompt completion clients even when a checkout does not have
-local skill files. Coding agents invoke them as `/sase_<name>`. Runtime config overlays can add more skill sources, so
-`sase skill list` may show entries that are not bundled here:
+local skill files. Coding agents invoke them by their registered names, such as `/sase_plan` or `/sase_repo`. Runtime
+config overlays can add more skill sources, so `sase skill list` may show entries that are not bundled here:
 
-| Skill                | Purpose                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `sase_agents_status` | Report on currently-running SASE agents (list, kill, show)                                                    |
-| `sase_artifact`      | Create explicit SASE artifacts from files produced during an agent run                                        |
-| `sase_beads`         | Reference for `sase bead` commands (create, update, list, ready, show, dep)                                   |
-| `sase_chats`         | Inspect prior sase agent chat transcripts via `sase chat list` and `sase chat show`                           |
-| `sase_changespecs`   | Inspect and reason about ChangeSpecs via `sase changespec search ...`, exact-name lookup, and safe edit rules |
-| `sase_git_commit`    | Commit changes for git-based VCS via `sase commit` (the only sanctioned commit path on git repos)             |
-| `sase_hg_commit`     | Gemini-only commit skill for the hg/fig provider path                                                         |
-| `sase_memory_read`   | Guide audited long-term memory reads through `sase memory read`                                               |
-| `sase_notify`        | Inspect SASE notification inbox entries via `sase notify list` and `sase notify show`                         |
-| `sase_plan`          | Submit a plan file for approval (used in lieu of disabled `EnterPlanMode`)                                    |
-| `sase_questions`     | Ask the user structured questions (used in lieu of disabled `AskUserQuestion`)                                |
-| `sase_var`           | Attach named output variables to the current SASE agent run                                                   |
+| Skill                | Purpose                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `sase_agents_status` | Report on currently running SASE agents                                                       |
+| `sase_artifact_file` | Register an explicit file produced during an agent run                                        |
+| `sase_beads`         | Reference `sase bead` create, update, list, search, ready, show, and dependency commands      |
+| `sase_changespecs`   | Inspect and reason about ChangeSpecs, commits, hooks, comments, and mentors                   |
+| `sase_chats`         | Inspect prior SASE agent prompts and responses                                                |
+| `sase_gate`          | Create a durable custom confirmation gate for a proposed command or decision                  |
+| `sase_git_commit`    | Commit through `sase commit` for git and GitHub workflows                                     |
+| `sase_hg_commit`     | Commit through `sase commit` for the fig VCS workflow where deployed                          |
+| `sase_memory_read`   | Perform audited long-term memory reads through `sase memory read`                             |
+| `sase_notify`        | Inspect SASE notifications and notification inbox entries                                     |
+| `sase_plan`          | Create and submit an implementation plan when provider-native plan mode is disabled           |
+| `sase_project`       | Inspect or manage project lifecycle state and aliases                                         |
+| `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |
+| `sase_repo`          | Open and audit linked, sidecar, other-project, or external repositories before accessing them |
+| `sase_run`           | Request an agent-initiated launch through `LaunchApproval`                                    |
+| `sase_var`           | Attach named output variables to the current SASE agent run                                   |
 
 ## Built-in XPrompts
 
@@ -841,7 +845,7 @@ defaults. Common entries include:
 | `#commit`             | Create a normal commit from completed agent changes                                               |
 | `#propose`            | Create a proposal from completed agent changes                                                    |
 | `#file`               | Require the agent to write its response to a named markdown artifact                              |
-| `#fork`               | Resume context from a prior agent conversation by name                                            |
+| `#fork`               | Resume context from an agent, a complete clan, or the next completed entity in a tribe            |
 | `#fork_by_chat`       | Resume context from a specific chat transcript path                                               |
 | `#mentor`             | Run a structured mentor review against a PR                                                       |
 | `#split_file`         | Ask an agent to split one large Python file into import-safe smaller files                        |
@@ -866,6 +870,11 @@ unrendered Jinja2 markers (`{{ }}`, `{% %}`, `{# #}`) are stripped so the forked
 Fenced code blocks and real markdown headings are preserved, and assistant responses are left untouched. Raw transcripts
 on disk are unchanged — the cleanup happens only when building resume history (so `sase chat show` still shows the
 original prompts).
+
+`#fork:<clan>` waits for a complete clan generation and injects every member conversation. `#fork:@<tribe>` waits for
+the earliest completed standalone agent or complete clan in that tribe launched after the new agent, then injects that
+entity's conversation set. Multiple `#fork(...)` parents can mix agent, clan, and tribe references; SASE preserves the
+declared parent order while removing duplicates.
 
 To see the exact body of any built-in inline xprompt, run `sase xprompt expand --trace '#<name>'` or browse the catalog
 with `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain command takes the workflow
@@ -1023,11 +1032,13 @@ Directives use the same argument syntax as xprompt references:
 %name:!reviewer              # Force reuse by wiping the previous owner
 %clan:research.@             # Join a rootless clan; member names must be research.@.<suffix>
 %c:research.@                # Same, using alias
+%clan(research, tribe=review) # Assign the whole clan generation to @review
 %wait:agent1                 # Wait for agent1
 %w:agent2                    # Wait for agent2 (alias)
 %wait                        # Bare — waits for the most recently named agent
 %wait:agent1,agent2          # Multi-value: equivalent to two separate %wait: lines
 %wait(agent1, agent2)        # Same, paren form
+%wait:@review                # Wait for the next completed @review agent or clan
 %wait(time=5m)               # Wait for 5 minutes before starting
 %wait(time=1h30m)            # Wait for 1 hour 30 minutes
 %wait(time=90s)              # Wait for 90 seconds
@@ -1060,10 +1071,11 @@ Model names containing spaces or parentheses must use the quoted parenthesis for
 The `%clan` directive declares execution-neutral membership in a rootless parallel agent clan. Adding it does not change
 the member's planned name, model, waits, fan-out, spawn order, VCS/project context, or workspace behavior; it only adds
 clan metadata and strips the directive before model execution. The clan name is a reserved container, never an agent,
-and each member name must start with `<clan>.`. Every segment uses the colon form and carries its own `%clan`
-declaration; parenthesized forms and member roles are not supported. A member segment may fan out, and identical raw
-clan templates in one batch resolve to the same generation. See [Agent Clans, Families, and Tribes](agent_families.md)
-for the full launch, wait, display, and cleanup contract.
+and each member name must start with `<clan>.`. Every segment carries its own `%clan` declaration. Use the colon form
+for membership alone, or `%clan(<name>, tribe=<tribe>)` to assign one authoritative tribe to the whole clan generation;
+do not combine a separate `%tribe` directive with `%clan`. Member roles are not part of the clan directive. A member
+segment may fan out, and identical raw clan templates in one batch resolve to the same generation. See
+[Agent Clans, Families, and Tribes](agent_families.md) for the full launch, wait, display, and cleanup contract.
 
 The `%model` directive also supports automatic provider resolution: known model names (e.g., `opus`, `o3`,
 `qwen3.6-plus`) are automatically mapped to their provider. See
@@ -1153,6 +1165,12 @@ name, every member or child must complete successfully. An exact agent name stil
 killed, crashed, still-running, malformed, or missing `done.json` artifacts do not satisfy the wait; the dependent agent
 stays parked until a later successful run of the same dependency name appears.
 
+An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe members and selects the earliest
+successfully completed eligible entity launched after the waiting agent: one standalone agent or one whole clan
+generation. A tagged clan member enrolls its generation, which becomes eligible only when the normal aggregate clan wait
+succeeds. `#fork:@review` implies this same wait and then resumes from the selected agent conversation or every
+conversation in the selected clan. Tribe names use letters, digits, underscores, dots, and dashes after the leading `@`.
+
 A submitted plan awaiting review is the one exception. A planner that ran `sase plan propose` blocks in the approval
 flow without writing a `done.json`, so its planner row shows the `PLAN` status. A `%wait` on that planner row — its
 canonical `<base>--plan` name (or a legacy `<base>.plan` spelling) — treats the submitted plan as done and unblocks
@@ -1163,13 +1181,15 @@ finished.
 When a launch has exactly one explicit `%wait:<name>` dependency and no explicit `%name`, SASE can allocate a derived
 name before spawning the waiting agent: `<name>.w0`, `<name>.w1`, and so on, using the first free template token. After
 `<name>.w9`, letter-leading IDs gain a separator (`<name>.w-a`, `<name>.w-b`, and so on) to keep the name readable.
-Multi-value waits, bare `%wait`, and prompts whose name depends on unresolved xprompt expansion do not get a parent-side
-derived name. Repeat launches reuse this rule, then chain later repeat slots with `%wait:<previous-slot-name>`.
+Multi-value waits, tribe targets, bare `%wait`, and prompts whose name depends on unresolved xprompt expansion do not
+get a parent-side derived name. Repeat launches reuse this rule, then chain later repeat slots with
+`%wait:<previous-slot-name>`.
 
 Fork/resume names follow the same sequence: `<name>.f0` through `<name>.f9`, then `<name>.f-a`, `<name>.f-b`, and so on.
 Retries use `<name>.r0` through `<name>.r9`, then `<name>.r-a`, `<name>.r-b`, and so on. If a prompt includes both
 `#fork`/`#resume` and `%wait`, the fork-derived `.f@` template takes precedence over the wait-derived `.w@` template.
-The wait still controls launch ordering, but the planned agent name follows the resume/fork lineage.
+The wait still controls launch ordering, but the planned agent name follows the resume/fork lineage. A tribe fork uses a
+neutral auto-name because the concrete parent entity is deliberately unknown until its wait resolves.
 
 The `%wait` directive also accepts a `time=` keyword to defer launch by a duration or until an absolute wall-clock time.
 For a pure time wait, `#t:<time>` is shorthand for `%wait(time=<time>)`.

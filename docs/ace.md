@@ -90,10 +90,10 @@ above are the defaults.
 
 ### Filtering Commits and Plans
 
-Press `/` in Commits or Plans to open its live filter bar. Tokens from different facets combine with AND semantics;
-comma-separated and repeated values within one facet combine with OR semantics. Free-text terms must all match. Press
-`Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or `Escape` to restore the last
-committed query.
+Press `/` or `f` in Commits or Plans to open its live filter bar. Tokens from different facets combine with AND
+semantics; comma-separated and repeated values within one facet combine with OR semantics. Free-text terms must all
+match. Press `Tab` to accept the highlighted key or value completion, `Enter` to keep the query, or `Escape` to restore
+the last committed query.
 
 Commits accepts `repo:`, `author:`, `since:`, `until:`, and `limit:` plus free text matched against the commit subject.
 For example, `repo:sase author:Ada since:7d fix` shows recent SASE commits by Ada whose subjects contain `fix`, while
@@ -337,8 +337,9 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 | `Ctrl+O`            | Fast jump: jump back if possible, otherwise jump to the first current-tab hint                        |
 | `Ctrl+J` / `Ctrl+K` | Cycle metadata sections forward / backward through the document top                                   |
 | `` ` ``             | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                 |
+| `0`–`9`             | Jump from a selected clan or family container to its numbered member                                  |
 | `o` / `O`           | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                          |
-| `~`                 | Jump among related agent rows: dotted-name ancestors, descendants, and same-namespace neighbors       |
+| `~`                 | Jump among dotted-name ancestors, descendants, and shared-hood neighbors                              |
 | `g`                 | Scroll to top (file, tools, or metadata panel)                                                        |
 | `G`                 | Scroll to bottom (file, tools, or metadata panel)                                                     |
 | `Ctrl+D` / `Ctrl+U` | Scroll file panel down / up                                                                           |
@@ -348,11 +349,18 @@ apply accepted changes. See [docs/mentors.md](mentors.md) for the full mentor sy
 > surface keeps its own in-session selection independently); on the AXE tab it is a silent no-op. `g`/`G` keep their
 > conventional vim-style scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes) below.
 
-On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It can jump among
-visible ancestors, descendants, and neighbors in the same immediate namespace, such as `foo.bar` and `foo.baz`. Dotless
-names can still have descendants (`foo.child`) but do not have same-namespace peer neighbors. If there is only one
-related visible row ACE jumps directly; otherwise it opens a chooser that can also revive same-session dismissed
-descendants.
+On the Agents tab, `~` uses dotted agent-name relationships rather than ChangeSpec sibling families. It includes visible
+ancestors and descendants plus neighbors from every dotted hood that contains the selected name. For example,
+`foo.bar.worker` can offer peers under `foo.bar` and cousins elsewhere under `foo`, grouped deepest hood first. Dotless
+names can still have descendants such as `foo.child`. If there is only one related visible row ACE jumps directly;
+otherwise it opens a chooser that can also revive same-session dismissed descendants. A chosen target is resolved by
+stable identity and revealed through any clan, family, workflow, or grouping folds before focus moves.
+
+When a clan or multi-member family container is selected, its metadata panel assigns a fixed number to each direct
+member. Rosters with at most ten entries use `0`–`9`; larger rosters use two-key numbers `00`–`99`. After the first
+digit of a two-key jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's normal
+action. A successful jump expands only the target's ancestor chain, switches tribe panels when needed, and participates
+in the normal `Ctrl+O` jump-back history.
 
 ### Agent Actions
 
@@ -384,8 +392,39 @@ descendants.
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it) |
 | `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                  |
 | `p`                 | Toggle file / prompt layout                                                                                |
-| `z`                 | Open the zoom modal for the active detail panel                                                            |
+| `z`                 | Start metadata fold mode for clan and family container detail panels                                       |
+| `Z`                 | Open the zoom modal for the active detail panel                                                            |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                              |
+
+### Clan and Family Detail Panels
+
+Selecting a clan container shows a `CLAN` summary; selecting a real multi-member family root shows that family's normal
+agent metadata plus a `FAMILY MEMBERS` roster. Both rosters use the numbered member jumps described above. Clan direct
+members sort by status priority — Failed, Stopped, Running/Starting, Waiting, Done — with launch recency breaking ties;
+a nested family remains one direct entry with its chain indented beneath it. Family rosters retain sequential chain
+order.
+
+Container metadata has three session-only detail levels:
+
+| Level | Content                                                                                                        |
+| ----- | -------------------------------------------------------------------------------------------------------------- |
+| 1     | Core member rows plus headings and counts; expensive disk-backed bodies remain deferred                        |
+| 2     | Bounded triage detail such as activity, wait/retry state, context summaries, and prompt/reply previews         |
+| 3     | Full available sections and the richest member annotations, including workspace, timestamps, and attempt count |
+
+The default fold chords are:
+
+| Key  | Action                                                                   |
+| ---- | ------------------------------------------------------------------------ |
+| `zz` | Cycle the whole metadata panel forward: 1 → 2 → 3 → 1                    |
+| `zZ` | Cycle the whole metadata panel backward                                  |
+| `za` | Cycle the section or numbered member at the top of the metadata viewport |
+| `zA` | Toggle that section or member between collapsed and fully expanded       |
+
+The `Fold: N/3` header field reports the panel level, while `▸`, `▾`, and `▼` show effective per-section levels. A
+panel-level cycle clears per-section overrides. Fold state is shared by the Agents metadata panel: ordinary agents do
+not fold their sections, but using a chord on one records the level that the next selected clan or family container will
+use. These keys are configurable; see [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
 When ACE knows a planner/author or epic lander's associated plan, the metadata panel adds `PLAN` as the leading lane in
 `SASE CONTEXT`. The section ranks intent and inputs before outputs: `PLAN`, the audited `MEMORY`, `SKILLS`, and
@@ -1412,7 +1451,7 @@ notice; press `E` to open the complete content.
 
 ## Agents Zoom Panel
 
-Press `z` on the Agents tab to open a near-fullscreen view of the active detail panel. The header shows the available
+Press `Z` on the Agents tab to open a near-fullscreen view of the active detail panel. The header shows the available
 panel tabs (`METADATA`, `FILE`, `TOOLS`) with the active panel highlighted; use `]` / `[` to cycle those panels with
 wrap-around.
 
@@ -1657,9 +1696,10 @@ a pinned attempt view resets the cursor.
   - `DONE` — when execution completed
 - **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid heading and orchid `Name:` value match the
   clan row's identity block; the header also shows `@tribes`, rolled-up status counts, wall-clock runtime, and
-  agent/family totals. Member rows are sorted by launch time and show the hood-relative suffix, kind, status, model, and
-  duration; members of a nested sequential family are indented under its aggregate row. The section participates in `g}`
-  / `g{` metadata-section navigation like the other titled sections.
+  agent/family totals. Direct member rows use Failed, Stopped, Running/Starting, Waiting, Done status priority, then
+  launch recency within a bucket. Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
+  members of a nested sequential family are indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered
+  section headings, and pressing the row's number jumps to that member in the Agents list.
 - **SASE CONTEXT / PLAN**: Shown as the leading context lane for the epic-authoring planner and epic lander when direct
   metadata or a confirmed legacy epic association resolves a plan. Phase workers deliberately omit the lane and show
   only their one phase's `Bead` value; no goal, path, or other roadmap phases are rendered. For plan-bearing roles, the
@@ -2393,11 +2433,18 @@ Text objects compose with `d`, `c`, and `y`.
 | `J`        | Join current line with next (supports count: `5J`)                                        |
 | `K`        | Preview the xprompt, workflow, skill, or file under the cursor in a scrollable modal      |
 | `Ctrl+]`   | Jump to the xprompt/workflow/skill definition or file under the cursor                    |
+| `/` / `?`  | Search forward / backward in the current prompt pane                                      |
+| `n` / `N`  | Repeat the last confirmed search in its original / opposite direction                     |
 
 For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one available action. Inside tmux, or for
 loadable Markdown xprompt definitions, it can show a small chooser for editor, tmux-pane, or load-into-prompt actions.
 
 The border subtitle shows pending operators and counts (e.g., `2d` when a delete with count 2 is pending).
+
+Search previews matching text as you type. `Enter` confirms the query, while `Esc` or `Ctrl+C` cancels and restores the
+original cursor. The last confirmed search is shared by every pane in the current `---`-separated prompt stack and
+survives a stack rebuild, so switching panes and pressing `n` or `N` reuses the same query against the newly active
+pane.
 
 ### Visual Mode
 
