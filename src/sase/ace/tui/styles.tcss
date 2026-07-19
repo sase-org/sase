@@ -723,7 +723,7 @@ ChangeSpecList > .option-list--option-highlighted {
 }
 
 /* Modal styling */
-StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
+StatusModal, QueryEditModal, WorkflowSelectModal, AcceptProposalModal, AgentCleanupModal, AgentCleanupTagModal, AgentCleanupClanModal, AgentCleanupCustomModal, StashedPromptsModal, UpdatePinnedStashModal, QuitConfirmModal, InputCollectionModal {
     align: center middle;
 }
 
@@ -848,6 +848,52 @@ AgentCleanupTagModal #agent-cleanup-tag-list {
     height: auto;
     max-height: 18;
     border: solid $secondary;
+}
+
+AgentCleanupClanModal > #agent-cleanup-clan-container {
+    width: 92;
+    max-width: 95%;
+    height: auto;
+    max-height: 88%;
+    border: thick $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-title {
+    text-style: bold;
+    color: #5FD7FF;
+    margin-bottom: 1;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-list {
+    height: auto;
+    max-height: 22;
+    border: solid $secondary;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-list > .option-list--option {
+    padding: 0 1;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-list > .option-list--option-highlighted {
+    background: $accent 22%;
+    border-left: thick $accent;
+    padding: 0 1 0 0;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-preview {
+    height: auto;
+    min-height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+AgentCleanupClanModal #agent-cleanup-clan-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
 }
 
 AgentCleanupCustomModal > #agent-cleanup-custom-container {

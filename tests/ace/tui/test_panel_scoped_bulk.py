@@ -11,9 +11,18 @@ from __future__ import annotations
 from typing import Any
 
 from sase.ace.tui.actions.agents import AgentsMixin
-from sase.ace.tui.modals import AgentCleanupTagModal
+from sase.ace.tui.modals import (
+    AgentCleanupClanModal,
+    AgentCleanupClanResult,
+    AgentCleanupTagModal,
+)
+from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
+from sase.core.agent_cleanup_wire import (
+    CLEANUP_SCOPE_CLAN,
+    CLEANUP_SCOPE_CUSTOM_SELECTION,
+)
 
 
 def _agent(
@@ -27,6 +36,8 @@ def _agent(
     parent_workflow: str | None = None,
     parent_timestamp: str | None = None,
     workflow: str | None = None,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type
@@ -45,6 +56,8 @@ def _agent(
         parent_workflow=parent_workflow,
         parent_timestamp=parent_timestamp,
         workflow=workflow,
+        agent_clan=agent_clan,
+        agent_clan_generation=agent_clan_generation,
     )
 
 
@@ -62,6 +75,8 @@ class _FakeApp(AgentsMixin):
         )
         self.current_idx = 0
         self.current_tab = "agents"
+        self._marked_agents: set[tuple[AgentType, str, str | None]] = set()
+        self._current_group_key = None
         self._notifications: list[tuple[str, str]] = []
         self._pushed: list[tuple[Any, Any]] = []
         if with_panel_group:
@@ -329,3 +344,210 @@ def test_tag_cleanup_current_workflow_parent_keeps_hidden_child_cascade() -> Non
     rows = {row.tag: row for row in screen._rows}
     assert rows["fix"].plan.counts.kill == 1
     assert rows["fix"].plan.counts.cascaded_workflow_children == 1
+
+
+def _projected_clans(*members: Agent) -> list[Agent]:
+    return project_clan_tree(list(members))
+
+
+def test_clan_cleanup_panel_state_counts_cleanable_clans_and_focus(
+    monkeypatch: Any,
+) -> None:
+    alpha = _agent(
+        name="alpha.1",
+        suffix="alpha-1",
+        status="RUNNING",
+        pid=10,
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    beta = _agent(
+        name="beta.1",
+        suffix="beta-1",
+        tag="epic",
+        agent_clan="beta",
+        agent_clan_generation="g2",
+    )
+    rows = _projected_clans(alpha, beta)
+    app = _FakeApp(rows, focused_key="epic", agents_with_children=rows)
+    monkeypatch.setattr(app, "_get_focused_group", lambda: None)
+    monkeypatch.setattr(app, "_get_selected_agent", lambda: alpha)
+
+    state = app._build_agent_cleanup_panel_state()
+
+    assert state.clan_count == 2
+    assert state.focused_clan_label == "alpha"
+
+
+def test_open_clan_cleanup_selector_is_tribe_scoped_and_pre_highlighted(
+    monkeypatch: Any,
+) -> None:
+    alpha = _agent(
+        name="alpha.1",
+        suffix="alpha-1",
+        status="RUNNING",
+        pid=10,
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    review = _agent(
+        name="review.1",
+        suffix="review-1",
+        tag="review",
+        agent_clan="review",
+        agent_clan_generation="g2",
+    )
+    rows = _projected_clans(alpha, review)
+    app = _FakeApp(rows, focused_key="epic", agents_with_children=rows)
+    monkeypatch.setattr(app, "_get_selected_agent", lambda: alpha)
+
+    app._open_clan_cleanup_selector()
+
+    screen, _callback = app._pushed[-1]
+    assert isinstance(screen, AgentCleanupClanModal)
+    assert [row.label for row in screen._rows] == ["alpha"]
+    assert screen._initial_clan == ("alpha", "g1")
+    assert all(not target.is_clan_container for target in screen._targets)
+
+
+def test_single_clan_cleanup_uses_clan_scope_and_strips_containers(
+    monkeypatch: Any,
+) -> None:
+    running = _agent(
+        name="alpha.1",
+        suffix="alpha-1",
+        status="RUNNING",
+        pid=10,
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    done = _agent(
+        name="alpha.2",
+        suffix="alpha-2",
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    rows = _projected_clans(running, done)
+    app = _FakeApp(rows, focused_key="epic", agents_with_children=rows)
+    captured: dict[str, Any] = {}
+
+    def capture(request: Any, *, header: str, targets: list[Agent]) -> None:
+        captured.update(request=request, header=header, targets=targets)
+
+    monkeypatch.setattr(app, "_present_planned_cleanup", capture)
+
+    app._present_clan_cleanup(
+        AgentCleanupClanResult(clans=(("alpha", "g1"),), identities=())
+    )
+
+    request = captured["request"]
+    assert request.scope == CLEANUP_SCOPE_CLAN
+    assert request.clan_name == "alpha"
+    assert request.clan_generation == "g1"
+    assert captured["header"] == "Clan: alpha"
+    assert {target.raw_suffix for target in captured["targets"]} == {
+        "alpha-1",
+        "alpha-2",
+    }
+    assert all(not target.is_clan_container for target in captured["targets"])
+
+
+def test_mixed_clan_cleanup_unions_whole_clan_and_member_selection(
+    monkeypatch: Any,
+) -> None:
+    alpha_one = _agent(
+        name="alpha.1",
+        suffix="alpha-1",
+        status="RUNNING",
+        pid=10,
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    alpha_two = _agent(
+        name="alpha.2",
+        suffix="alpha-2",
+        tag="epic",
+        agent_clan="alpha",
+        agent_clan_generation="g1",
+    )
+    beta = _agent(
+        name="beta.1",
+        suffix="beta-1",
+        status="RUNNING",
+        pid=20,
+        tag="epic",
+        agent_clan="beta",
+        agent_clan_generation="g2",
+    )
+    rows = _projected_clans(alpha_one, alpha_two, beta)
+    app = _FakeApp(rows, focused_key="epic", agents_with_children=rows)
+    captured: dict[str, Any] = {}
+
+    def capture(request: Any, *, header: str, targets: list[Agent]) -> None:
+        captured.update(request=request, header=header, targets=targets)
+
+    monkeypatch.setattr(app, "_present_planned_cleanup", capture)
+
+    app._present_clan_cleanup(
+        AgentCleanupClanResult(clans=(("alpha", "g1"),), identities=(beta.identity,))
+    )
+
+    request = captured["request"]
+    assert request.scope == CLEANUP_SCOPE_CUSTOM_SELECTION
+    assert {identity.raw_suffix for identity in request.identities} == {
+        "alpha-1",
+        "alpha-2",
+        "beta-1",
+    }
+    assert captured["header"] == "Clans: 2 selected"
+
+
+def test_clan_cleanup_preserves_generation_and_untagged_panel_scope(
+    monkeypatch: Any,
+) -> None:
+    old = _agent(
+        name="alpha.old",
+        suffix="alpha-old",
+        agent_clan="alpha",
+        agent_clan_generation="old",
+    )
+    current = _agent(
+        name="alpha.current",
+        suffix="alpha-current",
+        status="RUNNING",
+        pid=10,
+        agent_clan="alpha",
+        agent_clan_generation="current",
+    )
+    tagged = _agent(
+        name="other.1",
+        suffix="other-1",
+        tag="review",
+        agent_clan="other",
+        agent_clan_generation="g2",
+    )
+    rows = _projected_clans(old, current, tagged)
+    app = _FakeApp(rows, focused_key=None, agents_with_children=rows)
+    captured: dict[str, Any] = {}
+
+    def capture(request: Any, *, header: str, targets: list[Agent]) -> None:
+        captured.update(request=request, header=header, targets=targets)
+
+    monkeypatch.setattr(app, "_present_planned_cleanup", capture)
+
+    app._present_clan_cleanup(
+        AgentCleanupClanResult(clans=(("alpha", "current"),), identities=())
+    )
+
+    request = captured["request"]
+    assert request.scope == CLEANUP_SCOPE_CLAN
+    assert request.clan_generation == "current"
+    assert {target.raw_suffix for target in captured["targets"]} == {
+        "alpha-old",
+        "alpha-current",
+    }

@@ -13,9 +13,11 @@ AgentCleanupAction = Literal[
     "marked",
     "group",
     "tag",
+    "clan",
     "custom",
 ]
 AgentCleanupAgentIdentity = tuple[Any, str, str | None]
+AgentCleanupClanKey = tuple[str, str | None]
 StatusFilter = Literal["done", "running", "failed", "waiting"]
 
 
@@ -41,6 +43,14 @@ class AgentCleanupTagResult:
 
 
 @dataclass(frozen=True)
+class AgentCleanupClanResult:
+    """Selected whole clans and individual members for clan cleanup."""
+
+    clans: tuple[AgentCleanupClanKey, ...]
+    identities: tuple[AgentCleanupAgentIdentity, ...]
+
+
+@dataclass(frozen=True)
 class AgentCleanupCustomResult:
     """Selected agent identities for custom cleanup."""
 
@@ -61,11 +71,15 @@ class AgentCleanupPanelState:
     marked_count: int
     group_count: int
     tag_count: int
+    clan_count: int = 0
+    focused_clan_label: str | None = None
 
 
 __all__ = [
     "AgentCleanupAction",
     "AgentCleanupAgentIdentity",
+    "AgentCleanupClanKey",
+    "AgentCleanupClanResult",
     "AgentCleanupCustomResult",
     "AgentCleanupPanelState",
     "AgentCleanupResult",
