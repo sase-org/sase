@@ -9,7 +9,9 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.actions._startup_loads import StartupLoadsMixin
-from sase.core.agent_artifact_index_lifecycle import _ArtifactIndexSchemaStatus
+from sase.core.agent_artifact_index_lifecycle_schema import (
+    _ArtifactIndexSchemaStatus,
+)
 from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 

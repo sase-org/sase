@@ -341,7 +341,7 @@ def test_stale_schema_refresh_rebuilds_before_index_query(
         )
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        "sase.core.agent_artifact_index_lifecycle_schema.rebuild_agent_artifact_index",
         fake_rebuild,
     )
 
@@ -369,7 +369,7 @@ def test_schema_status_reads_staleness_without_rebuilding(
         raise AssertionError("the metadata-only check must not rebuild")
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        "sase.core.agent_artifact_index_lifecycle_schema.rebuild_agent_artifact_index",
         fail_rebuild,
     )
 
@@ -391,7 +391,7 @@ def test_current_schema_refresh_skips_rebuild(
         raise AssertionError("current schema should not rebuild")
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle.rebuild_agent_artifact_index",
+        "sase.core.agent_artifact_index_lifecycle_schema.rebuild_agent_artifact_index",
         fail_rebuild,
     )
 

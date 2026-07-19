@@ -5,9 +5,9 @@ literal and a direct mutation call. Every reviewed entry must declare exactly
 one coverage shape: direct lifecycle calls, batched lifecycle coverage,
 delegation to another reviewed context, or an exemption.
 
-Lifecycle helpers live in
-``src/sase/core/agent_artifact_index_lifecycle.py`` and are the only
-authorized way to keep the Tier 1 SQLite index in sync with a marker mutation:
+Lifecycle helpers are exported by
+``src/sase/core/agent_artifact_index_lifecycle.py`` and are the only authorized
+way to keep the Tier 1 SQLite index in sync with a marker mutation:
 
 - ``update_agent_artifact_index_for_marker_mutation``
 - ``upsert_agent_artifact_index_artifacts``

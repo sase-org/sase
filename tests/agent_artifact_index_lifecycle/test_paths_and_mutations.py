@@ -3,11 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.core.agent_artifact_index_lifecycle import (
-    _projects_root_for_artifact_dir,
     delete_agent_artifact_index_artifacts,
     delete_agent_artifact_index_artifacts_bounded,
     update_agent_artifact_index_for_marker_mutation,
     upsert_agent_artifact_index_artifacts,
+)
+from sase.core.agent_artifact_index_lifecycle_mutations import (
+    _projects_root_for_artifact_dir,
 )
 from sase.core.agent_scan_wire import AgentArtifactIndexUpdateWire
 
@@ -36,7 +38,8 @@ def test_delete_agent_artifact_index_artifacts_is_best_effort(
         raise RuntimeError("stale index")
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle.delete_agent_artifact_index_row",
+        "sase.core.agent_artifact_index_lifecycle_mutations."
+        "delete_agent_artifact_index_row",
         fake_delete,
     )
 
@@ -66,7 +69,7 @@ def test_bounded_delete_reports_process_lock_contention(
         return None
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle."
+        "sase.core.agent_artifact_index_lifecycle_mutations."
         "delete_agent_artifact_index_row_bounded",
         fake_delete,
     )
@@ -87,7 +90,7 @@ def test_bounded_delete_accepts_completed_zero_row_mutation(
     index.touch()
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle."
+        "sase.core.agent_artifact_index_lifecycle_mutations."
         "delete_agent_artifact_index_row_bounded",
         lambda *args, **kwargs: AgentArtifactIndexUpdateWire(
             schema_version=1,
@@ -135,7 +138,8 @@ def test_upsert_agent_artifact_index_artifacts_derives_root(
         )
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle.upsert_agent_artifact_index_row",
+        "sase.core.agent_artifact_index_lifecycle_mutations."
+        "upsert_agent_artifact_index_row",
         fake_upsert,
     )
 
@@ -164,7 +168,7 @@ def test_marker_mutation_helper_wraps_single_artifact_upsert(
         return 1
 
     monkeypatch.setattr(
-        "sase.core.agent_artifact_index_lifecycle."
+        "sase.core.agent_artifact_index_lifecycle_mutations."
         "upsert_agent_artifact_index_artifacts",
         fake_upsert,
     )
