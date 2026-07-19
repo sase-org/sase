@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from sase.config.core import CHEZMOI_HOME
+from sase.git_lock_retry import run_with_git_lock_retry
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,19 @@ def _git_pathspec(git_root: Path, path: Path) -> str:
     )
 
 
+def _run_git(git_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "-C", str(git_root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        cwd=git_root,
+    )
+    return result
+
+
 def _missing_untracked_path(git_root: Path, path: Path) -> bool:
     if path.exists():
         return False
@@ -89,38 +103,18 @@ def _missing_untracked_path(git_root: Path, path: Path) -> bool:
         pathspec = _git_pathspec(git_root, path)
     except ValueError:
         return False
-    tracked = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(git_root),
-            "ls-files",
-            "--error-unmatch",
-            "--",
-            pathspec,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    tracked = _run_git(git_root, "ls-files", "--error-unmatch", "--", pathspec)
     return tracked.returncode != 0
 
 
 def _git_branch_has_upstream(git_root: Path) -> bool:
     """Return whether the current branch in ``git_root`` has an upstream."""
-    upstream = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(git_root),
-            "rev-parse",
-            "--abbrev-ref",
-            "--symbolic-full-name",
-            "@{u}",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+    upstream = _run_git(
+        git_root,
+        "rev-parse",
+        "--abbrev-ref",
+        "--symbolic-full-name",
+        "@{u}",
     )
     return upstream.returncode == 0
 
@@ -146,12 +140,7 @@ def deploy_to_chezmoi(
 
     git_root = behavior.chezmoi_home.parent
     try:
-        repo_check = subprocess.run(
-            ["git", "-C", str(git_root), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        repo_check = _run_git(git_root, "rev-parse", "--show-toplevel")
     except FileNotFoundError:
         print(
             f"{behavior.command_label}: git not found on PATH"
@@ -171,12 +160,7 @@ def deploy_to_chezmoi(
     for path in paths:
         if _missing_untracked_path(git_root, path):
             continue
-        add = subprocess.run(
-            ["git", "-C", str(git_root), "add", "--", str(path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        add = _run_git(git_root, "add", "--", str(path))
         if add.returncode != 0:
             print(
                 f"{behavior.command_label}: git add failed for {path}: "
@@ -185,12 +169,7 @@ def deploy_to_chezmoi(
             )
             return 1
 
-    staged = subprocess.run(
-        ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    staged = _run_git(git_root, "diff", "--cached", "--quiet")
     committed = False
     if staged.returncode == 0:
         if behavior.print_nothing_to_commit:
@@ -215,12 +194,7 @@ def deploy_to_chezmoi(
                 commit_message,
                 behavior.auto_commit_type,
             )
-        commit = subprocess.run(
-            ["git", "-C", str(git_root), "commit", "-m", commit_message],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        commit = _run_git(git_root, "commit", "-m", commit_message)
         if commit.returncode != 0:
             print(
                 f"{behavior.command_label}: {behavior.commit_failed_label}: "
@@ -243,12 +217,7 @@ def deploy_to_chezmoi(
             return 0
 
         print("Pulling...")
-        pull = subprocess.run(
-            ["git", "-C", str(git_root), "pull", "--rebase"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        pull = _run_git(git_root, "pull", "--rebase")
         if pull.returncode != 0:
             print(
                 f"{behavior.command_label}: pull failed: {pull.stderr.strip()}",
@@ -259,12 +228,7 @@ def deploy_to_chezmoi(
             print(f"  {pull.stdout.strip().splitlines()[0]}")
 
         print("Pushing...")
-        push = subprocess.run(
-            ["git", "-C", str(git_root), "push"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        push = _run_git(git_root, "push")
         if push.returncode != 0:
             print(
                 f"{behavior.command_label}: push failed: {push.stderr.strip()}",

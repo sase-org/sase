@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.utils import non_interactive_git_env
 from sase.version._models import GitProbe, GitProbeResult, GitVersionMetadata
 
@@ -254,25 +255,48 @@ def run_git(
     run_fn: SubprocessRun | None = None,
     timeout: float = _GIT_TIMEOUT_SECONDS,
 ) -> str:
-    if run_fn is None:
-        completed = subprocess.run(
-            ["git", "-C", str(root), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env=non_interactive_git_env(),
-            stdin=subprocess.DEVNULL,
-        )
-    else:
-        completed = run_fn(
-            ["git", "-C", str(root), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+    argv = ["git", "-C", str(root), *args]
+
+    def attempt() -> subprocess.CompletedProcess[str] | subprocess.CalledProcessError:
+        try:
+            if run_fn is None:
+                return subprocess.run(
+                    argv,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    env=non_interactive_git_env(),
+                    stdin=subprocess.DEVNULL,
+                )
+            return run_fn(
+                argv,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.CalledProcessError as exc:
+            return exc
+
+    completed, _outcome = run_with_git_lock_retry(
+        attempt,
+        cwd=root,
+        result_adapter=_git_result_adapter,
+    )
+    if isinstance(completed, subprocess.CalledProcessError):
+        raise completed
     return completed.stdout.strip()
+
+
+def _git_result_adapter(result: object) -> tuple[int, str]:
+    returncode = getattr(result, "returncode", 0)
+    output = "\n".join(
+        value
+        for value in (getattr(result, "stderr", None), getattr(result, "stdout", None))
+        if isinstance(value, str) and value
+    )
+    return int(returncode), output
 
 
 def _optional_git(root: Path, *args: str) -> str | None:

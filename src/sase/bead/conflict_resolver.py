@@ -15,6 +15,7 @@ from sase.core.bead_conflict_facade import (
     merge_event_streams,
     reduce_event_streams,
 )
+from sase.git_lock_retry import run_with_git_lock_retry
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,8 @@ def resolve_bead_conflicts(
 
 
 def _repo_root(cwd: Path) -> Path | None:
+    # The resolver's direct probes are read-only; only _git_add can contend on
+    # index.lock and is routed through the shared retry policy below.
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=cwd,
@@ -263,7 +266,16 @@ def _write_resolved_store(
 
 def _git_add(repo_root: Path, paths: list[str]) -> None:
     if paths:
-        subprocess.run(["git", "add", "--", *paths], cwd=repo_root, check=False)
+        run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "add", "--", *paths],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
+            cwd=repo_root,
+        )
 
 
 def handle_resolve_conflicts_command() -> int:

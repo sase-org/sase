@@ -3,6 +3,8 @@
 import subprocess
 from pathlib import Path
 
+from sase.git_lock_retry import run_with_git_lock_retry
+
 
 def get_vendored_tool(name: str) -> str:
     """Get the path to a vendored tool script in tools/{name}-YYMMDD.
@@ -66,13 +68,23 @@ def run_workspace_command(
     """
     cmd_name = cmd[0]
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=workspace_dir,
-            capture_output=capture_output,
-            text=True,
-            check=False,
-        )
+
+        def attempt() -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                cmd,
+                cwd=workspace_dir,
+                capture_output=capture_output,
+                text=True,
+                check=False,
+            )
+
+        if cmd_name == "git":
+            result, _outcome = run_with_git_lock_retry(
+                attempt,
+                cwd=workspace_dir,
+            )
+        else:
+            result = attempt()
 
         if result.returncode != 0:
             error_msg = ""

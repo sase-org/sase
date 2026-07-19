@@ -8,7 +8,14 @@ import tempfile
 from pathlib import Path
 
 from sase.ace.hints import build_editor_args
-from sase.config import apply_chezmoi, get_use_chezmoi
+from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
+    git_index_lock_retry_message,
+    run_git_commit_push_sync,
+)
+from sase.ace.tui.actions.task_actions import (
+    TrackedTaskCompletion,
+    TrackedTaskResult,
+)
 from sase.xprompt.config_yaml import insert_xprompt_into_config
 from sase.xprompt.loader import get_sase_package_xprompts_dir
 
@@ -255,23 +262,6 @@ class XPromptBrowserActionsMixin:
         else:
             self.notify("Failed to insert xprompt into config", severity="error")  # type: ignore[attr-defined]
 
-    def _run_chezmoi_apply(self) -> None:
-        """Run ``chezmoi apply --force`` if use_chezmoi is enabled."""
-        if not get_use_chezmoi():
-            return
-        try:
-            result = apply_chezmoi()
-        except FileNotFoundError:
-            self.notify("chezmoi not found on PATH", severity="warning")  # type: ignore[attr-defined]
-            return
-        if result.returncode != 0:
-            self.notify(  # type: ignore[attr-defined]
-                f"chezmoi apply failed: {result.stderr.strip()}",
-                severity="error",
-            )
-        else:
-            self.notify("Applied chezmoi changes")  # type: ignore[attr-defined]
-
     def _offer_git_commit(
         self, file_path: str, *, is_new: bool, xprompt_name: str
     ) -> None:
@@ -288,54 +278,54 @@ class XPromptBrowserActionsMixin:
         def _on_commit_push_answer(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-            # Stage and commit
-            subprocess.run(
-                ["git", "-C", git_root, "add", "--", file_path],
-                capture_output=True,
-                check=False,
-            )
             subject = f"chore: {verb} xprompt {xprompt_name}"
             from sase.workflows.commit.runtime_tags import apply_auto_commit_type_tag
 
             message = apply_auto_commit_type_tag(subject, "xprompt")
-            result = subprocess.run(
-                ["git", "-C", git_root, "commit", "-m", message],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0:
-                self.notify(f"Commit failed: {result.stderr.strip()}", severity="error")  # type: ignore[attr-defined]
-                return
-            self.notify(f"Committed: {subject}")  # type: ignore[attr-defined]
 
-            # Pull then push
-            pull_result = subprocess.run(
-                ["git", "-C", git_root, "pull", "--rebase"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if pull_result.returncode != 0:
+            def _task() -> TrackedTaskResult[bool]:
+                result = run_git_commit_push_sync(
+                    git_root=git_root,
+                    file_path=file_path,
+                    commit_message=message,
+                )
+                return TrackedTaskResult(
+                    success=result.success,
+                    message=result.message,
+                    payload=result.index_lock_removed,
+                    error=None if result.success else result.message,
+                )
+
+            def _on_complete(completion: TrackedTaskCompletion[bool]) -> None:
+                severity = "information" if completion.success else "error"
+                self.notify(completion.message, severity=severity)  # type: ignore[attr-defined]
+                if completion.payload:
+                    self.notify(  # type: ignore[attr-defined]
+                        git_index_lock_retry_message(git_root),
+                        severity="warning",
+                    )
+
+            submit = getattr(self.app, "_submit_tracked_task", None)  # type: ignore[attr-defined]
+            if not callable(submit):
                 self.notify(  # type: ignore[attr-defined]
-                    f"Pull failed: {pull_result.stderr.strip()}",
+                    "Could not commit xprompt: background task queue unavailable.",
                     severity="error",
                 )
                 return
-            push_result = subprocess.run(
-                ["git", "-C", git_root, "push"],
-                capture_output=True,
-                text=True,
-                check=False,
+            submit(
+                "xprompt-commit",
+                rel_path,
+                git_root,
+                _task,
+                display_name=f"commit xprompt {rel_path}",
+                dedup_key=f"xprompt-commit:{git_root}:{rel_path}",
+                duplicate_message=(
+                    f"Another xprompt commit is already running for {rel_path}."
+                ),
+                on_complete=_on_complete,
+                reload_on_complete=False,
+                notify_on_complete=False,
             )
-            if push_result.returncode == 0:
-                self.notify("Pushed to remote")  # type: ignore[attr-defined]
-                self._run_chezmoi_apply()  # type: ignore[attr-defined]
-            else:
-                self.notify(  # type: ignore[attr-defined]
-                    f"Push failed: {push_result.stderr.strip()}",
-                    severity="error",
-                )
 
         self.app.push_screen(  # type: ignore[attr-defined]
             ConfirmActionModal(

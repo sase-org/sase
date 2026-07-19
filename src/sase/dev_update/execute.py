@@ -19,6 +19,7 @@ from sase.dev_update.models import (
     DevUpdateRootPlan,
     RepoDiffStat,
 )
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.version._git import GitUpstreamStatus, fetch_git_upstream, merge_git_ff_only
 from sase.workspace_provider.utils import non_interactive_git_env
 
@@ -76,10 +77,12 @@ def run_dev_update_command(
     timeout: float = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
 ) -> DevCommandResult:
     """Default command runner for callers that want real subprocess execution."""
-    git_env, git_stdin = _non_interactive_git_subprocess_options(argv)
-    try:
-        completed = subprocess.run(
-            list(argv),
+    command = list(argv)
+    git_env, git_stdin = _non_interactive_git_subprocess_options(command)
+
+    def attempt() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            command,
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -87,6 +90,15 @@ def run_dev_update_command(
             env=git_env,
             stdin=git_stdin,
         )
+
+    try:
+        if command and command[0] == "git":
+            completed, _outcome = run_with_git_lock_retry(
+                attempt,
+                cwd=_git_command_cwd(command, cwd),
+            )
+        else:
+            completed = attempt()
     except FileNotFoundError as exc:
         return DevCommandResult(returncode=127, stderr=str(exc))
     except subprocess.TimeoutExpired as exc:
@@ -360,6 +372,17 @@ def _non_interactive_git_subprocess_options(
     if not argv or argv[0] != "git":
         return None, None
     return non_interactive_git_env(), subprocess.DEVNULL
+
+
+def _git_command_cwd(argv: Sequence[str], cwd: Path | None) -> Path:
+    try:
+        index = argv.index("-C")
+        configured = Path(argv[index + 1])
+    except (ValueError, IndexError):
+        return Path.cwd() if cwd is None else cwd
+    if configured.is_absolute() or cwd is None:
+        return configured
+    return cwd / configured
 
 
 def _root_status_for_fetch(root: DevUpdateRootPlan) -> GitUpstreamStatus:

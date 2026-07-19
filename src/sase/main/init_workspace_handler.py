@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workflows.commit.commit_hooks import run_before_commit_hook
 
 from .init_plan import InitAction, InitPlan
@@ -18,6 +19,7 @@ COMMAND_LABEL = "init workspace"
 
 
 def find_git_root(path: Path | None = None) -> Path | None:
+    # This is a read-only applicability probe; all init mutations use _run_git.
     cwd = Path.cwd() if path is None else path
     try:
         result = subprocess.run(
@@ -112,12 +114,16 @@ def ensure_workspace_gitignore(project_root: Path | None = None) -> Path | None:
 
 
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(root), *args],
-        capture_output=True,
-        text=True,
-        check=False,
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        cwd=root,
     )
+    return result
 
 
 def commit_workspace_paths(

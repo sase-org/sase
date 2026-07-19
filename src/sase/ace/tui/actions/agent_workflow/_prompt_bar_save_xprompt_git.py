@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import subprocess
 from dataclasses import dataclass
@@ -11,8 +10,7 @@ from sase.ace.tui.actions.task_actions import (
     TrackedTaskCompletion,
     TrackedTaskResult,
 )
-
-logger = logging.getLogger(__name__)
+from sase.git_lock_retry import run_with_git_lock_retry
 
 
 @dataclass(frozen=True)
@@ -157,28 +155,17 @@ def run_git_commit_push_sync(
     def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
         nonlocal index_lock_removed
         argv = ["git", "-C", git_root, *args]
-        result = subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
+        result, outcome = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
+            cwd=git_root,
         )
-        if result.returncode == 0:
-            return result
-        combined_output = "\n".join(
-            part for part in (result.stderr, result.stdout) if part
-        )
-        if not _is_index_lock_error(combined_output):
-            return result
-        if not _remove_git_index_lock(git_root):
-            return result
-        index_lock_removed = True
-        return subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        index_lock_removed = index_lock_removed or outcome.lock_removed
+        return result
 
     add_result = _run_git(["add", "--", file_path])
     if add_result.returncode != 0:
@@ -240,28 +227,6 @@ def run_git_commit_push_sync(
         "Committed and pushed to remote; applied chezmoi changes",
         index_lock_removed,
     )
-
-
-def _is_index_lock_error(text: str) -> bool:
-    """Return True when git output names an existing index lock."""
-    return "index.lock" in text
-
-
-def _remove_git_index_lock(git_root: str) -> bool:
-    from sase.axe.runner_workspace import git_index_lock_path
-
-    lock_path = git_index_lock_path(git_root)
-    if lock_path is None:
-        return False
-    try:
-        lock_path.unlink()
-    except FileNotFoundError:
-        return False
-    except OSError:
-        logger.warning("Failed to remove git index lock %s", lock_path, exc_info=True)
-        return False
-    logger.warning("Removed git index lock before retrying commit: %s", lock_path)
-    return True
 
 
 def git_index_lock_retry_message(git_root: str) -> str:

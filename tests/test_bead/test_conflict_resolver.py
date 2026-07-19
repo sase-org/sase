@@ -5,7 +5,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from sase.bead.conflict_resolver import resolve_bead_conflicts
+import pytest
+
+from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -31,6 +33,25 @@ def test_resolve_bead_conflicts_noops_without_conflicts(tmp_path: Path) -> None:
 
     assert result.ok is True
     assert result.message == "no conflicted bead files"
+
+
+def test_git_add_recovers_stale_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    note = tmp_path / "note.txt"
+    note.write_text("resolved\n", encoding="utf-8")
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    _git_add(tmp_path, ["note.txt"])
+
+    assert not lock.exists()
+    assert _git(tmp_path, "diff", "--cached", "--name-only").stdout.strip() == (
+        "note.txt"
+    )
 
 
 def test_resolve_bead_conflicts_rejects_nonmergeable_bead_file(tmp_path: Path) -> None:

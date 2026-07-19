@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from sase.ace import revert_agent_git as _git
 from sase.ace.revert_agent_git import commit_subject, current_head, worktree_is_clean
 from sase.ace.revert_agent_marker import PushOutcome
+from sase.git_lock_retry import run_with_git_lock_retry
 
 
 def apply_revert_transaction(
@@ -135,7 +136,11 @@ def run_git_for_revert(
         and facade_runner is not _git.run_git
         and facade_runner is not run_git_for_revert
     ):
-        return facade_runner(workspace_dir, args, timeout=timeout)
+        result, _outcome = run_with_git_lock_retry(
+            lambda: facade_runner(workspace_dir, args, timeout=timeout),
+            cwd=workspace_dir,
+        )
+        return result
     return _git.run_git(workspace_dir, args, timeout=timeout)
 
 

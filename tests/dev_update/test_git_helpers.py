@@ -236,3 +236,26 @@ def test_run_git_disables_interactive_prompts(
     assert isinstance(env, dict)
     assert env["GIT_TERMINAL_PROMPT"] == "0"
     assert env["GCM_INTERACTIVE"] == "never"
+
+
+def test_run_git_recovers_stale_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    assert _git.run_git(tmp_path, "add", "feature.txt") == ""
+
+    assert not lock.exists()
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert staged.stdout.strip() == "feature.txt"

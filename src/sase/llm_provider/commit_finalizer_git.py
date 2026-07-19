@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from typing import TYPE_CHECKING
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.linked_repos import (
     EXTERNAL_REPO_CLONES_SUBDIR,
     LINKED_REPO_CLONES_SUBDIR,
@@ -51,6 +52,8 @@ class _SddPromptQaAutoCommitCandidate:
 
 
 def git_changed_files(repo_dir: str) -> list[str]:
+    # Status/show subprocesses in this module are read-only. Auto-commit add,
+    # commit, and reset operations all funnel through the retrying _run_git.
     repo_dir = normalize_path(repo_dir)
     if not Path(repo_dir).is_dir():
         return []
@@ -340,13 +343,17 @@ def _run_git(
     timeout: int = _AUTO_COMMIT_GIT_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str] | None:
     try:
-        return subprocess.run(
-            ["git", "-C", repo_dir, *args],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
+        result, _outcome = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "-C", repo_dir, *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            ),
+            cwd=repo_dir,
         )
+        return result
     except Exception:
         return None
 

@@ -1,7 +1,10 @@
 """Tests for core utility modules (formerly sase_utils)."""
 
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sase.core.changespec import (
     changespec_name_to_branch,
@@ -99,6 +102,26 @@ def test_run_workspace_command_no_capture() -> None:
     mock_run.assert_called_once_with(
         ["sase", "commit"], cwd="/tmp", capture_output=False, text=True, check=False
     )
+
+
+def test_run_workspace_git_command_recovers_stale_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "feature.txt").write_text("feature\n", encoding="utf-8")
+    lock = tmp_path / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    success, error = run_workspace_command(
+        ["git", "add", "feature.txt"],
+        str(tmp_path),
+    )
+
+    assert success is True
+    assert error is None
+    assert not lock.exists()
 
 
 # Tests for changespec_name_to_branch

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.revert_agent import RevertRepo, execute_agent_revert, preview_agent_revert
+from sase.ace.revert_agent_git import run_git
 from tests.ace._revert_agent_helpers import (
     _add_bare_origin,
     _commit,
@@ -53,6 +54,24 @@ def test_execute_successful_revert(tmp_path: Path) -> None:
     assert saved["agent_name"] == "foo"
     assert saved["reverted_shas"] == list(shas)
     assert saved["complete"] is True
+
+
+def test_revert_git_runner_recovers_stale_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "ws"
+    _init_repo(repo)
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    lock = repo / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    result = run_git(str(repo), ["add", "feature.txt"])
+
+    assert result.returncode == 0
+    assert not lock.exists()
+    assert _git(repo, "diff", "--cached", "--name-only").strip() == "feature.txt"
 
 
 def test_execute_reverts_primary_and_linked_repos(tmp_path: Path) -> None:

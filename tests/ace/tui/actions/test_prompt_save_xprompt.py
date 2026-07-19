@@ -16,9 +16,6 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt import (
     PromptBarSaveXpromptMixin,
     _run_git_commit_push_sync,
 )
-from sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt_git import (
-    _is_index_lock_error,
-)
 from sase.ace.tui.modals import (
     ConfirmActionModal,
     UnifiedSaveLocation,
@@ -573,7 +570,7 @@ def test_git_commit_push_worker_stops_on_add_failure(tmp_path: Path) -> None:
     assert result.message == "Git add failed: pathspec"
 
 
-def test_git_commit_push_worker_retries_after_removing_index_lock(
+def test_git_commit_push_worker_backs_off_then_removes_stale_index_lock(
     tmp_path: Path,
 ) -> None:
     (tmp_path / ".git").mkdir()
@@ -585,7 +582,7 @@ def test_git_commit_push_worker_retries_after_removing_index_lock(
         nonlocal commit_attempts
         if argv[3] == "commit":
             commit_attempts += 1
-            if commit_attempts == 1:
+            if lock.exists():
                 return subprocess.CompletedProcess(
                     argv,
                     128,
@@ -599,6 +596,7 @@ def test_git_commit_push_worker_retries_after_removing_index_lock(
             "sase.ace.tui.actions.agent_workflow._prompt_bar_save_xprompt.subprocess.run",
             side_effect=run,
         ),
+        patch("sase.git_lock_retry.git_lock_retry_delays", return_value=(0.001, 0.001)),
         patch("sase.config.get_use_chezmoi", return_value=False),
     ):
         result = _run_git_commit_push_sync(
@@ -608,12 +606,5 @@ def test_git_commit_push_worker_retries_after_removing_index_lock(
         )
     assert result.success
     assert result.index_lock_removed
-    assert commit_attempts == 2
+    assert commit_attempts == 4
     assert not lock.exists()
-
-
-def test_is_index_lock_error_detects_git_lock_path() -> None:
-    assert _is_index_lock_error(
-        "fatal: Unable to create '/repo/.git/index.lock': File exists."
-    )
-    assert not _is_index_lock_error("fatal: unable to auto-detect email address")

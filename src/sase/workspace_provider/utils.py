@@ -15,6 +15,7 @@ from sase.ace.changespec import (
     changespec_lock,
     write_changespec_atomic,
 )
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
 
@@ -28,12 +29,23 @@ def non_interactive_git_env(base: Mapping[str, str] | None = None) -> dict[str, 
     return env
 
 
+def _git_result_adapter(result: Any) -> tuple[int, str]:
+    """Adapt subprocess-shaped test doubles as well as CompletedProcess."""
+    output = "\n".join(
+        value
+        for value in (getattr(result, "stderr", None), getattr(result, "stdout", None))
+        if isinstance(value, str) and value
+    )
+    return int(result.returncode), output
+
+
 def get_default_branch(workspace_dir: str) -> str:
     """Detect the default branch for the origin remote.
 
     Returns a string like ``"origin/main"`` or ``"origin/master"``.
     Falls back to ``"origin/main"`` on any failure.
     """
+    # These symbolic-ref/show-ref probes are read-only and never write the index.
     try:
         result = subprocess.run(
             ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
@@ -249,6 +261,7 @@ def ensure_git_clone_at(
     )
     real_url = url_result.stdout.strip() if url_result.returncode == 0 else ""
 
+    # Clone builds a fresh target with no pre-existing index.lock to recover.
     try:
         subprocess.run(
             [
@@ -280,22 +293,30 @@ def ensure_git_clone_at(
         raise RuntimeError(error_msg) from e
 
     if real_url:
-        subprocess.run(
-            ["git", "remote", "set-url", "origin", real_url],
+        run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "remote", "set-url", "origin", real_url],
+                cwd=target_checkout_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
+            cwd=target_checkout_dir,
+            result_adapter=_git_result_adapter,
+        )
+
+    run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "fetch", "--quiet"],
             cwd=target_checkout_dir,
             capture_output=True,
             text=True,
             check=False,
-        )
-
-    subprocess.run(
-        ["git", "fetch", "--quiet"],
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
+        ),
         cwd=target_checkout_dir,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=non_interactive_git_env(),
-        stdin=subprocess.DEVNULL,
+        result_adapter=_git_result_adapter,
     )
 
     return target_checkout_dir

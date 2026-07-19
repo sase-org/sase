@@ -152,6 +152,26 @@ def test_done_status_only_sdd_plan_change_is_auto_committed(
     assert '"reason": "auto_committed_done_plan_status"' in result_json
 
 
+def test_auto_commit_git_runner_recovers_stale_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    path = repo / "plan.md"
+    path.write_text("plan\n", encoding="utf-8")
+    lock = repo / ".git" / "index.lock"
+    lock.write_text("stale", encoding="utf-8")
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001,0.001")
+
+    result = finalizer_git._run_git(str(repo), ["add", "plan.md"])
+
+    assert result is not None
+    assert result.returncode == 0
+    assert not lock.exists()
+    assert _run_git(repo, "diff", "--cached", "--name-only").strip() == "plan.md"
+
+
 def test_additional_dirty_file_uses_provider_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

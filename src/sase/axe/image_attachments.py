@@ -333,6 +333,8 @@ def _untracked_paths(workspace_dir: str) -> list[str]:
 
 
 def _run_git(workspace_dir: str, *args: str) -> str:
+    # Attachment discovery uses only diff/log/rev-parse/ls-files probes; no
+    # call in this module writes the index, so lock retries would add no value.
     try:
         result = subprocess.run(
             ["git", *args],

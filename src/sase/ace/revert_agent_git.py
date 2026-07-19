@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import subprocess
 
+from sase.git_lock_retry import run_with_git_lock_retry
+
 _GIT_TIMEOUT_SECONDS = 60
 
 
@@ -14,13 +16,17 @@ def run_git(
     timeout: int = _GIT_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
     try:
-        return subprocess.run(
-            ["git", "-C", workspace_dir, *args],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
+        result, _outcome = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "-C", workspace_dir, *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            ),
+            cwd=workspace_dir,
         )
+        return result
     except (OSError, subprocess.SubprocessError) as exc:
         return subprocess.CompletedProcess(
             args, returncode=1, stdout="", stderr=str(exc)

@@ -400,6 +400,8 @@ def _run_git(
     op: str,
     network: bool,
 ) -> subprocess.CompletedProcess[str]:
+    # Keep sidecar mutations on the central SDD Git runner; its write path is
+    # the high-traffic funnel that applies the shared lock retry policy.
     from sase.sdd._commit import network_git_timeout, run_sdd_git
 
     return run_sdd_git(

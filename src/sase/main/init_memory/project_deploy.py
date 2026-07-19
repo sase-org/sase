@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.main._init_chezmoi_deploy import skip_pull_push_without_upstream
 from sase.memory.paths import CANONICAL_MEMORY_RELATIVE_ROOT, memory_write_root
 
@@ -29,6 +30,8 @@ from .models import MemoryRootResult
 
 def capture_pre_init_git_state(project_root: Path) -> PreInitGitState | None:
     """Capture dirty project paths before memory initialization writes occur."""
+    # Repository/status discovery is read-only. The deploy mutations below use
+    # _run_git so index.lock contention gets the shared retry policy.
     try:
         repo_check = subprocess.run(
             ["git", "-C", str(project_root), "rev-parse", "--show-toplevel"],
@@ -177,6 +180,19 @@ def _unique_paths(paths: Iterable[Path]) -> tuple[Path, ...]:
     return tuple(unique)
 
 
+def _run_git(git_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    result, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "-C", str(git_root), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
+        cwd=git_root,
+    )
+    return result
+
+
 def _repo_relative_source_paths(
     git_root: Path,
     source_paths: Iterable[Path],
@@ -289,12 +305,7 @@ def deploy_to_project_repo(
         )
     )
     for path in stage_paths:
-        add = subprocess.run(
-            ["git", "-C", str(git_root), "add", "--", str(path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        add = _run_git(git_root, "add", "--", str(path))
         if add.returncode != 0:
             print(
                 f"{COMMAND_LABEL}: git add failed for {path}: {add.stderr.strip()}",
@@ -302,12 +313,7 @@ def deploy_to_project_repo(
             )
             return 1
 
-    staged = subprocess.run(
-        ["git", "-C", str(git_root), "diff", "--cached", "--quiet"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    staged = _run_git(git_root, "diff", "--cached", "--quiet")
     if staged.returncode == 0:
         print(f"{COMMAND_LABEL}: nothing to commit in {git_root}")
         return 0
@@ -326,12 +332,7 @@ def deploy_to_project_repo(
         if fold_commit_message is None
         else fold_commit_message
     )
-    commit = subprocess.run(
-        ["git", "-C", str(git_root), "commit", "-m", commit_message],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    commit = _run_git(git_root, "commit", "-m", commit_message)
     if commit.returncode != 0:
         print(
             f"{COMMAND_LABEL}: commit failed: {commit.stderr.strip()}", file=sys.stderr
@@ -345,12 +346,7 @@ def deploy_to_project_repo(
         return 0
 
     print("Pulling...")
-    pull = subprocess.run(
-        ["git", "-C", str(git_root), "pull", "--rebase"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    pull = _run_git(git_root, "pull", "--rebase")
     if pull.returncode != 0:
         print(f"{COMMAND_LABEL}: pull failed: {pull.stderr.strip()}", file=sys.stderr)
         return 1
@@ -358,12 +354,7 @@ def deploy_to_project_repo(
         print(f"  {pull.stdout.strip().splitlines()[0]}")
 
     print("Pushing...")
-    push = subprocess.run(
-        ["git", "-C", str(git_root), "push"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    push = _run_git(git_root, "push")
     if push.returncode != 0:
         print(f"{COMMAND_LABEL}: push failed: {push.stderr.strip()}", file=sys.stderr)
         return 1

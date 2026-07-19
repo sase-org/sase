@@ -19,6 +19,7 @@ from typing import Any
 import uuid
 
 from sase._git_remote import git_remotes_match
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase._linked_repo_config import (
     DEFAULT_LINKED_REPOS_CONFIG_KEY,
     DEFAULT_PLANS_DESCRIPTION,
@@ -620,13 +621,23 @@ def _set_clone_origin(path: Path, current: str, expected: str) -> None:
     if current.strip() == expected.strip():
         return
     try:
-        subprocess.run(
-            ["git", "remote", "set-url", "origin", expected],
+        result, _outcome = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "remote", "set-url", "origin", expected],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
             cwd=path,
-            capture_output=True,
-            text=True,
-            check=True,
         )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                result.args,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
     except (FileNotFoundError, OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(
             f"could not normalize sidecar origin at {path} to {expected}"
@@ -634,6 +645,7 @@ def _set_clone_origin(path: Path, current: str, expected: str) -> None:
 
 
 def _git_origin_url(path: Path) -> str | None:
+    # Origin/status inspection is read-only; only set-url above mutates Git.
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],

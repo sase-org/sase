@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.git_lock_retry import run_with_git_lock_retry
 from sase.vcs_provider import get_vcs_provider
 
 from .siblings import SiblingRevertResult, revert_sibling_draft_changespecs
@@ -35,12 +36,15 @@ def _push_branch_rename(
     old_remote_branch = old_resolved.removeprefix("origin/")
 
     # Push the newly renamed branch
-    push_out = subprocess.run(
-        ["git", "push", "origin", new_branch],
+    push_out, _outcome = run_with_git_lock_retry(
+        lambda: subprocess.run(
+            ["git", "push", "origin", new_branch],
+            cwd=workspace_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+        ),
         cwd=workspace_dir,
-        capture_output=True,
-        text=True,
-        check=False,
     )
     if push_out.returncode != 0:
         logger.warning(
@@ -49,12 +53,15 @@ def _push_branch_rename(
 
     # Delete the old branch from origin
     if old_remote_branch != new_branch:
-        del_out = subprocess.run(
-            ["git", "push", "origin", "--delete", old_remote_branch],
+        del_out, _outcome = run_with_git_lock_retry(
+            lambda: subprocess.run(
+                ["git", "push", "origin", "--delete", old_remote_branch],
+                cwd=workspace_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            ),
             cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            check=False,
         )
         if del_out.returncode != 0:
             logger.warning(
