@@ -84,7 +84,7 @@ reference notes that agents read only when relevant.
 - Description: Read anytime new CLI subcommands or options are added.
 - Parent: `AGENTS.md`
 - Lines: 27
-- Approx. tokens: 379
+- Approx. tokens: 380
 
 ### `sase/memory/generated_skills.md`
 
@@ -127,7 +127,7 @@ reference notes that agents read only when relevant.
 - Short notes: 5
 - Long notes: 5
 - Total lines: 501
-- Total approx. tokens: 7634
+- Total approx. tokens: 7635
 
 ## Commands
 

@@ -412,10 +412,10 @@ async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
         widgets = list(container.query(AgentList).results(AgentList))
         assert page.app._panel_group.panel_keys == [None, "apple", "banana"]
         assert len(widgets) == 3
-        untagged, apple, banana = widgets
+        no_tribe, apple, banana = widgets
 
-        assert untagged.styles.height.unit is Unit.FRACTION
-        assert untagged.option_count + 2 > untagged.region.height
+        assert no_tribe.styles.height.unit is Unit.FRACTION
+        assert no_tribe.option_count + 2 > no_tribe.region.height
         for compact in (apple, banana):
             assert compact.styles.height.unit is Unit.CELLS
             assert compact.styles.height.value == compact.option_count + 2

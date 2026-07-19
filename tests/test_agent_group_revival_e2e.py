@@ -124,7 +124,7 @@ async def test_saved_group_revive_restores_deleted_artifacts_and_tribe_real_load
         cl_name="visual-polish",
         raw_suffix="20260527123000",
         agent_name="visual.worker",
-        tag="backend",
+        tribe="backend",
     )
 
     async with AcePage(
@@ -264,8 +264,6 @@ def _agent(**overrides: object) -> Agent:
         "model": "gpt-5",
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 
@@ -301,7 +299,7 @@ def _write_done_agent_artifacts(
     cl_name: str,
     raw_suffix: str,
     agent_name: str,
-    tag: str,
+    tribe: str,
 ) -> tuple[Path, Path]:
     project_dir = sase_home() / "projects" / project
     project_dir.mkdir(parents=True, exist_ok=True)
@@ -332,7 +330,7 @@ def _write_done_agent_artifacts(
         json.dumps(
             {
                 "name": agent_name,
-                "tribe": tag,
+                "tribe": tribe,
                 "model": "gpt-5",
                 "llm_provider": "codex",
             }

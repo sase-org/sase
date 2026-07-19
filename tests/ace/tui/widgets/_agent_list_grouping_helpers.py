@@ -14,7 +14,7 @@ def make_agent(
     *,
     cl_name: str = "demo",
     project_file: str = "/repo/proj.sase",
-    tag: str | None = None,
+    tribe: str | None = None,
     agent_name: str | None = None,
     status: str = "RUNNING",
     start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
@@ -28,7 +28,7 @@ def make_agent(
         status=status,
         start_time=start_time,
         agent_name=agent_name,
-        tribe=tag,
+        tribe=tribe,
         wait_until=wait_until,
         retried_as_timestamp=retried_as_timestamp,
     )

@@ -195,6 +195,8 @@ class AgentTribeAssignmentMixin:
                             remove_keys=(
                                 ("clan_tribe",)
                                 if clan_bound and after is None
+                                # Unset also strips the legacy metadata alias so
+                                # a later read cannot resurrect the assignment.
                                 else ("tribe", "tag")
                                 if after is None
                                 else ()

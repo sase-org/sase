@@ -25,6 +25,7 @@ from sase.core.agent_scan_wire import (
     PendingQuestionMarkerWire,
     WaitingMarkerWire,
 )
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 from sase.core.time import get_timezone
 
@@ -367,10 +368,7 @@ def _record_pending_question(
 def _read_meta(artifacts_dir: str | None) -> AgentMetaWire | None:
     data = _read_json_dict(artifacts_dir, "agent_meta.json")
     if data is not None:
-        data = dict(data)
-        if "tribe" not in data and "tag" in data:
-            data["tribe"] = data["tag"]
-        data.pop("tag", None)
+        data = canonicalize_agent_tribe_metadata(dict(data))
     return _wire_from_dict(AgentMetaWire, data)
 
 

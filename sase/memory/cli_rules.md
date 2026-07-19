@@ -20,7 +20,7 @@ When adding or changing CLI subcommands or options:
   `src/sase/main/parser.py`; do not re-implement it per command.
 - When a bare invocation delegates to `list`, SASE prints a runtime notice before the list output, for example
   `No subcommand provided for 'sase agent'; delegating to 'sase agent list'.`. Explicit `list` (and explicit non-`list`)
-  invocations print no notice. Nested groups (e.g. `sase agent tag`, `sase project alias`) report only the actually
+  invocations print no notice. Nested groups (e.g. `sase agent tribe`, `sase project alias`) report only the actually
   omitted group. The notice is emitted in `src/sase/main/entry.py` right after parsing via
   `default_list_delegation_notice()`.
 - Flags owned by `list` still belong after the explicit `list` token (e.g. `sase plan list --json`, not

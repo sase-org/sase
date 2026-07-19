@@ -232,7 +232,7 @@ def test_python_cleanup_planner_broad_scopes_keep_children_cascade_only() -> Non
         raw_suffix="child-ts",
         pid=1002,
         parent_timestamp="parent-ts",
-        tag="ops",
+        tribe="ops",
     )
     focused_request = _request(
         scope=CLEANUP_SCOPE_FOCUSED_PANEL,

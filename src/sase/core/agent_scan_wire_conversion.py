@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.core.agent_scan_wire_markers import (
     AgentMetaWire,
     DoneMarkerWire,
@@ -171,10 +172,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = dict(data)
-    if "tribe" not in payload and "tag" in payload:
-        payload["tribe"] = payload["tag"]
-    payload.pop("tag", None)
+    payload = canonicalize_agent_tribe_metadata(dict(data))
     if bool(payload.get("agent_family_parallel", False)):
         if not payload.get("agent_clan"):
             payload["agent_clan"] = payload.get("agent_family")

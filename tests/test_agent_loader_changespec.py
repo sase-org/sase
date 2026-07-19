@@ -76,7 +76,7 @@ def test_load_all_agents_with_summarize_agents() -> None:
 
 
 def test_load_all_agents_with_fix_hook_review_agent() -> None:
-    """Test ChangeSpec fix-hook agents are visible and review-tagged."""
+    """ChangeSpec fix-hook agents are visible in the review tribe."""
     from sase.ace.changespec import ChangeSpec, HookEntry, HookStatusLine
 
     mock_status_line = HookStatusLine(

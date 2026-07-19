@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+
 AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 2
 _LEGACY_AGENT_GROUP_ARCHIVE_WIRE_SCHEMA_VERSION = 1
 
@@ -90,6 +92,7 @@ def saved_agent_group_wire_to_json_dict(record: Any) -> Any:
 
 def _saved_agent_group_ref_from_dict(data: dict[str, Any]) -> SavedAgentGroupRefWire:
     """Rehydrate a saved group ref from a dict."""
+    data = canonicalize_agent_tribe_metadata(dict(data))
 
     return SavedAgentGroupRefWire(
         agent_type=str(data["agent_type"]),
@@ -114,11 +117,7 @@ def _saved_agent_group_ref_from_dict(data: dict[str, Any]) -> SavedAgentGroupRef
         llm_provider=(
             None if data.get("llm_provider") is None else str(data["llm_provider"])
         ),
-        tribe=(
-            None
-            if data.get("tribe", data.get("tag")) is None
-            else str(data.get("tribe", data.get("tag")))
-        ),
+        tribe=None if data.get("tribe") is None else str(data["tribe"]),
         prompt_preview=(
             None if data.get("prompt_preview") is None else str(data["prompt_preview"])
         ),

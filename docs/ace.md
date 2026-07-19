@@ -410,7 +410,7 @@ jump-back history.
 
 With a named agent selected, press `f` to open a prompt prefilled with `#fork:<agent>`. Selecting a family root uses the
 family name instead. The same action works on the synthetic container row for a clan (`#fork:<clan>`) and while an
-expanded or collapsed named tribe panel has whole-panel focus (`#fork:@<tribe>`). The `(untagged)` panel and grouping
+expanded or collapsed named tribe panel has whole-panel focus (`#fork:@<tribe>`). The `(no tribe)` panel and grouping
 banners are not fork targets.
 
 Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`, or `%w:@<tribe>`. A non-empty marked
@@ -632,7 +632,7 @@ progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of look
 ### Tribe Side Panels
 
 The Agents tab is laid out as a series of vertically-stacked side panels, one per agent **tribe**. Agents without a
-tribe live in the `(untagged)` panel; each tribe renders as `@<tribe>` with an agent count in the panel title. Each
+tribe live in the `(no tribe)` panel; each tribe renders as `@<tribe>` with an agent count in the panel title. Each
 panel title can also show compact scoped metrics in the form `[H1 R2 W1 F1 U1 D3]`: `H` is human-in-the-loop, `R` is
 running, `W` is waiting, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work. Zero-count
 metrics are omitted. On the selected whole panel, the title marker, total, and status-chip chrome use the focus accent
@@ -660,7 +660,7 @@ row and is available only in the split layout.
 Per-panel actions (kill, dismiss, expand, etc.) operate on whichever panel currently holds focus. Press `X` to open the
 cleanup panel: `d` dismisses completed agents in the focused panel, `D` dismisses completed agents across loaded panels,
 `k` cleans the focused panel, `K` cleans all loaded panels, `m` cleans marked agents, `g` cleans the focused group, `t`
-opens the tribe/tag chooser, `C` opens the clan/member chooser scoped to the focused tribe, and lowercase `c` opens the
+opens the tribe chooser, `C` opens the clan/member chooser scoped to the focused tribe, and lowercase `c` opens the
 custom selector. Whole-clan selections are planned by clan name and generation; member subsets and mixed selections use
 explicit agent identities. Both paths continue through the shared bulk-cleanup confirmation and execution flow.
 
@@ -884,11 +884,11 @@ words are substring-matched against an agent's `cl_name`, `display_name`, `agent
 
 Property keys (closed allowlist):
 
-| Key                                                                                     | Form                                | Notes                                             |
-| --------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------- |
-| `status`, `cl`, `project`, `name`, `model`, `provider`, `tag`, `text`, `type`, `source` | `key:value` (substring match)       | `source` is `axe` (workflow / step) or `manual`.  |
-| `pinned`, `hidden`, `attention`, `needs`                                                | `key:true` / `key:false`            | Boolean keys.                                     |
-| `age`                                                                                   | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`. |
+| Key                                                                                       | Form                                | Notes                                                                                                   |
+| ----------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `status`, `cl`, `project`, `name`, `model`, `provider`, `tribe`, `text`, `type`, `source` | `key:value` (substring match)       | `tribe:` means any assigned tribe when value is empty. `source` is `axe` (workflow / step) or `manual`. |
+| `pinned`, `hidden`, `attention`, `needs`                                                  | `key:true` / `key:false`            | `pinned:true` is sugar for `tribe:pinned`.                                                              |
+| `age`                                                                                     | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`.                                                       |
 
 The query key remains `tag:` for compatibility, but it matches the agent's tribe exactly (case-insensitively); `tag:`
 with no value means any agent assigned to a tribe.
@@ -1718,7 +1718,7 @@ feedback on cold-start latency. A safety timeout forcibly retires the stopwatch 
 | **FAILED**       | Red   | Agent exited with an error                                                     |
 
 Completed agents can be dismissed with `x` on a single row, or through the `X` cleanup panel for focused-panel, global,
-tag, clan, marked, group, and custom planner-backed selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved
+tribe, clan, marked, group, and custom planner-backed selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved
 response path are resumable from the Agents tab.
 
 When a terminal agent becomes unread, ACE marks it with the completed-agent indicator and includes it in the Agents

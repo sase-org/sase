@@ -177,7 +177,7 @@ def test_effective_clan_tribe_uses_shared_precedence_facade(tmp_path: Path) -> N
     assert candidate.kind == "clan"
 
 
-def test_posthoc_agent_tag_assignment_enrolls_entity(tmp_path: Path) -> None:
+def test_legacy_posthoc_agent_tag_assignment_enrolls_entity(tmp_path: Path) -> None:
     timestamp = "20260718030000"
     _agent(tmp_path, timestamp, "builder", cl_name="change")
     tags_path = tmp_path / "agent_tags.json"

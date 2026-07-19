@@ -40,7 +40,7 @@ class WaitDependencyIndexQueries:
     ) -> TribeCandidate | None:
         """Return the earliest complete entity launched after *newer_than*.
 
-        A tagged clan member enrolls its whole generation. Clan entities use
+        A tribe-assigned clan member enrolls its whole generation. Clan entities use
         the generation's earliest member launch as their timestamp and resolve
         only once the same member aggregate used by clan waits is successful.
         """
@@ -48,17 +48,17 @@ class WaitDependencyIndexQueries:
             return None
 
         entity_keys: set[tuple[str, str, str | None]] = set()
-        for tagged_artifact in self.tribes.get(tribe, []):
-            if tagged_artifact.clan_name and tagged_artifact.clan_generation:
+        for tribe_artifact in self.tribes.get(tribe, []):
+            if tribe_artifact.clan_name and tribe_artifact.clan_generation:
                 entity_keys.add(
                     (
                         "clan",
-                        tagged_artifact.clan_name,
-                        tagged_artifact.clan_generation,
+                        tribe_artifact.clan_name,
+                        tribe_artifact.clan_generation,
                     )
                 )
             else:
-                entity_keys.add(("agent", tagged_artifact.artifact_dir, None))
+                entity_keys.add(("agent", tribe_artifact.artifact_dir, None))
         entity_keys.update(
             ("clan", clan_name, generation)
             for (clan_name, generation), resolved_tribe in (

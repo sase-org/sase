@@ -23,7 +23,7 @@ def _clan_member(
     *,
     clan: str,
     generation: str,
-    tag: str | None,
+    tribe: str | None,
     status: str = "DONE",
     pid: int | None = None,
 ) -> Agent:
@@ -36,7 +36,7 @@ def _clan_member(
         stop_time=(datetime(2026, 7, 19, 8, 30, 0) if status == "DONE" else None),
         raw_suffix=suffix,
         agent_name=name,
-        tribe=tag,
+        tribe=tribe,
         pid=pid,
         agent_clan=clan,
         agent_clan_generation=generation,
@@ -51,7 +51,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         "alpha-run",
         clan="alpha",
         generation="alpha-generation",
-        tag="epic",
+        tribe="epic",
         status="RUNNING",
         pid=101,
     )
@@ -60,23 +60,23 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         "alpha-done",
         clan="alpha",
         generation="alpha-generation",
-        tag="epic",
+        tribe="epic",
     )
     review_done = _clan_member(
         "review.done",
         "review-done",
         clan="review",
         generation="review-generation",
-        tag="review",
+        tribe="review",
     )
-    untagged_done = _clan_member(
-        "untagged.done",
-        "untagged-done",
-        clan="untagged",
-        generation="untagged-generation",
-        tag=None,
+    no_tribe_done = _clan_member(
+        "no-tribe.done",
+        "no-tribe-done",
+        clan="no-tribe",
+        generation="no-tribe-generation",
+        tribe=None,
     )
-    agents = [alpha_running, alpha_done, review_done, untagged_done]
+    agents = [alpha_running, alpha_done, review_done, no_tribe_done]
     patch_startup_loaders(monkeypatch, agents=agents)
 
     killed: list[Agent] = []
@@ -131,7 +131,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         assert "alpha.run" in description
         assert "alpha.done" in description
         assert "review.done" not in description
-        assert "untagged.done" not in description
+        assert "no-tribe.done" not in description
 
         await page.press("y", "y")
         await page.expect_no_modal()
@@ -143,7 +143,7 @@ async def test_clan_cleanup_keyboard_flow_partitions_and_updates_state(
         )
 
         selected_ids = {alpha_running.identity, alpha_done.identity}
-        untouched_ids = {review_done.identity, untagged_done.identity}
+        untouched_ids = {review_done.identity, no_tribe_done.identity}
         assert {agent.identity for agent in killed} == {alpha_running.identity}
         assert page.app._dismissed_agents - initial_dismissed == selected_ids
         assert page.app._marked_agents == set()

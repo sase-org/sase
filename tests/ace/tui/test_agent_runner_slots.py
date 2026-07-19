@@ -20,8 +20,6 @@ def _agent(name: str, **overrides: object) -> Agent:
         "artifacts_dir": f"/tmp/project/artifacts/ace-run/{name}",
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

@@ -684,7 +684,7 @@ def test_tribe_fork_resolves_earliest_complete_standalone_agent(
             "response_path": str(tmp_path / "old.md"),
             "outcome": "completed",
         },
-        meta={"tag": "epic"},
+        meta={"tribe": "epic"},
     )
     earliest_chat = tmp_path / "earliest.md"
     _write_agent(
@@ -692,7 +692,7 @@ def test_tribe_fork_resolves_earliest_complete_standalone_agent(
         "20260718022000",
         "earliest",
         done={"response_path": str(earliest_chat), "outcome": "completed"},
-        meta={"tag": "epic"},
+        meta={"tribe": "epic"},
     )
     _write_agent(
         tmp_path,
@@ -702,7 +702,7 @@ def test_tribe_fork_resolves_earliest_complete_standalone_agent(
             "response_path": str(tmp_path / "later.md"),
             "outcome": "completed",
         },
-        meta={"tag": "epic"},
+        meta={"tribe": "epic"},
     )
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
 
@@ -781,7 +781,7 @@ def test_mixed_tribe_and_named_fork_parents_preserve_order(
         "20260718022000",
         "tribe-worker",
         done={"response_path": str(tribe_chat), "outcome": "completed"},
-        meta={"tag": "epic"},
+        meta={"tribe": "epic"},
     )
     _write_agent(
         tmp_path,

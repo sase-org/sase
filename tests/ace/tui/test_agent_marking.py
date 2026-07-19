@@ -328,8 +328,8 @@ def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
         start_time=datetime(2026, 7, 13, 10, 5, 0),
         tribe="epic",
     )
-    untagged_a = _make_agent(
-        cl_name="untagged-a",
+    no_tribe_a = _make_agent(
+        cl_name="no-tribe-a",
         raw_suffix="20260713101000",
         start_time=datetime(2026, 7, 13, 10, 10, 0),
     )
@@ -339,12 +339,12 @@ def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
         start_time=datetime(2026, 7, 13, 10, 20, 0),
         tribe="epic",
     )
-    untagged_b = _make_agent(
-        cl_name="untagged-b",
+    no_tribe_b = _make_agent(
+        cl_name="no-tribe-b",
         raw_suffix="20260713103000",
         start_time=datetime(2026, 7, 13, 10, 30, 0),
     )
-    app = _FakeMarkApp([epic_a, untagged_a, epic_b, untagged_b])
+    app = _FakeMarkApp([epic_a, no_tribe_a, epic_b, no_tribe_b])
     app._panel_group = AgentPanelGroup.from_agents(app._agents, focused_key=None)
     app._grouping_mode = GroupingMode.BY_DATE
     app._current_group_key = ("Today", "10:00")
@@ -353,7 +353,7 @@ def test_toggle_mark_focused_group_is_scoped_to_focused_panel() -> None:
     with patch("sase.ace.tui.models.agent_groups._tree.local_now", return_value=now):
         assert app._toggle_mark_focused_group()
 
-    assert app._marked_agents == {untagged_a.identity, untagged_b.identity}
+    assert app._marked_agents == {no_tribe_a.identity, no_tribe_b.identity}
     assert epic_a.identity not in app._marked_agents
     assert epic_b.identity not in app._marked_agents
 

@@ -139,10 +139,10 @@ def build_clan_detail_text(
 
     if agent.clan_tribes:
         text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
-        for index, tag in enumerate(agent.clan_tribes):
+        for index, tribe in enumerate(agent.clan_tribes):
             if index:
                 text.append(" ")
-            text.append(f"@{tag}", style="bold #FFD75F")
+            text.append(f"@{tribe}", style="bold #FFD75F")
         text.append("\n")
 
     counts = clan_member_counts(agent, unread_ids)

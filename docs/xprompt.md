@@ -1189,11 +1189,11 @@ stays parked until a later successful run of the same dependency name appears.
 
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe members and selects the earliest
 successfully completed eligible entity launched after the waiting agent: one standalone agent or one whole clan
-generation. A tagged clan member enrolls its generation, which becomes eligible only when the normal aggregate clan wait
-succeeds. `#fork:@review` implies this same wait and then resumes from the selected agent conversation or every member's
-launch-ordered prompt and reply summary in the selected clan; full clan-member replies remain available through the
-included transcript paths rather than being injected automatically. Tribe names use letters, digits, underscores, dots,
-and dashes after the leading `@`.
+generation. A tribe-assigned clan member enrolls its generation, which becomes eligible only when the normal aggregate
+clan wait succeeds. `#fork:@review` implies this same wait and then resumes from the selected agent conversation or
+every member's launch-ordered prompt and reply summary in the selected clan; full clan-member replies remain available
+through the included transcript paths rather than being injected automatically. Tribe names use letters, digits,
+underscores, dots, and dashes after the leading `@`.
 
 A submitted plan awaiting review is the one exception. A planner that ran `sase plan propose` blocks in the approval
 flow without writing a `done.json`, so its planner row shows the `PLAN` status. A `%wait` on that planner row — its

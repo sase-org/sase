@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._json_cache import load_json_cached
@@ -68,6 +69,7 @@ def enrich_agent_from_meta(
         refresh_agent_plan_path(agent)
         agent.refresh_presented_agent_name()
         return
+    data = canonicalize_agent_tribe_metadata(dict(data))
 
     if data.get("model"):
         agent.model = data["model"]
@@ -98,9 +100,7 @@ def enrich_agent_from_meta(
         agent.diff_path = commit_diff_path
     if not workflow_child and data.get("name"):
         agent.agent_name = data["name"]
-    meta_tribe = valid_meta_tribe(
-        data.get("tribe") if "tribe" in data else data.get("tag")
-    )
+    meta_tribe = valid_meta_tribe(data.get("tribe"))
     if meta_tribe:
         agent.tribe = meta_tribe
     if "output_variables" in data:

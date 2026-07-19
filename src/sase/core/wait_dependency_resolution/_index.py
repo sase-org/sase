@@ -12,6 +12,7 @@ from sase.core.agent_clan_tribe import ClanTribeMemberWire, resolve_clan_tribe
 from sase.core.agent_tribe import (
     InvalidTribeError,
     RawAgentTribeIdentity,
+    canonicalize_agent_tribe_metadata,
     load_raw_agent_tribes,
     validate_tribe_name,
 )
@@ -197,12 +198,11 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             )
             self._refresh_effective_clan_tribe(clan_name, generation)
 
+        canonical_meta = canonicalize_agent_tribe_metadata(dict(meta))
         direct_tribes = {
             tribe
             for tribe in (
-                self._valid_tribe(
-                    meta.get("tribe") if "tribe" in meta else meta.get("tag")
-                ),
+                self._valid_tribe(canonical_meta.get("tribe")),
                 self._posthoc_tribe(meta, timestamp),
             )
             if tribe is not None

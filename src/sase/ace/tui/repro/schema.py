@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
+
 type AgentTypeValue = Literal["run", "workflow"]
 type AgentIdentity = tuple[AgentTypeValue, str, str | None]
 type JsonScalar = str | int | float | bool | None
@@ -227,6 +229,7 @@ class ReproAgentRow:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproAgentRow:
+        data = canonicalize_agent_tribe_metadata(dict(data))
         metadata = data.get("metadata", {})
         if not isinstance(metadata, dict):
             raise ValueError("agent row metadata must be an object")
@@ -251,10 +254,7 @@ class ReproAgentRow:
                 data.get("workspace_num"), field_name="workspace_num"
             ),
             agent_name=_optional_str(data.get("agent_name"), field_name="agent_name"),
-            tribe=_optional_str(
-                data.get("tribe") if "tribe" in data else data.get("tag"),
-                field_name="tribe",
-            ),
+            tribe=_optional_str(data.get("tribe"), field_name="tribe"),
             metadata={
                 str(key): value
                 for key, value in metadata.items()

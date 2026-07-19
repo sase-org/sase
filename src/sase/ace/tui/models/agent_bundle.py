@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from sase.ace.tui.models.agent import Agent, AgentType, LinkedRepoMetadata
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 
 def to_bundle_dict(agent: Agent) -> dict[str, Any]:
@@ -64,10 +65,7 @@ def from_bundle_dict(data: dict[str, Any]) -> Agent:
 
     Uses .get() with defaults for forward-compatibility with new fields.
     """
-    data = dict(data)
-    if "tribe" not in data and "tag" in data:
-        data["tribe"] = data["tag"]
-    data.pop("tag", None)
+    data = canonicalize_agent_tribe_metadata(dict(data))
 
     # Map removed AgentType values to RUNNING for backward compatibility
     _LEGACY_AGENT_TYPES = {"fix-hook", "summarize", "mentor", "crs"}

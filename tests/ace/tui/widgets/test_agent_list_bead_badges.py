@@ -184,7 +184,7 @@ class TestAgentListBeadBadge:
     def test_bead_badge_flows_from_fold_annotation_to_agent_name(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        agent = make_agent(agent_name="sase-x.3", tag="pinned")
+        agent = make_agent(agent_name="sase-x.3", tribe="pinned")
         confirm_bead(agent, monkeypatch)
 
         left, _, _ = format_agent_option(

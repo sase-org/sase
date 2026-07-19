@@ -91,12 +91,12 @@ def test_saved_group_prompt_preview_missing_or_failing_is_none() -> None:
     assert [ref.prompt_preview for ref in group.agent_refs] == [None, None]
 
 
-def test_saved_group_title_uses_top_level_count_for_single_tag() -> None:
+def test_saved_group_title_uses_top_level_count_for_single_tribe() -> None:
     group = build_saved_agent_group(
         [
-            _make_agent(tag="backend", raw_suffix="20240101120000"),
+            _make_agent(tribe="backend", raw_suffix="20240101120000"),
             _make_agent(
-                tag="backend",
+                tribe="backend",
                 raw_suffix="20240101120001",
                 parent_timestamp="20240101120000",
             ),

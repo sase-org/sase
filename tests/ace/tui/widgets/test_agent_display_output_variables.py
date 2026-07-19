@@ -35,8 +35,6 @@ def _family_root(**overrides: object) -> Agent:
         "plan_chain_root": True,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return make_agent(**defaults)
 
 

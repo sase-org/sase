@@ -69,8 +69,6 @@ def _agent(tmp_path: Path, **overrides: Any) -> Agent:
         "artifacts_dir": artifacts_dir,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)
 
 
@@ -104,7 +102,7 @@ def test_build_agent_completion_candidates_enriches_visible_named_agents(
         model="gpt-5",
         llm_provider="codex",
         reasoning_effort="high",
-        tag="review",
+        tribe="review",
         raw_prompt="%wait(old, time=5m) #gh:sase Redesign wait completion\nwith rows",
     )
     duplicate = _agent(tmp_path, agent_name="completion", raw_suffix="260624_120001")
@@ -197,7 +195,7 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         raw_suffix="20260718090000",
         agent_clan="review",
         agent_clan_generation="20260718090000",
-        tag="retired",
+        tribe="retired",
     )
     alpha = _agent(
         tmp_path,
@@ -205,7 +203,7 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         raw_suffix="20260718100001",
         agent_clan="review",
         agent_clan_generation="20260718100000",
-        tag="builders",
+        tribe="builders",
     )
     beta = _agent(
         tmp_path,
@@ -222,7 +220,7 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         agent_family="ship",
         agent_family_role="root",
         plan_chain_root=True,
-        tag="makers",
+        tribe="makers",
     )
     code = _agent(
         tmp_path,
@@ -237,7 +235,7 @@ def test_build_agent_completion_candidates_derives_ordered_groups(
         tmp_path,
         agent_name="solo",
         raw_suffix="20260718120000",
-        tag="builders",
+        tribe="builders",
     )
 
     candidates = build_agent_completion_candidates(
@@ -278,29 +276,29 @@ def test_build_agent_completion_candidates_omits_empty_clan(tmp_path: Path) -> N
 def test_visible_agent_completion_agents_aggregates_all_panel_widgets(
     tmp_path: Path,
 ) -> None:
-    untagged = _agent(tmp_path, agent_name="untagged", raw_suffix="260624_120020")
+    no_tribe = _agent(tmp_path, agent_name="no-tribe", raw_suffix="260624_120020")
     alpha = _agent(
         tmp_path,
         agent_name="alpha",
         raw_suffix="260624_120021",
-        tag="alpha",
+        tribe="alpha",
     )
     alpha_extra = _agent(
         tmp_path,
         agent_name="alpha-extra",
         raw_suffix="260624_120022",
-        tag="alpha",
+        tribe="alpha",
     )
     beta = _agent(
         tmp_path,
         agent_name="beta",
         raw_suffix="260624_120023",
-        tag="beta",
+        tribe="beta",
     )
     app = _CompletionApp(
-        [untagged, alpha, alpha_extra, beta],
+        [no_tribe, alpha, alpha_extra, beta],
         {
-            0: [untagged],
+            0: [no_tribe],
             1: [alpha, alpha_extra],
             2: [beta, alpha],
         },
@@ -308,7 +306,7 @@ def test_visible_agent_completion_agents_aggregates_all_panel_widgets(
     app._panel_group.focused_idx = 1
 
     assert visible_agent_completion_agents(app) == [
-        untagged,
+        no_tribe,
         alpha,
         alpha_extra,
         beta,

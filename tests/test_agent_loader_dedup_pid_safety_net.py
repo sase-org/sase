@@ -95,12 +95,12 @@ def test_pid_dedup_safety_net() -> None:
 
 
 def test_pid_dedup_safety_net_works_on_review_agents() -> None:
-    """Test that PID safety net deduplicates review-tagged agents.
+    """Test that PID safety net deduplicates review-tribe agents.
 
     When a ChangeSpec fix-hook and VCS workspace share a PID, the safety
     net should still remove one to prevent duplicate process rows.
     """
-    # Review-tagged fix-hook agent (from ChangeSpec)
+    # Review-tribe fix-hook agent (from ChangeSpec)
     fix_hook_agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name="my_feature",

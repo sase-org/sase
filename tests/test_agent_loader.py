@@ -403,8 +403,8 @@ def test_load_all_agents_includes_axe_fix_hook() -> None:
         assert agents[0].tribe == REVIEW_AGENT_TRIBE
 
 
-def test_load_all_agents_tags_axe_summarize_hook_as_review() -> None:
-    """Test RUNNING entries with axe(summarize-hook) are review-tagged."""
+def test_load_all_agents_assigns_axe_summarize_hook_to_review_tribe() -> None:
+    """RUNNING entries with axe(summarize-hook) join the review tribe."""
     mock_claim = MagicMock()
     mock_claim.workspace_num = 100
     mock_claim.workflow = "axe(summarize-hook)-251230_151429"

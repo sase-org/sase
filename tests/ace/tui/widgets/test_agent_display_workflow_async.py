@@ -39,8 +39,6 @@ def _make_agent(**overrides: object) -> Agent:
         "workflow": "demo_workflow",
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

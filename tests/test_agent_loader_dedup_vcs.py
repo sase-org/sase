@@ -335,12 +335,12 @@ def test_embedded_vcs_removed_by_plain_workflow_name() -> None:
     assert result[0].workflow == "fix-hook"
 
 
-def test_embedded_vcs_removed_when_changespec_fix_hook_review_tagged() -> None:
+def test_embedded_vcs_removed_when_changespec_fix_hook_is_in_review_tribe() -> None:
     """Test VCS workspace removed when fix-hook agent comes from ChangeSpec.
 
     This reproduces the exact scenario: the fix-hook runner doesn't claim a workspace
     in the RUNNING field, so the fix-hook agent only exists as a ChangeSpec entry
-    (with tag=review, _from_changespec=True). The embedded #spy workspace shares
+    (with tribe=review, _from_changespec=True). The embedded #spy workspace shares
     the same PID. The VCS workspace should be removed entirely.
     """
     from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE

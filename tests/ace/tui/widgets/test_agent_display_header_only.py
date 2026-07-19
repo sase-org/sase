@@ -38,8 +38,6 @@ def _make_agent(**overrides: object) -> Agent:
         "model": None,
     }
     defaults.update(overrides)
-    if "tag" in defaults:
-        defaults["tribe"] = defaults.pop("tag")
     return Agent(**defaults)  # type: ignore[arg-type]
 
 

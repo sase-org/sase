@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### ⚠ BREAKING CHANGES
+
+- **agent-tribes:** rename current agent-tribe contracts from tag to tribe. Standalone assignments now use
+  `~/.sase/agent_tribes.json` and `tribe`; agent metadata, archives, cleanup and scan wires, and CLI JSON emit only
+  tribe-shaped fields; the Agents query uses `tribe:` instead of `tag:`; and ACE keymap/config actions use tribe names.
+  Existing tag-shaped persisted state remains readable through explicit legacy migration paths.
+
 ### Features
 
 - **tui:** add in-place schema-driven xprompt property editing, bound definition write-back, conflict detection, and a unified save-as screen.

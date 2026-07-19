@@ -39,7 +39,7 @@ def _agent(
     agent_family_parallel: bool = False,
     agent_clan: str | None = None,
     agent_clan_generation: str | None = None,
-    tag: str | None = None,
+    tribe: str | None = None,
     agent_name: str | None = None,
     workspace_num: int | None = 7,
     artifacts_dir: str | None = "/tmp/artifacts",
@@ -62,7 +62,7 @@ def _agent(
         agent_family_parallel=agent_family_parallel,
         agent_clan=agent_clan,
         agent_clan_generation=agent_clan_generation,
-        tribe=tag,
+        tribe=tribe,
         agent_name=agent_name,
         artifacts_dir=artifacts_dir,
     )
@@ -101,9 +101,9 @@ def _request(
 
 
 def _scenario_focused_panel_dismiss() -> tuple[list[Agent], AgentCleanupRequestWire]:
-    done = _agent(cl_name="done", status="DONE", pid=None, tag="focus")
-    running = _agent(cl_name="running", status="RUNNING", pid=101, tag="focus")
-    other = _agent(cl_name="other", status="DONE", pid=None, tag="other")
+    done = _agent(cl_name="done", status="DONE", pid=None, tribe="focus")
+    running = _agent(cl_name="running", status="RUNNING", pid=101, tribe="focus")
+    other = _agent(cl_name="other", status="DONE", pid=None, tribe="other")
     return [
         done,
         running,
@@ -118,9 +118,11 @@ def _scenario_focused_panel_dismiss() -> tuple[list[Agent], AgentCleanupRequestW
 def _scenario_focused_panel_kill_dismiss() -> tuple[
     list[Agent], AgentCleanupRequestWire
 ]:
-    running = _agent(cl_name="running", status="RUNNING", pid=101, tag=None)
-    done = _agent(cl_name="done", status="FAILED", pid=None, tag=None, stop_time=_STOP)
-    other = _agent(cl_name="other", status="DONE", pid=None, tag="other")
+    running = _agent(cl_name="running", status="RUNNING", pid=101, tribe=None)
+    done = _agent(
+        cl_name="done", status="FAILED", pid=None, tribe=None, stop_time=_STOP
+    )
+    other = _agent(cl_name="other", status="DONE", pid=None, tribe="other")
     return [
         running,
         done,
@@ -168,7 +170,7 @@ def _scenario_tribe_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
         status="RUNNING",
         pid=101,
         raw_suffix="alpha-ts",
-        tag="alpha",
+        tribe="alpha",
     )
     child = _agent(
         agent_type=AgentType.WORKFLOW,
@@ -179,14 +181,14 @@ def _scenario_tribe_scope() -> tuple[list[Agent], AgentCleanupRequestWire]:
         workflow="deploy",
         parent_workflow=alpha.workflow,
         parent_timestamp=alpha.raw_suffix,
-        tag=None,
+        tribe=None,
     )
     beta = _agent(
         cl_name="beta",
         status="RUNNING",
         pid=201,
         raw_suffix="beta-ts",
-        tag="beta",
+        tribe="beta",
     )
     return [
         alpha,

@@ -123,7 +123,7 @@ class TestAgentListFileChangePencil:
         agent = make_agent(
             agent_name="sase-x.3",
             diff_path="/tmp/sase/demo.diff",
-            tag="pinned",
+            tribe="pinned",
         )
         confirm_bead(agent, monkeypatch)
 

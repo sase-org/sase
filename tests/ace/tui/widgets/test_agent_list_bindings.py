@@ -52,8 +52,8 @@ def test_mark_prefix_absent_when_unmarked() -> None:
     assert "[✓]" not in option.prompt.plain  # type: ignore[union-attr]
 
 
-def test_tag_badge_omitted_for_tagged_agent_row() -> None:
-    """A tagged agent keeps tag text out of the row prompt."""
+def test_tribe_badge_omitted_for_tribe_assigned_agent_row() -> None:
+    """A tribe-assigned agent keeps tribe text out of the row prompt."""
     agent = _make_plain_agent()
     agent.tribe = "release-blockers"
     widget = AgentList()
@@ -67,7 +67,7 @@ def test_plain_agent_without_tribe_omits_at_annotation() -> None:
     widget = AgentList()
     option = widget._format_agent_option(agent, 0, is_selected=False)
     plain = option.prompt.plain  # type: ignore[union-attr]
-    # A plain agent without an agent_name and without a tag must not contain '@'.
+    # A plain agent without an agent_name and without a tribe must not contain '@'.
     assert "@" not in plain
 
 

@@ -370,7 +370,7 @@ def test_dependency_launched_after_waiter_eventually_resolves(
     assert ready == {"resolved_deps": ["late-dep"]}
 
 
-def test_tribe_dependency_resolves_to_next_tagged_entity(
+def test_tribe_dependency_resolves_to_next_tribe_entity(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -398,7 +398,7 @@ def test_tribe_dependency_resolves_to_next_tagged_entity(
     for artifact in (older, newer):
         meta_path = artifact / "agent_meta.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        meta["tag"] = "epic"
+        meta["tribe"] = "epic"
         meta_path.write_text(json.dumps(meta), encoding="utf-8")
 
     run_wait_checks(tmp_path, monkeypatch)

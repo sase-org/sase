@@ -21,7 +21,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
         status="FAILED",
         pid=None,
         raw_suffix="20260430090102",
-        tag="triage",
+        tribe="triage",
         agent_name="friendly",
         agent_family_parallel=True,
         agent_clan="research",
@@ -50,7 +50,7 @@ def test_agent_to_cleanup_target_converts_current_agent_shape() -> None:
 
 
 def test_cleanup_wire_serializes_only_canonical_tribe_fields() -> None:
-    target = agent_to_cleanup_target(_agent(tag="triage"))
+    target = agent_to_cleanup_target(_agent(tribe="triage"))
     request = AgentCleanupRequestWire(
         schema_version=AGENT_CLEANUP_WIRE_SCHEMA_VERSION,
         scope=CLEANUP_SCOPE_TRIBE,
