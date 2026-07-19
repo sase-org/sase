@@ -195,7 +195,7 @@ def test_clan_header_rolls_up_identity_counts_runtime_and_launch_order() -> None
         "Tribes: @epic @review\n"
         "Status: FAILED [F1 D1]\n"
         "Runtime: 2m\n"
-        "Members: 2 agents · 0 families\n"
+        "Members: 2 agents\n"
         "Fold: 1/3"
     )
     members_section = members.split("\n" + "─" * 50 + "\n", 1)[0]
@@ -229,7 +229,7 @@ def test_new_style_clan_tribe_projects_into_folded_summary_header() -> None:
     assert "Fold: 1/3\n" in detail
 
 
-def test_cold_collapsed_summary_lists_unknown_disk_sections_without_counts() -> None:
+def test_cold_collapsed_summary_hides_unknown_disk_sections_behind_tail() -> None:
     member = _agent(
         "research.one",
         status="RUNNING",
@@ -242,10 +242,12 @@ def test_cold_collapsed_summary_lists_unknown_disk_sections_without_counts() -> 
         fold_level=FoldLevel.COLLAPSED,
     ).plain
 
+    assert "Tribes:" not in detail
+    assert "Members: 1 agent\n" in detail
     for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
-        assert f"▸ {heading}\n" in detail
-        assert f"▸ {heading} ·" not in detail
+        assert heading not in detail
     assert "loading…" not in detail
+    assert detail.count("⋯ scanning member data…") == 1
     assert clan_disk_sections_for_fold_state(FoldLevel.COLLAPSED) == (
         CLAN_DISK_SECTIONS
     )
@@ -284,6 +286,34 @@ def test_known_empty_disk_sections_disappear_from_collapsed_summary() -> None:
 
     for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
         assert heading not in detail
+    assert "⋯ scanning member data…" not in detail
+
+
+def test_loaded_non_empty_disk_section_appears_while_others_scan() -> None:
+    container, snapshot = _rich_clan_snapshot()
+    assert snapshot.disk is not None
+    disk = snapshot.disk
+    partial = ClanSectionSnapshot(
+        in_memory=snapshot.in_memory,
+        disk=ClanDiskSnapshot(
+            loaded_sections=frozenset({"replies"}),
+            members=disk.members,
+            replies=disk.replies,
+            prompts=(),
+            context_lanes=(),
+            slow_tool_calls=(),
+        ),
+    )
+
+    detail = build_clan_detail_text(
+        container,
+        snapshot=partial,
+        fold_level=FoldLevel.COLLAPSED,
+    ).plain
+
+    assert "▸ REPLIES · 1\n" in detail
+    assert "PROMPTS" not in detail
+    assert detail.count("⋯ scanning member data…") == 1
 
 
 def test_clan_sections_honor_all_three_fold_contracts() -> None:
@@ -364,7 +394,7 @@ def test_exhaustive_shared_level_clamps_to_fully_expanded_clan() -> None:
     assert "Fold: 3/3\n" in exhaustive.plain
 
 
-def test_clan_section_override_and_loading_placeholders() -> None:
+def test_clan_section_override_and_scanning_tail() -> None:
     container, snapshot = _rich_clan_snapshot()
     overrides = {
         "errors": FoldLevel.FULLY_EXPANDED,
@@ -398,9 +428,12 @@ def test_clan_section_override_and_loading_placeholders() -> None:
         fold_level=FoldLevel.EXPANDED,
     ).plain
 
-    for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
-        assert f"▾ {heading}" in loading
-    assert loading.count("loading…") == 4
+    assert "REPLIES" not in loading
+    assert "▾ SASE CONTEXT\n" in loading
+    assert "SLOW TOOL CALLS" not in loading
+    assert "PROMPTS" not in loading
+    assert "loading…" not in loading
+    assert loading.count("⋯ scanning member data…") == 1
 
 
 def test_family_header_recolors_only_real_container_name() -> None:
@@ -518,10 +551,14 @@ def test_clan_members_render_family_aggregate_and_every_member() -> None:
     )
 
     assert "Members: 2 agents · 1 family\n" in detail.plain
-    members_section = detail.plain.split("▸ ❖ CLAN MEMBERS · 1\n", 1)[1].split(
-        "\n" + "─" * 50 + "\n",
-        1,
-    )[0]
+    members_section = (
+        detail.plain.split("▸ ❖ CLAN MEMBERS · 1\n", 1)[1]
+        .split(
+            "\n" + "─" * 50 + "\n",
+            1,
+        )[0]
+        .split("\n⋯ scanning member data…", 1)[0]
+    )
     assert members_section == (
         " 0  .writer · family · ✓ DONE · mixed · 2m\n"
         "    ├─ --plan-0 · agent · ✓ DONE · gpt-5 · 1m\n"

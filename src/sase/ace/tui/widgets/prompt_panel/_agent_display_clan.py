@@ -36,6 +36,7 @@ from ._agent_display_clan_sections import (
     disk_section_loaded,
     minimal_context_lanes,
 )
+from ._fold_language import append_fold_header_line, append_scanning_tail
 from ._member_roster import MemberJumpMap, append_member_roster
 
 _CLAN_HEADING_STYLE = f"bold {_CLAN_IDENTITY_COLOR} underline"
@@ -47,12 +48,6 @@ _MEMBER_STATUS_STYLES: dict[str, str] = {
     "Waiting": "bold #AF87FF",
     "Failed": "bold #FF5F5F",
     "Done": "bold #5FD75F",
-}
-_FOLD_NUMBERS: dict[FoldLevel, int] = {
-    FoldLevel.COLLAPSED: 1,
-    FoldLevel.EXPANDED: 2,
-    FoldLevel.FULLY_EXPANDED: 3,
-    FoldLevel.EXHAUSTIVE: 4,
 }
 _DISK_SECTION_IDS: dict[str, ClanDiskSection] = {
     "replies": "replies",
@@ -81,8 +76,8 @@ def clan_disk_sections_for_fold_state(
 
     Even a collapsed clan summary needs one off-thread enrichment pass to
     distinguish represented disk-backed sections from known-empty ones.  The
-    first paint remains pure: it renders these still-unknown headings without
-    counts while the existing worker populates the mtime-keyed cache.
+    first paint remains pure: unknown sections stay hidden behind the shared
+    scanning tail while the existing worker populates the mtime-keyed cache.
     """
     del panel_level, overrides
     return frozenset(_DISK_SECTION_IDS.values())
@@ -142,15 +137,13 @@ def build_clan_detail_text(
         style=_CLAN_NAME_STYLE,
     )
 
-    text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
     if agent.clan_tags:
+        text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
         for index, tag in enumerate(agent.clan_tags):
             if index:
                 text.append(" ")
             text.append(f"@{tag}", style="bold #FFD75F")
-    else:
-        text.append("—", style="dim")
-    text.append("\n")
+        text.append("\n")
 
     counts = clan_member_counts(agent, unread_ids)
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
@@ -174,14 +167,14 @@ def build_clan_detail_text(
 
     family_count = len(family_members)
     text.append("Members: ", style=_FIELD_LABEL_STYLE)
-    text.append(
-        f"{agent_count} agent{'s' if agent_count != 1 else ''}"
-        f" · {family_count} famil{'ies' if family_count != 1 else 'y'}\n",
-        style="#D7D7FF",
-    )
+    member_parts = [f"{agent_count} agent{'s' if agent_count != 1 else ''}"]
+    if family_count:
+        member_parts.append(
+            f"{family_count} famil{'ies' if family_count != 1 else 'y'}"
+        )
+    text.append(" · ".join(member_parts) + "\n", style="#D7D7FF")
 
-    text.append("Fold: ", style=_FIELD_LABEL_STYLE)
-    text.append(f"{_FOLD_NUMBERS[fold_level]}/3\n", style="dim #D75FFF")
+    append_fold_header_line(text, level=fold_level, scale=CLAN_FOLD_SCALE)
 
     roster_entries = clan_roster_entries(
         agent,
@@ -245,18 +238,13 @@ def build_clan_detail_text(
     disk = snapshot.disk
 
     replies = disk.replies if disk is not None else ()
-    replies_loading = "replies" in snapshot.loading_sections or (
-        "replies" in required_disk_sections
-        and not disk_section_loaded(snapshot, "replies")
-    )
-    if replies or replies_loading:
+    if replies and disk_section_loaded(snapshot, "replies"):
         append_text_section(
             text,
             replies,
             title="REPLIES",
             section_id="replies",
             level=_effective_fold_level("replies", fold_level, overrides),
-            loading=replies_loading,
         )
 
     context_loaded = disk_section_loaded(snapshot, "context")
@@ -265,24 +253,16 @@ def build_clan_detail_text(
         if disk is not None and context_loaded
         else minimal_context_lanes(snapshot)
     )
-    context_loading = "context" in snapshot.loading_sections or (
-        "context" in required_disk_sections and not context_loaded
-    )
-    if context_lanes or context_loading:
+    if context_lanes:
         append_context_section(
             text,
             context_lanes,
             level=_effective_fold_level("context", fold_level, overrides),
-            loading=context_loading,
             count_known=context_loaded,
         )
 
     slow_tool_calls = disk.slow_tool_calls if disk is not None else ()
-    slow_tools_loading = "slow-tool-calls" in snapshot.loading_sections or (
-        "slow-tool-calls" in required_disk_sections
-        and not disk_section_loaded(snapshot, "slow-tool-calls")
-    )
-    if slow_tool_calls or slow_tools_loading:
+    if slow_tool_calls and disk_section_loaded(snapshot, "slow-tool-calls"):
         append_slow_tool_calls_section(
             text,
             slow_tool_calls,
@@ -291,23 +271,22 @@ def build_clan_detail_text(
                 fold_level,
                 overrides,
             ),
-            loading=slow_tools_loading,
         )
 
     prompts = disk.prompts if disk is not None else ()
-    prompts_loading = "prompts" in snapshot.loading_sections or (
-        "prompts" in required_disk_sections
-        and not disk_section_loaded(snapshot, "prompts")
-    )
-    if prompts or prompts_loading:
+    if prompts and disk_section_loaded(snapshot, "prompts"):
         append_text_section(
             text,
             prompts,
             title="PROMPTS",
             section_id="prompts",
             level=_effective_fold_level("prompts", fold_level, overrides),
-            loading=prompts_loading,
         )
+    loaded_disk_sections = disk.loaded_sections if disk is not None else frozenset()
+    if snapshot.loading_sections.intersection(required_disk_sections) or not (
+        required_disk_sections.issubset(loaded_disk_sections)
+    ):
+        append_scanning_tail(text)
     return text
 
 

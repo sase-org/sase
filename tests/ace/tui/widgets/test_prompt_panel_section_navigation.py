@@ -195,10 +195,7 @@ def test_clan_members_section_is_a_navigation_target() -> None:
         "errors",
         "output-variables",
         "workflow-variables",
-        "replies",
         "context",
-        "slow-tool-calls",
-        "prompts",
     ]
     assert target.kind is PromptPanelSectionTargetKind.ANCHOR
     assert target.anchor is not None

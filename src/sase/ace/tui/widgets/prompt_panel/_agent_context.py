@@ -120,8 +120,8 @@ def append_agent_context_section(
     else:
         from ._agent_display_family import (
             effective_family_fold_level,
-            family_fold_indicator,
         )
+        from ._fold_language import append_fold_glyph
 
         text.append("SASE CONTEXT", style=_COLOR_HEADER)
         text.append(f" · {len(rendered_lanes)}\n", style="dim")
@@ -151,8 +151,8 @@ def append_agent_context_section(
             if line_end < 0:
                 line_end = len(lane)
             source_heading = lane[:line_end]
-            glyph, glyph_style = family_fold_indicator(lane_level)
-            heading = Text(f"{glyph} ", style=glyph_style)
+            heading = Text()
+            append_fold_glyph(heading, lane_level)
             heading.append_text(source_heading[2:])
             section_id = {
                 "BEAD": "bead",

@@ -21,20 +21,9 @@ from ...models._agent_clan_sections import (
 from ...models.fold_state import FoldLevel
 from ...tools.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_major_section_divider, append_section_heading
 
-_FOLD_CHARS: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "▸",
-    FoldLevel.EXPANDED: "▾",
-    FoldLevel.FULLY_EXPANDED: "▼",
-    FoldLevel.EXHAUSTIVE: "◆",
-}
-_FOLD_STYLES: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "#5F5F5F",
-    FoldLevel.EXPANDED: "#00D7AF",
-    FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
-    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
-}
 _TRIAGE_ENTRY_LIMIT = 8
 _TRIAGE_SLOW_TOOL_LIMIT = 5
 _CLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
@@ -52,10 +41,10 @@ def _append_fold_heading(
 ) -> None:
     append_major_section_divider(text)
     heading = Text()
-    heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
+    append_fold_glyph(heading, level)
     heading.append(title, style=_CLAN_SECTION_HEADING_STYLE)
     if count is not None:
-        heading.append(f" · {count}", style="dim")
+        heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(text, heading, section_id=section_id)
 
 
@@ -134,21 +123,16 @@ def append_text_section(
     title: str,
     section_id: str,
     level: FoldLevel,
-    loading: bool,
 ) -> None:
     """Render reply/prompt bodies as headings, previews, or full member bodies."""
-    count = len(entries) if entries or not loading else None
     _append_fold_heading(
         text,
         title=title,
         section_id=section_id,
         level=level,
-        count=count,
+        count=len(entries),
     )
     if level == FoldLevel.COLLAPSED:
-        return
-    if not entries:
-        _append_loading(text)
         return
     if level == FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_ENTRY_LIMIT]:
@@ -181,7 +165,6 @@ def append_context_section(
     lanes: tuple[ClanContextLane, ...],
     *,
     level: FoldLevel,
-    loading: bool,
     count_known: bool,
 ) -> None:
     """Render SASE CONTEXT as headings, per-lane digests, or full lane items."""
@@ -195,9 +178,6 @@ def append_context_section(
     )
     if level == FoldLevel.COLLAPSED:
         return
-    if not lanes:
-        _append_loading(text)
-        return
     if level == FoldLevel.EXPANDED:
         for lane in lanes:
             labels = [entry.label for entry in lane.entries[:4]]
@@ -206,8 +186,6 @@ def append_context_section(
             if hidden:
                 digest += f", +{hidden} more"
             _append_triage_line(text, lane.label, digest or "—")
-        if loading:
-            _append_loading(text, prefix="more context ")
         return
     for lane in lanes:
         text.append(f"{lane.label}\n", style="bold #87D7FF")
@@ -222,8 +200,6 @@ def append_context_section(
                     style="dim #AF87FF",
                 )
             text.append("\n")
-    if loading:
-        _append_loading(text, prefix="more context ")
 
 
 def append_slow_tool_calls_section(
@@ -231,21 +207,16 @@ def append_slow_tool_calls_section(
     entries: tuple[ClanSlowToolEntry, ...],
     *,
     level: FoldLevel,
-    loading: bool,
 ) -> None:
     """Render slow tools as headings, top-five triage rows, or all grouped calls."""
-    count = len(entries) if entries or not loading else None
     _append_fold_heading(
         text,
         title="SLOW TOOL CALLS",
         section_id="slow-tool-calls",
         level=level,
-        count=count,
+        count=len(entries),
     )
     if level == FoldLevel.COLLAPSED:
-        return
-    if not entries:
-        _append_loading(text)
         return
     if level == FoldLevel.EXPANDED:
         for entry in entries[:_TRIAGE_SLOW_TOOL_LIMIT]:
@@ -345,10 +316,6 @@ def _append_more_tail(text: Text, total: int, shown: int) -> None:
     hidden = total - min(total, shown)
     if hidden > 0:
         text.append(f"  +{hidden} more\n", style="dim italic")
-
-
-def _append_loading(text: Text, *, prefix: str = "") -> None:
-    text.append(f"  {prefix}loading…\n", style="dim italic")
 
 
 def disk_section_loaded(

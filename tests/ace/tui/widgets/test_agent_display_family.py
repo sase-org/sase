@@ -377,6 +377,58 @@ def test_fully_expanded_family_sections_preserve_full_content(tmp_path: Path) ->
     assert "code reply line 1" in plain
 
 
+def test_family_omits_empty_xprompt_and_prompt_sections(tmp_path: Path) -> None:
+    root, _child = _family(tmp_path)
+    artifacts_dir = Path(root.artifacts_dir or "")
+    (artifacts_dir / "raw_xprompt.md").unlink()
+    (artifacts_dir / "01_prompt.md").unlink()
+    panel = FakePromptPanel()
+    header, error = build_header_text(
+        root,
+        cheap=True,
+        family_fold_level=FoldLevel.COLLAPSED,
+    )
+
+    panel._update_family_display(
+        root,
+        header,
+        error,
+        panel_level=FoldLevel.COLLAPSED,
+        section_fold_overrides={},
+    )
+    plain = plain_of(panel.captured[-1])
+
+    assert "AGENT XPROMPT" not in plain
+    assert "No xprompt file found." not in plain
+    assert "AGENT PROMPT" not in plain
+    assert "No prompt file found." not in plain
+    assert "▾ AGENT REPLY · 2\n" in plain
+
+
+def test_family_keeps_pending_reply_state(tmp_path: Path) -> None:
+    root, child = _family(tmp_path)
+    Path(root.response_path or "").unlink()
+    Path(child.response_path or "").unlink()
+    panel = FakePromptPanel()
+    header, error = build_header_text(
+        root,
+        cheap=True,
+        family_fold_level=FoldLevel.COLLAPSED,
+    )
+
+    panel._update_family_display(
+        root,
+        header,
+        error,
+        panel_level=FoldLevel.COLLAPSED,
+        section_fold_overrides={},
+    )
+    plain = plain_of(panel.captured[-1])
+
+    assert "▾ AGENT REPLY · 2\n" in plain
+    assert plain.count("No response content yet.") == 2
+
+
 def test_family_section_override_wins_over_collapsed_panel(
     tmp_path: Path,
 ) -> None:

@@ -459,19 +459,20 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
         if error_tb_syntax is not None and error_level != FoldLevel.COLLAPSED:
             renderables.append(error_tb_syntax)
 
-        xprompt_level = effective_family_fold_level(
-            FAMILY_XPROMPT_SECTION_ID,
-            level,
-            overrides,
-        )
+        rendered_content_section = False
         raw_xprompt = agent.get_raw_xprompt_content()
-        append_family_fold_heading(
-            header_text,
-            "AGENT XPROMPT",
-            section_id=FAMILY_XPROMPT_SECTION_ID,
-            level=xprompt_level,
-        )
         if raw_xprompt:
+            xprompt_level = effective_family_fold_level(
+                FAMILY_XPROMPT_SECTION_ID,
+                level,
+                overrides,
+            )
+            append_family_fold_heading(
+                header_text,
+                "AGENT XPROMPT",
+                section_id=FAMILY_XPROMPT_SECTION_ID,
+                level=xprompt_level,
+            )
             humanized_xprompt = self._display_raw_xprompt(agent, raw_xprompt)
             if xprompt_level == FoldLevel.EXPANDED:
                 header_text.append_text(bounded_content_preview(humanized_xprompt))
@@ -484,38 +485,38 @@ class AgentDisplayRenderMixin(AgentAttemptDisplayMixin):
                     )
                 )
                 header_text.append("\n")
-        else:
-            header_text.append("No xprompt file found.\n", style="dim italic")
+            rendered_content_section = True
 
-        header_text.append("\n")
-        header_text.append("\u2500" * 50 + "\n", style="dim")
-        header_text.append("\n")
-        prompt_level = effective_family_fold_level(
-            FAMILY_PROMPT_SECTION_ID,
-            level,
-            overrides,
-        )
-        append_family_fold_heading(
-            header_text,
-            "AGENT PROMPT",
-            section_id=FAMILY_PROMPT_SECTION_ID,
-            level=prompt_level,
-        )
         prompt_content = get_prompt_content(agent)
         if prompt_content:
+            if rendered_content_section:
+                header_text.append("\n")
+                header_text.append("\u2500" * 50 + "\n", style="dim")
+                header_text.append("\n")
+            prompt_level = effective_family_fold_level(
+                FAMILY_PROMPT_SECTION_ID,
+                level,
+                overrides,
+            )
+            append_family_fold_heading(
+                header_text,
+                "AGENT PROMPT",
+                section_id=FAMILY_PROMPT_SECTION_ID,
+                level=prompt_level,
+            )
             if prompt_level == FoldLevel.EXPANDED:
                 header_text.append_text(
                     bounded_content_preview(self._humanize_display_text(prompt_content))
                 )
             else:
                 renderables.append(self._render_markdown(prompt_content))
-        else:
-            header_text.append("No prompt file found.\n", style="dim italic")
+            rendered_content_section = True
 
         reply_header = Text()
-        reply_header.append("\n")
-        reply_header.append("\u2500" * 50 + "\n", style="dim")
-        reply_header.append("\n")
+        if rendered_content_section:
+            reply_header.append("\n")
+            reply_header.append("\u2500" * 50 + "\n", style="dim")
+            reply_header.append("\n")
         reply_level = effective_family_fold_level(
             FAMILY_REPLY_SECTION_ID,
             level,

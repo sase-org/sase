@@ -20,9 +20,9 @@ from ...models.fold_state import FoldLevel
 from ...models.fold_scale import (
     FAMILY_FOLD_SCALE,
     effective_fold_level,
-    fold_scale_position,
 )
 from ._agent_display_content import get_phase_label
+from ._fold_language import append_fold_glyph, fold_count_style
 from ._helpers import append_section_heading
 from ._member_roster import (
     MemberJumpMap,
@@ -39,19 +39,6 @@ FAMILY_REPLY_SECTION_ID = "agent-reply"
 
 _FAMILY_PREVIEW_LINE_LIMIT = 12
 _FAMILY_REPLY_TAIL_LINE_LIMIT = 4
-
-_FOLD_CHARS: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "▸",
-    FoldLevel.EXPANDED: "▾",
-    FoldLevel.FULLY_EXPANDED: "▼",
-    FoldLevel.EXHAUSTIVE: "◆",
-}
-_FOLD_STYLES: dict[FoldLevel, str] = {
-    FoldLevel.COLLAPSED: "#5F5F5F",
-    FoldLevel.EXPANDED: "#00D7AF",
-    FoldLevel.FULLY_EXPANDED: "bold #87FFD7",
-    FoldLevel.EXHAUSTIVE: "bold #FFFFFF",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,24 +77,11 @@ def append_family_fold_heading(
     """Append one family-section heading carrying its effective fold glyph."""
     level = effective_fold_level(level, FAMILY_FOLD_SCALE)
     heading = Text()
-    heading.append(f"{_FOLD_CHARS[level]} ", style=_FOLD_STYLES[level])
+    append_fold_glyph(heading, level)
     heading.append(title, style=style)
     if count is not None:
-        heading.append(f" · {count}", style="dim")
+        heading.append(f" · {count}", style=fold_count_style(title))
     append_section_heading(text, heading, section_id=section_id)
-
-
-def fold_number(level: FoldLevel) -> int:
-    """Return the one-based family-scale position for a shared fold level."""
-    position, _size = fold_scale_position(level, FAMILY_FOLD_SCALE)
-    return position
-
-
-def family_fold_indicator(level: FoldLevel) -> tuple[str, str]:
-    """Return the visible glyph and style for one family fold level."""
-    level = effective_fold_level(level, FAMILY_FOLD_SCALE)
-    return _FOLD_CHARS[level], _FOLD_STYLES[level]
-
 
 def _family_roster_entries(
     agent: Agent,
@@ -272,7 +246,5 @@ __all__ = [
     "bounded_content_preview",
     "effective_family_fold_level",
     "family_member_rows",
-    "family_fold_indicator",
-    "fold_number",
     "reply_tail_preview",
 ]

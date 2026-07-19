@@ -421,8 +421,8 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
 
     cold = cast(Text, panel.captured[-1]).plain
     for heading in ("REPLIES", "SASE CONTEXT", "SLOW TOOL CALLS", "PROMPTS"):
-        assert f"▸ {heading}" in cold
-    assert "▸ REPLIES ·" not in cold
+        assert heading not in cold
+    assert cold.count("⋯ scanning member data…") == 1
     assert panel.worker_runs == 1
     assert panel.worker_fn is not None
 
@@ -445,6 +445,7 @@ def test_collapsed_presence_discovery_enriches_and_reuses_member_artifacts(
     assert "▸ REPLIES · 1" in enriched
     assert "▸ PROMPTS · 2" in enriched
     assert "SLOW TOOL CALLS" not in enriched
+    assert "⋯ scanning member data…" not in enriched
     assert panel.worker_runs == 1
 
 

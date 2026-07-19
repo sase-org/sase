@@ -13,14 +13,13 @@ from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
+from ...models.fold_scale import FAMILY_FOLD_SCALE
 from ...models.fold_state import FoldLevel
 from ._agent_bead_section import ResponsiveBeadSection
 from ._agent_display_family import (
-    FAMILY_IDENTITY_COLOR,
     append_family_fold_heading,
     append_family_member_roster,
     effective_family_fold_level,
-    fold_number,
 )
 from ._agent_display_header_metadata import (
     _UNASSIGNED_AGENT_NAME_DISPLAY,
@@ -31,6 +30,7 @@ from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ._agent_output_variables import append_agent_output_variables_section
 from ._agent_plan_section import ResponsivePlanSection
+from ._fold_language import append_fold_header_line
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_major_section_divider,
@@ -107,10 +107,10 @@ def build_header_text(
     )
 
     if family_fold_enabled:
-        header_text.append("Fold: ", style="bold #87D7FF")
-        header_text.append(
-            f"{fold_number(resolved_family_fold_level)}/2\n",
-            style=f"dim {FAMILY_IDENTITY_COLOR}",
+        append_fold_header_line(
+            header_text,
+            level=resolved_family_fold_level,
+            scale=FAMILY_FOLD_SCALE,
         )
         append_family_member_roster(
             header_text,
