@@ -114,7 +114,7 @@ def commit_bare_git_sdd_init_paths(
     if not rel_paths:
         return
 
-    from sase.sdd._git_contention import store_git_write_lock
+    from sase.sdd._git_contention import run_sdd_git_write, store_git_write_lock
     from sase.sdd._repository_transaction import (
         SddRepositoryHealthError,
         require_sdd_repository_health,
@@ -127,7 +127,7 @@ def commit_bare_git_sdd_init_paths(
                 "write lock; no initialization files were staged"
             )
         require_sdd_repository_health(git_root)
-        run_sdd_git(
+        run_sdd_git_write(
             ["add", "--", *rel_paths],
             cwd=git_root,
             check=True,
@@ -154,7 +154,7 @@ def commit_bare_git_sdd_init_paths(
         )
 
         message = apply_auto_commit_tags_with_runtime("Initialize SDD", "init")
-        run_sdd_git(
+        run_sdd_git_write(
             [
                 "-c",
                 "user.email=sase@localhost",

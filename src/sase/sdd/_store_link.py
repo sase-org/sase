@@ -330,6 +330,7 @@ def _clone_sdd_store(
     try:
         clone_env = os.environ.copy()
         clone_env["GIT_TERMINAL_PROMPT"] = "0"
+        # Clone builds a fresh checkout with no existing index.lock to recover.
         result = run_sdd_git(
             ["clone", remote_url, str(workspace_sdd)],
             cwd=workspace_sdd.parent,
@@ -408,6 +409,7 @@ def _clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> boo
     )
 
     try:
+        # Clone builds a fresh checkout with no existing index.lock to recover.
         result = run_sdd_git(
             ["clone", str(primary_sdd), str(workspace_sdd)],
             cwd=workspace_sdd.parent,
@@ -461,11 +463,11 @@ def _fast_forward_workspace_clone_from_primary(
     from sase.sdd._commit import (
         SddGitCommandTimeout,
         network_git_timeout,
-        run_sdd_git,
     )
+    from sase.sdd._git_contention import run_sdd_git_write
 
     try:
-        result = run_sdd_git(
+        result = run_sdd_git_write(
             ["pull", "--ff-only", str(primary_sdd)],
             cwd=workspace_sdd,
             op="sdd.clone.fast_forward",

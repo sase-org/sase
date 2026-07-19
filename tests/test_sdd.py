@@ -117,6 +117,29 @@ def test_ensure_bare_git_sdd_initialized_commits_only_generated_paths(
     assert "notes.txt" not in remote_tree
 
 
+@pytest.mark.skipif(not _GIT_AVAILABLE, reason="git not available")
+def test_bare_git_sdd_init_recovers_planted_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _git(tmp_path, "init", "-q", "-b", "main")
+    generated = tmp_path / "sdd" / "README.md"
+    generated.parent.mkdir()
+    generated.write_text("guide\n", encoding="utf-8")
+    lock_path = tmp_path / ".git" / "index.lock"
+    lock_path.touch()
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
+    monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+
+    commit_bare_git_sdd_init_paths(tmp_path, [generated], push=False)
+
+    assert not lock_path.exists()
+    assert _git(tmp_path, "show", "--format=", "--name-only", "HEAD").stdout == (
+        "sdd/README.md\n"
+    )
+    assert _git(tmp_path, "status", "--porcelain").stdout == ""
+
+
 def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

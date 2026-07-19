@@ -389,6 +389,7 @@ def _sidecar_provider_options(
 
 def _push_sidecar(root: Path) -> None:
     try:
+        # Push does not update the local index, so index.lock recovery is irrelevant.
         run_sdd_git(
             ["push", "origin", "HEAD"],
             cwd=root,

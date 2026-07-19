@@ -400,15 +400,29 @@ def _run_git(
     op: str,
     network: bool,
 ) -> subprocess.CompletedProcess[str]:
-    # Keep sidecar mutations on the central SDD Git runner; its write path is
-    # the high-traffic funnel that applies the shared lock retry policy.
+    # Clone creates a fresh checkout, so it cannot encounter an existing
+    # checkout's index.lock and stays on the bounded low-level runner.
     from sase.sdd._commit import network_git_timeout, run_sdd_git
 
-    return run_sdd_git(
+    timeout = network_git_timeout() if network else None
+    if args[:1] == ["clone"]:
+        return run_sdd_git(
+            args,
+            cwd=cwd,
+            op=op,
+            timeout=timeout,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    from sase.sdd._git_contention import run_sdd_git_write
+
+    return run_sdd_git_write(
         args,
         cwd=cwd,
         op=op,
-        timeout=network_git_timeout() if network else None,
+        timeout=timeout,
         check=False,
         capture_output=True,
         text=True,

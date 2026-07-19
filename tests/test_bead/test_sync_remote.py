@@ -276,7 +276,7 @@ def test_push_bead_work_launch_returns_error_on_failure(tmp_path):
     assert "git fetch failed" in outcome.error
 
 
-def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path):
+def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path, monkeypatch):
     from sase.bead.model import IssueType
     from sase.bead.project import BeadProject
 
@@ -341,6 +341,11 @@ def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path):
     )
     subprocess.run(["git", "push"], cwd=right, check=True, capture_output=True)
 
+    lock_path = left / ".git" / "index.lock"
+    lock_path.touch()
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
+    monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+
     log_path = tmp_path / "managed-sync.log"
     outcome = run_managed_sync_worker(
         left,
@@ -350,6 +355,7 @@ def test_managed_sync_worker_converges_sidecar_store_mutations(tmp_path):
 
     assert outcome.pushed is True
     assert outcome.integrated is True
+    assert not lock_path.exists()
     assert not (left / ".git/rebase-merge").exists()
     assert not (left / ".git/rebase-apply").exists()
     assert (

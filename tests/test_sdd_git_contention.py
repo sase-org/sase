@@ -5,10 +5,32 @@ from pathlib import Path
 import subprocess
 import time
 
+import pytest
+
+from sase.git_lock_retry import (
+    DEFAULT_GIT_LOCK_RETRY_DELAYS,
+    ENV_GIT_LOCK_RETRY_DELAYS as ENV_SHARED_GIT_LOCK_RETRY_DELAYS,
+)
 from sase.sdd._git_contention import (
+    ENV_GIT_LOCK_RETRY_DELAYS as ENV_SDD_GIT_LOCK_RETRY_DELAYS,
     STORE_WRITE_LOCK_FILENAME,
+    _git_lock_retry_delays,
     store_git_write_lock,
 )
+
+
+def test_sdd_retry_delays_use_global_default_with_legacy_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(ENV_SHARED_GIT_LOCK_RETRY_DELAYS, raising=False)
+    monkeypatch.delenv(ENV_SDD_GIT_LOCK_RETRY_DELAYS, raising=False)
+    assert _git_lock_retry_delays() == DEFAULT_GIT_LOCK_RETRY_DELAYS
+
+    monkeypatch.setenv(ENV_SHARED_GIT_LOCK_RETRY_DELAYS, "0.001, 0.002")
+    assert _git_lock_retry_delays() == (0.001, 0.002)
+
+    monkeypatch.setenv(ENV_SDD_GIT_LOCK_RETRY_DELAYS, "0.003, 0.004")
+    assert _git_lock_retry_delays() == (0.003, 0.004)
 
 
 def test_store_git_write_lock_has_bounded_fail_open_timeout(tmp_path: Path) -> None:

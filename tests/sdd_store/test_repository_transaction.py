@@ -152,6 +152,42 @@ def test_successful_integration_updates_shared_freshness_marker(
     assert integration_is_fresh(clone_dir) is True
 
 
+def test_rebase_recovers_planted_index_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = tmp_path / "plans.git"
+    seed = tmp_path / "seed"
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("seed\n", encoding="utf-8")
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, left)
+    clone(remote, right)
+    (left / "local.md").write_text("local\n", encoding="utf-8")
+    commit_all(left, "local change")
+    (right / "remote.md").write_text("remote\n", encoding="utf-8")
+    commit_all(right, "remote change")
+    git(["push"], right)
+
+    lock_path = left / ".git" / "index.lock"
+    lock_path.touch()
+    monkeypatch.setenv("SASE_GIT_LOCK_RETRY_DELAYS", "0.001")
+    monkeypatch.delenv("SASE_SDD_GIT_LOCK_RETRY_DELAYS", raising=False)
+
+    outcome = integrate_sdd_repository(left)
+
+    assert outcome.succeeded is True
+    assert outcome.integrated is True
+    assert not lock_path.exists()
+    assert (left / "local.md").read_text(encoding="utf-8") == "local\n"
+    assert (left / "remote.md").read_text(encoding="utf-8") == "remote\n"
+    require_sdd_repository_health(left)
+
+
 def test_strict_clone_refuses_preexisting_rebase_without_modifying_it(
     tmp_path: Path,
 ) -> None:

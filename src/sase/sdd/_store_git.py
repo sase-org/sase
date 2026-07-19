@@ -17,7 +17,8 @@ def set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
     if current is not None and current.strip() == remote_url.strip():
         return
 
-    from sase.sdd._commit import SddGitCommandTimeout, run_sdd_git
+    from sase.sdd._commit import SddGitCommandTimeout
+    from sase.sdd._git_contention import run_sdd_git_write
 
     command = (
         ["remote", "set-url", "origin", remote_url]
@@ -25,7 +26,7 @@ def set_sdd_origin(workspace_sdd: Path, remote_url: str) -> None:
         else ["remote", "add", "origin", remote_url]
     )
     try:
-        result = run_sdd_git(
+        result = run_sdd_git_write(
             command,
             cwd=workspace_sdd,
             op="sdd.clone.origin",

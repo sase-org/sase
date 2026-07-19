@@ -140,11 +140,11 @@ def _git(
     from sase.sdd._git import (
         SddGitCommandTimeout,
         network_git_timeout,
-        run_sdd_git,
     )
+    from sase.sdd._git_contention import run_sdd_git_write
 
     try:
-        return run_sdd_git(
+        return run_sdd_git_write(
             args,
             cwd=repo_root,
             op=op,
@@ -163,6 +163,7 @@ def _git(
 
 
 def _git_dir(repo_root: Path) -> Path:
+    # This read-only probe cannot contend on the repository index.
     result = subprocess.run(
         ["git", "rev-parse", "--git-dir"],
         cwd=repo_root,

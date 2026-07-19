@@ -12,7 +12,7 @@ from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS,
     ENV_GIT_LOCK_RETRY_DELAYS,
     git_index_lock_path,
-    _git_lock_retry_delays,
+    git_lock_retry_delays,
     _is_retryable_git_lock_error,
     run_with_git_lock_retry,
 )
@@ -50,7 +50,8 @@ def _success() -> subprocess.CompletedProcess[str]:
         (128, "fatal: Unable to create '/repo/.git/index.lock'", True),
         (128, b"fatal: unable to create refs/heads/main.lock", True),
         (128, "fatal: index.lock already exists", True),
-        (1, "fatal: Unable to create '/repo/.git/index.lock'", False),
+        (1, "fatal: Unable to create '/repo/.git/index.lock'", True),
+        (1, "fatal: index.lock was mentioned only as context", False),
         (128, "fatal: another git process seems to be running", False),
         (0, None, False),
     ],

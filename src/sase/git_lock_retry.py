@@ -49,12 +49,15 @@ def _is_retryable_git_lock_error(
     output: str | bytes | None,
 ) -> bool:
     """Return whether git failed because another process holds a lock file."""
-    if returncode != 128:
+    # Composite commands such as ``git rebase`` translate a child command's
+    # lock failure to exit 1; direct index writers normally retain exit 128.
+    if returncode not in {1, 128}:
         return False
     detail = _stream_text(output).lower()
-    return "index.lock" in detail or (
-        "unable to create" in detail and ".lock" in detail
-    )
+    explicit_lock_failure = "unable to create" in detail and ".lock" in detail
+    if returncode == 1:
+        return explicit_lock_failure
+    return "index.lock" in detail or explicit_lock_failure
 
 
 def _git_lock_retry_delays() -> tuple[float, ...]:
@@ -309,5 +312,6 @@ __all__ = [
     "GitLockResultAdapter",
     "STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS",
     "git_index_lock_path",
+    "git_lock_retry_delays",
     "run_with_git_lock_retry",
 ]

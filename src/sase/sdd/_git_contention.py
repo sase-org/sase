@@ -12,6 +12,7 @@ from typing import Any
 
 from sase.git_lock_retry import (
     DEFAULT_GIT_LOCK_RETRY_DELAYS as SHARED_GIT_LOCK_RETRY_DELAYS,
+    git_lock_retry_delays,
     run_with_git_lock_retry,
 )
 from sase.sdd._git import run_sdd_git
@@ -133,7 +134,7 @@ def _checked_result(
 def _git_lock_retry_delays() -> tuple[float, ...]:
     raw = os.environ.get(ENV_GIT_LOCK_RETRY_DELAYS)
     if raw is None:
-        return DEFAULT_GIT_LOCK_RETRY_DELAYS
+        return git_lock_retry_delays()
     try:
         delays = tuple(float(value.strip()) for value in raw.split(","))
     except ValueError:

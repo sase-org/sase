@@ -14,7 +14,6 @@ from typing import Any
 from sase.sdd._git import (
     SddGitCommandTimeout,
     network_git_timeout,
-    run_sdd_git,
 )
 
 
@@ -608,8 +607,10 @@ def _default_git_runner(
     op: str,
     network: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    from sase.sdd._git_contention import run_sdd_git_write
+
     try:
-        return run_sdd_git(
+        return run_sdd_git_write(
             args,
             cwd=repo_root,
             op=op,
